@@ -94,11 +94,12 @@
             <div class="name-section">
               <h1 class="display-name" :style="{ color: userColor }">
                 <template v-if="isBridgedDiscord">{{ displayName }}</template>
-                <DisplayName v-else :userId="user!.id" :fallback="displayName" :color="userColor" />
+                <DisplayName v-else :userId="user!.id" :server-id="memberServerId" :fallback="displayName" :color="userColor" />
                 <span v-if="getUserVerified(user)" class="verified-badge">
                   <Icon name="check-circle" class="verified-icon" />
                 </span>
               </h1>
+              <p v-if="identity.nickname.value" class="account-name" data-testid="profile-modal-account-name">{{ displayName }}</p>
               <p class="username">
                 <span data-testid="profile-modal-handle">{{ displayHandle }}</span>
                 <CopyHandleButton :account="handleAccount" />
@@ -112,6 +113,7 @@
                   data-testid="profile-modal-locked-badge"
                 ><Icon name="lock" :size="12" /></span>
               </p>
+              <p v-if="identity.pronouns.value && !isBridgedDiscord" class="pronouns" data-testid="profile-modal-pronouns">{{ identity.pronouns.value }}</p>
             </div>
             
             <div
@@ -492,6 +494,7 @@ import { isMassMentionWord } from '@/utils/massMentions'
 import { formatHandle } from '@/utils/handles'
 import { profileUrl } from '@/utils/permalinks'
 import CopyHandleButton from './common/CopyHandleButton.vue'
+import { useCardServerIdentity } from '@/composables/useCardServerIdentity'
 import { copyableHandle, useCopyHandle, type CopyHandleAccount } from '@/composables/useCopyHandle'
 import { activityPubService } from '@/services/activityPubService'
 import { profileCount, remoteCountFields, type ProfileCountSource } from '@/utils/profileCounts'
@@ -502,10 +505,14 @@ const toast = useToast()
 interface Props {
   show: boolean
   user: User | FederatedUser | null
+  /** Show this server's nickname, avatar, banner, bio and pronouns. Omit for the account profile. */
+  serverId?: string | null
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits(['close', 'invite', 'follow', 'unfollow', 'mention'])
+const memberServerId = computed(() => (props.user && 'bridge_source' in props.user && props.user.bridge_source ? null : props.serverId ?? null))
+const identity = useCardServerIdentity(() => props.user ?? {}, memberServerId)
 const { movedTo, isMoved } = useMovedAccount(() => (props.show ? props.user as any : null))
 
 const router = useRouter()
@@ -819,7 +826,7 @@ const copyHandleFromMenu = async () => {
 const displayAbout = computed(() => {
   if (!props.user) return null
   
-  return getUserBio(props.user)
+  return identity.serverFields.value?.bio?.trim() || getUserBio(props.user)
 })
 
 const socialStats = computed(() => {
@@ -947,7 +954,8 @@ const avatarUrl = computed(() => {
   if (isBridgedDiscord.value) {
     return props.user.avatar_url || '/default_avatar.webp'
   }
-  return getUserAvatarUrl(props.user.id).value || props.user.avatar_url || '/default_avatar.webp'
+  return identity.serverFields.value?.avatar_url?.trim()
+    || getUserAvatarUrl(props.user.id).value || props.user.avatar_url || '/default_avatar.webp'
 })
 
 const userColor = computed(() => {
@@ -963,7 +971,8 @@ const bannerUrl = computed(() => {
   if (isBridgedDiscord.value) {
     return props.user.banner_url || null
   }
-  return getUserBannerUrl(props.user.id).value || (props.user as any).banner_url || null
+  return identity.serverFields.value?.banner_url?.trim()
+    || getUserBannerUrl(props.user.id).value || (props.user as any).banner_url || null
 })
 
 // Banner box in CSS px: BaseModal is at most 540 wide, the banner 120 tall.
@@ -2026,6 +2035,13 @@ onMounted(() => {
 
 .moved-notice {
   margin-bottom: 16px;
+}
+
+.account-name,
+.pronouns {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 
 .bio-section {

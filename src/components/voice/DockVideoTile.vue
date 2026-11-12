@@ -36,7 +36,7 @@
     <div class="dock-tile-label">
       <Icon :name="source === 'screen' ? 'screen-share' : 'video'" :size="12" class="dock-tile-label-icon" />
       <span class="dock-tile-name">
-        <DisplayName :user-id="userState.userId" :fallback="fallbackName" :truncate="true" />
+        <DisplayName :user-id="userState.userId" :server-id="profileServerId" :fallback="fallbackName" :truncate="true" />
       </span>
     </div>
   </div>
@@ -47,7 +47,8 @@ import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
-import { useUserData } from '@/composables/useUserData';
+import { getMemberAvatarUrl, getMemberDisplayName } from '@/composables/useMemberProfile';
+import { useVoiceProfileServerId } from '@/composables/useVoiceProfileServerId';
 import { debug } from '@/utils/debug';
 import { videoAspect } from './dockVideoLayout';
 import Icon from '@/components/common/Icon.vue';
@@ -70,12 +71,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const voiceStore = useUnifiedVoiceChannelStore();
-const { getUserAvatarUrl, getUserDisplayName } = useUserData();
+const profileServerId = useVoiceProfileServerId();
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 
-const avatarUrl = computed(() => getUserAvatarUrl(props.userState.userId).value || '/default_avatar.webp');
-const fallbackName = computed(() => getUserDisplayName(props.userState.userId).value || 'User');
+const avatarUrl = computed(() => getMemberAvatarUrl(props.userState.userId, profileServerId.value).value || '/default_avatar.webp');
+const fallbackName = computed(() => getMemberDisplayName(props.userState.userId, profileServerId.value).value || 'User');
 const tileLabel = computed(() =>
   `${fallbackName.value}, ${props.source === 'screen' ? t('voice.live') : t('voice.camera')}`
 );

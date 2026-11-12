@@ -478,6 +478,7 @@
       :channel-id="mobileVoicePreviewChannel?.id || ''"
       :channel-name="mobileVoicePreviewChannel?.name || ''"
       :participants="getMobileVoicePreviewParticipants"
+      :server-id="serverChannelStore.currentServerId"
       @close="closeMobileVoicePreview"
       @join="handleMobileVoiceJoin"
       @open-chat="handleMobileVoiceOpenChat"

@@ -8,7 +8,7 @@
     <div class="profile-avatar-section">
       <div class="avatar-wrapper">
         <Avatar
-          :src="user.avatar_url"
+          :src="identity.avatarUrl.value"
           alt=""
           :size="isCompact ? 'md' : 'lg'"
           :status="chatUserStatus"
@@ -26,15 +26,17 @@
         <!-- Keyboard and screen-reader way in; the card is the pointer target. -->
         <h3 class="user-name" :style="{ color: user.color || undefined }">
           <button v-if="isInteractive" type="button" class="card-name-btn" @click.stop="handleClick">
-            <DisplayName v-if="user.id" :user-id="user.id" :fallback="displayName" :color="user.color || undefined" />
+            <DisplayName v-if="user.id" :user-id="draftName ? undefined : user.id" :server-id="serverId" :fallback="draftName || displayName" :color="user.color || undefined" />
             <template v-else>{{ displayName }}</template>
           </button>
           <template v-else>
-            <DisplayName v-if="user.id" :user-id="user.id" :fallback="displayName" :color="user.color || undefined" />
+            <DisplayName v-if="user.id" :user-id="draftName ? undefined : user.id" :server-id="serverId" :fallback="draftName || displayName" :color="user.color || undefined" />
             <template v-else>{{ displayName }}</template>
           </template>
         </h3>
+        <p v-if="identity.nickname.value" class="user-account-name" data-testid="card-account-name">{{ displayName }}</p>
         <p class="user-handle">{{ displayHandle }}</p>
+        <p v-if="identity.pronouns.value" class="user-pronouns" data-testid="card-pronouns">{{ identity.pronouns.value }}</p>
         <RemoteInstanceBadge
           v-if="showRemoteInstanceBadge && instanceBadgeVariant === 'inline'"
           :domain="user.domain!"
@@ -85,6 +87,10 @@
           <div class="stat-item">
             <span class="stat-value">{{ formatJoinDate(user.created_at) }}</span>
             <span class="stat-label">Joined</span>
+          </div>
+          <div v-if="discordJoinedAt" class="stat-item" data-testid="discord-joined">
+            <span class="stat-value">{{ formatJoinDate(discordJoinedAt) }}</span>
+            <span class="stat-label">{{ t('discordMigration.joinedOnDiscord') }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ user.message_count || 0 }}</span>
@@ -173,7 +179,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -185,6 +191,9 @@ import DisplayName from '@/components/DisplayName.vue'
 import Icon from './Icon.vue'
 import SupporterBadge from './SupporterBadge.vue'
 import RemoteInstanceBadge from './RemoteInstanceBadge.vue'
+import { useCardServerIdentity } from '@/composables/useCardServerIdentity'
+import { memberJoinedAt } from '@/services/discordMigrationService'
+import type { MemberServerFields } from '@/services/userDataService'
 import type { User, FederatedUser } from '@/types'
 
 const { t } = useI18n()
@@ -201,6 +210,10 @@ interface Props {
   showRoles?: boolean
   hasStats?: boolean
   maxBioLength?: number
+  /** Show this server's nickname, avatar, bio and pronouns. Omit for the account profile. */
+  serverId?: string | null
+  /** Server profile values shown instead of the stored ones (unsaved edits in the settings tab). */
+  serverProfile?: Partial<MemberServerFields> | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -227,6 +240,25 @@ const emit = defineEmits<{
   block: [userId: string]
   unblock: [userId: string]
 }>()
+
+// "Joined on Discord": fetched lazily per server and member (cached in the service), only in a
+// server context for a local profile.
+const discordJoinedAt = ref<string | null>(null)
+watch(
+  () => [props.serverId, props.user?.id, (props.user as { is_local?: boolean } | undefined)?.is_local] as const,
+  async ([serverId, userId, isLocal]) => {
+    discordJoinedAt.value = null
+    if (!serverId || !userId || isLocal === false) return
+    const joined = await memberJoinedAt(serverId, userId).catch(() => null)
+    if (props.serverId === serverId && props.user?.id === userId) discordJoinedAt.value = joined
+  },
+  { immediate: true },
+)
+
+const identity = useCardServerIdentity(() => props.user, () => props.serverId, () => props.serverProfile)
+// Unsaved edits are not in the cache DisplayName reads: with an override the name shows as plain
+// text, the draft nickname or, once cleared, the account name, as saving would produce.
+const draftName = computed(() => (props.serverProfile ? (identity.nickname.value || displayName.value) : null))
 
 // Stores
 const router = useRouter()
@@ -266,12 +298,7 @@ const displayHandle = computed(() => {
   return `@${props.user.username || 'unknown'}`
 })
 
-const displayBio = computed(() => {
-  if (isFederatedUser(props.user)) {
-    return props.user.bio || props.user.bio
-  }
-  return props.user.bio
-})
+const displayBio = computed(() => identity.bio.value ?? undefined)
 
 const truncatedBio = computed(() => {
   if (!displayBio.value) return ''
@@ -616,6 +643,18 @@ const vClickOutside = {
 }
 
 .compact .user-handle {
+  font-size: var(--font-size-xs);
+}
+
+.user-account-name,
+.user-pronouns {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.compact .user-account-name,
+.compact .user-pronouns {
   font-size: var(--font-size-xs);
 }
 

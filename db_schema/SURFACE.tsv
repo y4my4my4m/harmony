@@ -6,6 +6,8 @@
 # not unreachable.
 #
 # name	args	returns	security	search_path	grants	reached_by
+_ban_server_member_internal	p_server_id uuid, p_user_id uuid, p_reason text, p_actor uuid, p_delete_message_seconds integer	jsonb	definer	public, extensions, pg_temp		unreferenced
+_kick_server_member_internal	p_server_id uuid, p_user_id uuid, p_reason text, p_actor uuid, p_delete_message_seconds integer	jsonb	definer	public, extensions, pg_temp		unreferenced
 accept_pending_follows_on_unlock		trigger	definer	public, pg_temp	service_role	trigger
 accept_server_rules	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 account_move_refusal	p_origin_id uuid, p_target_id uuid	text	invoker	pg_catalog, public, pg_temp	service_role	unreferenced
@@ -138,7 +140,20 @@ bot_is_integration	p_bot_id uuid	boolean	definer	public, pg_temp	authenticated+s
 bot_permission_mask	p_names jsonb	bigint	invoker	public, pg_temp		unreferenced
 bot_permission_names	p_mask bigint	jsonb	invoker	public, pg_temp		unreferenced
 bot_rate_limit_take	p_bot_id uuid, p_bucket text, p_limit integer, p_window_seconds integer	integer	definer	public, pg_temp	service_role	client
+bridge_import_guard	p_bot_id uuid, p_import_id uuid	discord_bridge_imports	definer	public, pg_temp	service_role	unreferenced
+bridge_import_link_replies	p_bot_id uuid, p_import_id uuid	integer	definer	public, pg_temp	service_role	client
+bridge_import_link_replies_core	p_channel_id uuid, p_ids uuid[]	integer	definer	public, pg_temp		unreferenced
+bridge_import_messages	p_bot_id uuid, p_import_id uuid, p_messages jsonb	jsonb	definer	public, pg_temp	service_role	client
+bridge_import_present_ids	p_bot_id uuid, p_import_id uuid, p_ids text[]	text[]	definer	public, pg_temp	service_role	client
 bridge_import_server_emoji	p_bot_id uuid, p_server_id uuid, p_discord_emoji_id text, p_name text, p_url text	TABLE(status text, id uuid, name text, url text, discord_emoji_id text)	definer	public, pg_temp	service_role	client
+bridge_import_thread	p_bot_id uuid, p_import_id uuid, p_thread jsonb	uuid	definer	public, pg_temp	service_role	client
+bridge_mirror_backfill	p_limit integer	integer	definer	public, pg_temp	service_role	client
+bridge_mirror_claim	p_lease_seconds integer	TABLE(message_id uuid, bot_id uuid, channel_id uuid, attempts integer)	definer	public, pg_temp	service_role	client
+bridge_mirror_enqueue	p_message_ids uuid[]	integer	definer	public, pg_temp	service_role	client
+bridge_mirror_finish	p_message_id uuid, p_state text, p_attempts integer, p_retry_seconds integer, p_largest_bytes bigint, p_error text	void	definer	public, pg_temp	service_role	client
+bridge_mirror_observe	p_mode text, p_ceiling bigint	jsonb	definer	public, pg_temp	service_role	client
+bridge_mirror_restart_walk		void	definer	public, pg_temp	service_role	client
+bridge_mirror_status		jsonb	definer	public, pg_temp	authenticated+service_role	client
 broadcast_bot_installation_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_bot_presence_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_category_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -184,7 +199,7 @@ can_current_user_manage_messages_in_channel	p_channel_id uuid	boolean	definer	pu
 can_current_user_moderate_report	p_report reports	boolean	definer	public, pg_temp	service_role	unreferenced
 can_current_user_moderate_server_reports	p_server_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	unreferenced
 can_manage_channel_webhooks	p_channel_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
-can_manage_discord_bridge	p_server_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	policy
+can_manage_discord_bridge	p_server_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
 can_manage_emoji	p_emoji emojis	boolean	definer	public, pg_temp	service_role	unreferenced
 can_manage_group_icon	conversation_uuid uuid, user_profile_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
 can_manage_outgoing_webhooks	p_bot_id uuid, p_server_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
@@ -324,6 +339,11 @@ discord_bridge_guild_channels	p_snapshot jsonb, p_guild_id text	SETOF jsonb	invo
 discord_bridge_hosted_list		TABLE(bridge_id uuid, harmony_token text, discord_token text)	definer	public, pg_temp	service_role	client
 discord_bridge_hosting_enabled		boolean	definer	public, pg_temp		client
 discord_bridge_hosting_limit		integer	definer	public, pg_temp		client
+discord_bridge_import_cancel	p_bridge_id uuid, p_import_id uuid	SETOF discord_bridge_imports	definer	public, pg_temp	authenticated	client
+discord_bridge_import_cancel_internal	p_bridge_id uuid, p_import_id uuid	SETOF discord_bridge_imports	definer	public, pg_temp	service_role	client
+discord_bridge_import_start	p_bridge_id uuid, p_harmony_channel_ids uuid[]	SETOF discord_bridge_imports	definer	public, pg_temp	authenticated	client
+discord_bridge_import_start_internal	p_bridge_id uuid, p_discord_channel_ids text[], p_via text, p_requested_by uuid	SETOF discord_bridge_imports	definer	public, pg_temp	service_role	client
+discord_bridge_import_update	p_bridge_id uuid, p_import_id uuid, p_patch jsonb	discord_bridge_imports	definer	public, pg_temp	service_role	client
 discord_bridge_instance_bot_clear		void	definer	public, pg_temp	authenticated	client
 discord_bridge_instance_bot_configured		boolean	definer	public, pg_temp		unreferenced
 discord_bridge_instance_bot_enabled		boolean	definer	public, pg_temp		client
@@ -353,6 +373,48 @@ discord_bridge_unpair	p_bridge_id uuid, p_harmony_channel_id uuid	boolean	define
 discord_bridge_update_settings	p_bridge_id uuid, p_settings jsonb	jsonb	definer	public, pg_temp	authenticated	client
 discord_bridges_retire_bot		trigger	definer	public, pg_temp		trigger
 discord_bridges_touch		trigger	invoker	public, pg_temp		trigger
+discord_migration_admin_bearing	p_server_id uuid, p_discord_role_id text, p_harmony_role_id uuid	boolean	definer	public, extensions, pg_temp		unreferenced
+discord_migration_admin_impact	p_server_id uuid, p_discord_role_id text	jsonb	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_allow_back	p_server_id uuid, p_user_id uuid	void	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_apply_member_overrides	p_server_id uuid, p_user_id uuid	jsonb	definer	public, extensions, pg_temp		unreferenced
+discord_migration_apply_permissions	p_server_id uuid, p_discord_role_ids text[], p_confirm_admin boolean	jsonb	invoker	public, extensions, pg_temp	authenticated	client
+discord_migration_apply_removals	p_server_id uuid, p_candidates jsonb	jsonb	definer	public, extensions, pg_temp	service_role	client
+discord_migration_apply_roles	p_server_id uuid, p_user_id uuid, p_discord_role_ids text[]	jsonb	definer	public, extensions, pg_temp	service_role	unreferenced
+discord_migration_assert_manager	p_server_id uuid	uuid	definer	public, extensions, pg_temp		unreferenced
+discord_migration_auto_match	p_server_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_bind_claim	p_ticket text, p_auth_user_id uuid	void	definer	public, extensions, pg_temp	service_role	client
+discord_migration_claim	p_ticket text	jsonb	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_create_claim	p_server_id uuid, p_discord_user jsonb, p_discord_role_ids text[], p_discord_joined_at timestamp with time zone	jsonb	definer	public, extensions, pg_temp	service_role	client
+discord_migration_credentials	p_server_id uuid	jsonb	definer	public, extensions, pg_temp	service_role	client
+discord_migration_due	p_limit integer, p_interval interval	SETOF jsonb	definer	public, extensions, pg_temp	service_role	client
+discord_migration_get	p_server_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_links_batch	p_server_id uuid, p_limit integer	SETOF jsonb	definer	public, extensions, pg_temp	service_role	client
+discord_migration_member_joined_at	p_server_id uuid, p_user_id uuid	timestamp with time zone	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_members	p_server_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_my_link	p_server_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_my_pending_claims		jsonb	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_note_kick		trigger	definer	public, extensions, pg_temp		trigger
+discord_migration_override_deleted		trigger	definer	public, pg_temp		trigger
+discord_migration_pause	p_server_id uuid, p_reason text	void	definer	public, extensions, pg_temp	service_role	client
+discord_migration_permission_gaps	p_server_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated	unreferenced
+discord_migration_preview	p_token text	jsonb	definer	public, extensions, pg_temp	anon+authenticated	client
+discord_migration_readiness	p_server_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated	unreferenced
+discord_migration_record_sync	p_server_id uuid, p_result jsonb, p_cursor timestamp with time zone, p_started_at timestamp with time zone, p_complete boolean	void	definer	public, extensions, pg_temp	service_role	client
+discord_migration_regenerate_token	p_server_id uuid	text	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_release_member_overrides	p_server_id uuid, p_user_id uuid, p_keep uuid[]	integer	definer	public, extensions, pg_temp		unreferenced
+discord_migration_release_on_link		trigger	definer	public, pg_temp		trigger
+discord_migration_release_on_membership		trigger	definer	public, pg_temp		trigger
+discord_migration_request_sync	p_server_id uuid	void	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_save	p_server_id uuid, p_discord_guild_id text, p_credential_source text	jsonb	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_save_role_map	p_server_id uuid, p_map jsonb, p_confirm_admin boolean	jsonb	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_secrets_purge		trigger	definer	public, extensions, pg_temp		trigger
+discord_migration_set_my_sync	p_server_id uuid, p_fields text[]	void	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_set_own_credentials	p_server_id uuid, p_client_id text, p_client_secret text, p_bot_token text	void	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_set_state	p_server_id uuid, p_state text	jsonb	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_store_discord_roles	p_server_id uuid, p_roles jsonb	void	definer	public, extensions, pg_temp	service_role	client
+discord_migration_store_member_overrides	p_server_id uuid, p_overrides jsonb	void	definer	public, extensions, pg_temp	service_role	client
+discord_migration_store_warnings	p_server_id uuid, p_warnings jsonb	void	definer	public, extensions, pg_temp	service_role	client
+discord_migration_sync_member	p_server_id uuid, p_user_id uuid, p_member jsonb	jsonb	definer	public, extensions, pg_temp	service_role	client
 dismiss_server_automod_prompt	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 dm_policy_allows	p_recipient uuid, p_relation text	boolean	definer	public, pg_temp	service_role	unreferenced
 dm_recipients_allowing	p_sender uuid, p_recipients uuid[]	uuid[]	definer	public, pg_temp	service_role	client
@@ -622,6 +684,7 @@ guard_thread_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_user_device_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_user_role_hierarchy		trigger	invoker	public, pg_temp	service_role	trigger
 guard_user_server_client_write		trigger	invoker	public, pg_temp	service_role	trigger
+guard_user_server_profile_columns		trigger	invoker	public, pg_temp	service_role	trigger
 guard_user_server_welcome_columns		trigger	invoker	public, pg_temp	service_role	trigger
 handle_channel_message_notifications		trigger	definer	public, pg_temp	service_role	trigger
 handle_conversation_participant_added		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -683,6 +746,7 @@ is_current_user_moderator		boolean	definer	public, pg_temp	anon+authenticated+se
 is_encrypted_channel_content	p_content jsonb, p_metadata jsonb	boolean	invoker	public, extensions, pg_temp	authenticated+service_role	unreferenced
 is_federation_enabled_for_user	user_id uuid	boolean	invoker	public, pg_temp	anon+authenticated+service_role	client
 is_heart_reaction	p_content text	boolean	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
+is_history_import		boolean	invoker	public, pg_temp	service_role	unreferenced
 is_muted_by	target_user_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
 is_plaintext_mention_part	p_part jsonb	boolean	invoker	public, extensions, pg_temp	authenticated+service_role	unreferenced
 is_room_member	p_room_id text, p_user_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
@@ -735,6 +799,7 @@ message_upload_paths	p_content jsonb, p_media_paths text[]	text[]	invoker	public
 mfa_enabled_for	p_auth_user_id uuid	boolean	definer	pg_catalog, public, pg_temp	service_role	unreferenced
 migrate_account_followers	p_migration_id uuid, p_limit integer	integer	definer	pg_catalog, public, pg_temp	service_role	client
 moderate_report	p_report_id uuid, p_action text, p_note text, p_reason text, p_show_resolver boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
+moderate_server_profile	p_server_id uuid, p_user_id uuid, p_nickname text, p_set_nickname boolean, p_reset_profile boolean	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
 moderate_user	p_admin_id uuid, p_target_user_id uuid, p_action text, p_reason text	boolean	definer	public, pg_temp	authenticated+service_role	client
 move_voice_member	p_server_id uuid, p_user_id uuid, p_channel_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 my_voice_state	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
@@ -768,7 +833,7 @@ outgoing_webhook_probes		SETOF uuid	definer	public, pg_temp	service_role	client
 outgoing_webhook_routes		TABLE(bot_id uuid, server_id uuid, events text[])	definer	public, pg_temp	service_role	client
 outgoing_webhook_valid_url	p_url text	boolean	invoker	public, pg_temp	service_role	unreferenced
 outgoing_webhooks_purge_secret		trigger	definer	public, pg_temp	service_role	trigger
-permission_bit_names		text[]	invoker	public, pg_temp	authenticated+service_role	unreferenced
+permission_bit_names		text[]	invoker	public, pg_temp	authenticated+service_role	client
 personal_emoji_limit		integer	invoker	public, pg_temp	authenticated+service_role	client
 pin_membership_join_time		trigger	invoker	public, pg_temp	service_role	trigger
 pin_message	p_message_id uuid, p_user_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
@@ -888,6 +953,7 @@ sanitize_channel_text		trigger	invoker	public, extensions, pg_temp	anon+authenti
 sanitize_entity_name		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 sanitize_member_nickname		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 sanitize_post_text		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
+sanitize_profile_pronouns		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 sanitize_profile_string	p_input text, p_max integer, p_allow_newlines boolean	text	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 sanitize_profile_text		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 sanitize_report_text		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -941,6 +1007,7 @@ server_template_int	p_value jsonb, p_path text, p_default integer, p_min integer
 server_template_json	p_value jsonb, p_path text, p_type text, p_max integer	jsonb	invoker	public, pg_temp	service_role	unreferenced
 server_template_ref	p_value jsonb, p_path text	text	invoker	public, pg_temp	service_role	unreferenced
 server_template_text	p_value jsonb, p_path text, p_max integer, p_required boolean	text	invoker	public, pg_temp	service_role	unreferenced
+service_set_member_server_profile	p_server_id uuid, p_user_id uuid, p_fields jsonb	jsonb	definer	public, extensions, pg_temp	service_role	unreferenced
 session_meets_aal		boolean	definer	pg_catalog, public, pg_temp	anon+authenticated+service_role	policy
 session_step_up_fresh	p_method text, p_max_age interval	boolean	invoker	pg_catalog, public, pg_temp	service_role	unreferenced
 set_bot_allowed_channels	p_server_id uuid, p_bot_id uuid, p_channel_ids uuid[]	uuid[]	definer	public, pg_temp	authenticated+service_role	client
@@ -956,6 +1023,7 @@ set_kofi_webhook_token	p_token text	void	definer	public, pg_temp	authenticated+s
 set_member_instance		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 set_message_embeds_suppressed	p_message_id uuid, p_suppressed boolean	boolean	definer	public, pg_temp	authenticated+service_role	client
 set_my_account_aliases	p_uris text[]	jsonb	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
+set_my_server_profile	p_server_id uuid, p_fields jsonb	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
 set_server_featured	p_server_id uuid, p_is_featured boolean, p_order integer	void	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 set_server_member_timeout	p_server_id uuid, p_user_id uuid, p_seconds integer, p_reason text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_server_newcomer_alerts	p_server_id uuid, p_enabled boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
@@ -1097,7 +1165,7 @@ update_status_timestamp		trigger	invoker	public, extensions, pg_temp	anon+authen
 update_sticker	p_sticker_id uuid, p_name text, p_description text	stickers	definer	public, pg_temp	authenticated+service_role	client
 update_threads_updated_at		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 update_trending_posts		void	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
-upload_ceiling_bytes		bigint	definer	public, pg_temp	service_role	unreferenced
+upload_ceiling_bytes		bigint	definer	public, pg_temp	service_role	client
 upload_limit_bytes	p_profile uuid	bigint	definer	public, pg_temp	service_role	unreferenced
 upload_tier	p_profile uuid	text	definer	public, pg_temp	service_role	unreferenced
 upload_tier_limit_bytes	p_tier text	bigint	definer	public, pg_temp	service_role	unreferenced

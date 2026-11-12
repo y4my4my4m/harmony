@@ -18,6 +18,7 @@
           v-model:text="text"
           class="search-bar-input"
           :members="members"
+          :server-id="conversationId ? null : serverId"
           :channels="channels"
           :allow-channels="!conversationId"
           :placeholder="placeholder"

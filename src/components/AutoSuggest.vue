@@ -97,7 +97,7 @@
                 <span v-if="suggestion.isRole" class="suggest-name role-name" :style="{ color: suggestion.roleColor || '#99AAB5' }">
                   @{{ (suggestion.display_name || suggestion.name || '').replace(/^@/, '') }}
                 </span>
-                <DisplayName v-else-if="!suggestion.emoji && suggestion.id" class="suggest-name" :userId="suggestion.id" :fallback="suggestion.display_name || suggestion.name" :truncate="true" />
+                <DisplayName v-else-if="!suggestion.emoji && suggestion.id" class="suggest-name" :userId="suggestion.id" :server-id="suggestion.profileServerId" :fallback="suggestion.display_name || suggestion.name" :truncate="true" />
                 <span class="suggest-name" v-else>:{{ suggestion.emoji.name || suggestion.name }}:</span>
                 <span v-if="suggestion.isRole" class="bridge-badge role-badge" aria-hidden="true">
                   {{ t('mentionLabels.role') }}

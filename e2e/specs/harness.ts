@@ -199,6 +199,8 @@ export const PERMISSION_BITS = {
   CREATE_PUBLIC_THREADS: 14,
   ADD_REACTIONS: 18,
   READ_MESSAGE_HISTORY: 22,
+  CHANGE_NICKNAME: 32,
+  MANAGE_NICKNAMES: 33,
 } as const
 
 export type PermissionName = keyof typeof PERMISSION_BITS

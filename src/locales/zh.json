@@ -688,6 +688,14 @@
         "USE_EXTERNAL_SOUNDS": {
           "label": "使用外部声音",
           "description": "播放其所在的其他服务器的声音"
+        },
+        "CHANGE_NICKNAME": {
+          "label": "更改昵称",
+          "description": "设置自己在此服务器中的昵称和服务器资料"
+        },
+        "MANAGE_NICKNAMES": {
+          "label": "管理昵称",
+          "description": "更改或重置等级较低成员的昵称和服务器资料"
         }
       },
       "everyoneMembersNote": "{'@'}everyone 角色会自动应用于此服务器的每位成员，无需管理成员名单。",
@@ -3023,6 +3031,20 @@
       "moderators": "{server} 的版主",
       "outcomeBy": "{server} 的版主：{outcome}",
       "reviewedTitle": "{server} 的管理员已审核你的举报"
+    },
+    "serverProfile": {
+      "nicknameTitle": "更改昵称",
+      "nicknameLabel": "{name} 的昵称",
+      "nicknamePlaceholder": "无昵称",
+      "nicknameHint": "留空即可移除昵称。仅在此服务器生效。",
+      "nicknameDone": "{name} 现在的昵称是 {nickname}。",
+      "nicknameCleared": "已移除 {name} 的昵称。",
+      "resetTitle": "重置服务器资料",
+      "resetMessage": "清除 {name} 的服务器头像、横幅、简介和代词？昵称将保留。",
+      "resetConfirm": "重置",
+      "resetDone": "已重置 {name} 的服务器资料。",
+      "failed": "无法更新 {name}。",
+      "noPermission": "你没有权限修改 {name}。"
     }
   },
   "files": {
@@ -4629,7 +4651,8 @@
       "emoji": "表情",
       "sound": "音效",
       "bot": "机器人",
-      "sticker": "贴纸"
+      "sticker": "贴纸",
+      "discord_migration": "Discord 迁移"
     },
     "actions": {
       "channel_create": "{actor} 创建了频道 {target}",
@@ -4660,6 +4683,8 @@
       "member_voice_undeafen": "{actor} 解除了 {target} 的服务器拒听",
       "member_voice_move": "{actor} 将 {target} 移到了另一个语音频道",
       "member_voice_disconnect": "{actor} 断开了 {target} 的语音连接",
+      "member_nickname_update": "{actor} 更改了 {target} 的昵称",
+      "member_profile_reset": "{actor} 重置了 {target} 的服务器资料",
       "message_delete": "{actor} 在 {channel} 中删除了 {target} 的 {count} 条消息",
       "server_update": "{actor} 编辑了服务器",
       "settings_update": "{actor} 修改了服务器设置",
@@ -4679,9 +4704,11 @@
       "server_unsuspend": "{actor} 解除了服务器的停用",
       "sticker_create": "{actor} 添加了贴纸 {target}",
       "sticker_update": "{actor} 编辑了贴纸 {target}",
-      "sticker_delete": "{actor} 删除了贴纸 {target}"
+      "sticker_delete": "{actor} 删除了贴纸 {target}",
+      "discord_migration_paused": "Discord 迁移已暂停同步"
     },
     "fields": {
+      "nickname": "昵称",
       "name": "名称",
       "description": "描述",
       "category": "分类",
@@ -5374,6 +5401,10 @@
       "reportsFailed": "无法更改此域名举报的处理方式"
     },
     "instance": {
+      "mirrorStatusProgress": "正在保存 Discord 文件：{queued} 个等待中，{done} 个已保存",
+      "mirrorStatusTooLarge": "{count} 个文件过大（{size}）：请用 harmony config --upload-ceiling 500M 提高上传上限",
+      "mirrorStatusFailed": "{count} 个失败",
+      "mirrorStatusAllStored": "所有 Discord 文件均已保存",
       "maxPostReactions": "每人对一条帖子的最大反应数",
       "maxPostReactionsHint": "每个人可对一条帖子使用的不同表情数量（1-100）。默认：10。来自其他实例的超出上限的反应会被丢弃。聊天消息最多容纳 20 种不同的表情。",
       "maxPersonalEmojis": "每位用户的个人表情数",
@@ -5707,6 +5738,276 @@
           "internal_error": "出了点问题，请稍后重试。",
           "network_error": "无法连接到服务器。"
         }
+      }
+    }
+  },
+  "discordMigration": {
+    "joinedOnDiscord": "加入 Discord 的日期",
+    "notice": {
+      "grantedTitle": "通过 Discord 迁移，{user} 在 {server} 获得了管理员角色 {role}",
+      "removedTitle": "通过 Discord 迁移，{user} 在 {server} 失去了管理员角色 {role}",
+      "message": "迁移开放期间，{server} 中已映射角色由 Discord 决定归属。",
+      "short": "Discord 迁移更改了管理员角色",
+      "pausedTitle": "{server} 的 Discord 迁移已暂停",
+      "pausedShort": "Discord 迁移已暂停",
+      "paused": {
+        "removal_brake": "{server} 的 Discord 迁移已自动暂停：大量成员同时离开 Discord 或在 Discord 被封禁。请在服务器设置中检查后恢复。",
+        "credentials_missing": "{server} 的 Discord 迁移已暂停：缺少 Discord 凭据。请在服务器设置中补充后恢复。",
+        "token_invalid": "{server} 的 Discord 迁移已暂停：Discord 拒绝了机器人令牌。请在服务器设置中更换令牌后恢复。",
+        "bot_not_in_guild": "{server} 的 Discord 迁移已暂停：机器人已不在该 Discord 服务器中。请重新添加机器人后恢复迁移。",
+        "discord_errors": "{server} 的 Discord 迁移已暂停：Discord 持续返回错误。待 Discord 恢复可用后，请在服务器设置中恢复。",
+        "generic": "{server} 的 Discord 迁移已暂停。请在服务器设置中恢复。"
+      }
+    },
+    "sync": {
+      "title": "从 Discord 同步",
+      "settingsLead": "迁移开放期间，勾选的字段会从你的 Discord 资料复制到 Harmony。",
+      "accountGroup": "你的账号资料",
+      "serverGroup": "你在此服务器的资料",
+      "hint": "勾选的字段会在你点击“同步”时复制,并在迁移开启期间每隔几小时保持更新。取消勾选即可停止复制;已复制的内容会保留。",
+      "saveFailed": "无法保存，请重试。",
+      "fields": {
+        "avatar": "头像",
+        "display_name": "显示名称",
+        "banner": "横幅",
+        "accent_color": "主题色",
+        "server_nickname": "在此服务器的昵称",
+        "server_avatar": "在此服务器的头像",
+        "server_banner": "在此服务器的横幅"
+      },
+      "selectAll": "全选",
+      "clearAll": "全部清除",
+      "syncButton": "同步",
+      "syncing": "正在同步…",
+      "saveAndSync": "保存并同步",
+      "done": "已从 Discord 同步。"
+    },
+    "migrate": {
+      "title": "从 Discord 迁移",
+      "loading": "正在加载…",
+      "lead": "将你的 Discord 账号关联到 Harmony，社区迁移后即可保留你的角色，也可以选择保留资料。",
+      "linkTo": "你将关联到 {'@'}{username}。",
+      "notYou": "不是你？退出登录",
+      "signInInstead": "改为登录",
+      "signInInsteadHint": "然后再次选择“使用 Discord 登录”。",
+      "signInWithDiscord": "使用 Discord 登录",
+      "haveAccount": "我有 Harmony 账号",
+      "newHere": "我是新用户：继续使用 Discord",
+      "claiming": "正在加入服务器…",
+      "doneTitle": "已关联",
+      "rolesReceived": "你获得了以下角色：",
+      "noRoles": "你没有获得任何角色。迁移开放期间，你的角色跟随 Discord。",
+      "openServer": "打开服务器",
+      "confirmEmail": "请先确认邮箱，然后登录，你将自动加入。",
+      "formLead": "创建你的 Harmony 账号以完成迁移。",
+      "username": "用户名",
+      "email": "邮箱",
+      "password": "密码",
+      "createAccount": "创建账号",
+      "startAgain": "重新开始",
+      "federated": "请在此实例上创建账号后再迁移。其他实例的账号无法在此关联。",
+      "signOut": "退出登录",
+      "accountCreatedSignIn": "账号已创建。请登录以完成加入。",
+      "signIn": "登录",
+      "errors": {
+        "closed": "此迁移已关闭，请向服务器管理员索取邀请。",
+        "migration_closed": "此迁移已关闭，请向服务器管理员索取邀请。",
+        "not_member": "你不是该 Discord 服务器的成员。",
+        "harmony_banned": "你在 Harmony 上已被此服务器封禁。",
+        "kicked_on_harmony": "你在 Harmony 上已被移出此服务器，需要管理员先允许你回来。",
+        "discord_banned_here": "你在 Discord 上已被此服务器封禁。",
+        "discord_account_taken": "该 Discord 账号已关联到另一个 Harmony 账号。",
+        "already_linked_other_discord": "你的 Harmony 账号在此服务器已关联了另一个 Discord 账号。",
+        "already_linked_elsewhere": "你的 Harmony 账号在此服务器已关联了另一个 Discord 账号。",
+        "ticket_expired": "此次登录已过期，请重新开始。",
+        "account_creation_disabled": "目前无法在此创建新账号。",
+        "denied": "你取消了 Discord 登录。",
+        "exchange_failed": "Discord 未确认登录，请重试。",
+        "unavailable": "迁移暂时不可用，请稍后再试。",
+        "username_taken": "该用户名已被占用。",
+        "email_exists": "该邮箱已有账号，请直接用它登录。",
+        "username_invalid": "该用户名不可用。",
+        "invalid_request": "请填写用户名、邮箱和密码。",
+        "invalid_ticket": "此次登录已过期，请重新开始。",
+        "network": "无法连接服务器，请重试。",
+        "unknown": "出了点问题，请重试。"
+      },
+      "ownerRoles": "你是此服务器的所有者,同步只会为你添加角色,绝不会移除。",
+      "continue": "继续",
+      "skipSyncTitle": "不同步就继续吗?",
+      "skipSyncMessage": "你还没有从 Discord 同步任何内容。仍要继续吗?你可以稍后在“设置”→“服务器资料”中同步。"
+    },
+    "navLabel": "从 Discord 迁移",
+    "title": "从 Discord 迁移",
+    "intro": "把你的 Discord 社区迁过来。成员将 Discord 账号与 Harmony 账号关联,迁移开放期间,他们的 Discord 角色、资料和状态会同步到这里。",
+    "loading": "正在加载迁移设置…",
+    "loadError": "无法加载迁移设置。",
+    "retry": "重试",
+    "prereq": {
+      "title": "开始之前",
+      "cloneFirst": "请先把你的 Discord 服务器克隆到本服务器:频道、分类和角色。迁移只会把 Discord 角色对应到 Harmony 角色,不会创建角色。",
+      "botInServer": "下面使用的机器人必须已经加入该 Discord 服务器。"
+    },
+    "source": {
+      "title": "Discord 机器人的来源",
+      "save": "保存",
+      "saved": "已保存。",
+      "instance_bot": {
+        "label": "本实例的 Discord 机器人",
+        "hint": "由实例运营者运行的 Discord 机器人。请先把它邀请到你的 Discord 服务器。"
+      },
+      "bridge": {
+        "label": "本服务器托管桥接的机器人",
+        "hint": "沿用本服务器 Discord 桥接的机器人令牌。"
+      },
+      "own": {
+        "label": "我自己的 Discord 应用",
+        "hint": "自行创建 Discord 应用和机器人,并在此填写其信息。",
+        "intro": "在 Discord 开发者门户创建应用,为它添加机器人,并把机器人邀请到你的 Discord 服务器。下面的值从门户复制。",
+        "redirect": "请在应用的 OAuth2 → Redirects 中添加此地址:",
+        "redirectLabel": "重定向地址",
+        "clientId": "客户端 ID",
+        "clientSecret": "客户端密钥",
+        "botToken": "机器人令牌",
+        "stored": "密钥会被保存,之后无法再显示。留空则保留已保存的值。",
+        "notStored": "尚未保存任何凭据。"
+      }
+    },
+    "guild": {
+      "label": "Discord 服务器 ID",
+      "hint": "在 Discord 中开启开发者模式,右键点击服务器,选择“复制服务器 ID”。",
+      "locked": "迁移开启后,无法更改 Discord 服务器。",
+      "fromBridge": "已从此服务器的 Discord 桥接自动填入。"
+    },
+    "refresh": {
+      "button": "从 Discord 获取",
+      "working": "正在获取…",
+      "needSave": "请先保存 Discord 服务器和凭据。",
+      "done": "找到 {count} 个 Discord 角色。",
+      "cannotBan": "机器人无法在 Discord 上封禁成员。在你给机器人“封禁成员”权限并重新获取之前,在 Discord 上被封禁的成员不会在这里被封禁。",
+      "errors": {
+        "credentials_missing": "此迁移没有保存凭据。请保存后重试。",
+        "token_invalid": "Discord 拒绝了机器人令牌。请检查后重试。",
+        "bot_not_in_guild": "机器人不在该 Discord 服务器中,或看不到它。请邀请机器人后重试。",
+        "network": "无法连接服务器。请重试。",
+        "unauthenticated": "你需要重新登录。",
+        "other": "从 Discord 获取时出了点问题。"
+      }
+    },
+    "roles": {
+      "title": "对应角色",
+      "intro": "每个 Discord 角色都需要一个 Harmony 角色。迁移开放期间,由 Discord 决定谁拥有对应的 Harmony 角色。",
+      "empty": "先从 Discord 获取角色,再开始对应。",
+      "counter": "还有 {count} 个角色需要对应",
+      "allMatched": "每个 Discord 角色都已对应。",
+      "adminBadge": "管理员",
+      "selectLabel": "{role} 对应的 Harmony 角色",
+      "choose": "选择角色",
+      "ownerOnly": "只有服务器所有者可以对应带有管理员权限的角色",
+      "matchedByName": "按名称匹配",
+      "accept": "使用建议的对应"
+    },
+    "gaps": {
+      "title": "待添加的权限",
+      "intro": "这些 Discord 角色带有 Harmony 角色所缺少的权限。应用只会添加权限,不会移除任何权限。",
+      "apply": "应用 Discord 权限",
+      "applyAll": "全部应用"
+    },
+    "overrides": {
+      "title": "成员频道权限覆盖",
+      "intro": "Discord 可以在某个频道中为单个成员允许或拒绝权限。已关联的成员会在配对的 Harmony 频道中获得这些权限。管理员在 Harmony 上创建的覆盖不会被替换。",
+      "member": "Discord 成员 {id}",
+      "allows": "允许:{list}",
+      "denies": "拒绝:{list}",
+      "nothing": "无",
+      "linked": "已关联到 {'@'}{username}",
+      "notLinked": "尚未关联",
+      "unpaired": "频道未配对",
+      "showAll": "显示全部 {count} 项",
+      "showFewer": "收起"
+    },
+    "errors": {
+      "needManageRoles": "你需要“管理角色”权限才能应用权限",
+      "cannotGrant": "你自己没有 {permission},因此无法授予",
+      "generic": "操作未成功。请重试。"
+    },
+    "adminConfirm": {
+      "holdersFailed": "无法加载拥有此角色的成员，请重试。",
+      "title": "授予管理员权限?",
+      "lead": "你正在把带有管理员权限的角色对应到一个 Harmony 角色。",
+      "holders": "以下成员将成为本服务器的管理员:",
+      "holdersPending": "以下成员将拥有此角色。若对该角色应用管理员权限,他们将成为管理员:",
+      "noHolders": "目前还没有人拥有此角色。",
+      "future": "迁移开放期间,在 Discord 上获得此角色的人也会成为这里的管理员。",
+      "futurePending": "迁移开放期间,在 Discord 上获得此角色的人也会在这里拥有此角色,若对该角色应用管理员权限,将成为管理员。",
+      "confirm": "设为管理员"
+    },
+    "ready": {
+      "title": "可以开放",
+      "open": "开放迁移",
+      "blockers": {
+        "credentials": "请添加 Discord 凭据。",
+        "guild": "请输入 Discord 服务器 ID。",
+        "roles": "请从 Discord 获取角色。",
+        "redirect": "把重定向 URL 添加到 Discord 应用程序"
+      },
+      "warnings": {
+        "unpaired": "有 {count} 个 Discord 频道未与 Harmony 频道配对。"
+      },
+      "redirect": {
+        "intro": "请把此重定向 URL 添加到 Discord 应用程序的 OAuth2 设置中,否则 Discord 会显示“Invalid OAuth2 redirect_uri”。无论凭据来源如何都相同,包括本实例的机器人。",
+        "added": "我已添加"
+      }
+    },
+    "open": {
+      "title": "迁移已开放",
+      "lead": "把此链接分享给你的成员。他们先用 Discord 登录,再用 Harmony 账号登录。",
+      "linkLabel": "邀请链接",
+      "regenerate": "重新生成链接",
+      "regenerateConfirmTitle": "重新生成链接?",
+      "regenerateConfirmMessage": "已分享的链接将失效。",
+      "pausedTitle": "同步已暂停。",
+      "resumeBrakeConfirmTitle": "移除已离开 Discord 的成员？",
+      "resumeBrakeConfirmMessage": "由于大量成员同时离开 Discord 或在 Discord 被封禁，同步已停止。恢复后，这些成员会立即从本服务器移除。此批准仅对这一轮有效；之后如再出现大批量移除，同步会再次暂停。",
+      "resumeBrakeConfirm": "移除并恢复",
+      "pausedReasons": {
+        "removal_brake": "一次性移除的成员比平时多,为方便你检查,同步已停止。"
+      },
+      "resume": "恢复",
+      "lastSync": "上次同步:{when}",
+      "neverSynced": "尚未同步。",
+      "result": "已检查 {checked} 名成员。角色变更:{roles}。已移除:{removed}。错误:{errors}。",
+      "syncNow": "立即同步",
+      "syncQueued": "已请求同步。",
+      "finish": "结束迁移",
+      "finishConfirmTitle": "结束迁移?",
+      "finishConfirmMessage": "成员将不再跟随 Discord。角色和成员保持现状,邀请链接失效。你以后可以重新开放迁移。",
+      "finishConfirm": "结束"
+    },
+    "finished": {
+      "title": "迁移已结束",
+      "lead": "角色和成员不再跟随 Discord。",
+      "warning": "重新开放后,已对应的角色和成员资格会再次跟随 Discord。你手动修改过的已对应角色可能被覆盖。",
+      "reopen": "重新开放",
+      "reopenConfirmTitle": "重新开放迁移?",
+      "reopenConfirm": "重新开放"
+    },
+    "members": {
+      "title": "已关联的成员",
+      "empty": "还没有人关联账号。",
+      "user": "成员",
+      "discordId": "Discord ID",
+      "status": "状态",
+      "lastSynced": "上次同步",
+      "actions": "操作",
+      "never": "从未",
+      "allowBack": "允许返回",
+      "leftHint": "已离开 Discord 或已被允许返回。可以再次关联。",
+      "statuses": {
+        "active": "活跃",
+        "left": "未关联",
+        "banned": "已封禁",
+        "kicked_on_harmony": "已在此被踢出"
       }
     }
   },
@@ -6052,6 +6353,7 @@
       "unknown": "尚未报告",
       "showSetup": "显示设置步骤",
       "problemsTitle": "{count} 个待解决的问题 | {count} 个待解决的问题",
+      "noticesTitle": "{count} 条提示 | {count} 条提示",
       "pairsTitle": "已配对的频道",
       "settingsTitle": "选项",
       "maintainTitle": "维护",
@@ -6163,6 +6465,17 @@
         "fixHosted": "这是实例方面的问题，桥接会持续重试。如果持续很久，请联系实例管理员。",
         "fixInstance": "这是实例方面的问题，桥接会持续重试。如果持续很久，请联系实例管理员。"
       },
+      "message_content_needed_for_import": {
+        "title": "一项历史导入正在等待 Message Content Intent。",
+        "fixSelf": "关闭期间，Discord 返回的消息为空。在 Developer Portal 中打开您的应用 → Bot → Privileged Gateway Intents，开启 Message Content Intent 并点击 Save Changes。然后用下面的命令重启桥接，导入会自动开始。",
+        "fixHosted": "关闭期间，Discord 返回的消息为空。在 Developer Portal 中打开您的应用 → Bot → Privileged Gateway Intents，开启 Message Content Intent 并点击 Save Changes。桥接重新连接后，导入会自动开始。",
+        "fixInstance": "此实例的机器人没有 Message Content Intent，因此无法导入历史记录。请联系实例管理员。"
+      },
+      "private_threads_skipped": {
+        "title": "导入跳过了 {channel} 的私密子区。",
+        "titleCount": "导入跳过了 {channel} 的 {count} 个私密子区。 | 导入跳过了 {channel} 的 {count} 个私密子区。",
+        "fix": "无需处理。Harmony 还没有私密子区，频道里的所有人都能看到它们，所以它们留在 Discord 上。"
+      },
       "unknown": {
         "title": "桥接报告了一个问题（{code}）。",
         "fixSelf": "桥接的日志中有详细信息：",
@@ -6229,7 +6542,11 @@
       "bridgeExists": "此服务器已经有以其他方式设置的 Discord 桥接。要使用此实例的机器人，请先断开它。",
       "instanceFull": "此实例的机器人已加入允许的最大数量的 Discord 服务器。请联系实例管理员，或改用您自己的 Discord 机器人。",
       "instanceOff": "此实例目前不提供它的 Discord 机器人。请改用您自己的 Discord 机器人。",
-      "link": "无法开始与 Discord 关联。请重试。"
+      "link": "无法开始与 Discord 关联。请重试。",
+      "import": "无法开始导入。",
+      "cancelImport": "无法取消导入。",
+      "pairNotImportable": "此配对无法导入历史记录。只有把 Discord 消息带到 Harmony 的配对中未加密的频道才可以。",
+      "importChanged": "导入状态已发生变化，已刷新。请重试。"
     },
     "time": {
       "secondsAgo": "刚刚 | {count} 秒前 | {count} 秒前",
@@ -6338,6 +6655,49 @@
       "settingsSaved": "Discord 机器人设置已保存",
       "saveFailed": "无法保存 Discord 机器人设置",
       "redirectLabel": "重定向地址"
+    },
+    "import": {
+      "button": "导入历史记录",
+      "buttonLabel": "导入 #{channel} 的历史记录",
+      "importAll": "全部导入",
+      "importAllAgain": "全部重新导入",
+      "importAllAgainConfirm": "要重新导入 {count} 个频道的历史记录吗？将从头重新读取 Discord 历史记录，已有的消息会被跳过。",
+      "importAllAgainYes": "重新导入",
+      "cancelAll": "全部取消",
+      "cancel": "取消",
+      "cancelLabel": "取消 #{channel} 的导入",
+      "cancelling": "正在取消…",
+      "waiting": "等待中",
+      "running": "正在导入… {percent}%",
+      "runningUnknown": "正在导入…",
+      "threadsRunning": "正在导入主题帖…",
+      "repliesRunning": "正在关联回复…",
+      "progressLabel": "#{channel} 的导入进度",
+      "backTo": "已回溯到 {date}",
+      "messages": "{count} 条消息 | {count} 条消息",
+      "threads": "主题帖 {done} / {total}",
+      "done": "已导入 {count} 条消息 | 已导入 {count} 条消息",
+      "doneNothingNew": "已是最新：没有新消息",
+      "failed": "导入已停止：{reason}",
+      "failedUnknown": "导入已停止",
+      "cancelled": "已取消",
+      "paused": "已暂停：等待桥接",
+      "retry": "重试",
+      "retryLabel": "重试导入 #{channel}",
+      "resume": "继续",
+      "resumeLabel": "继续导入 #{channel}",
+      "again": "重新导入",
+      "againLabel": "重新导入 #{channel} 的历史记录",
+      "reasons": {
+        "pair_removed": "频道配对已移除",
+        "channel_encrypted": "该频道现已加密"
+      },
+      "ineligible": {
+        "direction": "只有把 Discord 消息带到 Harmony 的配对才能导入历史记录",
+        "encrypted": "加密频道无法导入历史记录"
+      },
+      "needsUpdate": "请将桥接更新到 2.6.0 或更高版本以导入历史记录",
+      "mirrorNote": "导入的文件会复制到此实例的存储中。"
     }
   },
   "imageEditor": {
@@ -6497,7 +6857,9 @@
       "kick": "踢出 {name}",
       "ban": "封禁 {name}",
       "copyId": "复制用户 ID",
-      "fallbackName": "用户"
+      "fallbackName": "用户",
+      "moderateNickname": "更改 {name} 的昵称",
+      "resetServerProfile": "重置 {name} 的服务器资料"
     },
     "rail": {
       "folder": "文件夹",
@@ -6913,6 +7275,32 @@
       "invalid": "模板无效：{detail}",
       "rejected": "服务器拒绝了此模板：{detail}"
     }
+  },
+  "serverProfile": {
+    "tabLabel": "服务器资料",
+    "title": "服务器资料",
+    "description": "为每个服务器设置不同的昵称、头像、横幅、简介和代词。留空的字段将使用你的账号信息。",
+    "noServers": "你还没有加入任何服务器。",
+    "server": "服务器",
+    "remoteUnavailable": "托管在其他实例上",
+    "locked": "你无权在此服务器中更改资料。",
+    "nickname": "昵称",
+    "pronouns": "代词",
+    "pronounsPlaceholder": "例如 she/her",
+    "bio": "关于我",
+    "bioPlaceholder": "向这个服务器介绍一下自己",
+    "avatar": "头像",
+    "banner": "横幅",
+    "reset": "重置",
+    "resetField": "重置{field}",
+    "save": "保存更改",
+    "saved": "服务器资料已保存。",
+    "saveFailed": "无法保存你的服务器资料。",
+    "uploadFailed": "无法上传图片。",
+    "preview": "预览",
+    "menuEntry": "编辑服务器资料",
+    "accountPronouns": "代词",
+    "accountPronounsHint": "显示在你资料中名字的下方。最多 40 个字符。"
   },
   "notificationSettings": {
     "menuEntry": "通知设置",

@@ -7,7 +7,29 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Upgrade notes
+- **Migrate from Discord needs a second redirect on the instance bot.** If servers migrate with this
+  instance's Discord bot, add `https://<domain>/bot-gateway/bridge/v2/migrate/callback` to that
+  application's OAuth2 redirects, next to the existing `…/bridge/v2/discord/callback`. Owners now tick
+  "I added it" before **Open migration** is enabled.
+
 ### Added
+- **Migrate from Discord.** Owners and members with Manage Server can bring a Discord community over
+  from **Server settings** → **Migrate from Discord**. Match each Discord role to a Harmony role, then
+  share the invitation link. Members sign in with Discord (the `identify` scope only), create or link a
+  Harmony account and join with their mapped roles. While the migration is open, roles, membership,
+  timeouts and each member's chosen profile fields (picture, name, banner, accent colour, and their
+  nickname, picture and banner in the server) follow Discord, and profile cards show **Joined on
+  Discord**. **Apply Discord permissions** gives cloned roles the moderator permissions the bridge
+  can't; Administrator roles are owner-only with a confirmation. Harmony bans and kicks always win,
+  a removal brake pauses a suspicious sync, and **Finish migration** hands control back to Harmony.
+  Operators can turn off account creation for migrations with `harmony migration account-creation off`
+  and set the sync interval with `DISCORD_MIGRATION_SYNC_MS`. See Run a server → Migrate from Discord.
+- **Discord files are stored in the background.** With **Mirror to storage**, the gateway now also
+  stores the Discord files of messages already in Harmony, and files over 50 MB: the cap is the
+  instance's upload ceiling (`harmony config --upload-ceiling`). Large files are downloaded one at a
+  time through a temporary file. Expired links are refreshed through the bridge. **Instance admin** →
+  **Config** shows how many files are waiting, stored, too large or failed.
 - **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
   the `/` list in server channels and threads, fill in typed options (text, numbers, true or false,
   choices, members, channels, roles) and the bot receives `INTERACTION_CREATE`. It answers within
@@ -22,6 +44,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Backslash escapes in messages.** `\*not italic\*`, `\@name`, `\#channel`, `\:emoji:`, `\> line`
   and `\https://link` show as typed, and an escaped mention pings nobody. Inline code keeps its
   backslashes.
+- **Import Discord history.** A Discord bridge can now copy a paired
+  channel's older messages, threads and pins into its Harmony channel, with
+  their original dates and Discord authors. Start it with **Import history**
+  or **Import all** in Server settings, Discord Bridge, or with
+  `/bridge import-history` in Discord (bridge 2.6.0 or later). Imported
+  messages are quiet: no notifications, unread counts or federation, and a
+  repeat or a restart never duplicates a message. Reactions are not imported.
+- **Server profiles.** Set a nickname, avatar, banner, bio and pronouns for each server
+  (right-click the server, **Edit server profile**). They show in messages, the member list,
+  voice, mentions, notifications, search and pins; direct messages keep your account profile.
+- **Pronouns** on your account profile, shown under your name and federated.
+- **Change Nickname** and **Manage Nicknames** permissions. Every server's `@everyone` role
+  gets Change Nickname; Manage Nicknames lets moderators change a member's nickname or reset
+  their server profile, logged in the audit log.
 - **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
   installs an instance on a blank Linux server: it checks the host (offering
   Docker and a swap file), asks a few questions, checks DNS, starts the

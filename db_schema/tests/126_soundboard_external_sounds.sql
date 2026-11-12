@@ -55,14 +55,14 @@ CREATE TEMP TABLE audit_seen ON COMMIT DROP AS
 SELECT id FROM public.server_audit_log;
 
 -- Permission bit ------------------------------------------------------------------------------
-SELECT is(array_length(public.permission_bit_names(), 1), 32, 'the bit map names 32 permissions');
+SELECT ok(array_length(public.permission_bit_names(), 1) >= 32, 'the bit map names at least 32 permissions');
 SELECT is((public.permission_bit_names())[32], 'USE_EXTERNAL_SOUNDS', 'USE_EXTERNAL_SOUNDS is bit 31');
 
 INSERT INTO public.servers (id, name, owner) VALUES
   ('f1263000-0000-0000-0000-000000000004', 'Fresh126', '22222222-0000-0000-0000-000000000002');
 SELECT is((SELECT permissions FROM public.server_roles
             WHERE server_id = 'f1263000-0000-0000-0000-000000000004' AND is_default),
-          3343872258::bigint, 'a new server''s @everyone holds the defaults, USE_SOUNDBOARD and USE_EXTERNAL_SOUNDS');
+          7638839554::bigint, 'a new server''s @everyone holds the defaults, USE_SOUNDBOARD, USE_EXTERNAL_SOUNDS and CHANGE_NICKNAME');
 SELECT is((SELECT permissions FROM public.server_roles
             WHERE server_id = 'f1263000-0000-0000-0000-000000000004' AND is_default) & 1196388610,
           1196388610::bigint, 'the new default extends the 1.7.0 one');
@@ -90,8 +90,8 @@ SELECT is(public.get_user_permissions('11111111-0000-0000-0000-000000000001', '5
           'true', 'the owner holds it everywhere');
 SELECT is(public.server_template_bits('"2147483648"'::jsonb, 'p'), 2147483648::bigint,
           'templates carry USE_EXTERNAL_SOUNDS');
-SELECT throws_ok($$SELECT public.server_template_bits('"4294967296"'::jsonb, 'p')$$,
-                 '22023', NULL, 'templates refuse the bit past it');
+SELECT throws_ok($$SELECT public.server_template_bits('"17179869184"'::jsonb, 'p')$$,
+                 '22023', NULL, 'templates refuse the bit past the map');
 
 -- Convergence on an instance predating the bit ------------------------------------------------
 INSERT INTO public.servers (id, name, owner, is_local_server) VALUES

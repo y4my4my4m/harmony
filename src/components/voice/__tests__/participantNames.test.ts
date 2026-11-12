@@ -40,6 +40,7 @@ vi.mock('@/stores/voiceModeration', () => ({
   }),
 }))
 vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => ({ servers: [], currentServer: null, channels: [] }) }))
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', () => ({
   useUserData: () => ({
     getUserProfile: (id: string) => ({ value: { display_name: id === 'me' ? 'Me' : 'Bob' } }),

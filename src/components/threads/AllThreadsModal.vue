@@ -91,7 +91,7 @@
                         size="mini" 
                         class="creator-avatar"
                       />
-                      <span class="creator-name"><DisplayName :userId="thread.created_by" :fallback="getCreatorName(thread.created_by)" /></span>
+                      <span class="creator-name"><DisplayName :userId="thread.created_by" :server-id="serverId" :fallback="getCreatorName(thread.created_by)" /></span>
                       <span class="separator">:</span>
                       <span class="last-message">{{ thread.last_message_preview || t('chatNav.threadsModal.noMessages') }}</span>
                       <span class="dot" aria-hidden="true">•</span>
@@ -123,7 +123,7 @@
                     <div class="thread-name">{{ thread.name }}</div>
                     <div class="thread-meta">
                       <span class="started-by">{{ t('chatNav.threadsModal.startedBy') }}</span>
-                      <span class="creator-name"><DisplayName :userId="thread.created_by" :fallback="getCreatorName(thread.created_by)" /></span>
+                      <span class="creator-name"><DisplayName :userId="thread.created_by" :server-id="serverId" :fallback="getCreatorName(thread.created_by)" /></span>
                       <span class="dot" aria-hidden="true">•</span>
                       <span class="time">{{ t('chatNav.threadsModal.lastActive', { time: formatRelativeTime(thread.last_message_at) }) }}</span>
                     </div>
@@ -169,7 +169,7 @@ import { moderationRejectionFromError } from '@/services/AutoModService'
 import { useThreadsStore, isOptimisticThreadId } from '@/stores/useThreads'
 import { threadService } from '@/services/ThreadService'
 import { useServerPermissions } from '@/composables/useServerPermissions'
-import { useUserData } from '@/composables/useUserData'
+import { getMemberDisplayName, getMemberAvatarUrl } from '@/composables/useMemberProfile'
 import { formatDistanceToNow } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -190,7 +190,6 @@ const emit = defineEmits<{
   'select-thread': [thread: ThreadWithDetails]
 }>()
 
-const { getUserDisplayName, getUserAvatarUrl } = useUserData()
 
 const threadsStore = useThreadsStore()
 // Indexed threads, optimistic ones included, render before the read returns.
@@ -233,12 +232,12 @@ const loadThreads = async () => {
 
 const getCreatorName = (userId?: string) => {
   if (!userId) return 'Unknown'
-  return getUserDisplayName(userId).value
+  return getMemberDisplayName(userId, props.serverId ?? null).value
 }
 
 const getCreatorAvatar = (userId?: string) => {
   if (!userId) return '/default_avatar.webp'
-  return getUserAvatarUrl(userId).value
+  return getMemberAvatarUrl(userId, props.serverId ?? null).value
 }
 
 const formatRelativeTime = (date?: Date | string | null) => {

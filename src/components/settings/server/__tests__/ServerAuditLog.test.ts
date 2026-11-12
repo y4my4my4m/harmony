@@ -26,6 +26,12 @@ vi.mock('@/components/DisplayName.vue', () => ({
     template: '<span class="display-name-stub" :data-user-id="userId">{{ fallback }}</span>',
   },
 }))
+vi.mock('@/composables/useUserData', () => ({
+  useUserData: () => ({ getUser: (id: string) => ({ value: id === 'u-alice' ? { username: 'alice' } : null }) }),
+}))
+vi.mock('@/composables/useMemberProfile', () => ({
+  getMemberServerProfile: (id: string) => ({ value: id === 'u-alice' ? { nickname: 'Ally' } : null }),
+}))
 vi.mock('@/stores/useInstanceSettings', () => ({ useInstanceSettingsStore: () => ({ settings: { domain: 'here.test' } }) }))
 vi.mock('@/services/ServerAuditLogService', () => ({
   AUDIT_PAGE_SIZE: 2,
@@ -84,6 +90,18 @@ describe('ServerAuditLog', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].find('.audit-reason').text()).toBe('serverAuditLog.reason')
     expect(wrapper.find('[data-test="load-more"]').exists()).toBe(false)
+  })
+
+  it('names a person as account name (@username), plus the server nickname when set', async () => {
+    api.getServerAuditLog.mockResolvedValueOnce([entry('e1', '2026-10-10T10:00:00Z')])
+    const wrapper = mountLog()
+    await flushPromises()
+
+    const line = wrapper.find('[data-test="audit-entry"] .audit-line').text()
+    expect(line).toContain('Alice (@alice) (Ally)')
+    // Bob has no loaded username and no nickname: the name alone.
+    expect(line).toContain('Bob')
+    expect(line).not.toContain('Bob (')
   })
 
   it('loads older entries before the last one shown', async () => {
@@ -149,8 +167,8 @@ describe('ServerAuditLog', () => {
 
     const names = wrapper.findAll('.audit-entry .display-name-stub')
     expect(names.map(n => n.attributes('data-user-id'))).toEqual(['u-alice', 'u-bob'])
-    expect(names[0].classes()).toContain('audit-actor')
-    expect(names[1].classes()).toContain('audit-target')
+    expect(names[0].element.closest('.audit-actor')).not.toBeNull()
+    expect(names[1].element.closest('.audit-target')).not.toBeNull()
     const options = wrapper.findAll('[data-test="actor-filter"] option').map(o => o.text())
     expect(options).toContain('Alice')
   })

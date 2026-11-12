@@ -21,6 +21,7 @@ vi.mock('@/services/ModerationService', () => ({
   ],
   moderationService: { banMember: h.banMember, kickMember: h.kickMember },
 }))
+vi.mock('@/composables/useMemberProfile', () => ({ getMemberServerProfile: () => ({ value: null }) }))
 vi.mock('@/services/userDataService', () => ({
   userDataService: {
     getUsersInContext: () => [

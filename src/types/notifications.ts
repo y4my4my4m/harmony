@@ -48,6 +48,8 @@ export type NotificationType =
   | 'server_member_removed'
   | 'server_instance_removed'
   | 'outgoing_webhook_disabled'
+  | 'discord_migration_admin_change'
+  | 'discord_migration_paused'
   | 'error'
   // Generic UI feedback toasts (also valid AudioActions for themed sounds)
   | 'ui_success'
@@ -214,6 +216,7 @@ export interface NotificationToast {
   emojiName?: string; // For reaction notifications - emoji name fallback
   actorUserId?: string; // Profile ID of the actor for DisplayName rendering with custom emojis
   titleSuffix?: string; // Part of the title after the actor name (used with actorUserId)
+  actorServerId?: string | null; // Server whose member nickname the actor name shows (server-channel notifications)
   actions?: ToastAction[];
   duration: number;
   timestamp: Date;

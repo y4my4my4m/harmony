@@ -29,6 +29,7 @@
             <DisplayName
               v-if="actorUserId"
               :user-id="actorUserId"
+              :server-id="actorServerId"
               :fallback="actorName"
               :truncate="true"
               class="actor"
@@ -151,6 +152,7 @@ const actorUserId = computed(() => {
 })
 
 const avatarUrl = computed(() => NotificationFormatter.getAvatarUrl(props.notification))
+const actorServerId = computed(() => NotificationFormatter.getServerActor(props.notification)?.serverId ?? null)
 
 const isReaction = computed(() =>
   props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction'
@@ -250,6 +252,8 @@ const TYPE_ICONS: Record<string, { icon: string; tone: string }> = {
   server_member_removed: { icon: 'door-open', tone: 'system' },
   server_instance_removed: { icon: 'shield', tone: 'system' },
   outgoing_webhook_disabled: { icon: 'alert-triangle', tone: 'system' },
+  discord_migration_admin_change: { icon: 'shield', tone: 'system' },
+  discord_migration_paused: { icon: 'pause', tone: 'system' },
   server_invite: { icon: 'server', tone: 'system' },
   voice_channel_activity: { icon: 'headphones', tone: 'system' },
 }

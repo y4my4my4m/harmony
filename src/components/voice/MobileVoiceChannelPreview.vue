@@ -41,12 +41,12 @@
             <ul v-else class="participants-list" :aria-label="t('voice.inCallCount', { count: participants.length }, participants.length)">
               <li v-for="participant in participants" :key="participant.id" class="participant-item">
                 <Avatar
-                  :src="getUserAvatarUrl(participant.id).value"
+                  :src="getMemberAvatarUrl(participant.id, serverId ?? null).value"
                   alt=""
                   size="md"
                   class="participant-avatar"
                 />
-                <span class="participant-name"><DisplayName :userId="participant.id" /></span>
+                <span class="participant-name"><DisplayName :userId="participant.id" :server-id="serverId" /></span>
               </li>
             </ul>
           </div>
@@ -97,7 +97,7 @@ import { useT } from '@/composables/useT'
 import Avatar from '@/components/common/Avatar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import DisplayName from '@/components/DisplayName.vue'
-import { useUserData } from '@/composables/useUserData'
+import { getMemberAvatarUrl } from '@/composables/useMemberProfile'
 
 interface Participant {
   id: string
@@ -110,6 +110,8 @@ interface Props {
   channelId: string
   channelName: string
   participants: Participant[]
+  /** The server the channel belongs to; its member profiles apply. */
+  serverId?: string | null
 }
 
 interface Emits {
@@ -121,7 +123,6 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const { getUserAvatarUrl } = useUserData()
 const { t } = useT()
 
 const isMuted = ref(false)

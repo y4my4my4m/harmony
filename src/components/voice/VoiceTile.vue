@@ -80,7 +80,7 @@
       <Icon v-else-if="effectiveDeafened" name="headphones-off" class="pill-icon danger" :title="t('voice.statusDeafened')" aria-hidden="true" />
       <Icon v-else-if="effectiveMuted" name="mic-off" class="pill-icon danger" :title="t('voice.statusMuted')" aria-hidden="true" />
       <span class="pill-name" aria-hidden="true">
-        <DisplayName :user-id="props.userState.userId" :fallback="displayName" :truncate="true" />
+        <DisplayName :user-id="props.userState.userId" :server-id="profileServerId" :fallback="displayName" :truncate="true" />
       </span>
       <Icon
         v-if="showQualityWarning"
@@ -211,6 +211,8 @@ import type { RemoteAudioKind } from '@/services/voice/remoteAudioMixer';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useVoiceModerationStore } from '@/stores/voiceModeration';
 import { useUserData } from '@/composables/useUserData';
+import { getMemberAvatarUrl, getMemberBannerUrl, getMemberDisplayName } from '@/composables/useMemberProfile';
+import { useVoiceProfileServerId } from '@/composables/useVoiceProfileServerId';
 import DisplayName from '@/components/DisplayName.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
@@ -244,6 +246,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const voiceStore = useUnifiedVoiceChannelStore();
 const { getUserProfile } = useUserData();
+const profileServerId = useVoiceProfileServerId();
 
 const videoElement = ref<HTMLVideoElement | null>(null);
 const moreButton = ref<HTMLButtonElement | null>(null);
@@ -255,10 +258,10 @@ const contextMenuPosition = ref({ x: 0, y: 0 });
 const userProfile = computed(() => {
   const profileData = getUserProfile(props.userState.userId).value as any;
   return {
-    display_name: profileData?.display_name || null,
+    display_name: getMemberDisplayName(props.userState.userId, profileServerId.value).value || profileData?.display_name || null,
     username: profileData?.username || 'Unknown User',
-    avatar_url: profileData?.avatar_url || '/default_avatar.webp',
-    banner_url: withRenderFallback(getBannerUrl(profileData?.bannerUrl || profileData?.banner_url)),
+    avatar_url: getMemberAvatarUrl(props.userState.userId, profileServerId.value).value || profileData?.avatar_url || '/default_avatar.webp',
+    banner_url: withRenderFallback(getBannerUrl(getMemberBannerUrl(props.userState.userId, profileServerId.value).value || profileData?.bannerUrl || profileData?.banner_url)),
   };
 });
 

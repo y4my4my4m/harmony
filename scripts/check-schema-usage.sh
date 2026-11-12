@@ -113,7 +113,7 @@ fi
 # tables. information_schema omits matviews and hides what the role cannot see.
 FACTS="${TMPDIR:-/tmp}/harmony-schema-facts-$CONTAINER.tsv"
 docker exec "$CONTAINER" psql -h 127.0.0.1 -U supabase_admin -d postgres -tAF$'\t' -c "
-  SELECT 'c', c.relname, a.attname
+  SELECT 'c', c.relname, a.attname::text
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
     JOIN pg_attribute a ON a.attrelid = c.oid
@@ -125,7 +125,7 @@ docker exec "$CONTAINER" psql -h 127.0.0.1 -U supabase_admin -d postgres -tAF$'\
     JOIN pg_namespace n ON n.oid = c.relnamespace
    WHERE n.nspname = 'public' AND c.relkind IN ('r','p','v','m','f')
   UNION ALL
-  SELECT 'f', con.conname, cl.relname || ' ' || fcl.relname || ' ' ||
+  SELECT 'f', con.conname, cl.relname::text || ' ' || fcl.relname::text || ' ' ||
          (SELECT string_agg(a.attname, ',' ORDER BY k.ord)
             FROM unnest(con.conkey) WITH ORDINALITY k(attnum, ord)
             JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum)

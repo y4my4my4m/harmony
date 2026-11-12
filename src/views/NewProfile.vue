@@ -155,7 +155,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug';
@@ -177,6 +177,7 @@ const DEFAULT_PROFILE_COLOR = '#0EA5E9';
 
 const { t } = useI18n();
 const router = useRouter();
+const route = useRoute();
 const toast = useToast();
 const { cropImage } = useImageCrop();
 const profileStore = useProfileStore();
@@ -269,6 +270,13 @@ onMounted(async () => {
 
   instanceDomain.value = await loadInstanceDomain();
   prefillFromOAuth(user.user_metadata || {}, user.identities || [], user.email);
+
+  // /migrate/<token> sends the username the member chose there.
+  const wanted = Array.isArray(route.query.username) ? route.query.username[0] : route.query.username;
+  if (typeof wanted === 'string') {
+    const normalized = normalizeUsernameInput(wanted);
+    if (normalized.length >= USERNAME_MIN_LENGTH) setUsername(normalized);
+  }
 });
 
 function prefillFromOAuth(
@@ -436,6 +444,10 @@ async function createProfile() {
     const created = await profileStore.createProfile(profileData);
 
     await finishSetup(user.id, created);
+    // An account made on /migrate/<token> holds a ticket; with the profile in place it can claim.
+    await import('@/services/discordMigrationService')
+      .then((m) => m.completePendingClaims())
+      .catch(() => {});
     if (await offerSuggestedServers()) return;
     await router.replace(consumePostAuthRedirect('/chat'));
   } catch (error: any) {

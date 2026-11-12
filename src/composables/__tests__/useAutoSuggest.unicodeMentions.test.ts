@@ -22,7 +22,14 @@ vi.mock('@/stores/useServerChannel', () => ({
   useServerChannelStore: () => ({ currentServerId: 'server-1', currentChannelId: 'channel-1', servers: [] }),
 }))
 vi.mock('@/services/userDataService', () => ({
-  userDataService: { getUsersInContext: () => members, getAllUsers: () => members, fetchUserProfile: vi.fn() },
+  userDataService: {
+    getUsersInContext: () => members,
+    getAllUsers: () => members,
+    fetchUserProfile: vi.fn(),
+    // Server nicknames (server profiles): kim is 'Ｍｉｎｓｕ' in server-1.
+    getMemberServerFields: (serverId: string, userId: string) =>
+      (serverId === 'server-1' && userId === 'u2' ? { nickname: 'Ｍｉｎｓｕ' } : null),
+  },
 }))
 vi.mock('@/services/activityPubService', () => ({
   activityPubService: { searchUsers: vi.fn().mockResolvedValue([]) },
@@ -105,6 +112,12 @@ describe('useAutoSuggest mention queries', () => {
     type(typed)
     expect(suggest.state.value.isActive).toBe(true)
     expect(usernames(suggest)).toEqual(expected)
+  })
+
+  it('matches a server nickname with the same normalisation', () => {
+    const { suggest, type } = setup()
+    type('@minsu')
+    expect(usernames(suggest)).toEqual(['kim'])
   })
 
   it('runs over a space in a display name', () => {

@@ -21,6 +21,12 @@ export const DEFAULT_USER_COLOR = 'var(--text-primary)'
 // one listener set serve every caller.
 const forceUpdate = ref(0)
 
+/** Bumps with every service event; sibling composables read it for reactivity. */
+export function useUserDataVersion(): number {
+  bindServiceListeners()
+  return forceUpdate.value
+}
+
 const triggerUpdate = () => {
   forceUpdate.value++
 }
@@ -209,6 +215,11 @@ export function useUserData() {
     return user?.bio || null
   })
 
+  const getUserPronouns = (userId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    return userDataService.getUser(userId)?.pronouns || null
+  })
+
   const getUserRoles = (userId: string) => computed(() => {
     forceUpdate.value // Force reactivity
     const user = userDataService.getUser(userId)
@@ -326,6 +337,7 @@ export function useUserData() {
     bannerUrl?: string
     color?: string
     bio?: string
+    pronouns?: string | null
   }) => {
     await userDataService.updateCurrentUserProfile(profileData)
   }
@@ -486,6 +498,7 @@ export function useUserData() {
     getUserCreatedAt,
     getUserProfile,
     getUserBio,
+    getUserPronouns,
     getUserRoles,
     getUserMessageCount,
     getUserVoiceTime,

@@ -13,6 +13,8 @@ const MEMBER_ID = '00000000-0000-0000-0000-0000000000a3'
 const STRANGER_ID = '00000000-0000-0000-0000-0000000000a9'
 const ADMIN_ID = '00000000-0000-0000-0000-0000000000aa'
 const OWNER_OF_PRIVATE = '00000000-0000-0000-0000-0000000000ab'
+const LINKED_ID = '00000000-0000-0000-0000-0000000000b1'
+const LEFT_ID = '00000000-0000-0000-0000-0000000000b2'
 const GENERAL = '00000000-0000-0000-0000-0000000000c1'
 const STAFF = '00000000-0000-0000-0000-0000000000c2'
 
@@ -37,6 +39,7 @@ vi.mock('../config/supabase.js', () => ({
     bridge: { instanceDomain: '', publicUrl: '', hostSecret: '', configPollMs: 60_000 },
     websocket: { heartbeatInterval: 60_000, maxConnectionsPerBot: 5, identifyTimeoutMs: 60_000, revalidateIntervalMs: 60_000 },
     rateLimit: { windowMs: 60_000, maxRequests: 100 },
+    migration: { syncMs: 21_600_000, pollMs: 60_000, budgetMs: 120_000, batch: 100 },
   },
 }))
 
@@ -52,8 +55,19 @@ state.db = new FakeDb({
     { id: STRANGER_ID, auth_user_id: 'auth-stranger', is_admin: false },
     { id: ADMIN_ID, auth_user_id: 'auth-admin', is_admin: true },
     { id: OWNER_OF_PRIVATE, auth_user_id: 'auth-bot-owner', is_admin: false },
+    { id: LINKED_ID, auth_user_id: 'auth-linked', is_admin: false },
+    { id: LEFT_ID, auth_user_id: 'auth-left', is_admin: false },
   ],
-  user_servers: [{ user_id: MEMBER_ID, server_id: SERVER_ID, status: 'accepted' }],
+  user_servers: [
+    { user_id: MEMBER_ID, server_id: SERVER_ID, status: 'accepted' },
+    { user_id: LINKED_ID, server_id: SERVER_ID, status: 'accepted' },
+    { user_id: LEFT_ID, server_id: SERVER_ID, status: 'left' },
+  ],
+  discord_migration_links: [
+    { server_id: SERVER_ID, user_id: LINKED_ID, discord_user_id: '601', status: 'active' },
+    { server_id: SERVER_ID, user_id: LEFT_ID, discord_user_id: '602', status: 'active' },
+    { server_id: SERVER_ID, user_id: MEMBER_ID, discord_user_id: '603', status: 'left' },
+  ],
   bots: [
     { id: BRIDGE_BOT, owner_id: 'someone', is_public: true },
     { id: PRIVATE_BOT, owner_id: OWNER_OF_PRIVATE, is_public: false },
@@ -77,9 +91,9 @@ function connect(botId: string, username: string) {
   })
 }
 
-function bridgeMembers(channelId: string, username: string) {
+function bridgeMembers(channelId: string, username: string, ...extraIds: string[]) {
   const byChannel = (gateway as any).bridgedUsersByChannel as Map<string, any[]>
-  byChannel.set(channelId, [{ id: username, username, displayName: username, source: 'discord' }])
+  byChannel.set(channelId, [username, ...extraIds].map((id) => ({ id, username: id, displayName: id, source: 'discord' })))
 }
 
 describe('GET /status', () => {
@@ -114,5 +128,31 @@ describe('GET /bridged-users', () => {
     const res = await supertest(app).get(`/bridged-users/server/${SERVER_ID}`).set('Authorization', 'Bearer auth-member')
     expect(res.status).toBe(200)
     expect(JSON.stringify(res.body.users)).not.toContain('discord_admin')
+  })
+})
+
+describe('linked Discord ids in the bridged user lists', () => {
+  it('names the Discord accounts whose owner is a member and linked, ids only', async () => {
+    bridgeMembers(GENERAL, 'discord_member', '601', '602', '603', '700')
+    const res = await supertest(app).get(`/bridged-users/${GENERAL}`).set('Authorization', 'Bearer auth-member')
+    expect(res.body.linked_discord_ids).toEqual(['601'])
+  })
+
+  it('does the same on the server list', async () => {
+    bridgeMembers(GENERAL, 'discord_member', '601', '602')
+    const res = await supertest(app).get(`/bridged-users/server/${SERVER_ID}`).set('Authorization', 'Bearer auth-member')
+    expect(res.body.linked_discord_ids).toEqual(['601'])
+  })
+
+  it('leaves out a linked id the served list does not contain', async () => {
+    bridgeMembers(GENERAL, 'discord_member', '700')
+    const res = await supertest(app).get(`/bridged-users/${GENERAL}`).set('Authorization', 'Bearer auth-member')
+    expect(res.body.linked_discord_ids).toEqual([])
+  })
+
+  it('sends none for a channel without a bridge', async () => {
+    ;((gateway as any).bridgedUsersByChannel as Map<string, any[]>).clear()
+    const res = await supertest(app).get(`/bridged-users/${GENERAL}`).set('Authorization', 'Bearer auth-member')
+    expect(res.body.linked_discord_ids).toEqual([])
   })
 })

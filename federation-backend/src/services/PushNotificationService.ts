@@ -851,7 +851,7 @@ class PushNotificationServiceClass {
       logger.debug(`Final notification.data.sender: ${JSON.stringify(notification.data.sender)}`);
       logger.debug(`Final notification.data.reaction: ${JSON.stringify(notification.data.reaction)}`);
 
-      const payload = this.buildPayloadFromNotification(notification);
+      const payload = this.buildPayloadFromNotification(notification, await this.serverSenderNickname(notification));
       if (!pushSoundAllowed(notification.type, prefs)) payload.silent = true;
 
       await this.sendToUser(notification.user_id, payload, () => this.buildAppData(notification, payload));
@@ -972,6 +972,38 @@ class PushNotificationServiceClass {
   }
 
   /**
+   * The sender's nickname in the server a channel notification was raised in, when they set one.
+   * Null for DMs, group chats, fediverse notifications and anything without a server channel,
+   * which show the account name.
+   */
+  private async serverSenderNickname(notification: {
+    type: string;
+    data: Record<string, any>;
+  }): Promise<string | null> {
+    const data = notification.data || {};
+    if (notification.type.startsWith('activitypub_')) return null;
+    const serverId = data.server_id || data.location?.server_id;
+    const channelId = data.channel_id || data.location?.channel_id;
+    if (!serverId || !channelId || data.conversation_id || data.conversation?.id) return null;
+    const sender = data.sender || {};
+    const senderId = sender.user_id || sender.id || data.from_user_id;
+    if (!senderId) return null;
+    try {
+      const { data: row } = await supabaseAdmin
+        .from('user_servers')
+        .select('nickname')
+        .eq('server_id', serverId)
+        .eq('user_id', senderId)
+        .maybeSingle();
+      const nickname = typeof row?.nickname === 'string' ? row.nickname.trim() : '';
+      return nickname || null;
+    } catch (error) {
+      logger.warn('Could not look up the sender nickname for push:', error);
+      return null;
+    }
+  }
+
+  /**
    * Build push payload from notification data
    */
   private buildPayloadFromNotification(notification: {
@@ -980,10 +1012,10 @@ class PushNotificationServiceClass {
     type: string;
     data: Record<string, any>;
     title?: string;
-  }): PushPayload {
+  }, senderNickname: string | null = null): PushPayload {
     const data = notification.data || {};
     const sender = data.sender || {};
-    const rawSenderName = sender.display_name || sender.username || 'Someone';
+    const rawSenderName = senderNickname || sender.display_name || sender.username || 'Someone';
     const senderName = stripEmojiShortcodes(rawSenderName) || sender.username || 'Someone';
     const senderDomain = sender.domain && !sender.is_local ? `@${sender.domain}` : '';
 

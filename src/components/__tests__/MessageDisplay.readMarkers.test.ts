@@ -59,6 +59,7 @@ vi.mock('@/stores/useThreads', () => ({
 vi.mock('@/composables/useServerPermissions', () => ({
   useServerPermissions: () => ({ isCurrentUserServerOwner: ref(false), canManageMessages: ref(false), getCurrentUserRole: ref(null) }),
 }))
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', () => ({
   DEFAULT_USER_COLOR: '#fff',
   useUserData: () => ({

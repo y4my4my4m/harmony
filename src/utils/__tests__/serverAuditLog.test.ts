@@ -14,9 +14,12 @@ const TEMPLATES: Record<string, string> = {
   'serverAuditLog.actions.member_timeout': '{actor} timed out {target} until {until}',
   'serverAuditLog.actions.member_voice_mute': '{actor} server-muted {target}',
   'serverAuditLog.actions.member_voice_disconnect': '{actor} disconnected {target} from voice',
-  'serverAuditLog.actions.unknown': '{actor}: {action}',
+  'serverAuditLog.actions.member_nickname_update': '{actor} changed the nickname of {target}',
+  'serverAuditLog.actions.member_profile_reset': '{actor} reset the server profile of {target}',
+  'serverAuditLog.actions.unknown':'{actor}: {action}',
   'serverAuditLog.actions.member_kick': '{actor} kicked {target}',
   'serverAuditLog.actions.server_suspend': '{actor} suspended the server',
+  'serverAuditLog.actions.discord_migration_paused': 'The Discord migration paused syncing',
   'hostStaff.auditActor': '{actor} ({instance} staff)',
   'hostStaff.audit.cause': 'Why',
   'hostStaff.audit.accountSuspended': 'Account suspended on {instance}',
@@ -114,6 +117,33 @@ describe('auditActorName', () => {
   })
 })
 
+describe('Discord migration entries', () => {
+  it('describes the pause with its own sentence, not the unknown-action fallback', () => {
+    const paused = entry({
+      action: 'discord_migration.paused',
+      actor_id: null,
+      source: 'system',
+      target_type: 'server',
+      details: { reason: 'removal_brake', via: 'discord_migration' },
+    })
+    expect(describeAuditEntry(paused, t, date).map((run) => run.text)).toEqual(['The Discord migration paused syncing'])
+  })
+
+  it('names System as the actor of a role change the migration made', () => {
+    const roleAdd = describeAuditEntry(entry({
+      action: 'member.role_add',
+      actor_id: null,
+      source: 'system',
+      target_type: 'user',
+      target_id: 'u-bob',
+      target_name: 'bob',
+      details: { role_name: 'Mod', via: 'discord_migration' },
+    }), t, date)
+    expect(roleAdd.map((run) => run.text)).toEqual(['serverAuditLog.system', ' gave ', 'bob', ' the role ', 'Mod'])
+    expect(roleAdd[0].role).toBe('actor')
+  })
+})
+
 describe('describeAuditEntry', () => {
   it('marks the actor and the target and keeps the surrounding text', () => {
     const segments = describeAuditEntry(entry({ action: 'channel.delete' }), t, date)
@@ -153,6 +183,22 @@ describe('describeAuditEntry', () => {
     expect(mute.map(s => s.text).join('')).toBe('Alice server-muted bob')
     const gone = describeAuditEntry(entry({ action: 'member.voice_disconnect', target_type: 'user', target_name: 'bob' }), t, date)
     expect(gone.map(s => s.text).join('')).toBe('Alice disconnected bob from voice')
+  })
+
+  it('describes server profile moderation and names the member', () => {
+    const nick = entry({
+      action: 'member.nickname_update', target_type: 'user', target_id: 'u-bob', target_name: 'bob',
+      changes: { nickname: { old: 'A', new: 'B' } },
+    })
+    const segments = describeAuditEntry(nick, t, date)
+    expect(segments.map(s => s.text).join('')).toBe('Alice changed the nickname of bob')
+    expect(segments.find(s => s.role === 'target')?.userId).toBe('u-bob')
+    expect(auditChangeLines(nick, t, date)).toEqual([{ field: 'serverAuditLog.fields.nickname', from: 'A', to: 'B' }])
+
+    const reset = describeAuditEntry(entry({
+      action: 'member.profile_reset', target_type: 'user', target_id: 'u-bob', target_name: 'bob',
+    }), t, date)
+    expect(reset.map(s => s.text).join('')).toBe('Alice reset the server profile of bob')
   })
 
   it('falls back for an action it does not know', () => {

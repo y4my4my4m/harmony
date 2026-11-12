@@ -49,6 +49,7 @@ import {
   extractLikeData,
   normalizeObject,
   normalizeActor,
+  extractPronouns,
 } from '../activitypub/converters/fromActivityPub.js'
 
 // toActivityPub tests
@@ -487,6 +488,37 @@ describe('toActivityPub converters', () => {
       expect(actor.attachment).toHaveLength(2)
       expect(actor.attachment[0].type).toBe('PropertyValue')
       expect(actor.attachment[0].name).toBe('Website')
+    })
+
+    it('publishes pronouns as the first PropertyValue', () => {
+      const actor = profileToActor({
+        username: 'alice',
+        pronouns: 'they/them',
+        profile_fields: [{ name: 'Website', value: 'https://alice.example.com' }],
+      })
+      expect(actor.attachment).toHaveLength(2)
+      expect(actor.attachment[0]).toEqual({ type: 'PropertyValue', name: 'Pronouns', value: 'they/them' })
+      expect(actor.attachment[1].name).toBe('Website')
+    })
+
+    it('escapes markup characters in pronouns', () => {
+      const actor = profileToActor({ username: 'alice', pronouns: 'a<b & x' })
+      expect(actor.attachment[0].value).toBe('a&lt;b &amp; x')
+    })
+
+    it('does not duplicate pronouns when a user field is named Pronouns', () => {
+      const actor = profileToActor({
+        username: 'alice',
+        pronouns: 'they/them',
+        profile_fields: [{ name: ' PRONOUNS ', value: 'she/her' }],
+      })
+      expect(actor.attachment).toHaveLength(1)
+      expect(actor.attachment[0].name).toBe(' PRONOUNS ')
+    })
+
+    it('omits the Pronouns entry without pronouns', () => {
+      const actor = profileToActor({ username: 'alice', pronouns: null })
+      expect(actor.attachment).toBeUndefined()
     })
 
     it('includes Harmony profile color extension', () => {
@@ -1103,5 +1135,29 @@ describe('inbound emoji and hashtags', async () => {
     const parts = noteToContent({ content: '<p>#cat then #catfood then #cat</p>', tag: [{ type: 'Hashtag', name: '#cat' }] })
     expect(parts.filter((p: any) => p.type === 'hashtag')).toHaveLength(2)
     expect(parts.some((p: any) => p.type === 'text' && p.text.includes('#catfood'))).toBe(true)
+  })
+})
+
+describe('extractPronouns (inbound_pronouns_sanitised)', () => {
+  it('strips HTML', () => {
+    expect(extractPronouns([{ type: 'PropertyValue', name: 'Pronouns', value: '<p>she/<b>her</b></p>' }])).toBe('she/her')
+  })
+  it('truncates to 40 chars', () => {
+    expect(extractPronouns([{ type: 'PropertyValue', name: 'Pronouns', value: 'a'.repeat(200) }])).toBe('a'.repeat(40))
+  })
+  it('matches the name case-insensitively', () => {
+    expect(extractPronouns([{ type: 'PropertyValue', name: 'PRONOUNS', value: 'he/him' }])).toBe('he/him')
+  })
+  it('returns null when absent or malformed', () => {
+    expect(extractPronouns([{ type: 'PropertyValue', name: 'Website', value: 'x' }])).toBeNull()
+    expect(extractPronouns(undefined)).toBeNull()
+    expect(extractPronouns('nope')).toBeNull()
+  })
+  it('actorToProfile exposes pronouns', () => {
+    const profile = actorToProfile({
+      id: 'https://r.example/users/bob', preferredUsername: 'bob', inbox: 'https://r.example/inbox',
+      attachment: [{ type: 'PropertyValue', name: 'Pronouns', value: 'he/him' }],
+    })
+    expect(profile.pronouns).toBe('he/him')
   })
 })

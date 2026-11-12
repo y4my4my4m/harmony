@@ -177,11 +177,13 @@ The bit is the position in the 64-bit mask stored for roles (`server_roles.permi
 | 29 | 536870912 | `MOVE_MEMBERS` | Move Members | Move Members | Yes | Move any member, the owner and oneself included, to another voice channel (also one they cannot connect to themselves, if they can see it) or disconnect them; end anyone's watch-together activity. Moving into a channel also needs Connect there. |
 | 30 | 1073741824 | `USE_SOUNDBOARD` | Use Soundboard | Use Soundboard | Yes | Play the server's soundboard sounds in a voice channel. Also needs Speak there. |
 | 31 | 2147483648 | `USE_EXTERNAL_SOUNDS` | Use External Sounds | Use External Sounds | Yes | Play sounds from the member's other servers. Also needs Use Soundboard and Speak there. |
+| 32 | 4294967296 | `CHANGE_NICKNAME` | Change Nickname | not listed | Yes | Edit one's own server profile (nickname, avatar, banner, bio, pronouns) under **User settings** → **Server profiles**. Every server's `@everyone` role has it, existing servers included; remove it to lock members' server profiles. |
+| 33 | 8589934592 | `MANAGE_NICKNAMES` | Manage Nicknames | not listed | No | Change other members' nicknames and reset their server profiles (avatar, banner, bio and pronouns), when the member's highest role is below the moderator's. The owner cannot be changed. Both actions are in the audit log. |
 
 "Not checked" means the switch is stored and shown, but no part of Harmony refuses an action because a member lacks it. Set those bits for bots, which read them through their install permissions; see [Bot permissions and rate limits](/build/permissions-rate-limits).
 
 ::: details Masks for common setups
-The default `@everyone` mask is `3343872258`. A role with every permission except Administrator is `4294967294` (bits 1 to 31).
+The default `@everyone` mask is `7638839554`. A role with every permission except Administrator is `17179869182` (bits 1 to 33).
 :::
 
 ## Instance staff

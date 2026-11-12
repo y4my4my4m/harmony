@@ -17,6 +17,7 @@
         <div class="user-info">
           <span class="user-display-name">{{ name }}</span>
           <span class="user-username">@{{ user.username }}</span>
+          <span v-if="nickname" class="user-username" data-testid="target-nickname">({{ nickname }})</span>
         </div>
       </div>
 
@@ -62,6 +63,7 @@ import { computed, ref, useId, watch } from 'vue'
 import { useToast } from 'vue-toastification'
 import BaseModal from '@/components/common/BaseModal.vue'
 import Avatar from '@/components/common/Avatar.vue'
+import { getMemberServerProfile } from '@/composables/useMemberProfile'
 import UnifiedButton from '@/components/shared/UnifiedButton.vue'
 import { useT } from '@/composables/useT'
 import { getInstanceDomain } from '@/services/instanceConfig'
@@ -96,6 +98,7 @@ const reason = ref('')
 const busy = ref(false)
 
 const name = computed(() => props.user.display_name || props.user.username)
+const nickname = computed(() => getMemberServerProfile(props.user.id, props.serverId).value?.nickname?.trim() || '')
 
 watch(() => props.show, (open) => {
   if (!open) return

@@ -129,6 +129,7 @@ Role permission masks, channel override masks and `missing_permissions` use thes
 | 13 | `SEND_MESSAGES_IN_THREADS` | 29 | `MOVE_MEMBERS` |
 | 14 | `CREATE_PUBLIC_THREADS` | 30 | `USE_SOUNDBOARD` |
 | 15 | `CREATE_PRIVATE_THREADS` | 31 | `USE_EXTERNAL_SOUNDS` |
+| 32 | `CHANGE_NICKNAME` | 33 | `MANAGE_NICKNAMES` |
 
 The value of a bit is 2 to the power of its number: `SEND_MESSAGES` is `4096`. What each permission means for members is on [Roles and permissions](/run/roles-permissions).
 
@@ -189,4 +190,4 @@ They send the standard `RateLimit` and `RateLimit-Policy` headers (IETF draft 7)
 | Different emoji on one message | 20; the 21st answers `400` with `code` `30010` |
 | REST request body | 10 MB |
 | Discord emoji image import | 512 KiB |
-| Attachment mirrored from Discord | 50 MB; a larger file keeps its Discord URL |
+| Attachment mirrored from Discord | The instance's upload ceiling; a larger file keeps its Discord URL |

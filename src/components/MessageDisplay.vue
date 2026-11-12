@@ -242,6 +242,7 @@
                 <SystemEventBody
                   :message="item.message"
                   :conversation-id="item.message.conversation_id || props.conversationId"
+                  :server-id="effectiveColoringServerId"
                   :user-color="resolveChatUserColor"
                   :bot-name="botDisplayName"
                   @show-user-profile="showUserProfile"
@@ -324,7 +325,7 @@
           <div class="message-main">
             <div class="message-meta">
               <button type="button" class="username" :style="{color: getAuthorColor(item.message).value}" @click="handleAuthorClick(item.message, $event)">
-                <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
+                <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)" :user-id="item.message.user_id" :server-id="effectiveColoringServerId" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
                 <FederatedUserBadge v-if="getHarmonyProfileUserId(item.message)" :user-id="getHarmonyProfileUserId(item.message)" />
                 <BridgeSourceBadge v-if="hasDiscordUserMetadata(item.message)" source="discord" />
                 <span v-else-if="getWebhookAuthor(item.message)" class="bot-badge webhook-badge">{{ $t('webhooks.badge') }}</span>
@@ -370,6 +371,7 @@
               :id="`msg-body-${item.message.id}`"
               :content="getDisplayContent(item.message)"
               :message-id="item.message.id"
+              :server-id="effectiveColoringServerId"
               :editable-message-id="editableMessageId"
               :editable-content="editableMessageContent"
               :image-loaded="imageLoaded"
@@ -413,6 +415,7 @@
               :id="`msg-body-${item.message.id}`"
               :content="getDisplayContent(item.message)"
               :message-id="item.message.id"
+              :server-id="effectiveColoringServerId"
               :editable-message-id="editableMessageId"
               :editable-content="editableMessageContent"
               :image-loaded="imageLoaded"
@@ -542,6 +545,7 @@
   <UserProfileModal
     :show="showProfileModal"
     :user="selectedUser"
+    :server-id="conversationId ? null : serverChannelStore.currentServerId"
     @close="closeProfile"
     @invite="openInviteModal"
     @mention="(username: string) => { emit('mentionUser', username); closeProfile(); }"
@@ -569,6 +573,7 @@
     :message-id="reactionsModal.messageId"
     :initial-emoji-key="reactionsModal.emojiKey"
     :resolvers="reactionUserResolvers"
+    :server-id="effectiveColoringServerId"
     @close="closeReactionsModal"
     @select-user="handleReactionUserSelect"
   />
@@ -701,6 +706,7 @@ import { usePinActions } from '@/composables/usePinActions';
 import { canPinMessage } from '@/utils/pinPermission';
 import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden';
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
+import { getMemberDisplayName, getMemberAvatarUrl } from '@/composables/useMemberProfile';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useQuickReactSettings } from '@/composables/useQuickReactSettings';
 import { useLayoutState } from '@/composables/useLayoutState';
@@ -1493,7 +1499,7 @@ const getAuthorDisplayName = (message: Message): ComputedRef<string> => {
     
     // Regular user
     if (message.user_id) {
-      return getUserDisplayName(message.user_id).value;
+      return getMemberDisplayName(message.user_id, effectiveColoringServerId.value).value;
     }
     
     return 'Unknown';
@@ -1520,7 +1526,7 @@ const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
     
     // Regular user
     if (message.user_id) {
-      return getUserAvatarUrl(message.user_id).value;
+      return getMemberAvatarUrl(message.user_id, effectiveColoringServerId.value).value;
     }
     
     return '/default_avatar.webp';
@@ -4287,8 +4293,8 @@ const closeContextMenu = () => {
 };
 
 const reactionUserResolvers: ReactionUserResolvers = {
-  displayName: (userId) => getUserDisplayName(userId).value,
-  avatarUrl: (userId) => getUserAvatarUrl(userId).value,
+  displayName: (userId) => getMemberDisplayName(userId, effectiveColoringServerId.value).value,
+  avatarUrl: (userId) => getMemberAvatarUrl(userId, effectiveColoringServerId.value).value,
   color: resolveChatUserColor,
   handle: (userId) => formatUserHandle(getUser(userId).value),
   bot: (botId) => {

@@ -115,7 +115,7 @@ test('channel and role changes appear in the audit log', async ({ page }) => {
 
     const entry = (text: string) =>
       entries.filter({ has: page.locator('.audit-line', { hasText: text }) })
-    const actor = owner.displayName
+    const actor = `${owner.displayName} (@${owner.username})`
     await expect(entry(`${actor} created channel #${created}`)).toHaveCount(1)
     await expect(entry(`${actor} deleted channel #${renamed}`)).toHaveCount(1)
     await expect(entry(`${actor} created role New Role`)).toHaveCount(1)

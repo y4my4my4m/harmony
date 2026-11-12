@@ -89,7 +89,7 @@ The steps are also on the admin page, under **Set up the bot in the Discord Deve
 3. Open **Bot**. Switch on **Public Bot** and **Requires OAuth2 Code Grant**. With the code grant on, the bot joins a Discord server only when a community links it from Harmony.
 4. Under **Privileged Gateway Intents**, switch on **Message Content Intent** and **Server Members Intent**; switch on **Presence Intent** only if you turn on presence sync below. Click **Save Changes**.
 5. Click **Reset Token**, then **Copy**: this is the bot token.
-6. Open **OAuth2**. Under **Redirects**, click **Add Redirect**, paste the **Redirect address** the admin page shows, and save. It has the form `https://<domain>/bot-gateway/bridge/v2/discord/callback` and has to match exactly.
+6. Open **OAuth2**. Under **Redirects**, click **Add Redirect**, paste the **Redirect address** the admin page shows, and save. It has the form `https://<domain>/bot-gateway/bridge/v2/discord/callback` and has to match exactly. If communities will use this bot to [migrate from Discord](#migrate-from-discord), add a second redirect, `https://<domain>/bot-gateway/bridge/v2/migrate/callback`, in addition to the `…/bridge/v2/discord/callback` one. Without it Discord answers "Invalid OAuth2 redirect_uri" when a member signs in, and owners cannot open a migration before they confirm the redirect is added.
 7. Still in **OAuth2**, click **Reset Secret** under **Client Secret** and copy it.
 8. In **User settings** → **Instance admin** → **Config** → **General** → **Discord bridge** → **This instance's Discord bot**, fill in **Application ID**, **Client secret** and **Bot token**, and click **Save credentials**.
 9. Turn on **Offer this bot to communities**.
@@ -145,8 +145,21 @@ All variables the bridge program reads in host mode:
 | `DATA_DIR` | no | State directory; `/data` in the image |
 | `LOG_LEVEL` | no | `error`, `warn`, `info` (default) or `debug`; only `debug` logs message contents |
 | `HEALTH_PORT` | no | Port of the `/health` endpoint, default `8080`; `off` disables it |
+| `BRIDGE_IMPORT_POLL_MS` | no | How often a bridge checks Harmony for history import jobs, in ms; default `10000` (bridge 2.6.0 or later) |
+| `BRIDGE_IMPORT_PAGE_DELAY_MS` | no | Pause between two history pages read from Discord, in ms; default `1000` |
+| `BRIDGE_IMPORT_CONCURRENCY` | no | History imports running at once in this bridge process; default `1` |
 
 Extra variables for the compose service go in `self-host/discord-bridge.env`; `configure.sh` rewrites only `BRIDGE_HOST_SECRET` there and keeps other keys.
+
+### History import
+
+From bridge 2.6.0, members who manage a server can import a paired Discord channel's older messages from the bridge page, and Discord Administrators can run `/bridge import-history` ([Import history](/run/discord-bridge#import-history)). Each import is a job the bridge works through in the background; the bridge reads Discord's history one page at a time, so a large channel takes hours.
+
+The `BRIDGE_IMPORT_*` variables above tune it. `BRIDGE_IMPORT_CONCURRENCY` counts imports per bridge process, and the bridge host is one process serving every hosted and instance bridge: with the default `1`, communities' imports run one after another there, and live relaying keeps its Discord rate-limit headroom. Raise it only when few communities import at once; each import adds Discord read traffic from the same bot and address. Put the variables in `self-host/discord-bridge.env`.
+
+With **Mirror to storage** (see [Attachments from Discord](#attachments-from-discord)), importing years of history copies every Discord file into the instance's message storage while Discord's freshly signed links are valid. That can be a lot of disk: check free space before communities import, or choose another option for the duration. The bridge page shows **Imported files are copied into this instance's storage.** while the setting is on.
+
+Imported messages carry `metadata.history_import` and are not federated, so no remote instance receives them.
 
 The volume holds per-bridge state under `/data/hosted/<bridge id>` and `/data/instance/<bridge id>`, and the instance bot's emoji map under `/data/app-emojis`.
 
@@ -180,6 +193,7 @@ The bridge-related keys of `self-host/bot-gateway.env`; [Configuration](/self-ho
 | `INSTANCE_DOMAIN` | set by `configure.sh` | Public domain of the Harmony app; base of the addresses handed to bridges and of the instance bot's OAuth2 redirect |
 | `BRIDGE_HOST_SECRET` | set by `configure.sh` with hosting on | Shared secret of the bridge host. Shorter than 32 characters, the two `hosted` routes answer 404 |
 | `BRIDGE_CONFIG_POLL_MS` | `5000` | How often the gateway checks bridges' configuration for changes, in ms, clamped to 1000-60000 |
+| `DISCORD_MIGRATION_SYNC_MS` | `21600000` (6 hours) | Time between syncs of one migrating server, in ms, at least 60000 |
 
 The gateway limits these routes per client address, as it sees it through `TRUST_PROXY`:
 
@@ -189,6 +203,16 @@ The gateway limits these routes per client address, as it sees it through `TRUST
 | `GET /bridge/v2/hosted`, `GET /bridge/v2/hosted/instance` | 30 refused secrets per 15 minutes |
 | `GET /bridge/v2/discord/authorize` and `/callback` together | 30 requests per 15 minutes |
 
+## Migrate from Discord
+
+Server owners can move their community with **Server settings** → **Migrate from Discord**: members follow a link, sign in with Discord, make or link a Harmony account and join with the roles they held on Discord, and the bot gateway keeps roles, membership and timeouts in step with Discord until the owner finishes the migration. [Migrate from Discord](/run/discord-migration) describes it for owners. For you as operator:
+
+- **The gateway does the work.** It runs the Discord sign-in and the sync, and creates accounts through the auth service. Nothing else has to run, and no Discord intents are needed. It needs `INSTANCE_DOMAIN` (or `PUBLIC_URL`) like the instance bot does.
+- **Redirect address.** Each owner adds `https://<domain>/bot-gateway/bridge/v2/migrate/callback` to the Discord application that signs members in. If a server uses this instance's bot, that is [your application](#set-up-this-instance-s-discord-bot): add the address next to the bot's other redirect. The same address serves every server.
+- **Sync interval.** `DISCORD_MIGRATION_SYNC_MS` in `self-host/bot-gateway.env` sets how often each open migration syncs (default 6 hours). The gateway looks for due servers every 30 seconds, so **Sync now** takes effect within that.
+- **Accounts.** A member without an account creates one on the migration page, under any registration policy. `harmony migration account-creation off` limits the page to members who already have an account; `on` (the default) allows creating accounts. See [harmony migration](/self-host/cli#harmony-migration). Whether a new account must confirm its email follows the auth service's setting (`ENABLE_EMAIL_AUTOCONFIRM`); the migration never confirms an address itself.
+- **Credentials.** Owners can bring their own application, reuse this instance's bot, or reuse their hosted bridge's bot. Their secrets are stored in Vault, like the bridge's.
+
 ## Attachments from Discord
 
 Discord's file links expire. **User settings** → **Instance admin** → **Config** → **General** → **Bridge attachments** → **Attachment handling** sets what the bot gateway does with Discord file links in messages bots post, for the whole instance; click **Save changes**.
@@ -197,7 +221,18 @@ Discord's file links expire. **User settings** → **Instance admin** → **Conf
 |---|---|
 | **Link only** (default) | Stores the Discord link; it stops working when it expires |
 | **Refresh on demand** | When someone views a bridged message whose link expired, the gateway asks the owning bridge, which must be connected, to re-sign the links and update the message. No disk use |
-| **Mirror to storage** | Copies each file into the instance's message storage when the message arrives. Permanent; uses disk. A file over 50 MB, or one that fails to download, keeps its Discord link |
+| **Mirror to storage** | Copies each file into the instance's message storage when the message arrives, when a community imports old Discord history, and for messages already in Harmony. Permanent; uses disk. A file larger than the upload ceiling, and one that fails to download, keeps its Discord link |
+
+### Mirror to storage
+
+Turning **Mirror to storage** on also covers messages bridged earlier. Only messages posted by bridge bots are covered, not messages from people on Harmony. The gateway works through their Discord files in the background and stores them, so nothing has to be re-imported. Under the setting, **Storing Discord files** counts what is waiting, stored, too large and failed.
+
+- **Size cap.** Files up to the upload ceiling are stored (Discord allows up to 500 MB). Raise the ceiling with `harmony config --upload-ceiling 500M`; files that were too large are then stored without further action. The ceiling must match storage's `FILE_SIZE_LIMIT`, which `harmony config --upload-ceiling` sets together with it; a file storage refuses is counted as too large.
+- **Large files.** Files over `BRIDGE_MIRROR_INLINE_MAX_BYTES` (default 25 MB) go through a queue and are stored one at a time (`BRIDGE_MIRROR_CONCURRENCY`, default 1), so a burst of big files does not slow the bridge.
+- **Temp disk.** Each file is downloaded to a temporary file first, in `BRIDGE_MIRROR_TMPDIR` (default: the operating system's temp directory, on the gateway container's disk). Keep free space there of about the size of the largest file, up to the upload ceiling.
+- **Storage.** Storage needs room for all the files. Check free space before turning the option on for a bridge with years of history.
+- **Expired links.** A Discord link that expired before the file was stored is refreshed through the bridge, which must be online. While it is not, the gateway tries again every 15 minutes. A stored file never goes back to a Discord link.
+- **One gateway.** The queue assumes one gateway process.
 
 ## Versions
 
@@ -212,5 +247,6 @@ Some bridge features need a Harmony release with the matching gateway routes and
 | 2.3.0 | 1.6.25 | `/bridge import-emojis` |
 | 2.4.0 | 1.7.5 | Threads cross the bridge; the bot needs **Create Public Threads** and **Send Messages in Threads** |
 | 2.4.1 | 1.7.6 | The "started a thread" notice names the Discord member who started the thread |
+| 2.6.0 | 1.9.7 | `/bridge import-history` and the **Import history** buttons; the bot needs **Read Message History**. Discord's private threads no longer cross the bridge, live or imported |
 
 When a release needs a new Discord permission, communities whose bot was added earlier have to add it again: **Add to Discord again** for the instance bot, **Invite the bot to your Discord server** for their own bot. Communities that run the bridge themselves update their own container; the bridge page shows each bridge's **Bridge version**.

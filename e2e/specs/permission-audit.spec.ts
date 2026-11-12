@@ -66,6 +66,8 @@ const BIT = {
   MANAGE_MESSAGES: 21,
   READ_MESSAGE_HISTORY: 22,
   PIN_MESSAGES: 23,
+  CHANGE_NICKNAME: 32,
+  MANAGE_NICKNAMES: 33,
 } as const
 type Bit = keyof typeof BIT
 const mask = (...names: Bit[]) => names.reduce((m, n) => m + 2 ** BIT[n], 0)

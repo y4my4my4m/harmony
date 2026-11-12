@@ -688,6 +688,14 @@
         "USE_EXTERNAL_SOUNDS": {
           "label": "Usar sonidos externos",
           "description": "Reproducir sonidos de otros servidores a los que pertenecen"
+        },
+        "CHANGE_NICKNAME": {
+          "label": "Cambiar apodo",
+          "description": "Establecer su propio apodo y perfil de servidor en este servidor"
+        },
+        "MANAGE_NICKNAMES": {
+          "label": "Gestionar apodos",
+          "description": "Cambiar o restablecer los apodos y perfiles de servidor de miembros de rango inferior"
         }
       },
       "everyoneMembersNote": "El rol {'@'}everyone se aplica automáticamente a todos los miembros de este servidor. No hay lista que gestionar.",
@@ -3023,6 +3031,20 @@
       "moderators": "Moderadores de {server}",
       "outcomeBy": "Moderadores de {server}: {outcome}",
       "reviewedTitle": "Los moderadores de {server} revisaron tu denuncia"
+    },
+    "serverProfile": {
+      "nicknameTitle": "Cambiar apodo",
+      "nicknameLabel": "Apodo de {name}",
+      "nicknamePlaceholder": "Sin apodo",
+      "nicknameHint": "Déjalo vacío para quitar el apodo. Solo se aplica en este servidor.",
+      "nicknameDone": "{name} ahora se llama {nickname}.",
+      "nicknameCleared": "Se quitó el apodo de {name}.",
+      "resetTitle": "Restablecer perfil de servidor",
+      "resetMessage": "¿Borrar el avatar, el banner, la biografía y los pronombres de servidor de {name}? Se conserva el apodo.",
+      "resetConfirm": "Restablecer",
+      "resetDone": "Se restableció el perfil de servidor de {name}.",
+      "failed": "No se pudo actualizar a {name}.",
+      "noPermission": "No tienes permiso para cambiar a {name}."
     }
   },
   "files": {
@@ -4629,7 +4651,8 @@
       "emoji": "Emojis",
       "sound": "Sonidos",
       "bot": "Bots",
-      "sticker": "Stickers"
+      "sticker": "Stickers",
+      "discord_migration": "Migración de Discord"
     },
     "actions": {
       "channel_create": "{actor} creó el canal {target}",
@@ -4660,6 +4683,8 @@
       "member_voice_undeafen": "{actor} quitó el ensordecimiento de servidor a {target}",
       "member_voice_move": "{actor} movió a {target} a otro canal de voz",
       "member_voice_disconnect": "{actor} desconectó a {target} de la voz",
+      "member_nickname_update": "{actor} cambió el apodo de {target}",
+      "member_profile_reset": "{actor} restableció el perfil de servidor de {target}",
       "message_delete": "{actor} eliminó un mensaje de {target} en {channel} | {actor} eliminó {count} mensajes de {target} en {channel}",
       "server_update": "{actor} editó el servidor",
       "settings_update": "{actor} cambió los ajustes del servidor",
@@ -4679,9 +4704,11 @@
       "server_unsuspend": "{actor} levantó la suspensión del servidor",
       "sticker_create": "{actor} añadió el sticker {target}",
       "sticker_update": "{actor} editó el sticker {target}",
-      "sticker_delete": "{actor} eliminó el sticker {target}"
+      "sticker_delete": "{actor} eliminó el sticker {target}",
+      "discord_migration_paused": "La migración de Discord pausó la sincronización"
     },
     "fields": {
+      "nickname": "Apodo",
       "name": "Nombre",
       "description": "Descripción",
       "category": "Categoría",
@@ -5374,6 +5401,10 @@
       "reportsFailed": "No se pudo cambiar cómo se tratan los reportes de este dominio"
     },
     "instance": {
+      "mirrorStatusProgress": "Guardando archivos de Discord: {queued} en espera, {done} guardados",
+      "mirrorStatusTooLarge": "{count} demasiado grandes ({size}): sube el límite de subida con harmony config --upload-ceiling 500M",
+      "mirrorStatusFailed": "{count} fallidos",
+      "mirrorStatusAllStored": "Todos los archivos de Discord están guardados",
       "maxPostReactions": "Máximo de reacciones por persona en una publicación",
       "maxPostReactionsHint": "Emojis distintos con los que una persona puede reaccionar a una publicación (1-100). Predeterminado: 10. Las reacciones de otras instancias que superen el límite se descartan. Los mensajes de chat admiten como máximo 20 emojis distintos.",
       "maxPersonalEmojis": "Emojis personales por usuario",
@@ -5707,6 +5738,276 @@
           "internal_error": "Algo salió mal. Inténtalo más tarde.",
           "network_error": "No se pudo contactar con el servidor."
         }
+      }
+    }
+  },
+  "discordMigration": {
+    "joinedOnDiscord": "Se unió en Discord",
+    "notice": {
+      "grantedTitle": "{user} recibió el rol de administrador {role} en {server} por la migración de Discord",
+      "removedTitle": "{user} perdió el rol de administrador {role} en {server} por la migración de Discord",
+      "message": "Mientras la migración esté abierta, Discord decide quién tiene los roles asignados en {server}.",
+      "short": "Rol de administrador cambiado por la migración de Discord",
+      "pausedTitle": "Migración de Discord en pausa en {server}",
+      "pausedShort": "Migración de Discord en pausa",
+      "paused": {
+        "removal_brake": "La migración de Discord en {server} se pausó sola: demasiados miembros se fueron o fueron expulsados de Discord a la vez. Revísalo y reanúdala en los ajustes del servidor.",
+        "credentials_missing": "La migración de Discord en {server} está en pausa: faltan sus credenciales de Discord. Añádelas en los ajustes del servidor para reanudarla.",
+        "token_invalid": "La migración de Discord en {server} está en pausa: Discord rechazó el token del bot. Sustituye el token en los ajustes del servidor para reanudarla.",
+        "bot_not_in_guild": "La migración de Discord en {server} está en pausa: su bot ya no está en el servidor de Discord. Vuelve a añadir el bot y reanuda la migración.",
+        "discord_errors": "La migración de Discord en {server} está en pausa: Discord devolvió errores repetidos. Reanúdala en los ajustes del servidor cuando Discord vuelva a estar disponible.",
+        "generic": "La migración de Discord en {server} se pausó. Reanúdala en los ajustes del servidor."
+      }
+    },
+    "sync": {
+      "title": "Sincronizar desde Discord",
+      "settingsLead": "Mientras la migración esté abierta, los campos marcados se copian de tu perfil de Discord a Harmony.",
+      "accountGroup": "El perfil de tu cuenta",
+      "serverGroup": "Tu perfil en este servidor",
+      "hint": "Los campos marcados se copian al pulsar Sincronizar y se mantienen al día cada pocas horas mientras la migración esté abierta. Desmarca un campo para dejar de copiarlo; lo ya copiado se queda.",
+      "saveFailed": "No se pudo guardar. Inténtalo de nuevo.",
+      "fields": {
+        "avatar": "Foto de perfil",
+        "display_name": "Nombre para mostrar",
+        "banner": "Banner",
+        "accent_color": "Color de acento",
+        "server_nickname": "Apodo en este servidor",
+        "server_avatar": "Foto en este servidor",
+        "server_banner": "Banner en este servidor"
+      },
+      "selectAll": "Seleccionar todo",
+      "clearAll": "Quitar todo",
+      "syncButton": "Sincronizar",
+      "syncing": "Sincronizando…",
+      "saveAndSync": "Guardar y sincronizar",
+      "done": "Sincronizado desde Discord."
+    },
+    "migrate": {
+      "title": "Migrar desde Discord",
+      "loading": "Cargando…",
+      "lead": "Vincula tu cuenta de Discord con Harmony para conservar tus roles y, si quieres, tu perfil cuando esta comunidad se mude.",
+      "linkTo": "Lo vincularás con {'@'}{username}.",
+      "notYou": "¿No eres tú? Cerrar sesión",
+      "signInInstead": "Iniciar sesión",
+      "signInInsteadHint": "Después, elige de nuevo «Iniciar sesión con Discord».",
+      "signInWithDiscord": "Iniciar sesión con Discord",
+      "haveAccount": "Tengo una cuenta de Harmony",
+      "newHere": "Soy nuevo: continuar con Discord",
+      "claiming": "Entrando al servidor…",
+      "doneTitle": "Ya estás vinculado",
+      "rolesReceived": "Recibiste estos roles:",
+      "noRoles": "No recibiste ningún rol. Tus roles siguen a Discord mientras la migración esté abierta.",
+      "openServer": "Abrir el servidor",
+      "confirmEmail": "Confirma tu correo y luego inicia sesión. Entrarás automáticamente.",
+      "formLead": "Crea tu cuenta de Harmony para terminar.",
+      "username": "Nombre de usuario",
+      "email": "Correo electrónico",
+      "password": "Contraseña",
+      "createAccount": "Crear cuenta",
+      "startAgain": "Empezar de nuevo",
+      "federated": "Crea una cuenta en esta instancia para migrar. Las cuentas de otras instancias no se pueden vincular aquí.",
+      "signOut": "Cerrar sesión",
+      "accountCreatedSignIn": "Tu cuenta se creó. Inicia sesión para terminar de unirte.",
+      "signIn": "Iniciar sesión",
+      "errors": {
+        "closed": "Esta migración está cerrada; pide una invitación a los administradores del servidor.",
+        "migration_closed": "Esta migración está cerrada; pide una invitación a los administradores del servidor.",
+        "not_member": "No eres miembro del servidor de Discord.",
+        "harmony_banned": "Estás vetado de este servidor en Harmony.",
+        "kicked_on_harmony": "Te expulsaron de este servidor en Harmony. Un moderador debe permitirte volver primero.",
+        "discord_banned_here": "Estás vetado de este servidor en Discord.",
+        "discord_account_taken": "Esa cuenta de Discord ya está vinculada a otra cuenta de Harmony.",
+        "already_linked_other_discord": "Tu cuenta de Harmony ya está vinculada a otra cuenta de Discord en este servidor.",
+        "already_linked_elsewhere": "Tu cuenta de Harmony ya está vinculada a otra cuenta de Discord en este servidor.",
+        "ticket_expired": "Este inicio de sesión caducó. Empieza de nuevo.",
+        "account_creation_disabled": "Ahora mismo no se pueden crear cuentas nuevas aquí.",
+        "denied": "Cancelaste el inicio de sesión con Discord.",
+        "exchange_failed": "Discord no confirmó el inicio de sesión. Inténtalo de nuevo.",
+        "unavailable": "La migración no está disponible ahora. Inténtalo más tarde.",
+        "username_taken": "Ese nombre de usuario ya está en uso.",
+        "email_exists": "Ya existe una cuenta con ese correo. Inicia sesión con ella.",
+        "username_invalid": "Ese nombre de usuario no está permitido.",
+        "invalid_request": "Escribe un nombre de usuario, un correo y una contraseña.",
+        "invalid_ticket": "Este inicio de sesión caducó. Empieza de nuevo.",
+        "network": "No se pudo contactar con el servidor. Inténtalo de nuevo.",
+        "unknown": "Algo salió mal. Inténtalo de nuevo."
+      },
+      "ownerRoles": "Eres el propietario de este servidor, así que la sincronización solo te añade roles. Nunca te los quita.",
+      "continue": "Continuar",
+      "skipSyncTitle": "¿Continuar sin sincronizar?",
+      "skipSyncMessage": "No has sincronizado nada desde Discord. ¿Continuar de todos modos? Puedes sincronizar más tarde en Ajustes → Perfiles de servidor."
+    },
+    "navLabel": "Migrar desde Discord",
+    "title": "Migrar desde Discord",
+    "intro": "Trae tu comunidad de Discord. Los miembros vinculan su cuenta de Discord con su cuenta de Harmony y, mientras la migración esté abierta, sus roles, perfil y estado de Discord los siguen aquí.",
+    "loading": "Cargando la configuración de la migración…",
+    "loadError": "No se pudo cargar la configuración de la migración.",
+    "retry": "Reintentar",
+    "prereq": {
+      "title": "Antes de empezar",
+      "cloneFirst": "Primero clona tu servidor de Discord en este servidor: canales, categorías y roles. La migración asigna roles de Discord a roles de Harmony; no los crea.",
+      "botInServer": "El bot que uses abajo ya debe ser miembro del servidor de Discord."
+    },
+    "source": {
+      "title": "De dónde viene el bot de Discord",
+      "save": "Guardar",
+      "saved": "Guardado.",
+      "instance_bot": {
+        "label": "El bot de Discord de esta instancia",
+        "hint": "El bot de Discord que gestiona el operador de la instancia. Inclúyelo primero en tu servidor de Discord."
+      },
+      "bridge": {
+        "label": "El bot del puente alojado de este servidor",
+        "hint": "Reutiliza el token del bot del puente de Discord de este servidor."
+      },
+      "own": {
+        "label": "Mi propia aplicación de Discord",
+        "hint": "Crea tú mismo una aplicación y un bot de Discord e introduce aquí sus datos.",
+        "intro": "Crea una aplicación en el Portal de desarrolladores de Discord, añádele un bot e invita al bot a tu servidor de Discord. Copia los valores siguientes del portal.",
+        "redirect": "Añade esta dirección en OAuth2 → Redirects de tu aplicación:",
+        "redirectLabel": "Dirección de redirección",
+        "clientId": "ID de cliente",
+        "clientSecret": "Secreto de cliente",
+        "botToken": "Token del bot",
+        "stored": "Los secretos se guardan y no se pueden volver a mostrar. Deja un campo vacío para conservar el valor guardado.",
+        "notStored": "Todavía no hay credenciales guardadas."
+      }
+    },
+    "guild": {
+      "label": "ID del servidor de Discord",
+      "hint": "Activa el modo desarrollador en Discord, haz clic derecho en el servidor y elige Copiar ID del servidor.",
+      "locked": "El servidor de Discord no se puede cambiar después de abrir la migración.",
+      "fromBridge": "Rellenado desde el puente de Discord de este servidor."
+    },
+    "refresh": {
+      "button": "Obtener de Discord",
+      "working": "Obteniendo…",
+      "needSave": "Guarda primero el servidor de Discord y las credenciales.",
+      "done": "Se encontró {count} rol de Discord. | Se encontraron {count} roles de Discord.",
+      "cannotBan": "El bot no puede vetar miembros en Discord. Los miembros vetados en Discord no se vetarán aquí hasta que le des al bot el permiso Vetar miembros y vuelvas a obtener los datos.",
+      "errors": {
+        "credentials_missing": "No hay credenciales guardadas para esta migración. Guárdalas e inténtalo de nuevo.",
+        "token_invalid": "Discord rechazó el token del bot. Revísalo e inténtalo de nuevo.",
+        "bot_not_in_guild": "El bot no está en ese servidor de Discord o no puede verlo. Invítalo e inténtalo de nuevo.",
+        "network": "No se pudo conectar con el servidor. Inténtalo de nuevo.",
+        "unauthenticated": "Tienes que volver a iniciar sesión.",
+        "other": "Algo salió mal al obtener los datos de Discord."
+      }
+    },
+    "roles": {
+      "title": "Asigna tus roles",
+      "intro": "Cada rol de Discord necesita un rol de Harmony. Mientras la migración esté abierta, Discord decide quién tiene los roles de Harmony asignados.",
+      "empty": "Obtén tus roles de Discord para empezar a asignarlos.",
+      "counter": "Aún falta asignar {count} rol | Aún faltan por asignar {count} roles",
+      "allMatched": "Todos los roles de Discord tienen asignación.",
+      "adminBadge": "Administrador",
+      "selectLabel": "Rol de Harmony para {role}",
+      "choose": "Elige un rol",
+      "ownerOnly": "Solo el propietario del servidor puede asignar roles con Administrador",
+      "matchedByName": "Asignado por nombre",
+      "accept": "Usar las asignaciones sugeridas"
+    },
+    "gaps": {
+      "title": "Permisos por añadir",
+      "intro": "Estos roles de Discord tienen permisos que el rol de Harmony no tiene. Aplicarlos solo añade permisos; nunca quita ninguno.",
+      "apply": "Aplicar permisos de Discord",
+      "applyAll": "Aplicar todos"
+    },
+    "overrides": {
+      "title": "Anulaciones de canal por miembro",
+      "intro": "Discord puede permitir o denegar permisos en un canal para un solo miembro. Cuando un miembro vinculado entra, los recibe en el canal de Harmony emparejado. Las anulaciones que un administrador creó en Harmony nunca se reemplazan.",
+      "member": "Miembro de Discord {id}",
+      "allows": "Permite: {list}",
+      "denies": "Deniega: {list}",
+      "nothing": "nada",
+      "linked": "Vinculado a {'@'}{username}",
+      "notLinked": "Aún no vinculado",
+      "unpaired": "Canal sin emparejar",
+      "showAll": "Mostrar los {count}",
+      "showFewer": "Mostrar menos"
+    },
+    "errors": {
+      "needManageRoles": "Necesitas el permiso Gestionar roles para aplicar permisos",
+      "cannotGrant": "No puedes conceder {permission} porque no lo tienes",
+      "generic": "No funcionó. Inténtalo de nuevo."
+    },
+    "adminConfirm": {
+      "holdersFailed": "No se pudieron cargar los miembros que tienen este rol. Inténtalo de nuevo.",
+      "title": "¿Dar acceso de administrador?",
+      "lead": "Se está asignando un rol con acceso de administrador a un rol de Harmony.",
+      "holders": "Estos miembros pasarán a ser administradores de este servidor:",
+      "holdersPending": "Estos miembros tendrán este rol. Pasarán a ser administradores si se aplica Administrador al rol:",
+      "noHolders": "Todavía nadie tiene este rol.",
+      "future": "Quien reciba este rol en Discord mientras la migración esté abierta también será administrador aquí.",
+      "futurePending": "Quien reciba este rol en Discord mientras la migración esté abierta también lo tendrá aquí, y será administrador si se aplica Administrador al rol.",
+      "confirm": "Hacerlos administradores"
+    },
+    "ready": {
+      "title": "Listo para abrir",
+      "open": "Abrir migración",
+      "blockers": {
+        "credentials": "Añade las credenciales de Discord.",
+        "guild": "Introduce el ID del servidor de Discord.",
+        "roles": "Obtén tus roles de Discord.",
+        "redirect": "Añade la URL de redirección a la aplicación de Discord"
+      },
+      "warnings": {
+        "unpaired": "{count} canal de Discord no está emparejado con un canal de Harmony. | {count} canales de Discord no están emparejados con canales de Harmony."
+      },
+      "redirect": {
+        "intro": "Añade esta URL de redirección a los ajustes OAuth2 de la aplicación de Discord, o Discord mostrará «Invalid OAuth2 redirect_uri». Es la misma para cualquier origen de credenciales, incluido el bot de esta instancia.",
+        "added": "Ya la añadí"
+      }
+    },
+    "open": {
+      "title": "La migración está abierta",
+      "lead": "Comparte este enlace con tus miembros. Inician sesión con Discord y después con su cuenta de Harmony.",
+      "linkLabel": "Enlace de invitación",
+      "regenerate": "Regenerar enlace",
+      "regenerateConfirmTitle": "¿Regenerar el enlace?",
+      "regenerateConfirmMessage": "Los enlaces que ya compartiste dejarán de funcionar.",
+      "pausedTitle": "La sincronización está en pausa.",
+      "resumeBrakeConfirmTitle": "¿Quitar a los miembros que dejaron Discord?",
+      "resumeBrakeConfirmMessage": "La sincronización se detuvo porque muchos miembros se fueron o fueron expulsados de Discord a la vez. Si la reanudas, esos miembros se eliminarán de este servidor ahora. Esta aprobación vale solo para este ciclo; si más adelante aparece otro lote grande, la sincronización se pausará de nuevo.",
+      "resumeBrakeConfirm": "Quitarlos y reanudar",
+      "pausedReasons": {
+        "removal_brake": "Se habrían eliminado más miembros de lo habitual de una sola vez, así que la sincronización se detuvo para que lo revises."
+      },
+      "resume": "Reanudar",
+      "lastSync": "Última sincronización {when}.",
+      "neverSynced": "Aún sin sincronizar.",
+      "result": "Se revisaron {checked} miembros. Roles cambiados: {roles}. Eliminados: {removed}. Errores: {errors}.",
+      "syncNow": "Sincronizar ahora",
+      "syncQueued": "Se solicitó una sincronización.",
+      "finish": "Terminar migración",
+      "finishConfirmTitle": "¿Terminar la migración?",
+      "finishConfirmMessage": "Los miembros dejan de seguir a Discord. Los roles y miembros se quedan como están ahora y el enlace de invitación deja de funcionar. Puedes reabrir la migración más tarde.",
+      "finishConfirm": "Terminar"
+    },
+    "finished": {
+      "title": "La migración ha terminado",
+      "lead": "Los roles y miembros ya no siguen a Discord.",
+      "warning": "Al reabrirla, los roles asignados y la pertenencia vuelven a seguir a Discord. Los cambios que hayas hecho a mano en roles asignados pueden sobrescribirse.",
+      "reopen": "Reabrir",
+      "reopenConfirmTitle": "¿Reabrir la migración?",
+      "reopenConfirm": "Reabrir"
+    },
+    "members": {
+      "title": "Miembros vinculados",
+      "empty": "Todavía nadie ha vinculado su cuenta.",
+      "user": "Miembro",
+      "discordId": "ID de Discord",
+      "status": "Estado",
+      "lastSynced": "Última sincronización",
+      "actions": "Acciones",
+      "never": "Nunca",
+      "allowBack": "Permitir volver",
+      "leftHint": "Salió de Discord o se le permitió volver. Puede vincularse de nuevo.",
+      "statuses": {
+        "active": "Activo",
+        "left": "Sin vincular",
+        "banned": "Vetado",
+        "kicked_on_harmony": "Expulsado aquí"
       }
     }
   },
@@ -6052,6 +6353,7 @@
       "unknown": "Aún sin datos",
       "showSetup": "Mostrar los pasos de configuración",
       "problemsTitle": "{count} problema por resolver | {count} problemas por resolver",
+      "noticesTitle": "{count} aviso | {count} avisos",
       "pairsTitle": "Canales conectados",
       "settingsTitle": "Opciones",
       "maintainTitle": "Mantenimiento",
@@ -6163,6 +6465,17 @@
         "fixHosted": "Es un problema de la instancia, y el puente sigue intentándolo. Si dura, contacta con la administración de la instancia.",
         "fixInstance": "Es un problema de la instancia, y el puente sigue intentándolo. Si dura, contacta con la administración de la instancia."
       },
+      "message_content_needed_for_import": {
+        "title": "Una importación del historial espera el Message Content Intent.",
+        "fixSelf": "Mientras esté desactivado, Discord envía mensajes vacíos. En el Developer Portal, abre tu aplicación → Bot → Privileged Gateway Intents, activa Message Content Intent y haz clic en Save Changes. Luego reinicia el puente con el comando de abajo; la importación empieza sola.",
+        "fixHosted": "Mientras esté desactivado, Discord envía mensajes vacíos. En el Developer Portal, abre tu aplicación → Bot → Privileged Gateway Intents, activa Message Content Intent y haz clic en Save Changes. La importación empieza sola cuando el puente se reconecta.",
+        "fixInstance": "El bot de esta instancia no tiene el Message Content Intent, así que no puede importar el historial. Pregunta a la administración de la instancia."
+      },
+      "private_threads_skipped": {
+        "title": "La importación dejó fuera los hilos privados de {channel}.",
+        "titleCount": "La importación dejó fuera {count} hilo privado de {channel}. | La importación dejó fuera {count} hilos privados de {channel}.",
+        "fix": "No hay nada que arreglar. Harmony aún no tiene hilos privados y todo el canal podría leerlos, así que se quedan en Discord."
+      },
       "unknown": {
         "title": "El puente informó de un problema ({code}).",
         "fixSelf": "El registro del puente tiene los detalles:",
@@ -6229,7 +6542,11 @@
       "bridgeExists": "Este servidor ya tiene un puente de Discord configurado de otra forma. Desconéctalo primero para usar el bot de esta instancia.",
       "instanceFull": "El bot de esta instancia ya está en tantos servidores de Discord como permite. Pregunta a la administración de la instancia o usa un bot de Discord propio.",
       "instanceOff": "Esta instancia no ofrece su bot de Discord en este momento. Usa un bot de Discord propio.",
-      "link": "No se pudo iniciar la vinculación con Discord. Vuelve a intentarlo."
+      "link": "No se pudo iniciar la vinculación con Discord. Vuelve a intentarlo.",
+      "import": "No se pudo iniciar la importación.",
+      "cancelImport": "No se pudo cancelar la importación.",
+      "pairNotImportable": "Este par no puede importar historial. Solo pueden hacerlo los canales sin cifrar en pares que traen mensajes de Discord a Harmony.",
+      "importChanged": "La importación cambió mientras tanto y se actualizó. Inténtalo de nuevo."
     },
     "time": {
       "secondsAgo": "ahora mismo | hace {count} segundo | hace {count} segundos",
@@ -6338,6 +6655,49 @@
       "settingsSaved": "Ajustes del bot de Discord guardados",
       "saveFailed": "No se pudieron guardar los ajustes del bot de Discord",
       "redirectLabel": "Dirección de redirección"
+    },
+    "import": {
+      "button": "Importar historial",
+      "buttonLabel": "Importar el historial de #{channel}",
+      "importAll": "Importar todo",
+      "importAllAgain": "Importar todo de nuevo",
+      "importAllAgainConfirm": "¿Importar de nuevo el historial de {count} canal? Se vuelve a leer su historial de Discord desde el principio; los mensajes que ya están aquí se omiten. | ¿Importar de nuevo el historial de los {count} canales? Cada uno vuelve a leer su historial de Discord desde el principio; los mensajes que ya están aquí se omiten.",
+      "importAllAgainYes": "Importar de nuevo",
+      "cancelAll": "Cancelar todo",
+      "cancel": "Cancelar",
+      "cancelLabel": "Cancelar la importación de #{channel}",
+      "cancelling": "Cancelando…",
+      "waiting": "En espera",
+      "running": "Importando… {percent} %",
+      "runningUnknown": "Importando…",
+      "threadsRunning": "Importando hilos…",
+      "repliesRunning": "Vinculando respuestas…",
+      "progressLabel": "Progreso de la importación de #{channel}",
+      "backTo": "Hasta {date}",
+      "messages": "{count} mensaje | {count} mensajes",
+      "threads": "Hilos {done} de {total}",
+      "done": "{count} mensaje importado | {count} mensajes importados",
+      "doneNothingNew": "Al día: no hay mensajes nuevos",
+      "failed": "Importación detenida: {reason}",
+      "failedUnknown": "Importación detenida",
+      "cancelled": "Cancelada",
+      "paused": "En pausa: esperando al puente",
+      "retry": "Reintentar",
+      "retryLabel": "Reintentar la importación de #{channel}",
+      "resume": "Reanudar",
+      "resumeLabel": "Reanudar la importación de #{channel}",
+      "again": "Importar de nuevo",
+      "againLabel": "Importar de nuevo el historial de #{channel}",
+      "reasons": {
+        "pair_removed": "se quitó el par de canales",
+        "channel_encrypted": "el canal ahora está cifrado"
+      },
+      "ineligible": {
+        "direction": "Solo los pares que traen mensajes de Discord a Harmony pueden importar historial",
+        "encrypted": "Los canales cifrados no pueden importar historial"
+      },
+      "needsUpdate": "Actualiza el puente a la versión 2.6.0 o posterior para importar historial",
+      "mirrorNote": "Los archivos importados se copian en el almacenamiento de esta instancia."
     }
   },
   "imageEditor": {
@@ -6497,7 +6857,9 @@
       "kick": "Expulsar a {name}",
       "ban": "Banear a {name}",
       "copyId": "Copiar ID de usuario",
-      "fallbackName": "Usuario"
+      "fallbackName": "Usuario",
+      "moderateNickname": "Cambiar el apodo de {name}",
+      "resetServerProfile": "Restablecer el perfil de servidor de {name}"
     },
     "rail": {
       "folder": "carpeta",
@@ -6913,6 +7275,32 @@
       "invalid": "La plantilla no es válida: {detail}",
       "rejected": "El servidor rechazó esta plantilla: {detail}"
     }
+  },
+  "serverProfile": {
+    "tabLabel": "Perfiles de servidor",
+    "title": "Perfiles de servidor",
+    "description": "Define un apodo, avatar, banner, biografía y pronombres distintos para cada servidor. Los campos vacíos usan los valores de tu cuenta.",
+    "noServers": "Todavía no te has unido a ningún servidor.",
+    "server": "Servidor",
+    "remoteUnavailable": "alojado en otra instancia",
+    "locked": "No tienes permiso para cambiar tu perfil en este servidor.",
+    "nickname": "Apodo",
+    "pronouns": "Pronombres",
+    "pronounsPlaceholder": "p. ej. ella/ella",
+    "bio": "Sobre mí",
+    "bioPlaceholder": "Cuéntale a este servidor algo sobre ti",
+    "avatar": "Avatar",
+    "banner": "Banner",
+    "reset": "Restablecer",
+    "resetField": "Restablecer {field}",
+    "save": "Guardar cambios",
+    "saved": "Perfil de servidor guardado.",
+    "saveFailed": "No se pudo guardar tu perfil de servidor.",
+    "uploadFailed": "No se pudo subir la imagen.",
+    "preview": "Vista previa",
+    "menuEntry": "Editar perfil de servidor",
+    "accountPronouns": "Pronombres",
+    "accountPronounsHint": "Se muestran bajo tu nombre en tu perfil. Hasta 40 caracteres."
   },
   "notificationSettings": {
     "menuEntry": "Configuración de notificaciones",

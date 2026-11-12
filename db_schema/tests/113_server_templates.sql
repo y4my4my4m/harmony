@@ -210,7 +210,7 @@ SELECT is(pg_temp.roles_of(pg_temp.copy()), pg_temp.roles_of('f1131000-0000-0000
           'roles match in order, with permissions');
 SELECT is((SELECT format('%s|%s|%s', color, permissions, position) FROM public.server_roles
             WHERE server_id = pg_temp.copy() AND is_default),
-          '#123456|462850|0', '@everyone is updated in place');
+          '#123456|4295430146|0', '@everyone is updated in place, with CHANGE_NICKNAME added (462850 + bit 32)');
 SELECT ok((SELECT position FROM public.server_roles WHERE server_id = pg_temp.copy() AND is_admin)
           > (SELECT max(position) FROM public.server_roles WHERE server_id = pg_temp.copy() AND NOT is_admin),
           'Admin outranks every template role');

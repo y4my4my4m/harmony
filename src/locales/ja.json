@@ -688,6 +688,14 @@
         "USE_EXTERNAL_SOUNDS": {
           "label": "外部のサウンドを使用",
           "description": "所属する他のサーバーのサウンドを再生します"
+        },
+        "CHANGE_NICKNAME": {
+          "label": "ニックネームの変更",
+          "description": "このサーバーでの自分のニックネームとサーバープロフィールを設定します"
+        },
+        "MANAGE_NICKNAMES": {
+          "label": "ニックネームの管理",
+          "description": "自分より下位のメンバーのニックネームとサーバープロフィールを変更またはリセットします"
         }
       },
       "everyoneMembersNote": "{'@'}everyone ロールはこのサーバーのすべてのメンバーに自動的に適用されます。管理するメンバー一覧はありません。",
@@ -3023,6 +3031,20 @@
       "moderators": "{server} のモデレーター",
       "outcomeBy": "{server} のモデレーター：{outcome}",
       "reviewedTitle": "{server} のモデレーターがあなたの通報を確認しました"
+    },
+    "serverProfile": {
+      "nicknameTitle": "ニックネームを変更",
+      "nicknameLabel": "{name}のニックネーム",
+      "nicknamePlaceholder": "ニックネームなし",
+      "nicknameHint": "空欄にするとニックネームを削除します。このサーバーでのみ有効です。",
+      "nicknameDone": "{name}のニックネームを{nickname}にしました。",
+      "nicknameCleared": "{name}のニックネームを削除しました。",
+      "resetTitle": "サーバープロフィールをリセット",
+      "resetMessage": "{name}のサーバーアバター、バナー、自己紹介、代名詞を消去しますか？ニックネームは残ります。",
+      "resetConfirm": "リセット",
+      "resetDone": "{name}のサーバープロフィールをリセットしました。",
+      "failed": "{name}を更新できませんでした。",
+      "noPermission": "{name}を変更する権限がありません。"
     }
   },
   "files": {
@@ -4629,7 +4651,8 @@
       "emoji": "絵文字",
       "sound": "サウンド",
       "bot": "BOT",
-      "sticker": "スタンプ"
+      "sticker": "スタンプ",
+      "discord_migration": "Discord移行"
     },
     "actions": {
       "channel_create": "{actor}がチャンネル{target}を作成しました",
@@ -4660,6 +4683,8 @@
       "member_voice_undeafen": "{actor}が{target}のサーバースピーカーミュートを解除しました",
       "member_voice_move": "{actor}が{target}を別のボイスチャンネルに移動しました",
       "member_voice_disconnect": "{actor}が{target}をボイスから切断しました",
+      "member_nickname_update": "{actor}が{target}のニックネームを変更しました",
+      "member_profile_reset": "{actor}が{target}のサーバープロフィールをリセットしました",
       "message_delete": "{actor}が{channel}で{target}のメッセージを{count}件削除しました",
       "server_update": "{actor}がサーバーを編集しました",
       "settings_update": "{actor}がサーバー設定を変更しました",
@@ -4679,9 +4704,11 @@
       "server_unsuspend": "{actor}がサーバーの停止を解除しました",
       "sticker_create": "{actor} がスタンプ {target} を追加しました",
       "sticker_update": "{actor} がスタンプ {target} を編集しました",
-      "sticker_delete": "{actor} がスタンプ {target} を削除しました"
+      "sticker_delete": "{actor} がスタンプ {target} を削除しました",
+      "discord_migration_paused": "Discord移行が同期を一時停止しました"
     },
     "fields": {
+      "nickname": "ニックネーム",
       "name": "名前",
       "description": "説明",
       "category": "カテゴリー",
@@ -5374,6 +5401,10 @@
       "reportsFailed": "このドメインからの報告の扱いを変更できませんでした"
     },
     "instance": {
+      "mirrorStatusProgress": "Discord のファイルを保存中: {queued} 件待機中、{done} 件保存済み",
+      "mirrorStatusTooLarge": "{count} 件が大きすぎます ({size}): harmony config --upload-ceiling 500M でアップロード上限を引き上げてください",
+      "mirrorStatusFailed": "{count} 件失敗",
+      "mirrorStatusAllStored": "すべての Discord ファイルが保存されています",
       "maxPostReactions": "投稿1件あたりの1人の最大リアクション数",
       "maxPostReactionsHint": "1人が1つの投稿にリアクションできる絵文字の種類数（1〜100）。デフォルト：10。上限を超えて他のインスタンスから届いたリアクションは破棄されます。チャットメッセージの絵文字は最大20種類です。",
       "maxPersonalEmojis": "ユーザーごとの個人絵文字数",
@@ -5707,6 +5738,276 @@
           "internal_error": "問題が発生しました。しばらくしてからもう一度お試しください。",
           "network_error": "サーバーに接続できませんでした。"
         }
+      }
+    }
+  },
+  "discordMigration": {
+    "joinedOnDiscord": "Discordへの参加日",
+    "notice": {
+      "grantedTitle": "Discord移行により、{user}さんが{server}で管理者ロール「{role}」を付与されました",
+      "removedTitle": "Discord移行により、{user}さんが{server}で管理者ロール「{role}」を失いました",
+      "message": "移行が開いている間は、{server}の対応付けられたロールの付与はDiscordに従います。",
+      "short": "Discord移行で管理者ロールが変更されました",
+      "pausedTitle": "{server}のDiscord移行が一時停止しました",
+      "pausedShort": "Discord移行が一時停止しました",
+      "paused": {
+        "removal_brake": "{server}のDiscord移行は自動で一時停止しました。多くのメンバーが同時にDiscordを退出またはBANされたためです。サーバー設定で内容を確認して再開してください。",
+        "credentials_missing": "{server}のDiscord移行は一時停止中です。Discordの認証情報がありません。サーバー設定で追加すると再開できます。",
+        "token_invalid": "{server}のDiscord移行は一時停止中です。Discordがボットトークンを拒否しました。サーバー設定でトークンを差し替えると再開できます。",
+        "bot_not_in_guild": "{server}のDiscord移行は一時停止中です。ボットがDiscordサーバーにいません。ボットを再度追加してから再開してください。",
+        "discord_errors": "{server}のDiscord移行は一時停止中です。Discordからのエラーが続きました。Discordに接続できるようになったら、サーバー設定で再開してください。",
+        "generic": "{server}のDiscord移行が一時停止しました。サーバー設定で再開してください。"
+      }
+    },
+    "sync": {
+      "title": "Discordから同期",
+      "settingsLead": "移行が開いている間、オンにした項目はDiscordのプロフィールからHarmonyにコピーされます。",
+      "accountGroup": "アカウントのプロフィール",
+      "serverGroup": "このサーバーでのプロフィール",
+      "hint": "チェックを入れた項目は、「同期」を押したときにコピーされ、移行が開いている間は数時間ごとに最新の状態に保たれます。チェックを外すとコピーを止めます。すでにコピーされたものはそのまま残ります。",
+      "saveFailed": "保存できませんでした。もう一度お試しください。",
+      "fields": {
+        "avatar": "プロフィール画像",
+        "display_name": "表示名",
+        "banner": "バナー",
+        "accent_color": "アクセントカラー",
+        "server_nickname": "このサーバーでのニックネーム",
+        "server_avatar": "このサーバーでの画像",
+        "server_banner": "このサーバーでのバナー"
+      },
+      "selectAll": "すべて選択",
+      "clearAll": "すべて解除",
+      "syncButton": "同期",
+      "syncing": "同期中…",
+      "saveAndSync": "保存して同期",
+      "done": "Discordから同期しました。"
+    },
+    "migrate": {
+      "title": "Discordから移行",
+      "loading": "読み込み中…",
+      "lead": "DiscordアカウントをHarmonyにリンクすると、このコミュニティの移行後もロールを引き継げます。プロフィールも任意で引き継げます。",
+      "linkTo": "{'@'}{username}にリンクします。",
+      "notYou": "あなたではありませんか？ サインアウト",
+      "signInInstead": "代わりにサインイン",
+      "signInInsteadHint": "その後、もう一度「Discordでサインイン」を選んでください。",
+      "signInWithDiscord": "Discordでサインイン",
+      "haveAccount": "Harmonyアカウントを持っています",
+      "newHere": "初めての方：Discordで続ける",
+      "claiming": "サーバーに参加しています…",
+      "doneTitle": "リンクしました",
+      "rolesReceived": "次のロールを受け取りました：",
+      "noRoles": "受け取ったロールはありません。移行が開いている間、ロールはDiscordに従います。",
+      "openServer": "サーバーを開く",
+      "confirmEmail": "メールアドレスを確認してからサインインしてください。自動的に参加します。",
+      "formLead": "Harmonyアカウントを作成して完了します。",
+      "username": "ユーザー名",
+      "email": "メールアドレス",
+      "password": "パスワード",
+      "createAccount": "アカウントを作成",
+      "startAgain": "最初からやり直す",
+      "federated": "移行するには、このインスタンスにアカウントを作成してください。他のインスタンスのアカウントはここではリンクできません。",
+      "signOut": "サインアウト",
+      "accountCreatedSignIn": "アカウントを作成しました。サインインして参加を完了してください。",
+      "signIn": "サインイン",
+      "errors": {
+        "closed": "この移行は終了しています。サーバーの管理者に招待を依頼してください。",
+        "migration_closed": "この移行は終了しています。サーバーの管理者に招待を依頼してください。",
+        "not_member": "このDiscordサーバーのメンバーではありません。",
+        "harmony_banned": "Harmonyでこのサーバーからバンされています。",
+        "kicked_on_harmony": "Harmonyでこのサーバーから退出させられました。先にモデレーターの許可が必要です。",
+        "discord_banned_here": "Discordでこのサーバーからバンされています。",
+        "discord_account_taken": "そのDiscordアカウントはすでに別のHarmonyアカウントにリンクされています。",
+        "already_linked_other_discord": "あなたのHarmonyアカウントは、このサーバーですでに別のDiscordアカウントにリンクされています。",
+        "already_linked_elsewhere": "あなたのHarmonyアカウントは、このサーバーですでに別のDiscordアカウントにリンクされています。",
+        "ticket_expired": "このサインインは期限切れです。最初からやり直してください。",
+        "account_creation_disabled": "現在、ここでは新しいアカウントを作成できません。",
+        "denied": "Discordのサインインをキャンセルしました。",
+        "exchange_failed": "Discordがサインインを確認できませんでした。もう一度お試しください。",
+        "unavailable": "現在、移行を利用できません。後でもう一度お試しください。",
+        "username_taken": "そのユーザー名は使われています。",
+        "email_exists": "そのメールアドレスのアカウントはすでにあります。代わりにサインインしてください。",
+        "username_invalid": "そのユーザー名は使用できません。",
+        "invalid_request": "ユーザー名、メールアドレス、パスワードを入力してください。",
+        "invalid_ticket": "このサインインは期限切れです。最初からやり直してください。",
+        "network": "サーバーに接続できませんでした。もう一度お試しください。",
+        "unknown": "問題が発生しました。もう一度お試しください。"
+      },
+      "ownerRoles": "あなたはこのサーバーのオーナーなので、同期ではロールが追加されるだけで、削除されることはありません。",
+      "continue": "続ける",
+      "skipSyncTitle": "同期せずに続けますか?",
+      "skipSyncMessage": "Discordからまだ何も同期していません。このまま続けますか?あとで「設定」→「サーバープロフィール」で同期できます。"
+    },
+    "navLabel": "Discordから移行",
+    "title": "Discordから移行",
+    "intro": "Discordコミュニティをこちらへ移しましょう。メンバーはDiscordアカウントをHarmonyアカウントにリンクし、移行が開いている間は、Discordのロール・プロフィール・状態がこちらに反映されます。",
+    "loading": "移行設定を読み込み中…",
+    "loadError": "移行設定を読み込めませんでした。",
+    "retry": "再試行",
+    "prereq": {
+      "title": "始める前に",
+      "cloneFirst": "まずDiscordサーバーをこのサーバーに複製してください(チャンネル、カテゴリ、ロール)。移行はDiscordのロールをHarmonyのロールに対応付けるもので、ロールは作成しません。",
+      "botInServer": "以下で使うBotは、すでにDiscordサーバーのメンバーである必要があります。"
+    },
+    "source": {
+      "title": "Discord Botの入手元",
+      "save": "保存",
+      "saved": "保存しました。",
+      "instance_bot": {
+        "label": "このインスタンスのDiscord Bot",
+        "hint": "インスタンスの運営者が稼働させているDiscord Botです。先にDiscordサーバーへ招待してください。"
+      },
+      "bridge": {
+        "label": "このサーバーのホスト型ブリッジのBot",
+        "hint": "このサーバーのDiscordブリッジのBotトークンを再利用します。"
+      },
+      "own": {
+        "label": "自分のDiscordアプリケーション",
+        "hint": "Discordアプリケーションとボットを自分で作成し、その情報を入力します。",
+        "intro": "Discord開発者ポータルでアプリケーションを作成し、Botを追加して、DiscordサーバーにBotを招待してください。下の値はポータルからコピーします。",
+        "redirect": "アプリケーションのOAuth2 → Redirectsに次のアドレスを追加してください:",
+        "redirectLabel": "リダイレクトアドレス",
+        "clientId": "クライアントID",
+        "clientSecret": "クライアントシークレット",
+        "botToken": "Botトークン",
+        "stored": "シークレットは保存され、再表示はできません。空欄のままにすると保存済みの値が維持されます。",
+        "notStored": "認証情報はまだ保存されていません。"
+      }
+    },
+    "guild": {
+      "label": "DiscordサーバーID",
+      "hint": "Discordで開発者モードをオンにし、サーバーを右クリックして「サーバーIDをコピー」を選びます。",
+      "locked": "移行を開いた後は、Discordサーバーを変更できません。",
+      "fromBridge": "このサーバーのDiscordブリッジから入力されました。"
+    },
+    "refresh": {
+      "button": "Discordから取得",
+      "working": "取得中…",
+      "needSave": "先にDiscordサーバーと認証情報を保存してください。",
+      "done": "Discordのロールが{count}件見つかりました。",
+      "cannotBan": "BotにはDiscord上でメンバーをBANする権限がありません。BotにメンバーをBANする権限を付与して再取得するまで、DiscordでBANされたメンバーはこちらではBANされません。",
+      "errors": {
+        "credentials_missing": "この移行には認証情報が保存されていません。保存してからもう一度お試しください。",
+        "token_invalid": "DiscordがBotトークンを拒否しました。確認してもう一度お試しください。",
+        "bot_not_in_guild": "BotがそのDiscordサーバーに参加していないか、サーバーを見られません。Botを招待してもう一度お試しください。",
+        "network": "サーバーに接続できませんでした。もう一度お試しください。",
+        "unauthenticated": "もう一度サインインしてください。",
+        "other": "Discordからの取得中に問題が発生しました。"
+      }
+    },
+    "roles": {
+      "title": "ロールを対応付ける",
+      "intro": "Discordの各ロールにHarmonyのロールが必要です。移行が開いている間は、対応付けたHarmonyロールを誰が持つかをDiscordが決めます。",
+      "empty": "Discordからロールを取得して、対応付けを始めましょう。",
+      "counter": "あと{count}件のロールの対応付けが必要です",
+      "allMatched": "すべてのDiscordロールに対応付けがあります。",
+      "adminBadge": "管理者",
+      "selectLabel": "{role}に対応するHarmonyロール",
+      "choose": "ロールを選択",
+      "ownerOnly": "管理者権限を持つロールを対応付けられるのはサーバーのオーナーだけです",
+      "matchedByName": "名前で一致",
+      "accept": "候補の対応付けを使う"
+    },
+    "gaps": {
+      "title": "追加する権限",
+      "intro": "これらのDiscordロールには、Harmonyロールにない権限があります。適用すると権限が追加されるだけで、削除はされません。",
+      "apply": "Discordの権限を適用",
+      "applyAll": "すべて適用"
+    },
+    "overrides": {
+      "title": "メンバー別のチャンネル上書き",
+      "intro": "Discordでは、チャンネルごとに個別のメンバーへ権限を許可または拒否できます。連携したメンバーは、対応するHarmonyのチャンネルでこれらを受け取ります。Harmonyで管理者が作成した上書きが置き換えられることはありません。",
+      "member": "Discordメンバー {id}",
+      "allows": "許可: {list}",
+      "denies": "拒否: {list}",
+      "nothing": "なし",
+      "linked": "{'@'}{username} と連携済み",
+      "notLinked": "未連携",
+      "unpaired": "チャンネル未対応",
+      "showAll": "すべて表示({count})",
+      "showFewer": "表示を減らす"
+    },
+    "errors": {
+      "needManageRoles": "権限を適用するには「ロールの管理」権限が必要です",
+      "cannotGrant": "{permission}はあなた自身が持っていないため付与できません",
+      "generic": "うまくいきませんでした。もう一度お試しください。"
+    },
+    "adminConfirm": {
+      "holdersFailed": "このロールを持つメンバーを読み込めませんでした。もう一度お試しください。",
+      "title": "管理者権限を付与しますか?",
+      "lead": "管理者権限を持つロールをHarmonyのロールに対応付けようとしています。",
+      "holders": "次のメンバーがこのサーバーの管理者になります:",
+      "holdersPending": "次のメンバーがこのロールを持ちます。このロールに管理者権限が適用されると、管理者になります:",
+      "noHolders": "このロールを持つ人はまだいません。",
+      "future": "移行が開いている間にDiscordでこのロールを付与された人も、こちらで管理者になります。",
+      "futurePending": "移行が開いている間にDiscordでこのロールを付与された人も、こちらでこのロールを持ち、管理者権限が適用されると管理者になります。",
+      "confirm": "管理者にする"
+    },
+    "ready": {
+      "title": "開始の準備",
+      "open": "移行を開く",
+      "blockers": {
+        "credentials": "Discordの認証情報を追加してください。",
+        "guild": "DiscordサーバーIDを入力してください。",
+        "roles": "Discordからロールを取得してください。",
+        "redirect": "DiscordアプリケーションにリダイレクトURLを追加する"
+      },
+      "warnings": {
+        "unpaired": "Discordのチャンネル{count}件がHarmonyのチャンネルとペアになっていません。"
+      },
+      "redirect": {
+        "intro": "このリダイレクトURLをDiscordアプリケーションのOAuth2設定に追加してください。追加しないと、Discordに「Invalid OAuth2 redirect_uri」と表示されます。認証情報の取得元にかかわらず同じで、このインスタンスのボットも含みます。",
+        "added": "追加しました"
+      }
+    },
+    "open": {
+      "title": "移行は開いています",
+      "lead": "このリンクをメンバーに共有してください。メンバーはDiscordでサインインし、続いてHarmonyアカウントでサインインします。",
+      "linkLabel": "招待リンク",
+      "regenerate": "リンクを再生成",
+      "regenerateConfirmTitle": "リンクを再生成しますか?",
+      "regenerateConfirmMessage": "すでに共有したリンクは使えなくなります。",
+      "pausedTitle": "同期は一時停止中です。",
+      "resumeBrakeConfirmTitle": "Discordを離れたメンバーを削除しますか？",
+      "resumeBrakeConfirmMessage": "多くのメンバーが同時にDiscordを退出またはBANされたため、同期が停止しました。再開すると、それらのメンバーはこのサーバーからただちに削除されます。この承認は今回の1回分のみで、後で再び大量の削除候補が出た場合は同期が再度一時停止します。",
+      "resumeBrakeConfirm": "削除して再開",
+      "pausedReasons": {
+        "removal_brake": "通常より多くのメンバーが一度に削除されるところだったため、確認のために同期を停止しました。"
+      },
+      "resume": "再開",
+      "lastSync": "最終同期: {when}",
+      "neverSynced": "まだ同期されていません。",
+      "result": "{checked}人を確認しました。ロール変更: {roles}、削除: {removed}、エラー: {errors}。",
+      "syncNow": "今すぐ同期",
+      "syncQueued": "同期をリクエストしました。",
+      "finish": "移行を終了",
+      "finishConfirmTitle": "移行を終了しますか?",
+      "finishConfirmMessage": "メンバーはDiscordに追従しなくなります。ロールとメンバーは現在の状態のまま残り、招待リンクは使えなくなります。移行はあとで再度開けます。",
+      "finishConfirm": "終了"
+    },
+    "finished": {
+      "title": "移行は終了しました",
+      "lead": "ロールとメンバーはDiscordに追従しなくなりました。",
+      "warning": "再度開くと、対応付けたロールとメンバーシップが再びDiscordに追従します。対応付けたロールを手動で変更していた場合、上書きされることがあります。",
+      "reopen": "再度開く",
+      "reopenConfirmTitle": "移行を再度開きますか?",
+      "reopenConfirm": "再度開く"
+    },
+    "members": {
+      "title": "リンク済みメンバー",
+      "empty": "まだアカウントをリンクした人はいません。",
+      "user": "メンバー",
+      "discordId": "Discord ID",
+      "status": "状態",
+      "lastSynced": "最終同期",
+      "actions": "操作",
+      "never": "なし",
+      "allowBack": "復帰を許可",
+      "leftHint": "Discordを退出した、または復帰を許可されました。再びリンクできます。",
+      "statuses": {
+        "active": "アクティブ",
+        "left": "未リンク",
+        "banned": "BAN済み",
+        "kicked_on_harmony": "こちらでキック済み"
       }
     }
   },
@@ -6052,6 +6353,7 @@
       "unknown": "未報告",
       "showSetup": "設定の手順を表示",
       "problemsTitle": "対応が必要な問題: {count} 件 | 対応が必要な問題: {count} 件",
+      "noticesTitle": "お知らせ: {count} 件 | お知らせ: {count} 件",
       "pairsTitle": "ペアのチャンネル",
       "settingsTitle": "オプション",
       "maintainTitle": "メンテナンス",
@@ -6163,6 +6465,17 @@
         "fixHosted": "インスタンス側の問題で、ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。",
         "fixInstance": "インスタンス側の問題で、ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。"
       },
+      "message_content_needed_for_import": {
+        "title": "履歴のインポートが Message Content Intent を待っています。",
+        "fixSelf": "オフの間、Discord は空のメッセージを返します。Developer Portal でアプリケーション → Bot → Privileged Gateway Intents を開き、Message Content Intent をオンにして Save Changes をクリックします。その後、下のコマンドでブリッジを再起動してください。インポートは自動で始まります。",
+        "fixHosted": "オフの間、Discord は空のメッセージを返します。Developer Portal でアプリケーション → Bot → Privileged Gateway Intents を開き、Message Content Intent をオンにして Save Changes をクリックします。ブリッジが再接続するとインポートは自動で始まります。",
+        "fixInstance": "このインスタンスのボットには Message Content Intent がないため、履歴をインポートできません。インスタンスの管理者に相談してください。"
+      },
+      "private_threads_skipped": {
+        "title": "インポートでは {channel} のプライベートスレッドを除外しました。",
+        "titleCount": "インポートでは {channel} のプライベートスレッド {count} 件を除外しました。 | インポートでは {channel} のプライベートスレッド {count} 件を除外しました。",
+        "fix": "対応は不要です。Harmony にはまだプライベートスレッドがなく、チャンネルの全員が読めてしまうため、Discord に残しています。"
+      },
       "unknown": {
         "title": "ブリッジが問題を報告しました（{code}）。",
         "fixSelf": "詳細はブリッジのログにあります:",
@@ -6229,7 +6542,11 @@
       "bridgeExists": "このサーバーには別の方法で設定された Discord ブリッジがすでにあります。このインスタンスのボットを使うには、先にそれを切断してください。",
       "instanceFull": "このインスタンスのボットは、許可されている数の Discord サーバーにすでに参加しています。インスタンスの管理者に相談するか、自分の Discord ボットを使ってください。",
       "instanceOff": "このインスタンスは現在 Discord ボットを提供していません。自分の Discord ボットを使ってください。",
-      "link": "Discord とのリンクを開始できませんでした。もう一度試してください。"
+      "link": "Discord とのリンクを開始できませんでした。もう一度試してください。",
+      "import": "インポートを開始できませんでした。",
+      "cancelImport": "インポートをキャンセルできませんでした。",
+      "pairNotImportable": "このペアは履歴をインポートできません。Discord のメッセージを Harmony に取り込むペアの、暗号化されていないチャンネルだけが対象です。",
+      "importChanged": "インポートの状態が変わったため更新しました。もう一度お試しください。"
     },
     "time": {
       "secondsAgo": "たった今 | {count} 秒前 | {count} 秒前",
@@ -6338,6 +6655,49 @@
       "settingsSaved": "Discord ボットの設定を保存しました",
       "saveFailed": "Discord ボットの設定を保存できませんでした",
       "redirectLabel": "リダイレクト先のアドレス"
+    },
+    "import": {
+      "button": "履歴をインポート",
+      "buttonLabel": "#{channel} の履歴をインポート",
+      "importAll": "すべてインポート",
+      "importAllAgain": "すべて再インポート",
+      "importAllAgainConfirm": "{count} 件のチャンネルの履歴を再インポートしますか？Discord の履歴を最初から読み直します。すでにあるメッセージはスキップされます。",
+      "importAllAgainYes": "再インポート",
+      "cancelAll": "すべてキャンセル",
+      "cancel": "キャンセル",
+      "cancelLabel": "#{channel} のインポートをキャンセル",
+      "cancelling": "キャンセル中…",
+      "waiting": "待機中",
+      "running": "インポート中… {percent}%",
+      "runningUnknown": "インポート中…",
+      "threadsRunning": "スレッドをインポート中…",
+      "repliesRunning": "返信を関連付け中…",
+      "progressLabel": "#{channel} のインポートの進捗",
+      "backTo": "{date} まで遡り済み",
+      "messages": "{count} 件のメッセージ | {count} 件のメッセージ",
+      "threads": "スレッド {done} / {total}",
+      "done": "{count} 件のメッセージをインポートしました | {count} 件のメッセージをインポートしました",
+      "doneNothingNew": "最新の状態です：新しいメッセージはありません",
+      "failed": "インポートが停止しました: {reason}",
+      "failedUnknown": "インポートが停止しました",
+      "cancelled": "キャンセルしました",
+      "paused": "一時停止中: ブリッジを待っています",
+      "retry": "再試行",
+      "retryLabel": "#{channel} のインポートを再試行",
+      "resume": "再開",
+      "resumeLabel": "#{channel} のインポートを再開",
+      "again": "再度インポート",
+      "againLabel": "#{channel} の履歴を再度インポート",
+      "reasons": {
+        "pair_removed": "チャンネルのペアが削除されました",
+        "channel_encrypted": "チャンネルが暗号化されました"
+      },
+      "ineligible": {
+        "direction": "Discord のメッセージを Harmony に取り込むペアだけが履歴をインポートできます",
+        "encrypted": "暗号化されたチャンネルは履歴をインポートできません"
+      },
+      "needsUpdate": "履歴をインポートするには、ブリッジを 2.6.0 以降に更新してください",
+      "mirrorNote": "インポートしたファイルは、このインスタンスのストレージにコピーされます。"
     }
   },
   "imageEditor": {
@@ -6497,7 +6857,9 @@
       "kick": "{name} をキック",
       "ban": "{name} をBAN",
       "copyId": "ユーザー ID をコピー",
-      "fallbackName": "ユーザー"
+      "fallbackName": "ユーザー",
+      "moderateNickname": "{name}のニックネームを変更",
+      "resetServerProfile": "{name}のサーバープロフィールをリセット"
     },
     "rail": {
       "folder": "フォルダー",
@@ -6913,6 +7275,32 @@
       "invalid": "テンプレートが無効です：{detail}",
       "rejected": "サーバーがこのテンプレートを拒否しました：{detail}"
     }
+  },
+  "serverProfile": {
+    "tabLabel": "サーバープロフィール",
+    "title": "サーバープロフィール",
+    "description": "サーバーごとに別のニックネーム、アバター、バナー、自己紹介、代名詞を設定できます。空欄のフィールドにはアカウントの値が使われます。",
+    "noServers": "まだサーバーに参加していません。",
+    "server": "サーバー",
+    "remoteUnavailable": "別のインスタンスでホスト中",
+    "locked": "このサーバーでプロフィールを変更する権限がありません。",
+    "nickname": "ニックネーム",
+    "pronouns": "代名詞",
+    "pronounsPlaceholder": "例: she/her",
+    "bio": "自己紹介",
+    "bioPlaceholder": "このサーバーに自己紹介を書きましょう",
+    "avatar": "アバター",
+    "banner": "バナー",
+    "reset": "リセット",
+    "resetField": "{field}をリセット",
+    "save": "変更を保存",
+    "saved": "サーバープロフィールを保存しました。",
+    "saveFailed": "サーバープロフィールを保存できませんでした。",
+    "uploadFailed": "画像をアップロードできませんでした。",
+    "preview": "プレビュー",
+    "menuEntry": "サーバープロフィールを編集",
+    "accountPronouns": "代名詞",
+    "accountPronounsHint": "プロフィールの名前の下に表示されます。40文字まで。"
   },
   "notificationSettings": {
     "menuEntry": "通知設定",

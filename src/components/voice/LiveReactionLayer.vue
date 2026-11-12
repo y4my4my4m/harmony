@@ -23,7 +23,7 @@
       <span v-else class="live-reaction-emoji live-reaction-glyph">{{ r.display.text }}</span>
       <span v-if="!compact" class="live-reaction-sender">
         <img class="live-reaction-avatar" :src="getAvatarUrl(avatar(r.senderId).value, 32)" alt="" draggable="false" />
-        <DisplayName class="live-reaction-name" :user-id="r.senderId" :truncate="true" />
+        <DisplayName class="live-reaction-name" :user-id="r.senderId" :server-id="profileServerId" :truncate="true" />
       </span>
     </div>
   </div>
@@ -32,7 +32,8 @@
 <script setup lang="ts">
 import { computed, type ComputedRef } from 'vue';
 import DisplayName from '@/components/DisplayName.vue';
-import { useUserData } from '@/composables/useUserData';
+import { getMemberAvatarUrl } from '@/composables/useMemberProfile';
+import { useVoiceProfileServerId } from '@/composables/useVoiceProfileServerId';
 import { getAvatarUrl } from '@/utils/avatarUtils';
 import {
   LIVE_REACTION_LIFETIME_MS,
@@ -51,7 +52,7 @@ const props = withDefaults(defineProps<{
   compact: false,
 });
 
-const { getUserAvatarUrl } = useUserData();
+const profileServerId = useVoiceProfileServerId();
 
 const key = computed(() => liveReactionKey(props.userId, props.source));
 const items = computed(() => liveReactions.active.value.filter(r => r.key === key.value));
@@ -68,7 +69,7 @@ const avatars = new Map<string, ComputedRef<string | null | undefined>>();
 function avatar(userId: string) {
   let entry = avatars.get(userId);
   if (!entry) {
-    entry = getUserAvatarUrl(userId);
+    entry = getMemberAvatarUrl(userId, profileServerId.value);
     avatars.set(userId, entry);
   }
   return entry;

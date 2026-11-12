@@ -236,7 +236,7 @@ describe('NotificationFormatter', () => {
     })
 
     it('gives the toast the author and the text after their name', () => {
-      expect(NotificationFormatter.getActorInfo(newcomer())).toEqual({
+      expect(NotificationFormatter.getActorInfo(newcomer())).toMatchObject({
         actorUserId: 'u-alice',
         titleSuffix: ' is new here and posted in #general',
       })
@@ -321,6 +321,51 @@ describe('NotificationFormatter', () => {
       const notif = makeNotification('system', { data: {} })
       const nav = NotificationFormatter.getNavigationData(notif)
       expect(nav).toBeNull()
+    })
+  })
+
+  describe('discord_migration_admin_change', () => {
+    const data = (change: string) => ({
+      server: { id: 's1', name: 'Lobby' },
+      user: { id: 'u1', username: 'alice' },
+      role: { id: 'r1', name: 'Admins' },
+      change,
+    })
+
+    it('says who was given the admin role', () => {
+      const result = NotificationFormatter.formatNotification(
+        makeNotification('discord_migration_admin_change', { data: data('granted') }))
+      expect(result.title).toBe('alice was given the admin role Admins in Lobby by the Discord migration')
+    })
+
+    it('says who lost the admin role', () => {
+      const result = NotificationFormatter.formatNotification(
+        makeNotification('discord_migration_admin_change', { data: data('removed') }))
+      expect(result.title).toBe('alice lost the admin role Admins in Lobby by the Discord migration')
+    })
+  })
+
+  describe('discord_migration_paused', () => {
+    const data = (reason: string) => ({ server: { id: 's1', name: 'Lobby' }, reason })
+
+    it.each([
+      ['removal_brake', 'The Discord migration in Lobby paused itself: too many members left or were banned on Discord at once. Review and resume it in the server settings.'],
+      ['credentials_missing', 'The Discord migration in Lobby paused: its Discord credentials are missing. Add them in the server settings to resume.'],
+      ['token_invalid', 'The Discord migration in Lobby paused: Discord rejected its bot token. Replace the token in the server settings to resume.'],
+      ['bot_not_in_guild', 'The Discord migration in Lobby paused: its bot is no longer in the Discord server. Add the bot back, then resume.'],
+      ['discord_errors', 'The Discord migration in Lobby paused: Discord kept returning errors. Resume it in the server settings once Discord is reachable.'],
+      ['something_new', 'The Discord migration in Lobby paused. Check the server settings to resume it.'],
+    ])('says why for %s', (reason, message) => {
+      const result = NotificationFormatter.formatNotification(
+        makeNotification('discord_migration_paused', { data: data(reason) }))
+      expect(result.title).toBe('Discord migration paused in Lobby')
+      expect(result.message).toBe(message)
+    })
+
+    it('falls back when the reason is missing', () => {
+      const result = NotificationFormatter.formatNotification(
+        makeNotification('discord_migration_paused', { data: { server: { id: 's1', name: 'Lobby' } } }))
+      expect(result.message).toBe('The Discord migration in Lobby paused. Check the server settings to resume it.')
     })
   })
 })

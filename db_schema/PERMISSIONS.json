@@ -611,7 +611,7 @@
       ],
       "backend": [
         "bot-gateway/src/gateway/EventDispatcher.ts",
-        "bot-gateway/src/api/BotRestAPI.ts"
+        "bot-gateway/src/api/messageContent.ts"
       ],
       "client": [
         "src/composables/useAutoSuggest.ts"
@@ -893,6 +893,46 @@
       "unit": [
         "src/stores/__tests__/soundboard.test.ts"
       ]
+    },
+    "CHANGE_NICKNAME": {
+      "scope": "server",
+      "sql": [
+        "function:set_my_server_profile"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/services/RoleService.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/270_nickname_permissions.sql"
+      ],
+      "e2e": [
+        "e2e/specs/server-profiles.spec.ts"
+      ],
+      "unit": [
+        "src/services/__tests__/RoleService.test.ts"
+      ]
+    },
+    "MANAGE_NICKNAMES": {
+      "scope": "server",
+      "sql": [
+        "function:moderate_server_profile"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/services/RoleService.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/270_nickname_permissions.sql"
+      ],
+      "e2e": [
+        "e2e/specs/server-profiles.spec.ts"
+      ],
+      "unit": []
     }
   }
 }

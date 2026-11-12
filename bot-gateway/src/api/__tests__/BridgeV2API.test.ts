@@ -85,6 +85,12 @@ function makeApp(options: BridgeV2Options = {}) {
   return app
 }
 
+const PERMISSION_BITS = [
+  ...Array.from({ length: 32 }, (_, i) => `BIT_${i}`),
+  'CHANGE_NICKNAME',
+  'MANAGE_NICKNAMES',
+]
+
 const auth = { Authorization: `Bot ${TOKEN}` }
 
 beforeEach(() => {
@@ -97,6 +103,7 @@ beforeEach(() => {
         : { data: { valid: false, error: 'Invalid or expired token' }, error: null },
     check_and_increment_bot_rate_limit: () => ({ data: false, error: null }),
     discord_bridge_encrypted_channel_ids: ({ p_bridge_id }) => ({ data: p_bridge_id === BRIDGE_ID ? [] : null, error: null }),
+    permission_bit_names: () => ({ data: PERMISSION_BITS, error: null }),
   }
   mocks.rpc.mockReset()
   mocks.rpc.mockImplementation(async (fn: string, args: any) => {
@@ -380,7 +387,9 @@ describe('GET /bridge/v2/config', () => {
         direction: 'both',
       }],
       harmony_channels: [{ id: GENERAL, name: 'general', type: 0, category: 'Community', category_id: CATEGORY, encrypted: false }],
+      permission_bits: PERMISSION_BITS,
     })
+    expect(res.body.permission_bits[32]).toBe('CHANGE_NICKNAME')
     expect(rpcCalls('discord_bridge_encrypted_channel_ids')).toEqual([{ p_bridge_id: BRIDGE_ID }])
   })
 

@@ -15,6 +15,7 @@
 #   bash admin.sh auth remove-provider ID
 #   bash admin.sh auth linking PROVIDER (--separate-accounts |
 #            --link-existing-accounts [--provider-verifies-email])
+#   bash admin.sh migration account-creation [on | off]
 #   bash admin.sh has-admin           exit 0 when a local admin exists
 #
 # create makes an instance admin the way the app makes any account: GoTrue's
@@ -64,7 +65,7 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-usage() { sed -n '2,62p' "${BASH_SOURCE[0]}"; }
+usage() { sed -n '2,63p' "${BASH_SOURCE[0]}"; }
 
 # Node program run in federation-server. PARAMS is a JSON object whose values
 # are base64, so any byte of a password survives the trip.
@@ -579,6 +580,40 @@ registration() {
 	esac
 }
 
+# --- migration account creation ------------------------------------------------
+# instance_config.discord_migration_account_creation: whether the public "Migrate from
+# Discord" page may create accounts on this instance (default on).
+migration_account_creation() {
+	local mode="${1:-}" value
+	case "$(printf '%s' "$mode" | lower)" in
+		"") ;;
+		on) value=true ;;
+		off) value=false ;;
+		*) die "usage: harmony migration account-creation [on | off]" ;;
+	esac
+	if [[ -n "${value:-}" ]]; then
+		# $value is only ever the literal true or false (set by the case above), so interpolating it into the SQL is safe.
+		db_sql -c "INSERT INTO public.instance_config (config_key, config_value, updated_at) VALUES ('discord_migration_account_creation', '$value'::jsonb, now()) ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = now()" >/dev/null ||
+			die "could not update instance_config.discord_migration_account_creation"
+	fi
+	local current
+	current="$(db_sql -c "SELECT COALESCE((SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'discord_migration_account_creation'), 'true')")" ||
+		die "could not read instance_config.discord_migration_account_creation"
+	if [[ "$current" == false ]]; then
+		ok "Discord migration account creation: off (the migrate page only signs in existing accounts)"
+	else
+		ok "Discord migration account creation: on (the migrate page can create accounts)"
+	fi
+}
+
+migration_cmd() {
+	local sub="${1:-}"; [[ $# -gt 0 ]] && shift
+	case "$sub" in
+		account-creation) migration_account_creation "$@" ;;
+		*) die "usage: harmony migration account-creation [on | off]" ;;
+	esac
+}
+
 # --- auth providers ------------------------------------------------------------
 # GoTrue builds the custom providers' callback from GOTRUE_CUSTOM_OAUTH_EXTERNAL_URL,
 # API_EXTERNAL_URL/auth/v1 (supabase-overrides.yml).
@@ -873,7 +908,8 @@ case "${1:-}" in
 	invite) shift; invite "$@" ;;
 	registration) shift; registration "$@" ;;
 	auth) shift; auth_cmd "$@" ;;
+	migration) shift; migration_cmd "$@" ;;
 	has-admin) has_admin ;;
 	-h|--help|"") usage ;;
-	*) die "unknown command: $1 (create | reset-password | invite | registration | auth)" ;;
+	*) die "unknown command: $1 (create | reset-password | invite | registration | auth | migration)" ;;
 esac

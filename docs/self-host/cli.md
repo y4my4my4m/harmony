@@ -35,6 +35,7 @@ harmony auth add-provider ID [--name N] (--issuer URL | --authorize-url URL --to
                              [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 harmony auth remove-provider ID
 harmony auth linking PROVIDER (--separate-accounts | --link-existing-accounts [--provider-verifies-email])
+harmony migration account-creation [on | off]
 harmony config
 harmony config --upload-ceiling [SIZE]
 harmony analytics [on | off [--delete-logs]]
@@ -49,7 +50,7 @@ harmony help
   `!` and go to standard error. Colours appear only on a terminal.
 - An error prints `Error: ` and a message on standard error, and exits with
   status 1. Exceptions are noted per command below.
-- `status`, `logs`, `backup`, `admin`, `registration` and `config` need an
+- `status`, `logs`, `backup`, `admin`, `registration`, `migration` and `config` need an
   installed instance; without `self-host/.env` they stop with
   `not installed yet: /opt/harmony/self-host/harmony install`.
 - An unknown command stops with `unknown command: NAME (harmony help)`.
@@ -450,6 +451,25 @@ when `DISABLE_SIGNUP` changed. `open` stops with `no admin exists yet; create
 one first (harmony admin create), then open registration` while there is no
 admin.
 
+## harmony migration
+
+```text
+harmony migration account-creation [on | off]
+```
+
+Sets whether the public **Migrate from Discord** page may create accounts on
+this instance. Communities that move from Discord give their members a link;
+a member without an account fills in a form there, and the gateway creates the
+account through the auth service's admin API, whatever `harmony registration`
+says. `off` limits the page to members who already have an account (they sign
+in and link it); `on`, the default, lets it create accounts under every
+registration policy.
+
+It writes `discord_migration_account_creation` in `instance_config` and prints
+the value now in force; without an argument it only prints it. The change
+applies at once, with no restart. See [Migrate from
+Discord](/self-host/discord-bridges#migrate-from-discord).
+
 ## harmony auth
 
 ```text
@@ -656,7 +676,7 @@ there (`cd /opt/harmony/self-host`) for steps the command does not expose.
 | `update.sh` | `harmony update` | `HARMONY_REF=REF bash update.sh` |
 | `doctor.sh` | `harmony doctor` | `bash doctor.sh [--offline]` |
 | `backup.sh` | `harmony backup`, `harmony restore` | `bash backup.sh create [--no-storage] [--label TEXT]`; `bash backup.sh restore <backup> [--yes]` |
-| `admin.sh` | `harmony admin`, `harmony registration` | also `bash admin.sh has-admin`: exit status 0 when a local admin exists |
+| `admin.sh` | `harmony admin`, `harmony registration`, `harmony auth`, `harmony migration` | also `bash admin.sh has-admin`: exit status 0 when a local admin exists |
 | `configure.sh` | `harmony config`, and every install, update and restore | see below |
 | `bootstrap.sh` | install, update and restore | see below |
 | `lib.sh`, `linking.sh` | | Shared helpers; sourced, never run |

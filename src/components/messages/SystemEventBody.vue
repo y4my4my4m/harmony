@@ -31,7 +31,7 @@
           class="system-user-mention"
           :style="{ color: userColor(subject.id) }"
           @click="emit('showUserProfile', subject.id)"
-        ><DisplayName :user-id="subject.id" /></button>
+        ><DisplayName :user-id="subject.id" :server-id="serverId" /></button>
         <span v-else class="system-user-name">{{ subject.name }}</span>
       </template>
       <template #actor>
@@ -41,7 +41,7 @@
           class="system-user-mention"
           :style="{ color: userColor(actor.id) }"
           @click="emit('showUserProfile', actor.id)"
-        ><DisplayName :user-id="actor.id" /></button>
+        ><DisplayName :user-id="actor.id" :server-id="serverId" /></button>
         <span v-else class="system-user-name">{{ actor.name }}</span>
         <span v-if="staffInstance" class="system-staff" data-testid="system-staff">{{ ' ' + t('hostStaff.systemActor', { instance: staffInstance }) }}</span>
       </template>
@@ -53,7 +53,7 @@
             class="system-user-mention"
             :style="{ color: userColor(memberId) }"
             @click="emit('showUserProfile', memberId)"
-          ><DisplayName :user-id="memberId" /></button>
+          ><DisplayName :user-id="memberId" :server-id="serverId" /></button>
         </template>
       </template>
       <template #thread>
@@ -97,7 +97,7 @@
         class="system-user-mention"
         :style="{ color: userColor(meta.automod.user_id) }"
         @click="emit('showUserProfile', meta.automod.user_id)"
-      ><DisplayName :user-id="meta.automod.user_id" /></button>
+      ><DisplayName :user-id="meta.automod.user_id" :server-id="serverId" /></button>
       <span
         v-else-if="meta.automod?.author_name"
         class="system-user-mention"
@@ -118,6 +118,7 @@
     <UnifiedMessageContent
       :content="message.content"
       :message-id="message.id"
+      :server-id="serverId"
       :is-system="true"
       :embed-payloads="meta.embeds"
       @show-user-profile="(id: string) => emit('showUserProfile', id)"
@@ -152,6 +153,8 @@ import type { Message } from '@/types/chat'
 const props = defineProps<{
   message: Message
   conversationId?: string | null
+  /** The server of the message; its member nicknames show. Null or unset in a DM. */
+  serverId?: string | null
   /** Display colour of a profile in the rendered room. */
   userColor: (userId: string) => string
   /** Display name of a bot. */
