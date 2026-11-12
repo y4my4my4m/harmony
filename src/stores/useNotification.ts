@@ -214,6 +214,26 @@ function setRead(n: Notification, isRead: boolean): void {
 }
 
 const DM_TYPES = new Set(['dm', 'chat_message'])
+/**
+ * Re-read a thread the account was just mentioned in and mark it joined in
+ * the threads store. Imported late: both modules pull in the stores.
+ */
+async function refreshMentionedThread(threadId: string): Promise<void> {
+  try {
+    const [{ threadService }, { useThreadsStore }] = await Promise.all([
+      import('@/services/ThreadService'),
+      import('@/stores/useThreads'),
+    ])
+    const thread = await threadService.getThread(threadId, true)
+    if (!thread?.is_member) return
+    const store = useThreadsStore()
+    if (store.byId[threadId]) store.patch(threadId, { is_member: true, left: false })
+    else store.upsert({ ...thread, is_member: true, left: false })
+  } catch (error) {
+    debug.error('Failed to refresh a mentioned thread:', error)
+  }
+}
+
 // A server on another instance refused a join or removed the user, or this instance's staff
 // removed the user from it: it leaves the list.
 const SERVER_GONE_TYPES = new Set(['server_join_rejected', 'server_federation_closed', 'server_member_removed', 'server_instance_removed'])
@@ -1033,6 +1053,13 @@ export const useNotificationStore = defineStore('notification', {
       }
 
       const notifData = newNotification.data || {}
+
+      // A thread @mention joins the member server-side; pick the new membership up here.
+      const mentionedThreadId = notifData.thread?.id
+      if (newNotification.type === 'mention' && typeof mentionedThreadId === 'string') {
+        void refreshMentionedThread(mentionedThreadId)
+      }
+
       const notificationContext = {
         server_id: notifData.location?.server_id || notifData.server_id,
         channel_id: notifData.location?.channel_id || notifData.channel_id,

@@ -8579,5 +8579,21 @@
       "unsuspended": "{count} account unsuspended | {count} accounts unsuspended",
       "deleted": "{count} account deleted | {count} accounts deleted"
     }
+  },
+  "threadSidebar": {
+    "admin": {
+      "title": "Threads in the sidebar",
+      "hint": "Which threads servers list under their channels, unless a server chooses for itself."
+    },
+    "server": {
+      "title": "Threads in the sidebar",
+      "hint": "Joined only works like Discord: members see the threads they're in, and find the rest with the Threads button."
+    },
+    "modes": {
+      "all": "All active threads",
+      "joined": "Joined threads only",
+      "instance": "Instance default ({mode})"
+    },
+    "saveFailed": "Couldn't save the thread setting"
   }
 }

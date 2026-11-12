@@ -8583,5 +8583,21 @@
       "unsuspended": "已解除停用 {count} 个账号",
       "deleted": "已删除 {count} 个账号"
     }
+  },
+  "threadSidebar": {
+    "admin": {
+      "title": "侧边栏中的帖子串",
+      "hint": "除非服务器自行选择，否则决定服务器在频道下方列出哪些帖子串。"
+    },
+    "server": {
+      "title": "侧边栏中的帖子串",
+      "hint": "“仅已加入”的工作方式与 Discord 相同：成员只看到自己所在的帖子串，其余可通过“帖子串”按钮找到。"
+    },
+    "modes": {
+      "all": "所有活跃的帖子串",
+      "joined": "仅已加入的帖子串",
+      "instance": "实例默认（{mode}）"
+    },
+    "saveFailed": "无法保存帖子串设置"
   }
 }

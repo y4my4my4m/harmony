@@ -8583,5 +8583,21 @@
       "unsuspended": "Suspendierung von {count} Konto aufgehoben | Suspendierung von {count} Konten aufgehoben",
       "deleted": "{count} Konto gelöscht | {count} Konten gelöscht"
     }
+  },
+  "threadSidebar": {
+    "admin": {
+      "title": "Threads in der Seitenleiste",
+      "hint": "Welche Threads Server unter ihren Kanälen anzeigen, sofern ein Server nicht selbst entscheidet."
+    },
+    "server": {
+      "title": "Threads in der Seitenleiste",
+      "hint": "„Nur beigetretene“ funktioniert wie bei Discord: Mitglieder sehen die Threads, in denen sie sind, und finden die übrigen über die Schaltfläche „Threads“."
+    },
+    "modes": {
+      "all": "Alle aktiven Threads",
+      "joined": "Nur beigetretene Threads",
+      "instance": "Instanz-Standard ({mode})"
+    },
+    "saveFailed": "Die Thread-Einstellung konnte nicht gespeichert werden"
   }
 }

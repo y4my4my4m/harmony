@@ -580,6 +580,7 @@ get_server_member_timeouts	p_server_id uuid	jsonb	definer	public, pg_temp	authen
 get_server_members_by_instance	p_server_id uuid	TABLE(instance text, member_ids uuid[], member_ap_ids text[], member_count integer)	invoker	public, extensions, pg_temp	service_role	client
 get_server_newcomer_alerts	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_server_notification_settings	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
+get_server_thread_sidebar	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_server_voice_activities	p_server uuid	SETOF jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_server_voice_moderation	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_server_welcome	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
@@ -960,6 +961,8 @@ server_template_int	p_value jsonb, p_path text, p_default integer, p_min integer
 server_template_json	p_value jsonb, p_path text, p_type text, p_max integer	jsonb	invoker	public, pg_temp	service_role	unreferenced
 server_template_ref	p_value jsonb, p_path text	text	invoker	public, pg_temp	service_role	unreferenced
 server_template_text	p_value jsonb, p_path text, p_max integer, p_required boolean	text	invoker	public, pg_temp	service_role	unreferenced
+server_thread_sidebar_mode	p_server_id uuid	text	definer	public, pg_temp	authenticated+service_role	client
+server_thread_sidebar_state	p_server_id uuid	jsonb	invoker	public, pg_temp	service_role	unreferenced
 session_meets_aal		boolean	definer	pg_catalog, public, pg_temp	anon+authenticated+service_role	policy
 session_step_up_fresh	p_method text, p_max_age interval	boolean	invoker	pg_catalog, public, pg_temp	service_role	unreferenced
 set_bot_allowed_channels	p_server_id uuid, p_bot_id uuid, p_channel_ids uuid[]	uuid[]	definer	public, pg_temp	authenticated+service_role	client
@@ -981,6 +984,7 @@ set_server_newcomer_alerts	p_server_id uuid, p_enabled boolean	jsonb	definer	pub
 set_server_raid_lockdown	p_server_id uuid, p_active boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_server_sound_sharing	p_server_id uuid, p_allow boolean	boolean	definer	public, pg_temp	authenticated+service_role	client
 set_server_system_channel	p_server_id uuid, p_channel_id uuid, p_enabled boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
+set_server_thread_sidebar	p_server_id uuid, p_mode text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_server_voice_state	p_server_id uuid, p_user_id uuid, p_mute boolean, p_deafen boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_server_welcome	p_server_id uuid, p_enabled boolean, p_message text, p_rules jsonb, p_require_acceptance boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_stripe_webhook_secret	p_secret text	void	definer	public, pg_temp	authenticated+service_role	client

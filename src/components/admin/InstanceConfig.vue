@@ -68,6 +68,7 @@
       </div>
 
       <NewcomerAlertsDefault />
+      <ThreadSidebarDefault />
 
       <h3 style="margin-top: 24px;">Bridge attachments</h3>
       <p class="setting-hint" style="margin-bottom: 12px;">
@@ -776,6 +777,7 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import Icon from '@/components/common/Icon.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import NewcomerAlertsDefault from '@/components/admin/NewcomerAlertsDefault.vue'
+import ThreadSidebarDefault from '@/components/admin/ThreadSidebarDefault.vue'
 import UploadLimitsAdmin from '@/components/admin/UploadLimitsAdmin.vue'
 import BridgeAdminSection from '@/components/settings/discord-bridge/BridgeAdminSection.vue'
 import { adminService } from '@/services/AdminService'

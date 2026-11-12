@@ -302,7 +302,7 @@ current_profile_username	definer	text	anon+authenticated+service_role	client, po
 current_user_block_peer_ids	definer	SETOF uuid	anon+authenticated+service_role	client, policy	policy public.posts SELECT on posts_select_public
 current_user_channel_manager_server_ids	definer	SETOF uuid	authenticated+service_role	policy	policy public.channel_categories SELECT on channel_categories_select_member, public.channel_category_permission_overrides SELECT on channel_category_permission_overrides_select_member
 current_user_history_cutoffs	definer	jsonb	anon+authenticated+service_role	client, policy	policy public.message_search_index SELECT on message_search_index_channel_access, public.messages SELECT on messages_select_channel_member
-current_user_is_member_of_server	definer	boolean	anon+authenticated+service_role	http anon	nothing references it
+current_user_is_member_of_server	definer	boolean	anon+authenticated+service_role	client	called by server_thread_sidebar_mode
 current_user_may_connect_voice	definer	boolean	authenticated+service_role	client, policy	policy public.voice_channel_participants INSERT on voice_participants_insert_self, public.voice_channel_participants UPDATE on voice_participants_update_self; rpc in src/services/voice/voiceModerationApi.ts
 current_user_reads_post	definer	boolean	service_role	client	called by add_post_emoji_reaction
 current_user_requested_server_ids	definer	SETOF uuid	authenticated+service_role	policy	policy public.servers SELECT on servers_select_member
@@ -580,6 +580,7 @@ get_server_member_timeouts	definer	jsonb	authenticated+service_role	client	rpc i
 get_server_members_by_instance	invoker	TABLE(instance text, member_ids uuid[], member_ap_ids text[], member_count integer)	service_role	client	rpc in federation-backend/src/listeners/ServerMembershipHandler.ts, federation-backend/src/utils/federationUtils.ts
 get_server_newcomer_alerts	definer	jsonb	authenticated+service_role	client	rpc in src/services/NewcomerAlertService.ts
 get_server_notification_settings	definer	jsonb	authenticated+service_role	client	rpc in src/services/notificationSettings.ts
+get_server_thread_sidebar	definer	jsonb	authenticated+service_role	client	rpc in src/services/ThreadSidebarService.ts
 get_server_voice_activities	definer	SETOF jsonb	authenticated+service_role	client	rpc in src/services/activities/activityService.ts
 get_server_voice_moderation	definer	jsonb	authenticated+service_role	client	rpc in src/services/voice/voiceModerationApi.ts
 get_server_welcome	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
@@ -885,7 +886,7 @@ reset_daily_hashtag_counters	definer	void	service_role	cron	cron 0 0 * * * (rese
 reset_my_encryption_identity	definer	void	anon+authenticated+service_role	client	rpc in src/services/encryption/MegolmMessageEncryptionService.ts
 reset_unread_on_join	definer	trigger	service_role	trigger	trigger public.conversation_participants AFTER INSERT/UPDATE (trg_reset_unread_on_join), public.user_servers AFTER INSERT/UPDATE (trg_reset_unread_on_join)
 reset_user_encryption	definer	jsonb	service_role	service key	nothing references it
-resolve_mention_profile_id	invoker	uuid	anon+authenticated+service_role	trigger	called by handle_message_federation
+resolve_mention_profile_id	invoker	uuid	anon+authenticated+service_role	trigger	called by handle_message_federation, thread_message_handler
 resolve_soundboard_sound	definer	TABLE(id uuid, server_id uuid, name text, emoji text, emoji_id uuid, emoji_name text, emoji_url text, volume numeric, duration_ms integer, storage_path text)	authenticated+service_role	client	rpc in src/services/soundboard/sounds.ts
 restore_emoji	definer	void	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts
 review_suspicious_activity	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
@@ -960,6 +961,8 @@ server_template_int	invoker	integer	service_role	client	called by export_server_
 server_template_json	invoker	jsonb	service_role	client	called by server_template_canonical
 server_template_ref	invoker	text	service_role	client	called by server_template_canonical
 server_template_text	invoker	text	service_role	client	called by server_template_canonical
+server_thread_sidebar_mode	definer	text	authenticated+service_role	client	rpc in src/services/ThreadSidebarService.ts
+server_thread_sidebar_state	invoker	jsonb	service_role	client	called by get_server_thread_sidebar, server_thread_sidebar_mode, set_server_thread_sidebar
 session_meets_aal	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages SELECT on messages_session_aal, realtime.messages ALL on realtime_messages_session_aal, storage.objects ALL on storage_objects_session_aal
 session_step_up_fresh	invoker	boolean	service_role	client	called by begin_account_move, delete_my_account, generate_mfa_recovery_codes
 set_bot_allowed_channels	definer	uuid[]	authenticated+service_role	client	rpc in src/components/settings/ServerBotsSettings.vue
@@ -970,7 +973,7 @@ set_conversation_hidden	definer	void	anon+authenticated+service_role	client	rpc 
 set_custom_status	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/userDataService.ts
 set_domain_moderation	definer	void	authenticated+service_role	client	rpc in src/services/AdminService.ts
 set_domain_reject_reports	definer	void	authenticated+service_role	client	rpc in src/services/AdminService.ts
-set_instance_config	definer	boolean	authenticated+service_role	client	rpc in src/services/AdminService.ts, src/services/NewcomerAlertService.ts
+set_instance_config	definer	boolean	authenticated+service_role	client	rpc in src/services/AdminService.ts, src/services/NewcomerAlertService.ts, src/services/ThreadSidebarService.ts
 set_kofi_webhook_token	definer	void	authenticated+service_role	client	rpc in src/services/FundingService.ts
 set_member_instance	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers BEFORE INSERT (auto_set_member_instance)
 set_message_embeds_suppressed	definer	boolean	authenticated+service_role	client	rpc in src/services/messageEmbeds.ts
@@ -981,6 +984,7 @@ set_server_newcomer_alerts	definer	jsonb	authenticated+service_role	client	rpc i
 set_server_raid_lockdown	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 set_server_sound_sharing	definer	boolean	authenticated+service_role	client	rpc in src/services/soundboard/sounds.ts
 set_server_system_channel	definer	jsonb	authenticated+service_role	client	rpc in src/services/permissionsService.ts
+set_server_thread_sidebar	definer	jsonb	authenticated+service_role	client	rpc in src/services/ThreadSidebarService.ts
 set_server_voice_state	definer	jsonb	authenticated+service_role	client	rpc in federation-backend/src/routes/voice.ts
 set_server_welcome	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
 set_stripe_webhook_secret	definer	void	authenticated+service_role	client	rpc in src/services/FundingService.ts

@@ -8583,5 +8583,21 @@
       "unsuspended": "Suspension levée pour {count} compte | Suspension levée pour {count} comptes",
       "deleted": "{count} compte supprimé | {count} comptes supprimés"
     }
+  },
+  "threadSidebar": {
+    "admin": {
+      "title": "Fils dans la barre latérale",
+      "hint": "Quels fils les serveurs affichent sous leurs salons, sauf si un serveur choisit lui-même."
+    },
+    "server": {
+      "title": "Fils dans la barre latérale",
+      "hint": "« Rejoints uniquement » fonctionne comme sur Discord : les membres voient les fils auxquels ils participent et trouvent les autres avec le bouton Fils."
+    },
+    "modes": {
+      "all": "Tous les fils actifs",
+      "joined": "Fils rejoints uniquement",
+      "instance": "Par défaut de l'instance ({mode})"
+    },
+    "saveFailed": "Impossible d'enregistrer le réglage des fils"
   }
 }

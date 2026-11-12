@@ -120,6 +120,8 @@ export const useThreadsStore = defineStore('threads', {
     byId: {} as Record<string, StoredThread>,
     /** Parent message id -> thread id. */
     byParent: {} as Record<string, string>,
+    /** The thread open in the side panel (ThreadView), if any: the sidebar keeps it listed while open. */
+    panelThreadId: null as string | null,
   }),
 
   getters: {

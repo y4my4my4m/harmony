@@ -539,6 +539,8 @@ import ThreadContextMenu from './threads/ThreadContextMenu.vue';
 import ThreadEditModal from './ThreadEditModal.vue';
 import { threadService, type ThreadWithDetails } from '@/services/ThreadService';
 import { useThreadsStore, isOptimisticThreadId } from '@/stores/useThreads';
+import { useThreadSidebarMode } from '@/services/ThreadSidebarService';
+import { sidebarThreads } from '@/utils/threadSidebar';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { supabase } from '@/supabase';
 import { stylePoint, styleRect } from '@/utils/appZoom';
@@ -1131,8 +1133,14 @@ const loadActiveThreads = async (forceRefresh = false) => {
   }
 };
 
+// The mode is remembered per device and looked up on every server change.
+const { mode: threadSidebarMode } = useThreadSidebarMode(
+  computed(() => props.currentServer?.id ?? null),
+  computed(() => props.currentServer?.is_local_server !== false),
+);
+
 const getChannelActiveThreads = (channelId: string): ThreadWithDetails[] => {
-  return threadsStore.activeChannelThreads(channelId).filter(thread => !thread.left);
+  return sidebarThreads(threadsStore.activeChannelThreads(channelId), threadSidebarMode.value, selectedThreadId.value ?? threadsStore.panelThreadId);
 };
 
 // An optimistic thread has no server id to route to yet.

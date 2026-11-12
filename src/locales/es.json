@@ -8583,5 +8583,21 @@
       "unsuspended": "Suspensión levantada en {count} cuenta | Suspensión levantada en {count} cuentas",
       "deleted": "{count} cuenta eliminada | {count} cuentas eliminadas"
     }
+  },
+  "threadSidebar": {
+    "admin": {
+      "title": "Hilos en la barra lateral",
+      "hint": "Qué hilos muestran los servidores bajo sus canales, a menos que un servidor elija por su cuenta."
+    },
+    "server": {
+      "title": "Hilos en la barra lateral",
+      "hint": "«Solo los que sigues» funciona como en Discord: los miembros ven los hilos en los que participan y encuentran el resto con el botón Hilos."
+    },
+    "modes": {
+      "all": "Todos los hilos activos",
+      "joined": "Solo hilos en los que participas",
+      "instance": "Predeterminado de la instancia ({mode})"
+    },
+    "saveFailed": "No se pudo guardar el ajuste de hilos"
   }
 }
