@@ -8,7 +8,7 @@
 -- into deleted_at by hand.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(62);
+SELECT plan(66);
 
 INSERT INTO public.bots (id, username, display_name, owner_id, bot_type) VALUES
   ('27900000-0000-0000-0000-0000000000b1', 'discord-bridge-279', 'Discord Bridge', '11111111-0000-0000-0000-000000000001', 'bridge'),
@@ -30,6 +30,19 @@ CREATE FUNCTION pg_temp.remove(p_id uuid) RETURNS text LANGUAGE sql AS $$
     '55555555-0000-0000-0000-000000000005', p_id) $$;
 
 -- Grants. -----------------------------------------------------------------------------------------
+SELECT ok(NOT has_function_privilege('service_role', 'public.bridge_require_server_bot(uuid, uuid)', 'EXECUTE')
+      AND NOT has_function_privilege('authenticated', 'public.bridge_require_server_bot(uuid, uuid)', 'EXECUTE')
+      AND NOT has_function_privilege('anon', 'public.bridge_require_server_bot(uuid, uuid)', 'EXECUTE'),
+  'no API role executes bridge_require_server_bot');
+SELECT lives_ok($$SELECT public.bridge_require_server_bot('27900000-0000-0000-0000-0000000000b1',
+  '55555555-0000-0000-0000-000000000005')$$, 'the bridge bot of the server passes');
+SELECT throws_ok($$SELECT public.bridge_require_server_bot('27900000-0000-0000-0000-0000000000b2',
+  '55555555-0000-0000-0000-000000000005')$$,
+  '42501', 'bot is not the Discord bridge of this server', 'a bridge bot of no server is refused');
+SELECT is((SELECT count(*)::int FROM pg_proc p
+            WHERE p.pronamespace = 'public'::regnamespace
+              AND p.prosrc LIKE '%FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id%'),
+          1, 'one function holds the check; the sync functions call it');
 SELECT ok(NOT has_function_privilege('authenticated', 'public.bridge_evict_removed_emojis(uuid, uuid, uuid[])', 'EXECUTE')
       AND NOT has_function_privilege('anon', 'public.bridge_evict_removed_emojis(uuid, uuid, uuid[])', 'EXECUTE'),
   'clients cannot evict emoji');

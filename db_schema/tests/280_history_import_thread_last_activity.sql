@@ -1,4 +1,4 @@
--- 20261112400001_history_import_thread_last_activity.sql: a reply under the history-import flag
+-- thread_message_handler of 20261110900004_history_import_quiet.sql: a reply under the history-import flag
 -- gives a thread with no last message time one, so auto_archive_threads() can archive it; a set
 -- last message time, the last message and the archived state are still left alone.
 --

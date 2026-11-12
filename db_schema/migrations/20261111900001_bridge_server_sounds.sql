@@ -37,6 +37,25 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS server_sounds_server_discord_sound_key
   ON public.server_sounds (server_id, discord_sound_id) WHERE discord_sound_id IS NOT NULL;
 
+-- Raises 42501 unless the bot is the Discord bridge bot of the server. No API role executes it.
+CREATE OR REPLACE FUNCTION public.bridge_require_server_bot(p_bot_id uuid, p_server_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
+  ) THEN
+    RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
+  END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.bridge_require_server_bot(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.bridge_import_server_sound(
   p_bot_id uuid,
   p_server_id uuid,
@@ -59,11 +78,7 @@ AS $$
 DECLARE
   v_row public.server_sounds%ROWTYPE;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-  ) THEN
-    RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-  END IF;
+  PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
 
   IF p_discord_sound_id IS NULL OR p_discord_sound_id !~ '^[0-9]{1,20}$' THEN
     RAISE EXCEPTION 'invalid Discord sound id' USING ERRCODE = '22023';
@@ -142,11 +157,7 @@ AS $$
 DECLARE
   v_path text;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-  ) THEN
-    RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-  END IF;
+  PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
 
   DELETE FROM public.server_sounds s
    WHERE s.id = p_sound_id AND s.server_id = p_server_id

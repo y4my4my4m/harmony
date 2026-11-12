@@ -180,6 +180,7 @@ bridge_privacy_restore_remote_user	definer	boolean	authenticated	client	rpc in s
 bridge_privacy_set_optout	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
 bridge_privacy_status	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
 bridge_remove_server_emoji	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
+bridge_require_server_bot	definer	void	-	client	called by bridge_delete_server_sound, bridge_evict_removed_emojis, bridge_evict_retired_stickers, +5
 bridge_retire_server_sticker	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 broadcast_bot_installation_change	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (broadcast_bot_installation_change)
 broadcast_bot_presence_change	definer	trigger	service_role	trigger	trigger public.bot_presence AFTER INSERT/UPDATE (broadcast_bot_presence_change)

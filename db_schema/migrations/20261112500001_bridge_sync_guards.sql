@@ -79,11 +79,7 @@ AS $$
 DECLARE
   v_row public.server_sounds%ROWTYPE;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-  ) THEN
-    RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-  END IF;
+  PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
 
   SELECT * INTO v_row FROM public.server_sounds s
    WHERE s.id = p_sound_id AND s.server_id = p_server_id
@@ -139,11 +135,7 @@ DECLARE
   v_row public.emojis%ROWTYPE;
   v_cap integer;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-  ) THEN
-    RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-  END IF;
+  PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
   IF p_discord_emoji_id IS NULL OR p_discord_emoji_id !~ '^[0-9]{1,20}$' THEN
     RAISE EXCEPTION 'invalid Discord emoji id' USING ERRCODE = '22023';
   END IF;
@@ -260,11 +252,7 @@ DECLARE
   v_row public.emojis%ROWTYPE;
   v_now timestamptz := now();
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-  ) THEN
-    RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-  END IF;
+  PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
 
   SELECT * INTO v_row FROM public.emojis e
    WHERE e.id = p_emoji_id AND e.server_id = p_server_id
@@ -302,11 +290,7 @@ DECLARE
   -- Discord's largest guild: 250 static and 250 animated emoji.
   c_keep CONSTANT integer := 500;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-  ) THEN
-    RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-  END IF;
+  PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
 
   IF p_ids IS NULL THEN
     RETURN QUERY
@@ -358,11 +342,7 @@ AS $$
 DECLARE
     v_row public.stickers%ROWTYPE;
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-    ) THEN
-        RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-    END IF;
+    PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
 
     SELECT * INTO v_row FROM public.stickers s
      WHERE s.id = p_sticker_id AND s.server_id = p_server_id AND s.scope = 'server'
@@ -399,11 +379,7 @@ DECLARE
     -- Discord's largest guild: 60 stickers.
     c_keep CONSTANT integer := 60;
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-    ) THEN
-        RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-    END IF;
+    PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
 
     IF p_ids IS NULL THEN
         RETURN QUERY

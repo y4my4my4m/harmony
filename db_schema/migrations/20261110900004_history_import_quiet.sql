@@ -66,8 +66,9 @@
 --   trigger_remove_message_index         remove_message_from_index             KEEP  search index (delete)
 --   trigger_role_mention_notifications   handle_role_mention_notifications     SKIP  role, @everyone and @here notifications
 --   trigger_thread_message_delete        thread_message_delete_handler         KEEP  derived thread data; recomputes from real rows
---   trigger_thread_message_insert        thread_message_handler                CHANGED  member and message counts kept;
---                                                                                     last message, updated_at, unarchive skipped
+--   trigger_thread_message_insert        thread_message_handler                CHANGED  member and message counts kept, a NULL last
+--                                                                                     message time set; last message, a set last
+--                                                                                     message time, updated_at, unarchive skipped
 --   trigger_thread_reply_notification    handle_thread_reply_notification      SKIP  thread reply notifications
 --   trigger_unpin_on_delete              handle_pinned_message_delete          KEEP  integrity
 --   z_messages_channel_message_notifications  handle_channel_message_notifications  SKIP  channel-level notifications
@@ -150,8 +151,11 @@ BEGIN
 END;
 $function$;
 
--- A reply under the flag is counted (message_count, member_count, thread_members) but moves
--- nothing else: not the last message, updated_at, nor the archived state of an imported thread.
+-- A reply under the flag is counted (message_count, member_count, thread_members) and gives a thread
+-- without one its last message time, so auto_archive_threads() and the client's expiry check, which
+-- skip a NULL time, reach an imported thread. It moves nothing else: not a set last message time,
+-- the last message, updated_at, nor the archived state of an imported thread. The importer reads a
+-- thread newest-first, so the first reply it inserts is the newest.
 CREATE OR REPLACE FUNCTION public.thread_message_handler()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -168,7 +172,8 @@ BEGIN
         END IF;
         IF public.is_history_import() THEN
             UPDATE public.threads
-            SET message_count = message_count + 1
+            SET message_count = message_count + 1,
+                last_message_at = COALESCE(last_message_at, NEW.created_at)
             WHERE id = NEW.thread_id;
         ELSE
             UPDATE public.threads
@@ -1557,6 +1562,8 @@ BEGIN
 END;
 $function$;
 
+-- An imported row never federated, so its later edit, delete or pin does not either: the three
+-- triggers below also return for a row whose metadata.history_import is true.
 CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_edit_federation()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1569,7 +1576,7 @@ DECLARE
     v_federation_enabled BOOLEAN;
     v_author_is_local BOOLEAN;
 BEGIN
-    IF public.is_history_import() THEN
+    IF public.is_history_import() OR COALESCE(NEW.metadata ->> 'history_import', '') = 'true' THEN
         RETURN NEW;
     END IF;
     IF current_setting('harmony.silent_content_update', true) = 'true' THEN
@@ -1626,7 +1633,7 @@ DECLARE
     v_author_is_local BOOLEAN;
     v_deleter UUID;
 BEGIN
-    IF public.is_history_import() THEN
+    IF public.is_history_import() OR COALESCE(NEW.metadata ->> 'history_import', '') = 'true' THEN
         RETURN NEW;
     END IF;
     IF NEW.channel_id IS NOT NULL AND NEW.conversation_id IS NULL THEN
@@ -1679,7 +1686,7 @@ AS $function$
 DECLARE
     v_server_id uuid;
 BEGIN
-    IF public.is_history_import() THEN
+    IF public.is_history_import() OR COALESCE(NEW.metadata ->> 'history_import', '') = 'true' THEN
         RETURN NULL;
     END IF;
     IF NEW.channel_id IS NULL OR NEW.is_deleted IS TRUE
@@ -1845,6 +1852,7 @@ EXCEPTION
 END;
 $function$;
 
+-- Also returns for a thread that never federated: no author, no ap_id, federation_status skipped.
 CREATE OR REPLACE FUNCTION public.trigger_queue_thread_delete_federation()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1854,7 +1862,8 @@ AS $function$
 DECLARE
     v_server_id uuid;
 BEGIN
-    IF public.is_history_import() THEN
+    IF public.is_history_import()
+       OR (OLD.created_by IS NULL AND OLD.ap_id IS NULL AND OLD.federation_status = 'skipped') THEN
         RETURN NULL;
     END IF;
     SELECT s.id INTO v_server_id

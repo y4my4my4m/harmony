@@ -323,10 +323,13 @@ CREATE TRIGGER z_stickers_audit_update
 -- ---------------------------------------------------------------------------
 -- Bot attribution
 -- ---------------------------------------------------------------------------
--- bot-gateway logs sticker_imported, sticker_updated and sticker_removed in bot_audit_log.
+-- bot-gateway logs sticker_imported, sticker_updated and sticker_removed in bot_audit_log, and
+-- emoji_updated and emoji_removed next to emoji_imported.
 -- server_audit_stickers writes a creation as sticker.create, a rename or new description as
 -- sticker.update, a restore as sticker.create (also when the name changes with it) and a
--- retirement as sticker.delete; attribute each to the bot.
+-- retirement as sticker.delete. server_audit_emojis writes a rename as emoji.update, a restore as
+-- emoji.create (also when the name changes with it) and a soft removal as emoji.delete. Each is
+-- attributed to the bot.
 CREATE OR REPLACE FUNCTION public.server_audit_attribute_bot()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -418,11 +421,7 @@ DECLARE
     v_ext text;
     v_constraint text;
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-    ) THEN
-        RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-    END IF;
+    PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
     IF p_discord_sticker_id IS NULL OR p_discord_sticker_id !~ '^[0-9]{1,20}$' THEN
         RAISE EXCEPTION 'invalid Discord sticker id' USING ERRCODE = '22023';
     END IF;
@@ -543,11 +542,7 @@ AS $$
 DECLARE
     v_row public.stickers%ROWTYPE;
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-    ) THEN
-        RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-    END IF;
+    PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
 
     SELECT * INTO v_row FROM public.stickers s
      WHERE s.id = p_sticker_id AND s.server_id = p_server_id AND s.scope = 'server'

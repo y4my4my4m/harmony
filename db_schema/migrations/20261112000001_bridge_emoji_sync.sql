@@ -51,11 +51,7 @@ DECLARE
   v_row public.emojis%ROWTYPE;
   v_cap integer;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-  ) THEN
-    RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-  END IF;
+  PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
   IF p_discord_emoji_id IS NULL OR p_discord_emoji_id !~ '^[0-9]{1,20}$' THEN
     RAISE EXCEPTION 'invalid Discord emoji id' USING ERRCODE = '22023';
   END IF;
@@ -160,11 +156,7 @@ AS $$
 DECLARE
   v_row public.emojis%ROWTYPE;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM public.discord_bridges b WHERE b.server_id = p_server_id AND b.bot_id = p_bot_id
-  ) THEN
-    RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
-  END IF;
+  PERFORM public.bridge_require_server_bot(p_bot_id, p_server_id);
 
   SELECT * INTO v_row FROM public.emojis e
    WHERE e.id = p_emoji_id AND e.server_id = p_server_id
@@ -188,58 +180,7 @@ GRANT EXECUTE ON FUNCTION public.bridge_import_server_emoji(uuid, uuid, text, te
 REVOKE ALL ON FUNCTION public.bridge_remove_server_emoji(uuid, uuid, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.bridge_remove_server_emoji(uuid, uuid, uuid) TO service_role;
 
--- bot-gateway logs emoji_updated and emoji_removed in bot_audit_log next to emoji_imported.
--- server_audit_emojis writes a rename as emoji.update, a restore as emoji.create (also when the
--- name changes with it) and a soft removal as emoji.delete; attribute each to the bot.
-CREATE OR REPLACE FUNCTION public.server_audit_attribute_bot()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-DECLARE
-    v_meta jsonb := COALESCE(NEW.metadata, '{}'::jsonb);
-    v_actions text[];
-    v_target text;
-    v_server text;
-BEGIN
-    v_actions := CASE NEW.action_type
-        WHEN 'channel_created' THEN ARRAY['channel.create']
-        WHEN 'category_created' THEN ARRAY['category.create']
-        WHEN 'role_created' THEN ARRAY['role.create']
-        WHEN 'role_updated' THEN ARRAY['role.update']
-        WHEN 'role_deleted' THEN ARRAY['role.delete']
-        WHEN 'emoji_imported' THEN ARRAY['emoji.create']
-        WHEN 'emoji_updated' THEN ARRAY['emoji.update', 'emoji.create']
-        WHEN 'emoji_removed' THEN ARRAY['emoji.delete']
-    END;
-    v_target := COALESCE(v_meta ->> 'channel_id', v_meta ->> 'category_id', v_meta ->> 'role_id', v_meta ->> 'emojiId');
-    v_server := COALESCE(NEW.server_id::text, v_meta ->> 'server_id', v_meta ->> 'serverId');
-    IF v_actions IS NULL OR v_target IS NULL OR v_server IS NULL
-       OR v_server !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
-        RETURN NULL;
-    END IF;
-
-    UPDATE public.server_audit_log l
-       SET source = 'bot', actor_bot_id = NEW.bot_id
-     WHERE l.server_id = v_server::uuid
-       AND l.action = ANY (v_actions)
-       AND l.target_id = v_target
-       AND l.source = 'system'
-       AND l.actor_id IS NULL
-       AND l.created_at > clock_timestamp() - interval '5 minutes';
-    RETURN NULL;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS z_bot_audit_log_server_audit ON public.bot_audit_log;
-CREATE TRIGGER z_bot_audit_log_server_audit
-    AFTER INSERT ON public.bot_audit_log
-    FOR EACH ROW
-    WHEN (NEW.success IS NOT FALSE AND NEW.bot_id IS NOT NULL
-          AND NEW.action_type IN ('channel_created', 'category_created', 'role_created',
-                                  'role_updated', 'role_deleted', 'emoji_imported',
-                                  'emoji_updated', 'emoji_removed'))
-    EXECUTE FUNCTION public.server_audit_attribute_bot();
+-- server_audit_attribute_bot and its trigger attribute emoji.create, emoji.update and emoji.delete
+-- to the bot in 20261112300001.
 
 COMMIT;
