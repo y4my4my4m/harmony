@@ -127,6 +127,8 @@ Returns the bridge's configuration. The gateway also pushes this object as [`BRI
 | `base_url` | string or `null` | The instance's public URL. |
 | `pairs` | array | Paired channels; see below. |
 | `harmony_channels` | array | Every channel of the server the bridge bot can see, categories excluded, ordered by position, then name. |
+| `history_import` | object | `{ "enabled": boolean, "reason": null \| "instance_off" \| "bridge_mode" }`. Whether this bridge may [import history](#history-import): the instance switch is on and the bridge's `mode` is `self`. Absent on a gateway before 1.9.7: treat as disabled. |
+| `privacy_version` | string | Opaque. Changes whenever the server's [opt-out list](#privacy) changes; fetch the list again when it differs. |
 
 | Pair field | Description |
 |---|---|
@@ -338,6 +340,10 @@ A bridge copies Discord messages as they arrive. History import copies a paired 
 
 All routes are under `/bridge/v2/imports`, take `Authorization: Bot <bridge bot token>`, and answer `404` `{ "code": "import_not_found" }` for a job that is not this bridge's, or an `id` that is not a UUID.
 
+Import runs only for a bridge of `mode` `self` on an instance whose admin turned it on. Otherwise every route answers `403` `{ "code": "import_disabled", "reason": "instance_off" | "bridge_mode" }`. Read `history_import` in the [config](#get-config) and call these routes only while it is enabled: no polling, no command, for a bridge that may not import. The gateway names the feature `bridge_history_import` in its [capabilities](/build/gateway#ready).
+
+A `429` carries `Retry-After` in seconds, repeated as `retry_after` in the body. It is a wait, not a failure: keep the job in its state and try again after it.
+
 ### Jobs
 
 One job covers one pair. A pair is importable when its direction is `both` or `to_harmony` and its Harmony channel is not encrypted. The app's settings create jobs too, so the bridge lists jobs and works the ones it finds.
@@ -353,7 +359,8 @@ States: `queued`, `running`, `paused`, `done`, `failed`, `cancelled`. Phases: `m
   "channel_created_at": "2023-01-01T00:00:00Z",
   "threads_total": null, "threads_done": 0, "thread_cursor": null,
   "imported_count": 1200, "skipped_count": 3, "pins_skipped": 0,
-  "error": null, "requested_via": "harmony",
+  "authors_skipped": 14, "automod_skipped": 0,
+  "error": null, "requested_via": "harmony", "requested_by_remote": null,
   "created_at": "…", "updated_at": "…", "finished_at": null
 }
 ```
@@ -361,8 +368,9 @@ States: `queued`, `running`, `paused`, `done`, `failed`, `cancelled`. Phases: `m
 | Route | Body | Answer |
 |---|---|---|
 | `GET /imports` | none | `200` `{ "imports": [job] }`: this bridge's jobs in every state, oldest first |
-| `POST /imports` | `{ "discord_channel_ids": ["…"] }`; omit it to queue every importable pair; `[]` queues nothing | `201` `{ "imports": [job] }`, requested via `discord` |
-| `PATCH /imports/{id}` | Any of `state`, `phase`, `start_discord_message_id`, `start_at`, `reached_discord_message_id`, `reached_at`, `channel_created_at`, `threads_total`, `threads_done`, `thread_cursor`, `error` | `200` `{ "import": job }` |
+| `GET /imports/{id}` | none | `200` `{ "import": job }` |
+| `POST /imports` | `{ "discord_channel_ids": ["…"], "requested_by": { "id": "…", "username": "…" } }`; omit the ids to queue every importable pair; `[]` queues nothing. `requested_by` is the Discord member who ran the command; the job keeps it as `requested_by_remote` | `201` `{ "imports": [job] }`, requested via `discord` |
+| `PATCH /imports/{id}` | Any of `state`, `phase`, `start_discord_message_id`, `start_at`, `reached_discord_message_id`, `reached_at`, `channel_created_at`, `threads_total`, `threads_done`, `thread_cursor`, `error` (200 characters are kept), `authors_skipped` | `200` `{ "import": job }` |
 | `POST /imports/{id}/cancel` | none | `200` `{ "imports": [job] }` |
 | `POST /imports/{id}/messages` | `{ "messages": [message] }`, 1 to 100 | `200` `{ "inserted": [{ "discord_message_id", "id" }], "skipped": ["…"], "rejected": [{ "discord_message_id", "reason" }] }` |
 | `POST /imports/{id}/threads` | A thread, below | `200` `{ "thread_id": "…" }` |
@@ -373,10 +381,13 @@ States: `queued`, `running`, `paused`, `done`, `failed`, `cancelled`. Phases: `m
 | `400` `pair_not_importable` (with `discord_channel_id`) | `POST /imports` named a channel that is unpaired, one-way to Discord, or encrypted |
 | `400` `invalid_request` | Malformed `discord_channel_ids` |
 | `400` `invalid_patch` | A `PATCH` body that is not an object, or has a value out of range |
-| `400` `invalid_batch` | A malformed message, or a batch outside 1 to 100 messages; a bad message also carries `detail` and its `discord_message_id` |
+| `400` `invalid_batch` | A body that is not a list of 1 to 100 messages. A message that cannot be stored does not fail the batch; see `rejected` under [Messages](#messages) |
+| `403` `import_disabled` (with `reason`) | Import is off for this bridge; any route |
+| `429` `import_busy` | `PATCH` asked for `running` while the instance runs its maximum number of imports. A running job silent for 10 minutes gives its slot away and is set to `paused` |
+| `429` `import_rate_limited` | `POST messages` past the instance's messages per minute for one import. Nothing was stored; send the same batch after the wait, at most 60 s |
 | `400` `invalid_thread` | A thread body that is not an object or has bad values |
 | `409` `invalid_transition` | `PATCH` asked for a state change the job's state does not allow |
-| `409` `import_not_running` | The job is not `running`. A job whose pair was removed or whose channel became encrypted is set to `failed` with `error` `pair_removed` or `channel_encrypted`; stop it and do not retry |
+| `409` `import_not_running` | The job is not `running`. A job whose pair was removed, whose channel became encrypted, or whose import was turned off is set to `failed` with `error` `pair_removed`, `channel_encrypted` or `import_disabled`; stop it and do not retry |
 | `500` | `{ "error": "Import request failed" }` |
 
 `PATCH` moves a job from `queued` to `running`, from `running` to `paused`, `done` or `failed` (with `error`), and from `paused` back to `running`. It moves a job to `cancelled` only after `cancel_requested` is true: poll `GET /imports` for that flag, and stop when it is set. A person restarting a `failed`, `cancelled` or `paused` job in the app sets it back to `queued` with its cursors kept.
@@ -398,9 +409,22 @@ Walk the Discord channel from its newest message back to its first, skipping mes
 | `thread_id` | UUID or null | The Harmony thread from `POST threads`. |
 | `pinned` | boolean | Pin the message, up to 50 per channel; the rest increment `pins_skipped`. |
 
-Content runs through the same pipeline as an ordinary send: mention resolution and the instance's [attachment policy](#attachments).
+Content runs through the same pipeline as an ordinary send, with the instance's [attachment policy](#attachments). User and role mention parts are stored as text: imported history pings nobody.
 
-`inserted` lists the new rows. `skipped` lists every other ID of the batch: IDs already in the channel (live relayed, or imported before) and IDs dropped because their content came out empty. Sending a batch again is harmless: it answers all `skipped`. `rejected` (present when the batch reached the database) lists messages that broke a check and were not inserted, with `reason` `too_long` (over the instance's message length limit, 2000 characters by default while Discord allows 4000) or `check_violation`; the rest of the batch is unaffected, and each rejected ID is also in `skipped`, so a bridge that ignores `rejected` still sees every ID answered. The job does not fail for them; the bridge may log them or re-send a shortened message under a new batch. A live message and a batch that carry the same `discord_message_id` leave one row. `imported_count` counts only inserted rows, so do not read `skipped` as imported.
+Leave out messages whose author is no longer a member of the guild and messages of authors on the opt-out list, and report the run's total of those in `authors_skipped`.
+
+`inserted` lists the new rows. `skipped` lists every other ID of the batch: IDs already in the channel (live relayed, or imported before) and IDs dropped because their content came out empty. Sending a batch again is harmless: it answers all `skipped`. `rejected` lists messages that were refused alone, with a `reason`; the rest of the batch is unaffected, and each rejected ID is also in `skipped`, so a bridge that ignores `rejected` still sees every ID answered. A rejection is final: do not send that message again, except `too_long`, which the bridge may shorten and send in a later batch.
+
+| `reason` | Cause |
+|---|---|
+| `invalid` | A field of the wrong type, a date that is no date, a `thread_id` that is not a thread of the channel, or a content part the server refuses |
+| `future_date` | `created_at` or `edited_at` more than a minute ahead of the gateway's clock. Start the walk a few minutes behind now |
+| `opted_out` | The author opted out of this server's bridge; see [Privacy](#privacy) |
+| `automod` | A blocking keyword, invite or link rule of the server's AutoMod, when its bots are not exempt. Counted in `automod_skipped` |
+| `too_long` | Over the instance's message length limit, 2000 characters by default while Discord allows 4000 |
+| `check_violation` | Another check of the messages table |
+
+An entry without a usable `discord_message_id` is answered nowhere. A live message and a batch that carry the same `discord_message_id` leave one row. `imported_count` counts only inserted rows, so do not read `skipped` as imported.
 
 Mirroring attachments makes a batch slow; use a generous HTTP timeout.
 
@@ -422,6 +446,28 @@ The call is idempotent per `discord_thread_id`. A starter that is not in Harmony
 ### Replies
 
 Messages arrive newest first, so a reply often precedes its target. After the thread phase, set `phase` to `replies` and call `POST /imports/{id}/replies/link` once: it links every imported reply whose target is now in the channel. A target that never arrives stays an unresolved reply.
+
+## Privacy
+
+A remote user opts out of a server's bridge, and has what the bridge brought erased. The routes are under `/bridge/v2/privacy`, take the bridge bot token, serve every bridge mode, and act on the bridge's server. `{id}` is a Discord user ID; anything else answers `400` `{ "code": "invalid_remote_user" }`. The gateway names the feature `bridge_privacy` in its [capabilities](/build/gateway#ready).
+
+| Route | Body | Answer |
+|---|---|---|
+| `GET /privacy/optouts` | none | `200` `{ "version": "…", "remote_user_ids": ["…"] }`. `version` equals the config's `privacy_version` |
+| `GET /privacy/optouts/{id}` | none | `200` `{ "opted_out": boolean, "since": "…" \| null, "source": "self" \| "manager" \| "admin" \| null }` |
+| `PUT /privacy/optouts/{id}` | none | The status, `opted_out` `true` |
+| `DELETE /privacy/optouts/{id}` | none | The status. Opting in lifts the user's own opt-out only: after a removal by a server manager or an instance admin the answer still has `opted_out` `true` with that `source` |
+| `POST /privacy/erase` | `{ "remote_user_id": "…" }` | `202` `{ "opted_out": true, "erased": 37, "more": false }`. Opts the user out and deletes their relayed and imported messages, reactions and AutoMod events in this server. With `more` `true` the gateway finishes in the background. `429` `erase_recent` for the same user within 60 s |
+
+A bridge keeps the list and sends nothing of an opted-out author: no message, edit, reaction or thread. The gateway enforces it as well:
+
+- `POST /channels/{id}/messages` and an edit whose `metadata.discord_user.id` is opted out answer `403` `{ "code": "BRIDGE_AUTHOR_OPTED_OUT" }`. Drop the message; do not retry.
+- A batch of [history import](#history-import) answers `rejected` with `reason` `opted_out` for it.
+- A delete is always accepted.
+
+Erasing deletes rows without a `MESSAGE_DELETE` event, so a bridge that mirrors Harmony deletes to the remote platform leaves the originals there. The first message of a thread stays as a deleted row without content or author (`metadata.bridge_erased`), also without an event.
+
+Offer the choice where the remote user is: the Discord bridge registers `/bridge-privacy` (`opt-out`, `opt-in`, `status`, `erase`) for every member, answers only to the caller, and acts on the caller's own ID.
 
 ## Legacy pairing codes
 

@@ -80,15 +80,46 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   last.
 - **Bot API: gateway capabilities.** `READY` and `GET /users/@me` carry
   `capabilities`, the features this gateway has (`bridge_sound_sync`,
-  `bridge_emoji_sync`, `bridge_sticker_sync`), so a bot can tell an older
-  gateway without calling a route that answers `404`.
-- **Import Discord history.** A Discord bridge can now copy a paired
-  channel's older messages, threads and pins into its Harmony channel, with
-  their original dates and Discord authors. Start it with **Import history**
-  or **Import all** in Server settings, Discord Bridge, or with
-  `/bridge import-history` in Discord (bridge 2.6.0 or later). Imported
-  messages are quiet: no notifications, unread counts or federation, and a
-  repeat or a restart never duplicates a message. Reactions are not imported.
+  `bridge_emoji_sync`, `bridge_sticker_sync`, `bridge_history_import`,
+  `bridge_privacy`), so a bot can tell an older gateway without calling a
+  route that answers `404`.
+- **Import Discord history.** A Discord bridge you run yourself can copy a
+  paired channel's older messages, threads and pins into its Harmony channel,
+  with their original dates and Discord authors. Start it with **Import
+  history** or **Import all** in Server settings, Discord Bridge, or with
+  `/bridge import-history` in Discord (bridge 2.6.0 or later); each start asks
+  for a confirmation. Imported messages are quiet: no notifications, unread
+  counts, pings or federation, and a repeat or a restart never duplicates a
+  message. Reactions are not imported.
+  - It is off until the instance's admin turns it on (**Admin** → **Config** →
+    **Discord bridge** → **Discord history import**), and never runs through
+    the instance's Discord bot or a bot the instance runs for a community.
+  - Messages from people who have left the Discord server are skipped, the
+    bridge pins a notice in each Discord channel it imports, and a Discord
+    channel that `@everyone` cannot see is imported only when started on
+    Discord by someone who can see it.
+  - The instance limits how many imports run at once (1) and how many
+    messages each stores per minute (600), and with AutoMod's **Exempt bots**
+    off a server's blocking keyword, invite and link rules apply to imported
+    messages.
+- **Bridge privacy.** Discord members decide about their own messages with
+  `/bridge-privacy` on Discord: `opt-out` keeps them out of the Harmony server
+  from then on, live and imported, `erase` also deletes what the bridge
+  already brought, `opt-in` and `status` do what they say. It works with every
+  kind of bridge. For someone who cannot run it, members with Manage Server
+  remove a Discord user by ID under **Server settings** → **Discord Bridge** →
+  **Bridge privacy**, where **Remove all bridged messages** clears the whole
+  server; instance admins have **Remove all Discord messages** for the
+  instance. Erasing on Harmony never deletes anything on Discord.
+- **Bot API: bridge privacy and import limits.** `/bridge/v2/privacy` lists a
+  server's opted-out remote users and takes opt-out, opt-in and erase; a
+  relayed message or edit of an opted-out author answers `403`
+  `BRIDGE_AUTHOR_OPTED_OUT`. `/bridge/v2/config` carries `history_import` and
+  `privacy_version`. The import routes answer `403` `import_disabled` while
+  import is off, `429` `import_busy` and `import_rate_limited` with
+  `Retry-After`, and reject a message that cannot be stored alone (`rejected`
+  with `invalid`, `future_date`, `opted_out`, `automod`) instead of failing its
+  batch. See the developer docs, Build → Writing a bridge.
 - **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
   installs an instance on a blank Linux server: it checks the host (offering
   Docker and a swap file), asks a few questions, checks DNS, starts the
@@ -272,6 +303,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   it. Update to this release.
 
 ### Notes for self-hosters
+- Discord history import is off after the upgrade. To let communities import through bridges they
+  run themselves, turn it on under **Admin** → **Config** → **Discord bridge** → **Discord history
+  import**, and read the notes shown there first. The same section holds the import limits.
 - Supabase Studio is off unless you choose it. An install that never chose has it removed by
   `harmony update`, which prints one line; `harmony studio on` brings it back.
 - Sign-up limits and the auth service's per-address limits read the client's address from

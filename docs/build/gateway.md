@@ -57,7 +57,7 @@ On success the gateway answers with a `READY` event:
     "bot": { "id": "3f6c1d2e-…", "username": "ping-bot" },
     "session_id": "b1a7e0c4-…",
     "heartbeat_interval": 30000,
-    "capabilities": ["bridge_sound_sync", "bridge_emoji_sync", "bridge_sticker_sync"]
+    "capabilities": ["bridge_sound_sync", "bridge_emoji_sync", "bridge_sticker_sync", "bridge_history_import", "bridge_privacy"]
   }
 }
 ```
