@@ -5862,7 +5862,8 @@
     "guild": {
       "label": "Discord server ID",
       "hint": "Turn on Developer Mode in Discord, then right-click the server and choose Copy Server ID.",
-      "locked": "The Discord server can't change after the migration has been opened."
+      "locked": "The Discord server can't change after the migration has been opened.",
+      "fromBridge": "Filled in from this server's Discord bridge."
     },
     "refresh": {
       "button": "Fetch from Discord",

@@ -5866,7 +5866,8 @@
     "guild": {
       "label": "Discord 服务器 ID",
       "hint": "在 Discord 中开启开发者模式,右键点击服务器,选择“复制服务器 ID”。",
-      "locked": "迁移开启后,无法更改 Discord 服务器。"
+      "locked": "迁移开启后,无法更改 Discord 服务器。",
+      "fromBridge": "已从此服务器的 Discord 桥接自动填入。"
     },
     "refresh": {
       "button": "从 Discord 获取",

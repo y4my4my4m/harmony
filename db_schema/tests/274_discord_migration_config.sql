@@ -8,7 +8,7 @@
 --   s3                  source 'instance_bot'
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(115);
+SELECT plan(116);
 
 CREATE TEMP TABLE out (k text PRIMARY KEY, v jsonb) ON COMMIT DROP;
 GRANT ALL ON out TO PUBLIC;
@@ -146,9 +146,12 @@ SELECT ok((SELECT v #>> '{}' <> (SELECT v ->> 'link_token' FROM out WHERE k = 'g
 
 -- The hosted bridge: guild default and credentials ------------------------------------------------
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+INSERT INTO out VALUES ('get2pre', public.discord_migration_get('f2740000-0000-0000-0000-0000000000a2'));
 INSERT INTO out VALUES ('save2', public.discord_migration_save('f2740000-0000-0000-0000-0000000000a2', NULL, 'bridge'));
 INSERT INTO out VALUES ('get2', public.discord_migration_get('f2740000-0000-0000-0000-0000000000a2'));
 SELECT tests.clear_authentication();
+SELECT is((SELECT v ->> 'bridge_discord_guild_id' FROM out WHERE k = 'get2pre'), '900000000000000274',
+  'get returns the bridge''s guild before any migration row exists');
 SELECT is((SELECT v ->> 'discord_guild_id' FROM out WHERE k = 'save2'), '900000000000000274',
   'save with a null guild id copies the hosted bridge''s guild');
 SELECT is((SELECT v ->> 'bridge_available' FROM out WHERE k = 'get2'), 'false',

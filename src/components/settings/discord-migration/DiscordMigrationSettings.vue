@@ -68,8 +68,12 @@
             autocomplete="off"
             :disabled="guildLocked"
             data-testid="guild-input"
+            @input="guildFromBridge = false"
           />
           <span class="db-muted">{{ guildLocked ? t('discordMigration.guild.locked') : t('discordMigration.guild.hint') }}</span>
+          <span v-if="guildFromBridge && !guildLocked" class="db-muted" data-testid="guild-from-bridge">
+            {{ t('discordMigration.guild.fromBridge') }}
+          </span>
         </div>
 
         <p v-if="saveError" class="dm-error" role="alert" data-testid="save-error">{{ saveError }}</p>
@@ -376,6 +380,8 @@ const now = ref(Date.now())
 
 const source = ref<CredentialSource | ''>('')
 const guildId = ref('')
+// True while the field holds the bridge's guild the panel filled in, not something saved or typed.
+const guildFromBridge = ref(false)
 const clientId = ref('')
 const clientSecret = ref('')
 const botToken = ref('')
@@ -509,7 +515,13 @@ async function reloadConfig() {
   const c = config.value
   if (c.credential_source) source.value = c.credential_source
   else if (!source.value) source.value = sourceOptions.value[0] ?? 'own'
-  guildId.value = c.discord_guild_id ?? guildId.value
+  if (c.discord_guild_id) {
+    guildId.value = c.discord_guild_id
+    guildFromBridge.value = false
+  } else if (!guildId.value && c.bridge_discord_guild_id) {
+    guildId.value = c.bridge_discord_guild_id
+    guildFromBridge.value = true
+  }
   selection.value = {
     ...Object.fromEntries(Object.entries(selection.value).filter(([id]) => suggested.value.has(id))),
     ...Object.fromEntries(c.role_map.map((m) => [m.discord_role_id, m.harmony_role_id])),

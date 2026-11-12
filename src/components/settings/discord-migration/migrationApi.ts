@@ -67,6 +67,8 @@ export interface MigrationConfig {
   readiness_warnings?: { unpaired_channels?: string[]; member_overrides?: number } | null
   has_own_credentials: boolean
   bridge_available: boolean
+  /** The guild of this server's Discord bridge (any mode), null without one. */
+  bridge_discord_guild_id?: string | null
   instance_bot_available: boolean
   caller_is_owner: boolean
   discord_roles: DiscordRoleRow[]

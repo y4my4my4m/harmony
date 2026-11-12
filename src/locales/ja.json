@@ -5866,7 +5866,8 @@
     "guild": {
       "label": "DiscordサーバーID",
       "hint": "Discordで開発者モードをオンにし、サーバーを右クリックして「サーバーIDをコピー」を選びます。",
-      "locked": "移行を開いた後は、Discordサーバーを変更できません。"
+      "locked": "移行を開いた後は、Discordサーバーを変更できません。",
+      "fromBridge": "このサーバーのDiscordブリッジから入力されました。"
     },
     "refresh": {
       "button": "Discordから取得",

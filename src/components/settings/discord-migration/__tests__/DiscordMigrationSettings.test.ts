@@ -440,3 +440,30 @@ describe('open and finished', () => {
     expect(api.setState).toHaveBeenCalledWith(SERVER, 'open')
   })
 })
+
+describe('Discord server ID prefill', () => {
+  it('fills the field from the bridge and says so when nothing is saved yet', async () => {
+    const w = await mountPanel(config({ discord_guild_id: null, bridge_discord_guild_id: '777' }))
+    expect((w.find('[data-testid="guild-input"]').element as HTMLInputElement).value).toBe('777')
+    expect(w.find('[data-testid="guild-from-bridge"]').text()).toBe("Filled in from this server's Discord bridge.")
+    expect(missingKeys).toEqual([])
+  })
+
+  it('leaves the field empty without a bridge guild', async () => {
+    const w = await mountPanel(config({ discord_guild_id: null, bridge_discord_guild_id: null }))
+    expect((w.find('[data-testid="guild-input"]').element as HTMLInputElement).value).toBe('')
+    expect(w.find('[data-testid="guild-from-bridge"]').exists()).toBe(false)
+  })
+
+  it('prefers the saved guild id over the bridge', async () => {
+    const w = await mountPanel(config({ discord_guild_id: '900', bridge_discord_guild_id: '777' }))
+    expect((w.find('[data-testid="guild-input"]').element as HTMLInputElement).value).toBe('900')
+    expect(w.find('[data-testid="guild-from-bridge"]').exists()).toBe(false)
+  })
+
+  it('drops the hint once the owner edits the field', async () => {
+    const w = await mountPanel(config({ discord_guild_id: null, bridge_discord_guild_id: '777' }))
+    await w.find('[data-testid="guild-input"]').setValue('555')
+    expect(w.find('[data-testid="guild-from-bridge"]').exists()).toBe(false)
+  })
+})
