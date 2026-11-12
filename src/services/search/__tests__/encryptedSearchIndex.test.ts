@@ -267,6 +267,34 @@ describe('EncryptedSearchIndex', () => {
     index = (await EncryptedSearchIndex.open(PROFILE, key))!
     expect(await find(index, 'sign')).toEqual([])
   })
+
+  it('yields to a delete issued while it opens', async () => {
+    await index.add([entry(message(1, 'kept until the delete'))])
+    index.close()
+    const name = INDEX_DB_PREFIX + PROFILE
+    const open = indexedDB.open.bind(indexedDB)
+    let deleted: Promise<string> | undefined
+    // Queued from the open's success event: the versionchange reaches the connection before
+    // the index holds it.
+    const spy = vi.spyOn(indexedDB, 'open').mockImplementation((dbName: string, version?: number) => {
+      const request = open(dbName, version)
+      request.addEventListener('success', () => {
+        deleted ??= new Promise((resolve) => {
+          indexedDB.deleteDatabase(name).onsuccess = () => resolve('deleted')
+        })
+      })
+      return request
+    })
+    const opened = await EncryptedSearchIndex.open(PROFILE, key)
+    spy.mockRestore()
+    expect(opened === null || opened.isClosed).toBe(true)
+    const blocked = new Promise<string>(resolve => setTimeout(() => resolve('blocked'), 2000))
+    expect(await Promise.race([deleted!, blocked])).toBe('deleted')
+
+    index = (await EncryptedSearchIndex.open(PROFILE, key))!
+    expect(index).not.toBeNull()
+    expect(await find(index, 'kept')).toEqual([])
+  })
 })
 
 describe('EncryptedSearchIndex upgrade', () => {
