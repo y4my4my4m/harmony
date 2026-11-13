@@ -675,7 +675,7 @@ import { pollPartOf } from '@/utils/messagePoll';
 import { remoteServerHost } from '@/utils/serverUtils';
 import { getInstanceDomain } from '@/services/instanceConfig';
 import { mediaLoadKey } from '@/services/privateMedia';
-import { useServerUsersStore } from '@/stores/useServerUsers';
+import { memberDirectory } from '@/services/memberDirectory';
 import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
 import { saveEditOptimistically } from '@/stores/shared/optimisticEdit';
@@ -844,7 +844,6 @@ const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction',
 // --- STORES & COMPOSABLES ---
 const { t, locale } = useT();
 const { polite, assertive } = useAnnouncer();
-const serverUsersStore = useServerUsersStore();
 const serverChannelStore = useServerChannelStore();
 const serverRolesStore = useServerRolesStore();
 
@@ -2512,7 +2511,7 @@ const currentServerData = computed(() => {
     icon: currentServer?.icon ?? null,
     banner: currentServer?.banner ?? null,
     description: currentServer?.description ?? null,
-    member_count: Object.keys(serverUsersStore.userProfiles).length || 0,
+    member_count: memberDirectory.serverId === serverId ? memberDirectory.total ?? 0 : 0,
   };
 });
 
@@ -2709,6 +2708,8 @@ watch(() => props.messages, (newMessages) => {
       ensureProfilesAvailable(newUserIds).catch(error => {
         debug.error('Error ensuring user profiles are available:', error);
       });
+      // Role colours of the authors in view, in one request.
+      serverRolesStore.ensureMemberRoles(serverChannelStore.currentServerId, newUserIds);
       // Batch-prefetch supporter badges to avoid N+1 RPC calls
       fundingService.prefetchBadges(newUserIds).catch(() => {});
     }, 0);

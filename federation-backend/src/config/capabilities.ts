@@ -64,6 +64,9 @@ export const CAPABILITIES = [
   // voice_channel_announce. The voice-channels and voice-channel topics take no client's send
   // (20261110100001).
   'voice-announce',
+  // Server members by range, search and id: get_server_member_list, search_server_members,
+  // get_server_member_roles, get_server_role_member_counts and server_member_stats (20261113100001).
+  'member-directory',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

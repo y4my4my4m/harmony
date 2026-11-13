@@ -603,6 +603,7 @@ get_relayable_key_requests	p_limit integer	TABLE(id uuid, requester_user_id uuid
 get_reports_with_details	p_status text, p_limit integer, p_offset integer, p_server_id uuid	TABLE(id uuid, created_at timestamp with time zone, updated_at timestamp with time zone, status text, report_type text, category text, reason text, comment text, source text, source_instance text, source_actor text, reporter_id uuid, reporter_username text, reporter_display_name text, reporter_avatar_url text, reporter_domain text, reporter_is_local boolean, reported_user_id uuid, reported_user_username text, reported_user_display_name text, reported_user_avatar_url text, reported_user_domain text, reported_user_is_local boolean, reported_user_is_suspended boolean, reported_user_is_silenced boolean, reported_domain_blocked boolean, reported_domain_limited boolean, reported_post_id uuid, reported_message_id uuid, reported_server_id uuid, scope_server_id uuid, reported_post_preview text, reported_post_ap_id text, reported_post_url text, reported_post_is_sensitive boolean, reported_post_content_warning text, reported_post_is_deleted boolean, reported_message_preview text, reported_message_is_deleted boolean, content_snapshot jsonb, forward boolean, forwarded_at timestamp with time zone, federation_status text, server_forward jsonb, assigned_to uuid, assigned_username text, resolved_at timestamp with time zone, resolver_username text, resolution_note text, open_reports_on_target bigint, total_count bigint)	definer	public, pg_temp	authenticated+service_role	client
 get_restricted_voice_channels	p_server_id uuid	SETOF uuid	definer	public, pg_temp	authenticated+service_role	client
 get_room_epoch	p_room_id text	integer	definer	public, pg_temp	authenticated+service_role	client
+get_room_member_id_list	p_room_id text	uuid[]	invoker	public, pg_temp	authenticated+service_role	client
 get_room_member_ids	p_room_id text	SETOF uuid	definer	public, pg_temp	authenticated+service_role	client
 get_server_audit_log	p_server_id uuid, p_before timestamp with time zone, p_limit integer, p_action text, p_actor_id uuid	TABLE(id uuid, created_at timestamp with time zone, action text, source text, actor_id uuid, actor_username text, actor_display_name text, actor_avatar_url text, actor_bot_id uuid, actor_bot_name text, actor_bot_avatar_url text, target_type text, target_id text, target_name text, target_display_name text, target_avatar_url text, changes jsonb, details jsonb, reason text)	definer	public, pg_temp	authenticated+service_role	client
 get_server_automod	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
@@ -611,10 +612,13 @@ get_server_bans	p_server_id uuid	jsonb	definer	public, extensions, pg_temp	anon+
 get_server_bots	p_server_id uuid	TABLE(id uuid, username text, display_name text, avatar_url text, bot_type text, status text, custom_status text, activity_type text, activity_name text, last_heartbeat_at timestamp with time zone)	definer	public, pg_temp	authenticated+service_role	client
 get_server_encryption_stats	p_server_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
 get_server_member_counts	p_server_ids uuid[]	TABLE(server_id uuid, member_count bigint)	definer	public, pg_temp	anon+authenticated+service_role	client
+get_server_member_list	p_server_id uuid, p_offset integer, p_limit integer, p_query text	jsonb	definer	public, pg_temp	authenticated+service_role	client
+get_server_member_roles	p_server_id uuid, p_user_ids uuid[]	jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_server_member_timeouts	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_server_members_by_instance	p_server_id uuid	TABLE(instance text, member_ids uuid[], member_ap_ids text[], member_count integer)	invoker	public, extensions, pg_temp	service_role	client
 get_server_newcomer_alerts	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_server_notification_settings	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
+get_server_role_member_counts	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_server_voice_activities	p_server uuid	SETOF jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_server_voice_moderation	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_server_welcome	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
@@ -776,6 +780,9 @@ mark_server_as_read	p_server_id uuid	void	definer	public, extensions, pg_temp	au
 mark_server_welcome_seen	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 megolm_key_scope_allowed	p_room_id text, p_session_id text, p_sender uuid, p_user_id uuid, p_message_id uuid	text	definer	public, pg_temp	service_role	unreferenced
 megolm_session_began_before	p_room_id text, p_session_id text, p_sender uuid, p_at timestamp with time zone	boolean	definer	public, pg_temp	service_role	unreferenced
+member_group_rank	p_group text, OUT grp_rank integer, OUT role_pos integer	record	definer	public, pg_temp	service_role	unreferenced
+member_order_min		integer	invoker		service_role	unreferenced
+member_search_pattern	p_query text	text	invoker	public, pg_temp	service_role	unreferenced
 member_voice_channel	p_server_id uuid, p_profile uuid	uuid	definer	public, pg_temp	service_role	unreferenced
 merge_own_message_echoes		integer	invoker	public, pg_temp		unreferenced
 message_custom_emoji_keys	p_content jsonb	text[]	invoker		service_role	unreferenced
@@ -961,6 +968,7 @@ search_federated_users	p_query text, p_limit integer	TABLE(user_id uuid, usernam
 search_fold	p_text text	text	invoker		service_role	unreferenced
 search_local_users	p_query text, p_limit integer	TABLE(id uuid, username text, display_name text, avatar_url text)	definer	public, pg_temp	authenticated+service_role	client
 search_messages	p_query text, p_channel_id uuid, p_channel_ids uuid[], p_user_id uuid, p_conversation_id uuid, p_server_id uuid, p_has_media boolean, p_has_url boolean, p_from_date timestamp with time zone, p_to_date timestamp with time zone, p_limit integer, p_offset integer, p_user_ids uuid[], p_mentioned_user_ids uuid[], p_has_image boolean, p_has_video boolean, p_has_audio boolean, p_has_embed boolean, p_pinned boolean, p_sort text, p_with_total boolean	TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone, server_id uuid, total_count bigint, fuzzy boolean)	definer	public, pg_temp	authenticated+service_role	client
+search_server_members	p_server_id uuid, p_query text, p_limit integer	jsonb	definer	public, pg_temp	authenticated+service_role	client
 search_tsquery	p_query text	tsquery	invoker	pg_catalog, pg_temp	service_role	unreferenced
 search_typo_distance	p_words text[], p_fold text	integer	invoker	pg_catalog, pg_temp	service_role	unreferenced
 seed_channel_encryption_on_insert		trigger	definer	public, extensions, pg_temp	service_role	trigger
@@ -992,6 +1000,16 @@ server_audit_write	p_server_id uuid, p_action text, p_target_type text, p_target
 server_emoji_limit		integer	invoker	public, pg_temp	anon+authenticated+service_role	client
 server_has_remote_members	p_server_id uuid	boolean	invoker	public, extensions, pg_temp	service_role	unreferenced
 server_host_domain	p_server servers	text	invoker	public, pg_temp	service_role	unreferenced
+server_is_large	p_server_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
+server_member_json	p_profile profiles, p_server_id uuid, p_group text, p_online boolean, p_status smallint, p_mobile boolean	jsonb	definer	public, pg_temp	service_role	unreferenced
+server_member_keyed	p_server_id uuid, p_viewer uuid, p_like text, p_only uuid	TABLE(id uuid, username text, sort_name text, present boolean, pstatus smallint, mobile boolean, grp text, grp_rank integer, role_pos integer)	definer	public, pg_temp	service_role	unreferenced
+server_member_order_for	p_order server_member_order, p_viewer uuid	server_member_order	definer	public, pg_temp	service_role	unreferenced
+server_member_order_fresh	p_server_id uuid	server_member_order	definer	public, pg_temp	service_role	unreferenced
+server_member_presence	p_server_id uuid, p_viewer uuid, p_like text, p_only uuid	TABLE(id uuid, username text, sort_name text, is_local boolean, present boolean, pstatus smallint, mobile boolean)	definer	public, pg_temp	service_role	unreferenced
+server_member_reader	p_server_id uuid	uuid	definer	public, pg_temp	service_role	unreferenced
+server_member_stats_on_delete		trigger	definer	public, pg_temp	service_role	trigger
+server_member_stats_on_insert		trigger	definer	public, pg_temp	service_role	trigger
+server_member_stats_on_update		trigger	definer	public, pg_temp	service_role	trigger
 server_newcomer_alerts_state	p_server_id uuid	jsonb	invoker	public, pg_temp	service_role	unreferenced
 server_now		bigint	invoker	pg_catalog, pg_temp	authenticated+service_role	client
 server_settings_system_channel_check		trigger	definer	public, pg_temp		trigger

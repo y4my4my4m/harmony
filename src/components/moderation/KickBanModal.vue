@@ -144,10 +144,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, useId } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted, useId } from 'vue'
 import { moderationService, DELETE_MESSAGE_OPTIONS, type DeleteMessageDuration } from '@/services/ModerationService'
 import { userDataService } from '@/services/userDataService'
 import { getUserIdsForServer, getProfiles } from '@/services/usersService'
+import { memberDirectory } from '@/services/memberDirectory'
 import { useAuthStore } from '@/stores/auth'
 import Avatar from '@/components/common/Avatar.vue'
 import { useT } from '@/composables/useT'
@@ -214,8 +215,41 @@ const targetDisplayName = computed(() => targetUser.value?.display_name || targe
 
 const currentUserId = computed(() => authStore.session?.user?.id || '')
 
+// A server whose member list is windowed holds only the members near the sidebar's viewport:
+// the instance searches the rest.
+const searchesInstance = computed(() =>
+  memberDirectory.serverId === props.serverId && memberDirectory.mode === 'windowed')
+const foundMembers = ref<{ query: string; members: MemberInfo[] } | null>(null)
+let memberSearchTimer: ReturnType<typeof setTimeout> | null = null
+let memberSearchSeq = 0
+
+watch(memberSearch, (text) => {
+  if (memberSearchTimer) clearTimeout(memberSearchTimer)
+  memberSearchTimer = null
+  const query = text.trim()
+  const seq = ++memberSearchSeq
+  if (!query || !searchesInstance.value) {
+    foundMembers.value = null
+    return
+  }
+  memberSearchTimer = setTimeout(async () => {
+    memberSearchTimer = null
+    const found = await memberDirectory.searchMembers(props.serverId, query, 10).catch(() => null)
+    if (seq !== memberSearchSeq || !found) return
+    foundMembers.value = {
+      query,
+      members: found.map(m => ({ id: m.id, username: m.username ?? '', display_name: m.display_name, avatar_url: m.avatar_url })),
+    }
+  }, 150)
+})
+onUnmounted(() => { if (memberSearchTimer) clearTimeout(memberSearchTimer) })
+
 const filteredMembers = computed(() => {
   const q = memberSearch.value.toLowerCase();
+  const found = foundMembers.value
+  if (found && found.query === memberSearch.value.trim()) {
+    return found.members.filter(m => m.id !== currentUserId.value).slice(0, 10)
+  }
   const members = serverMembers.value.filter(m => m.id !== currentUserId.value);
   if (!q) return members.slice(0, 10);
   return members
@@ -301,7 +335,7 @@ watch(() => props.show, async (visible) => {
         avatar_url: u.avatarUrl
       }));
     } else {
-      // Fallback: fetch from DB
+      // No member list open for this server: every member, ids in pages, profiles in chunks.
       const userIds = await getUserIdsForServer(props.serverId);
       if (userIds.length > 0) {
         const profiles = await getProfiles(userIds);
@@ -320,6 +354,7 @@ watch(() => props.show, async (visible) => {
   }
   if (!visible) {
     memberSearch.value = '';
+    foundMembers.value = null;
     selectedMember.value = null;
     showDropdown.value = false;
     reason.value = '';

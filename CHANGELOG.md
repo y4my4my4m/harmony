@@ -165,6 +165,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **Large servers list every member.** Past 1000 members, the member list, the member count and
+  `@` suggestions stopped at 1000 on an instance with a row limit, and in any server that size the
+  name of someone who had left turned into "Unknown User". The count now comes from the server, the
+  list and the suggestions reach every member, and authors keep their names.
 - **My Emoji shows your current avatar.** After you changed your avatar, the emoji picker's
   **My Emoji** section kept the old one for up to 15 minutes. It now changes with it, and the
   instance's section with the instance's name and icon.
@@ -288,6 +292,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
+- **The member list loads as you scroll**, as on Discord. A server of more than 200 members shows
+  its groups and their counts at once and fills in the members near what you see; searching the list,
+  `@` suggestions, the kick and ban picker, `from:` in message search and the member pickers of roles,
+  private categories and bot commands ask the server, so any member can be found by name. The app no
+  longer reads every member of every server at start-up. In a server of more than 1000 members,
+  others' presence updates within about 20 seconds.
+- **Your own status shows at once in the member list**, in a server of any size: online, away or busy
+  where you chose, and **Offline** while you are invisible, as others see you.
 - **Emoticons convert as on Discord.** The set is Discord's: `:')` is 🥲, `:'D` 😂, `8-)` 😎, `O:)` 😇,
   `>:(` 😠, `]:)` 😈, `,:)` 😅, `;(` 😭, `:*` 😗, `:s` 😒, with the `=` and nose variants of each.
   `:D` is 😄 and `:(` is 😦, as Discord has them. `:p`, `xD` and `:/` still convert.

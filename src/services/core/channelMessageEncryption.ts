@@ -6,6 +6,7 @@
  * ENCRYPTION_REQUIRED with a reason the UI turns into a setup or unlock prompt.
  */
 import { supabase } from '@/supabase'
+import { readAllRows } from '@/services/pagedRead'
 import type { MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 import { withPlaintextMentions } from '@/utils/channelEncryption'
@@ -138,10 +139,16 @@ export async function encryptChannelContent(params: {
   if (!service || !service.isInitialized()) {
     throw channelEncryptionError('setup')
   }
-  // The member read does not depend on the key checks; it runs beside them.
-  const members = params.serverId
-    ? Promise.resolve(supabase.from('user_servers').select('user_id').eq('server_id', params.serverId))
-    : Promise.resolve({ data: [] as Array<{ user_id: string }> })
+  // The member read does not depend on the key checks; it runs beside them. Every member is
+  // a recipient, so the read is paged to the end: a member past a row cap would get no key.
+  const serverId = params.serverId
+  const members: Promise<Array<{ user_id: string }>> = serverId
+    ? readAllRows<{ user_id: string }>(() => supabase
+        .from('user_servers')
+        .select('user_id', { count: 'exact' })
+        .eq('server_id', serverId)
+        .order('id'))
+    : Promise.resolve([])
   members.catch(() => {})
   if (!(await service.hasRecoveryKey())) {
     throw channelEncryptionError('setup')
@@ -151,8 +158,7 @@ export async function encryptChannelContent(params: {
   }
 
   try {
-    const { data: memberRows } = await members
-    const recipientIds: string[] = memberRows?.map((m: { user_id: string }) => m.user_id) || []
+    const recipientIds: string[] = (await members).map(m => m.user_id)
     if (!recipientIds.includes(params.senderId)) recipientIds.push(params.senderId)
 
     const encrypted = await service.encryptMessage(params.content, params.channelId, recipientIds)

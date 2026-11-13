@@ -30,6 +30,13 @@ vi.mock('@/services/userDataService', () => ({
   },
 }))
 vi.mock('@/services/usersService', () => ({ getUserIdsForServer: vi.fn(async () => []), getProfiles: vi.fn(async () => []) }))
+// The open server's member list: whole (idle here) unless a test makes it a window.
+const directory = vi.hoisted(() => ({
+  serverId: null as string | null,
+  mode: 'idle',
+  searchMembers: vi.fn(async (_serverId: string, _query: string, _limit: number): Promise<any[] | null> => []),
+}))
+vi.mock('@/services/memberDirectory', () => ({ memberDirectory: directory }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'me' } } }) }))
 vi.mock('@/components/common/Avatar.vue', async () => {
   const { defineComponent, h: render } = await import('vue')
@@ -57,6 +64,9 @@ const ENGLISH = ['Member', 'Search for a member', 'No members found', 'Change me
 beforeEach(() => {
   document.body.innerHTML = ''
   resetLayersForTests()
+  directory.serverId = null
+  directory.mode = 'idle'
+  directory.searchMembers.mockClear()
 })
 
 describe('KickBanModal', () => {
@@ -117,6 +127,50 @@ describe('KickBanModal', () => {
     expect(document.querySelector('.user-display-name')?.textContent).toBe('bob')
     expect(document.activeElement).toBe(document.querySelector('textarea'))
     expect(document.querySelector('.clear-member-btn')?.getAttribute('aria-label')).toBe('moderation.kickBan.changeMember{"name":"bob"}')
+  })
+
+  it('asks the instance for a member of a server whose list is a window', async () => {
+    vi.useFakeTimers()
+    try {
+      directory.serverId = 's1'
+      directory.mode = 'windowed'
+      directory.searchMembers.mockResolvedValue([
+        { id: 'u900', username: 'zed', display_name: 'Zed Far', avatar_url: null },
+        { id: 'me', username: 'me', display_name: 'Me', avatar_url: null },
+      ])
+      mountModal({ id: '', username: '' })
+      await flushPromises()
+
+      const input = document.querySelector<HTMLInputElement>('[data-testid="kickban-member-search"]')!
+      input.value = 'zed'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await flushPromises()
+      const listbox = document.getElementById(input.getAttribute('aria-controls')!)!
+      expect(listbox.querySelectorAll('[role="option"]'), 'no loaded member matches').toHaveLength(0)
+
+      await vi.advanceTimersByTimeAsync(200)
+      await flushPromises()
+      expect(directory.searchMembers).toHaveBeenCalledWith('s1', 'zed', 10)
+      const options = [...listbox.querySelectorAll('[role="option"]')].map(o => o.textContent)
+      expect(options).toHaveLength(1)
+      expect(options[0]).toContain('Zed Far')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a server held whole is searched here, with no request', async () => {
+    directory.serverId = 's1'
+    directory.mode = 'complete'
+    mountModal({ id: '', username: '' })
+    await flushPromises()
+    const input = document.querySelector<HTMLInputElement>('[data-testid="kickban-member-search"]')!
+    input.value = 'ali'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    const listbox = document.getElementById(input.getAttribute('aria-controls')!)!
+    expect([...listbox.querySelectorAll('[role="option"]')].map(o => o.textContent?.includes('Alice'))).toEqual([true])
+    expect(directory.searchMembers).not.toHaveBeenCalled()
   })
 
   it('closes the open list on Escape without closing the dialog', async () => {

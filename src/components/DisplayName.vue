@@ -59,11 +59,12 @@ const { resolveEmoji, isNativePack, isLoaded: emojiPackLoaded } = useUnifiedEmoj
 
 // Lazy-fetch unknown users so display names resolve with proper emoji parts.
 // pendingUserFetches is module-level to deduplicate across all DisplayName instances.
+// The source is the id while its profile is absent: a profile the cache evicted under a
+// mounted name is fetched again, and an id with no profile row is asked once.
 watch(
-  () => props.userId,
+  () => (props.userId && !getUser(props.userId).value ? props.userId : null),
   (uid) => {
     if (!uid || !UUID_REGEX.test(uid) || pendingUserFetches.has(uid)) return
-    if (getUser(uid).value) return
     pendingUserFetches.add(uid)
     fetchUserProfile(uid).finally(() => pendingUserFetches.delete(uid))
   },

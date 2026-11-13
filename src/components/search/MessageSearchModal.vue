@@ -22,6 +22,7 @@
           :allow-channels="!conversationId"
           :placeholder="placeholder"
           @submit="runSearch(0)"
+          @member-query="onMemberQuery"
         />
         <button type="button" class="search-close" :aria-label="t('messageSearch.close')" @click="emit('close')">
           <Icon name="x" :size="18" />
@@ -174,6 +175,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { memberDirectory } from '@/services/memberDirectory'
 import { useI18n } from 'vue-i18n'
 import UnifiedModal from '@/components/shared/UnifiedModal.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -257,6 +259,28 @@ const channels = computed<SearchChannel[]>(() => {
 
 const members = ref<SearchMember[]>([])
 
+// A server whose member list is windowed holds the members near the sidebar's viewport: the
+// instance finds the rest as a from: or mentions: value is typed.
+const foundMembers = new Map<string, SearchMember>()
+let memberQueryTimer: ReturnType<typeof setTimeout> | null = null
+let memberQuerySeq = 0
+const onMemberQuery = (partial: string) => {
+  const serverId = props.serverId
+  if (!serverId || memberDirectory.serverId !== serverId || memberDirectory.mode !== 'windowed') return
+  if (memberQueryTimer) clearTimeout(memberQueryTimer)
+  const seq = ++memberQuerySeq
+  memberQueryTimer = setTimeout(async () => {
+    memberQueryTimer = null
+    const found = await memberDirectory.searchMembers(serverId, partial, 8).catch(() => null)
+    if (seq !== memberQuerySeq || !found) return
+    for (const m of found) {
+      if (!m.username) continue
+      foundMembers.set(m.id, { id: m.id, username: m.username, displayName: m.display_name || undefined, domain: m.domain ?? null, isLocal: m.is_local ?? null })
+    }
+    loadMembers()
+  }, 150)
+}
+
 const loadMembers = () => {
   const out = new Map<string, SearchMember>()
   type Who = { id?: string | null; username?: string | null; displayName?: string | null; domain?: string | null; isLocal?: boolean | null }
@@ -276,6 +300,7 @@ const loadMembers = () => {
     for (const u of inServer.length ? inServer : userDataService.getAllUsers()) {
       add({ id: u.id, username: u.username, displayName: u.displayName, domain: u.domain, isLocal: u.isLocal })
     }
+    for (const m of foundMembers.values()) add(m)
   }
   members.value = [...out.values()]
 }
@@ -437,6 +462,8 @@ watch(() => props.show, (open) => {
 }, { immediate: true })
 
 watch(() => [props.serverId, props.conversationId], () => {
+  foundMembers.clear()
+  memberQuerySeq++
   if (!props.show) return
   loadMembers()
   if (lastParams.value) void runSearch(0)
