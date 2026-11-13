@@ -165,6 +165,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **My Emoji shows your current avatar.** After you changed your avatar, the emoji picker's
+  **My Emoji** section kept the old one for up to 15 minutes. It now changes with it, and the
+  instance's section with the instance's name and icon.
 - **`:P` suggests 😛.** Beside a custom emoji whose name starts with p, typing `:P` listed that
   emoji alone and Enter inserted it. The emoticon's own emoji now leads the list; the same for
   `:D`, `:O`, `:s` and `:p`.
