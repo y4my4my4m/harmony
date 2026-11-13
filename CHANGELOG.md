@@ -219,6 +219,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Watch together in the Windows, Linux and Android apps.** YouTube, SoundCloud and Spotify
   showed a black frame there: the app's own content rules refused the player page. Those apps now
   load it from your instance, as the macOS and iOS apps do.
+- **Watch together in the full call view.** Since 1.8.3 the video played behind the call view:
+  its place there stayed black while the call bar's small player showed it. It now shows in the
+  call view.
 - **Bluesky accounts bridged to the fediverse, and other usernames with a dot.** Searching
   `@name.bsky.social@bsky.brid.gy` (Bridgy Fed), a Threads account such as `@john.doe@threads.net`,
   or any account whose username has a dot found nobody; it now finds the account, which you can
