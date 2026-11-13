@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   createSignedUrls: vi.fn(),
@@ -8,9 +10,14 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   bucket: vi.fn(),
   from: vi.fn(),
+  url: { value: 'http://127.0.0.1:1' },
 }))
 
 vi.mock('../../config/supabase.js', () => ({
+  get supabaseUrl() {
+    return mocks.url.value
+  },
+  supabaseServiceKey: 'service-key',
   supabase: {
     from: mocks.from,
     storage: {
@@ -158,6 +165,32 @@ describe('isAnimatedPng', () => {
 })
 
 describe('bridge mirror', () => {
+  // Files go to Storage over node:http (uploadFileToStorage), so a local server stands in for it.
+  const stored: Array<{ path: string; contentType: string; body: Buffer }> = []
+  let server: Server
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk: Buffer) => chunks.push(chunk))
+      req.on('end', () => {
+        stored.push({
+          path: req.url!.replace('/storage/v1/object/message_media/', ''),
+          contentType: String(req.headers['content-type']),
+          body: Buffer.concat(chunks),
+        })
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end('{}')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    mocks.url.value = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  })
+  afterAll(async () => {
+    server.closeAllConnections()
+    await new Promise((resolve) => server.close(resolve))
+  })
+  beforeEach(() => { stored.length = 0 })
+
   function attachmentMode(mode: string) {
     const q: any = {
       select: () => q,
@@ -186,18 +219,18 @@ describe('bridge mirror', () => {
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)
 
-    await expect(applyBridgeAttachmentPolicy([VOICE, STICKER], BOT, CHANNEL)).resolves.toEqual([VOICE, STICKER])
+    await expect(applyBridgeAttachmentPolicy([VOICE, STICKER], BOT, CHANNEL)).resolves.toEqual({ parts: [VOICE, STICKER], deferred: false })
     expect(fetch).not.toHaveBeenCalled()
   })
 
   it('mirrors a voice message as an audio part', async () => {
     mirrorMode()
-    mocks.upload.mockResolvedValue({ data: {}, error: null })
     serve(new Uint8Array([0x4f, 0x67, 0x67, 0x53]), 'audio/ogg')
 
-    const [part] = await applyBridgeAttachmentPolicy([VOICE], BOT, CHANNEL)
+    const { parts: [part] } = await applyBridgeAttachmentPolicy([VOICE], BOT, CHANNEL)
 
-    const [path, , options] = mocks.upload.mock.calls[0]
+    const { path, contentType } = stored[0]
+    const options = { contentType }
     expect(path).toMatch(new RegExp(`^c/${CHANNEL}/bridge/${BOT}/[0-9a-f-]{36}\\.ogg$`))
     expect(options).toMatchObject({ contentType: 'audio/ogg' })
     expect(part).toMatchObject({ type: 'file', fileType: 'audio', fileName: 'voice-message.ogg', path })
@@ -205,12 +238,12 @@ describe('bridge mirror', () => {
 
   it('stores an animated sticker as .apng so clients render the original, not a static thumbnail', async () => {
     mirrorMode()
-    mocks.upload.mockResolvedValue({ data: {}, error: null })
     serve(APNG, 'image/png')
 
-    const [part] = await applyBridgeAttachmentPolicy([STICKER], BOT, CHANNEL)
+    const { parts: [part] } = await applyBridgeAttachmentPolicy([STICKER], BOT, CHANNEL)
 
-    const [path, , options] = mocks.upload.mock.calls[0]
+    const { path, contentType } = stored[0]
+    const options = { contentType }
     expect(path).toMatch(/\.apng$/)
     expect(options).toMatchObject({ contentType: 'image/apng' })
     expect(part).toMatchObject({ type: 'file', fileType: 'image', path })
@@ -218,19 +251,18 @@ describe('bridge mirror', () => {
 
   it('keeps a static sticker as .png', async () => {
     mirrorMode()
-    mocks.upload.mockResolvedValue({ data: {}, error: null })
     serve(STATIC_PNG, 'image/png')
 
     await applyBridgeAttachmentPolicy([STICKER], BOT, CHANNEL)
 
-    const [path, , options] = mocks.upload.mock.calls[0]
+    const { path, contentType } = stored[0]
+    const options = { contentType }
     expect(path).toMatch(/\.png$/)
     expect(options).toMatchObject({ contentType: 'image/png' })
   })
 
   it('stores a mirrored photo without its location and camera details', async () => {
     mirrorMode()
-    mocks.upload.mockResolvedValue({ data: {}, error: null })
     const photo = readFileSync(resolve(__dirname, '../../../../tests/fixtures/media-metadata/gps-rotated.jpg'))
     expect(photo.toString('latin1')).toContain('HarmonyCam')
     serve(new Uint8Array(photo), 'image/jpeg')
@@ -238,24 +270,61 @@ describe('bridge mirror', () => {
     await applyBridgeAttachmentPolicy(
       [{ type: 'url', url: 'https://cdn.discordapp.com/attachments/1/2/IMG_0420.jpg?ex=1' }], BOT, CHANNEL)
 
-    const stored = Buffer.from(mocks.upload.mock.calls[0][1] as Uint8Array)
-    expect(stored.length).toBeLessThan(photo.length)
-    for (const marker of ['HarmonyCam', 'GPSLatitude', 'Tokyo', 'TRAILER']) expect(stored.toString('latin1')).not.toContain(marker)
-    expect(stored.subarray(0, 2).toString('hex')).toBe('ffd8')
+    const body = stored[0].body
+    expect(body.length).toBeLessThan(photo.length)
+    for (const marker of ['HarmonyCam', 'GPSLatitude', 'Tokyo', 'TRAILER']) expect(body.toString('latin1')).not.toContain(marker)
+    expect(body.subarray(0, 2).toString('hex')).toBe('ffd8')
+  })
+
+  it('defers a file over the inline limit without downloading it', async () => {
+    mirrorMode()
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    const part = { type: 'file', fileType: 'video', url: 'https://cdn.discordapp.com/attachments/1/2/big.mp4', fileSize: 30 * 1024 * 1024 }
+
+    await expect(applyBridgeAttachmentPolicy([part], BOT, CHANNEL)).resolves.toEqual({ parts: [part], deferred: true })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('defers a file whose Content-Length is over the inline limit and aborts the download', async () => {
+    mirrorMode()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Uint8Array([1]), {
+      status: 200, headers: { 'content-type': 'video/mp4', 'content-length': String(30 * 1024 * 1024) },
+    })))
+    const part = { type: 'url', url: 'https://cdn.discordapp.com/attachments/1/2/big.mp4' }
+
+    await expect(applyBridgeAttachmentPolicy([part], BOT, CHANNEL)).resolves.toEqual({ parts: [part], deferred: true })
+    expect(stored).toHaveLength(0)
+  })
+
+  it('mirrors a small file inline and does not defer', async () => {
+    mirrorMode()
+    serve(new Uint8Array([1, 2, 3]), 'image/png')
+    const result = await applyBridgeAttachmentPolicy(
+      [{ type: 'file', fileType: 'image', url: 'https://cdn.discordapp.com/attachments/1/2/s.png', fileSize: 1024 * 1024 }], BOT, CHANNEL)
+
+    expect(result.deferred).toBe(false)
+    expect(result.parts[0].path).toMatch(/\.png$/)
+  })
+
+  it('defers a part whose inline mirror fails on the network', async () => {
+    mirrorMode()
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('socket hang up') }))
+    const part = { type: 'url', url: 'https://cdn.discordapp.com/attachments/1/2/cat.png' }
+
+    await expect(applyBridgeAttachmentPolicy([part], BOT, CHANNEL)).resolves.toEqual({ parts: [part], deferred: true })
   })
 
   it('copies a Discord attachment into the channel room and names it by path', async () => {
     mirrorMode()
-    mocks.upload.mockResolvedValue({ data: {}, error: null })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), {
       status: 200, headers: { 'content-type': 'image/png' },
     })))
 
-    const [part] = await applyBridgeAttachmentPolicy(
+    const { parts: [part] } = await applyBridgeAttachmentPolicy(
       [{ type: 'url', url: 'https://cdn.discordapp.com/attachments/1/2/cat.png?ex=1' }], BOT, CHANNEL)
 
-    const path = mocks.upload.mock.calls[0][0] as string
-    expect(mocks.bucket).toHaveBeenCalledWith('message_media')
+    const path = stored[0].path
     expect(path).toMatch(new RegExp(`^c/${CHANNEL}/bridge/${BOT}/[0-9a-f-]{36}\\.png$`))
     expect(part).toEqual({
       type: 'file',

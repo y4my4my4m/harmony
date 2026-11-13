@@ -5374,6 +5374,10 @@
       "reportsFailed": "Die Behandlung der Meldungen dieser Domain konnte nicht geändert werden"
     },
     "instance": {
+      "mirrorStatusProgress": "Discord-Dateien werden gespeichert: {queued} warten, {done} gespeichert",
+      "mirrorStatusTooLarge": "{count} zu groß ({size}): Upload-Obergrenze mit harmony config --upload-ceiling 500M anheben",
+      "mirrorStatusFailed": "{count} fehlgeschlagen",
+      "mirrorStatusAllStored": "Jede Discord-Datei ist gespeichert",
       "maxPostReactions": "Max. Reaktionen pro Person auf einen Beitrag",
       "maxPostReactionsHint": "Verschiedene Emojis, mit denen eine Person auf einen Beitrag reagieren kann (1-100). Standard: 10. Reaktionen von anderen Instanzen über dem Limit werden verworfen. Chatnachrichten haben höchstens 20 verschiedene Emojis.",
       "maxPersonalEmojis": "Persönliche Emojis pro Person",
@@ -6052,6 +6056,7 @@
       "unknown": "Noch nicht gemeldet",
       "showSetup": "Einrichtungsschritte anzeigen",
       "problemsTitle": "{count} Problem zu beheben | {count} Probleme zu beheben",
+      "noticesTitle": "{count} Hinweis | {count} Hinweise",
       "pairsTitle": "Verbundene Kanäle",
       "settingsTitle": "Optionen",
       "maintainTitle": "Wartung",
@@ -6163,6 +6168,17 @@
         "fixHosted": "Das liegt an der Instanz, und die Bridge versucht es weiter. Hält es an, wende dich an die Administration der Instanz.",
         "fixInstance": "Das liegt an der Instanz, und die Bridge versucht es weiter. Hält es an, wende dich an die Administration der Instanz."
       },
+      "message_content_needed_for_import": {
+        "title": "Ein Verlaufsimport wartet auf den Message Content Intent.",
+        "fixSelf": "Solange er aus ist, liefert Discord leere Nachrichten. Öffne im Developer Portal deine Anwendung → Bot → Privileged Gateway Intents, schalte Message Content Intent ein und klicke auf Save Changes. Starte die Bridge dann mit dem Befehl unten neu; der Import beginnt von selbst.",
+        "fixHosted": "Solange er aus ist, liefert Discord leere Nachrichten. Öffne im Developer Portal deine Anwendung → Bot → Privileged Gateway Intents, schalte Message Content Intent ein und klicke auf Save Changes. Der Import beginnt von selbst, sobald die Bridge neu verbunden ist.",
+        "fixInstance": "Der Bot dieser Instanz hat den Message Content Intent nicht und kann daher keinen Verlauf importieren. Frag die Administration der Instanz."
+      },
+      "private_threads_skipped": {
+        "title": "Der Import hat die privaten Threads von {channel} ausgelassen.",
+        "titleCount": "Der Import hat {count} privaten Thread von {channel} ausgelassen. | Der Import hat {count} private Threads von {channel} ausgelassen.",
+        "fix": "Nichts zu tun. Harmony hat noch keine privaten Threads, und alle im Kanal könnten sie lesen, deshalb bleiben sie auf Discord."
+      },
       "unknown": {
         "title": "Die Bridge hat ein Problem gemeldet ({code}).",
         "fixSelf": "Details stehen im Protokoll der Bridge:",
@@ -6229,7 +6245,11 @@
       "bridgeExists": "Dieser Server hat schon eine anders eingerichtete Discord-Bridge. Trenne sie zuerst, um den Bot dieser Instanz zu verwenden.",
       "instanceFull": "Der Bot dieser Instanz ist schon auf so vielen Discord-Servern, wie sie erlaubt. Frag die Administration der Instanz oder verwende stattdessen einen eigenen Discord-Bot.",
       "instanceOff": "Diese Instanz bietet ihren Discord-Bot gerade nicht an. Verwende stattdessen einen eigenen Discord-Bot.",
-      "link": "Die Verknüpfung mit Discord konnte nicht gestartet werden. Versuche es erneut."
+      "link": "Die Verknüpfung mit Discord konnte nicht gestartet werden. Versuche es erneut.",
+      "import": "Der Import konnte nicht gestartet werden.",
+      "cancelImport": "Der Import konnte nicht abgebrochen werden.",
+      "pairNotImportable": "Dieses Paar kann keinen Verlauf importieren. Nur unverschlüsselte Kanäle in Paaren, die Discord-Nachrichten nach Harmony holen, können es.",
+      "importChanged": "Der Import hat sich inzwischen geändert und wurde aktualisiert. Versuche es erneut."
     },
     "time": {
       "secondsAgo": "gerade eben | vor {count} Sekunde | vor {count} Sekunden",
@@ -6338,6 +6358,49 @@
       "settingsSaved": "Einstellungen des Discord-Bots gespeichert",
       "saveFailed": "Die Einstellungen des Discord-Bots konnten nicht gespeichert werden",
       "redirectLabel": "Weiterleitungsadresse"
+    },
+    "import": {
+      "button": "Verlauf importieren",
+      "buttonLabel": "Verlauf für #{channel} importieren",
+      "importAll": "Alle importieren",
+      "importAllAgain": "Alle erneut importieren",
+      "importAllAgainConfirm": "Verlauf für {count} Kanal erneut importieren? Der Discord-Verlauf wird von Anfang an gelesen; bereits vorhandene Nachrichten werden übersprungen. | Verlauf für alle {count} Kanäle erneut importieren? Jeder Discord-Verlauf wird von Anfang an gelesen; bereits vorhandene Nachrichten werden übersprungen.",
+      "importAllAgainYes": "Erneut importieren",
+      "cancelAll": "Alle abbrechen",
+      "cancel": "Abbrechen",
+      "cancelLabel": "Import für #{channel} abbrechen",
+      "cancelling": "Wird abgebrochen…",
+      "waiting": "Wartet",
+      "running": "Import läuft… {percent} %",
+      "runningUnknown": "Import läuft…",
+      "threadsRunning": "Threads werden importiert…",
+      "repliesRunning": "Antworten werden verknüpft…",
+      "progressLabel": "Importfortschritt für #{channel}",
+      "backTo": "Zurück bis {date}",
+      "messages": "{count} Nachricht | {count} Nachrichten",
+      "threads": "Threads {done} von {total}",
+      "done": "{count} Nachricht importiert | {count} Nachrichten importiert",
+      "doneNothingNew": "Aktuell: keine neuen Nachrichten",
+      "failed": "Import gestoppt: {reason}",
+      "failedUnknown": "Import gestoppt",
+      "cancelled": "Abgebrochen",
+      "paused": "Pausiert: wartet auf die Bridge",
+      "retry": "Erneut versuchen",
+      "retryLabel": "Import für #{channel} erneut versuchen",
+      "resume": "Fortsetzen",
+      "resumeLabel": "Import für #{channel} fortsetzen",
+      "again": "Erneut importieren",
+      "againLabel": "Verlauf für #{channel} erneut importieren",
+      "reasons": {
+        "pair_removed": "das Kanalpaar wurde entfernt",
+        "channel_encrypted": "der Kanal ist jetzt verschlüsselt"
+      },
+      "ineligible": {
+        "direction": "Nur Paare, die Discord-Nachrichten nach Harmony holen, können den Verlauf importieren",
+        "encrypted": "Verschlüsselte Kanäle können keinen Verlauf importieren"
+      },
+      "needsUpdate": "Aktualisiere die Bridge auf 2.6.0 oder neuer, um den Verlauf zu importieren",
+      "mirrorNote": "Importierte Dateien werden in den Speicher dieser Instanz kopiert."
     }
   },
   "imageEditor": {

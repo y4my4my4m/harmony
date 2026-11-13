@@ -482,6 +482,13 @@ export function buildChecklist(bridge: DiscordBridgeRow, now = Date.now()): Chec
   ]
 }
 
+/** Codes that report something the bridge did on purpose: shown, but nothing to fix. */
+export const NOTICE_CODES: ReadonlySet<string> = new Set(['private_threads_skipped'])
+
+export function isProblemNotice(problem: BridgeProblem): boolean {
+  return NOTICE_CODES.has(problem.code)
+}
+
 /**
  * Problems to show, in the bridge's order. An offline bridge leads with `bridge_offline`;
  * a needed intent reported as off without an intent_missing entry gets one; a bot in no

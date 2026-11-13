@@ -42,7 +42,7 @@
     </section>
 
     <section v-if="problems.length" class="db-card" aria-labelledby="bridge-problems-title">
-      <h3 id="bridge-problems-title" class="db-card-title">{{ t('discordBridge.status.problemsTitle', { count: problems.length }, problems.length) }}</h3>
+      <h3 id="bridge-problems-title" class="db-card-title">{{ problemsTitle }}</h3>
       <BridgeProblemList
         :bridge="bridge"
         :problems="problems"
@@ -55,7 +55,15 @@
 
     <section ref="pairsSection" class="db-card" aria-labelledby="bridge-pairs-title">
       <h3 id="bridge-pairs-title" class="db-card-title">{{ t('discordBridge.status.pairsTitle') }}</h3>
-      <BridgeChannelPairs :bridge="bridge" :pairs="pairs" :harmony-channels="harmonyChannels" @changed="emit('changed')" />
+      <BridgeChannelPairs
+        :bridge="bridge"
+        :pairs="pairs"
+        :harmony-channels="harmonyChannels"
+        :imports="imports"
+        :encrypted-channel-ids="encryptedChannelIds"
+        :attachment-mode="attachmentMode"
+        @changed="emit('changed')"
+      />
     </section>
 
     <section class="db-card" aria-labelledby="bridge-settings-title">
@@ -97,6 +105,7 @@ import {
   buildDiscordInviteUrl,
   collectProblems,
   isBridgeOnline,
+  isProblemNotice,
   normalizeBridgeSettings,
   parseBridgeStatus,
   parseSnapshotGuilds,
@@ -108,6 +117,7 @@ import {
 import { formatAgo } from './bridgeTime'
 import BridgeProblemList from './BridgeProblemList.vue'
 import BridgeChannelPairs from './BridgeChannelPairs.vue'
+import type { ImportJob } from './bridgeApi'
 import BridgeSettingsPanel from './BridgeSettingsPanel.vue'
 import BridgeConnectSelf from './BridgeConnectSelf.vue'
 import BridgeConnectHosted from './BridgeConnectHosted.vue'
@@ -117,6 +127,9 @@ const props = defineProps<{
   bridge: DiscordBridgeRow
   pairs: BridgePairRow[]
   harmonyChannels: HarmonyChannelOption[]
+  imports?: ImportJob[]
+  encryptedChannelIds?: string[]
+  attachmentMode?: string | null
   now: number
   harmonyUrl: string
 }>()
@@ -134,10 +147,17 @@ const pairsSection = ref<HTMLElement | null>(null)
 
 const online = computed(() => isBridgeOnline(props.bridge.last_seen_at, props.now))
 const problems = computed(() => collectProblems(props.bridge, props.now))
+/** Problems that need someone to act; notices (e.g. private threads left out) are only shown. */
+const toFix = computed(() => problems.value.filter((p) => !isProblemNotice(p)).length)
+const problemsTitle = computed(() =>
+  toFix.value
+    ? t('discordBridge.status.problemsTitle', { count: toFix.value }, toFix.value)
+    : t('discordBridge.status.noticesTitle', { count: problems.value.length }, problems.value.length),
+)
 const statusKind = computed(() => {
   if (!props.bridge.last_seen_at) return 'never'
   if (!online.value) return 'offline'
-  return problems.value.length ? 'degraded' : 'online'
+  return toFix.value ? 'degraded' : 'online'
 })
 const lastSeenAgo = computed(() => formatAgo(t, props.bridge.last_seen_at, props.now))
 const settings = computed(() => normalizeBridgeSettings(props.bridge.settings))

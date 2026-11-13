@@ -5374,6 +5374,10 @@
       "reportsFailed": "No se pudo cambiar cómo se tratan los reportes de este dominio"
     },
     "instance": {
+      "mirrorStatusProgress": "Guardando archivos de Discord: {queued} en espera, {done} guardados",
+      "mirrorStatusTooLarge": "{count} demasiado grandes ({size}): sube el límite de subida con harmony config --upload-ceiling 500M",
+      "mirrorStatusFailed": "{count} fallidos",
+      "mirrorStatusAllStored": "Todos los archivos de Discord están guardados",
       "maxPostReactions": "Máximo de reacciones por persona en una publicación",
       "maxPostReactionsHint": "Emojis distintos con los que una persona puede reaccionar a una publicación (1-100). Predeterminado: 10. Las reacciones de otras instancias que superen el límite se descartan. Los mensajes de chat admiten como máximo 20 emojis distintos.",
       "maxPersonalEmojis": "Emojis personales por usuario",
@@ -6052,6 +6056,7 @@
       "unknown": "Aún sin datos",
       "showSetup": "Mostrar los pasos de configuración",
       "problemsTitle": "{count} problema por resolver | {count} problemas por resolver",
+      "noticesTitle": "{count} aviso | {count} avisos",
       "pairsTitle": "Canales conectados",
       "settingsTitle": "Opciones",
       "maintainTitle": "Mantenimiento",
@@ -6163,6 +6168,17 @@
         "fixHosted": "Es un problema de la instancia, y el puente sigue intentándolo. Si dura, contacta con la administración de la instancia.",
         "fixInstance": "Es un problema de la instancia, y el puente sigue intentándolo. Si dura, contacta con la administración de la instancia."
       },
+      "message_content_needed_for_import": {
+        "title": "Una importación del historial espera el Message Content Intent.",
+        "fixSelf": "Mientras esté desactivado, Discord envía mensajes vacíos. En el Developer Portal, abre tu aplicación → Bot → Privileged Gateway Intents, activa Message Content Intent y haz clic en Save Changes. Luego reinicia el puente con el comando de abajo; la importación empieza sola.",
+        "fixHosted": "Mientras esté desactivado, Discord envía mensajes vacíos. En el Developer Portal, abre tu aplicación → Bot → Privileged Gateway Intents, activa Message Content Intent y haz clic en Save Changes. La importación empieza sola cuando el puente se reconecta.",
+        "fixInstance": "El bot de esta instancia no tiene el Message Content Intent, así que no puede importar el historial. Pregunta a la administración de la instancia."
+      },
+      "private_threads_skipped": {
+        "title": "La importación dejó fuera los hilos privados de {channel}.",
+        "titleCount": "La importación dejó fuera {count} hilo privado de {channel}. | La importación dejó fuera {count} hilos privados de {channel}.",
+        "fix": "No hay nada que arreglar. Harmony aún no tiene hilos privados y todo el canal podría leerlos, así que se quedan en Discord."
+      },
       "unknown": {
         "title": "El puente informó de un problema ({code}).",
         "fixSelf": "El registro del puente tiene los detalles:",
@@ -6229,7 +6245,11 @@
       "bridgeExists": "Este servidor ya tiene un puente de Discord configurado de otra forma. Desconéctalo primero para usar el bot de esta instancia.",
       "instanceFull": "El bot de esta instancia ya está en tantos servidores de Discord como permite. Pregunta a la administración de la instancia o usa un bot de Discord propio.",
       "instanceOff": "Esta instancia no ofrece su bot de Discord en este momento. Usa un bot de Discord propio.",
-      "link": "No se pudo iniciar la vinculación con Discord. Vuelve a intentarlo."
+      "link": "No se pudo iniciar la vinculación con Discord. Vuelve a intentarlo.",
+      "import": "No se pudo iniciar la importación.",
+      "cancelImport": "No se pudo cancelar la importación.",
+      "pairNotImportable": "Este par no puede importar historial. Solo pueden hacerlo los canales sin cifrar en pares que traen mensajes de Discord a Harmony.",
+      "importChanged": "La importación cambió mientras tanto y se actualizó. Inténtalo de nuevo."
     },
     "time": {
       "secondsAgo": "ahora mismo | hace {count} segundo | hace {count} segundos",
@@ -6338,6 +6358,49 @@
       "settingsSaved": "Ajustes del bot de Discord guardados",
       "saveFailed": "No se pudieron guardar los ajustes del bot de Discord",
       "redirectLabel": "Dirección de redirección"
+    },
+    "import": {
+      "button": "Importar historial",
+      "buttonLabel": "Importar el historial de #{channel}",
+      "importAll": "Importar todo",
+      "importAllAgain": "Importar todo de nuevo",
+      "importAllAgainConfirm": "¿Importar de nuevo el historial de {count} canal? Se vuelve a leer su historial de Discord desde el principio; los mensajes que ya están aquí se omiten. | ¿Importar de nuevo el historial de los {count} canales? Cada uno vuelve a leer su historial de Discord desde el principio; los mensajes que ya están aquí se omiten.",
+      "importAllAgainYes": "Importar de nuevo",
+      "cancelAll": "Cancelar todo",
+      "cancel": "Cancelar",
+      "cancelLabel": "Cancelar la importación de #{channel}",
+      "cancelling": "Cancelando…",
+      "waiting": "En espera",
+      "running": "Importando… {percent} %",
+      "runningUnknown": "Importando…",
+      "threadsRunning": "Importando hilos…",
+      "repliesRunning": "Vinculando respuestas…",
+      "progressLabel": "Progreso de la importación de #{channel}",
+      "backTo": "Hasta {date}",
+      "messages": "{count} mensaje | {count} mensajes",
+      "threads": "Hilos {done} de {total}",
+      "done": "{count} mensaje importado | {count} mensajes importados",
+      "doneNothingNew": "Al día: no hay mensajes nuevos",
+      "failed": "Importación detenida: {reason}",
+      "failedUnknown": "Importación detenida",
+      "cancelled": "Cancelada",
+      "paused": "En pausa: esperando al puente",
+      "retry": "Reintentar",
+      "retryLabel": "Reintentar la importación de #{channel}",
+      "resume": "Reanudar",
+      "resumeLabel": "Reanudar la importación de #{channel}",
+      "again": "Importar de nuevo",
+      "againLabel": "Importar de nuevo el historial de #{channel}",
+      "reasons": {
+        "pair_removed": "se quitó el par de canales",
+        "channel_encrypted": "el canal ahora está cifrado"
+      },
+      "ineligible": {
+        "direction": "Solo los pares que traen mensajes de Discord a Harmony pueden importar historial",
+        "encrypted": "Los canales cifrados no pueden importar historial"
+      },
+      "needsUpdate": "Actualiza el puente a la versión 2.6.0 o posterior para importar historial",
+      "mirrorNote": "Los archivos importados se copian en el almacenamiento de esta instancia."
     }
   },
   "imageEditor": {

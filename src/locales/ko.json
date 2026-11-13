@@ -5374,6 +5374,10 @@
       "reportsFailed": "이 도메인의 신고 처리 방식을 바꾸지 못했습니다"
     },
     "instance": {
+      "mirrorStatusProgress": "Discord 파일 저장 중: {queued}개 대기 중, {done}개 저장됨",
+      "mirrorStatusTooLarge": "{count}개가 너무 큽니다 ({size}): harmony config --upload-ceiling 500M 로 업로드 상한을 올리세요",
+      "mirrorStatusFailed": "{count}개 실패",
+      "mirrorStatusAllStored": "모든 Discord 파일이 저장되었습니다",
       "maxPostReactions": "게시물당 1인 최대 반응 수",
       "maxPostReactionsHint": "한 사람이 게시물에 반응할 수 있는 서로 다른 이모지 수(1-100). 기본값: 10. 다른 인스턴스에서 들어오는 한도 초과 반응은 버려집니다. 채팅 메시지는 최대 20가지 이모지까지 가능합니다.",
       "maxPersonalEmojis": "사용자당 개인 이모지 수",
@@ -6052,6 +6056,7 @@
       "unknown": "아직 보고되지 않음",
       "showSetup": "설정 단계 보기",
       "problemsTitle": "해결할 문제 {count}개 | 해결할 문제 {count}개",
+      "noticesTitle": "알림 {count}개 | 알림 {count}개",
       "pairsTitle": "연결된 채널",
       "settingsTitle": "옵션",
       "maintainTitle": "유지 관리",
@@ -6163,6 +6168,17 @@
         "fixHosted": "인스턴스 쪽 문제이며, 브리지는 계속 재시도합니다. 오래 지속되면 인스턴스 관리자에게 문의하세요.",
         "fixInstance": "인스턴스 쪽 문제이며, 브리지는 계속 재시도합니다. 오래 지속되면 인스턴스 관리자에게 문의하세요."
       },
+      "message_content_needed_for_import": {
+        "title": "기록 가져오기가 Message Content Intent를 기다리고 있습니다.",
+        "fixSelf": "꺼져 있는 동안 Discord는 빈 메시지를 보냅니다. Developer Portal에서 애플리케이션 → Bot → Privileged Gateway Intents를 열고, Message Content Intent를 켠 다음 Save Changes를 클릭하세요. 그다음 아래 명령어로 브리지를 다시 시작하세요. 가져오기는 자동으로 시작됩니다.",
+        "fixHosted": "꺼져 있는 동안 Discord는 빈 메시지를 보냅니다. Developer Portal에서 애플리케이션 → Bot → Privileged Gateway Intents를 열고, Message Content Intent를 켠 다음 Save Changes를 클릭하세요. 브리지가 다시 연결되면 가져오기가 자동으로 시작됩니다.",
+        "fixInstance": "이 인스턴스의 봇에 Message Content Intent가 없어 기록을 가져올 수 없습니다. 인스턴스 관리자에게 문의하세요."
+      },
+      "private_threads_skipped": {
+        "title": "가져오기에서 {channel}의 비공개 스레드를 제외했습니다.",
+        "titleCount": "가져오기에서 {channel}의 비공개 스레드 {count}개를 제외했습니다. | 가져오기에서 {channel}의 비공개 스레드 {count}개를 제외했습니다.",
+        "fix": "따로 할 일은 없습니다. Harmony에는 아직 비공개 스레드가 없고 채널의 모든 사람이 읽을 수 있게 되므로, Discord에 그대로 둡니다."
+      },
       "unknown": {
         "title": "브리지가 문제를 보고했습니다({code}).",
         "fixSelf": "자세한 내용은 브리지 로그에 있습니다:",
@@ -6229,7 +6245,11 @@
       "bridgeExists": "이 서버에는 다른 방식으로 설정된 Discord 브리지가 이미 있습니다. 이 인스턴스의 봇을 사용하려면 먼저 연결을 끊으세요.",
       "instanceFull": "이 인스턴스의 봇이 이미 허용된 수만큼의 Discord 서버에 있습니다. 인스턴스 관리자에게 문의하거나 직접 만든 Discord 봇을 사용하세요.",
       "instanceOff": "이 인스턴스는 지금 Discord 봇을 제공하지 않습니다. 직접 만든 Discord 봇을 사용하세요.",
-      "link": "Discord 연결을 시작하지 못했습니다. 다시 시도하세요."
+      "link": "Discord 연결을 시작하지 못했습니다. 다시 시도하세요.",
+      "import": "가져오기를 시작하지 못했습니다.",
+      "cancelImport": "가져오기를 취소하지 못했습니다.",
+      "pairNotImportable": "이 쌍은 기록을 가져올 수 없습니다. Discord 메시지를 Harmony로 가져오는 쌍의 암호화되지 않은 채널만 가능합니다.",
+      "importChanged": "그 사이 가져오기 상태가 바뀌어 새로 고쳤습니다. 다시 시도하세요."
     },
     "time": {
       "secondsAgo": "방금 | {count}초 전 | {count}초 전",
@@ -6338,6 +6358,49 @@
       "settingsSaved": "Discord 봇 설정을 저장했습니다",
       "saveFailed": "Discord 봇 설정을 저장하지 못했습니다",
       "redirectLabel": "리디렉션 주소"
+    },
+    "import": {
+      "button": "기록 가져오기",
+      "buttonLabel": "#{channel} 기록 가져오기",
+      "importAll": "모두 가져오기",
+      "importAllAgain": "모두 다시 가져오기",
+      "importAllAgainConfirm": "채널 {count}개의 기록을 다시 가져올까요? Discord 기록을 처음부터 다시 읽으며, 이미 있는 메시지는 건너뜁니다.",
+      "importAllAgainYes": "다시 가져오기",
+      "cancelAll": "모두 취소",
+      "cancel": "취소",
+      "cancelLabel": "#{channel} 가져오기 취소",
+      "cancelling": "취소하는 중…",
+      "waiting": "대기 중",
+      "running": "가져오는 중… {percent}%",
+      "runningUnknown": "가져오는 중…",
+      "threadsRunning": "스레드를 가져오는 중…",
+      "repliesRunning": "답글을 연결하는 중…",
+      "progressLabel": "#{channel} 가져오기 진행률",
+      "backTo": "{date}까지 가져옴",
+      "messages": "메시지 {count}개 | 메시지 {count}개",
+      "threads": "스레드 {done} / {total}",
+      "done": "메시지 {count}개를 가져왔습니다 | 메시지 {count}개를 가져왔습니다",
+      "doneNothingNew": "최신 상태: 새 메시지 없음",
+      "failed": "가져오기가 중단되었습니다: {reason}",
+      "failedUnknown": "가져오기가 중단되었습니다",
+      "cancelled": "취소됨",
+      "paused": "일시 중지됨: 브리지를 기다리는 중",
+      "retry": "다시 시도",
+      "retryLabel": "#{channel} 가져오기 다시 시도",
+      "resume": "재개",
+      "resumeLabel": "#{channel} 가져오기 재개",
+      "again": "다시 가져오기",
+      "againLabel": "#{channel} 기록 다시 가져오기",
+      "reasons": {
+        "pair_removed": "채널 쌍이 제거되었습니다",
+        "channel_encrypted": "채널이 암호화되었습니다"
+      },
+      "ineligible": {
+        "direction": "Discord 메시지를 Harmony로 가져오는 쌍만 기록을 가져올 수 있습니다",
+        "encrypted": "암호화된 채널은 기록을 가져올 수 없습니다"
+      },
+      "needsUpdate": "기록을 가져오려면 브리지를 2.6.0 이상으로 업데이트하세요",
+      "mirrorNote": "가져온 파일은 이 인스턴스의 저장소에 복사됩니다."
     }
   },
   "imageEditor": {

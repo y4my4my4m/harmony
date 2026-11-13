@@ -189,4 +189,4 @@ They send the standard `RateLimit` and `RateLimit-Policy` headers (IETF draft 7)
 | Different emoji on one message | 20; the 21st answers `400` with `code` `30010` |
 | REST request body | 10 MB |
 | Discord emoji image import | 512 KiB |
-| Attachment mirrored from Discord | 50 MB; a larger file keeps its Discord URL |
+| Attachment mirrored from Discord | The instance's upload ceiling; a larger file keeps its Discord URL |

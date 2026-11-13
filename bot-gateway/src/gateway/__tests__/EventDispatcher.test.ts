@@ -1067,3 +1067,59 @@ describe('member and moderation events', () => {
     expect(sent.map((s) => s.event.t)).toEqual(['SERVER_MEMBER_KICK', 'SERVER_BAN_ADD', 'SERVER_BAN_REMOVE'])
   })
 })
+
+describe('imported history', () => {
+  it('skips rows marked history_import: no dispatch to bots, no outgoing webhook, no lookups', async () => {
+    routes = [{ bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_CREATE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    const dispatchSpy = vi.spyOn(dispatcher as any, 'dispatch')
+    const wantsSpy = vi.spyOn((dispatcher as any).webhooks, 'wants')
+    const resolveSpy = vi.spyOn(dispatcher as any, 'resolveServerId')
+
+    await dispatcher.handleMessageCreate({ new: { ...message(GENERAL, 'old news'), metadata: { history_import: true } } })
+
+    expect(dispatchSpy).not.toHaveBeenCalled()
+    expect(wantsSpy).not.toHaveBeenCalled()
+    expect(resolveSpy).not.toHaveBeenCalled()
+    expect(sent).toEqual([])
+    expect(enqueued).toEqual([])
+  })
+
+  it('does not dispatch MESSAGE_UPDATE for an imported row', async () => {
+    routes = [{ bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_UPDATE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    const dispatchSpy = vi.spyOn(dispatcher as any, 'dispatch')
+    const resolveSpy = vi.spyOn(dispatcher as any, 'resolveServerId')
+
+    await (dispatcher as any).handleMessageUpdate({
+      new: { ...message(GENERAL, 'edited old news'), metadata: { history_import: true } },
+      old: { id: 'x' },
+    })
+
+    expect(dispatchSpy).not.toHaveBeenCalled()
+    expect(resolveSpy).not.toHaveBeenCalled()
+    expect(sent).toEqual([])
+    expect(enqueued).toEqual([])
+  })
+
+  it('does not dispatch MESSAGE_DELETE for an imported row', async () => {
+    routes = [{ bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_DELETE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    const dispatchSpy = vi.spyOn(dispatcher as any, 'dispatch')
+    const resolveSpy = vi.spyOn(dispatcher as any, 'resolveServerId')
+
+    await (dispatcher as any).handleMessageDelete({
+      old: { id: 'm1', channel_id: GENERAL, thread_id: null, metadata: { history_import: true } },
+    })
+
+    expect(dispatchSpy).not.toHaveBeenCalled()
+    expect(resolveSpy).not.toHaveBeenCalled()
+    expect(sent).toEqual([])
+    expect(enqueued).toEqual([])
+  })
+
+  it('still dispatches a row whose metadata has no history_import', async () => {
+    await dispatcher.handleMessageCreate({ new: { ...message(GENERAL, 'live'), metadata: { history_import: false } } })
+    expect(recipients('MESSAGE_CREATE', GENERAL)).toEqual([OPEN_BOT])
+  })
+})
