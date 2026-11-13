@@ -65,6 +65,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **Pinned messages show bridged authors.** Pins of messages from the Discord bridge (live or
+  imported), webhooks and bots listed "Unknown"; they now show the same name and avatar as in chat.
 - **The message field no longer locks after switching servers.** A switch could leave "You do not
   have permission to send messages in this channel" in place of the field until a reload, on 1.9.5
   instances.
