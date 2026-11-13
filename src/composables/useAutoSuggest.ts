@@ -2,6 +2,7 @@ import { ref, computed, nextTick, watch, onScopeDispose } from 'vue';
 import type { Ref } from 'vue';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { memberDirectory } from '@/services/memberDirectory';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
@@ -246,6 +247,32 @@ export function useAutoSuggest(
 
   // Search results, ActivityPub mode only.
   const activityPubUsers = ref<any[]>([]);
+
+  // Chat mode, a server whose member list is windowed: members the instance found for a
+  // query, so a member this client has not loaded is suggested like any other.
+  const serverMemberMatches = ref<{ serverId: string; query: string; ids: string[] } | null>(null);
+  let memberSearchTimer: ReturnType<typeof setTimeout> | null = null;
+  let memberSearchSeq = 0;
+  const MEMBER_SEARCH_MS = 150;
+
+  const searchServerMembersDebounced = (serverId: string | null, rawQuery: string) => {
+    if (memberSearchTimer) clearTimeout(memberSearchTimer);
+    memberSearchTimer = null;
+    const query = rawQuery.trim();
+    const seq = ++memberSearchSeq;
+    if (!serverId || !query || memberDirectory.serverId !== serverId || memberDirectory.mode !== 'windowed') return;
+    memberSearchTimer = setTimeout(async () => {
+      memberSearchTimer = null;
+      try {
+        const found = await memberDirectory.searchMembers(serverId, query, finalConfig.maxSuggestions);
+        // The latest query wins.
+        if (seq !== memberSearchSeq || !found) return;
+        serverMemberMatches.value = { serverId, query, ids: found.map(m => m.id) };
+      } catch (error) {
+        debug.warn('Member search failed:', error);
+      }
+    }, MEMBER_SEARCH_MS);
+  };
   
   // Discord users, fetched from bot-gateway.
   const bridgedUsers = ref<BridgedChannelUser[]>([]);
@@ -460,6 +487,21 @@ export function useAutoSuggest(
       }
 
       const seenUsers = new Set<string>();
+
+      // Members the instance found. Matches for the query as it stands are taken as found;
+      // matches for an earlier query stay while they still match, until the answer arrives.
+      const found = serverMemberMatches.value;
+      const foundNow = new Set<string>();
+      if (found && found.serverId === currentServerId) {
+        const current = found.query === (state.value.query || '').trim();
+        const loaded = new Set(usersToSearch.map(u => u.id));
+        for (const id of found.ids) {
+          const userData = userDataService.getUser(id);
+          if (!userData) continue;
+          if (current) foundNow.add(id);
+          if (!loaded.has(id)) usersToSearch = [...usersToSearch, userData];
+        }
+      }
       
       for (const userData of usersToSearch) {
         if (seenUsers.has(userData.id)) {
@@ -470,7 +512,7 @@ export function useAutoSuggest(
         const displayName = normalizeSearchText(userData.displayName || '');
         const usernameStr = normalizeSearchText(userData.username || '');
 
-        if (displayName.includes(query) || usernameStr.includes(query)) {
+        if (foundNow.has(userData.id) || displayName.includes(query) || usernameStr.includes(query)) {
           const isLocal = userData.isLocal;
           const currentDomain = runtimeConfig.domain as string;
           const userDomain = userData.domain || currentDomain;
@@ -1018,6 +1060,8 @@ export function useAutoSuggest(
             fetchServerRoles(serverId);
           }
           
+          searchServerMembersDebounced(serverId, query);
+
           checkBridgeBotsIfNeeded(serverId).then(hasBridge => {
             if (hasBridge && channelId && channelId !== bridgedUsersChannelId.value) {
               fetchBridgedUsers(channelId);
@@ -1242,6 +1286,10 @@ export function useAutoSuggest(
     state.value.query = '';
     state.value.selectedIndex = 0;
     activityPubUsers.value = [];
+    serverMemberMatches.value = null;
+    memberSearchSeq++;
+    if (memberSearchTimer) clearTimeout(memberSearchTimer);
+    memberSearchTimer = null;
   };
 
   const updatePosition = () => {

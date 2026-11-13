@@ -104,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -145,6 +145,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'submit'): void
+  /** The text typed after from: or mentions:, for a parent that searches members elsewhere. */
+  (e: 'member-query', partial: string): void
 }>()
 
 const memberHandle = (m: SearchMember) => formatHandle({ username: m.username, domain: m.domain, is_local: m.isLocal })
@@ -170,6 +172,10 @@ const dateKey = computed(() => {
   const key = active.value.key
   return key === 'before' || key === 'during' || key === 'after' ? key : null
 })
+watch(
+  () => (active.value.key === 'from' || active.value.key === 'mentions' ? active.value.partial : ''),
+  (partial) => { if (partial) emit('member-query', partial) },
+)
 const todayValue = computed(() => formatSearchDate(new Date()))
 
 const keyHint = (key: FilterKey): string => t(`messageSearch.hint.${key}`)

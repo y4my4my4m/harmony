@@ -402,6 +402,8 @@ import { ref, computed, watch, onMounted, onActivated, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
 import { supabase } from '@/supabase'
+import { readAllRows } from '@/services/pagedRead'
+import { searchServerMembers } from '@/services/memberDirectoryService'
 import { roleService } from '@/services/RoleService'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Avatar from '@/components/common/Avatar.vue'
@@ -509,7 +511,6 @@ const serverBridgedUsers = ref<BridgedChannelUser[]>([])
 const addMemberSearch = ref('')
 const searchingMembers = ref(false)
 const availableMembers = ref<any[]>([])
-const allServerMembers = ref<any[]>([])
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Form state
@@ -808,10 +809,7 @@ const selectRole = async (role: ServerRole) => {
   
   loadingMembers.value = true
   try {
-    await Promise.all([
-      loadServerMembers(),
-      loadServerBridgedUsers({ force: true }),
-    ])
+    await loadServerBridgedUsers({ force: true })
     const members = await roleService.getRoleMembers(role.id)
     roleMembers.value = mergeRoleMembers(members, role.id)
   } catch (error) {
@@ -1009,33 +1007,35 @@ const removeMember = async (member: RoleMemberRow) => {
   }
 }
 
-const loadServerMembers = async () => {
-  try {
-    const { data, error } = await supabase
-      .from('user_servers')
-      .select(`
-        user_id,
-        profiles:user_id (
-          id,
-          username,
-          display_name,
-          avatar_url
-        )
-      `)
-      .eq('server_id', props.serverId)
-    
-    if (error) throw error
-    
-    allServerMembers.value = (data || []).map((us: any) => ({
+// Every member, read once and in pages: for an instance that cannot search its membership.
+let everyMember: Promise<any[]> | null = null
+const loadServerMembers = (): Promise<any[]> => {
+  everyMember ??= readAllRows<any>(() => supabase
+    .from('user_servers')
+    .select(`
+      user_id,
+      profiles:user_id (
+        id,
+        username,
+        display_name,
+        avatar_url
+      )
+    `, { count: 'exact' })
+    .eq('server_id', props.serverId)
+    .or('status.is.null,status.eq.accepted')
+    .order('id'))
+    .then(data => data.map((us: any) => ({
       id: us.user_id,
       username: us.profiles?.username || 'Unknown',
       display_name: us.profiles?.display_name,
       avatar_url: us.profiles?.avatar_url,
-    }))
-  } catch (error) {
-    console.error('Failed to load server members:', error)
-    allServerMembers.value = []
-  }
+    })))
+    .catch((error) => {
+      console.error('Failed to load server members:', error)
+      everyMember = null
+      return []
+    })
+  return everyMember
 }
 
 const handleAddMemberSearch = () => {
@@ -1048,9 +1048,12 @@ const handleAddMemberSearch = () => {
   }, 200)
 }
 
-// Search for members that can be added (not already in role)
-const searchAvailableMembers = () => {
+// Members that can be added: not in the role already. The instance searches the membership;
+// where it cannot (no member directory), every member is read once and filtered here.
+let addMemberSearchSeq = 0
+const searchAvailableMembers = async () => {
   const query = addMemberSearch.value.toLowerCase().trim()
+  const seq = ++addMemberSearchSeq
   if (!query) {
     availableMembers.value = []
     return
@@ -1058,18 +1061,31 @@ const searchAvailableMembers = () => {
   
   searchingMembers.value = true
   
+  let matches: any[] = []
+  try {
+    const found = await searchServerMembers(props.serverId, query, 30)
+    if (found) {
+      matches = found.map(m => ({
+        id: m.id,
+        username: m.username || 'Unknown',
+        display_name: m.display_name,
+        avatar_url: m.avatar_url,
+      }))
+    } else {
+      matches = (await loadServerMembers()).filter(member => {
+        const username = (member.username || '').toLowerCase()
+        const displayName = (member.display_name || '').toLowerCase()
+        return username.includes(query) || displayName.includes(query)
+      })
+    }
+  } catch (error) {
+    console.error('Failed to search server members:', error)
+  }
+  // The latest search wins.
+  if (seq !== addMemberSearchSeq) return
+
   const roleMemberIds = new Set(roleMembers.value.map(m => m.id))
-  
-  availableMembers.value = allServerMembers.value.filter(member => {
-    // Exclude members who already have this role
-    if (roleMemberIds.has(member.id)) return false
-    
-    // Match by username or display name
-    const username = (member.username || '').toLowerCase()
-    const displayName = (member.display_name || '').toLowerCase()
-    
-    return username.includes(query) || displayName.includes(query)
-  }).slice(0, 10) // Limit to 10 results
+  availableMembers.value = matches.filter(member => !roleMemberIds.has(member.id)).slice(0, 10)
   
   searchingMembers.value = false
   polite(

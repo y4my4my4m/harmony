@@ -65,8 +65,8 @@
       </div> -->
 
       <!-- Member Count -->
-      <div :id="memberCountId" class="member-count">
-        {{ $t('server.membersCount', totalMemberCount) }}
+      <div :id="memberCountId" class="member-count" data-testid="member-count">
+        {{ memberCountKnown ? $t('server.membersCount', totalMemberCount) : '' }}
       </div>
     </div>
 
@@ -210,6 +210,17 @@
                   <span class="status-text">{{ item.bot.statusText }}</span>
                 </div>
               </div>
+            </div>
+
+            <!-- A member the window has not loaded -->
+            <div
+              v-else-if="item.type === 'placeholder'"
+              class="member-skeleton-row member-placeholder-row"
+              data-testid="member-placeholder"
+              aria-hidden="true"
+            >
+              <div class="member-skeleton-avatar"></div>
+              <div class="member-skeleton-line" :style="{ width: `${40 + ((item.memberIndex ?? 0) * 19) % 45}%` }"></div>
             </div>
 
             <div
@@ -360,7 +371,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useVirtualizer } from '@tanstack/vue-virtual';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -383,7 +394,7 @@ import { contextStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadg
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useDMStore } from '@/stores/useDM';
 import { authContextService } from '@/services/AuthContextService';
-import { getUserIdsForServer} from '@/services/usersService';
+import { memberDirectory as directory } from '@/services/memberDirectory';
 import { UserStatus } from '@/types';
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
 import { useLayoutState } from '@/composables/useLayoutState';
@@ -417,6 +428,11 @@ const serverChannelStore = useServerChannelStore();
 const serverRolesStore = useServerRolesStore();
 const { t } = useI18n();
 
+// A server too large to hold whole: the instance orders the list and the rows near the
+// viewport are loaded (services/memberDirectory).
+const windowed = computed(() =>
+  directory.mode === 'windowed' && directory.serverId === serverChannelStore.currentServerId);
+
 // Same precedence as chat authors (MessageDisplay.resolveChatUserColor):
 // highest colored role in the current server, then profile color. Uncoloured
 // members return undefined and take the .user-name token.
@@ -445,8 +461,6 @@ const {
   getUserDisplayName,
   getUserColor,
   getUsersInContext,
-  subscribeToContext,
-  unsubscribeFromContext,
   isUserOnline,
   getUserStatus,
   isUserLocal,
@@ -826,7 +840,6 @@ onUnmounted(() => {
 
 // Role-based member grouping (hoist feature)
 const serverRoles = ref<ServerRole[]>([]);
-const userRolesMap = ref<Map<string, ServerRole[]>>(new Map());
 const rolesLoadedForServer = ref<string | null>(null);
 
 // Group collapse state; role groups are added dynamically.
@@ -994,6 +1007,11 @@ const hoistedRolesSorted = computed(() => {
 // Same ordering as String.prototype.localeCompare with no arguments.
 const nameCollator = new Intl.Collator();
 
+// A member is listed where others see it. Only this client's own user can read Invisible:
+// connected, and offline to everyone else, so offline in its own list too.
+const isListedPresent = (userId: string): boolean =>
+  isUserOnline(userId).value && getUserStatus(userId).value !== UserStatus.Invisible;
+
 // Grouping order: present users with a hoisted role go to their highest
 // hoisted role group; other present users go to online/away/busy; absent users
 // go to federated or offline.
@@ -1013,7 +1031,7 @@ const groupedUsers = computed(() => {
   const usersInRoleGroups = new Set<string>();
 
   filteredUsers.value.forEach((user: User) => {
-    const isPresent = isUserOnline(user.id).value;
+    const isPresent = isListedPresent(user.id);
     const isLocal = isUserLocal(user.id).value;
     
     if (isPresent) {
@@ -1078,9 +1096,15 @@ const getRoleForGroup = (groupKey: string): ServerRole | null => {
   return serverRoles.value.find(r => r.id === roleId) || null;
 };
 
+// The instance's count of the server's members, once it has answered.
+const directoryTotal = computed(() =>
+  directory.serverId === serverChannelStore.currentServerId ? directory.total : null);
+
+const memberCountKnown = computed(() => directoryTotal.value !== null || users.value.length > 0);
+
 // Harmony members, installed bots and ephemeral Discord bridge members.
 const totalMemberCount = computed(() => {
-  return users.value.length
+  return (directoryTotal.value ?? users.value.length)
     + serverBots.value.length
     + (channelHasBridge.value ? bridgedDiscordUsers.value.length : 0);
 });
@@ -1120,35 +1144,12 @@ const loadServerRolesAndAssignments = async (serverId: string) => {
   if (!serverId || rolesLoadedForServer.value === serverId) return;
   
   try {
-    const roles = await roleService.getServerRoles(serverId);
+    // Member roles come from the roles store: with the member list, or per member on demand.
+    const [roles] = await Promise.all([
+      roleService.getServerRoles(serverId),
+      serverRolesStore.ensureServerLoaded(serverId),
+    ]);
     serverRoles.value = roles;
-    
-    const hoistedRoles = roles.filter(r => r.hoist && !r.is_default);
-
-    if (hoistedRoles.length > 0) {
-      debug.log(`UserSidebar: Found ${hoistedRoles.length} hoisted roles for server ${serverId}`);
-
-      const hoistedRoleIds = hoistedRoles.map(r => r.id);
-      const roleMap = new Map(hoistedRoles.map(r => [r.id, r]));
-
-      const assignments = await roleService.getRoleMembersForServer(serverId, hoistedRoleIds);
-      const newUserRolesMap = new Map<string, ServerRole[]>();
-
-      for (const assignment of assignments) {
-        const role = roleMap.get(assignment.role_id);
-        if (!role) continue;
-        if (!newUserRolesMap.has(assignment.user_id)) {
-          newUserRolesMap.set(assignment.user_id, []);
-        }
-        newUserRolesMap.get(assignment.user_id)!.push(role);
-      }
-
-      userRolesMap.value = newUserRolesMap;
-      debug.log(`UserSidebar: Loaded role assignments for ${newUserRolesMap.size} users`);
-    } else {
-      userRolesMap.value = new Map();
-    }
-    
   } catch (error) {
     debug.error('Failed to load server roles:', error);
   } finally {
@@ -1156,19 +1157,15 @@ const loadServerRolesAndAssignments = async (serverId: string) => {
   }
 };
 
-const getHighestHoistedRole = (userId: string): ServerRole | null => {
-  const userRoles = userRolesMap.value.get(userId);
-  if (!userRoles || userRoles.length === 0) return null;
-  
-  // Highest position first; first hoisted role wins.
-  const sorted = [...userRoles].sort((a, b) => b.position - a.position);
-  return sorted.find(r => r.hoist) || null;
-};
+const getHighestHoistedRole = (userId: string): ServerRole | null =>
+  serverRolesStore.getHighestHoistedRole(serverChannelStore.currentServerId, userId);
 
 // --- VIRTUAL SCROLLING ---
 interface SidebarItem {
-  type: 'header' | 'user';
+  type: 'header' | 'user' | 'placeholder';
   key: string;
+  /** Position in the instance's member order; windowed lists only. */
+  memberIndex?: number;
   groupKey?: string;
   title?: string;
   count?: number;
@@ -1248,6 +1245,75 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
     }
   };
 
+  const bots = groupedBots.value;
+
+  if (windowed.value) {
+    // Members arrive grouped and ordered; bots and bridged members join the end of a group.
+    const sections = new Map<string, { count: number; rows: SidebarItem[] }>();
+    for (const slot of directory.slots(collapsedGroups.value)) {
+      let section = sections.get(slot.groupKey);
+      if (!section) sections.set(slot.groupKey, (section = { count: 0, rows: [] }));
+      if (slot.type === 'header') {
+        section.count = slot.count;
+      } else if (slot.type === 'member') {
+        const m = slot.member;
+        section.rows.push({
+          type: 'user', key: `u-${m.id}-${slot.groupKey}`, groupKey: slot.groupKey, memberIndex: slot.index,
+          user: { id: m.id, username: m.username ?? '', display_name: m.display_name ?? '', avatar_url: m.avatar_url ?? undefined, status: m.presence_status } as User,
+        });
+      } else {
+        section.rows.push({ type: 'placeholder', key: `p-${slot.index}`, groupKey: slot.groupKey, memberIndex: slot.index });
+      }
+    }
+
+    const addSection = (
+      groupKey: string,
+      title: string,
+      bridgedMembers: BridgedChannelUser[],
+      opts: { roleColor?: string; nameColor?: string | null; isOffline?: boolean; showStatus?: 'full' | 'partial' | 'none' },
+      sectionBots: ServerBot[] = [],
+    ) => {
+      const section = sections.get(groupKey);
+      sections.delete(groupKey);
+      const members = section?.count ?? 0;
+      if (members === 0 && sectionBots.length === 0 && bridgedMembers.length === 0) return;
+      const collapsed = !!collapsedGroups.value[groupKey];
+      items.push({
+        type: 'header', key: `h-${groupKey}`, groupKey, title,
+        count: members + sectionBots.length + bridgedMembers.length, roleColor: opts.roleColor, isCollapsed: collapsed,
+      });
+      if (collapsed) return;
+      for (const row of section?.rows ?? []) {
+        items.push(row.type === 'user'
+          ? { ...row, nameColor: opts.nameColor ?? null, isOffline: opts.isOffline ?? false, showStatus: opts.showStatus ?? 'full' }
+          : row);
+      }
+      for (const bot of sectionBots) {
+        items.push({
+          type: 'user', key: `b-${bot.id}-${groupKey}`, groupKey, bot,
+          isOffline: opts.isOffline ?? false, showStatus: opts.showStatus ?? 'full',
+        });
+      }
+      addBridgedUsersToGroup(groupKey, bridgedMembers, opts.nameColor ?? opts.roleColor ?? null,
+        { showStatus: opts.showStatus, isOffline: opts.isOffline });
+    };
+
+    for (const role of hoistedRolesSorted.value) {
+      addSection(`role:${role.id}`, role.name, bridgedDiscordGrouping.value.byRoleId[role.id] || [],
+        { roleColor: role.color || '#99AAB5', nameColor: role.color });
+    }
+    // A hoisted role the instance grouped by and this client has not loaded yet.
+    for (const groupKey of [...sections.keys()]) {
+      if (groupKey.startsWith('role:')) addSection(groupKey, '', [], { roleColor: '#99AAB5' });
+    }
+    addSection('online', t('user.online'), bridgedDiscordGrouping.value.byPresence.online, { showStatus: 'full' }, bots.online);
+    addSection('away', t('user.away'), bridgedDiscordGrouping.value.byPresence.away, { showStatus: 'partial' }, bots.away);
+    addSection('busy', t('user.busy'), bridgedDiscordGrouping.value.byPresence.busy, { showStatus: 'none' }, bots.busy);
+    addSection('federated', t('federation.federatedBadge'), [], { showStatus: 'full' });
+    addSection('offline', t('user.offline'), bridgedDiscordGrouping.value.byPresence.offline, { isOffline: true, showStatus: 'none' }, bots.offline);
+    return items;
+  }
+
   for (const role of hoistedRolesSorted.value) {
     const roleUsers = groupedUsers.value[`role:${role.id}`] || [];
     const bridgedInRole = bridgedDiscordGrouping.value.byRoleId[role.id] || [];
@@ -1256,7 +1322,6 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
       nameColor: role.color,
     });
   }
-  const bots = groupedBots.value;
   addGroup('online', t('user.online'), groupedUsers.value.online, bridgedDiscordGrouping.value.byPresence.online, { showStatus: 'full' }, bots.online);
   addGroup('away', t('user.away'), groupedUsers.value.away, bridgedDiscordGrouping.value.byPresence.away, { showStatus: 'partial' }, bots.away);
   addGroup('busy', t('user.busy'), groupedUsers.value.busy, bridgedDiscordGrouping.value.byPresence.busy, { showStatus: 'none' }, bots.busy);
@@ -1347,12 +1412,18 @@ const SEARCH_ANNOUNCE_MS = 600;
 let searchAnnounceTimer: ReturnType<typeof setTimeout> | null = null;
 watch(searchQuery, (query) => {
   if (searchAnnounceTimer) clearTimeout(searchAnnounceTimer);
-  if (!query.trim()) return;
+  // A windowed list is searched by the instance: its count is spoken when the answer is in.
+  if (!query.trim() || windowed.value) return;
   searchAnnounceTimer = setTimeout(() => {
     searchAnnounceTimer = null;
     const found = sidebarDisplayItems.value.filter(item => item.type === 'user').length;
     polite(t('chatNav.members.found', { count: found }, found), { key: 'member-search' });
   }, SEARCH_ANNOUNCE_MS);
+});
+watch(() => (windowed.value && directory.query && directory.answered ? `${directory.query}\n${directory.listed}` : null), (answer) => {
+  if (answer === null) return;
+  const found = directory.listed;
+  polite(t('chatNav.members.found', { count: found }, found), { key: 'member-search' });
 });
 
 const onSearchEscape = (event: KeyboardEvent) => {
@@ -1413,44 +1484,27 @@ const sidebarMeasureElement = (el: any) => {
 const fetchAndSetUsers = async (serverId: string | null) => {
   fetchCallCounter++;
   debug.log(`UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
-  
-  if (serverId) {
-    // Debounce concurrent calls for the same server.
-    if (lastFetchedServerId.value === serverId && isLoadingUsers.value) {
-      debug.log(`UserSidebar: Already loading server ${serverId}, skipping duplicate call`);
-      return;
-    }
-    
-    lastFetchedServerId.value = serverId;
-    
-    const users = getUsersInContext(serverId).value;
-    
-    if (users.length > 0) {
-      debug.log(`UserSidebar: Using cached users for server ${serverId} (${users.length} members)`);
-      isLoadingUsers.value = false;
-      return;
-    }
-    
-    // Loading state is entered only with no cached data for the server.
-    debug.log(`UserSidebar: No cached users found, loading for server ${serverId}...`);
-    isLoadingUsers.value = true;
+  if (!serverId) return;
 
-    // One frame first: the message list of the same navigation paints before
-    // member hydration and the member-list sort take the main thread.
-    await new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
-    // A later switch owns the loading state from here.
-    if (serverChannelStore.currentServerId !== serverId) return;
-    
-    try {
-      // BaseLayout subscribes the startup server's context too; a concurrent
-      // subscribeToContext awaits the call already in flight.
-      debug.log(`UserSidebar: Creating new subscription for server ${serverId}...`);
-      const userIds = await getUserIdsForServer(serverId);
-      await subscribeToContext(serverId, 'server', userIds);
-      debug.log(`Server user subscription ready: ${serverId} (${userIds.length} members)`);
-    } finally {
-      isLoadingUsers.value = false;
-    }
+  // BaseLayout opens the startup server too; the directory answers both from one read.
+  if (directory.serverId === serverId && directory.mode !== 'idle') {
+    isLoadingUsers.value = false;
+    return;
+  }
+
+  lastFetchedServerId.value = serverId;
+  isLoadingUsers.value = true;
+
+  // One frame first: the message list of the same navigation paints before
+  // member hydration and the member-list sort take the main thread.
+  await new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+  // A later switch owns the loading state from here.
+  if (serverChannelStore.currentServerId !== serverId) return;
+
+  try {
+    await directory.open(serverId);
+  } finally {
+    if (serverChannelStore.currentServerId === serverId) isLoadingUsers.value = false;
   }
 };
 
@@ -1470,16 +1524,75 @@ watch(() => serverChannelStore.currentServerId, async (newServerId, oldServerId)
   }
   
   if (oldServerId) {
-    await unsubscribeFromContext(oldServerId);
     rolesLoadedForServer.value = null;
     serverRoles.value = [];
-    userRolesMap.value = new Map();
+    searchQuery.value = '';
   }
   if (newServerId) {
+    // Opening a server closes the one open before it.
     await fetchAndSetUsers(newServerId);
     loadServerRolesAndAssignments(newServerId);
+  } else if (oldServerId) {
+    await directory.close();
   }
 }, { immediate: true });
+
+// A windowed list is filtered by the instance, once typing pauses.
+const MEMBER_SEARCH_MS = 250;
+let memberSearchTimer: ReturnType<typeof setTimeout> | null = null;
+watch([searchQuery, windowed], ([text, isWindowed]) => {
+  if (memberSearchTimer) clearTimeout(memberSearchTimer);
+  memberSearchTimer = null;
+  if (!isWindowed) return;
+  memberSearchTimer = setTimeout(() => {
+    memberSearchTimer = null;
+    directory.search(text);
+  }, text.trim() ? MEMBER_SEARCH_MS : 0);
+});
+
+// The rows on screen name the member indexes whose pages the directory loads. Runs, not one
+// span: the rows around a collapsed group are far apart in the member order.
+watch(() => {
+  if (!windowed.value) return null;
+  const indexes: number[] = [];
+  for (const row of sidebarVirtualRows.value) {
+    const index = sidebarDisplayItems.value[row.index]?.memberIndex;
+    if (index !== undefined) indexes.push(index);
+  }
+  if (indexes.length === 0) return null;
+  indexes.sort((a, b) => a - b);
+  const runs: string[] = [];
+  let from = indexes[0];
+  let to = indexes[0];
+  for (const index of indexes.slice(1)) {
+    if (index <= to + 1) {
+      to = index;
+      continue;
+    }
+    runs.push(`${from}:${to}`);
+    from = to = index;
+  }
+  runs.push(`${from}:${to}`);
+  return runs.join(',');
+}, (runs) => {
+  if (!runs) return;
+  directory.showRanges(runs.split(',').map(run => run.split(':').map(Number) as [number, number]));
+});
+
+// The directory re-reads a windowed list only while a view shows it.
+let showingList = false;
+const setShowingList = (showing: boolean) => {
+  if (showing === showingList) return;
+  showingList = showing;
+  if (showing) directory.attach();
+  else directory.detach();
+};
+onMounted(() => setShowingList(props.visible));
+watch(() => props.visible, setShowingList);
+onUnmounted(() => {
+  setShowingList(false);
+  if (memberSearchTimer) clearTimeout(memberSearchTimer);
+});
 
 const showUserProfile = async (user: User) => {
   if (!user?.id) return;
@@ -1490,7 +1603,7 @@ const showUserProfile = async (user: User) => {
 
 // Avatar status derives from live presence, then the user's chosen status.
 const getStatusForAvatarValue = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
-  const isPresent = isUserOnline(userId).value;
+  const isPresent = isListedPresent(userId);
   
   if (!isPresent) {
     return 'offline';
@@ -1760,6 +1873,11 @@ const closeInviteModal = () => {
   align-items: center;
   gap: 10px;
   padding: 5px 8px;
+}
+
+.member-placeholder-row {
+  height: 44px;
+  box-sizing: border-box;
 }
 
 .member-skeleton-avatar {

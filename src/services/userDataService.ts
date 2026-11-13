@@ -16,11 +16,11 @@
  */
 
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/supabase'
+import type { DirectoryMember } from '@/services/memberDirectoryService'
 import { UserStatus, type UserData, type UserContext, type CustomUserStatus, type DisplayNamePart } from '@/types'
 import { activityTracker } from '@/services/ActivityTracker'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { userEventChannel } from '@/services/UserEventChannel'
@@ -61,6 +61,9 @@ function detectMobileDevice(): boolean {
  * this size.
  */
 const PROFILE_BACKFILL_CHUNK = 30
+
+/** Profiles a server list loads before its first paint, on an instance without the member directory. */
+const FIRST_PAINT_PROFILES = 90
 
 /** get_presence answers at most this many profiles per call. */
 const PRESENCE_BATCH = 1000
@@ -105,8 +108,10 @@ class UserDataService extends EventTarget {
   
   // Cache settings
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-  // Retained profiles. Above any single view's working set.
-  private readonly MAX_CACHED_USERS = 1000
+  // Retained profiles outside every subscribed context. Above any single view's working set.
+  private readonly MAX_UNPINNED_USERS = 1000
+  // Counts reads and loads; a profile's lastAccess is its value at the last one.
+  private accessClock = 0
   private readonly HEARTBEAT_INTERVAL = 60 * 1000 // 60 seconds
 
   // Coalescing batch loader (DataLoader pattern). Collapses bursts of single-id
@@ -118,6 +123,8 @@ class UserDataService extends EventTarget {
   private heartbeatTimer: NodeJS.Timeout | null = null
   // presence_offline sent for this tab, or in flight: its device row is gone until the next heartbeat.
   private presenceOfflineSent = false
+  // The status the last successful publish carried; null before the first.
+  private lastPublishedStatus: UserStatus | null = null
   private heartbeatFailures = 0
   private readonly MAX_HEARTBEAT_FAILURES = 3
   private customStatusExpiryTimer: ReturnType<typeof setTimeout> | null = null
@@ -598,7 +605,14 @@ class UserDataService extends EventTarget {
     if (error) {
       debug.warn('Presence update failed:', error.message)
       if (offline) this.presenceOfflineSent = false
+      return
     }
+    // A change of status moves this user in lists ordered by presence; no broadcast of its
+    // own reaches this client. Not the first publish: a list read before it already places
+    // the caller by the status it chose.
+    const changed = this.lastPublishedStatus !== null && this.lastPublishedStatus !== userData.status
+    this.lastPublishedStatus = userData.status
+    if (changed) this.emitEvent('presence-event', { userId: this.currentUserId, self: true })
   }
 
   /** Ends this tab's presence from an unloading page, which may not finish a normal request. */
@@ -631,6 +645,8 @@ class UserDataService extends EventTarget {
   private applyPresenceUpdate(data: any): void {
     const userId = data?.user_id
     if (typeof userId !== 'string' || userId === this.currentUserId) return
+    // Heard by the member directory, whose group counts move with members it has not loaded.
+    this.emitEvent('presence-event', { userId, online: data.online === true })
     if (data.online === true) {
       this.updateUserFromGlobalPresence(userId, {
         status: data.status,
@@ -686,6 +702,8 @@ class UserDataService extends EventTarget {
       context.userIds.forEach(id => ids.add(id))
     }
     if (ids.size > 0) await this.fetchPresence([...ids])
+    // After a reconnect the broadcasts in between are lost: lists ordered by presence re-read.
+    if (all) this.emitEvent('presence-event', { resync: true })
   }
 
   private markUserOffline(userId: string): void {
@@ -764,13 +782,27 @@ class UserDataService extends EventTarget {
     }
   }
   
-  async subscribeToContext(contextId: string, type: 'server' | 'dm' | 'profile' | 'friends', userIds: string[]): Promise<void> {
+  /**
+   * `partial`: userIds are the members loaded so far (member directory); joins and leaves are
+   * announced and not applied. `preloaded`: the profiles and their presence are already cached
+   * (primeMembers), so nothing is fetched here.
+   */
+  async subscribeToContext(
+    contextId: string,
+    type: 'server' | 'dm' | 'profile' | 'friends',
+    userIds: string[],
+    options: { partial?: boolean; preloaded?: boolean } = {},
+  ): Promise<void> {
     const existing = this.contexts.get(contextId)
     if (existing) {
+      if (options.preloaded) {
+        existing.partial = !!options.partial
+        this.setContextMembers(contextId, userIds)
+      }
       // A refused server channel is tried again when the user comes back to the server.
       if (type === 'server' && !existing.channel && (existing as any)._presenceRefused) {
         ;(existing as any)._presenceRefused = false
-        await this.setupServerPresence(contextId, userIds, true)
+        await this.setupServerPresence(contextId, true)
         return
       }
       debug.log(`Already subscribed to ${type} context:`, contextId, '- skipping duplicate subscription')
@@ -795,25 +827,29 @@ class UserDataService extends EventTarget {
       // the background. Keeps big servers from blocking the member list on
       // every profile.
       let offlineBackfillIds: string[] = []
-      const presence = await this.fetchPresenceRows(userIds)
-      if (type === 'server' && userIds.length > PROFILE_BACKFILL_CHUNK) {
-        const onlineIds = userIds.filter(id => presence.has(id))
-        const offlineIds = userIds.filter(id => !presence.has(id))
-        const firstBatch = onlineIds.length > 0 ? onlineIds : offlineIds.slice(0, PROFILE_BACKFILL_CHUNK)
-        offlineBackfillIds = onlineIds.length > 0 ? offlineIds : offlineIds.slice(PROFILE_BACKFILL_CHUNK)
-        await this.loadUsersData(firstBatch)
-      } else {
-        // Small contexts (DMs, friends, small servers): load everyone.
-        await this.loadUsersData(userIds)
-      }
+      let presence = new Map<string, PresenceRow>()
+      if (!options.preloaded) {
+        presence = await this.fetchPresenceRows(userIds)
+        if (type === 'server' && userIds.length > PROFILE_BACKFILL_CHUNK) {
+          // Online members first, FIRST_PAINT_PROFILES of them before the list paints; the
+          // rest of the online members, then the offline ones, follow in the background.
+          const ordered = [...userIds.filter(id => presence.has(id)), ...userIds.filter(id => !presence.has(id))]
+          offlineBackfillIds = ordered.slice(FIRST_PAINT_PROFILES)
+          await this.loadUsersData(ordered.slice(0, FIRST_PAINT_PROFILES))
+        } else {
+          // Small contexts (DMs, friends, small servers): load everyone.
+          await this.loadUsersData(userIds)
+        }
 
-      this.applyPresenceRows(userIds, presence)
+        this.applyPresenceRows(userIds, presence)
+      }
 
       const context: UserContext = {
         id: contextId,
         type,
         userIds: new Set(userIds),
-        lastSync: new Date()
+        lastSync: new Date(),
+        partial: !!options.partial,
       }
       
       this.contexts.set(contextId, context)
@@ -827,10 +863,10 @@ class UserDataService extends EventTarget {
       this.emitEvent('context-updated', { contextId })
 
       if (type === 'server') {
-        await this.setupServerPresence(contextId, userIds)
+        await this.setupServerPresence(contextId)
       }
 
-      // Backfill the remaining (offline) profiles in the background.
+      // Backfill the remaining profiles in the background.
       if (offlineBackfillIds.length > 0) {
         void this.backfillContextProfiles(contextId, offlineBackfillIds, presence)
       }
@@ -863,6 +899,9 @@ class UserDataService extends EventTarget {
         debug.warn(`Profile backfill chunk failed for context ${contextId}:`, error)
       }
     }
+    // The snapshot is as old as the backfill is long, and a broadcast for a profile not yet
+    // cached changed nothing: presence is read again for the profiles loaded here.
+    if (this.contexts.has(contextId)) await this.fetchPresence(userIds)
     debug.log(`Profile backfill complete for context ${contextId} (${userIds.length} users)`)
   }
   
@@ -880,9 +919,9 @@ class UserDataService extends EventTarget {
    *
    * BUGS.md C14 retry behaviour for `CHANNEL_ERROR` is preserved.
    */
-  private async setupServerPresence(serverId: string, userIds: string[], isRetry = false): Promise<void> {
+  private async setupServerPresence(serverId: string, isRetry = false): Promise<void> {
     const channelName = `server-presence:${serverId}`
-    debug.log('Subscribing to server broadcast channel:', serverId, 'with', userIds.length, 'users')
+    debug.log('Subscribing to server broadcast channel:', serverId)
 
     // Prior channel + retry timer on this context are torn down before a new
     // subscribe; otherwise duplicates accumulate. The prior channel is detached
@@ -944,7 +983,8 @@ class UserDataService extends EventTarget {
         }
         if (missed) {
           missed = false
-          void this.fetchPresence(userIds)
+          void this.fetchPresence([...ctx.userIds])
+          this.emitEvent('presence-event', { contextId: serverId, resync: true })
         }
       } else if (status === 'CHANNEL_ERROR') {
         // Refused: not a member of the server, or the instance lacks the read policy.
@@ -972,7 +1012,7 @@ class UserDataService extends EventTarget {
         state._presenceRetryTimer = setTimeout(() => {
           state._presenceRetryTimer = null
           if (!this.contexts.has(serverId)) return
-          this.setupServerPresence(serverId, userIds, true).catch(retryErr => {
+          this.setupServerPresence(serverId, true).catch(retryErr => {
             debug.error(`[Realtime] server-presence:${serverId} retry failed:`, retryErr)
           })
         }, channelRetryDelay(attempt))
@@ -988,10 +1028,12 @@ class UserDataService extends EventTarget {
     
     const context = this.contexts.get(serverId)
     if (context) {
-      context.userIds.add(newUserId)
-      
-      await this.loadUsersData([newUserId])
-      
+      // A partial context holds loaded members only; the directory places the new one.
+      if (!context.partial) {
+        context.userIds.add(newUserId)
+        await this.loadUsersData([newUserId])
+      }
+
       this.emitEvent('context-updated', { contextId: serverId, type: 'member-join', userId: newUserId })
     }
   }
@@ -1168,40 +1210,7 @@ class UserDataService extends EventTarget {
         if (!profiles?.length) continue
 
         profiles.forEach((profile: any) => {
-          const existing = this.users.get(profile.id)
-          const dn = profile.display_name || profile.username || 'Unknown'
-          const userData: UserData = {
-            id: profile.id,
-            username: profile.username || 'Unknown',
-            handle: profile.web_handle ?? undefined,
-            displayName: dn,
-            displayNameEmojis: existing?.displayNameEmojis,
-            displayNameParts: this.resolveDisplayNameParts(dn, existing?.displayNameEmojis),
-            avatarUrl: profile.avatar_url,
-            bannerUrl: profile.banner_url,
-            bio: profile.bio,
-            color: profile.color,
-            domain: profile.domain || runtimeConfig.domain as string,
-            isLocal: profile.is_local ?? (
-              !profile.domain ||
-              profile.domain === runtimeConfig.domain
-            ),
-            status: profile.status ?? existing?.status ?? UserStatus.Offline,
-            customStatus: this.parseCustomStatus(profile.custom_status),
-            isOnline: existing?.isOnline ?? false,
-            isMobile: existing?.isMobile ?? false,
-            lastSeen: existing?.lastSeen ?? profile.updated_at ?? new Date().toISOString(),
-            lastHeartbeat: existing?.lastHeartbeat ?? new Date().toISOString(),
-            lastCacheUpdate: new Date().toISOString(),
-            createdAt: profile.created_at || new Date().toISOString(),
-            updatedAt: profile.updated_at,
-            isAdmin: profile.is_admin ?? existing?.isAdmin ?? false,
-            isModerator: profile.is_moderator ?? existing?.isModerator ?? false,
-            instanceRole: profile.instance_role ?? null,
-            source: 'database'
-          }
-
-          this.users.set(profile.id, userData)
+          this.users.set(profile.id, this.userFromProfile(profile))
           loadedIds.push(profile.id)
         })
       }
@@ -1215,6 +1224,93 @@ class UserDataService extends EventTarget {
     } catch (error) {
       debug.error('Failed to load user data:', error)
     }
+  }
+
+  /** Cache entry for a profiles row; presence and pinned emojis carry over from the entry it replaces. */
+  private userFromProfile(profile: any): UserData {
+    const existing = this.users.get(profile.id)
+    const dn = profile.display_name || profile.username || 'Unknown'
+    return {
+      id: profile.id,
+      username: profile.username || 'Unknown',
+      handle: profile.web_handle ?? undefined,
+      displayName: dn,
+      displayNameEmojis: existing?.displayNameEmojis,
+      displayNameParts: this.resolveDisplayNameParts(dn, existing?.displayNameEmojis),
+      avatarUrl: profile.avatar_url,
+      bannerUrl: profile.banner_url,
+      bio: profile.bio,
+      color: profile.color,
+      domain: profile.domain || runtimeConfig.domain as string,
+      isLocal: profile.is_local ?? (
+        !profile.domain ||
+        profile.domain === runtimeConfig.domain
+      ),
+      status: profile.status ?? existing?.status ?? UserStatus.Offline,
+      customStatus: this.parseCustomStatus(profile.custom_status),
+      isOnline: existing?.isOnline ?? false,
+      isMobile: existing?.isMobile ?? false,
+      lastSeen: existing?.lastSeen ?? profile.updated_at ?? new Date().toISOString(),
+      lastHeartbeat: existing?.lastHeartbeat ?? new Date().toISOString(),
+      lastCacheUpdate: new Date().toISOString(),
+      createdAt: profile.created_at || new Date().toISOString(),
+      updatedAt: profile.updated_at,
+      isAdmin: profile.is_admin ?? existing?.isAdmin ?? false,
+      isModerator: profile.is_moderator ?? existing?.isModerator ?? false,
+      instanceRole: profile.instance_role ?? null,
+      source: 'database',
+      lastAccess: ++this.accessClock,
+    }
+  }
+
+  /**
+   * Caches members the directory answered: the profile columns of a bulk read with presence
+   * as the caller sees it. No request follows unless a display name carries custom emoji.
+   */
+  async primeMembers(members: DirectoryMember[]): Promise<void> {
+    const ids: string[] = []
+    for (const member of members) {
+      if (!member?.id) continue
+      const user = this.userFromProfile(member)
+      if (member.id !== this.currentUserId) {
+        user.isOnline = member.online === true
+        user.isMobile = member.online === true && member.is_mobile === true
+        if (member.online) {
+          user.status = (member.presence_status as UserStatus) || UserStatus.Online
+        } else if (user.status === UserStatus.Online) {
+          // As markUserOffline: Away and Busy stay, Online reads Offline.
+          user.status = UserStatus.Offline
+        }
+      } else {
+        const self = this.users.get(member.id)
+        if (self) {
+          // The current user's status and presence are this client's own.
+          user.status = self.status
+          user.isOnline = self.isOnline
+          user.isMobile = self.isMobile
+        }
+      }
+      this.users.set(member.id, user)
+      ids.push(member.id)
+    }
+    if (ids.length === 0) return
+    await this.enrichDisplayNameEmojis(ids)
+    this.pruneUserCache()
+    this.emitEvent('data-refreshed', { userIds: ids })
+  }
+
+  /** Members a subscribed context holds; 0 for none. */
+  getContextMemberCount(contextId: string): number {
+    return this.contexts.get(contextId)?.userIds.size ?? 0
+  }
+
+  /** Replaces the members of a subscribed context. */
+  setContextMembers(contextId: string, userIds: string[]): void {
+    const context = this.contexts.get(contextId)
+    if (!context) return
+    context.userIds = new Set(userIds)
+    context.lastSync = new Date()
+    this.emitEvent('context-updated', { contextId })
   }
 
   /**
@@ -1263,6 +1359,7 @@ class UserDataService extends EventTarget {
   getUserProfile(userId: string): any | null {
     const userData = this.users.get(userId)
     if (!userData) return null
+    userData.lastAccess = ++this.accessClock
     
     return {
       id: userData.id,
@@ -1335,27 +1432,25 @@ class UserDataService extends EventTarget {
     return age > this.CACHE_TTL
   }
 
-  // Evicts least-recently-cached profiles past MAX_CACHED_USERS.
-  // Current user and active-context ids are pinned.
+  // Evicts the least recently read profiles outside every context, past MAX_UNPINNED_USERS.
+  // Context members and the current user never count against the limit: a context of any
+  // size leaves room for the authors, DM partners and voice occupants a view shows.
   private pruneUserCache(): void {
-    if (this.users.size <= this.MAX_CACHED_USERS) return
-
     const pinned = new Set<string>()
     if (this.currentUserId) pinned.add(this.currentUserId)
     for (const context of this.contexts.values()) {
       for (const id of context.userIds) pinned.add(id)
     }
 
-    const evictable = [...this.users.entries()]
-      .filter(([id]) => !pinned.has(id))
-      .sort((a, b) =>
-        new Date(a[1].lastCacheUpdate).getTime() - new Date(b[1].lastCacheUpdate).getTime())
+    const evictable: Array<[string, number]> = []
+    for (const [id, user] of this.users) {
+      if (!pinned.has(id)) evictable.push([id, user.lastAccess ?? 0])
+    }
+    if (evictable.length <= this.MAX_UNPINNED_USERS) return
 
-    let toEvict = this.users.size - this.MAX_CACHED_USERS
-    for (const [id] of evictable) {
-      if (toEvict <= 0) break
-      this.users.delete(id)
-      toEvict--
+    evictable.sort((a, b) => a[1] - b[1])
+    for (let i = 0; i < evictable.length - this.MAX_UNPINNED_USERS; i++) {
+      this.users.delete(evictable[i][0])
     }
   }
   
@@ -1592,7 +1687,10 @@ class UserDataService extends EventTarget {
   }
   
   getUser(userId: string): UserData | null {
-    return this.users.get(userId) || null
+    const user = this.users.get(userId)
+    if (!user) return null
+    user.lastAccess = ++this.accessClock
+    return user
   }
   
   getCurrentUser(): UserData | null {
@@ -1809,6 +1907,7 @@ class UserDataService extends EventTarget {
       this.statusExpirySweep = null
     }
     this.presenceOfflineSent = false
+    this.lastPublishedStatus = null
 
     if (this.customStatusExpiryTimer) {
       clearTimeout(this.customStatusExpiryTimer)

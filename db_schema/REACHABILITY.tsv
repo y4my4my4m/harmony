@@ -603,6 +603,7 @@ get_relayable_key_requests	definer	TABLE(id uuid, requester_user_id uuid, sender
 get_reports_with_details	definer	TABLE(id uuid, created_at timestamp with time zone, updated_at timestamp with time zone, status text, report_type text, category text, reason text, comment text, source text, source_instance text, source_actor text, reporter_id uuid, reporter_username text, reporter_display_name text, reporter_avatar_url text, reporter_domain text, reporter_is_local boolean, reported_user_id uuid, reported_user_username text, reported_user_display_name text, reported_user_avatar_url text, reported_user_domain text, reported_user_is_local boolean, reported_user_is_suspended boolean, reported_user_is_silenced boolean, reported_domain_blocked boolean, reported_domain_limited boolean, reported_post_id uuid, reported_message_id uuid, reported_server_id uuid, scope_server_id uuid, reported_post_preview text, reported_post_ap_id text, reported_post_url text, reported_post_is_sensitive boolean, reported_post_content_warning text, reported_post_is_deleted boolean, reported_message_preview text, reported_message_is_deleted boolean, content_snapshot jsonb, forward boolean, forwarded_at timestamp with time zone, federation_status text, server_forward jsonb, assigned_to uuid, assigned_username text, resolved_at timestamp with time zone, resolver_username text, resolution_note text, open_reports_on_target bigint, total_count bigint)	authenticated+service_role	client	rpc in src/services/ReportService.ts
 get_restricted_voice_channels	definer	SETOF uuid	authenticated+service_role	client	rpc in src/stores/useServerUsers.ts
 get_room_epoch	definer	integer	authenticated+service_role	client	rpc in src/services/encryption/RoomEpochService.ts
+get_room_member_id_list	invoker	uuid[]	authenticated+service_role	client	rpc in src/services/memberDirectoryService.ts
 get_room_member_ids	definer	SETOF uuid	authenticated+service_role	client	rpc in src/services/encryption/MegolmMessageEncryptionService.ts
 get_server_audit_log	definer	TABLE(id uuid, created_at timestamp with time zone, action text, source text, actor_id uuid, actor_username text, actor_display_name text, actor_avatar_url text, actor_bot_id uuid, actor_bot_name text, actor_bot_avatar_url text, target_type text, target_id text, target_name text, target_display_name text, target_avatar_url text, changes jsonb, details jsonb, reason text)	authenticated+service_role	client	rpc in src/services/ServerAuditLogService.ts
 get_server_automod	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
@@ -611,10 +612,13 @@ get_server_bans	definer	jsonb	anon+authenticated+service_role	client	rpc in src/
 get_server_bots	definer	TABLE(id uuid, username text, display_name text, avatar_url text, bot_type text, status text, custom_status text, activity_type text, activity_name text, last_heartbeat_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/serverBotsService.ts
 get_server_encryption_stats	definer	jsonb	authenticated+service_role	client	rpc in src/components/settings/ServerEncryptionSettings.vue
 get_server_member_counts	definer	TABLE(server_id uuid, member_count bigint)	anon+authenticated+service_role	client	rpc in src/components/InviteModal.vue, src/services/AdminService.ts, src/services/serverMembershipService.ts
+get_server_member_list	definer	jsonb	authenticated+service_role	client	rpc in src/services/memberDirectoryService.ts
+get_server_member_roles	definer	jsonb	authenticated+service_role	client	rpc in src/services/memberDirectoryService.ts
 get_server_member_timeouts	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 get_server_members_by_instance	invoker	TABLE(instance text, member_ids uuid[], member_ap_ids text[], member_count integer)	service_role	client	rpc in federation-backend/src/listeners/ServerMembershipHandler.ts, federation-backend/src/utils/federationUtils.ts
 get_server_newcomer_alerts	definer	jsonb	authenticated+service_role	client	rpc in src/services/NewcomerAlertService.ts
 get_server_notification_settings	definer	jsonb	authenticated+service_role	client	rpc in src/services/notificationSettings.ts
+get_server_role_member_counts	definer	jsonb	authenticated+service_role	client	rpc in src/services/memberDirectoryService.ts
 get_server_voice_activities	definer	SETOF jsonb	authenticated+service_role	client	rpc in src/services/activities/activityService.ts
 get_server_voice_moderation	definer	jsonb	authenticated+service_role	client	rpc in src/services/voice/voiceModerationApi.ts
 get_server_welcome	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
@@ -776,6 +780,9 @@ mark_server_as_read	definer	void	authenticated+service_role	client	rpc in src/se
 mark_server_welcome_seen	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
 megolm_key_scope_allowed	definer	text	service_role	client, trigger	called by broadcast_key_request_event, fulfill_megolm_key_request, get_relayable_key_requests, +2
 megolm_session_began_before	definer	boolean	service_role	client, trigger	called by megolm_key_scope_allowed
+member_group_rank	definer	record	service_role	client	called by server_member_order_for
+member_order_min	invoker	integer	service_role	client	called by get_server_member_list
+member_search_pattern	invoker	text	service_role	client	called by get_server_member_list, search_server_members
 member_voice_channel	definer	uuid	service_role	client	called by move_voice_member, my_voice_state, set_server_voice_state
 merge_own_message_echoes	invoker	integer	-	nothing	nothing references it
 message_custom_emoji_keys	invoker	text[]	service_role	trigger	called by enforce_message_content_permissions
@@ -961,6 +968,7 @@ search_federated_users	invoker	TABLE(user_id uuid, username text, display_name t
 search_fold	invoker	text	service_role	client, declarative, trigger	index idx_message_search_fold_trgm on public.message_search_index
 search_local_users	definer	TABLE(id uuid, username text, display_name text, avatar_url text)	authenticated+service_role	client	rpc in src/composables/useUserSearch.ts
 search_messages	definer	TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone, server_id uuid, total_count bigint, fuzzy boolean)	authenticated+service_role	client	rpc in src/services/SearchService.ts
+search_server_members	definer	jsonb	authenticated+service_role	client	rpc in src/services/memberDirectoryService.ts
 search_tsquery	invoker	tsquery	service_role	client	called by search_messages
 search_typo_distance	invoker	integer	service_role	client	called by search_messages
 seed_channel_encryption_on_insert	definer	trigger	service_role	trigger	trigger public.channels AFTER INSERT (trg_seed_channel_encryption)
@@ -992,6 +1000,16 @@ server_audit_write	definer	uuid	service_role	client, trigger	called by move_voic
 server_emoji_limit	invoker	integer	anon+authenticated+service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 server_has_remote_members	invoker	boolean	service_role	service key	nothing references it
 server_host_domain	invoker	text	service_role	client	called by apply_server_report_resolution, create_report, get_reports_with_details
+server_is_large	definer	boolean	service_role	client, cron	called by get_server_member_list, presence_publish
+server_member_json	definer	jsonb	service_role	client	called by get_server_member_list, search_server_members
+server_member_keyed	definer	TABLE(id uuid, username text, sort_name text, present boolean, pstatus smallint, mobile boolean, grp text, grp_rank integer, role_pos integer)	service_role	client	called by get_server_member_list, server_member_order_for, server_member_order_fresh
+server_member_order_for	definer	server_member_order	service_role	client	called by get_server_member_list
+server_member_order_fresh	definer	server_member_order	service_role	client	called by get_server_member_list
+server_member_presence	definer	TABLE(id uuid, username text, sort_name text, is_local boolean, present boolean, pstatus smallint, mobile boolean)	service_role	client	called by search_server_members, server_member_keyed
+server_member_reader	definer	uuid	service_role	client	called by get_server_member_list, get_server_member_roles, get_server_role_member_counts, +1
+server_member_stats_on_delete	definer	trigger	service_role	trigger	trigger public.user_servers AFTER DELETE STATEMENT (z_user_servers_member_stats_delete)
+server_member_stats_on_insert	definer	trigger	service_role	trigger	trigger public.user_servers AFTER INSERT STATEMENT (z_user_servers_member_stats_insert)
+server_member_stats_on_update	definer	trigger	service_role	trigger	trigger public.user_servers AFTER UPDATE (z_user_servers_member_stats_update)
 server_newcomer_alerts_state	invoker	jsonb	service_role	client, trigger	called by get_server_newcomer_alerts, handle_newcomer_first_message, set_server_newcomer_alerts
 server_now	invoker	bigint	authenticated+service_role	client, trigger	rpc in src/services/activities/activityService.ts
 server_settings_system_channel_check	definer	trigger	-	trigger	trigger public.server_settings BEFORE INSERT/UPDATE (server_settings_system_channel_check)

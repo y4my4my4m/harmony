@@ -15,6 +15,7 @@ import {
   importPrivateSigningKey,
 } from '../MessageSigner'
 import { supabase } from '@/supabase'
+import { resetMemberDirectoryAvailability } from '@/services/memberDirectoryService'
 import type { MessagePart } from '@/types'
 
 const TEST_MNEMONIC = [
@@ -634,11 +635,17 @@ describe('MegolmMessageEncryptionService', () => {
     let upserted: any[]
     // (session id, recipient) pairs skip_share_hidden_history drops.
     let withheld: Set<string>
-    let rpcResult: { data: unknown; error: unknown }
+    // get_room_member_ids: rows, at most db-max-rows of them, with the exact count.
+    let rpcResult: { data: unknown; error: unknown; count?: number }
+    // get_room_member_id_list: the same members as one value. Absent before 20261113100001.
+    const NO_LIST = { data: null, error: { code: 'PGRST202', message: 'function does not exist' } }
+    let listResult: { data: unknown; error: unknown }
 
     beforeEach(async () => {
       upserted = []
       withheld = new Set()
+      listResult = NO_LIST
+      resetMemberDirectoryAvailability()
       ;(messageService as any).roomMemberCache.clear()
       const myKp = await crypto.subtle.generateKey(
         { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits'],
@@ -687,7 +694,9 @@ describe('MegolmMessageEncryptionService', () => {
         return userKeyPairsFromMock(topPublicLookup)(table)
       })
       ;(supabase.rpc as any).mockImplementation(async (fn: string) =>
-        fn === 'get_room_member_ids' ? rpcResult : { data: [], error: null })
+        fn === 'get_room_member_id_list' ? listResult
+          : fn === 'get_room_member_ids' ? rpcResult
+            : { data: [], error: null })
 
       await megolm.getOrCreateOutboundSession(TEST_ROOM_ID)
     })
@@ -704,6 +713,38 @@ describe('MegolmMessageEncryptionService', () => {
     it('shares only with recipients the room admits', async () => {
       rpcResult = { data: [TEST_USER_ID, MEMBER_ID], error: null }
       await (messageService as any).ensureSessionShared(TEST_ROOM_ID, sessionId(), [MEMBER_ID, BANNED_ID])
+      expect(upserted.map((r) => r.recipient_user_id)).toEqual([MEMBER_ID])
+    })
+
+    it('takes the room members as one value where the instance answers them so', async () => {
+      listResult = { data: [TEST_USER_ID, MEMBER_ID], error: null }
+      rpcResult = { data: [], error: null }
+      await (messageService as any).ensureSessionShared(TEST_ROOM_ID, sessionId(), [MEMBER_ID, BANNED_ID])
+      expect(upserted.map((r) => r.recipient_user_id)).toEqual([MEMBER_ID])
+      expect((supabase.rpc as any).mock.calls.map((c: unknown[]) => c[0])).not.toContain('get_room_member_ids')
+    })
+
+    it('shares with every recipient when a row cap cut the member rows', async () => {
+      // 1,500 members, 1000 rows answered: a member past the cut must not lose the session.
+      rpcResult = { data: [TEST_USER_ID], error: null, count: 1500 }
+      await (messageService as any).ensureSessionShared(TEST_ROOM_ID, sessionId(), [MEMBER_ID, BANNED_ID])
+      expect(upserted.map((r) => r.recipient_user_id).sort()).toEqual([MEMBER_ID, BANNED_ID].sort())
+    })
+
+    it('reads public keys in batches one request can carry', async () => {
+      const many = Array.from({ length: 250 }, (_, i) => `aaaaaaaa-0000-4000-8000-${String(i).padStart(12, '0')}`)
+      listResult = { data: [TEST_USER_ID, MEMBER_ID, ...many], error: null }
+      const asked: number[] = []
+      const from = (supabase.from as any).getMockImplementation()
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        const builder = from(table)
+        if (table !== 'user_key_pairs') return builder
+        const within = builder.in
+        builder.in = (field: string, values: string[]) => { asked.push(values.length); return within(field, values) }
+        return builder
+      })
+      await (messageService as any).ensureSessionShared(TEST_ROOM_ID, sessionId(), [MEMBER_ID, ...many])
+      expect(asked).toEqual([100, 100, 51])
       expect(upserted.map((r) => r.recipient_user_id)).toEqual([MEMBER_ID])
     })
 

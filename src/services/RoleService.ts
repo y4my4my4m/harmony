@@ -1,4 +1,6 @@
 import { supabase } from '@/supabase'
+import { readAllRows } from '@/services/pagedRead'
+import { fetchRoleMemberCounts } from '@/services/memberDirectoryService'
 import { debug } from '@/utils/debug'
 
 // Permission Definitions (Discord-style)
@@ -344,27 +346,21 @@ class RoleService {
   private async _fetchServerRoles(serverId: string): Promise<ServerRole[]> {
     try {
       // Fetch roles (simple query without embedded resource to avoid user_roles RLS issues)
-      const [{ data, error }, assignments] = await Promise.all([
+      const [{ data, error }, memberCounts] = await Promise.all([
         supabase
           .from('server_roles')
           .select('*')
           .eq('server_id', serverId)
           .order('position', { ascending: false }),
-        this.loadServerAssignments(serverId).catch((countError) => {
+        this.loadRoleMemberCounts(serverId).catch((countError) => {
           debug.warn('Role member counts unavailable:', countError)
-          return [] as RoleAssignment[]
+          return {} as Record<string, number>
         }),
       ])
 
       if (error) {
         debug.error('getServerRoles query error:', error)
         throw error
-      }
-
-      const roleIds = new Set((data || []).map((r: any) => r.id))
-      const memberCounts: Record<string, number> = {}
-      for (const ur of assignments) {
-        if (roleIds.has(ur.role_id)) memberCounts[ur.role_id] = (memberCounts[ur.role_id] || 0) + 1
       }
 
       const roles = (data || []).map((r: any) => ({
@@ -625,7 +621,7 @@ class RoleService {
    */
   async getRoleMembers(roleId: string): Promise<{ id: string; username: string; display_name?: string; avatar_url?: string }[]> {
     try {
-      const { data, error } = await supabase
+      const data = await readAllRows<any>(() => supabase
         .from('user_roles')
         .select(`
           user_id,
@@ -636,12 +632,11 @@ class RoleService {
             display_name,
             avatar_url
           )
-        `)
+        `, { count: 'exact' })
         .eq('role_id', roleId)
+        .order('id'))
 
-      if (error) throw error
-      
-      return (data || []).map((ur: any) => ({
+      return data.map((ur: any) => ({
         id: ur.user_id,
         username: ur.profiles?.username || 'Unknown',
         display_name: ur.profiles?.display_name,
@@ -672,16 +667,27 @@ class RoleService {
     }
   }
 
+  /** Members per role: counted by the instance, or from every assignment where it cannot. */
+  private async loadRoleMemberCounts(serverId: string): Promise<Record<string, number>> {
+    const counted = await fetchRoleMemberCounts(serverId)
+    if (counted) return counted
+    const counts: Record<string, number> = {}
+    for (const ur of await this.loadServerAssignments(serverId)) {
+      counts[ur.role_id] = (counts[ur.role_id] || 0) + 1
+    }
+    return counts
+  }
+
+  // Every assignment of a server, one row per member and role, read in pages to the end.
   private loadServerAssignments(serverId: string): Promise<RoleAssignment[]> {
     const cached = this.assignmentsCache.get(serverId)
     if (cached && Date.now() - cached.at < ASSIGNMENTS_TTL_MS) return cached.rows
 
-    const rows = Promise.resolve(
-      supabase.from('user_roles').select('user_id, role_id').eq('server_id', serverId),
-    ).then(({ data, error }) => {
-      if (error) throw error
-      return (data || []) as RoleAssignment[]
-    })
+    const rows = readAllRows<RoleAssignment>(() => supabase
+      .from('user_roles')
+      .select('user_id, role_id', { count: 'exact' })
+      .eq('server_id', serverId)
+      .order('id'))
     const entry = { at: Date.now(), rows }
     this.assignmentsCache.set(serverId, entry)
     rows.catch(() => {

@@ -219,6 +219,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, useId, watch } from 'vue'
+import { memberDirectory } from '@/services/memberDirectory'
 import Avatar from '@/components/common/Avatar.vue'
 import { useT } from '@/composables/useT'
 import type { ActiveBotCommand } from '@/composables/useAutoSuggest'
@@ -354,9 +355,37 @@ const memberListFor = ref<string | null>(null)
 const memberIndex = ref(0)
 const MEMBER_LIMIT = 8
 
+// A server whose member list is windowed holds the members near the sidebar's viewport: the
+// instance finds the rest as the option is typed.
+const foundMembers = ref<{ query: string; members: MemberChoice[] } | null>(null)
+let memberSearchTimer: ReturnType<typeof setTimeout> | null = null
+let memberSearchSeq = 0
+watch(() => (memberListFor.value ? String(fields[memberListFor.value]?.text ?? '').trim() : ''), (text) => {
+  if (memberSearchTimer) clearTimeout(memberSearchTimer)
+  memberSearchTimer = null
+  const seq = ++memberSearchSeq
+  const serverId = props.serverId
+  if (!text || !serverId || memberDirectory.serverId !== serverId || memberDirectory.mode !== 'windowed') {
+    foundMembers.value = null
+    return
+  }
+  memberSearchTimer = setTimeout(async () => {
+    memberSearchTimer = null
+    const found = await memberDirectory.searchMembers(serverId, text, MEMBER_LIMIT).catch(() => null)
+    if (seq !== memberSearchSeq || !found) return
+    foundMembers.value = {
+      query: text,
+      members: found.map(m => ({ id: m.id, username: m.username ?? '', displayName: m.display_name ?? m.username ?? '', avatarUrl: m.avatar_url ?? undefined })),
+    }
+  }, 150)
+})
+
 const memberMatches = computed<MemberChoice[]>(() => {
   const name = memberListFor.value
   if (!name || !props.serverId) return []
+  const typed = String(fields[name]?.text ?? '').trim()
+  const found = foundMembers.value
+  if (found && found.query === typed) return found.members.slice(0, MEMBER_LIMIT)
   const query = normalizeSearchText(String(fields[name]?.text ?? ''))
   const seen = new Set<string>()
   const matches: MemberChoice[] = []
