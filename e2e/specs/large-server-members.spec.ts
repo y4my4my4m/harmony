@@ -325,6 +325,55 @@ test('the member list of a large server: count, groups, rows by range, search', 
   await expect(header(page, 'online')).toHaveText(/ - 41$/, { timeout: 30000 })
 })
 
+test('a row keeps its height when its member arrives, on a desktop and on a phone', async ({ browser }) => {
+  test.setTimeout(300_000)
+  for (const phone of [false, true]) {
+    const context = await browser.newContext(phone
+      ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }
+      : { viewport: { width: 1280, height: 720 } })
+    const page = await context.newPage()
+    // Pages past the head wait until released, so the rows in view stay placeholders.
+    let release!: () => void
+    const held = new Promise<void>((resolve) => { release = resolve })
+    await page.route(/\/rest\/v1\/rpc\/get_server_member_list/, async (route) => {
+      if (Number(route.request().postDataJSON()?.p_offset ?? 0) > 0) await held
+      await route.continue().catch(() => {})
+    })
+    await signIn(page, viewer)
+    await openBig(page)
+    if (phone) await page.locator('.members-btn').first().click()
+    await expect(memberCount(page)).toHaveText(/1,?50\d members/i, { timeout: 30000 })
+
+    // Heights of the rows drawn, by row index, with whether each is still a placeholder.
+    const drawn = () => sidebar(page).evaluate((root) => Object.fromEntries(
+      [...root.querySelectorAll('[role="list"] > [data-index]')].map((el) => [
+        el.getAttribute('data-index'),
+        { height: el.getBoundingClientRect().height, placeholder: !!el.querySelector('[data-testid="member-placeholder"]') },
+      ])))
+    const memberHeight = (await drawn())['1']?.height
+    expect(memberHeight, 'a member row at the head').toBeGreaterThan(0)
+
+    await scrollMembers(page, 0.5)
+    await expect(sidebar(page).locator('[data-testid="member-placeholder"]').first()).toBeVisible({ timeout: 15000 })
+    const before = await drawn()
+    const waiting = Object.entries(before).filter(([, row]) => row.placeholder)
+    expect(waiting.length).toBeGreaterThan(5)
+    for (const [index, row] of waiting) {
+      expect(row.height, `placeholder ${index} is as tall as a member row (${phone ? 'phone' : 'desktop'})`).toBe(memberHeight)
+    }
+
+    release()
+    await expect(sidebar(page).locator('[data-testid="member-placeholder"]')).toHaveCount(0, { timeout: 30000 })
+    const after = await drawn()
+    const filled = waiting.filter(([index]) => after[index] && !after[index].placeholder)
+    expect(filled.length, 'rows filled in place').toBeGreaterThan(5)
+    for (const [index] of filled) {
+      expect(after[index].height, `row ${index} keeps its height`).toBe(memberHeight)
+    }
+    await context.close()
+  }
+})
+
 test('every author keeps a name: invisible, offline, far in the list, departed, deleted', async ({ page }) => {
   test.setTimeout(300_000)
   await signIn(page, viewer)

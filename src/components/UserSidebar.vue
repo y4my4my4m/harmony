@@ -212,14 +212,15 @@
               </div>
             </div>
 
-            <!-- A member the window has not loaded -->
+            <!-- A member the window has not loaded, in the box of a member row: the row keeps
+                 its height when the member arrives. -->
             <div
               v-else-if="item.type === 'placeholder'"
-              class="member-skeleton-row member-placeholder-row"
+              class="user-item member-placeholder-row"
               data-testid="member-placeholder"
               aria-hidden="true"
             >
-              <div class="member-skeleton-avatar"></div>
+              <div class="member-skeleton-avatar member-placeholder-avatar"></div>
               <div class="member-skeleton-line" :style="{ width: `${40 + ((item.memberIndex ?? 0) * 19) % 45}%` }"></div>
             </div>
 
@@ -1332,11 +1333,21 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
   return items;
 });
 
+// A row not drawn yet is estimated at the height of the first row of its kind drawn: 56 px on a
+// desktop, 64 px on a phone. Set once, while the list sits at its head: a later change would move
+// every row below the head that was never drawn, those in view included.
+const firstRowSize: { header: number; row: number } = { header: 0, row: 0 };
+const rowKind = (index: number): 'header' | 'row' =>
+  sidebarDisplayItems.value[index]?.type === 'header' ? 'header' : 'row';
+
 const sidebarVirtualizer = useVirtualizer<HTMLElement, Element>(
   computed(() => ({
     count: sidebarDisplayItems.value.length,
     getScrollElement: () => sidebarGroupsRef.value,
-    estimateSize: (index: number) => sidebarDisplayItems.value[index]?.type === 'header' ? 30 : 44,
+    estimateSize: (index: number) => {
+      const kind = rowKind(index);
+      return firstRowSize[kind] || (kind === 'header' ? 30 : 56);
+    },
     // Sizes follow the row, not its index: bots, roles and bridged members arrive after the
     // first paint and shift every later row, whose element is measured once.
     getItemKey: (index: number) => sidebarDisplayItems.value[index]?.key ?? index,
@@ -1479,6 +1490,10 @@ const sidebarMeasureElement = (el: any) => {
   }
   if (!sidebarVirtualizer.value.isScrolling) measuredSidebarRows.add(el);
   sidebarVirtualizer.value.measureElement(el);
+  const kind = rowKind(Number(el.dataset.index));
+  if (!firstRowSize[kind] && el.offsetHeight > 0 && (sidebarGroupsRef.value?.scrollTop ?? 0) === 0) {
+    firstRowSize[kind] = el.offsetHeight;
+  }
 };
 
 const fetchAndSetUsers = async (serverId: string | null) => {
@@ -1876,8 +1891,15 @@ const closeInviteModal = () => {
 }
 
 .member-placeholder-row {
-  height: 44px;
-  box-sizing: border-box;
+  gap: 12px;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Avatar size sm, as in a member row. */
+.member-placeholder-row .member-placeholder-avatar {
+  width: 40px;
+  height: 40px;
 }
 
 .member-skeleton-avatar {
