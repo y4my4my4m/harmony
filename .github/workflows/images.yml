@@ -1,6 +1,7 @@
 name: Images
 
-# Container images on GHCR, linux/amd64 + linux/arm64:
+# Container images on GHCR, linux/amd64 + linux/arm64, under the repository
+# owner's namespace (ghcr.io/<owner, lower-cased>):
 #   ghcr.io/y4my4my4m/harmony-web           self-host/web.Dockerfile (repo root context)
 #   ghcr.io/y4my4my4m/harmony-federation    federation-backend/
 #   ghcr.io/y4my4my4m/harmony-bot-gateway   bot-gateway/
@@ -9,6 +10,11 @@ name: Images
 # Push master  -> edge, sha-<short>
 # Pull request -> built for both platforms, never pushed
 # Dispatch     -> pushed as above when run on master or a v* tag, else built only
+#
+# Forks build without pushing unless they opt in with the repository variable
+# PUBLISH_IMAGES=true (Settings, Secrets and variables, Actions, Variables);
+# they then publish into their own namespace, e.g. ghcr.io/<fork owner>/harmony-web,
+# which self-host selects with HARMONY_REGISTRY. New GHCR packages start private.
 #
 # harmony-web carries no instance values: its entrypoint writes /config.json
 # from the container environment.
@@ -25,9 +31,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  REGISTRY: ghcr.io/y4my4my4m
-  # Forks build but do not push into this namespace.
-  PUBLISH: ${{ github.event_name != 'pull_request' && github.repository_owner == 'y4my4my4m' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
+  # Upstream publishes; a fork only with PUBLISH_IMAGES=true, and only into its own namespace.
+  PUBLISH: ${{ github.event_name != 'pull_request' && (github.repository_owner == 'y4my4my4m' || vars.PUBLISH_IMAGES == 'true') && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
   # OCI annotations on the multi-platform index too: GHCR reads the package
   # description from there.
   DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
@@ -77,6 +82,13 @@ jobs:
             echo "::notice::no release version for ${GITHUB_REF} ('${ver}'); package.json's is kept"
           fi
 
+      # GHCR names must be lower case; GitHub owner names need not be.
+      - name: Registry
+        id: registry
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "name=ghcr.io/${OWNER,,}" >> "$GITHUB_OUTPUT"
+
       # Base images follow .nvmrc exactly; the Dockerfiles default to the major.
       - name: Node version
         id: node
@@ -98,7 +110,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ matrix.image }}
+          images: ${{ steps.registry.outputs.name }}/${{ matrix.image }}
           flavor: |
             latest=false
           tags: |
