@@ -22,6 +22,31 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Backslash escapes in messages.** `\*not italic\*`, `\@name`, `\#channel`, `\:emoji:`, `\> line`
   and `\https://link` show as typed, and an escaped mention pings nobody. Inline code keeps its
   backslashes.
+- **Discord bridge server profile sync.** The Discord bridge bot can copy a
+  Discord server's name, description, icon and banner onto its paired Harmony
+  server through `GET /servers/{id}/profile/discord` and `PATCH
+  /servers/{id}/profile/discord`. Images are copied from Discord's CDN using
+  the guild ID stored on the bridge, and a replaced image Harmony stored is
+  deleted. A description or banner is written only as sent: the bridge decides
+  whether the Discord server has one.
+- **Discord bridge soundboard sync.** The Discord bridge can sync a server's
+  soundboard (`/bridge sync-sounds` in harmony-discord-bridge) through three
+  bot-gateway endpoints for the server's bridge bot: `GET
+  /servers/{id}/sounds`, `POST /servers/{id}/sounds/discord` and `DELETE
+  /servers/{id}/sounds/{soundId}`.
+- **Discord bridge sticker sync.** The same bridge bot can sync a server's
+  stickers through `GET /servers/{id}/stickers/discord` (the sticker limit and
+  the Discord-linked stickers, removed ones included), `POST
+  /servers/{id}/stickers/discord` (copies a PNG, APNG or GIF sticker from
+  Discord's CDN; Lottie stickers are refused with `422` `STICKER_FILE`) and
+  `DELETE /servers/{id}/stickers/{stickerId}`, which retires the sticker: it
+  leaves the picker and the list and no new message can use it, while old
+  messages keep showing it. A message that names a removed or unknown sticker
+  now answers `422` `STICKER_REFUSED`.
+- **Discord bridge emoji sync.** The same bridge bot can sync a server's emoji
+  through `GET /servers/{id}/emojis/discord` (the server's emoji limit and its
+  Discord-linked emoji, removed ones included), an `update` flag on `POST
+  /servers/{id}/emojis/discord`, and `DELETE /servers/{id}/emojis/{emojiId}`.
 - **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
   installs an instance on a blank Linux server: it checks the host (offering
   Docker and a swap file), asks a few questions, checks DNS, starts the
@@ -128,6 +153,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
+- **Bot API:** importing a Discord emoji through the bridge now respects the server's emoji limit
+  (`409` with `"code": "EMOJI_LIMIT"`) and name uniqueness (`409` with `"code": "EMOJI_NAME_TAKEN"`).
 - **Bot API:** message text over the instance's length limit answers `400` on create and edit, in
   place of `500`.
 - **Bot API:** a message history read returns at most 100 messages and a member list at most 1000;

@@ -17,14 +17,14 @@ INSERT INTO public.emojis (id, name, url, server_id, scope) VALUES
   ('97e00000-0000-0000-0000-000000000001', 'PartyBlob', 'https://cdn.test/party.png',
    '55555555-0000-0000-0000-000000000005', 'server');
 
-CREATE TEMP TABLE r (status text, id uuid, name text, url text, discord_emoji_id text);
+CREATE TEMP TABLE r (status text, id uuid, name text, url text, discord_emoji_id text, removed boolean);
 GRANT ALL ON r TO PUBLIC;
 
 -- Grants. -----------------------------------------------------------------------------------------
 SELECT ok(NOT has_function_privilege('authenticated',
-  'public.bridge_import_server_emoji(uuid, uuid, text, text, text)', 'EXECUTE'), 'authenticated cannot import');
+  'public.bridge_import_server_emoji(uuid, uuid, text, text, text, boolean)', 'EXECUTE'), 'authenticated cannot import');
 SELECT ok(NOT has_function_privilege('anon',
-  'public.bridge_import_server_emoji(uuid, uuid, text, text, text)', 'EXECUTE'), 'anon cannot import');
+  'public.bridge_import_server_emoji(uuid, uuid, text, text, text, boolean)', 'EXECUTE'), 'anon cannot import');
 
 -- Authority. --------------------------------------------------------------------------------------
 SELECT throws_ok($$SELECT * FROM public.bridge_import_server_emoji('97000000-0000-0000-0000-0000000000b2',
@@ -59,11 +59,9 @@ SELECT is((SELECT id FROM r), '97e00000-0000-0000-0000-000000000001'::uuid, 'the
 SELECT is((SELECT count(*)::int FROM public.emojis WHERE server_id = '55555555-0000-0000-0000-000000000005'
              AND lower(name) = 'partyblob'), 1, 'no duplicate name');
 
-TRUNCATE r;
-INSERT INTO r SELECT * FROM public.bridge_import_server_emoji('97000000-0000-0000-0000-0000000000b1',
-  '55555555-0000-0000-0000-000000000005', '333', 'PartyBlob', 'https://cdn.test/other.png');
-SELECT is((SELECT status FROM r), 'created',
-  'a second Discord emoji with a linked name gets its own row');
+SELECT throws_ok($$SELECT * FROM public.bridge_import_server_emoji('97000000-0000-0000-0000-0000000000b1',
+  '55555555-0000-0000-0000-000000000005', '333', 'PartyBlob', 'https://cdn.test/other.png')$$,
+  '23505', NULL, 'a second Discord emoji with a name a linked emoji holds is refused');
 
 SELECT throws_ok($$SELECT * FROM public.bridge_import_server_emoji('97000000-0000-0000-0000-0000000000b1',
   '55555555-0000-0000-0000-000000000005', '444', 'fresh', NULL)$$,
