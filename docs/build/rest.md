@@ -100,6 +100,9 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | `POST` | [`/emojis`](#create-emoji) | Token | Record an emoji of another instance |
 | `GET` | [`/servers/{server.id}/emojis`](#list-server-emojis) | Installed | List a server's emoji with their Discord links |
 | `POST` | [`/servers/{server.id}/emojis/discord`](#import-a-discord-emoji) | The server's Discord bridge bot | Import a Discord emoji as a server emoji |
+| `GET` | [`/servers/{server.id}/sounds`](#list-server-sounds) | The server's Discord bridge bot | List a server's soundboard sounds |
+| `POST` | [`/servers/{server.id}/sounds/discord`](#import-a-discord-sound) | The server's Discord bridge bot | Import a Discord soundboard sound |
+| `DELETE` | [`/servers/{server.id}/sounds/{sound.id}`](#delete-a-server-sound) | The server's Discord bridge bot | Delete a server sound |
 | `GET` | [`/users/@me`](#get-current-bot) | Token | Read the bot itself |
 | `GET` | [`/users/{user.id}`](#get-user) | Token | Read a profile |
 | `GET` | [`/invites/{code}/preview`](#get-invite-preview) | Token | Read an invite's server card |
@@ -643,6 +646,41 @@ Only the bot of the server's Discord bridge.
 | `created` | `201` | The gateway downloaded the image from Discord's CDN (at most 512 KiB), removed its metadata and created a server emoji. |
 
 The response is `{ "status", "id", "name", "url", "discord_emoji_id" }`. Importing the same Discord emoji again never creates a second row. `403` `Bot is not the Discord bridge of this server`; `502` when the image cannot be downloaded or stored.
+
+### List server sounds
+
+`GET /servers/{server.id}/sounds`
+
+Only the bot of the server's Discord bridge. Returns every sound of the server, linked to Discord or not: `id`, `name`, `emoji`, `emoji_id`, `volume`, `discord_sound_id`. `volume` is a number from 0 to 1 and may arrive as a string such as `"0.50"`. `discord_sound_id` is `null` for a sound that did not come from Discord. `403` `Bot is not the Discord bridge of this server`.
+
+### Import a Discord sound
+
+`POST /servers/{server.id}/sounds/discord`
+
+Only the bot of the server's Discord bridge.
+
+| Field | Type | Description |
+|---|---|---|
+| `discord_sound_id` | string | Required. Discord soundboard sound ID. |
+| `name` | string | Required. 1 to 32 characters after trimming. |
+| `emoji` | string or null | Required. A Unicode emoji, 1 to 16 characters. Send `null` when the sound has none or uses `emoji_id`. |
+| `emoji_id` | UUID or null | Required. A server emoji. Not together with `emoji`. |
+| `volume` | number | Required. 0 to 1. |
+| `update` | boolean | Overwrite the name, emoji and volume of an already imported sound. Default `false`. |
+
+| Outcome | Status | Meaning |
+|---|---|---|
+| `existing` | `200` | The Discord sound was already imported into this server. |
+| `updated` | `200` | The sound was imported before and `update` changed its name, emoji or volume. |
+| `created` | `201` | The gateway downloaded the clip from Discord's CDN (an MP3 or Ogg file of at most 512 KiB and 5.2 seconds) and created a server sound. |
+
+The response is `{ "status", "id", "name", "emoji", "emoji_id", "volume", "discord_sound_id" }`. Importing the same Discord sound again never creates a second row. `400` for an invalid field; `403` `Bot is not the Discord bridge of this server`; `409` with `"code": "SOUND_LIMIT"` when the server already holds 48 sounds; `502` when the clip cannot be downloaded or stored.
+
+### Delete a server sound
+
+`DELETE /servers/{server.id}/sounds/{sound.id}`
+
+Only the bot of the server's Discord bridge. Deletes the sound and its stored clip and answers `204`. `404` when the sound is not one of this server's; `403` `Bot is not the Discord bridge of this server`.
 
 ## Users
 
