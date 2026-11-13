@@ -17,7 +17,7 @@ export function normalizeVapidSubject(value: unknown): unknown {
 // Environment validation schema
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.string().transform(Number).default('3001'),
+  PORT: z.string().transform(Number).prefault('3001'),
   API_BASE_URL: z.string().url().default('http://localhost:3001'),
 
   // Software version, surfaced via NodeInfo, /health, and the federation User-Agent.
@@ -65,8 +65,8 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   
   // Rate Limiting
-  RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('900000'),
-  RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('100'),
+  RATE_LIMIT_WINDOW_MS: z.string().transform(Number).prefault('900000'),
+  RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).prefault('100'),
   
   // Copies of GoTrue's own settings, under GoTrue's names. GOTRUE_SMTP_HOST: GoTrue sends
   // email when it is set and not supabase-mail, the upstream stack's placeholder.
@@ -114,7 +114,7 @@ const envSchema = z.object({
   VOICE_RECONCILE_INTERVAL_SECONDS: z.coerce.number().int().min(0).default(60),
   
   // Allow federated voice/video calls
-  ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').default('true'),
+  ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').prefault('true'),
 
   // Testing only: server directories on a port other than 443 (GET /directory/remote).
   DIRECTORY_ALLOW_PORTS: z.string().default('false').transform(v => v === 'true'),
@@ -143,7 +143,7 @@ const envSchema = z.object({
   // Federation Security
   // When true (default), reject unsigned activities or activities with invalid signatures
   // Set to 'false' in development to allow testing with unsigned activities
-  REQUIRE_VALID_SIGNATURES: z.string().transform(v => v !== 'false').default('true'),
+  REQUIRE_VALID_SIGNATURES: z.string().transform(v => v !== 'false').prefault('true'),
 
   // Klipy GIF provider (replaces Tenor). Keys live ONLY on the backend so they
   // never reach the browser bundle. Two keys: one with ads enabled in the Klipy
@@ -223,7 +223,7 @@ const parseEnv = () => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.error('Invalid environment variables:');
-      error.errors.forEach((err) => {
+      error.issues.forEach((err) => {
         console.error(`  - ${err.path.join('.')}: ${err.message}`);
       });
       process.exit(1);

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { findMatches, foldWithMap, highlightSearchMatches, SEARCH_HIGHLIGHT } from '@/utils/searchHighlight'
 
 const marked = (text: string, terms: string[]) => findMatches(text, terms).map(([s, e]) => text.slice(s, e))
@@ -59,17 +59,14 @@ describe('findMatches', () => {
 })
 
 describe('highlightSearchMatches', () => {
-  const g = globalThis as Record<string, unknown>
-  const savedCss = g.CSS
-  const savedHighlight = g.Highlight
-
+  // happy-dom's window.CSS is a getter-only accessor: stub through vi.stubGlobal, which
+  // redefines the property, rather than assigning it.
   afterEach(() => {
-    g.CSS = savedCss
-    g.Highlight = savedHighlight
+    vi.unstubAllGlobals()
   })
 
   it('does nothing without the Custom Highlight API', () => {
-    g.CSS = undefined
+    vi.stubGlobal('CSS', undefined)
     const root = document.createElement('div')
     root.textContent = 'harmony'
     expect(() => highlightSearchMatches(root, ['harmony'])()).not.toThrow()
@@ -78,8 +75,8 @@ describe('highlightSearchMatches', () => {
   it('adds ranges over text nodes and removes them', () => {
     const registry = new Map<string, Set<Range>>()
     class FakeHighlight extends Set<Range> {}
-    g.Highlight = FakeHighlight
-    g.CSS = { highlights: registry }
+    vi.stubGlobal('Highlight', FakeHighlight)
+    vi.stubGlobal('CSS', { highlights: registry })
 
     const root = document.createElement('div')
     root.innerHTML = '<p>Harmony <b>notes</b> about harmony</p>'
