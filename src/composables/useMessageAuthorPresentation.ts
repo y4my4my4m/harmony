@@ -1,4 +1,4 @@
-import { computed, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
+import { computed, reactive, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData'
 import { useServerRolesStore } from '@/stores/useServerRoles'
 import { supabase } from '@/supabase'
@@ -17,10 +17,17 @@ import {
   isBridgedAuthorMessage,
 } from '@/utils/messageAuthor'
 
-const botCache = new Map<string, { username: string; display_name: string; avatar_url: string }>()
+export interface BotAuthor { username: string; display_name: string; avatar_url: string }
+
+// Reactive: a fetch that lands re-renders every reader of that bot.
+const botCache = reactive(new Map<string, BotAuthor>())
 const botFetching = new Set<string>()
 
-async function ensureBot(botId: string): Promise<void> {
+export function getCachedBot(botId: string): BotAuthor | undefined {
+  return botCache.get(botId)
+}
+
+export async function ensureBot(botId: string): Promise<void> {
   if (botCache.has(botId) || botFetching.has(botId)) return
   botFetching.add(botId)
   try {
@@ -41,13 +48,12 @@ export function useMessageAuthorPresentation(
 ) {
   const { getUserDisplayName, getUserAvatarUrl, getUserColor } = useUserData()
   const serverRolesStore = useServerRolesStore()
-  const botTick = ref(0)
 
   watch(
     () => message.value?.bot_id,
     (botId) => {
       if (botId && !isBridgedAuthorMessage(message.value) && !getWebhookAuthor(message.value)) {
-        void ensureBot(botId).then(() => { botTick.value++ })
+        void ensureBot(botId)
       }
     },
     { immediate: true },
@@ -58,7 +64,6 @@ export function useMessageAuthorPresentation(
   const profileUserId = computed(() => getHarmonyProfileUserId(message.value))
 
   const displayName = computed(() => {
-    void botTick.value
     const msg = message.value
     if (!msg) return 'Deleted User'
     if (msg.metadata?.discord_user) {
@@ -78,7 +83,6 @@ export function useMessageAuthorPresentation(
   })
 
   const avatarUrl = computed(() => {
-    void botTick.value
     const msg = message.value
     if (!msg) return '/default_avatar.webp'
     if (msg.metadata?.discord_user) {

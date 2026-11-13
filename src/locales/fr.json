@@ -5413,6 +5413,11 @@
       "reportsFailed": "Impossible de modifier le traitement des signalements de ce domaine"
     },
     "instance": {
+      "mirrorStatusProgress": "Stockage des fichiers Discord : {queued} en attente, {size} stockés",
+      "mirrorStatusTooLarge": "{count} trop volumineux ({size}) : relevez le plafond d'envoi avec harmony config --upload-ceiling 500M",
+      "mirrorStatusFailed": "{count} en échec",
+      "mirrorStatusOverQuota": "{count} au-delà de la limite par serveur : relevez Fichiers Discord stockés par serveur",
+      "mirrorStatusAllStored": "Tous les fichiers Discord sont stockés",
       "maxPostReactions": "Réactions max. par personne sur une publication",
       "maxPostReactionsHint": "Nombre d'émojis différents avec lesquels une personne peut réagir à une publication (1-100). Par défaut : 10. Les réactions provenant d'autres instances au-delà de la limite sont ignorées. Les messages de chat contiennent au plus 20 émojis différents.",
       "maxPersonalEmojis": "Emojis personnels par utilisateur",
@@ -6129,6 +6134,7 @@
       "unknown": "Pas encore signalé",
       "showSetup": "Afficher les étapes de configuration",
       "problemsTitle": "{count} problème à corriger | {count} problèmes à corriger",
+      "noticesTitle": "{count} remarque | {count} remarques",
       "pairsTitle": "Canaux reliés",
       "settingsTitle": "Options",
       "maintainTitle": "Maintenance",
@@ -6145,7 +6151,8 @@
       },
       "disconnect": "Déconnecter la passerelle",
       "disconnected": "Passerelle déconnectée",
-      "finished": "La passerelle est configurée."
+      "finished": "La passerelle est configurée.",
+      "disconnectKeeps": "Pour supprimer aussi ce qui a été apporté, utilisez d'abord Retirer tous les messages de la passerelle dans Confidentialité de la passerelle."
     },
     "confirm": {
       "disconnect": {
@@ -6240,6 +6247,17 @@
         "fixHosted": "Le problème vient de l'instance, et la passerelle réessaie. Si cela dure, contactez l'administration de l'instance.",
         "fixInstance": "Le problème vient de l'instance, et la passerelle réessaie. Si cela dure, contactez l'administration de l'instance."
       },
+      "message_content_needed_for_import": {
+        "title": "Une importation de l'historique attend le Message Content Intent.",
+        "fixSelf": "Tant qu'il est désactivé, Discord renvoie des messages vides. Dans le Developer Portal, ouvrez votre application → Bot → Privileged Gateway Intents, activez Message Content Intent et cliquez sur Save Changes. Redémarrez ensuite la passerelle avec la commande ci-dessous ; l'importation démarre d'elle-même.",
+        "fixHosted": "Tant qu'il est désactivé, Discord renvoie des messages vides. Dans le Developer Portal, ouvrez votre application → Bot → Privileged Gateway Intents, activez Message Content Intent et cliquez sur Save Changes. L'importation démarre d'elle-même dès que la passerelle se reconnecte.",
+        "fixInstance": "Le bot de cette instance n'a pas le Message Content Intent et ne peut donc pas importer l'historique. Demandez à l'administration de l'instance."
+      },
+      "private_threads_skipped": {
+        "title": "L'importation a laissé de côté les fils privés de {channel}.",
+        "titleCount": "L'importation a laissé de côté {count} fil privé de {channel}. | L'importation a laissé de côté {count} fils privés de {channel}.",
+        "fix": "Rien à corriger. Harmony n'a pas encore de fils privés et tout le salon pourrait les lire, ils restent donc sur Discord."
+      },
       "unknown": {
         "title": "La passerelle a signalé un problème ({code}).",
         "fixSelf": "Le journal de la passerelle donne les détails :",
@@ -6306,7 +6324,14 @@
       "bridgeExists": "Ce serveur a déjà une passerelle Discord configurée autrement. Déconnectez-la d'abord pour utiliser le bot de cette instance.",
       "instanceFull": "Le bot de cette instance est déjà sur autant de serveurs Discord qu'elle le permet. Demandez à l'administration de l'instance, ou utilisez plutôt votre propre bot Discord.",
       "instanceOff": "Cette instance ne propose pas son bot Discord pour le moment. Utilisez plutôt votre propre bot Discord.",
-      "link": "Impossible de lancer la liaison avec Discord. Réessayez."
+      "link": "Impossible de lancer la liaison avec Discord. Réessayez.",
+      "import": "Impossible de démarrer l'importation.",
+      "cancelImport": "Impossible d'annuler l'importation.",
+      "pairNotImportable": "Cette paire ne peut pas importer d'historique. Seuls les salons non chiffrés dans des paires qui amènent les messages Discord vers Harmony le peuvent.",
+      "importChanged": "L'importation a changé entre-temps et a été actualisée. Réessaie.",
+      "importDisabled": "L'importation de l'historique est désactivée pour cette passerelle.",
+      "invalidDiscordUser": "Ce n'est pas un ID d'utilisateur Discord.",
+      "privacy": "La demande a échoué. Réessayez."
     },
     "time": {
       "secondsAgo": "à l'instant | il y a {count} seconde | il y a {count} secondes",
@@ -6415,6 +6440,125 @@
       "settingsSaved": "Réglages du bot Discord enregistrés",
       "saveFailed": "Impossible d'enregistrer les réglages du bot Discord",
       "redirectLabel": "Adresse de redirection"
+    },
+    "import": {
+      "button": "Importer l'historique",
+      "buttonLabel": "Importer l'historique de #{channel}",
+      "importAll": "Tout importer",
+      "importAllAgain": "Tout réimporter",
+      "importAllAgainConfirm": "Réimporter l'historique de {count} salon ? Son historique Discord est relu depuis le début ; les messages déjà présents sont ignorés. | Réimporter l'historique des {count} salons ? Chaque historique Discord est relu depuis le début ; les messages déjà présents sont ignorés.",
+      "importAllAgainYes": "Réimporter",
+      "cancelAll": "Tout annuler",
+      "cancel": "Annuler",
+      "cancelLabel": "Annuler l'importation de #{channel}",
+      "cancelling": "Annulation…",
+      "waiting": "En attente",
+      "running": "Importation… {percent} %",
+      "runningUnknown": "Importation…",
+      "threadsRunning": "Importation des fils…",
+      "repliesRunning": "Liaison des réponses…",
+      "progressLabel": "Progression de l'importation de #{channel}",
+      "backTo": "Jusqu'à {date}",
+      "messages": "{count} message | {count} messages",
+      "threads": "Fils {done} sur {total}",
+      "done": "{count} message importé | {count} messages importés",
+      "doneNothingNew": "À jour : aucun nouveau message",
+      "failed": "Importation arrêtée : {reason}",
+      "failedUnknown": "Importation arrêtée",
+      "cancelled": "Annulée",
+      "paused": "En pause : en attente du pont",
+      "retry": "Réessayer",
+      "retryLabel": "Réessayer l'importation de #{channel}",
+      "resume": "Reprendre",
+      "resumeLabel": "Reprendre l'importation de #{channel}",
+      "again": "Importer à nouveau",
+      "againLabel": "Importer à nouveau l'historique de #{channel}",
+      "reasons": {
+        "pair_removed": "la paire de salons a été retirée",
+        "channel_encrypted": "le salon est désormais chiffré",
+        "import_disabled": "l'importation de l'historique a été désactivée",
+        "pair_not_importable": "la paire n'apporte plus les messages Discord vers Harmony",
+        "discord_approval_required": "le salon Discord est privé : lancez son importation sur Discord avec /bridge import-history",
+        "discord_channel_unsupported": "le salon Discord n'est pas un salon textuel",
+        "discord_access_lost": "la passerelle ne peut plus lire le salon Discord",
+        "bridge_stalled": "la passerelle n'avançait plus"
+      },
+      "ineligible": {
+        "direction": "Seules les paires qui amènent les messages Discord vers Harmony peuvent importer l'historique",
+        "encrypted": "Les salons chiffrés ne peuvent pas importer d'historique"
+      },
+      "needsUpdate": "Mets le pont à jour vers la version 2.6.0 ou plus récente pour importer l'historique",
+      "mirrorNote": "Les fichiers importés sont copiés dans le stockage de cette instance.",
+      "consent": {
+        "title": "Importer l'historique de {count} salon ? | Importer l'historique de {count} salons ?",
+        "copies": "Les anciens messages et fichiers sont copiés sur ce serveur avec les noms et avatars Discord de leurs auteurs. Ils restent après le retrait de la passerelle.",
+        "skips": "Les messages des personnes qui ont quitté le serveur Discord sont ignorés. Toute personne sur Discord peut exclure les siens, ou les effacer, avec /bridge-privacy.",
+        "notice": "La passerelle épingle un avis dans chaque salon Discord au début de son importation.",
+        "confirm": "Je gère ce serveur Discord, ou j'agis avec l'accord de ses gestionnaires.",
+        "start": "Démarrer l'importation"
+      },
+      "unavailable": {
+        "instance_off": "L'importation de l'historique est désactivée sur cette instance.",
+        "bridge_mode": "L'importation de l'historique est réservée à une passerelle que vous exécutez vous-même, avec votre propre application Discord."
+      },
+      "authorsSkipped": "{count} ignoré (auteur parti ou exclu) | {count} ignorés (auteurs partis ou exclus)",
+      "automodSkipped": "{count} bloqué par AutoMod | {count} bloqués par AutoMod"
+    },
+    "privacy": {
+      "title": "Confidentialité de la passerelle",
+      "lead": "Les membres Discord gardent leurs messages hors de ce serveur, ou les effacent, avec /bridge-privacy sur Discord. Retirez ici une personne qui ne peut pas l'utiliser, par exemple après son départ.",
+      "idLabel": "ID d'utilisateur Discord",
+      "idHelp": "Dans Discord, activez le mode développeur, puis faites un clic droit sur l'utilisateur et choisissez Copier l'identifiant de l'utilisateur.",
+      "idInvalid": "Un ID d'utilisateur Discord compte 5 à 20 chiffres.",
+      "remove": "Retirer de ce serveur",
+      "removeConfirm": "Supprimer tous les messages, fichiers et réactions que cette passerelle a apportés de l'utilisateur Discord {id}, et ne plus apporter les siens ? Cette action est irréversible.",
+      "removeYes": "Supprimer ses messages",
+      "removed": "{count} message retiré | {count} messages retirés",
+      "progress": "Retrait en cours… {count} message jusqu'ici | Retrait en cours… {count} messages jusqu'ici",
+      "listTitle": "{count} utilisateur Discord exclu | {count} utilisateurs Discord exclus",
+      "source": {
+        "self": "S'est exclu sur Discord",
+        "manager": "Retiré par un gestionnaire",
+        "admin": "Retiré par un administrateur de l'instance"
+      },
+      "restore": "Rétablir",
+      "restoreLabel": "Relier de nouveau l'utilisateur Discord {id}",
+      "purgeLead": "Retirez tout ce que la passerelle de ce serveur a apporté de Discord : messages, fichiers et réactions. Les messages écrits sur Harmony restent.",
+      "purge": "Retirer tous les messages de la passerelle",
+      "purgeConfirm": "Supprimer tous les messages, fichiers et réactions apportés de Discord sur ce serveur ? Cette action est irréversible.",
+      "purgeYes": "Tout supprimer",
+      "purged": "{count} message de la passerelle retiré | {count} messages de la passerelle retirés"
+    },
+    "importAdmin": {
+      "title": "Importation de l'historique Discord",
+      "lead": "Permet à un serveur de copier les anciens messages de ses salons Discord vers Harmony, par une passerelle que son propriétaire exécute avec sa propre application Discord. Jamais par le bot Discord de cette instance ni par un bot que cette instance exécute.",
+      "loadFailed": "Impossible de charger les paramètres d'importation de l'historique.",
+      "mode": "Importation de l'historique",
+      "modeOff": "Désactivée",
+      "modeSelfRun": "Passerelles auto-hébergées",
+      "modeHint": "Désactivée refuse toute importation, y compris celles en cours.",
+      "warningTitle": "Avant d'activer",
+      "warningAuthors": "Les auteurs de ces messages n'ont pas demandé la copie. Les auteurs qui ont quitté le serveur Discord sont ignorés, et les membres excluent ou effacent leurs messages avec /bridge-privacy.",
+      "warningRequests": "Les demandes de suppression de contenu sur cette instance vous reviennent. Les gestionnaires d'un serveur retirent un utilisateur Discord dans Paramètres du serveur, Passerelle Discord ; Retirer tous les messages Discord, ci-dessous, vide tous les serveurs.",
+      "warningQuiet": "Les messages importés n'envoient aucune notification, comptent comme lus et ne sont pas fédérés. Ils passent par les règles de mots, d'invitations et de liens d'AutoMod du serveur lorsque ses bots ne sont pas exemptés.",
+      "warningStorage": "Avec « Mirror to storage », les fichiers importés sont copiés dans le stockage de cette instance, jusqu'à la limite par serveur ci-dessous.",
+      "maxRunning": "Importations simultanées",
+      "maxRunningHint": "Sur toute l'instance. Les autres attendent leur tour. 0 signifie aucune limite.",
+      "messagesPerMinute": "Messages par minute, par importation",
+      "messagesPerMinuteHint": "Le serveur ralentit une importation à ce rythme, quoi qu'envoie la passerelle. 0 signifie aucune limite.",
+      "mirrorServerLimitMb": "Fichiers Discord stockés par serveur (Mo)",
+      "mirrorServerLimitMbHint": "Avec « Mirror to storage », un serveur au-delà garde les liens Discord pour les fichiers suivants. 0 signifie aucune limite.",
+      "limitInvalid": "Saisissez des nombres entiers, 0 ou plus.",
+      "save": "Enregistrer les limites",
+      "saved": "Paramètres d'importation de l'historique enregistrés",
+      "saveFailed": "Impossible d'enregistrer les paramètres d'importation de l'historique.",
+      "totals": "{running} en cours, {queued} en attente, {imported} messages importés",
+      "totalsStored": "{size} de fichiers Discord stockés",
+      "purgeTitle": "Retirer tous les messages Discord",
+      "purgeLead": "Supprime tous les messages, fichiers et réactions qu'une passerelle a apportés de Discord, sur chaque serveur de cette instance. Pour le cas où cette instance ne doit plus conserver de contenu Discord, par exemple si son application Discord perd l'accès.",
+      "purge": "Retirer tous les messages Discord",
+      "purgeConfirm": "Supprimer tout ce qui vient de Discord sur chaque serveur de cette instance ? Cette action est irréversible.",
+      "purgeYes": "Tout supprimer"
     }
   },
   "imageEditor": {

@@ -30,6 +30,8 @@ import { isMassMentionWord } from '@/utils/massMentions';
 import { isImeKeyEvent } from '@/utils/editorShortcuts';
 import { normalizeSearchText } from '@/utils/searchTokens';
 import { useT } from '@/composables/useT';
+import { emoticonEmoji } from '@/utils/emoticons';
+import { emoticonPreferences } from '@/composables/useVisualTheme';
 import {
   flattenBotCommands,
   getChannelBotCommands,
@@ -203,7 +205,7 @@ export function useAutoSuggest(
   const emojiCacheStore = useEmojiCacheStore();
   const serverChannelStore = useServerChannelStore();
   const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
-  const { searchEmojiHits, isLoaded: unifiedLoaded, isNativePack, getTwemojiUrl } = useUnifiedEmoji();
+  const { searchEmojiHits, unicodeToShortcode, isLoaded: unifiedLoaded, isNativePack, getTwemojiUrl } = useUnifiedEmoji();
   const { frequentEmojis } = useFrequentEmojis();
   const { restricted: externalRestricted, serverId: policyServerId } =
     useExternalEmojiPolicy(() => config.channelId?.() ?? null);
@@ -375,37 +377,51 @@ export function useAutoSuggest(
     });
 
     // Unified pack: twemoji or native, per pack selection.
+    type UnifiedHit = ReturnType<typeof searchEmojiHits>[number];
+    const unifiedItem = (hit: UnifiedHit, shown: string): SuggestionItem => {
+      const emoji = hit.item.emoji;
+      const svgUrl = isNativePack.value ? null : getTwemojiUrl(emoji.unicode);
+      return {
+        id: emoji.unicode || emoji.shortcode,
+        name: shown,
+        display_name: emoji.description || shown,
+        url: isNativePack.value ? undefined : svgUrl || undefined,
+        native: isNativePack.value || !svgUrl ? emoji.unicode : undefined,
+        server_name: 'Emojis',
+        emoji: {
+          id: emoji.unicode || emoji.shortcode,
+          name: shown,
+          url: svgUrl || undefined,
+          native: emoji.unicode,
+          source: 'unified'
+        }
+      };
+    };
     if (unifiedLoaded.value && query.length >= 2) {
       for (const hit of searchEmojiHits(query, limit)) {
         // Listed before a custom emoji of the same name, which is `name~1` in text: the bare
         // `:name:` is the default's (emojiShortcodeResolver.customEmojiIndex).
-        const emoji = hit.item.emoji;
         const sharesCustomName = hit.item.names.some(n => customNames.has(n));
-
-        const svgUrl = isNativePack.value ? null : getTwemojiUrl(emoji.unicode);
-        const shown = hit.tier <= 1 ? hit.matched : hit.item.label;
-
         ranked.push({
-          item: {
-            id: emoji.unicode || emoji.shortcode,
-            name: shown,
-            display_name: emoji.description || shown,
-            url: isNativePack.value ? undefined : svgUrl || undefined,
-            native: isNativePack.value || !svgUrl ? emoji.unicode : undefined,
-            server_name: 'Emojis',
-            emoji: {
-              id: emoji.unicode || emoji.shortcode,
-              name: shown,
-              url: svgUrl || undefined,
-              native: emoji.unicode,
-              source: 'unified'
-            }
-          },
+          item: unifiedItem(hit, hit.tier <= 1 ? hit.matched : hit.item.label),
           tier: hit.tier,
           len: hit.matched.length,
           kind: sharesCustomName ? -1 : 1,
           order: hit.item.order,
         });
+      }
+    }
+
+    // A query that with its colon is an emoticon (`:P`, `:D`) lists that emoticon's emoji first,
+    // as the text converts to it on send. Not alone: a list of one would take Enter from a
+    // message that needs no pick.
+    const emoticonUnicode = ranked.length > 0 && unifiedLoaded.value && emoticonPreferences().convertSent
+      ? emoticonEmoji(`:${state.value.query}`)
+      : undefined;
+    if (emoticonUnicode) {
+      const hit = searchEmojiHits(unicodeToShortcode(emoticonUnicode) ?? '', 1)[0];
+      if (hit && hit.item.emoji.unicode === emoticonUnicode) {
+        ranked.push({ item: unifiedItem(hit, hit.item.label), tier: -1, len: 0, kind: 0, order: 0 });
       }
     }
 

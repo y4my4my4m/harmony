@@ -56,7 +56,10 @@ async function load(): Promise<Mod> {
   return import('../desktopUpdater')
 }
 
+// checkForUpdates() loads the updater plugin with a dynamic import; settle it, then the
+// promise chain behind it. (A fixed run of microtasks was enough on vitest 2 only.)
 async function flush() {
+  await vi.dynamicImportSettled()
   for (let i = 0; i < 10; i++) await Promise.resolve()
 }
 

@@ -28,6 +28,9 @@ import {
   leaveGuild,
 } from '../bridge/instanceBot.js'
 
+import { createHistoryImportRouter } from '../bridge/historyImport.js'
+import { createBridgePrivacyRouter } from '../bridge/bridgePrivacy.js'
+
 // One body for every redeem failure: unknown, used, expired and malformed codes read alike.
 const INVALID_CODE = { error: 'Invalid or expired setup code', code: 'invalid_code' } as const
 
@@ -115,6 +118,8 @@ async function hostingEnabled(): Promise<boolean | null> {
  *   POST   /status                         bridge bot only; heartbeat and Discord snapshot
  *   POST   /pairs                          bridge bot only; Discord-side /bridge link
  *   DELETE /pairs/:discordChannelId        bridge bot only; Discord-side /bridge unlink
+ *   /imports/...                           bridge bot only; history import (bridge/historyImport.ts)
+ *   /privacy/...                           bridge bot only; opt-outs and erase (bridge/bridgePrivacy.ts)
  */
 export class BridgeV2API {
   public router: Router
@@ -163,6 +168,8 @@ export class BridgeV2API {
     this.router.post('/status', ...bridgeBot, this.postStatus.bind(this) as RequestHandler)
     this.router.post('/pairs', ...bridgeBot, this.postPair.bind(this) as RequestHandler)
     this.router.delete('/pairs/:discordChannelId', ...bridgeBot, this.deletePair.bind(this) as RequestHandler)
+    this.router.use('/imports', createHistoryImportRouter(bridgeBot))
+    this.router.use('/privacy', createBridgePrivacyRouter(bridgeBot))
   }
 
   private async redeem(req: Request, res: Response) {

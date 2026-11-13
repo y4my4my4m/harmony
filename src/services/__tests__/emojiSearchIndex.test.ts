@@ -80,7 +80,7 @@ describe('unicode search ranking', () => {
     const hits = searchEmojiHits('cat', 50)
     const tiers = hits.map(h => h.tier)
     expect([...tiers].sort((a, b) => a - b)).toEqual(tiers)
-    expect(hits[0].item.emoji.unicode).toBe('🐈')
+    expect(hits[0].item.emoji.unicode).toBe('🐱')
     expect(tiers).toContain(1)
   })
 

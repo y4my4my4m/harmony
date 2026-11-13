@@ -83,7 +83,7 @@ A refused request answers `403`:
 | `add_reactions` and channel access | `PUT` and `DELETE /messages/{message.id}/reactions/{emoji}` |
 | `manage_channels` in the server | `POST /servers/{server.id}/channels`, `PATCH /channels/{channel.id}`, `POST /servers/{server.id}/categories`, `PATCH /servers/{server.id}/categories/{category.id}`, `PUT /channels/{channel.id}/permission-overrides`, `DELETE /channels/{channel.id}/permission-overrides/role/{role.id}` |
 | `manage_roles` in the server | `POST`, `PATCH`, `DELETE /servers/{server.id}/roles…` |
-| Being the bot of the server's Discord bridge | `POST /servers/{server.id}/emojis/discord`, `PUT /threads/{thread.id}/discord`, and a `discord_thread_id` on `POST /channels/{channel.id}/threads` |
+| Being the bot of the server's Discord bridge | `GET /servers/{server.id}/emojis/discord`, `POST /servers/{server.id}/emojis/discord`, `DELETE /servers/{server.id}/emojis/{emoji.id}`, `GET /servers/{server.id}/sounds`, `POST /servers/{server.id}/sounds/discord`, `DELETE /servers/{server.id}/sounds/{sound.id}`, `PUT /threads/{thread.id}/discord`, and a `discord_thread_id` on `POST /channels/{channel.id}/threads` |
 | A valid token | `GET`, `PUT`, `POST /commands`, `DELETE /commands/{command.id}` |
 | An interaction sent to this bot; for a public answer, `send_messages` and channel access too | `POST /interactions/{interaction.id}/callback`, `PATCH /interactions/{interaction.id}/response`, `POST /interactions/{interaction.id}/followups` |
 
@@ -189,4 +189,4 @@ They send the standard `RateLimit` and `RateLimit-Policy` headers (IETF draft 7)
 | Different emoji on one message | 20; the 21st answers `400` with `code` `30010` |
 | REST request body | 10 MB |
 | Discord emoji image import | 512 KiB |
-| Attachment mirrored from Discord | 50 MB; a larger file keeps its Discord URL |
+| Attachment mirrored from Discord | The instance's upload ceiling; a larger file keeps its Discord URL |

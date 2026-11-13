@@ -1,3 +1,4 @@
+import { discardMirroredParts, enqueueMirror } from '../bridge/mirrorEnqueue.js'
 import { Router, Request, Response } from 'express'
 import { supabase } from '../config/supabase.js'
 import { botAuthMiddleware, botRateLimit } from '../auth/BotAuthMiddleware.js'
@@ -15,18 +16,31 @@ import {
   grantableRoleBits,
   isAdminRole,
   loadEveryoneLayer,
-  loadEveryoneLayers,
   loadInstall,
   overrideGrants,
   parseMask,
   rolePositionCap,
   u64,
 } from '../auth/botPermissions.js'
-import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
-import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
+import {
+  BRIDGE_AUTHOR_KEYS,
+  UUID_PATTERN,
+  botContentParts,
+  channelServerId as lookupChannelServerId,
+  checkServerPermission,
+  claimsBridgeAuthor,
+  formatContent,
+  prepareBotMessageContent,
+  resolveMentionParts,
+  visibleChannels,
+} from './messageContent.js'
 import { absoluteAvatarUrl, absoluteServerIconUrl } from '../utils/avatarUrl.js'
 import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
-import { DISCORD_EMOJI_ID, EMOJI_NAME, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
+import { DISCORD_STICKER_ID, STICKER_BUCKET, StickerFileError, removeStoredSticker, storeDiscordSticker } from '../utils/discordStickerImport.js'
+import { DISCORD_EMOJI_ID, EMOJI_BUCKET, EMOJI_NAME, discordEmojiStoragePath, isBridgeImportedEmoji, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
+import { DISCORD_SOUND_ID, MAX_SERVER_SOUNDS, storeDiscordSound, removeStoredSound } from '../utils/discordSoundImport.js'
+import { LIST_MAX_ROWS, LIST_PAGE, selectAllById } from '../utils/pagedSelect.js'
+import { GATEWAY_CAPABILITIES } from '../capabilities.js'
 import { TTLCache } from '../utils/TTLCache.js'
 import { MAX_COMMANDS, validateCommand, validateCommands } from '../commands/validate.js'
 
@@ -52,7 +66,7 @@ type ChannelAccess = { ok: true } | { ok: false; error: string }
 type WriteFailure = 'bot_cannot_post' | 'thread_locked' | 'automod_blocked' | 'failed'
 
 type WriteResult =
-  | { ok: true; message: any }
+  | { ok: true; message: any; duplicate?: true }
   | { ok: false; status: number; body: Record<string, unknown>; failure: WriteFailure }
 
 interface BotMessageInput {
@@ -65,6 +79,11 @@ interface BotMessageInput {
 
 // enforce_message_length (baseline) raises check_violation with this text.
 const MESSAGE_TOO_LONG = /^Message text exceeds the instance limit of \d+ characters/
+// check_message_sticker_parts: a sticker part naming no live sticker, or a sticker pair whose file part differs.
+const STICKER_REFUSED = /^STICKER_(UNKNOWN|FALLBACK)/
+// guard_bridge_author_optout (20261112600001): the relayed author opted out of the server's bridge.
+const BRIDGE_AUTHOR_OPTED_OUT = 'BRIDGE_AUTHOR_OPTED_OUT'
+const OPTED_OUT_BODY = { error: 'The author opted out of this bridge', code: BRIDGE_AUTHOR_OPTED_OUT } as const
 
 /** An interaction as the reply routes need it; bot_interaction_ack answers the same fields. */
 interface InteractionContext {
@@ -151,6 +170,8 @@ interface ThreadRow {
   created_at: string
 }
 
+export { botContentParts, claimsBridgeAuthor, embedPart, typedMassMentionParts } from './messageContent.js'
+
 /** A Discord snowflake: 1 to 20 digits. */
 const SNOWFLAKE_RE = /^[0-9]{1,20}$/
 
@@ -168,21 +189,17 @@ export interface BotRequest extends Request {
 // Message metadata keys written by federation, definer functions and this API; the
 // client UI treats them as server statements. A bot's metadata never sets them. embeds holds
 // link-preview payloads (update_message_embeds), suppress_embeds is set through
-// set_message_embeds_suppressed, webhook by execute_channel_webhook. interaction names the slash
+// set_message_embeds_suppressed, webhook by execute_channel_webhook, history_import by the
+// history import function alone (it marks rows the dispatcher and realtime must stay quiet for),
+// discord_reply_to likewise (import_link_replies acts on it). interaction names the slash
 // command invocation a reply answers, and AutoMod judges the message as its invoker's.
 const SERVER_METADATA_KEYS = new Set([
   'type', 'federated', 'ap_id', 'from_domain', 'original_url', 'published', 'conversation',
   'in_reply_to_ap', 'pending_thread_ap_id', 'federated_at', 'federated_to', 'automod',
   'bot', 'created_via', 'embeds', 'suppress_embeds', 'webhook', 'remote_author', 'host_ap_id',
   'interaction',
+  'history_import', 'discord_reply_to',
 ])
-
-// The displayed author of a relayed message (src/utils/messageAuthor.ts in the client). Kept
-// only from a bridge bot whose bridge relays the channel (bridgePairsChannel).
-const BRIDGE_AUTHOR_KEYS = new Set(['discord_user', 'bridge_source'])
-
-/** EmbedProvider in the client's src/types/chat.ts. */
-const EMBED_PROVIDERS = new Set(['harmony-post', 'harmony-invite', 'fediverse-post', 'youtube', 'spotify', 'generic'])
 
 // Metadata a bridge bot records on a message it did not write (bridge 2.2): the Discord
 // message ids of its copy, whether a webhook posted it, and the files uploaded with it.
@@ -207,42 +224,6 @@ export function botSuppliedMetadata(
   )
 }
 
-/** True when bot metadata names the relayed author, which only a relaying bridge may. */
-export function claimsBridgeAuthor(input: unknown): boolean {
-  return !!input && typeof input === 'object' && !Array.isArray(input)
-    && Object.keys(input).some((key) => BRIDGE_AUTHOR_KEYS.has(key))
-}
-
-/** An embed part as the client reads it (EmbedContent), or null. */
-export function embedPart(part: Record<string, unknown>): Record<string, unknown> | null {
-  const { url, provider, previewId, collapsed } = part
-  if (typeof url !== 'string' || url.length > 2048 || !/^https?:\/\/\S+$/i.test(url)) return null
-  if (typeof provider !== 'string' || !EMBED_PROVIDERS.has(provider)) return null
-  if (typeof previewId !== 'string' || !previewId || previewId.length > 2048) return null
-  return { type: 'embed', url, provider, previewId, ...(typeof collapsed === 'boolean' ? { collapsed } : {}) }
-}
-
-/**
- * Bot-supplied parts without system parts, which are server-generated join and leave
- * notices, and with embed parts reduced to their fields or dropped when malformed.
- */
-export function botContentParts(parts: unknown[]): any[] {
-  const out: any[] = []
-  for (const part of parts) {
-    if (part && typeof part === 'object' && !Array.isArray(part)) {
-      const type = (part as { type?: unknown }).type
-      if (type === 'system') continue
-      if (type === 'embed') {
-        const embed = embedPart(part as Record<string, unknown>)
-        if (embed) out.push(embed)
-        continue
-      }
-    }
-    out.push(part)
-  }
-  return out
-}
-
 /** The string fields of a bridged thread's Discord starter, or null (bot_create_thread p_discord_user). */
 export function threadStarter(input: unknown): Record<string, string> | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null
@@ -253,40 +234,6 @@ export function threadStarter(input: unknown): Record<string, string> | null {
     if (typeof user[key] === 'string' && user[key]) out[key] = user[key] as string
   }
   return out
-}
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-// role_mention roleId of @here (db_schema/migrations/20261011600001_here_mention.sql).
-const HERE_ROLE_ID = 'here'
-
-// src/utils/massMentions.ts TYPED_MASS_MENTION: the handle grammar's boundaries, no host.
-const TYPED_MASS_MENTION = /(?<![\p{L}\p{N}_@/])@(everyone|here)(?![\p{L}\p{N}_@-]|\.[\p{L}\p{N}_-])/u
-// Fenced code, inline code and URLs hold no mention (src/utils/unifiedContentProcessing opaqueRanges).
-const OPAQUE_TEXT = /```[\s\S]*?```|`[^`\n]+`|\bhttps?:\/\/\S+/g
-
-/**
- * Text content with each typed bare @everyone or @here outside code and URLs as its role_mention
- * part: `everyoneRoleId` (the server's default role) and roleId `here`. Discord pings the
- * lowercase words only; any other spelling, and @everyone without a default role, stays text.
- */
-export function typedMassMentionParts(text: string, everyoneRoleId: string | null): any[] {
-  const opaque: Array<[number, number]> = []
-  for (const m of text.matchAll(OPAQUE_TEXT)) opaque.push([m.index!, m.index! + m[0].length])
-  const parts: any[] = []
-  let last = 0
-  for (const m of text.matchAll(new RegExp(TYPED_MASS_MENTION, 'gu'))) {
-    const at = m.index!
-    if (opaque.some(([start, end]) => at >= start && at < end)) continue
-    const here = m[1] === HERE_ROLE_ID
-    if (!here && !everyoneRoleId) continue
-    if (at > last) parts.push({ type: 'text', text: text.slice(last, at) })
-    parts.push(here
-      ? { type: 'role_mention', roleId: HERE_ROLE_ID, roleName: HERE_ROLE_ID, roleColor: null }
-      : { type: 'role_mention', roleId: everyoneRoleId, roleName: 'everyone', roleColor: null })
-    last = at + m[0].length
-  }
-  if (last < text.length) parts.push({ type: 'text', text: text.slice(last) })
-  return parts
 }
 
 /** A reaction's bot-supplied metadata; remote_emoji_url is kept only when it is an https Discord CDN URL. */
@@ -419,7 +366,18 @@ export class BotRestAPI {
     // Server emoji with their Discord links; the Discord bridge maps reactions through them.
     this.route('get', '/servers/:serverId/emojis', this.getServerEmojis)
     // Discord bridge bot of the server only: Discord emoji → server emoji, once per Discord emoji.
+    this.route('get', '/servers/:serverId/emojis/discord', this.listDiscordEmojis)
     this.route('post', '/servers/:serverId/emojis/discord', this.importDiscordEmoji)
+    this.route('delete', '/servers/:serverId/emojis/:emojiId', this.removeServerEmoji)
+    // Discord bridge bot of the server only: Discord sticker → server sticker, once per Discord sticker.
+    this.route('get', '/servers/:serverId/stickers/discord', this.listDiscordStickers)
+    this.route('post', '/servers/:serverId/stickers/discord', this.importDiscordSticker)
+    this.route('delete', '/servers/:serverId/stickers/:stickerId', this.removeServerSticker)
+
+    // Discord bridge bot of the server only: soundboard sync.
+    this.route('get', '/servers/:serverId/sounds', this.listServerSounds)
+    this.route('post', '/servers/:serverId/sounds/discord', this.importDiscordSound)
+    this.route('delete', '/servers/:serverId/sounds/:soundId', this.deleteServerSound)
 
     // Content patch that leaves updated_at alone; no "(edited)" marker.
     this.route('patch', '/messages/:messageId/content-silent', this.silentUpdateMessageContent)
@@ -488,10 +446,22 @@ export class BotRestAPI {
         return res.status(403).json({ error: access.error })
       }
 
+      // Silent rewrites refresh links; they never replace a part already copied into storage.
+      // A bridge bot that sets its own `path` on a part bypasses this guard and the mirror
+      // worker's candidate check (parts with a path are skipped). That is the same trust level
+      // as the existing `path` pass-through for bot content; the guard targets honest refreshes.
+      const nextParts = await resolveMentionParts(botContentParts(content), message.channel_id, botId)
+      const currentParts: any[] = Array.isArray(message.content) ? message.content : []
+      const losesMirroredPart = currentParts.some((part, i) =>
+        typeof part?.path === 'string' && part.path !== '' && !((nextParts as any[])[i]?.path))
+      if (losesMirroredPart) {
+        return res.status(409).json({ error: 'mirrored_part' })
+      }
+
       const { data: updated, error } = await supabase.rpc('update_message_content_silent', {
         p_message_id: messageId,
         p_old_content: message.content,
-        p_content: await this.resolveMentionParts(botContentParts(content), message.channel_id, botId),
+        p_content: nextParts,
       })
       if (error) {
         return res.status(400).json({ error: error.message })
@@ -520,7 +490,7 @@ export class BotRestAPI {
 
   /** The bot's Discord bridge on the channel's server, when the bot runs one. */
   private async bridgeIdFor(botId: string, channelId: string): Promise<string | null> {
-    const serverId = await this.channelServerId(channelId)
+    const serverId = await lookupChannelServerId(channelId)
     if (!serverId) return null
     const { data } = await supabase
       .from('discord_bridges')
@@ -702,7 +672,7 @@ export class BotRestAPI {
 
       const result = await this.createBotMessage(botId, channelId, { content, embeds, reply_to, metadata, thread_id })
       if (!result.ok) return res.status(result.status).json(result.body)
-      res.status(201).json(this.formatMessage(result.message))
+      res.status(result.duplicate ? 200 : 201).json(this.formatMessage(result.message))
     } catch (error: any) {
       console.error('Send message error:', error)
       res.status(500).json({ error: error.message || 'Internal server error' })
@@ -741,13 +711,7 @@ export class BotRestAPI {
 
     // Instance attachment policy (e.g. mirroring Discord CDN URLs into
     // user_media) is applied here, keeping bots policy-agnostic.
-    const typed = claimsBridgeAuthor(metadata) ? this.formatContent(content, embeds)
-      : await this.typedMassMentions(this.formatContent(content, embeds), content, channelId, botId)
-    const messageContent = await applyBridgeAttachmentPolicy(
-      await this.resolveMentionParts(typed, channelId, botId),
-      botId,
-      channelId,
-    )
+    const { parts: messageContent, mirrorDeferred } = await prepareBotMessageContent({ content, embeds, metadata, channelId, botId })
     if (!Array.isArray(messageContent) || messageContent.length === 0) {
       return { ok: false, status: 400, body: { error: 'Cannot send an empty message' }, failure: 'failed' }
     }
@@ -760,6 +724,10 @@ export class BotRestAPI {
       ...(interaction ? { interaction } : {}),
     }
 
+    const messageSelect = `
+        *,
+        bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
+      `
     // Array response, not .single(): the server's AutoMod drops a blocked row and
     // the insert returns zero rows. PostgREST rolls a zero-row singular request
     // back, which would discard the AutoMod event.
@@ -773,10 +741,27 @@ export class BotRestAPI {
         reply_to: reply_to || null,
         metadata: messageMetadata
       })
-      .select(`
-        *,
-        bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
-      `)
+      .select(messageSelect)
+
+    // No row: the files this request mirrored into its parts have nothing to reference them.
+    if (error || !rows?.[0]) await discardMirroredParts(messageContent, error)
+
+    // The unique index allows one live row per Discord message per channel. A live relay
+    // racing a history import (or a retry) loses here; answer with the row that won.
+    const discordMessageId = (messageMetadata as Record<string, unknown>).discord_message_id
+    if (error?.code === '23505'
+      && error.message?.includes('messages_channel_discord_message_id_unique')
+      && typeof discordMessageId === 'string') {
+      const held = await this.messageIdByDiscordId(channelId, discordMessageId)
+      if (held.error) return { ok: false, status: 500, body: { error: held.error }, failure: 'failed' }
+      const { data: existing, error: lookupError } = held.id === null
+        ? { data: null, error: null }
+        : await supabase.from('messages').select(messageSelect).eq('id', held.id).eq('bot_id', botId).maybeSingle()
+      if (lookupError) return { ok: false, status: 500, body: { error: lookupError.message }, failure: 'failed' }
+      if (existing && existing.is_deleted !== true) return { ok: true, message: existing, duplicate: true }
+      // The row that holds the id is another bot's: not this bot's to read back.
+      return { ok: false, status: 409, body: { error: 'That Discord message id is taken in this channel', code: 'DISCORD_MESSAGE_ID_TAKEN' }, failure: 'failed' }
+    }
 
     if (error) {
       console.error('Error sending message:', error)
@@ -784,6 +769,12 @@ export class BotRestAPI {
       if (blocked) {
         const failure = blocked.body.code === 'AUTOMOD_BLOCKED' ? 'automod_blocked' : 'failed'
         return { ok: false, ...blocked, failure }
+      }
+      if (error.message === BRIDGE_AUTHOR_OPTED_OUT) {
+        return { ok: false, status: 403, body: { ...OPTED_OUT_BODY }, failure: 'failed' }
+      }
+      if (STICKER_REFUSED.test(error.message ?? '')) {
+        return { ok: false, status: 422, body: { error: error.message, code: 'STICKER_REFUSED' }, failure: 'failed' }
       }
       if (MESSAGE_TOO_LONG.test(error.message ?? '')) {
         return { ok: false, status: 400, body: { error: error.message }, failure: 'failed' }
@@ -799,6 +790,7 @@ export class BotRestAPI {
     await this.logBotAction(botId, 'message_sent', { channel_id: channelId, message_id: message.id }, { channelId })
 
     this.triggerLinkPreviewEnrichment(message.id)
+    if (mirrorDeferred) await enqueueMirror([message.id])
 
     return { ok: true, message }
   }
@@ -836,6 +828,20 @@ export class BotRestAPI {
     })
   }
   
+  /**
+   * The id of the live message of a channel that holds a Discord message id; null when none does.
+   * bridge_message_by_discord_id reads messages_channel_discord_message_id_unique. A select
+   * filtered on metadata->>discord_message_id cannot: it reads every message of the channel.
+   */
+  private async messageIdByDiscordId(channelId: string, discordMessageId: string): Promise<{ id: string | null; error?: string }> {
+    const { data, error } = await supabase.rpc('bridge_message_by_discord_id', {
+      p_channel_id: channelId,
+      p_discord_message_id: discordMessageId,
+    })
+    if (error) return { id: null, error: error.message }
+    return { id: typeof data === 'string' ? data : null }
+  }
+
   private async lookupMessageByDiscordId(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
@@ -851,6 +857,14 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
       }
 
+      const held = await this.messageIdByDiscordId(channelId, discordMessageId)
+      if (held.error) {
+        return res.status(500).json({ error: held.error })
+      }
+      if (held.id === null) {
+        return res.status(404).json({ error: 'Message not found' })
+      }
+
       const { data: message, error } = await supabase
         .from('messages')
         .select(`
@@ -858,17 +872,13 @@ export class BotRestAPI {
           user:profiles!messages_user_id_fkey(id, username, display_name, avatar_url),
           bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
         `)
-        .eq('channel_id', channelId)
-        .eq('metadata->>discord_message_id', discordMessageId)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false })
-        .limit(1)
+        .eq('id', held.id)
         .maybeSingle()
 
       if (error) {
         return res.status(500).json({ error: error.message })
       }
-      if (!message || !(await this.withinHistory(botId, channelId, message.created_at))) {
+      if (!message || message.is_deleted === true || !(await this.withinHistory(botId, channelId, message.created_at))) {
         return res.status(404).json({ error: 'Message not found' })
       }
 
@@ -927,6 +937,13 @@ export class BotRestAPI {
         .from('messages')
         .update({ metadata: mergedMetadata })
         .eq('id', messageId)
+
+      // An import may already hold this Discord message id in the channel (the unique index of
+      // 20261110900002); the live copy lost the race, so the mapping is a no-op like sendMessage's.
+      if (updateError?.code === '23505'
+        && updateError.message?.includes('messages_channel_discord_message_id_unique')) {
+        return res.json({ ok: true, metadata: message.metadata ?? {} })
+      }
 
       if (updateError) {
         return res.status(500).json({ error: updateError.message })
@@ -1063,13 +1080,13 @@ export class BotRestAPI {
       return { ok: false, status: 403, body: { error: access.error }, failure: 'bot_cannot_post' }
     }
 
-    const typed = claimsBridgeAuthor(message.metadata) ? this.formatContent(content, embeds)
-      : await this.typedMassMentions(this.formatContent(content, embeds), content, message.channel_id, botId)
-    const messageContent = await applyBridgeAttachmentPolicy(
-      await this.resolveMentionParts(typed, message.channel_id, botId),
+    const { parts: messageContent, mirrorDeferred } = await prepareBotMessageContent({
+      content,
+      embeds,
+      metadata: message.metadata,
+      channelId: message.channel_id,
       botId,
-      message.channel_id,
-    )
+    })
     if (!Array.isArray(messageContent) || messageContent.length === 0) {
       return { ok: false, status: 400, body: { error: 'Cannot send an empty message' }, failure: 'failed' }
     }
@@ -1086,11 +1103,19 @@ export class BotRestAPI {
         bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
       `)
 
+    if (error || !updatedRows?.[0]) await discardMirroredParts(messageContent, error)
+
     if (error) {
       const blocked = moderationErrorResponse(error)
       if (blocked) {
         const failure = blocked.body.code === 'AUTOMOD_BLOCKED' ? 'automod_blocked' : 'failed'
         return { ok: false, ...blocked, failure }
+      }
+      if (error.message === BRIDGE_AUTHOR_OPTED_OUT) {
+        return { ok: false, status: 403, body: { ...OPTED_OUT_BODY }, failure: 'failed' }
+      }
+      if (STICKER_REFUSED.test(error.message ?? '')) {
+        return { ok: false, status: 422, body: { error: error.message, code: 'STICKER_REFUSED' }, failure: 'failed' }
       }
       if (MESSAGE_TOO_LONG.test(error.message ?? '')) {
         return { ok: false, status: 400, body: { error: error.message }, failure: 'failed' }
@@ -1106,6 +1131,7 @@ export class BotRestAPI {
     }
 
     await this.logBotAction(botId, 'message_edited', { message_id: messageId }, { channelId: message.channel_id })
+    if (mirrorDeferred) await enqueueMirror([messageId])
 
     return { ok: true, message: updated }
   }
@@ -1214,7 +1240,7 @@ export class BotRestAPI {
    * against the interaction's channel), with no message written.
    */
   private async privateReplyParts(content: any, embeds: any, channelId: string, botId: string): Promise<any[]> {
-    return this.resolveMentionParts(this.formatContent(content, embeds), channelId, botId)
+    return resolveMentionParts(formatContent(content, embeds), channelId, botId)
   }
 
   private privateReply(reply: any, parts: any[]) {
@@ -1324,7 +1350,7 @@ export class BotRestAPI {
       const ephemeral = flags === EPHEMERAL
       let reply: any[] | null = null
       if (!defer) {
-        if (this.formatContent(body.content, body.embeds).length === 0) {
+        if (formatContent(body.content, body.embeds).length === 0) {
           return res.status(400).json({ error: 'Cannot send an empty message' })
         }
         if (ephemeral) {
@@ -1366,7 +1392,7 @@ export class BotRestAPI {
       const botId = req.bot!.id
       const { interactionId } = req.params
       const body: Record<string, any> = isPlainObject(req.body) ? req.body : {}
-      if (this.formatContent(body.content, body.embeds).length === 0) {
+      if (formatContent(body.content, body.embeds).length === 0) {
         return res.status(400).json({ error: 'Cannot send an empty message' })
       }
       const interaction = await this.loadInteraction(botId, interactionId)
@@ -1400,7 +1426,7 @@ export class BotRestAPI {
       const body: Record<string, any> = isPlainObject(req.body) ? req.body : {}
       const flags = replyFlags(body.flags)
       if (flags === null) return res.status(400).json({ error: 'flags must be 0 or 64' })
-      if (this.formatContent(body.content, body.embeds).length === 0) {
+      if (formatContent(body.content, body.embeds).length === 0) {
         return res.status(400).json({ error: 'Cannot send an empty message' })
       }
       const interaction = await this.loadInteraction(botId, interactionId)
@@ -1708,7 +1734,7 @@ export class BotRestAPI {
         return res.status(500).json({ error: error.message })
       }
       
-      const visible = await this.visibleChannels(botId, serverId, channels ?? [])
+      const visible = await visibleChannels(botId, serverId, channels ?? [])
       res.json(visible.map(c => this.formatChannel(c)))
     } catch (error: any) {
       res.status(500).json({ error: error.message })
@@ -1733,7 +1759,7 @@ export class BotRestAPI {
         return res.status(400).json({ error: 'name is required' })
       }
 
-      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      const allowed = await checkServerPermission(botId, serverId, 'manage_channels')
       if (!allowed) {
         return res.status(403).json({ error: 'Missing permission: manage_channels' })
       }
@@ -1777,7 +1803,7 @@ export class BotRestAPI {
       // Category is rejected here; use the /categories endpoint.
       const channelType = type === 1 ? 1 : 0
 
-      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      const allowed = await checkServerPermission(botId, serverId, 'manage_channels')
       if (!allowed) {
         return res.status(403).json({ error: 'Missing permission: manage_channels' })
       }
@@ -1814,7 +1840,7 @@ export class BotRestAPI {
       const { name, order } = req.body as { name?: string; order?: number }
       const botId = req.bot!.id
 
-      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      const allowed = await checkServerPermission(botId, serverId, 'manage_channels')
       if (!allowed) {
         return res.status(403).json({ error: 'Missing permission: manage_channels' })
       }
@@ -1858,7 +1884,7 @@ export class BotRestAPI {
       if (fetchError) return res.status(500).json({ error: fetchError.message })
       if (!existing?.server_id) return res.status(404).json({ error: 'Channel not found' })
 
-      const allowed = await this.checkServerPermission(
+      const allowed = await checkServerPermission(
         botId,
         existing.server_id,
         'manage_channels',
@@ -1905,14 +1931,14 @@ export class BotRestAPI {
       if (error) return res.status(500).json({ error: error.message })
       // As channel_categories RLS for members: a channel manager sees every category, anyone
       // else those holding a channel they see.
-      if (await this.checkServerPermission(botId, serverId, 'manage_channels')) return res.json(data || [])
+      if (await checkServerPermission(botId, serverId, 'manage_channels')) return res.json(data || [])
       const { data: channels, error: channelsError } = await supabase
         .from('channels')
         .select('id, category')
         .eq('server_id', serverId)
       if (channelsError) return res.status(500).json({ error: channelsError.message })
       const filed = ((channels ?? []) as Array<{ id: string; category: string | null }>).filter((c) => c.category)
-      const visible = await this.visibleChannels(botId, serverId, filed)
+      const visible = await visibleChannels(botId, serverId, filed)
       const shown = new Set(visible.map((c) => c.category))
       res.json((data || []).filter((k: { id: string }) => shown.has(k.id)))
     } catch (error: any) {
@@ -2442,7 +2468,7 @@ export class BotRestAPI {
         return res.status(500).json({ error: error.message })
       }
       
-      res.json(this.formatBot(bot))
+      res.json({ ...this.formatBot(bot), capabilities: GATEWAY_CAPABILITIES })
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
@@ -2490,7 +2516,7 @@ export class BotRestAPI {
       return !pairError && Array.isArray(pairs) && pairs.length > 0
     }
 
-    const serverId = await this.channelServerId(channelId)
+    const serverId = await lookupChannelServerId(channelId)
     if (!serverId) return false
     const { data: pairing, error: pairingError } = await supabase
       .from('discord_bridge_pairings')
@@ -2514,15 +2540,6 @@ export class BotRestAPI {
     return trusted.includes(bot.owner_id) || trusted.includes(install?.installed_by)
   }
 
-  private async channelServerId(channelId: string): Promise<string | null> {
-    const { data: channel } = await supabase
-      .from('channels')
-      .select('server_id')
-      .eq('id', channelId)
-      .maybeSingle()
-    return channel?.server_id ?? null
-  }
-
   /**
    * A write in a channel (botCanWriteChannel). A missing flag, installation or channel answers
    * `Missing permission: <flag>`; a channel the bot cannot see, or whose visibility lookup
@@ -2537,7 +2554,7 @@ export class BotRestAPI {
     const hidden: ChannelAccess = { ok: false, error: 'Channel not visible to this bot' }
     const denied: ChannelAccess = flag ? { ok: false, error: `Missing permission: ${flag}` } : hidden
     if (!channelId) return denied
-    const serverId = await this.channelServerId(channelId)
+    const serverId = await lookupChannelServerId(channelId)
     if (!serverId) return denied
     const install = await loadInstall(botId, serverId)
     if (!install || (flag !== null && install[flag] !== true)) return denied
@@ -2554,7 +2571,7 @@ export class BotRestAPI {
    * time ('infinity' when the row has none). Undefined when a lookup fails.
    */
   private async historySince(botId: string, channelId: string, serverId?: string): Promise<string | null | undefined> {
-    const channelServerId = serverId ?? (await this.channelServerId(channelId))
+    const channelServerId = serverId ?? (await lookupChannelServerId(channelId))
     if (!channelServerId) return undefined
     const install = await loadInstall(botId, channelServerId)
     const layer = install ? await loadEveryoneLayer(channelServerId, channelId) : null
@@ -2573,24 +2590,12 @@ export class BotRestAPI {
     return Number.isFinite(at) && Number.isFinite(floor) && at >= floor
   }
 
-  /** The channels among `channels` the bot sees (botCanSeeChannel); none on a failed lookup. */
-  private async visibleChannels<T extends { id: string }>(botId: string, serverId: string, channels: T[]): Promise<T[]> {
-    if (channels.length === 0) return []
-    const install = await loadInstall(botId, serverId)
-    if (!install) return []
-    const layers = await loadEveryoneLayers(channels.map((c) => ({ id: c.id, server_id: serverId })))
-    return channels.filter((c) => {
-      const layer = layers.get(c.id)
-      return layer !== undefined && botCanSeeChannel(install, layer, c.id)
-    })
-  }
-
   /**
    * read_messages and botCanSeeChannel: allowed_channel_ids, which also grants a channel
    * @everyone cannot view, else VIEW_CHANNEL as a holder of @everyone. False on any failed lookup.
    */
   private async canReadChannel(botId: string, channelId: string, serverId?: string): Promise<boolean> {
-    const channelServerId = serverId ?? (await this.channelServerId(channelId))
+    const channelServerId = serverId ?? (await lookupChannelServerId(channelId))
     if (!channelServerId) return false
 
     const install = await loadInstall(botId, channelServerId)
@@ -2600,23 +2605,6 @@ export class BotRestAPI {
     if (!layer) return false
 
     return botCanReadChannel(install, layer, channelId)
-  }
-
-  /**
-   * Server-scoped permission check for server-wide actions such as
-   * channel/category creation.
-   */
-  private async checkServerPermission(botId: string, serverId: string, permission: string): Promise<boolean> {
-    const { data, error } = await supabase.rpc('check_bot_permission', {
-      p_bot_id: botId,
-      p_server_id: serverId,
-      p_permission: permission,
-    })
-    if (error) {
-      console.error(`[checkServerPermission] RPC error: ${error.message}`)
-      return false
-    }
-    return data === true
   }
 
   private async checkBotInGuild(botId: string, guildId: string): Promise<boolean> {
@@ -2635,111 +2623,6 @@ export class BotRestAPI {
   
   private formatAvatarUrl(avatarPath: string | null | undefined): string | undefined {
     return absoluteAvatarUrl(avatarPath)
-  }
-  
-  /**
-   * Discord's reading of string content: a typed @everyone or @here pings for a bot holding
-   * mention_everyone in the channel's server (typedMassMentionParts on the text part
-   * formatContent made of it) and stays text otherwise. Content sent as parts and relayed
-   * content keep their text parts: a relaying bot's right is not its author's.
-   */
-  private async typedMassMentions(parts: any[], content: unknown, channelId: string, botId: string): Promise<any[]> {
-    if (typeof content !== 'string' || parts[0]?.type !== 'text' || parts[0].text !== content) return parts
-    if (!TYPED_MASS_MENTION.test(content)) return parts
-    const serverId = await this.channelServerId(channelId)
-    if (!serverId || !(await this.checkServerPermission(botId, serverId, 'mention_everyone'))) return parts
-    const { data: role } = await supabase
-      .from('server_roles')
-      .select('id')
-      .eq('server_id', serverId)
-      .eq('is_default', true)
-      .maybeSingle()
-    return [...typedMassMentionParts(content, (role as { id?: string } | null)?.id ?? null), ...parts.slice(1)]
-  }
-
-  /**
-   * role_mention and channel_mention parts against the channel's server: a role or channel of
-   * that server keeps its part, carrying the stored name (and the role's color); any other part
-   * of those types becomes the text `@name` or `#name`. @everyone (the server's default role)
-   * and @here (roleId `here`) keep their part only for a bot holding mention_everyone there, and
-   * otherwise become the text `@everyone` or `@here`. Notifications of a kept role mention
-   * follow handle_role_mention_notifications (MENTION_EVERYONE, mentionable roles).
-   */
-  private async resolveMentionParts(parts: any[], channelId: string | null | undefined, botId: string): Promise<any[]> {
-    if (!Array.isArray(parts)) return parts
-    const isRole = (p: any) => p?.type === 'role_mention'
-    const isChannel = (p: any) => p?.type === 'channel_mention'
-    if (!parts.some((p) => isRole(p) || isChannel(p))) return parts
-
-    const serverId = channelId ? await this.channelServerId(channelId) : null
-    const uuids = (values: unknown[]) =>
-      [...new Set(values.filter((v): v is string => typeof v === 'string' && UUID_PATTERN.test(v)))]
-    const roleIds = uuids(parts.filter(isRole).map((p) => p.roleId))
-    const channelIds = uuids(parts.filter(isChannel).map((p) => p.channelId))
-
-    const roles = new Map<string, { name: string; color: string | null; isDefault: boolean }>()
-    if (serverId && roleIds.length > 0) {
-      const { data } = await supabase
-        .from('server_roles')
-        .select('id, name, color, is_default')
-        .eq('server_id', serverId)
-        .in('id', roleIds)
-      for (const r of (data ?? []) as Array<{ id: string; name: string; color: string | null; is_default?: boolean | null }>) {
-        roles.set(r.id, { name: r.name, color: r.color ?? null, isDefault: r.is_default === true })
-      }
-    }
-    const isHere = (p: any) => isRole(p) && p.roleId === HERE_ROLE_ID
-    const pingsAll = parts.some((p) => isHere(p) || (isRole(p) && roles.get(p.roleId)?.isDefault))
-    const canPingAll = pingsAll && !!serverId && (await this.checkServerPermission(botId, serverId, 'mention_everyone'))
-    const channels = new Map<string, string>()
-    if (serverId && channelIds.length > 0) {
-      const { data } = await supabase
-        .from('channels')
-        .select('id, name')
-        .eq('server_id', serverId)
-        .in('id', channelIds)
-      const named = await this.visibleChannels(botId, serverId, (data ?? []) as Array<{ id: string; name: string }>)
-      for (const c of named) channels.set(c.id, c.name)
-    }
-
-    const label = (value: unknown, fallback: string) =>
-      typeof value === 'string' && value.trim() !== '' ? value : fallback
-    return parts.map((part) => {
-      if (isHere(part)) {
-        if (!canPingAll) return { type: 'text', text: `@${HERE_ROLE_ID}` }
-        return { type: 'role_mention', roleId: HERE_ROLE_ID, roleName: HERE_ROLE_ID, roleColor: null }
-      }
-      if (isRole(part)) {
-        const role = roles.get(part.roleId)
-        if (!role) return { type: 'text', text: `@${label(part.roleName, 'role')}` }
-        if (role.isDefault && !canPingAll) return { type: 'text', text: `@${role.name.replace(/^@/, '')}` }
-        return { type: 'role_mention', roleId: part.roleId, roleName: role.name, roleColor: role.color }
-      }
-      if (isChannel(part)) {
-        const name = channels.get(part.channelId)
-        if (name === undefined) return { type: 'text', text: `#${label(part.name, 'channel')}` }
-        const out: Record<string, unknown> = { type: 'channel_mention', channelId: part.channelId, serverId, name }
-        if (typeof part.messageId === 'string' && UUID_PATTERN.test(part.messageId)) out.messageId = part.messageId
-        return out
-      }
-      return part
-    })
-  }
-
-  private formatContent(content: string | any[], embeds?: any[]): any[] {
-    const parts: any[] = []
-    
-    if (Array.isArray(content)) {
-      parts.push(...botContentParts(stripBotSuppliedPaths(content)))
-    } else if (content) {
-      parts.push({ type: 'text', text: content })
-    }
-    
-    if (Array.isArray(embeds) && embeds.length > 0) {
-      parts.push(...botContentParts(embeds.map(e => ({ ...e, type: 'embed' }))))
-    }
-    
-    return parts
   }
   
   private formatMessage(message: any) {
@@ -2962,11 +2845,116 @@ export class BotRestAPI {
     res.json(data ?? [])
   }
 
+  private emojiError(res: Response, error: { code?: string; message: string }) {
+    if (error.message?.startsWith('SERVER_EMOJI_LIMIT')) {
+      return res.status(409).json({ error: error.message, code: 'EMOJI_LIMIT' })
+    }
+    if (error.code === '23505') return res.status(409).json({ error: error.message, code: 'EMOJI_NAME_TAKEN' })
+    if (error.code === 'P0002') return res.status(404).json({ error: error.message })
+    const refused = this.refusalCode(error, ['EMOJI_NOT_LINKED', 'EMOJI_REMOVED'])
+    if (refused) return res.status(403).json({ error: error.message, code: refused })
+    const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
+    return res.status(status).json({ error: error.message })
+  }
+
+  /** The CODE of a 42501 raised as 'CODE: text', when it is one of `codes`. */
+  private refusalCode(error: { code?: string; message: string }, codes: string[]): string | null {
+    if (error.code !== '42501') return null
+    return codes.find((code) => error.message?.startsWith(`${code}:`)) ?? null
+  }
+
+  /**
+   * Deletes what the bot's removals left past the kept count: the RPC lists the rows, their
+   * files go first, then the RPC deletes the rows. A failed file removal leaves its rows for
+   * the next call.
+   */
+  private async evictBridgeRemoved(
+    rpc: 'bridge_evict_removed_emojis' | 'bridge_evict_retired_stickers',
+    bucket: string,
+    botId: string,
+    serverId: string,
+  ): Promise<void> {
+    try {
+      const { data, error } = await supabase.rpc(rpc, { p_bot_id: botId, p_server_id: serverId, p_ids: null })
+      if (error) return console.warn(`${rpc} list failed: ${error.message}`)
+      const past = (Array.isArray(data) ? data : []) as Array<{ id: string; path: string | null }>
+      if (past.length === 0) return
+      const paths = past.map((row) => row.path).filter((path): path is string => !!path)
+      if (paths.length > 0) {
+        const { error: removeError } = await supabase.storage.from(bucket).remove(paths)
+        if (removeError) return console.warn(`${rpc} file removal failed: ${removeError.message}`)
+      }
+      const { error: deleteError } = await supabase.rpc(rpc, {
+        p_bot_id: botId, p_server_id: serverId, p_ids: past.map((row) => row.id),
+      })
+      if (deleteError) console.warn(`${rpc} delete failed: ${deleteError.message}`)
+    } catch (error) {
+      console.warn(`${rpc} failed:`, error)
+    }
+  }
+
+  private async listDiscordEmojis(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+      const listed = await selectAllById<any>((afterId) => {
+        const query = supabase
+          .from('emojis')
+          .select('id, name, url, discord_emoji_id, deleted_at, bridge_removed_at')
+          .eq('server_id', serverId)
+          .or('deleted_at.is.null,discord_emoji_id.not.is.null')
+        return (afterId ? query.gt('id', afterId) : query).order('id').limit(LIST_PAGE)
+      })
+      if (listed.error) return res.status(500).json({ error: listed.error.message })
+      // A partial list would have the bridge plan against emoji it cannot see.
+      if (listed.truncated) return res.status(500).json({ error: `more than ${LIST_MAX_ROWS} emoji rows`, code: 'LIST_TOO_LARGE' })
+      const { data: limit, error: limitError } = await supabase.rpc('server_emoji_limit')
+      if (limitError) return res.status(500).json({ error: limitError.message })
+      if (limit == null) return res.status(500).json({ error: 'emoji limit unavailable' })
+      // imported: the bridge may remove it. restorable: removed by the bridge, so it may restore it.
+      const emojis = listed.rows.map((e: any) => {
+        const imported = isBridgeImportedEmoji(serverId, e)
+        return {
+          id: e.id, name: e.name, url: e.url, discord_emoji_id: e.discord_emoji_id, removed: e.deleted_at != null,
+          imported,
+          restorable: imported && e.deleted_at != null && e.bridge_removed_at === e.deleted_at,
+        }
+      })
+      res.json({ limit, emojis })
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  private async removeServerEmoji(req: BotRequest, res: Response) {
+    try {
+      const { serverId, emojiId } = req.params
+      const botId = req.bot!.id
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (!UUID_PATTERN.test(emojiId)) return res.status(400).json({ error: 'emojiId must be a UUID' })
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+      const { data, error } = await supabase.rpc('bridge_remove_server_emoji', {
+        p_bot_id: botId,
+        p_server_id: serverId,
+        p_emoji_id: emojiId,
+      })
+      if (error) return this.emojiError(res, error)
+      if (data === 'removed') {
+        await this.logBotAction(botId, 'emoji_removed', { emojiId, serverId }, { serverId })
+        await this.evictBridgeRemoved('bridge_evict_removed_emojis', EMOJI_BUCKET, botId, serverId)
+      }
+      res.status(204).end()
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
   private async importDiscordEmoji(req: BotRequest, res: Response) {
     try {
       const serverId = req.params.serverId
       const botId = req.bot!.id
-      const { discord_emoji_id: discordEmojiId, name, animated } = req.body ?? {}
+      const { discord_emoji_id: discordEmojiId, name, animated, update } = req.body ?? {}
       if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
       if (typeof discordEmojiId !== 'string' || !DISCORD_EMOJI_ID.test(discordEmojiId)) {
         return res.status(400).json({ error: 'discord_emoji_id must be a Discord snowflake' })
@@ -2990,6 +2978,7 @@ export class BotRestAPI {
         p_discord_emoji_id: discordEmojiId,
         p_name: name,
         p_url: url,
+        p_update: update === true,
       })
 
       // Without an image URL the RPC answers existing or linked rows and refuses a new one.
@@ -2997,20 +2986,322 @@ export class BotRestAPI {
       if (error && error.message === 'invalid emoji url') {
         const url = await storeDiscordEmojiImage(serverId, discordEmojiId, animated === true)
         ;({ data, error } = await call(url))
+        if (error) {
+          // Every import of this Discord emoji stores to the same path: a row may hold the image.
+          const { data: holder, error: holderError } = await supabase
+            .from('emojis')
+            .select('id')
+            .eq('server_id', serverId)
+            .eq('discord_emoji_id', discordEmojiId)
+            .maybeSingle()
+          if (!holder && !holderError) {
+            await supabase.storage.from(EMOJI_BUCKET)
+              .remove([discordEmojiStoragePath(serverId, discordEmojiId, animated === true)])
+              .catch((e: unknown) => console.error('Emoji image cleanup failed:', e))
+          }
+        }
       }
-      if (error) {
-        const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
-        return res.status(status).json({ error: error.message })
-      }
+      if (error) return this.emojiError(res, error)
       const row = Array.isArray(data) ? data[0] : null
       if (!row) return res.status(500).json({ error: 'Import returned no row' })
       if (row.status === 'created') {
         await this.logBotAction(botId, 'emoji_imported', { emojiId: row.id, serverId, discordEmojiId }, { serverId })
+      } else if (row.status === 'updated') {
+        await this.logBotAction(botId, 'emoji_updated', { emojiId: row.id, serverId, discordEmojiId }, { serverId })
       }
       res.status(row.status === 'created' ? 201 : 200).json(row)
     } catch (error: any) {
       console.error('Import Discord emoji exception:', error)
       res.status(502).json({ error: error.message })
+    }
+  }
+
+  private stickerError(res: Response, error: { code?: string; message: string }) {
+    if (error.message?.startsWith('STICKER_LIMIT')) {
+      return res.status(409).json({ error: error.message, code: 'STICKER_LIMIT' })
+    }
+    if (error.code === '23505' && !error.message?.startsWith('STICKER_FILE_TAKEN')) {
+      return res.status(409).json({ error: error.message, code: 'STICKER_NAME_TAKEN' })
+    }
+    if (error.code === 'P0002') return res.status(404).json({ error: error.message })
+    const refused = this.refusalCode(error, ['STICKER_NOT_LINKED'])
+    if (refused) return res.status(403).json({ error: error.message, code: refused })
+    const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
+    return res.status(status).json({ error: error.message })
+  }
+
+  private async listDiscordStickers(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+      const listed = await selectAllById<any>((afterId) => {
+        const query = supabase
+          .from('stickers')
+          .select('id, name, description, url, discord_sticker_id, removed_at, created_at')
+          .eq('scope', 'server')
+          .eq('server_id', serverId)
+          .or('removed_at.is.null,discord_sticker_id.not.is.null')
+        return (afterId ? query.gt('id', afterId) : query).order('id').limit(LIST_PAGE)
+      })
+      if (listed.error) return res.status(500).json({ error: listed.error.message })
+      if (listed.truncated) return res.status(500).json({ error: `more than ${LIST_MAX_ROWS} sticker rows`, code: 'LIST_TOO_LARGE' })
+      const { data: limit, error: limitError } = await supabase.rpc('sticker_limit', { p_scope: 'server' })
+      if (limitError) return res.status(500).json({ error: limitError.message })
+      if (limit == null) return res.status(500).json({ error: 'sticker limit unavailable' })
+      // Read by id keyset; answered oldest first.
+      listed.rows.sort((a: any, b: any) =>
+        a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+      const stickers = listed.rows.map((s: any) => ({
+        id: s.id, name: s.name, description: s.description, url: s.url,
+        discord_sticker_id: s.discord_sticker_id, removed: s.removed_at != null,
+      }))
+      res.json({ limit, stickers })
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  private async removeServerSticker(req: BotRequest, res: Response) {
+    try {
+      const { serverId, stickerId } = req.params
+      const botId = req.bot!.id
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (!UUID_PATTERN.test(stickerId)) return res.status(400).json({ error: 'stickerId must be a UUID' })
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+      const { data, error } = await supabase.rpc('bridge_retire_server_sticker', {
+        p_bot_id: botId,
+        p_server_id: serverId,
+        p_sticker_id: stickerId,
+      })
+      if (error) return this.stickerError(res, error)
+      if (data === 'removed') {
+        await this.logBotAction(botId, 'sticker_removed', { stickerId, serverId }, { serverId })
+        await this.evictBridgeRemoved('bridge_evict_retired_stickers', STICKER_BUCKET, botId, serverId)
+      }
+      res.status(204).end()
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  /** Body { discord_sticker_id, name, description, format_type, update? }; the file is copied only for a new sticker. */
+  private async importDiscordSticker(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      const botId = req.bot!.id
+      const { discord_sticker_id: discordStickerId, name, description, format_type: formatType, update } = req.body ?? {}
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (typeof discordStickerId !== 'string' || !DISCORD_STICKER_ID.test(discordStickerId)) {
+        return res.status(400).json({ error: 'discord_sticker_id must be a Discord snowflake' })
+      }
+      if (typeof name !== 'string' || typeof description !== 'string') {
+        return res.status(400).json({ error: 'name and description must be strings' })
+      }
+      if (!Number.isInteger(formatType)) return res.status(400).json({ error: 'format_type must be an integer' })
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+
+      const call = (file: { path: string; url: string; width: number; height: number; durationMs: number | null } | null) =>
+        supabase.rpc('bridge_import_server_sticker', {
+          p_bot_id: botId,
+          p_server_id: serverId,
+          p_discord_sticker_id: discordStickerId,
+          p_name: name,
+          p_description: description,
+          p_update: update === true,
+          p_path: file?.path ?? null,
+          p_url: file?.url ?? null,
+          p_width: file?.width ?? null,
+          p_height: file?.height ?? null,
+          p_duration_ms: file?.durationMs ?? null,
+        })
+
+      // Without a file the RPC answers existing or linked rows and refuses a new one.
+      let { data, error } = await call(null)
+      if (error && error.message === 'invalid sticker file') {
+        // A new sticker: the cap answers before the file is fetched. enforce_sticker_limit decides at the insert.
+        const { data: cap } = await supabase.rpc('sticker_limit', { p_scope: 'server' })
+        const { count: held } = await supabase
+          .from('stickers')
+          .select('id', { count: 'exact', head: true })
+          .eq('scope', 'server')
+          .eq('server_id', serverId)
+          .is('removed_at', null)
+        if (typeof cap === 'number' && typeof held === 'number' && held >= cap) {
+          return res.status(409).json({ error: `STICKER_LIMIT: at most ${cap} server stickers`, code: 'STICKER_LIMIT' })
+        }
+        let stored
+        try {
+          stored = await storeDiscordSticker(serverId, discordStickerId, formatType)
+        } catch (e: any) {
+          if (e instanceof StickerFileError) {
+            return res.status(422).json({ error: e.message, code: 'STICKER_FILE', reason: e.reason })
+          }
+          throw e
+        }
+        ;({ data, error } = await call(stored))
+        // Each upload has its own random path: unless this call created the row, the file is unused.
+        if (error || data?.[0]?.status !== 'created') await removeStoredSticker(stored.path)
+      }
+      if (error) return this.stickerError(res, error)
+      const row = Array.isArray(data) ? data[0] : null
+      if (!row) return res.status(500).json({ error: 'Import returned no row' })
+      if (row.status === 'created') {
+        await this.logBotAction(botId, 'sticker_imported', { stickerId: row.id, serverId, discordStickerId }, { serverId })
+      } else if (row.status === 'updated') {
+        await this.logBotAction(botId, 'sticker_updated', { stickerId: row.id, serverId, discordStickerId }, { serverId })
+      }
+      res.status(row.status === 'created' ? 201 : 200).json(row)
+    } catch (error: any) {
+      console.error('Import Discord sticker exception:', error)
+      res.status(502).json({ error: error.message })
+    }
+  }
+
+  // True when the bot bridges the server; otherwise the response is already sent.
+  private async requireSoundBridge(req: BotRequest, res: Response, serverId: string): Promise<boolean> {
+    const { data: bridge, error } = await supabase
+      .from('discord_bridges')
+      .select('id')
+      .eq('server_id', serverId)
+      .eq('bot_id', req.bot!.id)
+      .maybeSingle()
+    if (error) { res.status(500).json({ error: error.message }); return false }
+    if (!bridge) { res.status(403).json({ error: 'Bot is not the Discord bridge of this server' }); return false }
+    return true
+  }
+
+  private soundError(res: Response, error: { code?: string; message: string }) {
+    if (error.message?.startsWith('SOUNDBOARD_FULL')) {
+      return res.status(409).json({ error: error.message, code: 'SOUND_LIMIT' })
+    }
+    const refused = this.refusalCode(error, ['SOUND_NOT_LINKED'])
+    if (refused) return res.status(403).json({ error: error.message, code: refused })
+    const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
+    return res.status(status).json({ error: error.message })
+  }
+
+  private async listServerSounds(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+      const { data, error } = await supabase
+        .from('server_sounds')
+        .select('id, name, emoji, emoji_id, volume, discord_sound_id')
+        .eq('server_id', serverId)
+      if (error) return res.status(500).json({ error: error.message })
+      res.json(data ?? [])
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  private async importDiscordSound(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      const botId = req.bot!.id
+      const b = req.body ?? {}
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (typeof b.discord_sound_id !== 'string' || !DISCORD_SOUND_ID.test(b.discord_sound_id)) {
+        return res.status(400).json({ error: 'discord_sound_id must be a Discord snowflake' })
+      }
+      // Lengths in code points, as char_length in bridge_import_server_sound counts them.
+      const name = typeof b.name === 'string' ? b.name.trim() : ''
+      const nameLength = [...name].length
+      if (nameLength < 1 || nameLength > 32) return res.status(400).json({ error: 'name must be 1-32 characters' })
+      let emoji: string | null = null
+      if (b.emoji !== null && b.emoji !== undefined) {
+        const trimmed = typeof b.emoji === 'string' ? b.emoji.trim() : ''
+        const emojiLength = [...trimmed].length
+        if (emojiLength < 1 || emojiLength > 16) return res.status(400).json({ error: 'emoji must be 1-16 characters or null' })
+        emoji = trimmed
+      }
+      const emojiId = b.emoji_id ?? null
+      if (emojiId !== null && (typeof emojiId !== 'string' || !UUID_PATTERN.test(emojiId))) {
+        return res.status(400).json({ error: 'emoji_id must be a UUID or null' })
+      }
+      if (typeof b.volume !== 'number' || !Number.isFinite(b.volume) || b.volume < 0 || b.volume > 1) {
+        return res.status(400).json({ error: 'volume must be a number from 0 to 1' })
+      }
+      if (b.update !== undefined && typeof b.update !== 'boolean') {
+        return res.status(400).json({ error: 'update must be a boolean' })
+      }
+      const update = b.update === true
+
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+
+      const call = (storagePath: string | null, durationMs: number | null) => supabase.rpc('bridge_import_server_sound', {
+        p_bot_id: botId,
+        p_server_id: serverId,
+        p_discord_sound_id: b.discord_sound_id,
+        p_name: name,
+        p_emoji: emoji,
+        p_emoji_id: emojiId,
+        p_volume: b.volume,
+        p_update: update,
+        p_storage_path: storagePath,
+        p_duration_ms: durationMs,
+      })
+
+      // Without a stored clip the RPC answers existing or linked rows and refuses a new one.
+      let storedPath: string | null = null
+      let { data, error } = await call(null, null)
+      if (error && error.message === 'invalid sound file') {
+        // A new sound: the cap answers before the clip is fetched. enforce_server_sound_limit decides at the insert.
+        const { count: held } = await supabase
+          .from('server_sounds')
+          .select('id', { count: 'exact', head: true })
+          .eq('server_id', serverId)
+        if (typeof held === 'number' && held >= MAX_SERVER_SOUNDS) {
+          return res.status(409).json({
+            error: `SOUNDBOARD_FULL: a server holds at most ${MAX_SERVER_SOUNDS} sounds`, code: 'SOUND_LIMIT',
+          })
+        }
+        const stored = await storeDiscordSound(serverId, b.discord_sound_id)
+        storedPath = stored.storagePath
+        ;({ data, error } = await call(stored.storagePath, stored.durationMs))
+        if (error) {
+          await removeStoredSound(stored.storagePath)
+          return this.soundError(res, error)
+        }
+      }
+      if (error) return this.soundError(res, error)
+      const row = Array.isArray(data) ? data[0] : null
+      if (!row) return res.status(500).json({ error: 'Import returned no row' })
+      // A concurrent import won the race; the clip we stored is an orphan.
+      if (storedPath && row.status !== 'created') await removeStoredSound(storedPath)
+      if (row.status === 'created') {
+        await this.logBotAction(botId, 'sound_imported', { soundId: row.id, serverId, discordSoundId: b.discord_sound_id }, { serverId })
+      } else if (row.status === 'updated') {
+        await this.logBotAction(botId, 'sound_updated', { soundId: row.id, serverId, discordSoundId: b.discord_sound_id }, { serverId })
+      }
+      res.status(row.status === 'created' ? 201 : 200).json(row)
+    } catch (error: any) {
+      console.error('Import Discord sound exception:', error)
+      res.status(502).json({ error: error.message })
+    }
+  }
+
+  private async deleteServerSound(req: BotRequest, res: Response) {
+    try {
+      const { serverId, soundId } = req.params
+      const botId = req.bot!.id
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (!UUID_PATTERN.test(soundId)) return res.status(400).json({ error: 'soundId must be a UUID' })
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+      const { data, error } = await supabase.rpc('bridge_delete_server_sound', {
+        p_bot_id: botId,
+        p_server_id: serverId,
+        p_sound_id: soundId,
+      })
+      if (error) return this.soundError(res, error)
+      if (!data) return res.status(404).json({ error: 'Sound not found in this server' })
+      await removeStoredSound(data as string)
+      await this.logBotAction(botId, 'sound_deleted', { soundId, serverId }, { serverId })
+      res.status(204).end()
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
     }
   }
 
@@ -3069,7 +3360,7 @@ export class BotRestAPI {
   private async auditServerOf(channelId: string): Promise<string | null> {
     const cached = this.auditChannelServers.get(channelId)
     if (cached) return cached
-    const serverId = await this.channelServerId(channelId)
+    const serverId = await lookupChannelServerId(channelId)
     if (serverId) this.auditChannelServers.set(channelId, serverId)
     return serverId
   }

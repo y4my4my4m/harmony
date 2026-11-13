@@ -5413,6 +5413,11 @@
       "reportsFailed": "无法更改此域名举报的处理方式"
     },
     "instance": {
+      "mirrorStatusProgress": "正在保存 Discord 文件：{queued} 个等待中，已保存 {size}",
+      "mirrorStatusTooLarge": "{count} 个文件过大（{size}）：请用 harmony config --upload-ceiling 500M 提高上传上限",
+      "mirrorStatusFailed": "{count} 个失败",
+      "mirrorStatusOverQuota": "{count} 个超出每服务器上限：请提高“每个服务器存储的 Discord 文件”",
+      "mirrorStatusAllStored": "所有 Discord 文件均已保存",
       "maxPostReactions": "每人对一条帖子的最大反应数",
       "maxPostReactionsHint": "每个人可对一条帖子使用的不同表情数量（1-100）。默认：10。来自其他实例的超出上限的反应会被丢弃。聊天消息最多容纳 20 种不同的表情。",
       "maxPersonalEmojis": "每位用户的个人表情数",
@@ -6129,6 +6134,7 @@
       "unknown": "尚未报告",
       "showSetup": "显示设置步骤",
       "problemsTitle": "{count} 个待解决的问题 | {count} 个待解决的问题",
+      "noticesTitle": "{count} 条提示 | {count} 条提示",
       "pairsTitle": "已配对的频道",
       "settingsTitle": "选项",
       "maintainTitle": "维护",
@@ -6145,7 +6151,8 @@
       },
       "disconnect": "断开桥接",
       "disconnected": "桥接已断开",
-      "finished": "桥接已设置完成。"
+      "finished": "桥接已设置完成。",
+      "disconnectKeeps": "如需同时删除已桥接的内容，请先在“桥接隐私”中使用“移除所有桥接消息”。"
     },
     "confirm": {
       "disconnect": {
@@ -6240,6 +6247,17 @@
         "fixHosted": "这是实例方面的问题，桥接会持续重试。如果持续很久，请联系实例管理员。",
         "fixInstance": "这是实例方面的问题，桥接会持续重试。如果持续很久，请联系实例管理员。"
       },
+      "message_content_needed_for_import": {
+        "title": "一项历史导入正在等待 Message Content Intent。",
+        "fixSelf": "关闭期间，Discord 返回的消息为空。在 Developer Portal 中打开您的应用 → Bot → Privileged Gateway Intents，开启 Message Content Intent 并点击 Save Changes。然后用下面的命令重启桥接，导入会自动开始。",
+        "fixHosted": "关闭期间，Discord 返回的消息为空。在 Developer Portal 中打开您的应用 → Bot → Privileged Gateway Intents，开启 Message Content Intent 并点击 Save Changes。桥接重新连接后，导入会自动开始。",
+        "fixInstance": "此实例的机器人没有 Message Content Intent，因此无法导入历史记录。请联系实例管理员。"
+      },
+      "private_threads_skipped": {
+        "title": "导入跳过了 {channel} 的私密子区。",
+        "titleCount": "导入跳过了 {channel} 的 {count} 个私密子区。 | 导入跳过了 {channel} 的 {count} 个私密子区。",
+        "fix": "无需处理。Harmony 还没有私密子区，频道里的所有人都能看到它们，所以它们留在 Discord 上。"
+      },
       "unknown": {
         "title": "桥接报告了一个问题（{code}）。",
         "fixSelf": "桥接的日志中有详细信息：",
@@ -6306,7 +6324,14 @@
       "bridgeExists": "此服务器已经有以其他方式设置的 Discord 桥接。要使用此实例的机器人，请先断开它。",
       "instanceFull": "此实例的机器人已加入允许的最大数量的 Discord 服务器。请联系实例管理员，或改用您自己的 Discord 机器人。",
       "instanceOff": "此实例目前不提供它的 Discord 机器人。请改用您自己的 Discord 机器人。",
-      "link": "无法开始与 Discord 关联。请重试。"
+      "link": "无法开始与 Discord 关联。请重试。",
+      "import": "无法开始导入。",
+      "cancelImport": "无法取消导入。",
+      "pairNotImportable": "此配对无法导入历史记录。只有把 Discord 消息带到 Harmony 的配对中未加密的频道才可以。",
+      "importChanged": "导入状态已发生变化，已刷新。请重试。",
+      "importDisabled": "此桥接已关闭历史记录导入。",
+      "invalidDiscordUser": "这不是 Discord 用户 ID。",
+      "privacy": "请求失败，请重试。"
     },
     "time": {
       "secondsAgo": "刚刚 | {count} 秒前 | {count} 秒前",
@@ -6415,6 +6440,125 @@
       "settingsSaved": "Discord 机器人设置已保存",
       "saveFailed": "无法保存 Discord 机器人设置",
       "redirectLabel": "重定向地址"
+    },
+    "import": {
+      "button": "导入历史记录",
+      "buttonLabel": "导入 #{channel} 的历史记录",
+      "importAll": "全部导入",
+      "importAllAgain": "全部重新导入",
+      "importAllAgainConfirm": "要重新导入 {count} 个频道的历史记录吗？将从头重新读取 Discord 历史记录，已有的消息会被跳过。",
+      "importAllAgainYes": "重新导入",
+      "cancelAll": "全部取消",
+      "cancel": "取消",
+      "cancelLabel": "取消 #{channel} 的导入",
+      "cancelling": "正在取消…",
+      "waiting": "等待中",
+      "running": "正在导入… {percent}%",
+      "runningUnknown": "正在导入…",
+      "threadsRunning": "正在导入主题帖…",
+      "repliesRunning": "正在关联回复…",
+      "progressLabel": "#{channel} 的导入进度",
+      "backTo": "已回溯到 {date}",
+      "messages": "{count} 条消息 | {count} 条消息",
+      "threads": "主题帖 {done} / {total}",
+      "done": "已导入 {count} 条消息 | 已导入 {count} 条消息",
+      "doneNothingNew": "已是最新：没有新消息",
+      "failed": "导入已停止：{reason}",
+      "failedUnknown": "导入已停止",
+      "cancelled": "已取消",
+      "paused": "已暂停：等待桥接",
+      "retry": "重试",
+      "retryLabel": "重试导入 #{channel}",
+      "resume": "继续",
+      "resumeLabel": "继续导入 #{channel}",
+      "again": "重新导入",
+      "againLabel": "重新导入 #{channel} 的历史记录",
+      "reasons": {
+        "pair_removed": "频道配对已移除",
+        "channel_encrypted": "该频道现已加密",
+        "import_disabled": "历史记录导入已关闭",
+        "pair_not_importable": "该配对不再把 Discord 消息带到 Harmony",
+        "discord_approval_required": "该 Discord 频道是私密的：请在 Discord 上用 /bridge import-history 开始导入",
+        "discord_channel_unsupported": "该 Discord 频道不是文字频道",
+        "discord_access_lost": "桥接已无法读取该 Discord 频道",
+        "bridge_stalled": "桥接停止了进展"
+      },
+      "ineligible": {
+        "direction": "只有把 Discord 消息带到 Harmony 的配对才能导入历史记录",
+        "encrypted": "加密频道无法导入历史记录"
+      },
+      "needsUpdate": "请将桥接更新到 2.6.0 或更高版本以导入历史记录",
+      "mirrorNote": "导入的文件会复制到此实例的存储中。",
+      "consent": {
+        "title": "导入 {count} 个频道的历史记录？ | 导入 {count} 个频道的历史记录？",
+        "copies": "较早的消息和文件会连同作者的 Discord 名称和头像复制到此服务器。移除桥接后它们仍会保留。",
+        "skips": "已离开 Discord 服务器的人的消息会被跳过。Discord 上的任何人都可以用 /bridge-privacy 排除或抹除自己的消息。",
+        "notice": "导入开始时，桥接会在每个 Discord 频道中置顶一条通知。",
+        "confirm": "我管理此 Discord 服务器，或已获得其管理者的同意。",
+        "start": "开始导入"
+      },
+      "unavailable": {
+        "instance_off": "此实例已关闭历史记录导入。",
+        "bridge_mode": "历史记录导入仅适用于你使用自己的 Discord 应用自行运行的桥接。"
+      },
+      "authorsSkipped": "已跳过 {count} 条（作者已离开或已退出） | 已跳过 {count} 条（作者已离开或已退出）",
+      "automodSkipped": "AutoMod 拦截了 {count} 条 | AutoMod 拦截了 {count} 条"
+    },
+    "privacy": {
+      "title": "桥接隐私",
+      "lead": "Discord 成员可在 Discord 上用 /bridge-privacy 让自己的消息不进入此服务器，或将其抹除。对于无法运行该命令的人（例如已离开的人），请在此处移除。",
+      "idLabel": "Discord 用户 ID",
+      "idHelp": "在 Discord 中开启开发者模式，然后右键点击该用户并选择“复制用户 ID”。",
+      "idInvalid": "Discord 用户 ID 为 5 到 20 位数字。",
+      "remove": "从此服务器移除",
+      "removeConfirm": "删除此桥接从 Discord 用户 {id} 带来的所有消息、文件和回应，并不再带入其消息？此操作无法撤销。",
+      "removeYes": "删除其消息",
+      "removed": "已移除 {count} 条消息 | 已移除 {count} 条消息",
+      "progress": "正在移除… 目前 {count} 条 | 正在移除… 目前 {count} 条",
+      "listTitle": "已排除 {count} 位 Discord 用户 | 已排除 {count} 位 Discord 用户",
+      "source": {
+        "self": "本人在 Discord 上退出",
+        "manager": "由服务器管理者移除",
+        "admin": "由实例管理员移除"
+      },
+      "restore": "恢复",
+      "restoreLabel": "重新桥接 Discord 用户 {id}",
+      "purgeLead": "移除此服务器的桥接从 Discord 带来的一切：消息、文件和回应。在 Harmony 上写的消息会保留。",
+      "purge": "移除所有桥接消息",
+      "purgeConfirm": "删除从 Discord 带入此服务器的所有消息、文件和回应？此操作无法撤销。",
+      "purgeYes": "全部删除",
+      "purged": "已移除 {count} 条桥接消息 | 已移除 {count} 条桥接消息"
+    },
+    "importAdmin": {
+      "title": "Discord 历史记录导入",
+      "lead": "允许服务器通过其所有者使用自己的 Discord 应用运行的桥接，把 Discord 频道中较早的消息复制到 Harmony。绝不通过此实例的 Discord 机器人或此实例运行的机器人。",
+      "loadFailed": "无法加载历史记录导入设置。",
+      "mode": "历史记录导入",
+      "modeOff": "关闭",
+      "modeSelfRun": "自行运行的桥接",
+      "modeHint": "关闭后会拒绝所有导入，包括正在进行的导入。",
+      "warningTitle": "开启之前",
+      "warningAuthors": "这些消息的作者并未要求复制。已离开 Discord 服务器的作者会被跳过，成员可用 /bridge-privacy 排除或抹除自己的消息。",
+      "warningRequests": "针对此实例上内容的删除请求由你处理。服务器管理者可在“服务器设置”的“Discord 桥接”中移除 Discord 用户；下方的“移除所有 Discord 消息”会清空所有服务器。",
+      "warningQuiet": "导入的消息不发送通知，计为已读，也不会联邦。当服务器未豁免机器人时，它们会经过 AutoMod 的词语、邀请和链接规则。",
+      "warningStorage": "使用“Mirror to storage”时，导入的文件会复制到此实例的存储中，直至下方的每服务器上限。",
+      "maxRunning": "同时运行的导入数",
+      "maxRunningHint": "整个实例范围内。其余的排队等待。0 表示不限制。",
+      "messagesPerMinute": "每个导入每分钟的消息数",
+      "messagesPerMinuteHint": "无论桥接发送多少，服务器都会把导入放慢到此速率。0 表示不限制。",
+      "mirrorServerLimitMb": "每个服务器存储的 Discord 文件 (MB)",
+      "mirrorServerLimitMbHint": "使用“Mirror to storage”时，超过此值的服务器对之后的文件保留 Discord 链接。0 表示不限制。",
+      "limitInvalid": "请输入 0 或更大的整数。",
+      "save": "保存上限",
+      "saved": "历史记录导入设置已保存",
+      "saveFailed": "无法保存历史记录导入设置。",
+      "totals": "{running} 个运行中，{queued} 个等待中，已导入 {imported} 条消息",
+      "totalsStored": "已存储 {size} 的 Discord 文件",
+      "purgeTitle": "移除所有 Discord 消息",
+      "purgeLead": "删除此实例所有服务器上由任何桥接从 Discord 带来的消息、文件和回应。用于此实例必须停止保存 Discord 内容的情况，例如其 Discord 应用失去访问权限。",
+      "purge": "移除所有 Discord 消息",
+      "purgeConfirm": "删除此实例所有服务器上从 Discord 桥接的一切？此操作无法撤销。",
+      "purgeYes": "全部删除"
     }
   },
   "imageEditor": {

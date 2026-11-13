@@ -24,6 +24,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Refresh profile** in another server's account's **⋯** menu reads the account from its server
   now: a new name, avatar or bio shows at once. When that server can't be reached, the profile stays
   as it was.
+- **Discord files are stored in the background.** With **Mirror to storage**, the gateway now also
+  stores the Discord files of messages already in Harmony, and files over 50 MB: the cap is the
+  instance's upload ceiling (`harmony config --upload-ceiling`). Large files are downloaded one at a
+  time through a temporary file. Expired links are refreshed through the bridge. **Instance admin** →
+  **Config** shows how many files are waiting, too large or failed, and the size stored. One server stores up to
+  5120 MB of them (**Stored Discord files per server (MB)** under **Discord history import**, `0`
+  for no limit); past it, further files keep their Discord links until the limit is raised.
 - **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
   the `/` list in server channels and threads, fill in typed options (text, numbers, true or false,
   choices, members, channels, roles) and the bot receives `INTERACTION_CREATE`. It answers within
@@ -48,6 +55,73 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Backslash escapes in messages.** `\*not italic\*`, `\@name`, `\#channel`, `\:emoji:`, `\> line`
   and `\https://link` show as typed, and an escaped mention pings nobody. Inline code keeps its
   backslashes.
+- **Discord bridge soundboard sync.** The Discord bridge can sync a server's
+  soundboard (`/bridge sync-sounds` in harmony-discord-bridge) through three
+  bot-gateway endpoints for the server's bridge bot: `GET
+  /servers/{id}/sounds`, `POST /servers/{id}/sounds/discord` and `DELETE
+  /servers/{id}/sounds/{soundId}`. The bridge deletes only sounds it imported:
+  a sound a member uploaded answers `403` `SOUND_NOT_LINKED`.
+- **Discord bridge sticker sync.** The same bridge bot can sync a server's
+  stickers through `GET /servers/{id}/stickers/discord` (the sticker limit and
+  the Discord-linked stickers, removed ones included), `POST
+  /servers/{id}/stickers/discord` (copies a PNG, APNG or GIF sticker from
+  Discord's CDN; Lottie stickers are refused with `422` `STICKER_FILE`) and
+  `DELETE /servers/{id}/stickers/{stickerId}`, which retires the sticker: it
+  leaves the picker and the list and no new message can use it, while old
+  messages keep showing it. The bridge retires only stickers it imported
+  (`403` `STICKER_NOT_LINKED` for a member's), and a server keeps the 60 retired
+  last. A message that names a removed or unknown sticker now answers `422`
+  `STICKER_REFUSED`.
+- **Discord bridge emoji sync.** The same bridge bot can sync a server's emoji
+  through `GET /servers/{id}/emojis/discord` (the server's emoji limit and its
+  Discord-linked emoji, removed ones included), an `update` flag on `POST
+  /servers/{id}/emojis/discord`, and `DELETE /servers/{id}/emojis/{emojiId}`.
+  The bridge removes only emoji it imported (`403` `EMOJI_NOT_LINKED` for a
+  member's, also one linked by name) and restores only emoji it removed (`403`
+  `EMOJI_REMOVED` for one a person removed); a server keeps the 500 it removed
+  last.
+- **Bot API: gateway capabilities.** `READY` and `GET /users/@me` carry
+  `capabilities`, the features this gateway has (`bridge_sound_sync`,
+  `bridge_emoji_sync`, `bridge_sticker_sync`, `bridge_history_import`,
+  `bridge_privacy`), so a bot can tell an older gateway without calling a
+  route that answers `404`.
+- **Import Discord history.** A Discord bridge you run yourself can copy a
+  paired channel's older messages, threads and pins into its Harmony channel,
+  with their original dates and Discord authors. Start it with **Import
+  history** or **Import all** in Server settings, Discord Bridge, or with
+  `/bridge import-history` in Discord (bridge 2.6.0 or later); each start asks
+  for a confirmation. Imported messages are quiet: no notifications, unread
+  counts, pings or federation, and a repeat or a restart never duplicates a
+  message. Reactions are not imported.
+  - It is off until the instance's admin turns it on (**Admin** → **Config** →
+    **Discord bridge** → **Discord history import**), and never runs through
+    the instance's Discord bot or a bot the instance runs for a community.
+  - Messages from people who have left the Discord server are skipped, the
+    bridge pins a notice in each Discord channel it imports, and a Discord
+    channel that `@everyone` cannot see is imported only when started on
+    Discord by someone who can see it.
+  - The instance limits how many imports run at once (1) and how many
+    messages each stores per minute (600), and with AutoMod's **Exempt bots**
+    off a server's blocking keyword, invite and link rules apply to imported
+    messages.
+- **Bridge privacy.** Discord members decide about their own messages with
+  `/bridge-privacy` on Discord: `opt-out` keeps them out of the Harmony server
+  from then on, live and imported, `erase` also deletes what the bridge
+  already brought, `opt-in` and `status` do what they say. It works with every
+  kind of bridge. For someone who cannot run it, members with Manage Server
+  remove a Discord user by ID under **Server settings** → **Discord Bridge** →
+  **Bridge privacy**, where **Remove all bridged messages** clears the whole
+  server; instance admins have **Remove all Discord messages** for the
+  instance. Erasing on Harmony never deletes anything on Discord.
+- **Bot API: bridge privacy and import limits.** `/bridge/v2/privacy` lists a
+  server's opted-out remote users and takes opt-out, opt-in and erase; a
+  relayed message or edit of an opted-out author answers `403`
+  `BRIDGE_AUTHOR_OPTED_OUT`. `/bridge/v2/config` carries `history_import` and
+  `privacy_version`. The import routes answer `403` `import_disabled` while
+  import is off, `429` `import_busy` and `import_rate_limited` with
+  `Retry-After`, and reject a message that cannot be stored alone (`rejected`
+  with `invalid`, `future_date`, `opted_out`, `automod`) instead of failing its
+  batch. See the developer docs, Build → Writing a bridge.
 - **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
   installs an instance on a blank Linux server: it checks the host (offering
   Docker and a swap file), asks a few questions, checks DNS, starts the
@@ -91,6 +165,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **`:P` suggests 😛.** Beside a custom emoji whose name starts with p, typing `:P` listed that
+  emoji alone and Enter inserted it. The emoticon's own emoji now leads the list; the same for
+  `:D`, `:O`, `:s` and `:p`.
+- **Discord bridge: finding a message by its Discord id reads an index.** The bridge asks for the
+  Harmony message behind a Discord message on replies, edits, deletes and reactions it has no record
+  of (`GET /channels/{id}/messages/lookup`), and the gateway does on a message relayed twice. Both
+  read every message of the channel, and every message of the instance when the id was not there.
+- **Pinned messages show bridged, webhook and bot authors.** Pins of messages from the Discord
+  bridge, webhooks and bots listed "Unknown"; they now show the same name and avatar as in chat.
 - **`@` before a name no one has is plain text.** `@5:32`, `@asdfgh` or any `@name` that is no
   account on your instance shows as you typed it, in the message field and in the message, instead
   of a mention that pointed at nobody. Messages sent before show the same way. Names picked from
@@ -202,8 +285,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
+- **Emoticons convert as on Discord.** The set is Discord's: `:')` is 🥲, `:'D` 😂, `8-)` 😎, `O:)` 😇,
+  `>:(` 😠, `]:)` 😈, `,:)` 😅, `;(` 😭, `:*` 😗, `:s` 😒, with the `=` and nose variants of each.
+  `:D` is 😄 and `:(` is 😦, as Discord has them. `:p`, `xD` and `:/` still convert.
+- **Emoji names follow Discord where they differed.** `:sunglasses:` is 😎, `:dog:` 🐶, `:cat:` 🐱,
+  `:kiss:` 💋, `:umbrella:` ☔, `:snowman:` ⛄, `:pencil:` 📝, `:calendar:` 📆, `:satellite:` 📡,
+  `:train:` 🚋, `:post_office:` 🏣, and `:tiger:`, `:horse:`, `:cow:`, `:pig:`, `:camel:`, `:mouse:`,
+  `:rabbit:` and `:whale:` are the animal's face. The emoji that held those names answer to
+  `:dark_sunglasses:`, `:dog2:`, `:cat2:`, `:couplekiss:`, `:umbrella2:`, `:snowman2:`, `:pencil2:`,
+  `:date:`, `:satellite_orbital:`, `:train2:` and the like. A message that holds one of the 19
+  names as typed text shows the other emoji now.
 - **Group conversations take messages from someone you blocked**, collapsed for you as in Discord.
   One member's block used to stop that person writing in the whole group.
+- **Bot API:** importing a Discord emoji through the bridge now respects the server's emoji limit
+  (`409` with `"code": "EMOJI_LIMIT"`) and name uniqueness (`409` with `"code": "EMOJI_NAME_TAKEN"`).
 - **Bot API:** message text over the instance's length limit answers `400` on create and edit, in
   place of `500`.
 - **Bot API:** a message history read returns at most 100 messages and a member list at most 1000;
@@ -227,6 +322,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   it. Update to this release.
 
 ### Notes for self-hosters
+- Discord history import is off after the upgrade. To let communities import through bridges they
+  run themselves, turn it on under **Admin** → **Config** → **Discord bridge** → **Discord history
+  import**, and read the notes shown there first. The same section holds the import limits.
 - Supabase Studio is off unless you choose it. An install that never chose has it removed by
   `harmony update`, which prints one line; `harmony studio on` brings it back.
 - Sign-up limits and the auth service's per-address limits read the client's address from

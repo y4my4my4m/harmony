@@ -22,12 +22,18 @@ const HARMONY_MESSAGE = '00000000-0000-0000-0000-0000000000f1'
 const UNPAIRED_MESSAGE = '00000000-0000-0000-0000-0000000000f2'
 const EMOJI_ID = '00000000-0000-0000-0000-0000000000aa'
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }))
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), policy: vi.fn(), enqueue: vi.fn(), discard: vi.fn() }))
 
 vi.mock('../../config/supabase.js', () => ({
   supabase: { rpc: mocks.rpc, from: mocks.from },
   config: {},
 }))
+
+vi.mock('../../utils/mirrorExternalMedia.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/mirrorExternalMedia.js')>()),
+  applyBridgeAttachmentPolicy: mocks.policy,
+}))
+vi.mock('../../bridge/mirrorEnqueue.js', () => ({ enqueueMirror: mocks.enqueue, discardMirroredParts: mocks.discard }))
 
 vi.mock('../../auth/BotAuthMiddleware.js', () => ({
   botAuthMiddleware: (req: any, _res: any, next: any) => {
@@ -84,11 +90,20 @@ function app() {
 
 const metadataOf = (id: string) => db.rows('messages').find((m) => m.id === id)?.metadata
 
+// bridge_message_by_discord_id over the fake table.
+const messageByDiscordId = (args: { p_channel_id: string; p_discord_message_id: string }) =>
+  db.rows('messages').find((m) => m.channel_id === args.p_channel_id
+    && m.metadata?.discord_message_id === args.p_discord_message_id && m.is_deleted !== true)?.id ?? null
+
 beforeEach(() => {
   mocks.rpc.mockReset()
   mocks.from.mockReset()
-  mocks.rpc.mockImplementation(async (fn: string) => {
+  mocks.policy.mockReset()
+  mocks.policy.mockImplementation(async (parts: unknown[]) => ({ parts, deferred: false }))
+  mocks.enqueue.mockReset()
+  mocks.rpc.mockImplementation(async (fn: string, args: any) => {
     if (fn === 'update_message_content_silent') return { data: true, error: null }
+    if (fn === 'bridge_message_by_discord_id') return { data: messageByDiscordId(args), error: null }
     throw new Error(`test called unmocked rpc: ${fn}`)
   })
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -382,11 +397,252 @@ describe('relayed authors and server-only content', () => {
     expect(inserted().metadata).toEqual({ bot: true, created_via: 'bot_api' })
   })
 
+  it('drops history_import from bot-supplied metadata, on send and on a metadata merge', async () => {
+    seed()
+    const sent = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: 'hi', metadata: { ...AUTHOR, discord_message_id: '9', history_import: true, discord_reply_to: '5' } })
+    expect(sent.status).toBe(201)
+    expect(inserted().metadata).not.toHaveProperty('history_import')
+    expect(inserted().metadata).not.toHaveProperty('discord_reply_to')
+
+    const own = '00000000-0000-0000-0000-0000000000f5'
+    db.rows('messages').push({ id: own, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content: [], metadata: {} })
+    const merged = await supertest(app()).patch(`/api/v1/messages/${own}/metadata`)
+      .send({ metadata: { discord_message_id: '10', history_import: true, discord_reply_to: '5', created_via: 'history_import' } })
+    expect(merged.status).toBe(200)
+    expect(metadataOf(own)).toEqual({ discord_message_id: '10' })
+  })
+
   it('refuses a message left empty', async () => {
     seed()
     const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
       .send({ content: [{ type: 'system', event_type: 'leave', user: { id: 'u' } }] })
     expect(res.status).toBe(400)
     expect(db.writesTo('messages', 'insert')).toHaveLength(0)
+  })
+})
+
+describe('sendMessage and a Discord message id already bridged', () => {
+  const EXISTING = '00000000-0000-0000-0000-0000000000f7'
+  const DUPLICATE_ERROR = {
+    code: '23505',
+    message: 'duplicate key value violates unique constraint "messages_channel_discord_message_id_unique"',
+  }
+
+  // The insert of a message is refused by the unique index; reads go to the fake table.
+  function refuseInsert(error: { code: string; message: string }) {
+    mocks.from.mockImplementation((table: string) => {
+      const query: any = db.from(table)
+      if (table !== 'messages') return query
+      const insert = () => ({ select: async () => ({ data: null, error }) })
+      return new Proxy(query, { get: (target, prop) => (prop === 'insert' ? insert : target[prop].bind(target)) })
+    })
+  }
+
+  it('returns the existing message when the Discord message id is already bridged', async () => {
+    seed()
+    db.rows('messages').push({
+      id: EXISTING, channel_id: PAIRED, user_id: null, bot_id: BOT_ID,
+      content: [{ type: 'text', text: 'first' }], metadata: { discord_message_id: '77', bot: true }, is_deleted: false,
+    })
+    refuseInsert(DUPLICATE_ERROR)
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'text', text: 'again' }], metadata: { discord_message_id: '77' } })
+    expect(res.status).toBe(200)
+    expect(res.body.id).toBe(EXISTING)
+    expect(res.body.content).toBe('first')
+    expect(db.rows('bot_audit_log')).toHaveLength(0)
+  })
+
+  it('still fails on any other unique violation', async () => {
+    seed()
+    refuseInsert({ code: '23505', message: 'duplicate key value violates unique constraint "messages_pkey"' })
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'text', text: 'again' }], metadata: { discord_message_id: '77' } })
+    expect(res.status).toBe(500)
+  })
+
+  it('hands the parts of a message that was not stored to the mirror cleanup, with the refusal', async () => {
+    seed()
+    mocks.discard.mockClear()
+    db.rows('messages').push({
+      id: EXISTING, channel_id: PAIRED, user_id: null, bot_id: BOT_ID,
+      content: [{ type: 'text', text: 'first' }], metadata: { discord_message_id: '77', bot: true }, is_deleted: false,
+    })
+    refuseInsert(DUPLICATE_ERROR)
+    await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'text', text: 'again' }], metadata: { discord_message_id: '77' } })
+    expect(mocks.discard).toHaveBeenCalledTimes(1)
+    expect(mocks.discard).toHaveBeenCalledWith([{ type: 'text', text: 'again' }], DUPLICATE_ERROR)
+  })
+
+  it('answers 409 without the row when another bot holds the Discord message id', async () => {
+    seed()
+    db.rows('messages').push({
+      id: EXISTING, channel_id: PAIRED, user_id: null, bot_id: '00000000-0000-0000-0000-0000000000b7',
+      content: [{ type: 'text', text: 'not yours' }], metadata: { discord_message_id: '77', bot: true }, is_deleted: false,
+    })
+    refuseInsert(DUPLICATE_ERROR)
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'text', text: 'again' }], metadata: { discord_message_id: '77' } })
+    expect(res.status).toBe(409)
+    expect(res.body.code).toBe('DISCORD_MESSAGE_ID_TAKEN')
+    expect(JSON.stringify(res.body)).not.toContain('not yours')
+  })
+
+  it('answers 403 BRIDGE_AUTHOR_OPTED_OUT when the relayed author opted out', async () => {
+    seed()
+    refuseInsert({ code: '23514', message: 'BRIDGE_AUTHOR_OPTED_OUT' })
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'text', text: 'hi' }], metadata: { discord_user: { id: '400000000000000001', username: 'dana' }, discord_message_id: '78' } })
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('BRIDGE_AUTHOR_OPTED_OUT')
+  })
+})
+
+describe('PATCH /messages/:id/metadata and a Discord message id already bridged', () => {
+  const MINE = '00000000-0000-0000-0000-0000000000f8'
+  const UPDATE_DUPLICATE = {
+    code: '23505',
+    message: 'duplicate key value violates unique constraint "messages_channel_discord_message_id_unique"',
+  }
+
+  function refuseUpdate(error: { code: string; message: string }) {
+    mocks.from.mockImplementation((table: string) => {
+      const query: any = db.from(table)
+      if (table !== 'messages') return query
+      const update = () => ({ eq: async () => ({ error }) })
+      return new Proxy(query, { get: (target, prop) => (prop === 'update' ? update : target[prop].bind(target)) })
+    })
+  }
+
+  it('answers 200 and leaves the message unchanged when an import already holds the id', async () => {
+    seed()
+    db.rows('messages').push({ id: MINE, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content: [], metadata: { bot: true } })
+    refuseUpdate(UPDATE_DUPLICATE)
+    const res = await supertest(app()).patch(`/api/v1/messages/${MINE}/metadata`)
+      .send({ metadata: { discord_message_id: '77' } })
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true, metadata: { bot: true } })
+  })
+
+  it('still fails on any other unique violation', async () => {
+    seed()
+    db.rows('messages').push({ id: MINE, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content: [], metadata: {} })
+    refuseUpdate({ code: '23505', message: 'duplicate key value violates unique constraint "messages_pkey"' })
+    const res = await supertest(app()).patch(`/api/v1/messages/${MINE}/metadata`)
+      .send({ metadata: { discord_message_id: '77' } })
+    expect(res.status).toBe(500)
+  })
+})
+
+describe('messages whose attachments the policy deferred', () => {
+  const CDN = 'https://cdn.discordapp.com/attachments/1/2/big.mp4'
+  const OWN = '00000000-0000-0000-0000-0000000000f8'
+  const defer = () => mocks.policy.mockImplementation(async (parts: unknown[]) => ({ parts, deferred: true }))
+
+  it('queues a new message for the mirror worker', async () => {
+    seed()
+    defer()
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: [{ type: 'url', url: CDN }] })
+    expect(res.status).toBe(201)
+    expect(mocks.enqueue).toHaveBeenCalledTimes(1)
+    expect(mocks.enqueue).toHaveBeenCalledWith([res.body.id])
+  })
+
+  it('does not queue a message nothing was deferred for', async () => {
+    seed()
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: [{ type: 'text', text: 'hi' }] })
+    expect(res.status).toBe(201)
+    expect(mocks.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('does not queue the existing row of a duplicate', async () => {
+    seed()
+    defer()
+    db.rows('messages').push({
+      id: OWN, channel_id: PAIRED, user_id: null, bot_id: BOT_ID,
+      content: [{ type: 'text', text: 'first' }], metadata: { discord_message_id: '78', bot: true }, is_deleted: false,
+    })
+    mocks.from.mockImplementation((table: string) => {
+      const query: any = db.from(table)
+      if (table !== 'messages') return query
+      const insert = () => ({ select: async () => ({ data: null, error: {
+        code: '23505', message: 'duplicate key value violates unique constraint "messages_channel_discord_message_id_unique"',
+      } }) })
+      return new Proxy(query, { get: (target, prop) => (prop === 'insert' ? insert : target[prop].bind(target)) })
+    })
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'url', url: CDN }], metadata: { discord_message_id: '78' } })
+    expect(res.status).toBe(200)
+    expect(mocks.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('queues an edited message', async () => {
+    seed()
+    defer()
+    db.rows('messages').push({
+      id: OWN, channel_id: PAIRED, user_id: null, bot_id: BOT_ID,
+      content: [{ type: 'text', text: 'first' }], metadata: { bot: true }, is_deleted: false,
+    })
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}`).send({ content: [{ type: 'url', url: CDN }] })
+    expect(res.status).toBe(200)
+    expect(mocks.enqueue).toHaveBeenCalledWith([OWN])
+  })
+
+  it('does not queue an edit nothing was deferred for', async () => {
+    seed()
+    db.rows('messages').push({
+      id: OWN, channel_id: PAIRED, user_id: null, bot_id: BOT_ID,
+      content: [{ type: 'text', text: 'first' }], metadata: { bot: true }, is_deleted: false,
+    })
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}`).send({ content: [{ type: 'text', text: 'second' }] })
+    expect(res.status).toBe(200)
+    expect(mocks.enqueue).not.toHaveBeenCalled()
+  })
+})
+
+describe('PATCH /messages/:id/content-silent never replaces a mirrored part', () => {
+  const OWN = '00000000-0000-0000-0000-0000000000f9'
+  const PATH = `c/${PAIRED}/bridge/${BOT_ID}/abc.png`
+  const NEW_CDN = 'https://cdn.discordapp.com/attachments/1/2/cat.png?ex=2'
+  const silentCalls = () => mocks.rpc.mock.calls.filter(([fn]) => fn === 'update_message_content_silent')
+
+  function own(content: unknown[]) {
+    seed()
+    db.rows('messages').push({
+      id: OWN, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content, metadata: { bot: true }, is_deleted: false,
+    })
+  }
+
+  it('refuses to swap a stored file for a Discord link', async () => {
+    own([{ type: 'file', fileType: 'image', url: 'https://x/storage/cat.png', path: PATH }])
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}/content-silent`)
+      .send({ content: [{ type: 'file', fileType: 'image', url: NEW_CDN }] })
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'mirrored_part' })
+    expect(silentCalls()).toHaveLength(0)
+  })
+
+  it('refuses when the mirrored part is dropped', async () => {
+    own([{ type: 'file', fileType: 'image', url: 'u', path: PATH }])
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}/content-silent`).send({ content: [] })
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'mirrored_part' })
+  })
+
+  it('lets one Discord link be swapped for a fresh one', async () => {
+    own([{ type: 'file', fileType: 'image', url: 'https://cdn.discordapp.com/attachments/1/2/cat.png?ex=1' }])
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}/content-silent`)
+      .send({ content: [{ type: 'file', fileType: 'image', url: NEW_CDN }] })
+    expect(res.status).toBe(200)
+    expect(silentCalls()).toHaveLength(1)
+  })
+
+  it('lets a mirrored part stay as it is', async () => {
+    const part = { type: 'file', fileType: 'image', url: 'https://x/storage/cat.png', path: PATH }
+    own([part])
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}/content-silent`).send({ content: [part] })
+    expect(res.status).toBe(200)
   })
 })

@@ -145,8 +145,35 @@ All variables the bridge program reads in host mode:
 | `DATA_DIR` | no | State directory; `/data` in the image |
 | `LOG_LEVEL` | no | `error`, `warn`, `info` (default) or `debug`; only `debug` logs message contents |
 | `HEALTH_PORT` | no | Port of the `/health` endpoint, default `8080`; `off` disables it |
+| `BRIDGE_IMPORT_POLL_MS` | no | How often a bridge checks Harmony for history import jobs, in ms; default `10000` (bridge 2.6.0 or later) |
+| `BRIDGE_IMPORT_PAGE_DELAY_MS` | no | Pause between two history pages read from Discord, in ms; default `1000` |
+| `BRIDGE_IMPORT_CONCURRENCY` | no | History imports running at once in this bridge process; default `1` |
 
 Extra variables for the compose service go in `self-host/discord-bridge.env`; `configure.sh` rewrites only `BRIDGE_HOST_SECRET` there and keeps other keys.
+
+### History import
+
+History import copies a paired Discord channel's older messages into Harmony ([Import history](/run/discord-bridge#import-history)). It is off on a new instance and stays off through upgrades. **User settings** → **Instance admin** → **Config** → **General** → **Discord bridge** → **Discord history import** sets it:
+
+| Setting | Default | Effect |
+|---|---|---|
+| **History import** | **Off** | **Self-run bridges** lets a server import through a bridge its owner runs with their own Discord application (bridge 2.6.0 or later). The instance's Discord bot and bots this instance runs for communities never import, whatever the setting. **Off** refuses every import and stops the ones running |
+| **Imports running at once** | 1 | Across the instance; the rest wait. `0` is no limit |
+| **Messages per minute, per import** | 600 | The gateway slows an import to this rate, whatever the bridge sends. `0` is no limit |
+| **Stored Discord files per server (MB)** | 5120 | With **Mirror to storage**, a server past this keeps Discord links for further files. `0` is no limit |
+
+The same page shows how many imports run and wait, how many messages were imported, and how much room stored Discord files take.
+
+Before turning it on:
+
+- The people who wrote the imported messages did not ask for the copy. The bridge skips authors who are no longer members of the Discord server, and every member can opt out or erase their messages with `/bridge-privacy` ([Bridge privacy](/run/discord-bridge#bridge-privacy)). Deletion requests for content on your instance come to you; your privacy policy should say what a bridge stores and how to ask.
+- A self-run bridge is its owner's Discord application, under their agreement with Discord. Your instance stores what it sends.
+- Imported messages send no notifications, count as read, and are not federated: no remote instance receives them. With **Exempt bots** off in a server's AutoMod, its blocking keyword, invite and link rules apply to imported messages.
+- With **Mirror to storage** (see [Attachments from Discord](#attachments-from-discord)), importing years of history copies every Discord file into the instance's message storage, up to the limit per server.
+
+**Remove all Discord messages**, at the bottom of that section, deletes every message, file and reaction any bridge brought from Discord, on every server of the instance. It is for when the instance must stop holding Discord content, for example when its Discord application loses access. Server managers do the same for one server, or for one Discord user, on their bridge page.
+
+Each import is a job the bridge works through in the background, reading Discord's history one page at a time, so a large channel takes hours. The `BRIDGE_IMPORT_*` variables above tune a bridge process; the limits in the table are the instance's and hold whatever those say.
 
 The volume holds per-bridge state under `/data/hosted/<bridge id>` and `/data/instance/<bridge id>`, and the instance bot's emoji map under `/data/app-emojis`.
 
@@ -197,7 +224,18 @@ Discord's file links expire. **User settings** → **Instance admin** → **Conf
 |---|---|
 | **Link only** (default) | Stores the Discord link; it stops working when it expires |
 | **Refresh on demand** | When someone views a bridged message whose link expired, the gateway asks the owning bridge, which must be connected, to re-sign the links and update the message. No disk use |
-| **Mirror to storage** | Copies each file into the instance's message storage when the message arrives. Permanent; uses disk. A file over 50 MB, or one that fails to download, keeps its Discord link |
+| **Mirror to storage** | Copies each file into the instance's message storage when the message arrives, when a community imports old Discord history, and for messages already in Harmony. Permanent; uses disk. A file larger than the upload ceiling, and one that fails to download, keeps its Discord link |
+
+### Mirror to storage
+
+Turning **Mirror to storage** on also covers messages bridged earlier. Only messages posted by bridge bots are covered, not messages from people on Harmony. The gateway works through their Discord files in the background and stores them, so nothing has to be re-imported. Under the setting, **Storing Discord files** shows how many files are waiting, too large or failed, and the size of what is stored.
+
+- **Size cap.** Files up to the upload ceiling are stored (Discord allows up to 500 MB). Raise the ceiling with `harmony config --upload-ceiling 500M`; files that were too large are then stored without further action. The ceiling must match storage's `FILE_SIZE_LIMIT`, which `harmony config --upload-ceiling` sets together with it; a file storage refuses is counted as too large.
+- **Large files.** Files over `BRIDGE_MIRROR_INLINE_MAX_BYTES` (default 25 MB) go through a queue and are stored one at a time (`BRIDGE_MIRROR_CONCURRENCY`, default 1), so a burst of big files does not slow the bridge.
+- **Temp disk.** Each file is downloaded to a temporary file first, in `BRIDGE_MIRROR_TMPDIR` (default: the operating system's temp directory, on the gateway container's disk). Keep free space there of about the size of the largest file, up to the upload ceiling.
+- **Storage.** Storage needs room for all the files. Check free space before turning the option on for a bridge with years of history. **Stored Discord files per server (MB)**, under [History import](#history-import), caps what one server stores (default 5120, `0` for no limit); a file past it keeps its Discord link, and is stored once the limit is raised.
+- **Expired links.** A Discord link that expired before the file was stored is refreshed through the bridge, which must be online. While it is not, the gateway tries again every 15 minutes. A stored file never goes back to a Discord link.
+- **One gateway.** The queue assumes one gateway process.
 
 ## Versions
 
@@ -212,5 +250,6 @@ Some bridge features need a Harmony release with the matching gateway routes and
 | 2.3.0 | 1.6.25 | `/bridge import-emojis` |
 | 2.4.0 | 1.7.5 | Threads cross the bridge; the bot needs **Create Public Threads** and **Send Messages in Threads** |
 | 2.4.1 | 1.7.6 | The "started a thread" notice names the Discord member who started the thread |
+| 2.6.0 | 1.9.7 | `/bridge import-history` and the **Import history** buttons; the bot needs **Read Message History**. Discord's private threads no longer cross the bridge, live or imported |
 
 When a release needs a new Discord permission, communities whose bot was added earlier have to add it again: **Add to Discord again** for the instance bot, **Invite the bot to your Discord server** for their own bot. Communities that run the bridge themselves update their own container; the bridge page shows each bridge's **Bridge version**.

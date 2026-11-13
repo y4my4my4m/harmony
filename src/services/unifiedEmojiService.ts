@@ -118,7 +118,7 @@ const twemojiFileMap = shallowRef<Record<string, boolean> | null>(null)
 // v3 (2026-05-25): ~884 GitHub/Discord shortcode aliases from `gemoji` merged
 // into `shortcodeToUnicode`, making `:joy:`, `:heart:`, `:thumbsup:` resolve as
 // standalone shortcodes rather than picker-only keyword matches.
-const EMOJI_DATA_CACHE_VERSION = '4'
+const EMOJI_DATA_CACHE_VERSION = '5'
 
 /**
  * Shortcode lookups now exist: display names and the custom emoji's `name~N` labels, which

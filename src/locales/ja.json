@@ -5413,6 +5413,11 @@
       "reportsFailed": "このドメインからの報告の扱いを変更できませんでした"
     },
     "instance": {
+      "mirrorStatusProgress": "Discord のファイルを保存中: {queued} 件待機中、{size} 保存済み",
+      "mirrorStatusTooLarge": "{count} 件が大きすぎます ({size}): harmony config --upload-ceiling 500M でアップロード上限を引き上げてください",
+      "mirrorStatusFailed": "{count} 件失敗",
+      "mirrorStatusOverQuota": "{count} 件がサーバーごとの上限を超えています: 「サーバーごとに保存する Discord ファイル」を引き上げてください",
+      "mirrorStatusAllStored": "すべての Discord ファイルが保存されています",
       "maxPostReactions": "投稿1件あたりの1人の最大リアクション数",
       "maxPostReactionsHint": "1人が1つの投稿にリアクションできる絵文字の種類数（1〜100）。デフォルト：10。上限を超えて他のインスタンスから届いたリアクションは破棄されます。チャットメッセージの絵文字は最大20種類です。",
       "maxPersonalEmojis": "ユーザーごとの個人絵文字数",
@@ -6129,6 +6134,7 @@
       "unknown": "未報告",
       "showSetup": "設定の手順を表示",
       "problemsTitle": "対応が必要な問題: {count} 件 | 対応が必要な問題: {count} 件",
+      "noticesTitle": "お知らせ: {count} 件 | お知らせ: {count} 件",
       "pairsTitle": "ペアのチャンネル",
       "settingsTitle": "オプション",
       "maintainTitle": "メンテナンス",
@@ -6145,7 +6151,8 @@
       },
       "disconnect": "ブリッジを切断",
       "disconnected": "ブリッジを切断しました",
-      "finished": "ブリッジの設定が完了しました。"
+      "finished": "ブリッジの設定が完了しました。",
+      "disconnectKeeps": "ブリッジされたものも削除するには、先に「ブリッジのプライバシー」の「ブリッジされたメッセージをすべて削除」を使ってください。"
     },
     "confirm": {
       "disconnect": {
@@ -6240,6 +6247,17 @@
         "fixHosted": "インスタンス側の問題で、ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。",
         "fixInstance": "インスタンス側の問題で、ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。"
       },
+      "message_content_needed_for_import": {
+        "title": "履歴のインポートが Message Content Intent を待っています。",
+        "fixSelf": "オフの間、Discord は空のメッセージを返します。Developer Portal でアプリケーション → Bot → Privileged Gateway Intents を開き、Message Content Intent をオンにして Save Changes をクリックします。その後、下のコマンドでブリッジを再起動してください。インポートは自動で始まります。",
+        "fixHosted": "オフの間、Discord は空のメッセージを返します。Developer Portal でアプリケーション → Bot → Privileged Gateway Intents を開き、Message Content Intent をオンにして Save Changes をクリックします。ブリッジが再接続するとインポートは自動で始まります。",
+        "fixInstance": "このインスタンスのボットには Message Content Intent がないため、履歴をインポートできません。インスタンスの管理者に相談してください。"
+      },
+      "private_threads_skipped": {
+        "title": "インポートでは {channel} のプライベートスレッドを除外しました。",
+        "titleCount": "インポートでは {channel} のプライベートスレッド {count} 件を除外しました。 | インポートでは {channel} のプライベートスレッド {count} 件を除外しました。",
+        "fix": "対応は不要です。Harmony にはまだプライベートスレッドがなく、チャンネルの全員が読めてしまうため、Discord に残しています。"
+      },
       "unknown": {
         "title": "ブリッジが問題を報告しました（{code}）。",
         "fixSelf": "詳細はブリッジのログにあります:",
@@ -6306,7 +6324,14 @@
       "bridgeExists": "このサーバーには別の方法で設定された Discord ブリッジがすでにあります。このインスタンスのボットを使うには、先にそれを切断してください。",
       "instanceFull": "このインスタンスのボットは、許可されている数の Discord サーバーにすでに参加しています。インスタンスの管理者に相談するか、自分の Discord ボットを使ってください。",
       "instanceOff": "このインスタンスは現在 Discord ボットを提供していません。自分の Discord ボットを使ってください。",
-      "link": "Discord とのリンクを開始できませんでした。もう一度試してください。"
+      "link": "Discord とのリンクを開始できませんでした。もう一度試してください。",
+      "import": "インポートを開始できませんでした。",
+      "cancelImport": "インポートをキャンセルできませんでした。",
+      "pairNotImportable": "このペアは履歴をインポートできません。Discord のメッセージを Harmony に取り込むペアの、暗号化されていないチャンネルだけが対象です。",
+      "importChanged": "インポートの状態が変わったため更新しました。もう一度お試しください。",
+      "importDisabled": "このブリッジでは履歴のインポートがオフになっています。",
+      "invalidDiscordUser": "Discord ユーザー ID ではありません。",
+      "privacy": "リクエストに失敗しました。もう一度お試しください。"
     },
     "time": {
       "secondsAgo": "たった今 | {count} 秒前 | {count} 秒前",
@@ -6415,6 +6440,125 @@
       "settingsSaved": "Discord ボットの設定を保存しました",
       "saveFailed": "Discord ボットの設定を保存できませんでした",
       "redirectLabel": "リダイレクト先のアドレス"
+    },
+    "import": {
+      "button": "履歴をインポート",
+      "buttonLabel": "#{channel} の履歴をインポート",
+      "importAll": "すべてインポート",
+      "importAllAgain": "すべて再インポート",
+      "importAllAgainConfirm": "{count} 件のチャンネルの履歴を再インポートしますか？Discord の履歴を最初から読み直します。すでにあるメッセージはスキップされます。",
+      "importAllAgainYes": "再インポート",
+      "cancelAll": "すべてキャンセル",
+      "cancel": "キャンセル",
+      "cancelLabel": "#{channel} のインポートをキャンセル",
+      "cancelling": "キャンセル中…",
+      "waiting": "待機中",
+      "running": "インポート中… {percent}%",
+      "runningUnknown": "インポート中…",
+      "threadsRunning": "スレッドをインポート中…",
+      "repliesRunning": "返信を関連付け中…",
+      "progressLabel": "#{channel} のインポートの進捗",
+      "backTo": "{date} まで遡り済み",
+      "messages": "{count} 件のメッセージ | {count} 件のメッセージ",
+      "threads": "スレッド {done} / {total}",
+      "done": "{count} 件のメッセージをインポートしました | {count} 件のメッセージをインポートしました",
+      "doneNothingNew": "最新の状態です：新しいメッセージはありません",
+      "failed": "インポートが停止しました: {reason}",
+      "failedUnknown": "インポートが停止しました",
+      "cancelled": "キャンセルしました",
+      "paused": "一時停止中: ブリッジを待っています",
+      "retry": "再試行",
+      "retryLabel": "#{channel} のインポートを再試行",
+      "resume": "再開",
+      "resumeLabel": "#{channel} のインポートを再開",
+      "again": "再度インポート",
+      "againLabel": "#{channel} の履歴を再度インポート",
+      "reasons": {
+        "pair_removed": "チャンネルのペアが削除されました",
+        "channel_encrypted": "チャンネルが暗号化されました",
+        "import_disabled": "履歴のインポートがオフになりました",
+        "pair_not_importable": "このペアは Discord のメッセージを Harmony に取り込まなくなりました",
+        "discord_approval_required": "Discord チャンネルが非公開です。Discord で /bridge import-history を使ってインポートを開始してください",
+        "discord_channel_unsupported": "Discord チャンネルがテキストチャンネルではありません",
+        "discord_access_lost": "ブリッジが Discord チャンネルを読めなくなりました",
+        "bridge_stalled": "ブリッジの処理が進まなくなりました"
+      },
+      "ineligible": {
+        "direction": "Discord のメッセージを Harmony に取り込むペアだけが履歴をインポートできます",
+        "encrypted": "暗号化されたチャンネルは履歴をインポートできません"
+      },
+      "needsUpdate": "履歴をインポートするには、ブリッジを 2.6.0 以降に更新してください",
+      "mirrorNote": "インポートしたファイルは、このインスタンスのストレージにコピーされます。",
+      "consent": {
+        "title": "{count} 個のチャンネルの履歴をインポートしますか? | {count} 個のチャンネルの履歴をインポートしますか?",
+        "copies": "過去のメッセージとファイルが、投稿者の Discord の名前とアバターとともにこのサーバーにコピーされます。ブリッジを削除しても残ります。",
+        "skips": "Discord サーバーを退出した人のメッセージはスキップされます。Discord では誰でも /bridge-privacy で自分のメッセージを対象外にしたり、消去したりできます。",
+        "notice": "インポートを開始すると、ブリッジが各 Discord チャンネルにお知らせをピン留めします。",
+        "confirm": "私はこの Discord サーバーを管理している、または管理者の同意を得ています。",
+        "start": "インポートを開始"
+      },
+      "unavailable": {
+        "instance_off": "このインスタンスでは履歴のインポートがオフになっています。",
+        "bridge_mode": "履歴のインポートは、自分の Discord アプリケーションで自分で実行するブリッジでのみ利用できます。"
+      },
+      "authorsSkipped": "{count} 件をスキップ (投稿者が退出または対象外) | {count} 件をスキップ (投稿者が退出または対象外)",
+      "automodSkipped": "{count} 件を AutoMod がブロック | {count} 件を AutoMod がブロック"
+    },
+    "privacy": {
+      "title": "ブリッジのプライバシー",
+      "lead": "Discord のメンバーは、Discord で /bridge-privacy を使って自分のメッセージをこのサーバーの対象外にしたり、消去したりできます。退出後などコマンドを使えない人は、ここで削除してください。",
+      "idLabel": "Discord ユーザー ID",
+      "idHelp": "Discord で開発者モードをオンにし、ユーザーを右クリックして「ユーザー ID をコピー」を選びます。",
+      "idInvalid": "Discord ユーザー ID は 5 ~ 20 桁の数字です。",
+      "remove": "このサーバーから削除",
+      "removeConfirm": "このブリッジが Discord ユーザー {id} から取り込んだメッセージ、ファイル、リアクションをすべて削除し、今後も取り込まないようにしますか? この操作は元に戻せません。",
+      "removeYes": "メッセージを削除",
+      "removed": "{count} 件のメッセージを削除しました | {count} 件のメッセージを削除しました",
+      "progress": "削除しています… これまでに {count} 件 | 削除しています… これまでに {count} 件",
+      "listTitle": "対象外の Discord ユーザー {count} 人 | 対象外の Discord ユーザー {count} 人",
+      "source": {
+        "self": "Discord で本人が対象外に設定",
+        "manager": "サーバー管理者が削除",
+        "admin": "インスタンス管理者が削除"
+      },
+      "restore": "元に戻す",
+      "restoreLabel": "Discord ユーザー {id} を再びブリッジする",
+      "purgeLead": "このサーバーのブリッジが Discord から取り込んだもの (メッセージ、ファイル、リアクション) をすべて削除します。Harmony で書かれたメッセージは残ります。",
+      "purge": "ブリッジされたメッセージをすべて削除",
+      "purgeConfirm": "Discord からこのサーバーに取り込まれたメッセージ、ファイル、リアクションをすべて削除しますか? この操作は元に戻せません。",
+      "purgeYes": "すべて削除",
+      "purged": "ブリッジされたメッセージ {count} 件を削除しました | ブリッジされたメッセージ {count} 件を削除しました"
+    },
+    "importAdmin": {
+      "title": "Discord の履歴インポート",
+      "lead": "サーバーが、所有者が自分の Discord アプリケーションで実行するブリッジを通じて、Discord チャンネルの過去のメッセージを Harmony にコピーできるようにします。このインスタンスの Discord ボットや、このインスタンスが実行するボットでは利用できません。",
+      "loadFailed": "履歴インポートの設定を読み込めませんでした。",
+      "mode": "履歴のインポート",
+      "modeOff": "オフ",
+      "modeSelfRun": "自分で実行するブリッジ",
+      "modeHint": "オフにすると、実行中のものを含めすべてのインポートを拒否します。",
+      "warningTitle": "オンにする前に",
+      "warningAuthors": "これらのメッセージの投稿者はコピーを求めていません。Discord サーバーを退出した投稿者はスキップされ、メンバーは /bridge-privacy で自分のメッセージを対象外にしたり消去したりできます。",
+      "warningRequests": "このインスタンス上のコンテンツの削除依頼はあなたに届きます。サーバー管理者は「サーバー設定」の「Discord ブリッジ」で Discord ユーザーを削除できます。下の「Discord のメッセージをすべて削除」はすべてのサーバーを対象にします。",
+      "warningQuiet": "インポートされたメッセージは通知を送らず、既読として扱われ、連合されません。サーバーでボットが除外されていない場合、AutoMod の単語、招待、リンクのルールが適用されます。",
+      "warningStorage": "「Mirror to storage」では、インポートしたファイルが下記のサーバーごとの上限まで、このインスタンスのストレージにコピーされます。",
+      "maxRunning": "同時に実行するインポート数",
+      "maxRunningHint": "インスタンス全体での数です。それ以外は順番を待ちます。0 は無制限です。",
+      "messagesPerMinute": "インポート 1 件あたりの毎分のメッセージ数",
+      "messagesPerMinuteHint": "ブリッジが何を送っても、サーバーがインポートをこの速度に抑えます。0 は無制限です。",
+      "mirrorServerLimitMb": "サーバーごとに保存する Discord ファイル (MB)",
+      "mirrorServerLimitMbHint": "「Mirror to storage」では、これを超えたサーバーの以降のファイルは Discord のリンクのままになります。0 は無制限です。",
+      "limitInvalid": "0 以上の整数を入力してください。",
+      "save": "上限を保存",
+      "saved": "履歴インポートの設定を保存しました",
+      "saveFailed": "履歴インポートの設定を保存できませんでした。",
+      "totals": "実行中 {running} 件、待機中 {queued} 件、インポート済みメッセージ {imported} 件",
+      "totalsStored": "保存済みの Discord ファイル {size}",
+      "purgeTitle": "Discord のメッセージをすべて削除",
+      "purgeLead": "このインスタンスのすべてのサーバーで、ブリッジが Discord から取り込んだメッセージ、ファイル、リアクションをすべて削除します。Discord アプリケーションがアクセスを失った場合など、このインスタンスが Discord のコンテンツを保持できなくなったときに使います。",
+      "purge": "Discord のメッセージをすべて削除",
+      "purgeConfirm": "このインスタンスのすべてのサーバーで、Discord からブリッジされたものをすべて削除しますか? この操作は元に戻せません。",
+      "purgeYes": "すべて削除"
     }
   },
   "imageEditor": {

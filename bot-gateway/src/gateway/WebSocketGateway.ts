@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { supabase, config } from '../config/supabase.js'
 import * as crypto from 'crypto'
 import { type InstallRow, botCanSeeChannel, loadEveryoneLayers } from '../auth/botPermissions.js'
+import { GATEWAY_CAPABILITIES } from '../capabilities.js'
 
 function logPresenceError(op: string, error: unknown) {
   if (!error) return
@@ -391,7 +392,8 @@ export class WebSocketGateway {
           username: botConnection.username
         },
         session_id: botConnection.sessionId,
-        heartbeat_interval: config.websocket.heartbeatInterval
+        heartbeat_interval: config.websocket.heartbeatInterval,
+        capabilities: GATEWAY_CAPABILITIES
       }
     }))
     

@@ -97,6 +97,8 @@ beforeEach(() => {
         : { data: { valid: false, error: 'Invalid or expired token' }, error: null },
     check_and_increment_bot_rate_limit: () => ({ data: false, error: null }),
     discord_bridge_encrypted_channel_ids: ({ p_bridge_id }) => ({ data: p_bridge_id === BRIDGE_ID ? [] : null, error: null }),
+    discord_bridge_import_block: () => ({ data: 'instance_off', error: null }),
+    bridge_privacy_optout_ids: () => ({ data: { version: '0:0', remote_user_ids: [] }, error: null }),
   }
   mocks.rpc.mockReset()
   mocks.rpc.mockImplementation(async (fn: string, args: any) => {
@@ -380,8 +382,33 @@ describe('GET /bridge/v2/config', () => {
         direction: 'both',
       }],
       harmony_channels: [{ id: GENERAL, name: 'general', type: 0, category: 'Community', category_id: CATEGORY, encrypted: false }],
+      history_import: { enabled: false, reason: 'instance_off' },
+      privacy_version: '0:0',
     })
     expect(rpcCalls('discord_bridge_encrypted_channel_ids')).toEqual([{ p_bridge_id: BRIDGE_ID }])
+    expect(rpcCalls('discord_bridge_import_block')).toEqual([{ p_bridge_id: BRIDGE_ID }])
+    expect(rpcCalls('bridge_privacy_optout_ids')).toEqual([{ p_server_id: SERVER_ID, p_platform: 'discord' }])
+  })
+
+  it('says whether the bridge may import history, and the version of the opt-out list', async () => {
+    rpcHandlers.discord_bridge_import_block = () => ({ data: null, error: null })
+    rpcHandlers.bridge_privacy_optout_ids = () => ({ data: { version: '2:1762900000000', remote_user_ids: ['1', '2'] }, error: null })
+    const open = await supertest(makeApp()).get('/bridge/v2/config').set(auth)
+    expect(open.body.history_import).toEqual({ enabled: true, reason: null })
+    expect(open.body.privacy_version).toBe('2:1762900000000')
+    expect(open.body).not.toHaveProperty('remote_user_ids')
+
+    rpcHandlers.discord_bridge_import_block = () => ({ data: 'bridge_mode', error: null })
+    const hosted = await supertest(makeApp()).get('/bridge/v2/config').set(auth)
+    expect(hosted.body.history_import).toEqual({ enabled: false, reason: 'bridge_mode' })
+  })
+
+  it('answers 503 when the import switch or the opt-out list cannot be read', async () => {
+    rpcHandlers.discord_bridge_import_block = () => ({ data: null, error: { code: '57014', message: 'canceling statement' } })
+    expect((await supertest(makeApp()).get('/bridge/v2/config').set(auth)).status).toBe(503)
+    rpcHandlers.discord_bridge_import_block = () => ({ data: null, error: null })
+    rpcHandlers.bridge_privacy_optout_ids = () => ({ data: null, error: { code: '57014', message: 'canceling statement' } })
+    expect((await supertest(makeApp()).get('/bridge/v2/config').set(auth)).status).toBe(503)
   })
 
   it('marks the channels whose messages are end-to-end encrypted', async () => {
