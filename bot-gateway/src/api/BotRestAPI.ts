@@ -26,7 +26,8 @@ import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
 import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl, absoluteServerIconUrl } from '../utils/avatarUrl.js'
 import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
-import { DISCORD_EMOJI_ID, EMOJI_NAME, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
+import { DISCORD_EMOJI_ID, EMOJI_BUCKET, EMOJI_NAME, discordEmojiStoragePath, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
+import { DISCORD_SOUND_ID, storeDiscordSound, removeStoredSound } from '../utils/discordSoundImport.js'
 import { TTLCache } from '../utils/TTLCache.js'
 import { MAX_COMMANDS, validateCommand, validateCommands } from '../commands/validate.js'
 
@@ -419,7 +420,14 @@ export class BotRestAPI {
     // Server emoji with their Discord links; the Discord bridge maps reactions through them.
     this.route('get', '/servers/:serverId/emojis', this.getServerEmojis)
     // Discord bridge bot of the server only: Discord emoji → server emoji, once per Discord emoji.
+    this.route('get', '/servers/:serverId/emojis/discord', this.listDiscordEmojis)
     this.route('post', '/servers/:serverId/emojis/discord', this.importDiscordEmoji)
+    this.route('delete', '/servers/:serverId/emojis/:emojiId', this.removeServerEmoji)
+
+    // Discord bridge bot of the server only: soundboard sync.
+    this.route('get', '/servers/:serverId/sounds', this.listServerSounds)
+    this.route('post', '/servers/:serverId/sounds/discord', this.importDiscordSound)
+    this.route('delete', '/servers/:serverId/sounds/:soundId', this.deleteServerSound)
 
     // Content patch that leaves updated_at alone; no "(edited)" marker.
     this.route('patch', '/messages/:messageId/content-silent', this.silentUpdateMessageContent)
@@ -2962,11 +2970,68 @@ export class BotRestAPI {
     res.json(data ?? [])
   }
 
+  private emojiError(res: Response, error: { code?: string; message: string }) {
+    if (error.message?.startsWith('SERVER_EMOJI_LIMIT')) {
+      return res.status(409).json({ error: error.message, code: 'EMOJI_LIMIT' })
+    }
+    if (error.code === '23505') return res.status(409).json({ error: error.message, code: 'EMOJI_NAME_TAKEN' })
+    if (error.code === 'P0002') return res.status(404).json({ error: error.message })
+    const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
+    return res.status(status).json({ error: error.message })
+  }
+
+  private async listDiscordEmojis(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+      const { data, error } = await supabase
+        .from('emojis')
+        .select('id, name, url, discord_emoji_id, deleted_at')
+        .eq('server_id', serverId)
+        .or('deleted_at.is.null,discord_emoji_id.not.is.null')
+        .order('id')
+        .range(0, 4999)
+      if (error) return res.status(500).json({ error: error.message })
+      const { data: limit, error: limitError } = await supabase.rpc('server_emoji_limit')
+      if (limitError) return res.status(500).json({ error: limitError.message })
+      if (limit == null) return res.status(500).json({ error: 'emoji limit unavailable' })
+      const emojis = (data ?? []).map((e: any) => ({
+        id: e.id, name: e.name, url: e.url, discord_emoji_id: e.discord_emoji_id, removed: e.deleted_at != null,
+      }))
+      res.json({ limit, emojis })
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  private async removeServerEmoji(req: BotRequest, res: Response) {
+    try {
+      const { serverId, emojiId } = req.params
+      const botId = req.bot!.id
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (!UUID_PATTERN.test(emojiId)) return res.status(400).json({ error: 'emojiId must be a UUID' })
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+      const { data, error } = await supabase.rpc('bridge_remove_server_emoji', {
+        p_bot_id: botId,
+        p_server_id: serverId,
+        p_emoji_id: emojiId,
+      })
+      if (error) return this.emojiError(res, error)
+      if (data === 'removed') {
+        await this.logBotAction(botId, 'emoji_removed', { emojiId, serverId }, { serverId })
+      }
+      res.status(204).end()
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
   private async importDiscordEmoji(req: BotRequest, res: Response) {
     try {
       const serverId = req.params.serverId
       const botId = req.bot!.id
-      const { discord_emoji_id: discordEmojiId, name, animated } = req.body ?? {}
+      const { discord_emoji_id: discordEmojiId, name, animated, update } = req.body ?? {}
       if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
       if (typeof discordEmojiId !== 'string' || !DISCORD_EMOJI_ID.test(discordEmojiId)) {
         return res.status(400).json({ error: 'discord_emoji_id must be a Discord snowflake' })
@@ -2990,6 +3055,7 @@ export class BotRestAPI {
         p_discord_emoji_id: discordEmojiId,
         p_name: name,
         p_url: url,
+        p_update: update === true,
       })
 
       // Without an image URL the RPC answers existing or linked rows and refuses a new one.
@@ -2997,20 +3063,156 @@ export class BotRestAPI {
       if (error && error.message === 'invalid emoji url') {
         const url = await storeDiscordEmojiImage(serverId, discordEmojiId, animated === true)
         ;({ data, error } = await call(url))
+        if (error) {
+          await supabase.storage.from(EMOJI_BUCKET)
+            .remove([discordEmojiStoragePath(serverId, discordEmojiId, animated === true)])
+            .catch((e: unknown) => console.error('Emoji image cleanup failed:', e))
+        }
       }
-      if (error) {
-        const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
-        return res.status(status).json({ error: error.message })
-      }
+      if (error) return this.emojiError(res, error)
       const row = Array.isArray(data) ? data[0] : null
       if (!row) return res.status(500).json({ error: 'Import returned no row' })
       if (row.status === 'created') {
         await this.logBotAction(botId, 'emoji_imported', { emojiId: row.id, serverId, discordEmojiId }, { serverId })
+      } else if (row.status === 'updated') {
+        await this.logBotAction(botId, 'emoji_updated', { emojiId: row.id, serverId, discordEmojiId }, { serverId })
       }
       res.status(row.status === 'created' ? 201 : 200).json(row)
     } catch (error: any) {
       console.error('Import Discord emoji exception:', error)
       res.status(502).json({ error: error.message })
+    }
+  }
+
+  // True when the bot bridges the server; otherwise the response is already sent.
+  private async requireSoundBridge(req: BotRequest, res: Response, serverId: string): Promise<boolean> {
+    const { data: bridge, error } = await supabase
+      .from('discord_bridges')
+      .select('id')
+      .eq('server_id', serverId)
+      .eq('bot_id', req.bot!.id)
+      .maybeSingle()
+    if (error) { res.status(500).json({ error: error.message }); return false }
+    if (!bridge) { res.status(403).json({ error: 'Bot is not the Discord bridge of this server' }); return false }
+    return true
+  }
+
+  private soundError(res: Response, error: { code?: string; message: string }) {
+    if (error.message?.startsWith('SOUNDBOARD_FULL')) {
+      return res.status(409).json({ error: error.message, code: 'SOUND_LIMIT' })
+    }
+    const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
+    return res.status(status).json({ error: error.message })
+  }
+
+  private async listServerSounds(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+      const { data, error } = await supabase
+        .from('server_sounds')
+        .select('id, name, emoji, emoji_id, volume, discord_sound_id')
+        .eq('server_id', serverId)
+      if (error) return res.status(500).json({ error: error.message })
+      res.json(data ?? [])
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  private async importDiscordSound(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      const botId = req.bot!.id
+      const b = req.body ?? {}
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (typeof b.discord_sound_id !== 'string' || !DISCORD_SOUND_ID.test(b.discord_sound_id)) {
+        return res.status(400).json({ error: 'discord_sound_id must be a Discord snowflake' })
+      }
+      const name = typeof b.name === 'string' ? b.name.trim() : ''
+      if (name.length < 1 || name.length > 32) return res.status(400).json({ error: 'name must be 1-32 characters' })
+      let emoji: string | null = null
+      if (b.emoji !== null && b.emoji !== undefined) {
+        const trimmed = typeof b.emoji === 'string' ? b.emoji.trim() : ''
+        if (trimmed.length < 1 || trimmed.length > 16) return res.status(400).json({ error: 'emoji must be 1-16 characters or null' })
+        emoji = trimmed
+      }
+      const emojiId = b.emoji_id ?? null
+      if (emojiId !== null && (typeof emojiId !== 'string' || !UUID_PATTERN.test(emojiId))) {
+        return res.status(400).json({ error: 'emoji_id must be a UUID or null' })
+      }
+      if (typeof b.volume !== 'number' || !Number.isFinite(b.volume) || b.volume < 0 || b.volume > 1) {
+        return res.status(400).json({ error: 'volume must be a number from 0 to 1' })
+      }
+      if (b.update !== undefined && typeof b.update !== 'boolean') {
+        return res.status(400).json({ error: 'update must be a boolean' })
+      }
+      const update = b.update === true
+
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+
+      const call = (storagePath: string | null, durationMs: number | null) => supabase.rpc('bridge_import_server_sound', {
+        p_bot_id: botId,
+        p_server_id: serverId,
+        p_discord_sound_id: b.discord_sound_id,
+        p_name: name,
+        p_emoji: emoji,
+        p_emoji_id: emojiId,
+        p_volume: b.volume,
+        p_update: update,
+        p_storage_path: storagePath,
+        p_duration_ms: durationMs,
+      })
+
+      // Without a stored clip the RPC answers existing or linked rows and refuses a new one.
+      let storedPath: string | null = null
+      let { data, error } = await call(null, null)
+      if (error && error.message === 'invalid sound file') {
+        const stored = await storeDiscordSound(serverId, b.discord_sound_id)
+        storedPath = stored.storagePath
+        ;({ data, error } = await call(stored.storagePath, stored.durationMs))
+        if (error) {
+          await removeStoredSound(stored.storagePath)
+          return this.soundError(res, error)
+        }
+      }
+      if (error) return this.soundError(res, error)
+      const row = Array.isArray(data) ? data[0] : null
+      if (!row) return res.status(500).json({ error: 'Import returned no row' })
+      // A concurrent import won the race; the clip we stored is an orphan.
+      if (storedPath && row.status !== 'created') await removeStoredSound(storedPath)
+      if (row.status === 'created') {
+        await this.logBotAction(botId, 'sound_imported', { soundId: row.id, serverId, discordSoundId: b.discord_sound_id })
+      } else if (row.status === 'updated') {
+        await this.logBotAction(botId, 'sound_updated', { soundId: row.id, serverId, discordSoundId: b.discord_sound_id })
+      }
+      res.status(row.status === 'created' ? 201 : 200).json(row)
+    } catch (error: any) {
+      console.error('Import Discord sound exception:', error)
+      res.status(502).json({ error: error.message })
+    }
+  }
+
+  private async deleteServerSound(req: BotRequest, res: Response) {
+    try {
+      const { serverId, soundId } = req.params
+      const botId = req.bot!.id
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (!UUID_PATTERN.test(soundId)) return res.status(400).json({ error: 'soundId must be a UUID' })
+      if (!(await this.requireSoundBridge(req, res, serverId))) return
+      const { data, error } = await supabase.rpc('bridge_delete_server_sound', {
+        p_bot_id: botId,
+        p_server_id: serverId,
+        p_sound_id: soundId,
+      })
+      if (error) return this.soundError(res, error)
+      if (!data) return res.status(404).json({ error: 'Sound not found in this server' })
+      await removeStoredSound(data as string)
+      await this.logBotAction(botId, 'sound_deleted', { soundId, serverId })
+      res.status(204).end()
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
     }
   }
 
