@@ -382,7 +382,7 @@ discord_bridge_instance_bot_purge	definer	trigger	-	trigger	trigger public.disco
 discord_bridge_instance_bot_secrets	definer	TABLE(client_id text, client_secret text)	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_instance_bot_set	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 discord_bridge_instance_bot_status	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
-discord_bridge_instance_hosted	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
+discord_bridge_instance_hosted	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts, bot-gateway/src/index.ts
 discord_bridge_instance_link	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 discord_bridge_instance_link_check	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_instance_link_complete	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
@@ -1162,7 +1162,7 @@ update_group_name	definer	jsonb	authenticated+service_role	client	rpc in src/com
 update_hashtag_trending_scores	definer	integer	anon+authenticated+service_role	client, cron	cron 0 * * * * (update-hashtag-scores); rpc in src/services/TrendingService.ts
 update_instance_antispam_settings	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 update_megolm_backup_timestamp	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.megolm_key_backups BEFORE UPDATE (update_megolm_backup_timestamp)
-update_message_content_silent	definer	boolean	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/bridge/mirrorWorker.ts
+update_message_content_silent	definer	boolean	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/bridge/mirrorWorker.ts, bot-gateway/src/index.ts
 update_message_embeds	definer	void	service_role	client	rpc in federation-backend/src/listeners/DatabaseListener.ts
 update_outgoing_webhook	definer	jsonb	authenticated+service_role	client	named in src/components/__tests__/OutgoingWebhooksPanel.test.ts, src/services/outgoingWebhookService.ts
 update_post_embeds	definer	void	service_role	client	rpc in federation-backend/src/listeners/DatabaseListener.ts
