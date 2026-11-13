@@ -14,13 +14,6 @@
 //
 // Fixtures and byte checks: photoDetails.ts.
 
-import { execFileSync } from 'node:child_process'
-import fs from 'node:fs'
-import http from 'node:http'
-import https from 'node:https'
-import net from 'node:net'
-import os from 'node:os'
-import path from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
 import {
   adminClient,
@@ -36,6 +29,7 @@ import {
   type SpecUser,
 } from './harness'
 import { startBotGateway } from './botGateway'
+import { fakeHttpsHost } from './fakeHttpsHost'
 import { KEEP, PHOTO, UPLOADED, expectStripped, jpegExif, markers, sendAttached, storedObject } from './photoDetails'
 
 const admin = adminClient()
@@ -221,55 +215,15 @@ test('a Drive photo whose upload fails after Enter goes up from the Drive file o
   await page.unroute(uploads)
 })
 
-/** A local HTTPS "cdn.discordapp.com" behind a CONNECT proxy, with its own CA. */
+/** A local HTTPS "cdn.discordapp.com" serving `body` for every path. */
 async function fakeDiscordCdn(body: Buffer) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hm-e2e-cdn-'))
-  const run = (args: string[]) => execFileSync('openssl', args, { cwd: dir, stdio: 'ignore' })
-  run(['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'ca.key', '-out', 'ca.pem', '-days', '1', '-subj', '/CN=Harmony E2E CA',
-    '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign,cRLSign'])
-  run(['req', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'cdn.key', '-out', 'cdn.csr', '-subj', '/CN=cdn.discordapp.com'])
-  fs.writeFileSync(path.join(dir, 'san.cnf'), 'subjectAltName=DNS:cdn.discordapp.com\n')
-  run(['x509', '-req', '-in', 'cdn.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key', '-CAcreateserial', '-out', 'cdn.pem', '-days', '1', '-extfile', 'san.cnf'])
-
   const requests: string[] = []
-  const cdn = https.createServer({ key: fs.readFileSync(path.join(dir, 'cdn.key')), cert: fs.readFileSync(path.join(dir, 'cdn.pem')) },
-    (req, res) => {
-      requests.push(req.url ?? '')
-      res.writeHead(200, { 'content-type': 'image/jpeg', 'content-length': body.length })
-      res.end(body)
-    })
-  await new Promise<void>((resolve) => cdn.listen(0, '127.0.0.1', resolve))
-  const tunnels: string[] = []
-  const proxy = http.createServer()
-  proxy.on('connect', (req, socket, head) => {
-    tunnels.push(req.url ?? '')
-    const upstream = net.connect((cdn.address() as net.AddressInfo).port, '127.0.0.1', () => {
-      socket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
-      upstream.write(head)
-      upstream.pipe(socket)
-      socket.pipe(upstream)
-    })
-    upstream.on('error', () => socket.destroy())
-    socket.on('error', () => upstream.destroy())
+  const host = await fakeHttpsHost('cdn.discordapp.com', (req, res) => {
+    requests.push(req.url ?? '')
+    res.writeHead(200, { 'content-type': 'image/jpeg', 'content-length': body.length })
+    res.end(body)
   })
-  await new Promise<void>((resolve) => proxy.listen(0, '127.0.0.1', resolve))
-  return {
-    env: {
-      NODE_USE_ENV_PROXY: '1',
-      HTTPS_PROXY: `http://127.0.0.1:${(proxy.address() as net.AddressInfo).port}`,
-      NO_PROXY: '127.0.0.1,localhost',
-      NODE_EXTRA_CA_CERTS: path.join(dir, 'ca.pem'),
-    },
-    requests,
-    tunnels,
-    async close() {
-      proxy.closeAllConnections()
-      cdn.closeAllConnections()
-      await new Promise((resolve) => proxy.close(resolve))
-      await new Promise((resolve) => cdn.close(resolve))
-      fs.rmSync(dir, { recursive: true, force: true })
-    },
-  }
+  return { ...host, requests }
 }
 
 test('a bridged Discord photo is stored without its details', async () => {

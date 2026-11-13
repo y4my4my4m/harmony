@@ -789,6 +789,6 @@ The gateway serves these outside `/api/v1`. The app and bridge programs call the
 | `GET` | `/status` | A signed-in user's session token, `Authorization: Bearer …` | Connected bots: `connected_bots`, `total_connections`, `bots[]`. |
 | `GET` | `/bridged-users/{channel.id}` | User session; member of the channel's server | The op 6 members registered for the channel: `channel_id`, `has_bridge`, `users`. |
 | `GET` | `/bridged-users/server/{server.id}` | User session; member of the server | The registered members of all the server's channels, one entry per remote ID. |
-| `POST` | `/attachments/refresh` | User session; member of the message's server | Body `{ "messageId" }`. Sends [`REFRESH_ATTACHMENTS`](/build/gateway#refresh-attachments) to the message's bot. |
+| `POST` | `/attachments/refresh` | User session; views the message's channel | Body `{ "messageId" }`. Sends [`REFRESH_ATTACHMENTS`](/build/gateway#refresh-attachments) to the message's bot while it is connected; otherwise the gateway re-signs expired Discord links itself with the instance Discord bot. |
 | `GET` | `/bridge-setup/{pairing code}` | None | Legacy Discord bridge pairing lookup; see [Writing a bridge](/build/bridges#legacy-pairing-codes). |
 | | `/bridge/v2/…` | Varies | The [Bridge v2 API](/build/bridges#bridge-v2-endpoints). |
