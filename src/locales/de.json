@@ -3424,7 +3424,9 @@
       "failed": "Die Kategorie konnte nicht aktualisiert werden. Versuche es erneut.",
       "loadingPermissions": "Berechtigungen werden geladen…",
       "permissionsFailed": "Die Berechtigungen dieser Kategorie konnten nicht geladen werden. Schließe das Fenster und öffne es erneut, um es noch einmal zu versuchen.",
-      "permissionsSaved": "Berechtigungen gespeichert. Kein Kanal darin folgt ihnen; synchronisiere einen Kanal in seinen Berechtigungseinstellungen. | Berechtigungen gespeichert und mit {count} Kanal synchronisiert. | Berechtigungen gespeichert und mit {count} Kanälen synchronisiert."
+      "permissionsSaved": "Berechtigungen gespeichert. Kein Kanal darin folgt ihnen; synchronisiere einen Kanal in seinen Berechtigungseinstellungen. | Berechtigungen gespeichert und mit {count} Kanal synchronisiert. | Berechtigungen gespeichert und mit {count} Kanälen synchronisiert.",
+      "overrideLegend": "Mit dieser Kategorie synchronisierte Kanäle folgen diesen Einstellungen. Erlauben gewährt, Verweigern entzieht, Übernehmen nutzt die serverweite Einstellung.",
+      "discardMessage": "Diese Kategorie hat ungespeicherte Änderungen. Ohne Speichern schließen?"
     },
     "sync": {
       "synced": "Mit {category} synchronisiert",

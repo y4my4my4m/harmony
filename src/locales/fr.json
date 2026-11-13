@@ -3424,7 +3424,9 @@
       "failed": "Impossible de mettre à jour la catégorie. Réessayez.",
       "loadingPermissions": "Chargement des permissions…",
       "permissionsFailed": "Impossible de charger les permissions de cette catégorie. Fermez et rouvrez pour réessayer.",
-      "permissionsSaved": "Permissions enregistrées. Aucun salon de la catégorie ne les suit ; synchronisez un salon depuis ses paramètres de permissions. | Permissions enregistrées et synchronisées avec {count} salon. | Permissions enregistrées et synchronisées avec {count} salons."
+      "permissionsSaved": "Permissions enregistrées. Aucun salon de la catégorie ne les suit ; synchronisez un salon depuis ses paramètres de permissions. | Permissions enregistrées et synchronisées avec {count} salon. | Permissions enregistrées et synchronisées avec {count} salons.",
+      "overrideLegend": "Les salons synchronisés avec cette catégorie suivent ces réglages. Autoriser accorde, Refuser retire, Hériter utilise le réglage du serveur.",
+      "discardMessage": "Cette catégorie a des modifications non enregistrées. Fermer sans les enregistrer ?"
     },
     "sync": {
       "synced": "Synchronisé avec {category}",

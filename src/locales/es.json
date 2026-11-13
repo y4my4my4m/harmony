@@ -3405,7 +3405,9 @@
       "failed": "No se pudo actualizar la categoría. Inténtalo de nuevo.",
       "loadingPermissions": "Cargando permisos…",
       "permissionsFailed": "No se pudieron cargar los permisos de esta categoría. Cierra y vuelve a abrir para intentarlo de nuevo.",
-      "permissionsSaved": "Permisos guardados. Ningún canal de la categoría los sigue; sincroniza un canal desde sus ajustes de permisos. | Permisos guardados y sincronizados con {count} canal. | Permisos guardados y sincronizados con {count} canales."
+      "permissionsSaved": "Permisos guardados. Ningún canal de la categoría los sigue; sincroniza un canal desde sus ajustes de permisos. | Permisos guardados y sincronizados con {count} canal. | Permisos guardados y sincronizados con {count} canales.",
+      "overrideLegend": "Los canales sincronizados con esta categoría siguen estos ajustes. Permitir concede, Denegar retira, Heredar usa el ajuste de todo el servidor.",
+      "discardMessage": "Esta categoría tiene cambios sin guardar. ¿Cerrar sin guardarlos?"
     },
     "sync": {
       "synced": "Sincronizado con {category}",

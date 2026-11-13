@@ -8,6 +8,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Category permissions.** **Edit category** has a **Permissions** tab, as a channel does: the
+  **Private category** switch, then each role's channel permissions as **Deny**, **Inherit** or
+  **Allow**, voice included. Saving applies them to every channel synced with the category. Closing
+  with unsaved changes asks first.
 - **Moderators hear about new reports.** Each new report sends a notification to whoever handles
   it: a server's owner and members with Manage Messages for a report about a message in their
   server, the instance's admins and moderators for any other. It names the content and the reason,
