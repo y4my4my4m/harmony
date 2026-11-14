@@ -165,6 +165,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **A server's custom emojis on other instances.** Members who joined a server from another
+  instance saw none of its custom emojis in the emoji picker or in `:name` suggestions. The server
+  now sends its emojis to the instances its members are on, and keeps them current as they are
+  added, renamed or removed; each shows in that server's section of the picker, and a reaction or
+  message with one shows the same emoji on the server. The images stay on the server's instance.
+  Both instances need 1.9.7: a server joined earlier gets its emojis the next time a member opens
+  it.
+- **Every emoji picker lists the same emoji.** The reaction picker showed **My Emoji**, the
+  instance's emoji and **AI Generated** only once the composer's picker had been opened.
+- **Emoji pickers on phones leave the keyboard down.** Opening the reaction or composer emoji
+  picker put the cursor in its search field, and the on-screen keyboard covered most of the list.
+  Tap the search field to type.
 - **Pasted Discord file links play again after they expire.** With **Refresh on demand**, only
   messages a bridge relayed from Discord got new links; a `cdn.discordapp.com` link someone posted on
   Harmony stopped loading a day later. Viewing it now has the instance's Discord bot re-sign it, as
@@ -225,6 +237,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Watch together in the Windows, Linux and Android apps.** YouTube, SoundCloud and Spotify
   showed a black frame there: the app's own content rules refused the player page. Those apps now
   load it from your instance, as the macOS and iOS apps do.
+- **Link previews and GIFs on public pages.** Visitors who aren't signed in saw every link of a
+  post as its address on `/@name`, `/@name@example.social` and a post's own page: no preview card,
+  and a link to a GIF as text. They now see the preview stored with the post, the GIF itself, and a
+  link to an image or video file as that file. Nothing is fetched when a visitor opens the page.
+- **Watch together in the full call view.** Since 1.8.3 the video played behind the call view:
+  its place there stayed black while the call bar's small player showed it. It now shows in the
+  call view.
 - **Bluesky accounts bridged to the fediverse, and other usernames with a dot.** Searching
   `@name.bsky.social@bsky.brid.gy` (Bridgy Fed), a Threads account such as `@john.doe@threads.net`,
   or any account whose username has a dot found nobody; it now finds the account, which you can

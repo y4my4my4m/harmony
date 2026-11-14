@@ -46,6 +46,7 @@ export const DIRECTORY_CONTEXT = [
   {
     toot: 'http://joinmastodon.org/ns#',
     discoverable: 'toot:discoverable',
+    Emoji: 'toot:Emoji',
     harmony: HARMONY_NS,
   },
 ] as const;

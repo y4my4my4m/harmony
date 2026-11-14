@@ -84,6 +84,28 @@ async function enterVoice(page: Page, user: SpecUser, call?: Call) {
 const media = (page: Page) => page.getByTestId('activity-media')
 const mediaState = (page: Page) => media(page).evaluate((el: HTMLMediaElement) => ({ paused: el.paused, time: el.currentTime }))
 
+/**
+ * Colour on screen at the player's centre, as "r,g,b". The YouTube stub paints its frame PLAYER_RGB,
+ * so that colour means the player shows there. A hit test cannot tell: the call view makes the app
+ * root, the player included, inert.
+ */
+async function colourAtPlayer(page: Page): Promise<string> {
+  const box = await page.getByTestId('activity-host').boundingBox()
+  if (!box) return 'none'
+  const png = await page.screenshot({ clip: { x: box.x + box.width / 2 - 2, y: box.y + box.height / 2 - 2, width: 4, height: 4 } })
+  return page.evaluate(async (b64) => {
+    const bin = atob(b64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }))
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(bitmap, 0, 0)
+    const [r, g, b] = ctx.getImageData(1, 1, 1, 1).data
+    return `${r},${g},${b}`
+  }, png.toString('base64'))
+}
+
 test('a Drive video plays for everyone in the call and follows the host', async ({ page, browser }) => {
   test.setTimeout(180_000)
   await signIn(page, host)
@@ -188,10 +210,17 @@ test('a Drive video plays for everyone in the call and follows the host', async 
 // was asked for and answers like the IFrame API: ready, then playing, or error 150 (the
 // uploader disabled embedding) for BLOCKED.
 const BLOCKED = 'blockedVid0'
+const PLAYER_RGB = '255,0,255'
 const IFRAME_API_STUB = `
 window.YT = { Player: function (id, opts) {
   var t = 0, playing = false;
   window.top.postMessage({ ytStub: opts.videoId }, '*');
+  var picture = document.createElement('div');
+  picture.style.position = 'fixed';
+  picture.style.inset = '0';
+  picture.style.zIndex = '2147483647';
+  picture.style.background = 'rgb(${PLAYER_RGB})';
+  document.body.appendChild(picture);
   this.playVideo = function () { playing = true; opts.events.onStateChange({ data: 1 }); };
   this.pauseVideo = function () { playing = false; opts.events.onStateChange({ data: 2 }); };
   this.seekTo = function (s) { t = s; };
@@ -240,6 +269,12 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
     await page.getByTestId('activity-open').click()
     await expect(page.getByTestId('activity-stage')).toBeVisible()
     await expect(page.getByTestId('activity-error')).toHaveCount(0)
+  })
+
+  await test.step('the player shows over the stage, not under the call view', async () => {
+    // The call view is teleported to the end of <body>, after the app root that holds the player.
+    await expect(page.locator('.voice-overlay.overlay-entering')).toHaveCount(0)
+    await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
   })
 
   await test.step('the call view stays light: no backdrop blur behind it, one react button', async () => {
@@ -370,10 +405,13 @@ test('at 150% and 80% zoom the player covers its slot, in the dock card and on t
         await expect(card).toBeVisible({ timeout: 15000 })
         await expect(page.getByTestId('activity-frame')).toBeVisible()
         await expect.poll(() => offSlot(card.locator('.activity-dock__slot'))).toBeLessThanOrEqual(1)
+        await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
 
         await page.getByTestId('activity-open').click()
         await expect(page.getByTestId('activity-stage')).toBeVisible()
         await expect.poll(() => offSlot(page.getByTestId('activity-slot'))).toBeLessThanOrEqual(1)
+        await expect(page.locator('.voice-overlay.overlay-entering')).toHaveCount(0)
+        await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
 
         await page.getByTestId('activity-stage').getByRole('button', { name: 'End for everyone' }).click()
         await expect(page.getByTestId('activity-host')).toHaveCount(0)

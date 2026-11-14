@@ -33,6 +33,7 @@ vi.mock('@/composables/useServerPermissions', () => ({
 vi.mock('@/composables/useEmojiLoader', () => ({
   ensureEmojiDataLoaded: vi.fn(async () => {}),
   triggerEmojiDataLoad: vi.fn(),
+  loadPickerEmojiData: vi.fn(),
 }))
 vi.mock('@/stores/useServerChannel', () => ({
   useServerChannelStore: () => ({ currentServerId: 'srv-0', currentChannelId: null, servers: [], channels: [] }),

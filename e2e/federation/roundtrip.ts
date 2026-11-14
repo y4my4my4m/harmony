@@ -67,7 +67,8 @@
 // A chat poll is held by the server's host or the DM's author; copies take its counts, and votes
 // are Mastodon's vote Notes, each way (cases/polls.ts).
 // A server's pins, roles, members' roles and channel order, and the instance staff role on an
-// actor, reach the member instance's copy, each way (cases/copyDisplay.ts).
+// actor, reach the member instance's copy, each way (cases/copyDisplay.ts), and so do its custom
+// emojis (cases/copyEmojis.ts).
 // A channel's encryption and privacy reach the copy each way, and a host refuses another instance's
 // join to an encrypted voice channel (cases/channelHostFlags.ts).
 // A member's activities reach the other member instances as the Group's
@@ -143,6 +144,7 @@ import { caseServerReports } from './cases/serverReports.ts'
 import { caseHostStaff } from './cases/hostStaff.ts'
 import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
 import { caseCopyDisplay } from './cases/copyDisplay.ts'
+import { caseCopyEmojis } from './cases/copyEmojis.ts'
 import { caseChannelHostFlags } from './cases/channelHostFlags.ts'
 import { caseStickers } from './cases/stickers.ts'
 import { caseDiscovery } from './cases/discovery.ts'
@@ -3057,6 +3059,11 @@ async function main() {
         hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, hiddenChannel: PRIV_SECRET,
         remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
       },
+    })
+    await caseCopyEmojis({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, signedGetHeaders,
+      assert, eq,
+      ids: { bob: BOB, remote: REMOTE, hostedServer: PRIV_SERVER, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL },
     })
     await caseChannelHostFlags({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, signedGetHeaders,

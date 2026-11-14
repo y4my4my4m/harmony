@@ -5,9 +5,10 @@
   and sound-only activities keep playing unseen. Moving between slots never moves the player
   in the DOM, so frames keep their state.
 
-  Stacking: the player takes the z-index of the slot's root-level stacking ancestor (the voice
-  layer, .persistent-voice) and paints after it in tree order (App.vue mounts it next). Panels
-  and pickers teleported above that layer cover the player as they cover the call.
+  Stacking: the player paints just above the slot's root-level stacking ancestor. It takes that
+  ancestor's z-index when it follows it in tree order (.persistent-voice; App.vue mounts the
+  player next), one more when it precedes it (the call view, teleported to the end of <body>).
+  Panels and pickers teleported above that layer cover the player as they cover the call.
 
   A slot in the call pop-out window takes the player into that window's activity container
   (components/voice/callPopout.ts). A frame reloads on a move between documents; the relay
@@ -22,6 +23,7 @@
   <Teleport :to="callPopout.activity ?? 'body'" :disabled="!slotInPopout || !callPopout.activity">
   <div
     v-if="active"
+    ref="hostEl"
     class="activity-host"
     :class="[`activity-host--${placement}`, { 'is-listen': listen }]"
     :style="boxStyle"
@@ -126,12 +128,14 @@ const { t } = useT()
 const actStore = useActivitiesStore()
 const voice = useUnifiedVoiceChannelStore()
 
+const hostEl = ref<HTMLElement | null>(null)
 const mediaEl = ref<HTMLMediaElement | null>(null)
 const frameEl = ref<HTMLIFrameElement | null>(null)
 const rect = ref<{ left: number; top: number; width: number; height: number } | null>(null)
 const layer = ref<number | null>(null)
 const slotInPopout = ref(false)
 let layerFor: Element | null = null
+let layerRoot: { z: number; el: Element } | null = null
 let tickTimer: ReturnType<typeof setInterval> | null = null
 let rafId = 0
 // Frames of the window that shows the slot: a hidden main window runs none.
@@ -181,14 +185,23 @@ const boxStyle = computed(() => {
   }
 })
 
-/** z-index of the outermost positioned ancestor with one; null when none sets it. */
-function rootLayer(el: Element): number | null {
-  let z: number | null = null
+/** z-index that paints the player over `root`: one more than it when the player precedes it in tree order. */
+function layerOver(root: { z: number; el: Element } | null): number | null {
+  if (!root) return null
+  const host = hostEl.value
+  const precedes = !!host && host.ownerDocument === root.el.ownerDocument
+    && !!(host.compareDocumentPosition(root.el) & Node.DOCUMENT_POSITION_FOLLOWING)
+  return precedes ? root.z + 1 : root.z
+}
+
+/** The outermost positioned ancestor with a z-index, and that z-index; null when none sets it. */
+function rootLayer(el: Element): { z: number; el: Element } | null {
+  let found: { z: number; el: Element } | null = null
   for (let n: Element | null = el; n && n !== el.ownerDocument.body; n = n.parentElement) {
     const s = getComputedStyle(n)
-    if (s.position !== 'static' && s.zIndex !== 'auto') z = Number(s.zIndex) || 0
+    if (s.position !== 'static' && s.zIndex !== 'auto') found = { z: Number(s.zIndex) || 0, el: n }
   }
-  return z
+  return found
 }
 
 function stopTracking(): void {
@@ -210,8 +223,11 @@ function trackSlot(): void {
     if (el && el.isConnected) {
       if (el !== layerFor) {
         layerFor = el
-        layer.value = rootLayer(el)
+        layerRoot = rootLayer(el)
       }
+      // Per frame: the player and the call view move between windows with the pop-out.
+      const z = layerOver(layerRoot)
+      if (layer.value !== z) layer.value = z
       // Style pixels: under CSS zoom a client rect is zoom times the lengths a style takes.
       const r = styleRect(el)
       const prev = rect.value
