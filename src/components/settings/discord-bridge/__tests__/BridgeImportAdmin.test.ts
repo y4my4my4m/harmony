@@ -132,6 +132,26 @@ describe('BridgeImportAdmin', () => {
     expect(toast.success).toHaveBeenCalledWith('Removed 230 bridged messages')
   })
 
+  it('shows history import off once a purge batch lands, even when a later batch fails, and holds the switch meanwhile', async () => {
+    let calls = 0
+    installBackend({ instance_config: config({ bridge_history_import: 'self_run' }) }, (name) => {
+      if (name !== 'bridge_privacy_purge_instance') return null
+      calls++
+      if (calls === 1) return { erased: 200, more: true }
+      throw Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    })
+    const w = mountAdmin()
+    await flushPromises()
+    await w.get('[data-testid="instance-purge"]').trigger('click')
+    await w.get('[data-testid="instance-purge-yes"]').trigger('click')
+    expect((w.get('[data-testid="import-mode"]').element as HTMLSelectElement).disabled).toBe(true)
+    await flushPromises()
+
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect((w.get('[data-testid="import-mode"]').element as HTMLSelectElement).value).toBe('off')
+    expect((w.get('[data-testid="import-mode"]').element as HTMLSelectElement).disabled).toBe(false)
+  })
+
   it('shows history import off after a purge, which turned it off', async () => {
     installBackend({ instance_config: config({ bridge_history_import: 'self_run' }) },
       (name) => (name === 'bridge_privacy_purge_instance' ? { erased: 0, more: false } : null))

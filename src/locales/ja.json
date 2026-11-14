@@ -6483,7 +6483,9 @@
         "discord_approval_required": "Discord チャンネルが非公開です。Discord で /bridge import-history を使ってインポートを開始してください",
         "discord_channel_unsupported": "Discord チャンネルがテキストチャンネルではありません",
         "discord_access_lost": "ブリッジが Discord チャンネルを読めなくなりました",
-        "bridge_stalled": "ブリッジの処理が進まなくなりました"
+        "bridge_stalled": "ブリッジの処理が進まなくなりました",
+        "server_purged": "このサーバーのブリッジされたメッセージはすべて削除されました。もう一度開始すると履歴全体をインポートします",
+        "instance_purged": "インスタンス管理者がこのインスタンスのすべての Discord メッセージを削除しました"
       },
       "ineligible": {
         "direction": "Discord のメッセージを Harmony に取り込むペアだけが履歴をインポートできます",

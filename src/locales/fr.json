@@ -6483,7 +6483,9 @@
         "discord_approval_required": "le salon Discord est privé : lancez son importation sur Discord avec /bridge import-history",
         "discord_channel_unsupported": "le salon Discord n'est pas un salon textuel",
         "discord_access_lost": "la passerelle ne peut plus lire le salon Discord",
-        "bridge_stalled": "la passerelle n'avançait plus"
+        "bridge_stalled": "la passerelle n'avançait plus",
+        "server_purged": "tous les messages relayés de ce serveur ont été supprimés ; relancer importe tout l’historique",
+        "instance_purged": "un administrateur de l’instance a supprimé tous les messages Discord de cette instance"
       },
       "ineligible": {
         "direction": "Seules les paires qui amènent les messages Discord vers Harmony peuvent importer l'historique",

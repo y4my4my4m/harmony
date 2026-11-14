@@ -185,6 +185,7 @@ bridge_privacy_remove_remote_user	p_server_id uuid, p_platform text, p_remote_us
 bridge_privacy_restore_remote_user	p_server_id uuid, p_platform text, p_remote_user_id text	boolean	definer	public, pg_temp	authenticated	client
 bridge_privacy_set_optout	p_server_id uuid, p_platform text, p_remote_user_id text, p_opted_out boolean	jsonb	definer	public, pg_temp	service_role	client
 bridge_privacy_status	p_server_id uuid, p_platform text, p_remote_user_id text	jsonb	definer	public, pg_temp	service_role	client
+bridge_privacy_stop_imports	p_server_id uuid, p_error text	void	definer	public, pg_temp		unreferenced
 bridge_remove_server_emoji	p_bot_id uuid, p_server_id uuid, p_emoji_id uuid	text	definer	public, pg_temp	service_role	client
 bridge_require_server_bot	p_bot_id uuid, p_server_id uuid	void	definer	public, pg_temp		unreferenced
 bridge_retire_server_sticker	p_bot_id uuid, p_server_id uuid, p_sticker_id uuid	text	definer	public, pg_temp	service_role	client

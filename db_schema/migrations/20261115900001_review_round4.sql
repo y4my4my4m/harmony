@@ -5,11 +5,16 @@
 --                                 as no verdict, so the token was never judged.
 --   signup_captcha_verdict        as 20261115700001 without the remoteip codes.
 --   before_user_created_hook      as 20261115700001; the captcha call runs after the refusals that
---                                 need no provider (blocked network, domain, mailbox), so those
---                                 cost no outbound call, and before the domain and network locks.
---                                 The mailbox cap counts under a lock on the mailbox hash, held to
---                                 the ledger insert: concurrent sign-ups of one inbox (+tag or dot
---                                 forms) each counted none of the others.
+--                                 only read (blocked network, domain), so those cost no outbound
+--                                 call, and before any row or advisory lock (the mail-host row, the
+--                                 inbox, domain and network locks), so no sign-up waits on another's
+--                                 provider call. The mailbox cap counts under a lock on the mailbox
+--                                 hash, held to the ledger insert: concurrent sign-ups of one inbox
+--                                 (+tag or dot forms) each counted none of the others.
+--   purge_signup_ledger           as 20261111100001; skips rows another sign-up holds. Its delete of
+--                                 a stale mail-host row waited on a sign-up that held the row and
+--                                 waited on the purging sign-up's network lock: the deadlock's error
+--                                 reached the hook's last handler, which lets the sign-up through.
 --   bridge_remote_optouts.erase_pending
 --                                 who asked for an erase with rows left: 'self' (the user's
 --                                 /bridge-privacy erase) or 'manager' (a manager's or admin's
@@ -32,8 +37,13 @@
 --   bridge_privacy_restore_remote_user
 --                                 as 20261115500001; also ends the removal's pending erase.
 --   bridge_privacy_purge_server   fails the server's unfinished imports, or they would bring the
---                                 content back.
---   bridge_privacy_purge_instance turns history import off and fails unfinished imports.
+--                                 content back, and resets their cursors (bridge_privacy_stop_imports):
+--                                 a restart resumed past the purged history.
+--   bridge_privacy_purge_instance turns history import off and does the same for every server.
+--   set_category_permissions      as 20261026200001; a member row of someone no longer a member
+--                                 passes when the template already holds a row for them. Every save
+--                                 of a template holding such a row failed, and the editor offers no
+--                                 way to remove it.
 --   idx_emojis_instance_imported_from
 --                                 the instance's imports by source image, for a copy's sync.
 --   evict_copy_emojis             ranks the dropped rows before it filters them: rows that stay took
@@ -271,8 +281,30 @@ BEGIN
                 v_reason := 'blocked_domain';
                 v_code := 422;
                 v_message := 'This email provider cannot be used to sign up on this instance. Use another address.';
-            ELSIF NOT v_trusted
-                  AND NOT EXISTS (SELECT 1 FROM public.signup_common_email_domains c WHERE c.domain = ANY (v_domains)) THEN
+            END IF;
+        END IF;
+
+        -- A token comes with the retry of an asked sign-up. It is checked after the refusals that
+        -- read only (a blocked network or domain) and before any row or advisory lock: the provider
+        -- may take up to 4 s, and concurrent sign-ups of one domain, inbox or network would wait.
+        IF v_reason IS NULL AND v_captcha_on THEN
+            v_token := nullif(btrim(event #>> '{user,user_metadata,captcha_token}'), '');
+            IF v_token IS NOT NULL THEN
+                -- A failed call (no EXECUTE for this function's owner, among others) is no verdict
+                -- on the token; the checks below still run. The handler at the end would let the
+                -- sign-up through with none of them.
+                BEGIN
+                    v_verdict := public.signup_captcha_verify(v_captcha_provider, v_captcha_secret, v_token, host(v_ip));
+                EXCEPTION WHEN OTHERS THEN
+                    RAISE WARNING 'before_user_created_hook: captcha check: %', SQLERRM;
+                    v_verdict := 'error';
+                END;
+            END IF;
+        END IF;
+
+        IF v_reason IS NULL AND v_domain IS NOT NULL THEN
+            IF NOT v_trusted
+               AND NOT EXISTS (SELECT 1 FROM public.signup_common_email_domains c WHERE c.domain = ANY (v_domains)) THEN
                 v_counted_domain := v_domain;
 
                 SELECT m.hosts, m.checked_at, m.due_at INTO v_mail_hosts, v_hosts_checked, v_hosts_due
@@ -314,8 +346,8 @@ BEGIN
 
         IF v_reason IS NULL AND v_email IS NOT NULL THEN
             v_mailbox := public.signup_mailbox_hash(v_email);
-            -- Concurrent sign-ups of one inbox count in turn, through the captcha call below to the
-            -- ledger insert. Mailbox before domain before network, in every sign-up.
+            -- Concurrent sign-ups of one inbox count in turn, to the ledger insert. Mailbox before
+            -- domain before network, in every sign-up.
             PERFORM pg_advisory_xact_lock(hashtextextended('before_user_created_hook:mailbox:' || coalesce(v_mailbox, ''), 0));
             v_cap := coalesce(nullif(btrim(v_config ->> 'signup_mailbox_cap', '"'), '')::integer, 5);
             IF v_cap > 0 AND (SELECT count(*) FROM public.signup_ledger l
@@ -324,24 +356,6 @@ BEGIN
                 v_reason := 'mailbox_cap';
                 v_code := 422;
                 v_message := 'This email inbox has reached the limit of accounts on this instance.';
-            END IF;
-        END IF;
-
-        -- A token comes with the retry of an asked sign-up. It is checked after the refusals that
-        -- need no provider (a blocked network, domain or mailbox) and before the advisory locks:
-        -- the provider may take up to 4 s, and concurrent sign-ups of one network wait on them.
-        IF v_reason IS NULL AND v_captcha_on THEN
-            v_token := nullif(btrim(event #>> '{user,user_metadata,captcha_token}'), '');
-            IF v_token IS NOT NULL THEN
-                -- A failed call (no EXECUTE for this function's owner, among others) is no verdict
-                -- on the token; the checks below still run. The handler at the end would let the
-                -- sign-up through with none of them.
-                BEGIN
-                    v_verdict := public.signup_captcha_verify(v_captcha_provider, v_captcha_secret, v_token, host(v_ip));
-                EXCEPTION WHEN OTHERS THEN
-                    RAISE WARNING 'before_user_created_hook: captcha check: %', SQLERRM;
-                    v_verdict := 'error';
-                END;
             END IF;
         END IF;
 
@@ -506,6 +520,8 @@ DECLARE
     v_ids uuid[];
     v_notices uuid[];
     v_parents uuid[];
+    v_renamed uuid[];
+    v_renamed_more uuid[];
     v_federated uuid[];
     v_found integer;
     v_more boolean;
@@ -513,6 +529,7 @@ DECLARE
     v_events integer := 0;
     v_event_ids uuid[];
     v_alerts integer := 0;
+    v_alerts_deleted integer := 0;
     v_prev text := current_setting('harmony.silent_content_update', true);
 BEGIN
     PERFORM public.bridge_privacy_check_subject(p_platform, p_remote_user_id);
@@ -565,14 +582,25 @@ BEGIN
          WHERE m.id = ANY (v_ids);
 
         -- A thread's title may be the author's text: the threads they started, and the threads on
-        -- their messages, whose title Discord fills from the message, are renamed.
-        UPDATE public.threads t
-           SET name = 'Thread'
-         WHERE t.parent_message_id = ANY (v_parents)
-            OR t.id IN (SELECT CASE WHEN m.metadata ->> 'thread_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-                                    THEN (m.metadata ->> 'thread_id')::uuid END
-                          FROM public.messages m
-                         WHERE m.id = ANY (v_notices) AND m.metadata ->> 'type' = 'thread_created');
+        -- their messages, whose title Discord fills from the message, are renamed. Two statements,
+        -- each on an index (threads.parent_message_id, the primary key); under one OR the planner
+        -- read every thread.
+        WITH r AS (
+            UPDATE public.threads t
+               SET name = 'Thread'
+             WHERE t.parent_message_id = ANY (v_parents)
+            RETURNING t.id)
+        SELECT COALESCE(array_agg(r.id), ARRAY[]::uuid[]) INTO v_renamed FROM r;
+        WITH r AS (
+            UPDATE public.threads t
+               SET name = 'Thread'
+             WHERE t.id IN (SELECT CASE WHEN m.metadata ->> 'thread_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                                        THEN (m.metadata ->> 'thread_id')::uuid END
+                              FROM public.messages m
+                             WHERE m.id = ANY (v_notices) AND m.metadata ->> 'type' = 'thread_created')
+            RETURNING t.id)
+        SELECT COALESCE(array_agg(r.id), ARRAY[]::uuid[]) INTO v_renamed_more FROM r;
+        v_renamed := v_renamed || v_renamed_more;
 
         PERFORM set_config('harmony.silent_content_update', 'true', true);
         UPDATE public.messages m
@@ -580,6 +608,15 @@ BEGIN
                           || CASE WHEN m.metadata ->> 'type' = 'thread_created'
                                   THEN jsonb_build_object('thread_name', 'Thread') ELSE '{}'::jsonb END
          WHERE m.id = ANY (v_notices);
+        -- The notices of the renamed threads others started repeat the title
+        -- (messages_thread_created_notice).
+        IF cardinality(v_renamed) > 0 THEN
+            UPDATE public.messages m
+               SET metadata = m.metadata || jsonb_build_object('thread_name', 'Thread')
+             WHERE m.metadata ->> 'type' = 'thread_created'
+               AND m.metadata ->> 'thread_id' = ANY (SELECT x::text FROM unnest(v_renamed) x)
+               AND m.metadata ->> 'thread_name' IS DISTINCT FROM 'Thread';
+        END IF;
         PERFORM set_config('harmony.silent_content_update', COALESCE(v_prev, ''), true);
 
         -- Notifications quoting an erased message carry its text and its author's name and picture
@@ -681,12 +718,22 @@ BEGIN
         END IF;
         v_events := cardinality(v_event_ids);
         -- The alerts AutoMod posted for these events quote the author's name and text
-        -- (automod_post_alert; messages_automod_alert_event).
+        -- (automod_post_alert; messages_automod_alert_event). An alert a thread starts on stays as
+        -- an empty deleted row, so the thread and its replies stay; the others go.
         IF v_events > 0 THEN
+            UPDATE public.messages m
+               SET is_deleted = true,
+                   content = '[{"type": "text", "text": ""}]'::jsonb,
+                   metadata = jsonb_build_object('bridge_erased', true)
+             WHERE m.metadata ->> 'type' = 'automod_alert'
+               AND m.metadata #>> '{automod,event_id}' = ANY (SELECT x::text FROM unnest(v_event_ids) x)
+               AND EXISTS (SELECT 1 FROM public.threads t WHERE t.parent_message_id = m.id);
+            GET DIAGNOSTICS v_alerts = ROW_COUNT;
             DELETE FROM public.messages m
              WHERE m.metadata ->> 'type' = 'automod_alert'
                AND m.metadata #>> '{automod,event_id}' = ANY (SELECT x::text FROM unnest(v_event_ids) x);
-            GET DIAGNOSTICS v_alerts = ROW_COUNT;
+            GET DIAGNOSTICS v_alerts_deleted = ROW_COUNT;
+            v_alerts := v_alerts + v_alerts_deleted;
         END IF;
         v_more := v_reactions >= v_limit OR v_events >= v_limit;
 
@@ -863,6 +910,47 @@ $$;
 REVOKE ALL ON FUNCTION public.bridge_privacy_pending(integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.bridge_privacy_pending(integer) TO service_role;
 
+-- After a purge (p_server_id NULL: every server): unfinished imports fail with p_error, or they
+-- would bring the content back, and every import that is not done starts over at its next start:
+-- its cursors marked the purged history as imported. A done import starts over anyway
+-- (discord_bridge_import_start_internal).
+CREATE OR REPLACE FUNCTION public.bridge_privacy_stop_imports(p_server_id uuid, p_error text)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+    UPDATE public.discord_bridge_imports i
+       SET state = CASE WHEN i.state IN ('queued', 'running', 'paused') THEN 'failed' ELSE i.state END,
+           error = CASE WHEN i.state IN ('queued', 'running', 'paused') THEN p_error ELSE i.error END,
+           finished_at = CASE WHEN i.state IN ('queued', 'running', 'paused') THEN now() ELSE i.finished_at END,
+           phase = 'messages',
+           cancel_requested = false,
+           start_discord_message_id = NULL,
+           start_at = NULL,
+           reached_discord_message_id = NULL,
+           reached_at = NULL,
+           channel_created_at = NULL,
+           threads_total = NULL,
+           threads_done = 0,
+           thread_cursor = NULL,
+           imported_count = 0,
+           skipped_count = 0,
+           pins_skipped = 0,
+           authors_skipped = 0,
+           automod_skipped = 0,
+           updated_at = now()
+     WHERE i.state <> 'done'
+       AND (p_server_id IS NULL
+            OR i.bridge_id IN (SELECT b.id FROM public.discord_bridges b WHERE b.server_id = p_server_id))
+       AND (i.state IN ('queued', 'running', 'paused') OR i.phase <> 'messages'
+            OR i.reached_discord_message_id IS NOT NULL OR i.start_discord_message_id IS NOT NULL
+            OR i.thread_cursor IS NOT NULL OR i.imported_count <> 0);
+$$;
+
+REVOKE ALL ON FUNCTION public.bridge_privacy_stop_imports(uuid, text) FROM PUBLIC, anon, authenticated, service_role;
+
+
 CREATE OR REPLACE FUNCTION public.bridge_privacy_restore_remote_user(
     p_server_id uuid,
     p_platform text,
@@ -910,12 +998,7 @@ BEGIN
        OR NOT (public.is_current_user_admin() OR public.can_manage_discord_bridge(p_server_id)) THEN
         RAISE EXCEPTION 'Only a manager of the server can remove its bridged messages' USING ERRCODE = '42501';
     END IF;
-    -- The server stops holding Discord content: its unfinished imports fail, or they would bring it
-    -- back. A manager may start a new one.
-    UPDATE public.discord_bridge_imports i
-       SET state = 'failed', error = 'server_purged', updated_at = now(), finished_at = now()
-     WHERE i.state IN ('queued', 'running', 'paused')
-       AND i.bridge_id IN (SELECT b.id FROM public.discord_bridges b WHERE b.server_id = p_server_id);
+    PERFORM public.bridge_privacy_stop_imports(p_server_id, 'server_purged');
     RETURN public.bridge_privacy_erase_core(p_server_id, p_platform, NULL, 200);
 END;
 $$;
@@ -936,9 +1019,7 @@ BEGIN
     UPDATE public.instance_config c
        SET config_value = '"off"'::jsonb
      WHERE c.config_key = 'bridge_history_import' AND c.config_value IS DISTINCT FROM '"off"'::jsonb;
-    UPDATE public.discord_bridge_imports i
-       SET state = 'failed', error = 'instance_purged', updated_at = now(), finished_at = now()
-     WHERE i.state IN ('queued', 'running', 'paused');
+    PERFORM public.bridge_privacy_stop_imports(NULL, 'instance_purged');
     RETURN public.bridge_privacy_erase_core(NULL, p_platform, NULL, 200);
 END;
 $$;
@@ -987,6 +1068,198 @@ BEGIN
 END;
 $$;
 
+
+CREATE OR REPLACE FUNCTION public.set_category_permissions(p_category_id uuid, p_overrides jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_me uuid := public.get_current_profile_id();
+    v_server uuid;
+    v_local boolean;
+    v_outranks boolean;
+    v_rows jsonb := '[]'::jsonb;
+    v_seen text[] := '{}';
+    v_el jsonb;
+    v_type text;
+    v_role uuid;
+    v_user uuid;
+    v_allow bigint;
+    v_deny bigint;
+    v_key text;
+    v_bits bigint;
+    v_synced uuid[];
+    v_channel uuid;
+BEGIN
+    IF v_me IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '42501';
+    END IF;
+
+    SELECT k.server_id, s.is_local_server INTO v_server, v_local
+      FROM public.channel_categories k
+      JOIN public.servers s ON s.id = k.server_id
+     WHERE k.id = p_category_id;
+    IF v_server IS NULL THEN
+        RAISE EXCEPTION 'CATEGORY_NOT_FOUND' USING ERRCODE = 'P0002';
+    END IF;
+    IF v_local IS FALSE THEN
+        RAISE EXCEPTION 'CATEGORY_REMOTE: a remote server''s category takes no permissions here'
+            USING ERRCODE = '22023';
+    END IF;
+
+    v_outranks := public.caller_outranks_all(v_server);
+    IF NOT v_outranks
+       AND NOT public.has_permission(v_me, v_server, 'MANAGE_ROLES')
+       AND NOT public.has_permission(v_me, v_server, 'MANAGE_CHANNELS') THEN
+        RAISE EXCEPTION 'CATEGORY_NOT_MANAGEABLE: MANAGE_CHANNELS or MANAGE_ROLES required'
+            USING ERRCODE = '42501';
+    END IF;
+
+    IF jsonb_typeof(p_overrides) IS DISTINCT FROM 'array' THEN
+        RAISE EXCEPTION 'overrides is an array' USING ERRCODE = '22023';
+    END IF;
+
+    FOR v_el IN SELECT e.value FROM jsonb_array_elements(p_overrides) e LOOP
+        IF jsonb_typeof(v_el) IS DISTINCT FROM 'object' THEN
+            RAISE EXCEPTION 'an override is an object' USING ERRCODE = '22023';
+        END IF;
+        v_type := v_el->>'target_type';
+        BEGIN
+            v_role := NULLIF(v_el->>'role_id', '')::uuid;
+            v_user := NULLIF(v_el->>'user_id', '')::uuid;
+            v_allow := COALESCE(NULLIF(v_el->>'allow_permissions', ''), '0')::bigint;
+            v_deny := COALESCE(NULLIF(v_el->>'deny_permissions', ''), '0')::bigint;
+        EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range THEN
+            RAISE EXCEPTION 'an override names a uuid target and integer masks' USING ERRCODE = '22023';
+        END;
+
+        IF v_type = 'role' THEN
+            IF v_role IS NULL OR v_user IS NOT NULL THEN
+                RAISE EXCEPTION 'a role override names role_id alone' USING ERRCODE = '22023';
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM public.server_roles r
+                            WHERE r.id = v_role AND r.server_id = v_server) THEN
+                RAISE EXCEPTION 'Role % is not a role of this server', v_role USING ERRCODE = '22023';
+            END IF;
+            v_key := 'role:' || v_role;
+        ELSIF v_type = 'user' THEN
+            IF v_user IS NULL OR v_role IS NOT NULL THEN
+                RAISE EXCEPTION 'a member override names user_id alone' USING ERRCODE = '22023';
+            END IF;
+            -- A row of someone who left stays as the template holds it, or changes: the editor sends
+            -- the whole template, and dropping it would lift a deny if they came back. Only a new
+            -- row needs a member.
+            IF NOT EXISTS (SELECT 1 FROM public.user_servers us
+                            WHERE us.user_id = v_user AND us.server_id = v_server AND us.status = 'accepted')
+               AND NOT EXISTS (SELECT 1 FROM public.servers s WHERE s.id = v_server AND s.owner = v_user)
+               AND NOT EXISTS (SELECT 1 FROM public.channel_category_permission_overrides t
+                                WHERE t.category_id = p_category_id AND t.user_id = v_user) THEN
+                RAISE EXCEPTION 'User % is not a member of this server', v_user USING ERRCODE = '22023';
+            END IF;
+            v_key := 'user:' || v_user;
+        ELSE
+            RAISE EXCEPTION 'target_type is role or user' USING ERRCODE = '22023';
+        END IF;
+
+        IF v_allow < 0 OR v_deny < 0 OR (v_allow & v_deny) <> 0 THEN
+            RAISE EXCEPTION 'allow and deny are non-negative masks with no bit in both' USING ERRCODE = '22023';
+        END IF;
+        IF v_key = ANY (v_seen) THEN
+            RAISE EXCEPTION 'one override per role or member' USING ERRCODE = '22023';
+        END IF;
+        v_seen := v_seen || v_key;
+        CONTINUE WHEN v_allow = 0 AND v_deny = 0;
+
+        v_rows := v_rows || jsonb_build_object(
+            'target_type', v_type, 'role_id', v_role, 'user_id', v_user,
+            'allow_permissions', v_allow, 'deny_permissions', v_deny);
+    END LOOP;
+
+    -- Allowed bits new to the template, against the caller's server permissions.
+    IF NOT v_outranks THEN
+        SELECT COALESCE(bit_or(x.allow_permissions & ~COALESCE(t.allow_permissions, 0)), 0) INTO v_bits
+          FROM jsonb_to_recordset(v_rows) AS x(role_id uuid, user_id uuid, allow_permissions bigint)
+          LEFT JOIN public.channel_category_permission_overrides t
+            ON t.category_id = p_category_id
+           AND t.role_id IS NOT DISTINCT FROM x.role_id
+           AND t.user_id IS NOT DISTINCT FROM x.user_id;
+        PERFORM public.assert_grantable_bits(public.get_user_permissions(v_me, v_server), v_bits);
+    END IF;
+
+    SELECT COALESCE(array_agg(c.id ORDER BY c."order", c.id), '{}'::uuid[]) INTO v_synced
+      FROM public.channels c
+     WHERE c.category = p_category_id
+       AND public.channel_permissions_synced(c.id) IS TRUE;
+
+    FOREACH v_channel IN ARRAY v_synced LOOP
+        PERFORM public.assert_category_template_writable(v_channel, p_category_id, v_rows);
+    END LOOP;
+
+    DELETE FROM public.channel_category_permission_overrides t
+     WHERE t.category_id = p_category_id
+       AND NOT EXISTS (
+            SELECT 1 FROM jsonb_to_recordset(v_rows) AS x(role_id uuid, user_id uuid)
+             WHERE x.role_id IS NOT DISTINCT FROM t.role_id
+               AND x.user_id IS NOT DISTINCT FROM t.user_id);
+
+    UPDATE public.channel_category_permission_overrides t
+       SET allow_permissions = x.allow_permissions,
+           deny_permissions = x.deny_permissions,
+           updated_at = now()
+      FROM jsonb_to_recordset(v_rows) AS x(role_id uuid, user_id uuid, allow_permissions bigint, deny_permissions bigint)
+     WHERE t.category_id = p_category_id
+       AND x.role_id IS NOT DISTINCT FROM t.role_id
+       AND x.user_id IS NOT DISTINCT FROM t.user_id
+       AND (t.allow_permissions, t.deny_permissions) IS DISTINCT FROM (x.allow_permissions, x.deny_permissions);
+
+    INSERT INTO public.channel_category_permission_overrides
+           (category_id, target_type, role_id, user_id, allow_permissions, deny_permissions)
+    SELECT p_category_id, x.target_type, x.role_id, x.user_id, x.allow_permissions, x.deny_permissions
+      FROM jsonb_to_recordset(v_rows)
+           AS x(target_type text, role_id uuid, user_id uuid, allow_permissions bigint, deny_permissions bigint)
+     WHERE NOT EXISTS (
+            SELECT 1 FROM public.channel_category_permission_overrides t
+             WHERE t.category_id = p_category_id
+               AND t.role_id IS NOT DISTINCT FROM x.role_id
+               AND t.user_id IS NOT DISTINCT FROM x.user_id);
+
+    FOREACH v_channel IN ARRAY v_synced LOOP
+        PERFORM public.apply_category_permissions(v_channel, p_category_id);
+    END LOOP;
+
+    RETURN jsonb_build_object('category_id', p_category_id, 'synced_channel_ids', to_jsonb(v_synced));
+END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION public.purge_signup_ledger()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    -- SKIP LOCKED: a sign-up in flight holds rows (its mail-host row) while it waits on advisory
+    -- locks the caller holds. What is skipped goes at a later purge.
+    UPDATE public.signup_ledger l SET network = NULL, email_domain = NULL
+     WHERE l.ctid IN (SELECT x.ctid FROM public.signup_ledger x
+                       WHERE (x.network IS NOT NULL OR x.email_domain IS NOT NULL)
+                         AND x.created_at <= now() - interval '24 hours'
+                         FOR UPDATE SKIP LOCKED);
+    DELETE FROM public.signup_ledger l
+     WHERE l.ctid IN (SELECT x.ctid FROM public.signup_ledger x
+                       WHERE x.created_at <= now() - interval '30 days'
+                         FOR UPDATE SKIP LOCKED);
+    DELETE FROM public.signup_refusal_counts WHERE day < current_date - 90;
+    DELETE FROM public.signup_captcha_counts WHERE day < current_date - 90;
+    DELETE FROM public.signup_mail_hosts m
+     WHERE m.ctid IN (SELECT x.ctid FROM public.signup_mail_hosts x
+                       WHERE coalesce(x.checked_at, x.created_at) < now() - interval '30 days'
+                         FOR UPDATE SKIP LOCKED);
+END;
+$$;
 
 COMMIT;
 

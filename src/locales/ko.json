@@ -6483,7 +6483,9 @@
         "discord_approval_required": "Discord 채널이 비공개입니다. Discord에서 /bridge import-history로 가져오기를 시작하세요",
         "discord_channel_unsupported": "Discord 채널이 텍스트 채널이 아닙니다",
         "discord_access_lost": "브리지가 더 이상 Discord 채널을 읽을 수 없습니다",
-        "bridge_stalled": "브리지가 더 이상 진행되지 않았습니다"
+        "bridge_stalled": "브리지가 더 이상 진행되지 않았습니다",
+        "server_purged": "이 서버의 브리지된 메시지가 모두 삭제되었습니다. 다시 시작하면 전체 기록을 가져옵니다",
+        "instance_purged": "인스턴스 관리자가 이 인스턴스의 모든 Discord 메시지를 삭제했습니다"
       },
       "ineligible": {
         "direction": "Discord 메시지를 Harmony로 가져오는 쌍만 기록을 가져올 수 있습니다",

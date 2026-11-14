@@ -11,7 +11,7 @@
         :id="`${uid}-mode`"
         :value="mode"
         class="cyber-input mode-input"
-        :disabled="!loaded || switching"
+        :disabled="!loaded || switching || purging"
         :aria-describedby="`${uid}-mode-hint`"
         data-testid="import-mode"
         @change="setMode(($event.target as HTMLSelectElement).value as HistoryImportMode)"
@@ -193,9 +193,11 @@ async function purge() {
   purging.value = true
   purged.value = 0
   try {
-    const run = await purgeInstanceBridgedMessages((total) => { purged.value = total })
-    // The purge turned history import off (bridge_privacy_purge_instance).
-    mode.value = 'off'
+    // Each purge batch turns history import off (bridge_privacy_purge_instance) as it commits.
+    const run = await purgeInstanceBridgedMessages((total) => {
+      purged.value = total
+      mode.value = 'off'
+    })
     if (run.more) toast.warning(t('discordBridge.privacy.purgedSome', { count: run.total }, run.total))
     else toast.success(t('discordBridge.privacy.purged', { count: run.total }, run.total))
   } catch (error) {

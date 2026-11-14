@@ -227,6 +227,25 @@ describe('consent', () => {
     expect(store.waiting).toBeNull()
   })
 
+  it('a server list read before the call\'s run started does not end it', async () => {
+    const store = useActivitiesStore()
+    store.apply('ch-1', state(), true)
+    store.join()
+    // The sidebar's list of the server's activities, requested before the run started.
+    serverList.rows = []
+    await store.refreshServer('s')
+    expect(store.current).not.toBeNull()
+    expect(store.playingHere).toBe(true)
+  })
+
+  it('a server list ends the activity of a channel this client is not in', async () => {
+    const store = useActivitiesStore()
+    store.apply('ch-2', state({ channel_id: 'ch-2' }), true)
+    serverList.rows = []
+    await store.refreshServer('s')
+    expect(store.byChannel['ch-2']).toBeNull()
+  })
+
   it('keeps a joined run through its next items, and asks again for a new run', () => {
     const store = useActivitiesStore()
     store.apply('ch-1', state(), true)

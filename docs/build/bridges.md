@@ -387,10 +387,10 @@ States: `queued`, `running`, `paused`, `done`, `failed`, `cancelled`. Phases: `m
 | `429` `import_rate_limited` | `POST messages` past the instance's messages per minute for one import. Nothing was stored; send the same batch after the wait, at most 60 s |
 | `400` `invalid_thread` | A thread body that is not an object or has bad values |
 | `409` `invalid_transition` | `PATCH` asked for a state change the job's state does not allow |
-| `409` `import_not_running` | The job is not `running`. A job whose pair was removed, whose channel became encrypted, or whose import was turned off is set to `failed` with `error` `pair_removed`, `channel_encrypted` or `import_disabled`; stop it and do not retry |
+| `409` `import_not_running` | The job is not `running`. A job whose pair was removed, whose channel became encrypted, whose import was turned off, or whose server's or instance's bridged messages were all removed is set to `failed` with `error` `pair_removed`, `channel_encrypted`, `import_disabled`, `server_purged` or `instance_purged`; stop it and do not retry |
 | `500` | `{ "error": "Import request failed" }` |
 
-`PATCH` moves a job from `queued` to `running`, from `running` to `paused`, `done` or `failed` (with `error`), and from `paused` back to `running`. It moves a job to `cancelled` only after `cancel_requested` is true: poll `GET /imports` for that flag, and stop when it is set. A person restarting a `failed`, `cancelled` or `paused` job in the app sets it back to `queued` with its cursors kept.
+`PATCH` moves a job from `queued` to `running`, from `running` to `paused`, `done` or `failed` (with `error`), and from `paused` back to `running`. It moves a job to `cancelled` only after `cancel_requested` is true: poll `GET /imports` for that flag, and stop when it is set. A person restarting a `failed`, `cancelled` or `paused` job in the app sets it back to `queued` with its cursors kept; after a purge the cursors are cleared, and the job starts from the newest message again.
 
 Report `reached_discord_message_id` and `reached_at` after each committed batch, and `phase`, `threads_total` and `threads_done` as the job moves on; the app draws its progress from `start_at`, `reached_at` and `channel_created_at`. Resume a job found `running` or `queued` after a restart from its stored `reached_discord_message_id`.
 

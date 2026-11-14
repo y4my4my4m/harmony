@@ -180,6 +180,14 @@ describe('BridgeChannelPairs import controls', () => {
     )
     const off = mountPairs({ imports: [makeJob({ state: 'failed', error: 'import_disabled' })] })
     expect(off.get('[data-testid="import-state"]').text()).toBe('Import stopped: history import was turned off')
+    const purged = mountPairs({ imports: [makeJob({ state: 'failed', error: 'server_purged' })] })
+    expect(purged.get('[data-testid="import-state"]').text()).toBe(
+      'Import stopped: every bridged message of this server was removed; starting again imports the whole history',
+    )
+    const instancePurged = mountPairs({ imports: [makeJob({ state: 'failed', error: 'instance_purged' })] })
+    expect(instancePurged.get('[data-testid="import-state"]').text()).toBe(
+      'Import stopped: an instance admin removed every Discord message of this instance',
+    )
   })
 
   it('Import all starts the importable pairs that have no job', async () => {

@@ -190,8 +190,12 @@ export const useActivitiesStore = defineStore('activities', () => {
   async function refreshServer(serverId: string): Promise<void> {
     try {
       const list = await getServerActivities(serverId)
+      // The call's own channel ends only from its own reads and broadcasts: a list requested
+      // before its run started would end the run and forget the member's Join.
       for (const [id, a] of Object.entries(byChannel.value)) {
-        if (a?.server_id === serverId && !list.some((l) => l.channel_id === id)) apply(id, null, true)
+        if (a?.server_id === serverId && id !== voiceChannelId.value && !list.some((l) => l.channel_id === id)) {
+          apply(id, null, true)
+        }
       }
       for (const a of list) apply(a.channel_id, a, true)
     } catch {

@@ -7,6 +7,8 @@
 --   messages_automod_alert_event      AutoMod alert messages by the event they report
 --                                     (metadata.automod.event_id, automod_post_alert): an erased
 --                                     author's alerts go with their events.
+--   messages_thread_created_notice    thread_created notices by thread (metadata.thread_id): an
+--                                     erase renames the notices of the threads it renames.
 --
 -- No transaction block: CREATE INDEX CONCURRENTLY refuses to run inside one, and the build takes no
 -- lock that blocks writes. An interrupted build leaves an invalid index; it is dropped before the
@@ -18,7 +20,7 @@ DO $$
 DECLARE
     v_name text;
 BEGIN
-    FOREACH v_name IN ARRAY ARRAY['messages_discord_relayed_channel', 'messages_automod_alert_event'] LOOP
+    FOREACH v_name IN ARRAY ARRAY['messages_discord_relayed_channel', 'messages_automod_alert_event', 'messages_thread_created_notice'] LOOP
         IF EXISTS (SELECT 1
                      FROM pg_index x
                      JOIN pg_class c ON c.oid = x.indexrelid
@@ -43,13 +45,17 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS messages_automod_alert_event
     ON public.messages ((metadata #>> '{automod,event_id}'))
     WHERE metadata ->> 'type' = 'automod_alert';
 
+CREATE INDEX CONCURRENTLY IF NOT EXISTS messages_thread_created_notice
+    ON public.messages ((metadata ->> 'thread_id'))
+    WHERE metadata ->> 'type' = 'thread_created';
+
 RESET lock_timeout;
 
 DO $$
 DECLARE
     v_name text;
 BEGIN
-    FOREACH v_name IN ARRAY ARRAY['messages_discord_relayed_channel', 'messages_automod_alert_event'] LOOP
+    FOREACH v_name IN ARRAY ARRAY['messages_discord_relayed_channel', 'messages_automod_alert_event', 'messages_thread_created_notice'] LOOP
         IF NOT EXISTS (SELECT 1
                          FROM pg_index x
                         WHERE x.indexrelid = to_regclass('public.' || v_name)

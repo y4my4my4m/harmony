@@ -6483,7 +6483,9 @@
         "discord_approval_required": "der Discord-Kanal ist privat: starte den Import auf Discord mit /bridge import-history",
         "discord_channel_unsupported": "der Discord-Kanal ist kein Textkanal",
         "discord_access_lost": "die Bridge kann den Discord-Kanal nicht mehr lesen",
-        "bridge_stalled": "die Bridge kam nicht mehr voran"
+        "bridge_stalled": "die Bridge kam nicht mehr voran",
+        "server_purged": "alle überbrückten Nachrichten dieses Servers wurden entfernt; ein Neustart importiert den gesamten Verlauf",
+        "instance_purged": "ein Instanz-Admin hat alle Discord-Nachrichten dieser Instanz entfernt"
       },
       "ineligible": {
         "direction": "Nur Paare, die Discord-Nachrichten nach Harmony holen, können den Verlauf importieren",

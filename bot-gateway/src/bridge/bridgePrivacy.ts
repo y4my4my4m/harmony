@@ -27,7 +27,7 @@ const ERASE_MAX_BATCHES = 10_000
 const ERASE_PAUSE_MS = 50
 // A failed batch (a lock or statement timeout, a deadlock) is tried again after these pauses.
 const ERASE_RETRY_MS = [1_000, 5_000, 30_000]
-// An erase also scans the server's relayed reactions and AutoMod events, which have no author index.
+// One erase per user and server a minute: each starts a background loop of batches.
 export const ERASE_COOLDOWN_MS = 60_000
 const ERASE_TRACKED_MAX = 10_000
 

@@ -7,7 +7,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(35);
+SELECT plan(44);
 
 -- Captcha. ----------------------------------------------------------------------------------------
 CREATE FUNCTION pg_temp.verdict(p_codes text) RETURNS text LANGUAGE sql AS $fn$
@@ -23,11 +23,12 @@ INSERT INTO public.instance_config (config_key, config_value) VALUES
   ('signup_captcha_secret', '"0x4AAAAAAA-secret"'), ('signup_captcha_mode', '"suspect"'),
   ('signup_blocked_email_domains', '["blocked293.test"]')
 ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value;
-CREATE TABLE tests.captcha_calls293 (token text);
+CREATE TABLE tests.captcha_calls293 (token text, mail_host_written boolean);
 CREATE OR REPLACE FUNCTION public.signup_captcha_verify(p_provider text, p_secret text, p_token text, p_remote_ip text)
 RETURNS text LANGUAGE plpgsql AS $fn$
 BEGIN
-    INSERT INTO tests.captcha_calls293 VALUES (p_token);
+    INSERT INTO tests.captcha_calls293
+    VALUES (p_token, EXISTS (SELECT 1 FROM public.signup_mail_hosts WHERE domain = 'fresh293.test'));
     RETURN 'pass';
 END
 $fn$;
@@ -44,6 +45,14 @@ SELECT is((SELECT count(*)::int FROM tests.captcha_calls293), 0, 'without a call
 SELECT pg_temp.signup('y293@example.org', 'tok-allowed');
 SELECT is((SELECT array_agg(token) FROM tests.captcha_calls293), ARRAY['tok-allowed'],
           'a sign-up past the refusals has its token checked');
+SELECT pg_temp.signup('z293@fresh293.test', 'tok-fresh');
+SELECT is((SELECT mail_host_written FROM tests.captcha_calls293 WHERE token = 'tok-fresh'), false,
+          'before the new domain''s mail-host row is written, so no sign-up waits on the call');
+SELECT is((SELECT count(*)::int FROM public.signup_mail_hosts WHERE domain = 'fresh293.test'), 1, 'which is written after');
+INSERT INTO public.signup_ledger (network, mailbox_hash, email_domain, created_at)
+VALUES ('203.0.113.0/32'::cidr, 'old293', 'old293.test', now() - interval '31 days');
+SELECT public.purge_signup_ledger();
+SELECT is((SELECT count(*)::int FROM public.signup_ledger WHERE mailbox_hash = 'old293'), 0, 'the purge still removes old rows');
 
 -- Erase. ------------------------------------------------------------------------------------------
 INSERT INTO public.bots (id, username, display_name, owner_id, bot_type) VALUES
@@ -142,9 +151,15 @@ SELECT 'f2930000-0000-0000-0000-0000000000c1', '66666666-0000-0000-0000-00000000
 INSERT INTO public.messages (bot_id, channel_id, thread_id, content, metadata) VALUES
   ('f2930000-0000-0000-0000-0000000000b1', '66666666-0000-0000-0000-000000000006', 'f2930000-0000-0000-0000-0000000000c1',
    '[{"type": "text", "text": "reply"}]', '{"discord_user": {"id": "2930000000000009009"}, "bot": true}');
+-- Its notice, posted for whoever started it, repeats the title.
+INSERT INTO public.messages (id, channel_id, content, is_system, metadata) VALUES
+  ('f2930000-0000-0000-0000-0000000000d9', '66666666-0000-0000-0000-000000000006', '[{"type": "text", "text": ""}]', true,
+   '{"type": "thread_created", "thread_id": "f2930000-0000-0000-0000-0000000000c1", "thread_name": "words of 9003"}');
 SELECT public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009003', 50);
 SELECT is((SELECT name FROM public.threads WHERE id = 'f2930000-0000-0000-0000-0000000000c1'), 'Thread',
           'a thread on the erased author''s message is renamed, whoever started it');
+SELECT is((SELECT metadata ->> 'thread_name' FROM public.messages WHERE id = 'f2930000-0000-0000-0000-0000000000d9'), 'Thread',
+          'and so is its notice');
 
 -- An erased author's AutoMod alerts go with their events, and the batch counts them.
 INSERT INTO public.automod_events (id, server_id, channel_id, bot_id, event_type, details) VALUES
@@ -153,21 +168,39 @@ INSERT INTO public.automod_events (id, server_id, channel_id, bot_id, event_type
 SELECT public.automod_post_alert('66666666-0000-0000-0000-000000000006', 'f2930000-0000-0000-0000-0000000000a6',
                                  'Blocked a message from @u6 (Discord): secret words',
                                  '{"author_key": "discord:2930000000000009006", "excerpt": "secret words"}');
+-- A second alert has a moderators' thread on it.
+INSERT INTO public.automod_events (id, server_id, channel_id, bot_id, event_type, details) VALUES
+  ('f2930000-0000-0000-0000-0000000000a7', '55555555-0000-0000-0000-000000000005', '66666666-0000-0000-0000-000000000006',
+   'f2930000-0000-0000-0000-0000000000b1', 'message', '{"author_key": "discord:2930000000000009006", "author_name": "u6"}');
+SELECT public.automod_post_alert('66666666-0000-0000-0000-000000000006', 'f2930000-0000-0000-0000-0000000000a7',
+                                 'Blocked a message from @u6 (Discord): more words',
+                                 '{"author_key": "discord:2930000000000009006", "excerpt": "more words"}');
+INSERT INTO public.threads (id, channel_id, parent_message_id, name)
+SELECT 'f2930000-0000-0000-0000-0000000000c7', '66666666-0000-0000-0000-000000000006', m.id, 'mods discuss'
+  FROM public.messages m WHERE m.metadata #>> '{automod,event_id}' = 'f2930000-0000-0000-0000-0000000000a7';
 SELECT is(public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009006', 50),
-          '{"opted_out": true, "erased": 0, "more": false, "removed": 2}'::jsonb,
-          'no message, the event and its alert');
-SELECT is((SELECT count(*)::int FROM public.messages WHERE metadata ->> 'type' = 'automod_alert'
-            AND metadata #>> '{automod,event_id}' = 'f2930000-0000-0000-0000-0000000000a6'), 0, 'the alert is gone');
+          '{"opted_out": true, "erased": 0, "more": false, "removed": 4}'::jsonb,
+          'no message, the two events and their alerts');
+SELECT is((SELECT count(*)::int FROM public.messages WHERE metadata #>> '{automod,event_id}' IN
+            ('f2930000-0000-0000-0000-0000000000a6', 'f2930000-0000-0000-0000-0000000000a7')), 0, 'no alert names the author');
+SELECT is((SELECT (m.is_deleted, m.metadata)::text FROM public.threads t JOIN public.messages m ON m.id = t.parent_message_id
+            WHERE t.id = 'f2930000-0000-0000-0000-0000000000c7'),
+          '(t,"{""bridge_erased"": true}")', 'the alert under a thread stays as an empty deleted row, with its thread');
 
 -- Purges stop imports. ---------------------------------------------------------------------------------
-INSERT INTO public.discord_bridge_imports (id, bridge_id, harmony_channel_id, discord_channel_id, state) VALUES
+INSERT INTO public.discord_bridge_imports (id, bridge_id, harmony_channel_id, discord_channel_id, state, phase,
+                                           start_discord_message_id, reached_discord_message_id, imported_count) VALUES
   ('f2930000-0000-0000-0000-0000000000f1', 'f2930000-0000-0000-0000-0000000000d1',
-   '66666666-0000-0000-0000-000000000006', '2930000000000000001', 'running');
+   '66666666-0000-0000-0000-000000000006', '2930000000000000001', 'running', 'threads',
+   '2930000000000090000', '2930000000000080000', 900);
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT public.bridge_privacy_purge_server('55555555-0000-0000-0000-000000000005', 'discord');
 SELECT tests.clear_authentication();
 SELECT is((SELECT state || ':' || error FROM public.discord_bridge_imports WHERE id = 'f2930000-0000-0000-0000-0000000000f1'),
           'failed:server_purged', 'a server purge fails the server''s unfinished import');
+SELECT is((SELECT (phase, start_discord_message_id, reached_discord_message_id, imported_count)::text
+             FROM public.discord_bridge_imports WHERE id = 'f2930000-0000-0000-0000-0000000000f1'),
+          '(messages,,,0)', 'and its next start imports the whole history again');
 
 UPDATE public.instance_config SET config_value = '"self_run"'::jsonb WHERE config_key = 'bridge_history_import';
 UPDATE public.discord_bridge_imports SET state = 'queued', error = NULL, finished_at = NULL
@@ -180,6 +213,27 @@ SELECT is((SELECT config_value FROM public.instance_config WHERE config_key = 'b
           'an instance purge turns history import off');
 SELECT is((SELECT state || ':' || error FROM public.discord_bridge_imports WHERE id = 'f2930000-0000-0000-0000-0000000000f1'),
           'failed:instance_purged', 'and fails an unfinished import');
+
+-- A member row of someone who left does not block the category's template. ------------------------
+INSERT INTO public.channel_categories (id, server_id, name) VALUES
+  ('f2930000-0000-0000-0000-0000000000c9', '55555555-0000-0000-0000-000000000005', 'Cat 293');
+INSERT INTO public.channel_category_permission_overrides (category_id, target_type, user_id, allow_permissions, deny_permissions)
+VALUES ('f2930000-0000-0000-0000-0000000000c9', 'user', '22222222-0000-0000-0000-000000000002', 0, 1024);
+DELETE FROM public.user_servers
+ WHERE user_id = '22222222-0000-0000-0000-000000000002' AND server_id = '55555555-0000-0000-0000-000000000005';
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT lives_ok(format('SELECT public.set_category_permissions(%L, %L)', 'f2930000-0000-0000-0000-0000000000c9',
+                       jsonb_build_array(jsonb_build_object('target_type', 'user', 'user_id', '22222222-0000-0000-0000-000000000002',
+                                                            'deny_permissions', 3072))),
+                'a template keeps and edits the row of someone who left');
+SELECT throws_ok(format('SELECT public.set_category_permissions(%L, %L)', 'f2930000-0000-0000-0000-0000000000c9',
+                        jsonb_build_array(jsonb_build_object('target_type', 'user', 'user_id', '33333333-0000-0000-0000-000000000003',
+                                                             'deny_permissions', 1024))),
+                 '22023', NULL, 'a new row still needs a member');
+SELECT tests.clear_authentication();
+SELECT is((SELECT deny_permissions::int FROM public.channel_category_permission_overrides
+            WHERE category_id = 'f2930000-0000-0000-0000-0000000000c9' AND user_id = '22222222-0000-0000-0000-000000000002'),
+          3072, 'the row holds the edit');
 
 -- Eviction ranks every dropped row before it filters. ----------------------------------------------
 INSERT INTO public.profiles (id, username, display_name, domain, federated_id, is_local)

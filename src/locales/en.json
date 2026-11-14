@@ -6479,7 +6479,9 @@
         "discord_approval_required": "the Discord channel is private: start its import on Discord with /bridge import-history",
         "discord_channel_unsupported": "the Discord channel is not a text channel",
         "discord_access_lost": "the bridge can no longer read the Discord channel",
-        "bridge_stalled": "the bridge stopped making progress"
+        "bridge_stalled": "the bridge stopped making progress",
+        "server_purged": "every bridged message of this server was removed; starting again imports the whole history",
+        "instance_purged": "an instance admin removed every Discord message of this instance"
       },
       "ineligible": {
         "direction": "Only pairs that bring Discord messages to Harmony can import history",
