@@ -10,7 +10,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(10);
+SELECT plan(12);
 
 CREATE TABLE tests.fed_jobs (name text, data jsonb);
 
@@ -58,6 +58,12 @@ SELECT throws_ok(
 SELECT lives_ok(
     $q$SELECT public.rename_emoji('f2890000-0000-0000-0000-000000000002', 'nearer289')$q$,
     'an emoji of a local server is renamed as before');
+SELECT throws_ok(
+    $q$SELECT public.admin_purge_emoji('f2890000-0000-0000-0000-000000000001')$q$,
+    '42501', NULL, 'an instance admin cannot purge a copy''s emoji: the next sync would bring it back');
+SELECT lives_ok(
+    $q$SELECT public.remove_emoji('f2890000-0000-0000-0000-000000000001')$q$,
+    'an instance admin removes it instead');
 RESET role;
 SET LOCAL request.jwt.claims = '{"role":"service_role"}';
 SET LOCAL request.jwt.claim.role = 'service_role';

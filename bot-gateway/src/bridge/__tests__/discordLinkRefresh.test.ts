@@ -213,4 +213,20 @@ describe('DiscordLinkRefresher', () => {
     advance(60_001)
     expect(await r.request('m-60', [{ type: 'url', url: EXPIRED_CLIP }], [EXPIRED_CLIP])).toBe('queued')
   })
+
+  it('admits 30 messages of one author a minute, and others\' messages meanwhile', async () => {
+    const { r, advance } = refresher()
+    const ask = (id: string, author: string) => {
+      const content = [{ type: 'url', url: `https://cdn.discordapp.com/attachments/1/${id}/f.png` }]
+      return r.request(id, content, expiredDiscordAttachmentUrls(content, NOW), author)
+    }
+    for (let m = 0; m < 30; m++) expect(await ask(`${m}`, 'user:spam')).toBe('queued')
+    expect(await ask('30', 'user:spam')).toBe('busy')
+    // A message already queued answers queued without counting again.
+    expect(await ask('0', 'user:spam')).toBe('queued')
+    expect(await ask('31', 'user:other')).toBe('queued')
+    await r.drain()
+    advance(60_001)
+    expect(await ask('30', 'user:spam')).toBe('queued')
+  })
 })

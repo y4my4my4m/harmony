@@ -5,11 +5,12 @@
 --       NULL, as an emoji seen in an activity is stored. The sync took over such rows from earlier
 --       activities, so reactions, post reactions and messages elsewhere may name them; they keep
 --       their emoji. A local server's emojis go with it as before.
---   guard_copy_emoji_write (BEFORE UPDATE ON emojis)
+--   guard_copy_emoji_write (BEFORE UPDATE OF name, url OR DELETE ON emojis)
 --       a mirrored emoji's name and image are its host's: a request as authenticated or anon
---       (rename_emoji included, which runs as definer) cannot change them; the service role (the
---       sync) can. An instance admin still removes and restores one (deleted_at); the sync keeps a
---       removal that has deleted_by set.
+--       (rename_emoji and admin_purge_emoji included, which run as definer) cannot change or delete
+--       it; the service role (the sync) can. A deleted row would come back with the next sync. An
+--       instance admin removes and restores one (deleted_at); the sync keeps a removal that has
+--       deleted_by set.
 --   trigger_queue_server_update_federation
 --       as 20261105100001, and allow_cross_server_emojis: the Group carries it as
 --       harmony:crossServerEmojis, and a copy stores it.
@@ -46,9 +47,13 @@ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 AS $$
 BEGIN
-    IF OLD.ap_id IS NOT NULL AND OLD.server_id IS NOT NULL
-       AND (NEW.name IS DISTINCT FROM OLD.name OR NEW.url IS DISTINCT FROM OLD.url)
-       AND COALESCE(auth.role(), '') IN ('authenticated', 'anon') THEN
+    IF OLD.ap_id IS NULL OR OLD.server_id IS NULL OR COALESCE(auth.role(), '') NOT IN ('authenticated', 'anon') THEN
+        RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+    END IF;
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'A copy''s emojis come from its server: remove it instead' USING ERRCODE = '42501';
+    END IF;
+    IF NEW.name IS DISTINCT FROM OLD.name OR NEW.url IS DISTINCT FROM OLD.url THEN
         RAISE EXCEPTION 'A copy''s emojis are renamed on the server''s own instance' USING ERRCODE = '42501';
     END IF;
     RETURN NEW;
@@ -59,7 +64,7 @@ REVOKE ALL ON FUNCTION public.guard_copy_emoji_write() FROM PUBLIC, anon, authen
 
 DROP TRIGGER IF EXISTS a_emojis_copy_guard ON public.emojis;
 CREATE TRIGGER a_emojis_copy_guard
-    BEFORE UPDATE OF name, url ON public.emojis
+    BEFORE UPDATE OF name, url OR DELETE ON public.emojis
     FOR EACH ROW EXECUTE FUNCTION public.guard_copy_emoji_write();
 
 -- As 20261105100001, with allow_cross_server_emojis.

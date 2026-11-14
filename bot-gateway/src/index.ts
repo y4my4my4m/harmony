@@ -346,7 +346,7 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
 
   const { data: message } = await supabase
     .from('messages')
-    .select('id, channel_id, bot_id, content, is_deleted')
+    .select('id, channel_id, user_id, bot_id, content, is_deleted')
     .eq('id', messageId)
     .maybeSingle()
 
@@ -390,7 +390,8 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
     return
   }
 
-  const admission = await linkRefresher.request(message.id, message.content, urls)
+  const author = message.bot_id ? `bot:${message.bot_id}` : message.user_id ? `user:${message.user_id}` : null
+  const admission = await linkRefresher.request(message.id, message.content, urls, author)
   if (admission !== 'queued') {
     // A bridged message with no instance Discord application to fall back on.
     const reason = admission === 'no_signer' && message.bot_id ? 'bridge_offline' : admission

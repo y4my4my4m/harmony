@@ -18,6 +18,9 @@ const EXPIRY_SKEW_MS = 60_000
 
 const BATCH_DELAY_MS = 250
 const CALLS_PER_MINUTE = 60
+/** Messages of one author admitted a minute: links that never sign cannot take the shared budget. */
+const AUTHOR_MESSAGES_PER_MINUTE = 30
+const AUTHORS_MAX = 10_000
 const TOKEN_TTL_MS = 60_000
 /** A message whose links Discord did not re-sign (attachment deleted, token refused) waits this long. */
 const FAILED_TTL_MS = 10 * 60_000
@@ -176,6 +179,8 @@ export class DiscordLinkRefresher {
   private inFlight: Promise<void> = Promise.resolve()
   private pausedUntil = 0
   private calls: number[] = []
+  /** Author -> admission times within the last minute. */
+  private readonly admitted = new Map<string, number[]>()
   private cachedToken: { value: string | null; until: number } | null = null
 
   constructor(private readonly deps: LinkRefreshDeps) {
@@ -183,8 +188,11 @@ export class DiscordLinkRefresher {
     this.log = deps.log ?? console
   }
 
-  /** Queues the message's expired links (from expiredDiscordAttachmentUrls) for signing. */
-  async request(messageId: string, content: unknown, urls: string[]): Promise<Admission> {
+  /**
+   * Queues the message's expired links (from expiredDiscordAttachmentUrls) for signing. `author`
+   * names the message's writer, a user or a bot.
+   */
+  async request(messageId: string, content: unknown, urls: string[], author?: string | null): Promise<Admission> {
     const now = this.now()
     const until = this.failedUntil.get(messageId)
     if (until !== undefined) {
@@ -195,6 +203,7 @@ export class DiscordLinkRefresher {
     if (now < this.pausedUntil || this.calls.length >= CALLS_PER_MINUTE) return 'busy'
     if (!(await this.token())) return 'no_signer'
     if (this.signing.has(messageId) || this.pending.some((p) => p.messageId === messageId)) return 'queued'
+    if (author && !this.admitAuthor(author, now)) return 'busy'
 
     this.pending.push({ messageId, content, urls: urls.slice(0, REFRESH_URLS_MAX) })
     if (this.pendingUrlCount() >= REFRESH_URLS_MAX) this.flush()
@@ -209,6 +218,23 @@ export class DiscordLinkRefresher {
   async drain(): Promise<void> {
     while (this.pending.length > 0) this.flush()
     await this.inFlight
+  }
+
+  private admitAuthor(author: string, now: number): boolean {
+    const recent = (this.admitted.get(author) ?? []).filter((t) => t > now - 60_000)
+    if (recent.length >= AUTHOR_MESSAGES_PER_MINUTE) {
+      this.admitted.set(author, recent)
+      return false
+    }
+    if (!this.admitted.has(author) && this.admitted.size >= AUTHORS_MAX) {
+      for (const [key, times] of this.admitted) {
+        if (times.every((t) => t <= now - 60_000)) this.admitted.delete(key)
+      }
+      if (this.admitted.size >= AUTHORS_MAX) return false
+    }
+    recent.push(now)
+    this.admitted.set(author, recent)
+    return true
   }
 
   private markFailed(messageId: string): void {

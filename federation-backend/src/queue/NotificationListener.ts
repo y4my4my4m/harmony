@@ -23,17 +23,24 @@ const MAX_RECONNECT_DELAY_MS = 30_000;
 const BASE_RECONNECT_DELAY_MS = 1_000;
 
 /**
- * Jobs that read their server's current state when they run: one per server per COLLAPSE_MS, queued
- * at its end. A statement changing many emojis or roles notifies once per row, and a bridge syncing
- * a server's emojis commits once per emoji. A notification after the job is queued opens the next
- * window, so no change goes unsent. A process that stops mid-window queues its jobs as it stops.
+ * Jobs that read their server's current state when they run: one per server per COLLAPSE_MS window
+ * of the clock, a delayed job due at the window's end. A statement changing many emojis or roles
+ * notifies once per row, and a bridge syncing a server's emojis commits once per emoji. The job id
+ * names server and window, so BullMQ keeps the first and ignores the rest; the window lives in
+ * Redis and survives a restart. A notification after the window ends lands in the next one.
  */
 const COLLAPSED_JOBS = new Set(['federate-server-update']);
 const COLLAPSE_MS = 5_000;
 
-function collapseKey(notification: JobNotification): string | null {
+/** BullMQ job id and delay for a collapsed job; null for any other. Job ids take no ':'. */
+export function collapsedJob(notification: JobNotification, now: number): { jobId: string; delay: number } | null {
   const serverId = notification.data?.server_id;
-  return COLLAPSED_JOBS.has(notification.name) && typeof serverId === 'string' ? `${notification.name}:${serverId}` : null;
+  if (!COLLAPSED_JOBS.has(notification.name) || typeof serverId !== 'string') return null;
+  const window = Math.floor(now / COLLAPSE_MS);
+  return {
+    jobId: `${notification.name}-${serverId}-${window}`,
+    delay: (window + 1) * COLLAPSE_MS - now,
+  };
 }
 
 interface JobNotification {
@@ -53,7 +60,6 @@ export class NotificationListener {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingNotifications: JobNotification[] = [];
   private batchTimer: ReturnType<typeof setTimeout> | null = null;
-  private collapsed = new Map<string, { timer: ReturnType<typeof setTimeout>; notification: JobNotification }>();
 
   constructor(connectionString: string, getQueue: QueueResolver) {
     this.connectionString = connectionString;
@@ -77,10 +83,6 @@ export class NotificationListener {
       clearTimeout(this.batchTimer);
       this.batchTimer = null;
     }
-    const waiting = [...this.collapsed.values()];
-    this.collapsed.clear();
-    for (const { timer } of waiting) clearTimeout(timer);
-    await Promise.allSettled(waiting.map(({ notification }) => this.enqueue(notification)));
 
     if (this.client) {
       try {
@@ -180,27 +182,21 @@ export class NotificationListener {
     if (batch.length === 0) return;
 
     const addPromises: Promise<void>[] = [];
+    const collapsedIds = new Set<string>();
     for (const notification of batch) {
       if (notification.name === 'delivery-queue-fallback') continue;
-      const key = collapseKey(notification);
-      if (key) {
-        if (!this.collapsed.has(key)) {
-          const timer = setTimeout(() => {
-            this.collapsed.delete(key);
-            void this.enqueue(notification);
-          }, COLLAPSE_MS);
-          timer.unref?.();
-          this.collapsed.set(key, { timer, notification });
-        }
-        continue;
+      const collapsed = collapsedJob(notification, Date.now());
+      if (collapsed) {
+        if (collapsedIds.has(collapsed.jobId)) continue;
+        collapsedIds.add(collapsed.jobId);
       }
-      addPromises.push(this.enqueue(notification));
+      addPromises.push(this.enqueue(notification, collapsed));
     }
 
     await Promise.allSettled(addPromises);
   }
 
-  private async enqueue(notification: JobNotification): Promise<void> {
+  private async enqueue(notification: JobNotification, collapsed: { jobId: string; delay: number } | null): Promise<void> {
     const queue = this.getQueue(notification.name);
     if (!queue) {
       logger.warn(`NotificationListener: no queue for "${notification.name}"`);
@@ -212,6 +208,7 @@ export class NotificationListener {
       await queue.add(notification.name, jobData, {
         attempts: 5,
         backoff: { type: 'exponential', delay: 5000 },
+        ...(collapsed ?? {}),
       });
       logger.debug(`NotificationListener: enqueued ${notification.name} job`);
     } catch (err) {

@@ -5,6 +5,7 @@ import {
   channelPermissionsSynced,
   overrideState,
   privacyFromOverrides,
+  rebaseTemplate,
   sameTemplate,
   setCategoryPermissions,
   targetMasks,
@@ -140,6 +141,32 @@ describe('sameTemplate and targetMasks', () => {
   it('reads a row without one as 0/0', () => {
     expect(targetMasks([role('a', 2, 4096)], { role_id: 'a', user_id: null })).toBe('2/4096')
     expect(targetMasks([], { role_id: 'a', user_id: null })).toBe('0/0')
+  })
+})
+
+describe('rebaseTemplate', () => {
+  const roles = new Set([EVERYONE, 'a', 'b'])
+
+  it('applies the bits the dialog changed onto the template as it stands, and keeps the rest', () => {
+    // Opened: a allowed VIEW_CHANNEL (2). Edited: a denied SEND_MESSAGES (4096).
+    // Meanwhile: a allowed ATTACH_FILES (32768), b added, @everyone denied VIEW_CHANNEL.
+    const saved = [role('a', 2)]
+    const edited = [role('a', 2, 4096)]
+    const latest = [role('a', 2 | 32768), role('b', 8), role(EVERYONE, 0, 2)]
+    expect(byTarget(rebaseTemplate(latest, saved, edited, roles))).toEqual({
+      a: `${2 | 32768}/4096`, b: '8/0', [EVERYONE]: '0/2',
+    })
+  })
+
+  it('a bit the dialog changed takes the dialog\'s state, even one changed meanwhile', () => {
+    // Opened: a allowed VIEW_CHANNEL. Edited: inherit. Meanwhile: denied.
+    expect(rebaseTemplate([role('a', 0, 2)], [role('a', 2)], [], roles)).toEqual([])
+    expect(byTarget(rebaseTemplate([role('a', 0, 2)], [], [role('a', 2)], roles))).toEqual({ a: '2/0' })
+  })
+
+  it('drops a row removed meanwhile that the dialog left alone, and rows of deleted roles', () => {
+    expect(byTarget(rebaseTemplate([], [role('a', 2), user('u', 2)], [role('a', 2), user('u', 2)], roles))).toEqual({})
+    expect(byTarget(rebaseTemplate([], [], [role('gone', 2), user('u', 2)], roles))).toEqual({ u: '2/0' })
   })
 })
 

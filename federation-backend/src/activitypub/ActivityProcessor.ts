@@ -23,7 +23,7 @@ import { membershipOutlivesRemove, removalReason, removedByStaff } from './membe
 import { isServerBlockedHere } from './instanceServerBlocks.js';
 import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
 import { actorHostReadsPost, storedPostVisibility } from './postAccess.js';
-import { inboundEmojiOrigin, ownEmojiId } from '../utils/emojiOrigin.js';
+import { inboundEmojiOrigin, inboundEmojiRowId, ownEmojiId } from '../utils/emojiOrigin.js';
 import { cacheInboundEmojiTags } from '../utils/remoteEmojiCache.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
@@ -2493,7 +2493,7 @@ export class ActivityProcessor {
 
     // An actor holds one row per distinct emoji, so the Undo removes only the
     // rows carrying the emoji it names.
-    const matchesUndo = await this.buildReactionUndoMatcher(supabase, emoji, emojiUrl, emojiName);
+    const matchesUndo = await this.buildReactionUndoMatcher(supabase, emoji, emojiUrl, emojiName, actorUrl);
 
     let post = null;
     
@@ -2587,7 +2587,7 @@ export class ActivityProcessor {
   static async removeMessageReactions(messageId: string, userId: string, like: any): Promise<void> {
     const supabase = getSupabaseClient();
     const { emoji, emojiUrl, emojiName } = extractLikeData({ ...like, actor: like?.actor ?? '', object: like?.object ?? '' });
-    const matchesUndo = await this.buildReactionUndoMatcher(supabase, emoji, emojiUrl, emojiName);
+    const matchesUndo = await this.buildReactionUndoMatcher(supabase, emoji, emojiUrl, emojiName, like?.actor ?? null);
 
     const { data: rows, error: readError } = await supabase
       .from('reactions')
@@ -2628,6 +2628,7 @@ export class ActivityProcessor {
     emoji: string | undefined,
     emojiUrl: string | undefined,
     emojiName: string | undefined,
+    actorUrl: string | null,
   ): Promise<(row: any) => boolean> {
     const isCustomEmoji = !!(emojiUrl && emojiName);
     const undoesFavourite = isFavouriteLike({ emoji, emojiUrl, emojiName });
@@ -2636,12 +2637,14 @@ export class ActivityProcessor {
     // creating a row.
     let emojiId: string | null = null;
     if (isCustomEmoji) {
-      const { data: emojiRow } = await supabase
-        .from('emojis')
-        .select('id')
-        .eq('url', emojiUrl)
-        .maybeSingle();
-      emojiId = emojiRow?.id ?? null;
+      const origin = inboundEmojiOrigin(emojiName!, actorUrl, config.INSTANCE_DOMAIN);
+      let urlHost: string | null = null;
+      try {
+        urlHost = new URL(emojiUrl!).hostname;
+      } catch {
+        urlHost = null;
+      }
+      emojiId = await inboundEmojiRowId(supabase, emojiUrl!, origin.domain ?? urlHost);
     }
 
     // Content strings processLike writes for this emoji.
@@ -3702,13 +3705,8 @@ export class ActivityProcessor {
       }
     }
 
-    const { data: existing } = await supabase
-      .from('emojis')
-      .select('id')
-      .eq('url', emojiUrl)
-      .maybeSingle();
-
-    if (existing) return existing.id;
+    const existingId = await inboundEmojiRowId(supabase, emojiUrl, emojiDomain);
+    if (existingId) return existingId;
 
     const { data: created } = await supabase
       .from('emojis')

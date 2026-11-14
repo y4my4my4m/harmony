@@ -24,12 +24,15 @@ let failReads = false
 let seq = 0
 /** Runs before an update applies: a concurrent writer. */
 let beforeUpdate: (() => void) | null = null
+/** A read selecting these columns answers an error. */
+let failSelect: string | null = null
 
 function query(table: string) {
   const filters: Array<(r: any) => boolean> = []
   let op: 'select' | 'update' | 'insert' = 'select'
   let patch: any
   let window: [number, number] | null = null
+  let columns = ''
   const rows = () => {
     const out = ((db as any)[table] || []).filter((r: any) => filters.every(f => f(r)))
     return window ? out.slice(window[0], window[1] + 1) : out
@@ -42,11 +45,11 @@ function query(table: string) {
       for (const r of hit) Object.assign(r, patch)
       return { data: hit.map((r: any) => ({ id: r.id })), error: null }
     }
-    if (failReads) return { data: null, error: { message: 'statement timeout' } }
+    if (failReads || (failSelect !== null && columns === failSelect)) return { data: null, error: { message: 'statement timeout' } }
     return { data: rows().map((r: any) => ({ ...r })), error: null }
   }
   const q: any = {
-    select: () => q,
+    select: (cols?: string) => { if (cols) columns = cols; return q },
     eq: (col: string, val: unknown) => { filters.push(r => r[col] === val); return q },
     neq: (col: string, val: unknown) => { filters.push(r => r[col] !== val); return q },
     is: (col: string, val: unknown) => { filters.push(r => (r[col] ?? null) === val); return q },
@@ -71,7 +74,7 @@ function query(table: string) {
 vi.mock('../config/supabase.js', () => ({ getSupabaseClient: () => ({ from: query }) }))
 
 const { emojisToAp, parseGroupEmojis, MAX_EMOJIS } = await import('../activitypub/copyMirror.js')
-const { CopyMirrorService } = await import('../services/CopyMirrorService.js')
+const { CopyMirrorService, urlChunks } = await import('../services/CopyMirrorService.js')
 
 const copyRows = () => db.emojis.filter(e => e.server_id === COPY)
 const byAp = (n: number) => db.emojis.find(e => e.ap_id === apId(n))
@@ -81,6 +84,7 @@ beforeEach(() => {
   failReads = false
   seq = 0
   beforeUpdate = null
+  failSelect = null
 })
 
 describe('harmony:emojis on the wire', () => {
@@ -152,6 +156,27 @@ describe('applyGroupEmojis', () => {
     expect(db.emojis.find(e => e.id === 'cached')).toMatchObject({ server_id: COPY, ap_id: apId(1), scope: 'server' })
     expect(db.emojis.find(e => e.id === 'mine')?.server_id).toBeNull()
     expect(db.emojis.find(e => e.id === 'local')?.server_id).toBe('other-server')
+  })
+
+  it('never takes over a row cached from another instance: the Group may list any image', async () => {
+    db.emojis = [
+      { id: 'theirs', name: 'blob', url: img('blob'), server_id: null, scope: 'server', domain: 'mastodon.test', ap_id: null, deleted_at: null },
+    ]
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'mine', url: img('blob') }])
+    expect(db.emojis.find((e) => e.id === 'theirs')).toMatchObject({ server_id: null, ap_id: null, name: 'blob', domain: 'mastodon.test' })
+    expect(copyRows().map((e) => [e.ap_id, e.domain])).toEqual([[apId(1), 'remote.test']])
+  })
+
+  it('reads the cached rows in requests of a few KB, and changes nothing when that read fails', async () => {
+    const long = Array.from({ length: 100 }, (_, i) => `https://db.remote.test/storage/v1/object/public/emojis/${'a'.repeat(100)}/${i}.webp`)
+    const parts = urlChunks(long)
+    expect(parts.flat()).toEqual(long)
+    expect(parts.length).toBeGreaterThan(1)
+    for (const part of parts) expect(part.map((u) => encodeURIComponent(u).length + 9).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(4_000)
+
+    failSelect = 'id, url'
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'wave', url: img('wave') }])
+    expect(db.emojis).toEqual([])
   })
 
   it('renames, changes the image and restores what the Group lists again', async () => {

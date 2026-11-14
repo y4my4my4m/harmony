@@ -821,37 +821,47 @@ const isNativeFullscreen = ref(false);
 // The document goes full screen, not the call view: full screen draws only the fullscreen
 // element's subtree, and the watch together player, menus and dialogs mount on <body>.
 let fullscreenRequested = false;
+// The call view entered full screen itself, rather than taking over the app's own (F11).
+let ownsFullscreen = false;
 
 const toggleNativeFullscreen = async () => {
   if (poppedOut.value) return;
   try {
     if (isNativeFullscreen.value) {
-      await document.exitFullscreen();
+      releaseNativeFullscreen();
     } else if (document.fullscreenElement === document.documentElement) {
-      // Already full screen (F11): the call view takes it over.
+      // Already full screen (F11): the call view takes it over, and gives it back on leaving.
       fullscreenRequested = true;
+      ownsFullscreen = false;
       onFullscreenChange();
     } else {
       if (document.fullscreenElement) await document.exitFullscreen();
       fullscreenRequested = true;
+      ownsFullscreen = true;
       await document.documentElement.requestFullscreen();
     }
   } catch (error) {
     fullscreenRequested = false;
+    ownsFullscreen = false;
     debug.warn('[Fullscreen] Native fullscreen request failed:', error);
   }
 };
 
 // The call view's full screen ends with it: closed, minimized, popped out or unmounted, the
-// document would otherwise stay full screen with nothing of the call left on it.
-const leaveNativeFullscreen = () => {
-  if (isNativeFullscreen.value && document.fullscreenElement === document.documentElement) {
+// document would otherwise stay full screen with nothing of the call left on it. Full screen the
+// call view took over (F11) stays, without the call.
+function releaseNativeFullscreen() {
+  if (!isNativeFullscreen.value) return;
+  if (ownsFullscreen && document.fullscreenElement === document.documentElement) {
     void document.exitFullscreen().catch(() => {});
+    return;
   }
-};
+  fullscreenRequested = false;
+  onFullscreenChange();
+}
 
 watch([callViewShown, poppedOut], ([shown, out]) => {
-  if (!shown || out) leaveNativeFullscreen();
+  if (!shown || out) releaseNativeFullscreen();
 });
 
 // Esc both exits browser fullscreen and triggers our exit-fullscreen keybind;
@@ -860,7 +870,10 @@ let lastNativeFullscreenExit = 0;
 
 const onFullscreenChange = () => {
   const wasFullscreen = isNativeFullscreen.value;
-  if (!document.fullscreenElement) fullscreenRequested = false;
+  if (!document.fullscreenElement) {
+    fullscreenRequested = false;
+    ownsFullscreen = false;
+  }
   isNativeFullscreen.value = fullscreenRequested && document.fullscreenElement === document.documentElement;
   if (isNativeFullscreen.value) {
     pokeControls();
@@ -1252,7 +1265,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  leaveNativeFullscreen();
+  releaseNativeFullscreen();
   document.removeEventListener('fullscreenchange', onFullscreenChange);
   if (durationTimer) clearInterval(durationTimer);
   stopStageResize?.();

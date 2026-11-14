@@ -85,6 +85,42 @@ export function sameTemplate(a: CategoryOverride[], b: CategoryOverride[]): bool
   return flat(a) === flat(b)
 }
 
+/**
+ * The edits made from `saved` to `edited`, applied onto `latest`: per role or member, the bits
+ * whose state the dialog changed come from `edited`, every other bit from `latest`. Rows the
+ * dialog left alone are `latest`'s; rows of roles absent from `roleIds` are dropped.
+ */
+export function rebaseTemplate(
+  latest: CategoryOverride[],
+  saved: CategoryOverride[],
+  edited: CategoryOverride[],
+  roleIds: ReadonlySet<string>,
+): CategoryOverride[] {
+  const byKey = (rows: CategoryOverride[]) => new Map(rows.map(o => [targetKey(o), o]))
+  const savedRows = byKey(saved)
+  const editedRows = byKey(edited)
+  const out = byKey(latest.map(o => ({ ...o })))
+  for (const key of new Set([...savedRows.keys(), ...editedRows.keys()])) {
+    const before = savedRows.get(key)
+    const after = editedRows.get(key)
+    const target = (after ?? before)!
+    const [ba, bd] = [mask(before?.allow_permissions), mask(before?.deny_permissions)]
+    const [ea, ed] = [mask(after?.allow_permissions), mask(after?.deny_permissions)]
+    const changed = (ba ^ ea) | (bd ^ ed)
+    if (changed === ZERO) continue
+    const base = out.get(key)
+    const [la, ld] = [mask(base?.allow_permissions), mask(base?.deny_permissions)]
+    out.set(key, {
+      target_type: target.target_type,
+      role_id: target.role_id,
+      user_id: target.user_id,
+      allow_permissions: ((la & ~changed) | (ea & changed)).toString(),
+      deny_permissions: ((ld & ~changed) | (ed & changed)).toString(),
+    })
+  }
+  return [...out.values()].filter(o => hasBits(o) && (!o.role_id || roleIds.has(o.role_id)))
+}
+
 /** Privacy as the template states it. */
 export function privacyFromOverrides(rows: CategoryOverride[], everyoneRoleId: string | null): CategoryPrivacy {
   const everyone = rows.find(o => o.role_id && o.role_id === everyoneRoleId)

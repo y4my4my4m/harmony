@@ -1,7 +1,8 @@
 /**
  * Edit Category's Permissions tab: the Private toggle and a Deny / Inherit / Allow editor per
- * role edit one template, sent whole on save. Bits the editor does not show are kept, a role's
- * changes reset alone, and closing with unsaved changes asks first.
+ * role edit one template. Save applies the dialog's changes onto the template as it stands then.
+ * Bits the editor does not show are kept, a role's changes reset alone, and closing with unsaved
+ * changes asks first.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
@@ -59,6 +60,7 @@ vi.mock('@/components/CategoryPrivacyFields.vue', async () => {
 })
 
 import CategoryEditModal from '../CategoryEditModal.vue'
+import { roleService } from '@/services/RoleService'
 
 enableAutoUnmount(afterEach)
 
@@ -135,6 +137,32 @@ describe('CategoryEditModal permissions', () => {
     expect(setTemplateMock.mock.calls[0][0]).toBe('k1')
     expect(byTarget(setTemplateMock.mock.calls[0][1])).toEqual({ everyone: '0/2', mod: '2/4096' })
     expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('applies the dialog\'s changes onto the template as it stands at save', async () => {
+    overrides.rows = [row('everyone', 0, 2), row('mod', 2)]
+    await openPermissions()
+    pill('mod').click()
+    await nextTick()
+    radio('SEND_MESSAGES', 'deny').click()
+    await nextTick()
+
+    // Meanwhile @everyone is denied SEND_MESSAGES too, and a role with a row is deleted.
+    overrides.rows = [row('everyone', 0, 2 | 4096), row('mod', 2)]
+    vi.mocked(roleService.getRolesForServer).mockResolvedValueOnce([
+      { id: 'everyone', name: '@everyone', position: 0, color: null, is_default: true },
+    ] as any)
+    await save()
+    expect(byTarget(setTemplateMock.mock.calls[0][1])).toEqual({ everyone: `0/${2 | 4096}` })
+
+    overrides.rows = [row('everyone', 0, 2)]
+    await openPermissions()
+    pill('mod').click()
+    await nextTick()
+    radio('SEND_MESSAGES', 'deny').click()
+    overrides.rows = [row('everyone', 0, 2 | 4096)]
+    await save()
+    expect(byTarget(setTemplateMock.mock.calls[1][1])).toEqual({ everyone: `0/${2 | 4096}`, mod: '0/4096' })
   })
 
   it('keeps bits the editor does not show', async () => {

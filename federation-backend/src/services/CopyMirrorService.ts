@@ -12,11 +12,35 @@ import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { redis } from './RedisService.js';
 import type { MemberRoles, ParsedEmoji, ParsedRole } from '../activitypub/copyMirror.js';
+import { emojiDomainForms } from '../utils/emojiOrigin.js';
 
 /** Ids per `in` filter: the query string stays under 8 KB with URLs of 80 characters. */
 const CHUNK = 80;
 /** Rows per read; PostgREST answers at most max-rows (1000 on Supabase) to one request. */
 const PAGE = 1000;
+
+/** URL characters per `in` filter of URLs: under Kong's 8 KB request line with the rest of the query. */
+const URL_CHUNK_CHARS = 4_000;
+
+/** URLs in `in` filters of at most URL_CHUNK_CHARS encoded characters each. */
+export function urlChunks(urls: string[], maxChars = URL_CHUNK_CHARS): string[][] {
+  const out: string[][] = [];
+  let current: string[] = [];
+  let length = 0;
+  for (const url of urls) {
+    // Quoted and comma-separated in the filter.
+    const cost = encodeURIComponent(url).length + 9;
+    if (current.length > 0 && length + cost > maxChars) {
+      out.push(current);
+      current = [];
+      length = 0;
+    }
+    current.push(url);
+    length += cost;
+  }
+  if (current.length > 0) out.push(current);
+  return out;
+}
 
 function chunks<T>(items: T[], size = CHUNK): T[][] {
   const out: T[][] = [];
@@ -97,11 +121,12 @@ export class CopyMirrorService {
   /**
    * The Group's custom emojis on its copy: each a server emoji of the copy under its id
    * (emojis.ap_id), with the host's name and image url and the Group's host as domain; the image
-   * stays on the host. A row cached from an activity (no server, no id, the same image) is taken
-   * over, so the reactions and messages naming it keep it and one row per image stays. An emoji the
-   * list no longer names is removed (deleted_at), and still resolves where it was used. An emoji an
-   * instance admin removed here (deleted_by set) stays removed while the Group lists it. Rows the
-   * copy made itself (no ap_id) stay.
+   * stays on the host. A row cached from an activity of the Group's own instance (no server, no id,
+   * the same image, the Group's host as domain) is taken over, so the reactions and messages naming
+   * it keep it and one row per image stays; a row of another instance never is, since the Group may
+   * list any image. An emoji the list no longer names is removed (deleted_at) and still resolves
+   * where it was used. An emoji an instance admin removed here (deleted_by set) stays removed while
+   * the Group lists it. Rows the copy made itself (no ap_id) stay.
    */
   static async applyGroupEmojis(serverId: string, groupUrl: string, emojis: ParsedEmoji[]): Promise<void> {
     const supabase = getSupabaseClient();
@@ -127,19 +152,20 @@ export class CopyMirrorService {
 
     const cached = new Map<string, string>();
     const unseen = [...new Set(emojis.filter((e) => !byApId.has(e.apId)).map((e) => e.url))];
-    for (const urls of chunks(unseen)) {
+    for (const urls of urlChunks(unseen)) {
       const { data, error } = await supabase
         .from('emojis')
         .select('id, url')
         .is('server_id', null)
         .is('ap_id', null)
-        .not('domain', 'is', null)
+        .in('domain', emojiDomainForms(domain))
         .neq('scope', 'user')
         .in('url', urls)
         .order('created_at', { ascending: true });
+      // Inserting without this read would put a second row next to a cached one of the same image.
       if (error) {
-        logger.warn(`Cached emojis of copy ${serverId} not read: ${error.message}`);
-        continue;
+        logger.warn(`Cached emojis of copy ${serverId} not read, emojis left as they are: ${error.message}`);
+        return;
       }
       for (const row of data || []) if (!cached.has(row.url)) cached.set(row.url, row.id);
     }

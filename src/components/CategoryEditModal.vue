@@ -139,6 +139,7 @@ import {
   getCategoryOverrides,
   overrideState,
   privacyFromOverrides,
+  rebaseTemplate,
   sameTemplate,
   targetMasks,
   withOverrideState,
@@ -346,9 +347,16 @@ const saveChanges = async () => {
       })
     }
     if (templateChanged) {
-      const sent = template.value.map(row => ({ ...row }))
+      // The dialog's changes go onto the template as it stands now: others may have changed it,
+      // or deleted a role, since it opened.
+      const [latest, serverRoles] = await Promise.all([
+        getCategoryOverrides(props.category.id),
+        roleService.getRolesForServer(props.category.server_id),
+      ])
+      const sent = rebaseTemplate(latest, savedTemplate.value, template.value, new Set(serverRoles.map(r => r.id)))
       const synced = await serverChannelStore.setCategoryTemplate(props.category.id, sent)
       savedTemplate.value = sent
+      template.value = sent.map(row => ({ ...row }))
       toast.success(t('category.edit.permissionsSaved', { count: synced.length }, synced.length))
     }
 

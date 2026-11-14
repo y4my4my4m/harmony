@@ -653,7 +653,7 @@ guard_bridge_author_optout	definer	trigger	service_role	trigger	trigger public.m
 guard_category_client_write	invoker	trigger	service_role	trigger	trigger public.channel_categories BEFORE INSERT/UPDATE (a_channel_categories_client_write_guard)
 guard_channel_client_write	invoker	trigger	service_role	trigger	trigger public.channels BEFORE INSERT/UPDATE (a_channels_client_write_guard)
 guard_conversation_participant_client_write	invoker	trigger	service_role	trigger	trigger public.conversation_participants BEFORE UPDATE (a_conversation_participants_client_write_guard)
-guard_copy_emoji_write	invoker	trigger	service_role	trigger	trigger public.emojis BEFORE UPDATE (a_emojis_copy_guard)
+guard_copy_emoji_write	invoker	trigger	service_role	trigger	trigger public.emojis BEFORE DELETE/UPDATE (a_emojis_copy_guard)
 guard_dm_block	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT (a_messages_dm_block_guard)
 guard_emoji_object_delete	definer	trigger	service_role	trigger	trigger storage.objects BEFORE DELETE (emoji_object_delete_guard)
 guard_follow_client_write	definer	trigger	service_role	trigger	trigger public.follows BEFORE INSERT/UPDATE (a_follows_client_write_guard)

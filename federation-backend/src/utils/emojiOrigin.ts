@@ -77,3 +77,39 @@ export async function ownEmojiId(supabase: any, emojiUrl: string): Promise<strin
     .maybeSingle();
   return data?.id ?? null;
 }
+
+/** A host as an emojis row may hold it: with and without its port, lowercase. */
+export function emojiDomainForms(host: string | null | undefined): string[] {
+  if (!host) return [];
+  const h = host.toLowerCase();
+  return [...new Set([h, h.replace(/:\d+$/, '')])];
+}
+
+/**
+ * The emojis row an inbound image URL names, for an emoji whose origin instance is `originHost`:
+ * a row without a Group id (cached from an activity, or this instance's own) first, else a row of
+ * a copy whose Group is on that host (its domain). A copy of a server on another instance never
+ * answers for the URL: its Group may list any image. Several rows of one URL answer with the
+ * oldest, never an error.
+ */
+export async function inboundEmojiRowId(supabase: any, url: string, originHost: string | null): Promise<string | null> {
+  const { data: plain } = await supabase
+    .from('emojis')
+    .select('id')
+    .eq('url', url)
+    .is('ap_id', null)
+    .order('created_at', { ascending: true })
+    .limit(1);
+  if (plain?.[0]?.id) return plain[0].id;
+  const domains = emojiDomainForms(originHost);
+  if (domains.length === 0) return null;
+  const { data: copy } = await supabase
+    .from('emojis')
+    .select('id')
+    .eq('url', url)
+    .not('ap_id', 'is', null)
+    .in('domain', domains)
+    .order('created_at', { ascending: true })
+    .limit(1);
+  return copy?.[0]?.id ?? null;
+}

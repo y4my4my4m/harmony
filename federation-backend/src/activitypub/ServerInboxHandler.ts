@@ -37,7 +37,7 @@ import { HARMONY_CONTEXT } from './harmonyContext.js';
 import { parseChannelPosition } from './copyMirror.js';
 import { groupIsPublic, HARMONY_PUBLIC } from './serverDirectory.js';
 import { isPollVoteNote, preparePoll, receivePollEnd, receivePollVote, storeInboundPoll } from './messagePolls.js';
-import { inboundEmojiOrigin, ownEmojiId } from '../utils/emojiOrigin.js';
+import { inboundEmojiOrigin, inboundEmojiRowId, ownEmojiId } from '../utils/emojiOrigin.js';
 import { sameOrigin } from '../utils/apOrigin.js';
 
 // Permission bit positions in server_roles.permissions (mirror src/services/RoleService.ts)
@@ -1527,16 +1527,11 @@ async function processReactionActivity(
 
   if (isCustomEmoji) {
     // Custom emoji resolves to a row id in the emojis table.
-    const { data: existingEmoji } = await supabase
-      .from('emojis')
-      .select('id')
-      .eq('url', emojiUrl)
-      .maybeSingle();
-
     const origin = inboundEmojiOrigin(emojiName || emoji, actorUrl, config.INSTANCE_DOMAIN);
-    const ownId = !existingEmoji && origin.own ? await ownEmojiId(supabase, emojiUrl) : null;
-    if (existingEmoji) {
-      reactionData.emoji_id = existingEmoji.id;
+    const existingId = await inboundEmojiRowId(supabase, emojiUrl, origin.domain ?? new URL(emojiUrl).hostname);
+    const ownId = !existingId && origin.own ? await ownEmojiId(supabase, emojiUrl) : null;
+    if (existingId) {
+      reactionData.emoji_id = existingId;
     } else if (ownId) {
       reactionData.emoji_id = ownId;
     } else {

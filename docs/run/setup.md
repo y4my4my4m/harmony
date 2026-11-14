@@ -136,6 +136,7 @@ Open **Server settings** → **Emoji**. Every member can see the list; adding, r
 - The name comes from the file name: Latin letters, digits, `_` and `-` are kept, spaces are removed, and it is cut to 20 characters. A duplicate name gets `_1`, `_2` and so on. Use **Rename emoji** to change it.
 - The instance sets how many custom emoji a server can have; 50 unless its operator changed it. Deleted emoji do not count.
 - Deleting an emoji takes it out of every emoji picker and frees its name. Messages, posts and reactions that already use it keep showing it. An instance administrator can restore it, or purge it: the image file is then deleted and those messages and reactions show a broken-image icon with the emoji's `:name:`.
+- A server hosted on another instance shows the emoji of its own instance, kept current from there. An instance administrator here can delete and restore one of them, not rename or purge it.
 
 ## Soundboard sounds
 
