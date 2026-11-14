@@ -165,6 +165,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **Creating a server no longer fails because of a private server's name.** A server's address
+  comes from the Latin letters and digits of its name. When a private server you couldn't see
+  already held that address, creating the server failed: めじたぐharmony支部 could not be created
+  while a private server's address was `harmony`. It now takes the next free address.
 - **A server's custom emojis on other instances.** Members who joined a server from another
   instance saw none of its custom emojis in the emoji picker or in `:name` suggestions. The server
   now sends its emojis to the instances its members are on, and keeps them current as they are

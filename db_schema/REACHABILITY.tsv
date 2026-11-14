@@ -79,7 +79,7 @@ assert_grantable_bot_flags	invoker	void	authenticated+service_role	client, trigg
 assert_security_attempt_budget	definer	void	service_role	client	called by begin_account_move, delete_my_account, redeem_recovery_code_and_disable_mfa, +2
 assert_webhook_channel	invoker	uuid	service_role	client	called by create_channel_webhook, execute_channel_webhook
 assign_default_role_to_member	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers AFTER INSERT/UPDATE (trigger_assign_default_role)
-assign_server_slug	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.servers BEFORE INSERT (trg_assign_server_slug)
+assign_server_slug	definer	trigger	service_role	trigger	trigger public.servers BEFORE INSERT (trg_assign_server_slug)
 attach_supporter_message	definer	trigger	service_role	trigger	trigger public.instance_donation_history AFTER INSERT (trg_attach_supporter_message)
 auto_archive_threads	definer	void	anon+authenticated+service_role	client	rpc in src/components/ChannelSidebar.vue
 automod_apply_raid_lockdown	definer	jsonb	service_role	client, trigger	called by automod_member_joined, set_server_raid_lockdown
@@ -534,7 +534,7 @@ fulfill_megolm_key_request	definer	boolean	authenticated+service_role	client	rpc
 generate_discord_bridge_pairing_code	invoker	text	anon+authenticated+service_role	client	called by get_or_create_discord_bridge_pairing, regenerate_discord_bridge_pairing
 generate_livekit_token	definer	jsonb	service_role	service key	nothing references it
 generate_mfa_recovery_codes	definer	text[]	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts
-generate_unique_server_slug	invoker	text	anon+authenticated+service_role	trigger	called by assign_server_slug
+generate_unique_server_slug	definer	text	service_role	trigger	called by assign_server_slug
 get_activitypub_conversation_context	invoker	TABLE(ancestors jsonb, descendants jsonb)	anon+authenticated+service_role	client	rpc in src/services/ConversationService.ts
 get_activitypub_conversation_root	invoker	TABLE(root_id uuid)	anon+authenticated+service_role	client	rpc in src/services/ConversationService.ts
 get_activitypub_conversation_thread	invoker	TABLE(id uuid, content jsonb, author_id uuid, created_at timestamp with time zone, in_reply_to uuid, conversation_root_id uuid)	anon+authenticated+service_role	client	rpc in src/services/ConversationService.ts

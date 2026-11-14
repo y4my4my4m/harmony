@@ -79,7 +79,7 @@ assert_grantable_bot_flags	p_server_id uuid, p_new jsonb, p_old jsonb	void	invok
 assert_security_attempt_budget	p_auth_user_id uuid, p_kind text	void	definer	pg_catalog, public, pg_temp	service_role	unreferenced
 assert_webhook_channel	p_channel_id uuid	uuid	invoker	public, pg_temp	service_role	unreferenced
 assign_default_role_to_member		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
-assign_server_slug		trigger	invoker	public, pg_temp	anon+authenticated+service_role	trigger
+assign_server_slug		trigger	definer	public, pg_temp	service_role	trigger
 attach_supporter_message		trigger	definer	public, pg_temp	service_role	trigger
 auto_archive_threads		void	definer	public, pg_temp	anon+authenticated+service_role	client
 automod_apply_raid_lockdown	p_server_id uuid, p_active boolean, p_actor uuid	jsonb	definer	public, pg_temp	service_role	unreferenced
@@ -534,7 +534,7 @@ fulfill_megolm_key_request	p_request_id uuid, p_encrypted_key text, p_key_scope 
 generate_discord_bridge_pairing_code		text	invoker	public, pg_temp	anon+authenticated+service_role	unreferenced
 generate_livekit_token	room_name text, room_type text	jsonb	definer	public, extensions, pg_temp	service_role	unreferenced
 generate_mfa_recovery_codes		text[]	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
-generate_unique_server_slug	p_name text, p_id uuid	text	invoker	public, pg_temp	anon+authenticated+service_role	unreferenced
+generate_unique_server_slug	p_name text, p_id uuid	text	definer	public, pg_temp	service_role	unreferenced
 get_activitypub_conversation_context	post_id uuid	TABLE(ancestors jsonb, descendants jsonb)	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 get_activitypub_conversation_root	post_id uuid	TABLE(root_id uuid)	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 get_activitypub_conversation_thread	in_conversation_root_id text	TABLE(id uuid, content jsonb, author_id uuid, created_at timestamp with time zone, in_reply_to uuid, conversation_root_id uuid)	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
