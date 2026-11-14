@@ -25,8 +25,64 @@ const ZERO = BigInt(0)
 
 const mask = (value: string | number | null | undefined): bigint => BigInt(value ?? 0)
 
+type Target = Pick<CategoryOverride, 'target_type' | 'role_id' | 'user_id'>
+
 function targetKey(o: Pick<CategoryOverride, 'role_id' | 'user_id'>): string {
   return o.role_id ? `role:${o.role_id}` : `user:${o.user_id}`
+}
+
+const hasBits = (o: CategoryOverride) => mask(o.allow_permissions) !== ZERO || mask(o.deny_permissions) !== ZERO
+
+export type OverrideState = 'allow' | 'deny' | 'inherit'
+
+/** The state of `bit` (a mask of one bit) for a role or member in the template. */
+export function overrideState(rows: CategoryOverride[], target: Pick<CategoryOverride, 'role_id' | 'user_id'>, bit: bigint): OverrideState {
+  const key = targetKey(target)
+  const row = rows.find(o => targetKey(o) === key)
+  if (!row) return 'inherit'
+  if ((mask(row.allow_permissions) & bit) !== ZERO) return 'allow'
+  if ((mask(row.deny_permissions) & bit) !== ZERO) return 'deny'
+  return 'inherit'
+}
+
+/** The template with `bit` of one role or member set to `state`; every other bit and row kept. */
+export function withOverrideState(rows: CategoryOverride[], target: Target, bit: bigint, state: OverrideState): CategoryOverride[] {
+  const key = targetKey(target)
+  const out = rows.map(o => ({ ...o }))
+  let row = out.find(o => targetKey(o) === key)
+  if (!row) {
+    row = { ...target, allow_permissions: '0', deny_permissions: '0' }
+    out.push(row)
+  }
+  const allow = mask(row.allow_permissions) & ~bit
+  const deny = mask(row.deny_permissions) & ~bit
+  row.allow_permissions = (state === 'allow' ? allow | bit : allow).toString()
+  row.deny_permissions = (state === 'deny' ? deny | bit : deny).toString()
+  return out.filter(hasBits)
+}
+
+/** One role or member's row restored from `saved`, or removed when `saved` has none. */
+export function withTargetFrom(rows: CategoryOverride[], saved: CategoryOverride[], target: Pick<CategoryOverride, 'role_id' | 'user_id'>): CategoryOverride[] {
+  const key = targetKey(target)
+  const original = saved.find(o => targetKey(o) === key)
+  const rest = rows.filter(o => targetKey(o) !== key)
+  return original ? [...rest, { ...original }] : rest
+}
+
+/** A role or member's masks as "allow/deny"; "0/0" without a row. */
+export function targetMasks(rows: CategoryOverride[], target: Pick<CategoryOverride, 'role_id' | 'user_id'>): string {
+  const key = targetKey(target)
+  const row = rows.find(o => targetKey(o) === key)
+  return row ? `${mask(row.allow_permissions)}/${mask(row.deny_permissions)}` : '0/0'
+}
+
+/** Equal templates: the same rows with the same masks, in any order, empty rows ignored. */
+export function sameTemplate(a: CategoryOverride[], b: CategoryOverride[]): boolean {
+  const flat = (rows: CategoryOverride[]) => rows.filter(hasBits)
+    .map(o => `${targetKey(o)}=${mask(o.allow_permissions)}/${mask(o.deny_permissions)}`)
+    .sort()
+    .join()
+  return flat(a) === flat(b)
 }
 
 /** Privacy as the template states it. */
@@ -78,7 +134,7 @@ export function applyPrivacy(
     for (const id of users) edit({ target_type: 'user', role_id: null, user_id: id }, grant)
   }
 
-  return [...byTarget.values()].filter(o => mask(o.allow_permissions) !== ZERO || mask(o.deny_permissions) !== ZERO)
+  return [...byTarget.values()].filter(hasBits)
 }
 
 export async function getCategoryOverrides(categoryId: string): Promise<CategoryOverride[]> {

@@ -3424,7 +3424,9 @@
       "failed": "无法更新分类，请重试。",
       "loadingPermissions": "正在加载权限…",
       "permissionsFailed": "无法加载此分类的权限。关闭后重新打开即可重试。",
-      "permissionsSaved": "权限已保存。分类中没有频道跟随这些权限；可在频道的权限设置中同步。 | 权限已保存并同步到 {count} 个频道。 | 权限已保存并同步到 {count} 个频道。"
+      "permissionsSaved": "权限已保存。分类中没有频道跟随这些权限；可在频道的权限设置中同步。 | 权限已保存并同步到 {count} 个频道。 | 权限已保存并同步到 {count} 个频道。",
+      "overrideLegend": "与此分类同步的频道遵循这些设置。允许表示授予，拒绝表示撤销，继承表示使用服务器级设置。",
+      "discardMessage": "此分类有未保存的更改。不保存就关闭吗？"
     },
     "sync": {
       "synced": "已与 {category} 同步",

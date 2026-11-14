@@ -3,8 +3,13 @@ import { supabase } from '@/supabase'
 import {
   applyPrivacy,
   channelPermissionsSynced,
+  overrideState,
   privacyFromOverrides,
+  sameTemplate,
   setCategoryPermissions,
+  targetMasks,
+  withOverrideState,
+  withTargetFrom,
   type CategoryOverride,
 } from '@/services/categoryPermissions'
 
@@ -74,6 +79,67 @@ describe('applyPrivacy', () => {
     const out = applyPrivacy([{ ...role('staff', 0), allow_permissions: high }], EVERYONE,
                              { isPrivate: true, roleIds: ['staff'], userIds: [] })
     expect(out.find(o => o.role_id === 'staff')!.allow_permissions).toBe(((BigInt(1) << BigInt(60)) | BigInt(2)).toString())
+  })
+})
+
+// The role editor sets one bit of one row: SEND_MESSAGES is bit 12 (4096).
+const SEND = BigInt(4096)
+
+describe('overrideState', () => {
+  it('reads a bit as allow, deny or inherit', () => {
+    const rows = [role('staff', 4096), role('muted', 0, 4096 | 2)]
+    expect(overrideState(rows, { role_id: 'staff', user_id: null }, SEND)).toBe('allow')
+    expect(overrideState(rows, { role_id: 'muted', user_id: null }, SEND)).toBe('deny')
+    expect(overrideState(rows, { role_id: 'muted', user_id: null }, BigInt(1024))).toBe('inherit')
+    expect(overrideState(rows, { role_id: 'absent', user_id: null }, SEND)).toBe('inherit')
+  })
+})
+
+describe('withOverrideState', () => {
+  const staff = { target_type: 'role' as const, role_id: 'staff', user_id: null }
+
+  it('adds a row for a role the template does not name', () => {
+    expect(byTarget(withOverrideState([], staff, SEND, 'deny'))).toEqual({ staff: '0/4096' })
+  })
+
+  it('moves the bit between allow and deny and keeps every other bit and row', () => {
+    const rows = [role('staff', 2 | 4096, 64), user('ann', 2)]
+    expect(byTarget(withOverrideState(rows, staff, SEND, 'deny'))).toEqual({ staff: '2/4160', ann: '2/0' })
+    expect(byTarget(withOverrideState(rows, staff, SEND, 'inherit'))).toEqual({ staff: '2/64', ann: '2/0' })
+  })
+
+  it('drops a row left with no bit', () => {
+    expect(withOverrideState([role('staff', 4096)], staff, SEND, 'inherit')).toEqual([])
+  })
+
+  it('leaves its input unchanged', () => {
+    const rows = [role('staff', 4096)]
+    withOverrideState(rows, staff, SEND, 'deny')
+    expect(byTarget(rows)).toEqual({ staff: '4096/0' })
+  })
+})
+
+describe('withTargetFrom', () => {
+  it('restores one row from the saved template and leaves the others as edited', () => {
+    const saved = [role('staff', 2), role('mods', 4096)]
+    const edited = [role('staff', 0, 2), role('mods', 0, 4096), role('new', 2)]
+    expect(byTarget(withTargetFrom(edited, saved, { role_id: 'staff', user_id: null })))
+      .toEqual({ staff: '2/0', mods: '0/4096', new: '2/0' })
+    expect(byTarget(withTargetFrom(edited, saved, { role_id: 'new', user_id: null })))
+      .toEqual({ staff: '0/2', mods: '0/4096' })
+  })
+})
+
+describe('sameTemplate and targetMasks', () => {
+  it('compares rows in any order and ignores empty ones', () => {
+    expect(sameTemplate([role('a', 2), role('b', 0, 4096)], [role('b', 0, 4096), role('a', 2), role('c', 0)])).toBe(true)
+    expect(sameTemplate([role('a', 2)], [role('a', 0, 2)])).toBe(false)
+    expect(sameTemplate([role('a', 2)], [user('a', 2)])).toBe(false)
+  })
+
+  it('reads a row without one as 0/0', () => {
+    expect(targetMasks([role('a', 2, 4096)], { role_id: 'a', user_id: null })).toBe('2/4096')
+    expect(targetMasks([], { role_id: 'a', user_id: null })).toBe('0/0')
   })
 })
 

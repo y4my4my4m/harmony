@@ -975,7 +975,9 @@
       "failed": "Couldn't update the category. Try again.",
       "loadingPermissions": "Loading permissions…",
       "permissionsFailed": "Couldn't load this category's permissions. Close and reopen to try again.",
-      "permissionsSaved": "Permissions saved. No channel in it follows them; sync a channel from its permission settings. | Permissions saved and synced to {count} channel. | Permissions saved and synced to {count} channels."
+      "permissionsSaved": "Permissions saved. No channel in it follows them; sync a channel from its permission settings. | Permissions saved and synced to {count} channel. | Permissions saved and synced to {count} channels.",
+      "overrideLegend": "Channels synced with this category follow these settings. Allow grants, Deny revokes, Inherit uses the server-wide setting.",
+      "discardMessage": "This category has unsaved changes. Close without saving them?"
     },
     "sync": {
       "synced": "Synced with {category}",
