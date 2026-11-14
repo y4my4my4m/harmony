@@ -17,6 +17,7 @@ vi.mock('vue-router', async (importOriginal) => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 vi.mock('vue-toastification', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
+vi.mock('@/stores/useNotification', () => ({ useNotificationStore: () => ({ preferences: null, updatePreferences: vi.fn() }) }))
 vi.mock('@/services/AuthContextService', () => ({ authContextService: { getCurrentProfileId: async () => 'me' } }))
 vi.mock('@/services/userDataService', () => ({ userDataService: { ensureUsersLoaded: vi.fn(async () => {}) } }))
 vi.mock('@/services/AdminService', () => ({ adminService: {} }))

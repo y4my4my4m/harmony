@@ -97,6 +97,18 @@
                     :initial-focus="profileMenuInitialFocus"
                     @close="showActionsMenu = false"
                   >
+                    <button
+                      v-if="shareableProfileUrl"
+                      type="button"
+                      role="menuitem"
+                      class="social-menu-item"
+                      data-testid="profile-menu-copy-link"
+                      @click="copyProfileLink"
+                    >
+                      <Icon name="link" />
+                      <span>{{ t('activitypub.profileA11y.copyProfileLink') }}</span>
+                    </button>
+
                     <!-- View in remote instance (for federated users) -->
                     <a
                       v-if="!user.is_local && remoteProfileUrl"
@@ -111,7 +123,20 @@
                       <span>{{ t('activitypub.viewOnDomain', { domain: user.domain }) }}</span>
                     </a>
 
-                    <div v-if="!user.is_local && remoteProfileUrl" role="separator" class="social-menu-divider"></div>
+                    <button
+                      v-if="!user.is_local"
+                      type="button"
+                      role="menuitem"
+                      class="social-menu-item"
+                      data-testid="profile-menu-refresh"
+                      :disabled="isRefreshingProfile"
+                      @click="refreshRemoteAccount"
+                    >
+                      <Icon name="refresh-cw" />
+                      <span>{{ t('activitypub.profileA11y.refreshProfile') }}</span>
+                    </button>
+
+                    <div v-if="shareableProfileUrl || !user.is_local" role="separator" class="social-menu-divider"></div>
 
                     <button type="button" role="menuitem" class="social-menu-item" @click="handleMute">
                       <Icon name="volume-x" />
@@ -450,6 +475,8 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import CopyHandleButton from '@/components/common/CopyHandleButton.vue';
 import { formatHandle } from '@/utils/handles';
+import { profileUrl } from '@/utils/permalinks';
+import { useToast } from 'vue-toastification';
 import SocialMenu from '@/components/activitypub/SocialMenu.vue';
 import { useMenuButton } from '@/composables/useMenu';
 import { tablistKeydown } from '@/utils/tablistKeydown';
@@ -516,7 +543,7 @@ const route = useRoute();
 const router = useRouter();
 
 // User data composable
-const { getUserBannerUrl } = useUserData()
+const { getUserBannerUrl, fetchUserProfile } = useUserData()
 
 const scrollContainerRef = ref<HTMLElement | null>(null);
 
@@ -704,6 +731,55 @@ const isBlocked = computed(() => {
   if (!user.value) return false;
   return blockedUsers.value.has(user.value.id);
 });
+
+// This instance's address of the account: /@user, /@user@domain for a remote one.
+const shareableProfileUrl = computed(() => (user.value ? profileUrl(user.value) : null));
+
+const toast = useToast();
+
+const copyProfileLink = async () => {
+  showActionsMenu.value = false;
+  const url = shareableProfileUrl.value;
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast.success(t('activitypub.profileA11y.profileLinkCopied'));
+  } catch {
+    toast.error(t('activitypub.profileA11y.profileLinkCopyFailed'));
+  }
+};
+
+const isRefreshingProfile = ref(false);
+
+/**
+ * Reads a remote account from its instance now (/lookup-user forceRefresh). The profile on
+ * screen stays as it is when the instance cannot be reached.
+ */
+const refreshRemoteAccount = async () => {
+  showActionsMenu.value = false;
+  const target = user.value;
+  if (!target || target.is_local || isRefreshingProfile.value) return;
+  isRefreshingProfile.value = true;
+  try {
+    const fresh = await activityPubService.getUserByHandle(`${target.username}@${target.domain}`, true);
+    if (user.value?.id !== target.id) return;
+    if (fresh && fresh.id === target.id) {
+      user.value = { ...target, ...fresh };
+      // The shared user cache holds its own copy of the profile.
+      await fetchUserProfile(target.id, true);
+      toast.success(t('activitypub.profileA11y.profileRefreshed'));
+    } else {
+      toast.error(t('activitypub.profileA11y.profileRefreshFailed', { domain: target.domain }));
+    }
+  } catch (err) {
+    debug.warn('Profile refresh failed:', err);
+    if (user.value?.id === target.id) {
+      toast.error(t('activitypub.profileA11y.profileRefreshFailed', { domain: target.domain }));
+    }
+  } finally {
+    isRefreshingProfile.value = false;
+  }
+};
 
 // Remote profile URL for "View on remote instance" link
 const remoteProfileUrl = computed(() => {

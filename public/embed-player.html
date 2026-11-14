@@ -9,6 +9,8 @@
 html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
 #root, #root > iframe, #root > div, #root iframe { width: 100%; height: 100%; border: 0; display: block; }
 body.activity { background: #000; }
+body.captcha #root, body.captcha #root > div, body.captcha #root iframe { width: auto; height: auto; display: block; }
+body.captcha #root { display: flex; justify-content: center; }
 </style>
 </head>
 <body>
@@ -19,6 +21,12 @@ body.activity { background: #000; }
 // ?src=<player url>  Frames one provider player (hosts in PLAYER_HOSTS, https only) and relays
 //                    postMessage both ways. The macOS and iOS apps load from tauri://localhost,
 //                    which sends no Referer; some players refuse such embeds.
+// ?captcha=turnstile|hcaptcha&sitekey=<key>[&theme=light|dark][&lang=<tag>]
+//                    The sign-up check (20261111100001). The widget runs on the instance's own
+//                    origin, the hostname its site key names, whatever page frames it.
+//   events    captcha-ready, captcha {token}, captcha-expired, captcha-error {message},
+//             captcha-size {height}: the frame's height in CSS pixels for the open challenge
+//   commands  captcha-reset
 // ?activity=1        An activity player. The parent (the Harmony page that frames this one)
 //                    sends {harmonyPlayer: 1, cmd} commands; this page loads the provider's
 //                    official API and answers {harmonyPlayer: 1, ev} events.
@@ -88,6 +96,77 @@ body.activity { background: #000; }
       } else if (fromHost(event) && frame.contentWindow) {
         frame.contentWindow.postMessage(event.data, target.origin);
       }
+    });
+    return;
+  }
+
+  // ---- sign-up check -------------------------------------------------------------------
+  var captcha = params.get('captcha');
+  if (captcha) {
+    var CAPTCHA_SCRIPTS = {
+      turnstile: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=harmonyCaptchaLoaded',
+      hcaptcha: 'https://js.hcaptcha.com/1/api.js?render=explicit&recaptchacompat=off&onload=harmonyCaptchaLoaded'
+    };
+    // A token reaches Harmony pages only: this origin and the native apps'. A page elsewhere that
+    // framed this one would otherwise collect tokens its own visitors solve for this site key.
+    var PARENTS = [location.origin, 'tauri://localhost', 'http://tauri.localhost', 'https://tauri.localhost'];
+    function postCaptcha(message) {
+      message.harmonyPlayer = 1;
+      if (window.parent === window) return;
+      PARENTS.forEach(function (origin) {
+        try { window.parent.postMessage(message, origin); } catch (e) { /* origin not postable here */ }
+      });
+    }
+    var sitekey = params.get('sitekey') || '';
+    var theme = params.get('theme') === 'dark' ? 'dark' : 'light';
+    var lang = /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(params.get('lang') || '') ? params.get('lang') : '';
+    if (!CAPTCHA_SCRIPTS[captcha] || !/^[A-Za-z0-9_-]{1,100}$/.test(sitekey)) {
+      postCaptcha({ ev: 'captcha-error', message: 'Unknown captcha provider or site key' });
+      return;
+    }
+    // Widget box: Turnstile 300x65, hCaptcha 303x78. hCaptcha's image challenge opens above it.
+    var CLOSED_HEIGHT = captcha === 'turnstile' ? 72 : 84;
+    var OPEN_HEIGHT = 600;
+    var api = null;
+    var widgetId = null;
+    document.body.className = 'captcha';
+    var holder = document.createElement('div');
+    root.appendChild(holder);
+    window.harmonyCaptchaLoaded = function () {
+      api = captcha === 'turnstile' ? window.turnstile : window.hcaptcha;
+      var options = {
+        sitekey: sitekey,
+        theme: theme,
+        callback: function (token) { postCaptcha({ ev: 'captcha-size', height: CLOSED_HEIGHT }); postCaptcha({ ev: 'captcha', token: token }); },
+        'expired-callback': function () { postCaptcha({ ev: 'captcha-expired' }); },
+        'error-callback': function (code) { postCaptcha({ ev: 'captcha-error', message: String(code || 'error') }); }
+      };
+      if (captcha === 'turnstile') {
+        if (lang) options.language = lang;
+        options['timeout-callback'] = function () { postCaptcha({ ev: 'captcha-expired' }); };
+      } else {
+        if (lang) options.hl = lang;
+        options['chalexpired-callback'] = function () { postCaptcha({ ev: 'captcha-expired' }); };
+        options['open-callback'] = function () { postCaptcha({ ev: 'captcha-size', height: OPEN_HEIGHT }); };
+        options['close-callback'] = function () { postCaptcha({ ev: 'captcha-size', height: CLOSED_HEIGHT }); };
+      }
+      try {
+        widgetId = api.render(holder, options);
+        postCaptcha({ ev: 'captcha-size', height: CLOSED_HEIGHT });
+        postCaptcha({ ev: 'captcha-ready' });
+      } catch (err) {
+        postCaptcha({ ev: 'captcha-error', message: String(err && err.message) });
+      }
+    };
+    window.addEventListener('message', function (event) {
+      if (!fromHost(event)) return;
+      var d = event.data;
+      if (d && d.harmonyPlayer === 1 && d.cmd === 'captcha-reset' && api && widgetId !== null) {
+        try { api.reset(widgetId); } catch (err) { postCaptcha({ ev: 'captcha-error', message: String(err && err.message) }); }
+      }
+    });
+    loadScript(CAPTCHA_SCRIPTS[captcha]).catch(function (err) {
+      postCaptcha({ ev: 'captcha-error', message: String(err && err.message) });
     });
     return;
   }

@@ -51,6 +51,12 @@
       "blockedDomain": "Mit diesem E-Mail-Anbieter ist auf dieser Instanz keine Registrierung möglich. Verwende eine andere Adresse.",
       "blockedNetwork": "Registrierungen aus diesem Netzwerk sind auf dieser Instanz nicht möglich. Bitte die Admins dieser Instanz um eine Einladung."
     },
+    "captcha": {
+      "asked": "Schließe die Prüfung ab, um die Registrierung fertigzustellen.",
+      "refused": "Die Prüfung wurde nicht bestanden. Versuche es noch einmal.",
+      "unavailable": "Die Prüfung konnte nicht geladen werden. Lade die Seite neu oder registriere dich auf der Website dieser Instanz.",
+      "frameTitle": "Prüfung bei der Registrierung"
+    },
     "login": "Anmelden",
     "register": "Registrieren",
     "logout": "Abmelden",
@@ -1494,6 +1500,13 @@
     "missedCall": "Verpasster Anruf",
     "title": "Direktnachrichten",
     "recipientDeleted": "Dieses Konto wurde gelöscht. Nachrichten an es werden nicht zugestellt.",
+    "undeliverable": "Deine Nachricht konnte nicht zugestellt werden.",
+    "blockedPeer": {
+      "text": "Du hast {name} blockiert. Hebe die Blockierung auf, um Nachrichten zu senden.",
+      "unblock": "Blockierung aufheben",
+      "unblockFailed": "Die Blockierung von {name} konnte nicht aufgehoben werden.",
+      "startRefused": "Du hast {name} blockiert. Hebe die Blockierung auf, um eine Unterhaltung zu beginnen."
+    },
     "sendMessage": "Nachricht senden",
     "callInProgress": "Ein Anruf läuft",
     "joinCall": "Anruf beitreten",
@@ -2794,7 +2807,13 @@
       "copyHandle": "Handle kopieren",
       "copyHandleNamed": "Handle {handle} kopieren",
       "handleCopied": "{handle} kopiert",
-      "handleCopyFailed": "Das Handle konnte nicht kopiert werden"
+      "handleCopyFailed": "Das Handle konnte nicht kopiert werden",
+      "copyProfileLink": "Profillink kopieren",
+      "profileLinkCopied": "Profillink kopiert",
+      "profileLinkCopyFailed": "Der Profillink konnte nicht kopiert werden",
+      "refreshProfile": "Profil aktualisieren",
+      "profileRefreshed": "Profil aktualisiert",
+      "profileRefreshFailed": "{domain} war nicht erreichbar, das Profil wurde nicht aktualisiert"
     },
     "followA11y": {
       "requests": "Anfragen",
@@ -2915,6 +2934,26 @@
     "instanceSoftwareFilter": "Software"
   },
   "moderation": {
+    "reportAlert": {
+      "title": "Neue Meldung zur Prüfung",
+      "titleServer": "Neue Meldung in {server}",
+      "message": "{kind} wurde gemeldet: {reason}.",
+      "messageRemote": "{kind} wurde von {instance} gemeldet: {reason}.",
+      "noReason": "ohne Grund",
+      "short": "Neue Meldung",
+      "sender": "Moderation",
+      "setting": "Bei neuen Meldungen benachrichtigen",
+      "settingFailed": "Die Einstellung konnte nicht gespeichert werden.",
+      "pendingA11y": "{count} Meldung wartet | {count} Meldungen warten",
+      "kind": {
+        "user": "Ein Konto",
+        "post": "Ein Beitrag",
+        "message": "Eine Nachricht",
+        "server": "Ein Server",
+        "sticker": "Ein Sticker",
+        "other": "Inhalt"
+      }
+    },
     "report": "Melden",
     "block": "Blockieren",
     "unblock": "Entblocken",
@@ -3385,7 +3424,9 @@
       "failed": "Die Kategorie konnte nicht aktualisiert werden. Versuche es erneut.",
       "loadingPermissions": "Berechtigungen werden geladen…",
       "permissionsFailed": "Die Berechtigungen dieser Kategorie konnten nicht geladen werden. Schließe das Fenster und öffne es erneut, um es noch einmal zu versuchen.",
-      "permissionsSaved": "Berechtigungen gespeichert. Kein Kanal darin folgt ihnen; synchronisiere einen Kanal in seinen Berechtigungseinstellungen. | Berechtigungen gespeichert und mit {count} Kanal synchronisiert. | Berechtigungen gespeichert und mit {count} Kanälen synchronisiert."
+      "permissionsSaved": "Berechtigungen gespeichert. Kein Kanal darin folgt ihnen; synchronisiere einen Kanal in seinen Berechtigungseinstellungen. | Berechtigungen gespeichert und mit {count} Kanal synchronisiert. | Berechtigungen gespeichert und mit {count} Kanälen synchronisiert.",
+      "overrideLegend": "Mit dieser Kategorie synchronisierte Kanäle folgen diesen Einstellungen. Erlauben gewährt, Verweigern entzieht, Übernehmen nutzt die serverweite Einstellung.",
+      "discardMessage": "Diese Kategorie hat ungespeicherte Änderungen. Ohne Speichern schließen?"
     },
     "sync": {
       "synced": "Mit {category} synchronisiert",
@@ -5374,6 +5415,11 @@
       "reportsFailed": "Die Behandlung der Meldungen dieser Domain konnte nicht geändert werden"
     },
     "instance": {
+      "mirrorStatusProgress": "Discord-Dateien werden gespeichert: {queued} warten, {size} gespeichert",
+      "mirrorStatusTooLarge": "{count} zu groß ({size}): Upload-Obergrenze mit harmony config --upload-ceiling 500M anheben",
+      "mirrorStatusFailed": "{count} fehlgeschlagen",
+      "mirrorStatusOverQuota": "{count} über dem Limit pro Server: „Gespeicherte Discord-Dateien pro Server“ anheben",
+      "mirrorStatusAllStored": "Jede Discord-Datei ist gespeichert",
       "maxPostReactions": "Max. Reaktionen pro Person auf einen Beitrag",
       "maxPostReactionsHint": "Verschiedene Emojis, mit denen eine Person auf einen Beitrag reagieren kann (1-100). Standard: 10. Reaktionen von anderen Instanzen über dem Limit werden verworfen. Chatnachrichten haben höchstens 20 verschiedene Emojis.",
       "maxPersonalEmojis": "Persönliche Emojis pro Person",
@@ -5562,7 +5608,7 @@
     },
     "emojis": {
       "title": "Emojis",
-      "description": "Alle benutzerdefinierten Emojis dieser Instanz: Uploads, Importe, von anderen Instanzen zwischengespeicherte Emojis, Server-Emojis und persönliche Emojis. Ein entferntes Emoji verschwindet aus jeder Auswahl; ältere Nachrichten und Reaktionen zeigen es weiterhin, und es lässt sich wiederherstellen. Endgültiges Löschen entfernt das Emoji und seine Datei: ältere Nachrichten und Reaktionen zeigen dann ein Symbol für ein fehlendes Bild.",
+      "description": "Alle benutzerdefinierten Emojis dieser Instanz: Uploads, Importe, von anderen Instanzen zwischengespeicherte Emojis, Server-Emojis und persönliche Emojis. Importieren kopiert Emojis anderer Instanzen in die Instanz-Emojis, wo alle hier sie verwenden können. Ein entferntes Emoji verschwindet aus jeder Auswahl; ältere Nachrichten und Reaktionen zeigen es weiterhin, und es lässt sich wiederherstellen. Endgültiges Löschen entfernt das Emoji und seine Datei: ältere Nachrichten und Reaktionen zeigen dann ein Symbol für ein fehlendes Bild.",
       "refresh": "Aktualisieren",
       "retry": "Erneut versuchen",
       "loading": "Emojis werden geladen",
@@ -5572,7 +5618,7 @@
       "searchHint": "Name, Server, Besitzer oder Domain",
       "newName": "Neuer Name",
       "brokenImage": "Das Bild konnte nicht geladen werden",
-      "hotlinkedHint": "Das Bild wird von einer anderen Website geladen. „Neu hosten“ kopiert es auf diese Instanz.",
+      "hotlinkedHint": "Dieses Emoji funktioniert hier bereits, aber sein Bild wird noch von einer anderen Website geladen. Eine Kopie auf dieser Instanz hält es verfügbar, wenn sich jene Website ändert. Sonst ändert sich am Emoji nichts.",
       "kinds": {
         "label": "Art",
         "all": "Alle",
@@ -5582,7 +5628,7 @@
         "server": "Server",
         "personal": "Persönlich",
         "ai": "KI-generiert",
-        "not_imported": "Nicht importiert"
+        "not_imported": "Zum Import verfügbar"
       },
       "status": {
         "label": "Status",
@@ -5597,8 +5643,9 @@
         "usage": "Meistgenutzt"
       },
       "badges": {
-        "hotlinked": "extern verlinkt",
-        "removed": "entfernt"
+        "hotlinked": "extern gehostet",
+        "removed": "entfernt",
+        "nameTaken": "Name vergeben"
       },
       "meta": {
         "server": "in {server}",
@@ -5610,14 +5657,15 @@
         "seen": "{count}-mal gesehen | {count}-mal gesehen",
         "reactions": "keine Reaktionen | {count} Reaktion | {count} Reaktionen",
         "removedBy": "entfernt von {user} am {date}",
-        "removedOn": "entfernt am {date}"
+        "removedOn": "entfernt am {date}",
+        "license": "Lizenz: {license}"
       },
       "titles": {
         "rename": "Umbenennen",
         "remove": "Entfernen",
         "restore": "Wiederherstellen",
         "purge": "Endgültig löschen",
-        "rehost": "Neu hosten",
+        "rehost": "Bild auf diese Instanz kopieren",
         "import": "Importieren"
       },
       "actions": {
@@ -5625,7 +5673,7 @@
         "remove": "{name} entfernen",
         "restore": "{name} wiederherstellen",
         "purge": "{name} endgültig löschen",
-        "rehost": "{name} neu hosten",
+        "rehost": "Bild von {name} auf diese Instanz kopieren",
         "import": "{name} importieren",
         "select": "{name} auswählen"
       },
@@ -5635,7 +5683,9 @@
         "selected": "{count} ausgewählt | {count} ausgewählt",
         "remove": "Auswahl entfernen",
         "restore": "Auswahl wiederherstellen",
-        "purge": "Auswahl endgültig löschen"
+        "purge": "Auswahl endgültig löschen",
+        "import": "Auswahl importieren",
+        "rehost": "Bilder auf diese Instanz kopieren"
       },
       "upload": {
         "button": "Hochladen",
@@ -5658,11 +5708,7 @@
         "purgeTitle": "Emoji endgültig löschen",
         "purge": "{name} endgültig löschen? Das Emoji und seine Datei werden unwiderruflich gelöscht. Ältere Nachrichten und Reaktionen, die es verwenden, zeigen dann ein Symbol für ein fehlendes Bild.",
         "purgeMany": "{count} Emoji endgültig löschen? Das Emoji und seine Datei werden unwiderruflich gelöscht. Ältere Nachrichten und Reaktionen, die es verwenden, zeigen dann ein Symbol für ein fehlendes Bild. | {count} Emojis endgültig löschen? Die Emojis und ihre Dateien werden unwiderruflich gelöscht. Ältere Nachrichten und Reaktionen, die sie verwenden, zeigen dann ein Symbol für ein fehlendes Bild.",
-        "purgeButton": "Endgültig löschen",
-        "importTitle": "{name} importieren",
-        "import": "Eine Kopie des Bildes wird von {domain} in den Speicher dieser Instanz heruntergeladen und zu den Instanz-Emojis hinzugefügt. Lass den Namen leer, um {name} zu behalten.",
-        "importLabel": "Name (ohne Doppelpunkte)",
-        "importButton": "Importieren"
+        "purgeButton": "Endgültig löschen"
       },
       "done": {
         "renamed": "Umbenannt in {name}",
@@ -5673,7 +5719,8 @@
         "purged": "{name} endgültig gelöscht",
         "purgedMany": "{count} Emoji endgültig gelöscht | {count} Emojis endgültig gelöscht",
         "rehosted": "{name} liegt jetzt auf dieser Instanz",
-        "imported": "{name} importiert"
+        "rehostedMany": "{count} Bild auf diese Instanz kopiert | {count} Bilder auf diese Instanz kopiert",
+        "importedMany": "{count} Emoji importiert | {count} Emojis importiert"
       },
       "errors": {
         "load": "Emojis konnten nicht geladen werden.",
@@ -5699,13 +5746,50 @@
           "already_imported": "Dieses Emoji ist bereits importiert.",
           "name_taken": "Ein Instanz-Emoji verwendet diesen Namen bereits.",
           "invalid_name": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
-          "not_instance": "Nur Instanz-Emojis können neu gehostet werden.",
+          "not_instance": "Nur bei Instanz-Emojis kann das Bild hierher kopiert werden.",
           "not_hotlinked": "Dieses Emoji liegt bereits auf dieser Instanz.",
           "unsupported_image": "Das entfernte Bild ist kein PNG, GIF, WebP oder JPEG.",
           "too_large": "Das entfernte Bild überschreitet die Größengrenze für Emojis.",
           "fetch_failed": "Das entfernte Bild konnte nicht heruntergeladen werden.",
           "internal_error": "Etwas ist schiefgelaufen. Versuche es später erneut.",
-          "network_error": "Der Server ist nicht erreichbar."
+          "network_error": "Der Server ist nicht erreichbar.",
+          "rate_limited": "Das stündliche Importlimit ist erreicht. Versuche es später erneut."
+        },
+        "rehostMany": "{count} Bild konnte nicht kopiert werden. | {count} Bilder konnten nicht kopiert werden."
+      },
+      "nameTakenHint": "Ein Instanz-Emoji verwendet diesen Namen bereits. Beim Import wird ein anderer Name vorgeschlagen.",
+      "import": {
+        "button": "Importieren",
+        "hint": "Benutzerdefinierte Emojis, die in Beiträgen und Reaktionen anderer Instanzen gesehen wurden. Beim Import wird das Bild auf diese Instanz heruntergeladen und das Emoji zu den Instanz-Emojis hinzugefügt, wo alle hier es verwenden können. Das Original bleibt, wo es ist.",
+        "searchHint": "Name",
+        "sourceLabel": "Quellinstanz",
+        "allSources": "Alle Instanzen",
+        "source": "{domain} ({count})",
+        "title": "{count} Emoji importieren | {count} Emojis importieren",
+        "loading": "Namen werden geprüft",
+        "previewFailed": "Die Namen konnten nicht geprüft werden. Schließe den Dialog und versuche es erneut.",
+        "explain": "Jedes Bild wird auf diese Instanz heruntergeladen und unter dem Namen unten zu den Instanz-Emojis hinzugefügt. Vorhandene Emojis werden nie ersetzt.",
+        "clashes": "{count} Name wird bereits von einem Instanz-Emoji verwendet. Behalte den vorgeschlagenen Namen, gib einen anderen ein oder überspringe das Emoji. | {count} Namen werden bereits von Instanz-Emojis verwendet. Behalte die vorgeschlagenen Namen, gib andere ein oder überspringe die Emojis.",
+        "listLabel": "Zu importierende Emojis",
+        "nameFor": "Name für {name}",
+        "skip": "Überspringen",
+        "nameInUse": "Ein Instanz-Emoji verwendet diesen Namen bereits.",
+        "nameRepeated": "Ein anderes Emoji dieses Imports verwendet diesen Namen.",
+        "confirm": "{count} Emoji importieren | {count} Emojis importieren",
+        "stop": "Anhalten",
+        "progress": "Import läuft… {current} von {total} erledigt",
+        "result": {
+          "imported": "Kein Emoji importiert | {count} Emoji importiert | {count} Emojis importiert",
+          "skipped": "{count} übersprungen | {count} übersprungen",
+          "failed": "{count} fehlgeschlagen | {count} fehlgeschlagen",
+          "stopped": "{count} nicht begonnen | {count} nicht begonnen"
+        },
+        "status": {
+          "imported": "Importiert als {name}",
+          "skipped": "Übersprungen",
+          "gone": "Nicht mehr verfügbar: bereits importiert oder entfernt",
+          "stopped": "Nicht begonnen",
+          "waiting": "Wartet"
         }
       }
     }
@@ -6052,6 +6136,7 @@
       "unknown": "Noch nicht gemeldet",
       "showSetup": "Einrichtungsschritte anzeigen",
       "problemsTitle": "{count} Problem zu beheben | {count} Probleme zu beheben",
+      "noticesTitle": "{count} Hinweis | {count} Hinweise",
       "pairsTitle": "Verbundene Kanäle",
       "settingsTitle": "Optionen",
       "maintainTitle": "Wartung",
@@ -6068,7 +6153,8 @@
       },
       "disconnect": "Bridge trennen",
       "disconnected": "Bridge getrennt",
-      "finished": "Die Bridge ist eingerichtet."
+      "finished": "Die Bridge ist eingerichtet.",
+      "disconnectKeeps": "Um auch das Überbrückte zu löschen, nutze vorher „Alle überbrückten Nachrichten entfernen“ unter Bridge-Datenschutz."
     },
     "confirm": {
       "disconnect": {
@@ -6163,6 +6249,17 @@
         "fixHosted": "Das liegt an der Instanz, und die Bridge versucht es weiter. Hält es an, wende dich an die Administration der Instanz.",
         "fixInstance": "Das liegt an der Instanz, und die Bridge versucht es weiter. Hält es an, wende dich an die Administration der Instanz."
       },
+      "message_content_needed_for_import": {
+        "title": "Ein Verlaufsimport wartet auf den Message Content Intent.",
+        "fixSelf": "Solange er aus ist, liefert Discord leere Nachrichten. Öffne im Developer Portal deine Anwendung → Bot → Privileged Gateway Intents, schalte Message Content Intent ein und klicke auf Save Changes. Starte die Bridge dann mit dem Befehl unten neu; der Import beginnt von selbst.",
+        "fixHosted": "Solange er aus ist, liefert Discord leere Nachrichten. Öffne im Developer Portal deine Anwendung → Bot → Privileged Gateway Intents, schalte Message Content Intent ein und klicke auf Save Changes. Der Import beginnt von selbst, sobald die Bridge neu verbunden ist.",
+        "fixInstance": "Der Bot dieser Instanz hat den Message Content Intent nicht und kann daher keinen Verlauf importieren. Frag die Administration der Instanz."
+      },
+      "private_threads_skipped": {
+        "title": "Der Import hat die privaten Threads von {channel} ausgelassen.",
+        "titleCount": "Der Import hat {count} privaten Thread von {channel} ausgelassen. | Der Import hat {count} private Threads von {channel} ausgelassen.",
+        "fix": "Nichts zu tun. Harmony hat noch keine privaten Threads, und alle im Kanal könnten sie lesen, deshalb bleiben sie auf Discord."
+      },
       "unknown": {
         "title": "Die Bridge hat ein Problem gemeldet ({code}).",
         "fixSelf": "Details stehen im Protokoll der Bridge:",
@@ -6229,7 +6326,14 @@
       "bridgeExists": "Dieser Server hat schon eine anders eingerichtete Discord-Bridge. Trenne sie zuerst, um den Bot dieser Instanz zu verwenden.",
       "instanceFull": "Der Bot dieser Instanz ist schon auf so vielen Discord-Servern, wie sie erlaubt. Frag die Administration der Instanz oder verwende stattdessen einen eigenen Discord-Bot.",
       "instanceOff": "Diese Instanz bietet ihren Discord-Bot gerade nicht an. Verwende stattdessen einen eigenen Discord-Bot.",
-      "link": "Die Verknüpfung mit Discord konnte nicht gestartet werden. Versuche es erneut."
+      "link": "Die Verknüpfung mit Discord konnte nicht gestartet werden. Versuche es erneut.",
+      "import": "Der Import konnte nicht gestartet werden.",
+      "cancelImport": "Der Import konnte nicht abgebrochen werden.",
+      "pairNotImportable": "Dieses Paar kann keinen Verlauf importieren. Nur unverschlüsselte Kanäle in Paaren, die Discord-Nachrichten nach Harmony holen, können es.",
+      "importChanged": "Der Import hat sich inzwischen geändert und wurde aktualisiert. Versuche es erneut.",
+      "importDisabled": "Der Verlaufsimport ist für diese Bridge ausgeschaltet.",
+      "invalidDiscordUser": "Das ist keine Discord-Benutzer-ID.",
+      "privacy": "Die Anfrage ist fehlgeschlagen. Versuche es erneut."
     },
     "time": {
       "secondsAgo": "gerade eben | vor {count} Sekunde | vor {count} Sekunden",
@@ -6338,6 +6442,125 @@
       "settingsSaved": "Einstellungen des Discord-Bots gespeichert",
       "saveFailed": "Die Einstellungen des Discord-Bots konnten nicht gespeichert werden",
       "redirectLabel": "Weiterleitungsadresse"
+    },
+    "import": {
+      "button": "Verlauf importieren",
+      "buttonLabel": "Verlauf für #{channel} importieren",
+      "importAll": "Alle importieren",
+      "importAllAgain": "Alle erneut importieren",
+      "importAllAgainConfirm": "Verlauf für {count} Kanal erneut importieren? Der Discord-Verlauf wird von Anfang an gelesen; bereits vorhandene Nachrichten werden übersprungen. | Verlauf für alle {count} Kanäle erneut importieren? Jeder Discord-Verlauf wird von Anfang an gelesen; bereits vorhandene Nachrichten werden übersprungen.",
+      "importAllAgainYes": "Erneut importieren",
+      "cancelAll": "Alle abbrechen",
+      "cancel": "Abbrechen",
+      "cancelLabel": "Import für #{channel} abbrechen",
+      "cancelling": "Wird abgebrochen…",
+      "waiting": "Wartet",
+      "running": "Import läuft… {percent} %",
+      "runningUnknown": "Import läuft…",
+      "threadsRunning": "Threads werden importiert…",
+      "repliesRunning": "Antworten werden verknüpft…",
+      "progressLabel": "Importfortschritt für #{channel}",
+      "backTo": "Zurück bis {date}",
+      "messages": "{count} Nachricht | {count} Nachrichten",
+      "threads": "Threads {done} von {total}",
+      "done": "{count} Nachricht importiert | {count} Nachrichten importiert",
+      "doneNothingNew": "Aktuell: keine neuen Nachrichten",
+      "failed": "Import gestoppt: {reason}",
+      "failedUnknown": "Import gestoppt",
+      "cancelled": "Abgebrochen",
+      "paused": "Pausiert: wartet auf die Bridge",
+      "retry": "Erneut versuchen",
+      "retryLabel": "Import für #{channel} erneut versuchen",
+      "resume": "Fortsetzen",
+      "resumeLabel": "Import für #{channel} fortsetzen",
+      "again": "Erneut importieren",
+      "againLabel": "Verlauf für #{channel} erneut importieren",
+      "reasons": {
+        "pair_removed": "das Kanalpaar wurde entfernt",
+        "channel_encrypted": "der Kanal ist jetzt verschlüsselt",
+        "import_disabled": "der Verlaufsimport wurde ausgeschaltet",
+        "pair_not_importable": "das Paar bringt keine Discord-Nachrichten mehr nach Harmony",
+        "discord_approval_required": "der Discord-Kanal ist privat: starte den Import auf Discord mit /bridge import-history",
+        "discord_channel_unsupported": "der Discord-Kanal ist kein Textkanal",
+        "discord_access_lost": "die Bridge kann den Discord-Kanal nicht mehr lesen",
+        "bridge_stalled": "die Bridge kam nicht mehr voran"
+      },
+      "ineligible": {
+        "direction": "Nur Paare, die Discord-Nachrichten nach Harmony holen, können den Verlauf importieren",
+        "encrypted": "Verschlüsselte Kanäle können keinen Verlauf importieren"
+      },
+      "needsUpdate": "Aktualisiere die Bridge auf 2.6.0 oder neuer, um den Verlauf zu importieren",
+      "mirrorNote": "Importierte Dateien werden in den Speicher dieser Instanz kopiert.",
+      "consent": {
+        "title": "Verlauf von {count} Kanal importieren? | Verlauf von {count} Kanälen importieren?",
+        "copies": "Ältere Nachrichten und Dateien werden mit den Discord-Namen und Avataren ihrer Autoren auf diesen Server kopiert. Sie bleiben, wenn die Bridge entfernt wird.",
+        "skips": "Nachrichten von Personen, die den Discord-Server verlassen haben, werden übersprungen. Jede Person auf Discord kann ihre Nachrichten mit /bridge-privacy ausschließen oder löschen.",
+        "notice": "Die Bridge heftet in jedem Discord-Kanal einen Hinweis an, wenn dessen Import beginnt.",
+        "confirm": "Ich verwalte diesen Discord-Server oder handle mit Zustimmung seiner Verwalter.",
+        "start": "Import starten"
+      },
+      "unavailable": {
+        "instance_off": "Der Verlaufsimport ist auf dieser Instanz ausgeschaltet.",
+        "bridge_mode": "Der Verlaufsimport ist nur für eine Bridge verfügbar, die du selbst mit deiner eigenen Discord-Anwendung betreibst."
+      },
+      "authorsSkipped": "{count} übersprungen (Autor ausgetreten oder abgemeldet) | {count} übersprungen (Autoren ausgetreten oder abgemeldet)",
+      "automodSkipped": "{count} von AutoMod blockiert | {count} von AutoMod blockiert"
+    },
+    "privacy": {
+      "title": "Bridge-Datenschutz",
+      "lead": "Discord-Mitglieder halten ihre Nachrichten mit /bridge-privacy auf Discord aus diesem Server heraus oder löschen sie. Entferne hier jemanden, der den Befehl nicht ausführen kann, etwa nach dem Austritt.",
+      "idLabel": "Discord-Benutzer-ID",
+      "idHelp": "Aktiviere in Discord den Entwicklermodus, klicke dann mit der rechten Maustaste auf die Person und wähle „Benutzer-ID kopieren“.",
+      "idInvalid": "Eine Discord-Benutzer-ID besteht aus 5 bis 20 Ziffern.",
+      "remove": "Von diesem Server entfernen",
+      "removeConfirm": "Alle Nachrichten, Dateien und Reaktionen löschen, die diese Bridge von der Discord-Person {id} gebracht hat, und keine weiteren bringen? Das lässt sich nicht rückgängig machen.",
+      "removeYes": "Nachrichten löschen",
+      "removed": "{count} Nachricht entfernt | {count} Nachrichten entfernt",
+      "progress": "Wird entfernt… bisher {count} Nachricht | Wird entfernt… bisher {count} Nachrichten",
+      "listTitle": "{count} Discord-Person ausgeschlossen | {count} Discord-Personen ausgeschlossen",
+      "source": {
+        "self": "Auf Discord abgemeldet",
+        "manager": "Von einem Verwalter entfernt",
+        "admin": "Von einem Instanz-Admin entfernt"
+      },
+      "restore": "Wieder zulassen",
+      "restoreLabel": "Discord-Person {id} wieder überbrücken",
+      "purgeLead": "Entferne alles, was die Bridge dieses Servers von Discord gebracht hat: Nachrichten, Dateien und Reaktionen. Auf Harmony geschriebene Nachrichten bleiben.",
+      "purge": "Alle überbrückten Nachrichten entfernen",
+      "purgeConfirm": "Alle Nachrichten, Dateien und Reaktionen löschen, die von Discord auf diesen Server gebracht wurden? Das lässt sich nicht rückgängig machen.",
+      "purgeYes": "Alle löschen",
+      "purged": "{count} überbrückte Nachricht entfernt | {count} überbrückte Nachrichten entfernt"
+    },
+    "importAdmin": {
+      "title": "Discord-Verlaufsimport",
+      "lead": "Erlaubt einem Server, die älteren Nachrichten seiner Discord-Kanäle nach Harmony zu kopieren, über eine Bridge, die sein Besitzer mit einer eigenen Discord-Anwendung betreibt. Nie über den Discord-Bot dieser Instanz oder einen Bot, den diese Instanz betreibt.",
+      "loadFailed": "Die Einstellungen für den Verlaufsimport konnten nicht geladen werden.",
+      "mode": "Verlaufsimport",
+      "modeOff": "Aus",
+      "modeSelfRun": "Selbst betriebene Bridges",
+      "modeHint": "Aus lehnt jeden Import ab, auch bereits laufende.",
+      "warningTitle": "Bevor du das einschaltest",
+      "warningAuthors": "Die Verfasser dieser Nachrichten haben um die Kopie nicht gebeten. Autoren, die den Discord-Server verlassen haben, werden übersprungen, und Mitglieder schließen ihre Nachrichten mit /bridge-privacy aus oder löschen sie.",
+      "warningRequests": "Löschanfragen für Inhalte auf dieser Instanz gehen an dich. Server-Verwalter entfernen eine Discord-Person unter Servereinstellungen, Discord-Bridge; „Alle Discord-Nachrichten entfernen“ unten leert jeden Server.",
+      "warningQuiet": "Importierte Nachrichten senden keine Benachrichtigungen, gelten als gelesen und werden nicht föderiert. Sie durchlaufen die Wort-, Einladungs- und Link-Regeln von AutoMod, wenn Bots auf dem Server nicht ausgenommen sind.",
+      "warningStorage": "Mit „Mirror to storage“ werden importierte Dateien in den Speicher dieser Instanz kopiert, bis zum Limit pro Server unten.",
+      "maxRunning": "Gleichzeitig laufende Importe",
+      "maxRunningHint": "Auf der gesamten Instanz. Weitere warten. 0 bedeutet kein Limit.",
+      "messagesPerMinute": "Nachrichten pro Minute, je Import",
+      "messagesPerMinuteHint": "Der Server bremst einen Import auf diese Rate, egal was die Bridge sendet. 0 bedeutet kein Limit.",
+      "mirrorServerLimitMb": "Gespeicherte Discord-Dateien pro Server (MB)",
+      "mirrorServerLimitMbHint": "Mit „Mirror to storage“ behält ein Server über diesem Wert für weitere Dateien die Discord-Links. 0 bedeutet kein Limit.",
+      "limitInvalid": "Gib ganze Zahlen ab 0 ein.",
+      "save": "Limits speichern",
+      "saved": "Einstellungen für den Verlaufsimport gespeichert",
+      "saveFailed": "Die Einstellungen für den Verlaufsimport konnten nicht gespeichert werden.",
+      "totals": "{running} laufen, {queued} warten, {imported} Nachrichten importiert",
+      "totalsStored": "{size} Discord-Dateien gespeichert",
+      "purgeTitle": "Alle Discord-Nachrichten entfernen",
+      "purgeLead": "Löscht alle Nachrichten, Dateien und Reaktionen, die eine Bridge von Discord gebracht hat, auf jedem Server dieser Instanz. Für den Fall, dass diese Instanz keine Discord-Inhalte mehr halten darf, etwa wenn ihre Discord-Anwendung den Zugang verliert.",
+      "purge": "Alle Discord-Nachrichten entfernen",
+      "purgeConfirm": "Alles von Discord Überbrückte auf jedem Server dieser Instanz löschen? Das lässt sich nicht rückgängig machen.",
+      "purgeYes": "Alles löschen"
     }
   },
   "imageEditor": {
@@ -8141,6 +8364,53 @@
     "refusalBlockedDomain": "Abgelehnte E-Mail-Domain",
     "refusalMailHost": "Mailserver",
     "refusalBlockedNetwork": "Abgelehnte Adresse"
+  },
+  "adminSignupCaptcha": {
+    "title": "Prüfung bei der Registrierung",
+    "intro": "Ein Captcha, das nur erscheint, wenn eine Registrierung automatisiert wirkt. Die meisten Menschen sehen es nie. Registrierungen über Google, GitHub, Twitch oder die eigenen Anmeldedienste dieser Instanz werden nie geprüft.",
+    "provider": "Anbieter",
+    "providerOff": "Aus",
+    "providerHint": "Erstelle beim Anbieter ein Widget und trage den Hostnamen von {origin} ein. Die Apps zeigen die Prüfung ebenfalls von dieser Adresse.",
+    "siteKey": "Websiteschlüssel",
+    "secret": "Geheimer Schlüssel",
+    "secretKept": "Gespeichert. Gib einen neuen ein, um ihn zu ersetzen.",
+    "secretHint": "Nur die Prüfung auf dem Server verwendet ihn. Nach dem Speichern wird er nicht mehr angezeigt.",
+    "mode": "Prüfung verlangen",
+    "modeSuspect": "Wenn eine Registrierung automatisiert wirkt",
+    "modeSuspectHint": "Eine weitere Registrierung aus demselben Netz innerhalb einer Stunde, eine für diese Instanz neue E-Mail-Domain oder eine Registrierung über einem Limit, das nur zählt.",
+    "modeAlways": "Bei jeder Registrierung per E-Mail",
+    "save": "Speichern",
+    "saved": "Prüfung gespeichert",
+    "saveFailed": "Die Prüfung konnte nicht gespeichert werden.",
+    "loadFailed": "Die Einstellungen der Prüfung konnten nicht geladen werden.",
+    "invalidSiteKey": "Gib den Websiteschlüssel aus dem Dashboard des Anbieters ein.",
+    "invalidSecret": "Gib den geheimen Schlüssel aus dem Dashboard des Anbieters ein.",
+    "countsTitle": "Letzte 7 Tage",
+    "asked": "Verlangt",
+    "passed": "Bestanden",
+    "failed": "Nicht bestanden",
+    "unverified": "Nicht geprüft",
+    "unverifiedHint": "Der Anbieter war nicht erreichbar oder hat den geheimen Schlüssel abgelehnt, daher wurden diese Registrierungen zugelassen. Prüfe den geheimen Schlüssel.",
+    "test": "Schlüssel testen",
+    "testHint": "Löse die Prüfung einmal mit diesen Schlüsseln. Einen Anbieter einzuschalten oder neue Schlüssel zu speichern, setzt einen bestandenen Test voraus.",
+    "testNote": "Löse die Prüfung, um die Schlüssel zu testen.",
+    "testRunning": "Das Token wird beim Anbieter geprüft…",
+    "testPassed": "Die Schlüssel funktionieren: Der Server hat das Token beim Anbieter bestätigt.",
+    "needsTest": "Teste die Schlüssel vor dem Speichern.",
+    "problem": {
+      "hostname": "Das Widget führt {host} nicht. Trage den Hostnamen im Dashboard des Anbieters beim Widget ein.",
+      "siteKey": "Der Anbieter kennt diesen Websiteschlüssel nicht. Kopiere ihn erneut aus dem Dashboard.",
+      "widgetNetwork": "Das Widget konnte nicht laden. Prüfe die Verbindung dieses Geräts und Inhaltsblocker.",
+      "widget": "Das Widget hat einen Fehler gemeldet.",
+      "secret": "Der Anbieter hat den geheimen Schlüssel abgelehnt. Kopiere ihn erneut aus dem Dashboard.",
+      "mismatch": "Websiteschlüssel und geheimer Schlüssel gehören zu verschiedenen Widgets.",
+      "token": "Der Anbieter hat das Token abgelehnt. Löse die Prüfung erneut; passiert es wieder, gehören die Schlüssel zu verschiedenen Widgets.",
+      "network": "Die Datenbank erreicht den Anbieter nicht über HTTPS (Port 443). Erlaube ausgehende Verbindungen aus dem Datenbank-Container.",
+      "noHttp": "Der Datenbank fehlt die http-Erweiterung, daher kann sie keine Tokens prüfen. Verwende das Postgres-Image von Supabase.",
+      "status": "Der Anbieter antwortete mit HTTP {status}. Versuche es später erneut.",
+      "noSecret": "Gib zuerst den geheimen Schlüssel ein.",
+      "unknown": "Der Test ist aus unbekanntem Grund fehlgeschlagen."
+    }
   },
   "adminInvites": {
     "tab": "Einladungen",

@@ -203,16 +203,48 @@ test.describe.serial('encrypted conversation search', () => {
     const page = await benContext.newPage()
     await page.route(isCrawlPage, route => route.abort())
     await openConversation(page)
-    await page.evaluate((name) => new Promise<void>((resolve) => {
+    await page.evaluate((name) => new Promise<void>((resolve, reject) => {
       const request = indexedDB.deleteDatabase(name)
       request.onsuccess = () => resolve()
       request.onerror = () => resolve()
+      // A connection that ignores versionchange holds the delete for as long as the page lives.
+      setTimeout(() => reject(new Error('search index delete still blocked after 15 s')), 15000)
     }), `harmony_search_index_${ben.id}`)
 
     await search(page, 'zebraphone')
     await expect(page.getByTestId('encrypted-search-older')).toHaveText('Retry', { timeout: 60000 })
     await expect(status(page)).toHaveText('Older encrypted messages could not be loaded.')
     await expect(results(page)).toHaveCount(0)
+    await page.close()
+  })
+
+  test('a delete issued while the index opens goes through, and the search starts a new index', async () => {
+    test.setTimeout(180_000)
+    const page = await benContext.newPage()
+    // Deletes the index from the success event of its first open: the versionchange reaches
+    // the connection before the app has read the index key.
+    await page.addInitScript((prefix) => {
+      const state = window as unknown as { indexDelete?: 'blocked' | 'done' }
+      const open = IDBFactory.prototype.open
+      IDBFactory.prototype.open = function (this: IDBFactory, name: string, version?: number) {
+        const request = open.call(this, name, version)
+        if (name.startsWith(prefix)) {
+          request.addEventListener('success', () => {
+            if (state.indexDelete) return
+            state.indexDelete = 'blocked'
+            indexedDB.deleteDatabase(name).onsuccess = () => { state.indexDelete = 'done' }
+          })
+        }
+        return request
+      }
+    }, 'harmony_search_index_')
+    await openConversation(page)
+    await expect.poll(() => page.evaluate(() => (window as unknown as { indexDelete?: string }).indexDelete), { timeout: 15000 })
+      .toBe('done')
+
+    await search(page, 'zebraphone')
+    await expect(results(page).filter({ hasText: TARGET })).toHaveCount(1, { timeout: 120000 })
+    await expect(status(page)).toHaveText('Searched every encrypted message you can read.', { timeout: 120000 })
     await page.close()
   })
 

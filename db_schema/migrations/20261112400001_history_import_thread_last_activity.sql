@@ -1,0 +1,5 @@
+-- No statement. thread_message_handler gives an imported thread its last message time in
+-- 20261110900004.
+--
+-- An instance that ran this version while it redefined the handler has the same function, and
+-- its threads with messages and no last message time took their newest message's time.

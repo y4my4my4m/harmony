@@ -1,6 +1,6 @@
 ---
 title: Sign-up limits
-description: Limit how many accounts one network or email inbox can create, refuse disposable email domains, and make the client address reach the auth service. The per-IP limiters, what each limit counts, and why captcha is off.
+description: Limit how many accounts one network or email inbox can create, refuse disposable email domains, and make the client address reach the auth service. The per-IP limiters, what each limit counts, and the captcha asked of sign-ups that look automated.
 ---
 
 # Sign-up limits
@@ -216,9 +216,90 @@ The inbox limit and the domain lists count addresses, and only a confirmation pr
 
 ## Captcha
 
-Leave the auth service's captcha off (`GOTRUE_SECURITY_CAPTCHA_ENABLED`). It is not limited to sign-up:
-the service then requires a token on password sign-in, `/recover`, `/resend`, `/magiclink`, `/otp`,
-passkey sign-in and SSO as well. Harmony's clients send none, so nobody could sign in with a password.
+Harmony can ask for a captcha, the **sign-up check**, only when a sign-up looks automated. It is off
+until you set it up in **Admin, Invites, Sign-up check**.
+
+### Set it up
+
+With [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/), free:
+
+1. In the Cloudflare dashboard, open **Turnstile** and **Add widget**.
+2. Name it, and add the hostname people open Harmony at, such as `harmony.example.com`. Not the API
+   host. The desktop and mobile apps show the check from that hostname too.
+3. Widget mode **Managed**. Pre-clearance: **No**.
+4. Copy the **site key** and the **secret key**.
+
+With [hCaptcha](https://www.hcaptcha.com/), free plan: **Sites**, **New site**, the same hostname; the
+secret key is under your account settings.
+
+Then, in **Admin, Invites, Sign-up check**: choose the provider, paste both keys, press **Test the
+keys** and solve the check. The server verifies the token with the provider the way it verifies a
+sign-up. Turning a provider on, or saving new keys, needs a passing test: a wrong site key or a
+missing hostname would leave asked sign-ups unable to finish, and a wrong secret would let every
+one through unchecked.
+
+To try the flow before creating a widget, use Cloudflare's test keys, which work on any hostname:
+
+| Site key | Widget |
+|---|---|
+| `1x00000000000000000000AA` | always passes |
+| `2x00000000000000000000AB` | always blocks |
+| `3x00000000000000000000FF` | forces an interactive challenge |
+
+with secret key `1x0000000000000000000000000000000AA`, which passes every token. Replace them with
+your widget's keys afterwards: `harmony doctor` warns while a test secret is in place.
+
+The database sends the verification to the provider, so the `db` container needs outbound HTTPS
+(port 443) to `challenges.cloudflare.com` or `api.hcaptcha.com`.
+
+### When the test fails
+
+| The card says | Cause | Fix |
+|---|---|---|
+| The widget does not list your hostname (Turnstile `110200`) | The widget's hostnames lack the address people open Harmony at | Add it to the widget in the provider's dashboard |
+| The provider does not know this site key (`110100`, `110110`) | Site key mistyped or from a deleted widget | Copy it again |
+| The provider refused the secret key (`invalid-input-secret`) | Secret mistyped, or rotated in the dashboard | Copy it again |
+| The site key and the secret key belong to different widgets | Keys of two widgets (`sitekey-secret-mismatch`, or a refused token every time) | Take both from one widget |
+| The database cannot reach the provider over HTTPS | Firewall or egress rules on the server | Allow outbound 443 from the `db` container |
+| The database lacks the http extension | A Postgres image other than Supabase's | Use the image `harmony update` sets |
+
+`harmony doctor` repeats the secret and egress checks later, with a dummy token, and warns when
+sign-ups were allowed unverified in the last 7 days.
+
+### What it does
+
+| Setting | Key in `instance_config` | Default |
+|---|---|---|
+| **Provider** | `signup_captcha_provider` | `off`; `turnstile` or `hcaptcha` |
+| **Site key** | `signup_captcha_site_key` | empty. Readable by anyone, as the widget needs it |
+| **Secret key** | `signup_captcha_secret` | empty. Read by admins and the hook only |
+| **Ask for the check** | `signup_captcha_mode` | `suspect`; `always` asks every email sign-up |
+
+With **When a sign-up looks automated**, the hook asks when any of these holds:
+
+- another account was created from the same network (IPv4 address or IPv6 /56) in the last hour;
+- the email domain is new to the instance: not a large provider, not in **Email domains never
+  limited**, and with no mail host lookup on record;
+- the sign-up is past the network or domain cap while those caps only count.
+
+A sign-up the limits refuse is refused as before; a captcha does not get past a refusal. Sign-ups
+through Google, GitHub, Twitch or your own identity provider are never asked, as no widget can run on
+their redirect. Addresses on the instance's own network are exempt, as for every limit.
+
+The hook answers HTTP 428 with "Complete the check to finish signing up." The app shows the widget
+and sends the sign-up again with its token, which the database verifies with the provider. An app
+older than this release shows the text, and the person can sign up on the website. If the provider
+cannot be reached, or refuses the secret key, the account is allowed and counted as **Not checked**:
+an outage there must not stop every sign-up. A growing **Not checked** count means the secret key or
+the provider needs a look.
+
+The verification runs in the database through the `http` extension, which Supabase's Postgres image
+ships. Harmony installs it in schema `harmony_http`, which no API role can use.
+
+Leave the auth service's own captcha off (`GOTRUE_SECURITY_CAPTCHA_ENABLED`). It is not limited to
+sign-up: the service then requires a token on password sign-in, `/recover`, `/resend`, `/magiclink`,
+`/otp`, passkey sign-in and SSO as well. Harmony's clients send none there, so nobody could sign in
+with a password.
 
 ## Selling accounts
 

@@ -51,6 +51,12 @@
       "blockedDomain": "Ce fournisseur de messagerie ne permet pas de s’inscrire sur cette instance. Utilisez une autre adresse.",
       "blockedNetwork": "Les inscriptions depuis ce réseau ne sont pas disponibles sur cette instance. Demandez une invitation à l'administration de cette instance."
     },
+    "captcha": {
+      "asked": "Complétez la vérification pour finir votre inscription.",
+      "refused": "La vérification a échoué. Réessayez.",
+      "unavailable": "La vérification n'a pas pu se charger. Rechargez la page ou inscrivez-vous sur le site web de cette instance.",
+      "frameTitle": "Vérification d'inscription"
+    },
     "login": "Connexion",
     "register": "S'inscrire",
     "logout": "Déconnexion",
@@ -1494,6 +1500,13 @@
     "missedCall": "Appel manqué",
     "title": "Messages directs",
     "recipientDeleted": "Ce compte a été supprimé. Les messages qui lui sont adressés ne sont pas distribués.",
+    "undeliverable": "Votre message n'a pas pu être distribué.",
+    "blockedPeer": {
+      "text": "Vous avez bloqué {name}. Débloquez cette personne pour envoyer des messages.",
+      "unblock": "Débloquer",
+      "unblockFailed": "Impossible de débloquer {name}.",
+      "startRefused": "Vous avez bloqué {name}. Débloquez cette personne pour commencer une conversation."
+    },
     "sendMessage": "Envoyer un message",
     "callInProgress": "Un appel est en cours",
     "joinCall": "Rejoindre l'appel",
@@ -2794,7 +2807,13 @@
       "copyHandle": "Copier l'identifiant",
       "copyHandleNamed": "Copier l'identifiant {handle}",
       "handleCopied": "{handle} copié",
-      "handleCopyFailed": "Impossible de copier l'identifiant"
+      "handleCopyFailed": "Impossible de copier l'identifiant",
+      "copyProfileLink": "Copier le lien du profil",
+      "profileLinkCopied": "Lien du profil copié",
+      "profileLinkCopyFailed": "Impossible de copier le lien du profil",
+      "refreshProfile": "Actualiser le profil",
+      "profileRefreshed": "Profil actualisé",
+      "profileRefreshFailed": "Impossible de joindre {domain} pour actualiser ce profil"
     },
     "followA11y": {
       "requests": "Demandes",
@@ -2915,6 +2934,26 @@
     "instanceSoftwareFilter": "Logiciel"
   },
   "moderation": {
+    "reportAlert": {
+      "title": "Nouveau signalement à examiner",
+      "titleServer": "Nouveau signalement dans {server}",
+      "message": "{kind} a été signalé : {reason}.",
+      "messageRemote": "{kind} a été signalé depuis {instance} : {reason}.",
+      "noReason": "sans motif",
+      "short": "Nouveau signalement",
+      "sender": "Modération",
+      "setting": "M'avertir des nouveaux signalements",
+      "settingFailed": "Impossible d'enregistrer le réglage.",
+      "pendingA11y": "{count} signalement en attente | {count} signalements en attente",
+      "kind": {
+        "user": "Un compte",
+        "post": "Une publication",
+        "message": "Un message",
+        "server": "Un serveur",
+        "sticker": "Un autocollant",
+        "other": "Un contenu"
+      }
+    },
     "report": "Signaler",
     "block": "Bloquer",
     "unblock": "Débloquer",
@@ -3385,7 +3424,9 @@
       "failed": "Impossible de mettre à jour la catégorie. Réessayez.",
       "loadingPermissions": "Chargement des permissions…",
       "permissionsFailed": "Impossible de charger les permissions de cette catégorie. Fermez et rouvrez pour réessayer.",
-      "permissionsSaved": "Permissions enregistrées. Aucun salon de la catégorie ne les suit ; synchronisez un salon depuis ses paramètres de permissions. | Permissions enregistrées et synchronisées avec {count} salon. | Permissions enregistrées et synchronisées avec {count} salons."
+      "permissionsSaved": "Permissions enregistrées. Aucun salon de la catégorie ne les suit ; synchronisez un salon depuis ses paramètres de permissions. | Permissions enregistrées et synchronisées avec {count} salon. | Permissions enregistrées et synchronisées avec {count} salons.",
+      "overrideLegend": "Les salons synchronisés avec cette catégorie suivent ces réglages. Autoriser accorde, Refuser retire, Hériter utilise le réglage du serveur.",
+      "discardMessage": "Cette catégorie a des modifications non enregistrées. Fermer sans les enregistrer ?"
     },
     "sync": {
       "synced": "Synchronisé avec {category}",
@@ -5374,6 +5415,11 @@
       "reportsFailed": "Impossible de modifier le traitement des signalements de ce domaine"
     },
     "instance": {
+      "mirrorStatusProgress": "Stockage des fichiers Discord : {queued} en attente, {size} stockés",
+      "mirrorStatusTooLarge": "{count} trop volumineux ({size}) : relevez le plafond d'envoi avec harmony config --upload-ceiling 500M",
+      "mirrorStatusFailed": "{count} en échec",
+      "mirrorStatusOverQuota": "{count} au-delà de la limite par serveur : relevez Fichiers Discord stockés par serveur",
+      "mirrorStatusAllStored": "Tous les fichiers Discord sont stockés",
       "maxPostReactions": "Réactions max. par personne sur une publication",
       "maxPostReactionsHint": "Nombre d'émojis différents avec lesquels une personne peut réagir à une publication (1-100). Par défaut : 10. Les réactions provenant d'autres instances au-delà de la limite sont ignorées. Les messages de chat contiennent au plus 20 émojis différents.",
       "maxPersonalEmojis": "Emojis personnels par utilisateur",
@@ -5562,7 +5608,7 @@
     },
     "emojis": {
       "title": "Emojis",
-      "description": "Tous les emojis personnalisés de cette instance : envois, imports, emojis mis en cache depuis d'autres instances, emojis de serveur et emojis personnels. Retirer un emoji l'enlève de tous les sélecteurs ; les messages et réactions antérieurs continuent de l'afficher, et il peut être restauré. Purger supprime l'emoji et son fichier : les messages et réactions antérieurs affichent alors une icône d'image cassée.",
+      "description": "Tous les emojis personnalisés de cette instance : envois, imports, emojis mis en cache depuis d'autres instances, emojis de serveur et emojis personnels. Importer copie des emojis d'autres instances dans les emojis de l'instance, où tout le monde ici peut les utiliser. Retirer un emoji l'enlève de tous les sélecteurs ; les messages et réactions antérieurs continuent de l'afficher, et il peut être restauré. Purger supprime l'emoji et son fichier : les messages et réactions antérieurs affichent alors une icône d'image cassée.",
       "refresh": "Actualiser",
       "retry": "Réessayer",
       "loading": "Chargement des emojis",
@@ -5572,7 +5618,7 @@
       "searchHint": "Nom, serveur, propriétaire ou domaine",
       "newName": "Nouveau nom",
       "brokenImage": "L'image n'a pas pu être chargée",
-      "hotlinkedHint": "L'image est chargée depuis un autre site. « Héberger ici » la copie sur cette instance.",
+      "hotlinkedHint": "Cet emoji fonctionne déjà ici, mais son image est encore chargée depuis un autre site. Copier l'image sur cette instance le garde disponible si ce site change. Rien d'autre ne change pour l'emoji.",
       "kinds": {
         "label": "Type",
         "all": "Tous",
@@ -5582,7 +5628,7 @@
         "server": "Serveur",
         "personal": "Personnels",
         "ai": "Générés par IA",
-        "not_imported": "Non importés"
+        "not_imported": "Disponibles à l'import"
       },
       "status": {
         "label": "État",
@@ -5597,8 +5643,9 @@
         "usage": "Plus utilisés"
       },
       "badges": {
-        "hotlinked": "lien externe",
-        "removed": "retiré"
+        "hotlinked": "hébergé ailleurs",
+        "removed": "retiré",
+        "nameTaken": "nom déjà pris"
       },
       "meta": {
         "server": "dans {server}",
@@ -5610,14 +5657,15 @@
         "seen": "vu {count} fois | vu {count} fois",
         "reactions": "aucune réaction | {count} réaction | {count} réactions",
         "removedBy": "retiré par {user} le {date}",
-        "removedOn": "retiré le {date}"
+        "removedOn": "retiré le {date}",
+        "license": "Licence : {license}"
       },
       "titles": {
         "rename": "Renommer",
         "remove": "Retirer",
         "restore": "Restaurer",
         "purge": "Purger",
-        "rehost": "Héberger ici",
+        "rehost": "Copier l'image sur cette instance",
         "import": "Importer"
       },
       "actions": {
@@ -5625,7 +5673,7 @@
         "remove": "Retirer {name}",
         "restore": "Restaurer {name}",
         "purge": "Purger {name}",
-        "rehost": "Héberger ici {name}",
+        "rehost": "Copier l'image de {name} sur cette instance",
         "import": "Importer {name}",
         "select": "Sélectionner {name}"
       },
@@ -5635,7 +5683,9 @@
         "selected": "{count} sélectionné | {count} sélectionnés",
         "remove": "Retirer la sélection",
         "restore": "Restaurer la sélection",
-        "purge": "Purger la sélection"
+        "purge": "Purger la sélection",
+        "import": "Importer la sélection",
+        "rehost": "Copier les images sur cette instance"
       },
       "upload": {
         "button": "Envoyer",
@@ -5658,11 +5708,7 @@
         "purgeTitle": "Purger l'emoji",
         "purge": "Purger {name} ? L'emoji et son fichier sont supprimés définitivement. Les messages et réactions antérieurs qui l'utilisent affichent alors une icône d'image cassée.",
         "purgeMany": "Purger {count} emoji ? L'emoji et son fichier sont supprimés définitivement. Les messages et réactions antérieurs qui l'utilisent affichent alors une icône d'image cassée. | Purger {count} emojis ? Les emojis et leurs fichiers sont supprimés définitivement. Les messages et réactions antérieurs qui les utilisent affichent alors une icône d'image cassée.",
-        "purgeButton": "Purger",
-        "importTitle": "Importer {name}",
-        "import": "Une copie de l'image est téléchargée depuis {domain} dans le stockage de cette instance et ajoutée aux emojis de l'instance. Laissez le nom vide pour garder {name}.",
-        "importLabel": "Nom (sans deux-points)",
-        "importButton": "Importer"
+        "purgeButton": "Purger"
       },
       "done": {
         "renamed": "Renommé en {name}",
@@ -5673,7 +5719,8 @@
         "purged": "{name} purgé",
         "purgedMany": "{count} emoji purgé | {count} emojis purgés",
         "rehosted": "{name} est maintenant hébergé sur cette instance",
-        "imported": "{name} importé"
+        "rehostedMany": "{count} image copiée sur cette instance | {count} images copiées sur cette instance",
+        "importedMany": "{count} emoji importé | {count} emojis importés"
       },
       "errors": {
         "load": "Impossible de charger les emojis.",
@@ -5699,13 +5746,50 @@
           "already_imported": "Cet emoji est déjà importé.",
           "name_taken": "Un emoji d'instance utilise déjà ce nom.",
           "invalid_name": "Les noms comptent 2 à 64 lettres, chiffres, _ ou -.",
-          "not_instance": "Seuls les emojis d'instance peuvent être hébergés ici.",
+          "not_instance": "Seule l'image d'un emoji d'instance peut être copiée ici.",
           "not_hotlinked": "Cet emoji est déjà hébergé sur cette instance.",
           "unsupported_image": "L'image distante n'est ni PNG, ni GIF, ni WebP, ni JPEG.",
           "too_large": "L'image distante dépasse la taille maximale des emojis.",
           "fetch_failed": "L'image distante n'a pas pu être téléchargée.",
           "internal_error": "Une erreur s'est produite. Réessayez plus tard.",
-          "network_error": "Le serveur est injoignable."
+          "network_error": "Le serveur est injoignable.",
+          "rate_limited": "La limite horaire d'imports est atteinte. Réessayez plus tard."
+        },
+        "rehostMany": "{count} image n'a pas pu être copiée. | {count} images n'ont pas pu être copiées."
+      },
+      "nameTakenHint": "Un emoji d'instance utilise déjà ce nom. L'import propose un autre nom.",
+      "import": {
+        "button": "Importer",
+        "hint": "Emojis personnalisés vus dans les publications et réactions d'autres instances. Importer un emoji télécharge son image sur cette instance et l'ajoute aux emojis de l'instance, où tout le monde ici peut l'utiliser. L'original reste où il est.",
+        "searchHint": "Nom",
+        "sourceLabel": "Instance d'origine",
+        "allSources": "Toutes les instances",
+        "source": "{domain} ({count})",
+        "title": "Importer {count} emoji | Importer {count} emojis",
+        "loading": "Vérification des noms",
+        "previewFailed": "Les noms n'ont pas pu être vérifiés. Fermez et réessayez.",
+        "explain": "Chaque image est téléchargée sur cette instance et ajoutée aux emojis de l'instance sous le nom ci-dessous. Les emojis existants ne sont jamais remplacés.",
+        "clashes": "{count} nom est déjà utilisé par un emoji d'instance. Gardez le nom proposé, saisissez-en un autre ou ignorez l'emoji. | {count} noms sont déjà utilisés par des emojis d'instance. Gardez les noms proposés, saisissez-en d'autres ou ignorez les emojis.",
+        "listLabel": "Emojis à importer",
+        "nameFor": "Nom pour {name}",
+        "skip": "Ignorer",
+        "nameInUse": "Un emoji d'instance utilise déjà ce nom.",
+        "nameRepeated": "Un autre emoji de cet import utilise ce nom.",
+        "confirm": "Importer {count} emoji | Importer {count} emojis",
+        "stop": "Arrêter",
+        "progress": "Import en cours… {current} sur {total} terminés",
+        "result": {
+          "imported": "Aucun emoji importé | {count} emoji importé | {count} emojis importés",
+          "skipped": "{count} ignoré | {count} ignorés",
+          "failed": "{count} en échec | {count} en échec",
+          "stopped": "{count} non commencé | {count} non commencés"
+        },
+        "status": {
+          "imported": "Importé sous le nom {name}",
+          "skipped": "Ignoré",
+          "gone": "N'est plus disponible : déjà importé ou supprimé",
+          "stopped": "Non commencé",
+          "waiting": "En attente"
         }
       }
     }
@@ -6052,6 +6136,7 @@
       "unknown": "Pas encore signalé",
       "showSetup": "Afficher les étapes de configuration",
       "problemsTitle": "{count} problème à corriger | {count} problèmes à corriger",
+      "noticesTitle": "{count} remarque | {count} remarques",
       "pairsTitle": "Canaux reliés",
       "settingsTitle": "Options",
       "maintainTitle": "Maintenance",
@@ -6068,7 +6153,8 @@
       },
       "disconnect": "Déconnecter la passerelle",
       "disconnected": "Passerelle déconnectée",
-      "finished": "La passerelle est configurée."
+      "finished": "La passerelle est configurée.",
+      "disconnectKeeps": "Pour supprimer aussi ce qui a été apporté, utilisez d'abord Retirer tous les messages de la passerelle dans Confidentialité de la passerelle."
     },
     "confirm": {
       "disconnect": {
@@ -6163,6 +6249,17 @@
         "fixHosted": "Le problème vient de l'instance, et la passerelle réessaie. Si cela dure, contactez l'administration de l'instance.",
         "fixInstance": "Le problème vient de l'instance, et la passerelle réessaie. Si cela dure, contactez l'administration de l'instance."
       },
+      "message_content_needed_for_import": {
+        "title": "Une importation de l'historique attend le Message Content Intent.",
+        "fixSelf": "Tant qu'il est désactivé, Discord renvoie des messages vides. Dans le Developer Portal, ouvrez votre application → Bot → Privileged Gateway Intents, activez Message Content Intent et cliquez sur Save Changes. Redémarrez ensuite la passerelle avec la commande ci-dessous ; l'importation démarre d'elle-même.",
+        "fixHosted": "Tant qu'il est désactivé, Discord renvoie des messages vides. Dans le Developer Portal, ouvrez votre application → Bot → Privileged Gateway Intents, activez Message Content Intent et cliquez sur Save Changes. L'importation démarre d'elle-même dès que la passerelle se reconnecte.",
+        "fixInstance": "Le bot de cette instance n'a pas le Message Content Intent et ne peut donc pas importer l'historique. Demandez à l'administration de l'instance."
+      },
+      "private_threads_skipped": {
+        "title": "L'importation a laissé de côté les fils privés de {channel}.",
+        "titleCount": "L'importation a laissé de côté {count} fil privé de {channel}. | L'importation a laissé de côté {count} fils privés de {channel}.",
+        "fix": "Rien à corriger. Harmony n'a pas encore de fils privés et tout le salon pourrait les lire, ils restent donc sur Discord."
+      },
       "unknown": {
         "title": "La passerelle a signalé un problème ({code}).",
         "fixSelf": "Le journal de la passerelle donne les détails :",
@@ -6229,7 +6326,14 @@
       "bridgeExists": "Ce serveur a déjà une passerelle Discord configurée autrement. Déconnectez-la d'abord pour utiliser le bot de cette instance.",
       "instanceFull": "Le bot de cette instance est déjà sur autant de serveurs Discord qu'elle le permet. Demandez à l'administration de l'instance, ou utilisez plutôt votre propre bot Discord.",
       "instanceOff": "Cette instance ne propose pas son bot Discord pour le moment. Utilisez plutôt votre propre bot Discord.",
-      "link": "Impossible de lancer la liaison avec Discord. Réessayez."
+      "link": "Impossible de lancer la liaison avec Discord. Réessayez.",
+      "import": "Impossible de démarrer l'importation.",
+      "cancelImport": "Impossible d'annuler l'importation.",
+      "pairNotImportable": "Cette paire ne peut pas importer d'historique. Seuls les salons non chiffrés dans des paires qui amènent les messages Discord vers Harmony le peuvent.",
+      "importChanged": "L'importation a changé entre-temps et a été actualisée. Réessaie.",
+      "importDisabled": "L'importation de l'historique est désactivée pour cette passerelle.",
+      "invalidDiscordUser": "Ce n'est pas un ID d'utilisateur Discord.",
+      "privacy": "La demande a échoué. Réessayez."
     },
     "time": {
       "secondsAgo": "à l'instant | il y a {count} seconde | il y a {count} secondes",
@@ -6338,6 +6442,125 @@
       "settingsSaved": "Réglages du bot Discord enregistrés",
       "saveFailed": "Impossible d'enregistrer les réglages du bot Discord",
       "redirectLabel": "Adresse de redirection"
+    },
+    "import": {
+      "button": "Importer l'historique",
+      "buttonLabel": "Importer l'historique de #{channel}",
+      "importAll": "Tout importer",
+      "importAllAgain": "Tout réimporter",
+      "importAllAgainConfirm": "Réimporter l'historique de {count} salon ? Son historique Discord est relu depuis le début ; les messages déjà présents sont ignorés. | Réimporter l'historique des {count} salons ? Chaque historique Discord est relu depuis le début ; les messages déjà présents sont ignorés.",
+      "importAllAgainYes": "Réimporter",
+      "cancelAll": "Tout annuler",
+      "cancel": "Annuler",
+      "cancelLabel": "Annuler l'importation de #{channel}",
+      "cancelling": "Annulation…",
+      "waiting": "En attente",
+      "running": "Importation… {percent} %",
+      "runningUnknown": "Importation…",
+      "threadsRunning": "Importation des fils…",
+      "repliesRunning": "Liaison des réponses…",
+      "progressLabel": "Progression de l'importation de #{channel}",
+      "backTo": "Jusqu'à {date}",
+      "messages": "{count} message | {count} messages",
+      "threads": "Fils {done} sur {total}",
+      "done": "{count} message importé | {count} messages importés",
+      "doneNothingNew": "À jour : aucun nouveau message",
+      "failed": "Importation arrêtée : {reason}",
+      "failedUnknown": "Importation arrêtée",
+      "cancelled": "Annulée",
+      "paused": "En pause : en attente du pont",
+      "retry": "Réessayer",
+      "retryLabel": "Réessayer l'importation de #{channel}",
+      "resume": "Reprendre",
+      "resumeLabel": "Reprendre l'importation de #{channel}",
+      "again": "Importer à nouveau",
+      "againLabel": "Importer à nouveau l'historique de #{channel}",
+      "reasons": {
+        "pair_removed": "la paire de salons a été retirée",
+        "channel_encrypted": "le salon est désormais chiffré",
+        "import_disabled": "l'importation de l'historique a été désactivée",
+        "pair_not_importable": "la paire n'apporte plus les messages Discord vers Harmony",
+        "discord_approval_required": "le salon Discord est privé : lancez son importation sur Discord avec /bridge import-history",
+        "discord_channel_unsupported": "le salon Discord n'est pas un salon textuel",
+        "discord_access_lost": "la passerelle ne peut plus lire le salon Discord",
+        "bridge_stalled": "la passerelle n'avançait plus"
+      },
+      "ineligible": {
+        "direction": "Seules les paires qui amènent les messages Discord vers Harmony peuvent importer l'historique",
+        "encrypted": "Les salons chiffrés ne peuvent pas importer d'historique"
+      },
+      "needsUpdate": "Mets le pont à jour vers la version 2.6.0 ou plus récente pour importer l'historique",
+      "mirrorNote": "Les fichiers importés sont copiés dans le stockage de cette instance.",
+      "consent": {
+        "title": "Importer l'historique de {count} salon ? | Importer l'historique de {count} salons ?",
+        "copies": "Les anciens messages et fichiers sont copiés sur ce serveur avec les noms et avatars Discord de leurs auteurs. Ils restent après le retrait de la passerelle.",
+        "skips": "Les messages des personnes qui ont quitté le serveur Discord sont ignorés. Toute personne sur Discord peut exclure les siens, ou les effacer, avec /bridge-privacy.",
+        "notice": "La passerelle épingle un avis dans chaque salon Discord au début de son importation.",
+        "confirm": "Je gère ce serveur Discord, ou j'agis avec l'accord de ses gestionnaires.",
+        "start": "Démarrer l'importation"
+      },
+      "unavailable": {
+        "instance_off": "L'importation de l'historique est désactivée sur cette instance.",
+        "bridge_mode": "L'importation de l'historique est réservée à une passerelle que vous exécutez vous-même, avec votre propre application Discord."
+      },
+      "authorsSkipped": "{count} ignoré (auteur parti ou exclu) | {count} ignorés (auteurs partis ou exclus)",
+      "automodSkipped": "{count} bloqué par AutoMod | {count} bloqués par AutoMod"
+    },
+    "privacy": {
+      "title": "Confidentialité de la passerelle",
+      "lead": "Les membres Discord gardent leurs messages hors de ce serveur, ou les effacent, avec /bridge-privacy sur Discord. Retirez ici une personne qui ne peut pas l'utiliser, par exemple après son départ.",
+      "idLabel": "ID d'utilisateur Discord",
+      "idHelp": "Dans Discord, activez le mode développeur, puis faites un clic droit sur l'utilisateur et choisissez Copier l'identifiant de l'utilisateur.",
+      "idInvalid": "Un ID d'utilisateur Discord compte 5 à 20 chiffres.",
+      "remove": "Retirer de ce serveur",
+      "removeConfirm": "Supprimer tous les messages, fichiers et réactions que cette passerelle a apportés de l'utilisateur Discord {id}, et ne plus apporter les siens ? Cette action est irréversible.",
+      "removeYes": "Supprimer ses messages",
+      "removed": "{count} message retiré | {count} messages retirés",
+      "progress": "Retrait en cours… {count} message jusqu'ici | Retrait en cours… {count} messages jusqu'ici",
+      "listTitle": "{count} utilisateur Discord exclu | {count} utilisateurs Discord exclus",
+      "source": {
+        "self": "S'est exclu sur Discord",
+        "manager": "Retiré par un gestionnaire",
+        "admin": "Retiré par un administrateur de l'instance"
+      },
+      "restore": "Rétablir",
+      "restoreLabel": "Relier de nouveau l'utilisateur Discord {id}",
+      "purgeLead": "Retirez tout ce que la passerelle de ce serveur a apporté de Discord : messages, fichiers et réactions. Les messages écrits sur Harmony restent.",
+      "purge": "Retirer tous les messages de la passerelle",
+      "purgeConfirm": "Supprimer tous les messages, fichiers et réactions apportés de Discord sur ce serveur ? Cette action est irréversible.",
+      "purgeYes": "Tout supprimer",
+      "purged": "{count} message de la passerelle retiré | {count} messages de la passerelle retirés"
+    },
+    "importAdmin": {
+      "title": "Importation de l'historique Discord",
+      "lead": "Permet à un serveur de copier les anciens messages de ses salons Discord vers Harmony, par une passerelle que son propriétaire exécute avec sa propre application Discord. Jamais par le bot Discord de cette instance ni par un bot que cette instance exécute.",
+      "loadFailed": "Impossible de charger les paramètres d'importation de l'historique.",
+      "mode": "Importation de l'historique",
+      "modeOff": "Désactivée",
+      "modeSelfRun": "Passerelles auto-hébergées",
+      "modeHint": "Désactivée refuse toute importation, y compris celles en cours.",
+      "warningTitle": "Avant d'activer",
+      "warningAuthors": "Les auteurs de ces messages n'ont pas demandé la copie. Les auteurs qui ont quitté le serveur Discord sont ignorés, et les membres excluent ou effacent leurs messages avec /bridge-privacy.",
+      "warningRequests": "Les demandes de suppression de contenu sur cette instance vous reviennent. Les gestionnaires d'un serveur retirent un utilisateur Discord dans Paramètres du serveur, Passerelle Discord ; Retirer tous les messages Discord, ci-dessous, vide tous les serveurs.",
+      "warningQuiet": "Les messages importés n'envoient aucune notification, comptent comme lus et ne sont pas fédérés. Ils passent par les règles de mots, d'invitations et de liens d'AutoMod du serveur lorsque ses bots ne sont pas exemptés.",
+      "warningStorage": "Avec « Mirror to storage », les fichiers importés sont copiés dans le stockage de cette instance, jusqu'à la limite par serveur ci-dessous.",
+      "maxRunning": "Importations simultanées",
+      "maxRunningHint": "Sur toute l'instance. Les autres attendent leur tour. 0 signifie aucune limite.",
+      "messagesPerMinute": "Messages par minute, par importation",
+      "messagesPerMinuteHint": "Le serveur ralentit une importation à ce rythme, quoi qu'envoie la passerelle. 0 signifie aucune limite.",
+      "mirrorServerLimitMb": "Fichiers Discord stockés par serveur (Mo)",
+      "mirrorServerLimitMbHint": "Avec « Mirror to storage », un serveur au-delà garde les liens Discord pour les fichiers suivants. 0 signifie aucune limite.",
+      "limitInvalid": "Saisissez des nombres entiers, 0 ou plus.",
+      "save": "Enregistrer les limites",
+      "saved": "Paramètres d'importation de l'historique enregistrés",
+      "saveFailed": "Impossible d'enregistrer les paramètres d'importation de l'historique.",
+      "totals": "{running} en cours, {queued} en attente, {imported} messages importés",
+      "totalsStored": "{size} de fichiers Discord stockés",
+      "purgeTitle": "Retirer tous les messages Discord",
+      "purgeLead": "Supprime tous les messages, fichiers et réactions qu'une passerelle a apportés de Discord, sur chaque serveur de cette instance. Pour le cas où cette instance ne doit plus conserver de contenu Discord, par exemple si son application Discord perd l'accès.",
+      "purge": "Retirer tous les messages Discord",
+      "purgeConfirm": "Supprimer tout ce qui vient de Discord sur chaque serveur de cette instance ? Cette action est irréversible.",
+      "purgeYes": "Tout supprimer"
     }
   },
   "imageEditor": {
@@ -8141,6 +8364,53 @@
     "refusalBlockedDomain": "Domaine de messagerie refusé",
     "refusalMailHost": "Serveur de messagerie",
     "refusalBlockedNetwork": "Adresse refusée"
+  },
+  "adminSignupCaptcha": {
+    "title": "Vérification d'inscription",
+    "intro": "Un captcha demandé seulement quand une inscription semble automatisée : la plupart des gens ne le voient jamais. Les inscriptions via Google, GitHub, Twitch ou les fournisseurs de connexion propres à cette instance ne sont jamais vérifiées.",
+    "provider": "Fournisseur",
+    "providerOff": "Désactivé",
+    "providerHint": "Créez un widget chez le fournisseur et ajoutez-y le nom d'hôte de {origin}. Les applications affichent aussi la vérification depuis cette adresse.",
+    "siteKey": "Clé du site",
+    "secret": "Clé secrète",
+    "secretKept": "Enregistrée. Saisissez-en une nouvelle pour la remplacer.",
+    "secretHint": "Seule la vérification sur le serveur l'utilise. Elle n'est plus affichée après l'enregistrement.",
+    "mode": "Demander la vérification",
+    "modeSuspect": "Quand une inscription semble automatisée",
+    "modeSuspectHint": "Une autre inscription depuis le même réseau dans l'heure, un domaine e-mail nouveau pour cette instance, ou une inscription au-delà d'une limite qui compte sans refuser.",
+    "modeAlways": "À chaque inscription par e-mail",
+    "save": "Enregistrer",
+    "saved": "Vérification d'inscription enregistrée",
+    "saveFailed": "Impossible d'enregistrer la vérification d'inscription.",
+    "loadFailed": "Impossible de charger les réglages de la vérification d'inscription.",
+    "invalidSiteKey": "Saisissez la clé du site du tableau de bord du fournisseur.",
+    "invalidSecret": "Saisissez la clé secrète du tableau de bord du fournisseur.",
+    "countsTitle": "7 derniers jours",
+    "asked": "Demandées",
+    "passed": "Réussies",
+    "failed": "Échouées",
+    "unverified": "Non vérifiées",
+    "unverifiedHint": "Le fournisseur était injoignable ou a refusé la clé secrète : ces inscriptions ont été acceptées. Vérifiez la clé secrète.",
+    "test": "Tester les clés",
+    "testHint": "Résolvez la vérification une fois avec ces clés. Activer un fournisseur ou enregistrer de nouvelles clés demande un test réussi.",
+    "testNote": "Résolvez la vérification pour tester les clés.",
+    "testRunning": "Vérification du jeton auprès du fournisseur…",
+    "testPassed": "Les clés fonctionnent : le serveur a vérifié le jeton auprès du fournisseur.",
+    "needsTest": "Testez les clés avant d'enregistrer.",
+    "problem": {
+      "hostname": "Le widget ne contient pas {host}. Ajoutez-le aux noms d'hôte du widget dans le tableau de bord du fournisseur.",
+      "siteKey": "Le fournisseur ne connaît pas cette clé du site. Copiez-la à nouveau depuis le tableau de bord.",
+      "widgetNetwork": "Le widget n'a pas pu se charger. Vérifiez la connexion de cet appareil et tout bloqueur de contenu.",
+      "widget": "Le widget a signalé une erreur.",
+      "secret": "Le fournisseur a refusé la clé secrète. Copiez-la à nouveau depuis le tableau de bord.",
+      "mismatch": "La clé du site et la clé secrète appartiennent à des widgets différents.",
+      "token": "Le fournisseur a refusé le jeton. Résolvez à nouveau la vérification ; si cela se répète, les deux clés appartiennent à des widgets différents.",
+      "network": "La base de données ne peut pas joindre le fournisseur en HTTPS (port 443). Autorisez les connexions sortantes du conteneur de la base de données.",
+      "noHttp": "La base de données n'a pas l'extension http et ne peut donc pas vérifier les jetons. Utilisez l'image Postgres de Supabase.",
+      "status": "Le fournisseur a répondu HTTP {status}. Réessayez plus tard.",
+      "noSecret": "Saisissez d'abord la clé secrète.",
+      "unknown": "Le test a échoué pour une raison inconnue."
+    }
   },
   "adminInvites": {
     "tab": "Invitations",

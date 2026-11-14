@@ -5,6 +5,14 @@
     <Icon name="flag" :size="20" />
     <h2>{{ serverId ? t('admin.reports.titleServer') : 'Reports & moderation' }}</h2>
     <span v-if="pendingCount > 0" class="reports-badge">{{ pendingCount }} pending</span>
+    <label v-if="notificationStore.preferences" class="report-alerts-toggle" data-testid="report-alerts-toggle">
+      <span :id="`${alertsId}-label`">{{ t('moderation.reportAlert.setting') }}</span>
+      <ToggleSwitch
+        :model-value="notificationStore.preferences.moderation_reports !== false"
+        :labelledby="`${alertsId}-label`"
+        @update:model-value="setReportAlerts"
+      />
+    </label>
   </div>
 
   <div class="report-filters">
@@ -259,7 +267,7 @@
 
 <script setup lang="ts">
 import { profileHandleParam } from '@/utils/permalinks'
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, useId } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
@@ -267,6 +275,9 @@ import { activateStoppedLink, handleOutsideLinkActivation } from '@/services/out
 import { debug } from '@/utils/debug'
 import { escapeHtml, safeHref } from '@/utils/sanitize'
 import Icon from '@/components/common/Icon.vue'
+import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import { useNotificationStore } from '@/stores/useNotification'
+import { refreshInstancePendingReports, refreshServerPendingReports, useReportQueueCounts } from '@/composables/useReportQueueCounts'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -384,7 +395,8 @@ const PAGE = 50
 
 const reports = ref<ReportWithDetails[]>([])
 const total = ref(0)
-const pendingCount = ref(0)
+const { instancePending, serverPending } = useReportQueueCounts()
+const pendingCount = computed(() => props.serverId ? (serverPending.get(props.serverId) ?? 0) : instancePending.value)
 const activeReportFilter = ref<string>('pending')
 const expandedReportId = ref<string | null>(null)
 const reportNote = ref('')
@@ -497,12 +509,17 @@ const loadReports = async (append = false) => {
   }
 }
 
-const loadPendingCount = async () => {
-  if (props.serverId) {
-    const result = await reportService.getReports({ status: 'pending', limit: 1, serverId: props.serverId })
-    pendingCount.value = result.total
-  } else {
-    pendingCount.value = await reportService.getPendingReportsCount()
+const loadPendingCount = () =>
+  props.serverId ? refreshServerPendingReports(props.serverId) : refreshInstancePendingReports()
+
+// notification_preferences.moderation_reports: 'report_created' notifications (20261111600001).
+const notificationStore = useNotificationStore()
+const alertsId = useId()
+const setReportAlerts = async (on: boolean) => {
+  try {
+    await notificationStore.updatePreferences({ moderation_reports: on })
+  } catch {
+    toast.error(t('moderation.reportAlert.settingFailed'))
   }
 }
 
@@ -877,6 +894,22 @@ onMounted(async () => {
   font-weight: 700;
   padding: 2px 8px;
   border-radius: var(--radius-full);
+  margin-left: auto;
+}
+
+.report-alerts-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.reports-badge + .report-alerts-toggle {
+  margin-left: var(--space-3);
+}
+
+.module-header > h2 + .report-alerts-toggle {
   margin-left: auto;
 }
 

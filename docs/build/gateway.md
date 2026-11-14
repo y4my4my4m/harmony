@@ -56,7 +56,8 @@ On success the gateway answers with a `READY` event:
   "d": {
     "bot": { "id": "3f6c1d2e-…", "username": "ping-bot" },
     "session_id": "b1a7e0c4-…",
-    "heartbeat_interval": 30000
+    "heartbeat_interval": 30000,
+    "capabilities": ["bridge_sound_sync", "bridge_emoji_sync", "bridge_sticker_sync", "bridge_history_import", "bridge_privacy"]
   }
 }
 ```
@@ -67,6 +68,7 @@ On success the gateway answers with a `READY` event:
 | `bot.username` | string | The bot's username. |
 | `session_id` | UUID | Identifies this connection. A new connection gets a new one. |
 | `heartbeat_interval` | integer | Milliseconds between heartbeats. 30000 unless the instance sets `WS_HEARTBEAT_INTERVAL`. |
+| `capabilities` | string[] | Features this gateway has, such as `bridge_emoji_sync` for the [emoji sync endpoints](/build/rest#list-discord-linked-emojis). Absent on a gateway before 1.9.7, whose newer routes answer `404`. [`GET /users/@me`](/build/rest#get-current-bot) carries the same list. |
 
 The connection starts receiving events before the gateway writes `READY`, so an event can arrive ahead of it. Handle `READY` in the same loop as other events rather than reading it as the first frame.
 
@@ -301,7 +303,7 @@ Sent to the bot that wrote a message when all of these hold: the instance's brid
 }
 ```
 
-Field names in this event are camelCase. `content` is the message's stored parts. The bot renews the URLs and writes the parts back with a [silent content patch](/build/rest#patch-content-silently). See [Attachments](/build/bridges#attachments).
+Field names in this event are camelCase. `content` is the message's stored parts. The bot renews the URLs and writes the parts back with a [silent content patch](/build/rest#patch-content-silently). While the bot is not connected, the gateway renews them itself when the instance has its Discord bot set up. See [Attachments](/build/bridges#attachments).
 
 ### BRIDGE_CONFIG_UPDATE
 

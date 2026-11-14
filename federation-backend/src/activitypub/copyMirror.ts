@@ -1,6 +1,6 @@
 /**
- * A server hosted elsewhere as its member instances show it: its pins, its roles and the instance
- * staff of accounts (migration 20261030100001).
+ * A server hosted elsewhere as its member instances show it: its pins, its roles, its custom emojis
+ * and the instance staff of accounts (migrations 20261030100001, 20261114200001).
  *
  * Group document (GroupService.ts):
  *   "harmony:roles": [{ "type": "harmony:Role", "id": "<group>/roles/<uuid>", "name", "color",
@@ -8,6 +8,15 @@
  *       every role but the default one, highest position first. No permission bits: permissions
  *       are enforced on the host, and a copy stores its roles display-only. Absent when the roles
  *       cannot be read: an empty list deletes a copy's roles.
+ *   "harmony:emojis": [{ "type": "Emoji", "id": "<group>/emojis/<uuid>", "name": ":name:",
+ *                        "icon": { "type": "Image", "url" } }]
+ *       the server's custom emojis, oldest first, at most MAX_EMOJIS. A copy stores each as an
+ *       emoji row of the copy (emojis.ap_id) naming the host's image, which stays on the host.
+ *       Absent when the emojis cannot be read: an empty list removes a copy's emojis.
+ *   "harmony:crossServerEmojis": boolean
+ *       the server's allow_cross_server_emojis: whether its members may use its emojis in other
+ *       servers. A copy stores it, and emoji_usable reads it there. Absent (Harmony before 1.9.7)
+ *       leaves the copy's value as it is.
  *   "harmony:channels"[i]["harmony:pins"]:
  *       { "type": "OrderedCollection", "id": "<channel>/pins", "totalItems", "updated"? }
  *       totalItems counts the Notes <channel>/pins serves; updated is the newest non-null
@@ -19,16 +28,27 @@
  *   the members of that page holding a role; absent when the assignments cannot be read.
  * Live, the Group's activities, signed with its key:
  *   Update(Group) with "harmony:roles"     the whole list; a role absent from it is deleted
+ *   Update(Group) with "harmony:emojis"    the whole list; an emoji absent from it is removed;
+ *                                          "harmony:crossServerEmojis" with it
  *   Update { "type": "harmony:MemberRoles", "id", "member", "roles" }   all of the member's roles
  *   Add | Remove { "object": "<Note id>", "target": "<channel>/pins" }
  * Actor: "harmony:instanceRole": "admin" | "moderator", staff of the actor's own instance; taken
  *   only from the actor's own document or its own Update.
  *
  * Harmony before 1.9.1 ignores each of these: unknown properties, an Update of an unknown type,
- * and an Add or Remove whose target is not /featured, /members or a channel of the Group.
+ * and an Add or Remove whose target is not /featured, /members or a channel of the Group. Harmony
+ * before 1.9.7 ignores harmony:emojis.
  */
 
 export const HARMONY_ROLES = 'harmony:roles';
+export const HARMONY_EMOJIS = 'harmony:emojis';
+export const HARMONY_CROSS_SERVER_EMOJIS = 'harmony:crossServerEmojis';
+
+/** allow_cross_server_emojis of a Group (harmony:crossServerEmojis); null when it carries none. */
+export function parseCrossServerEmojis(group: Record<string, unknown>): boolean | null {
+  const value = group[HARMONY_CROSS_SERVER_EMOJIS];
+  return typeof value === 'boolean' ? value : null;
+}
 export const HARMONY_MEMBER_ROLES = 'harmony:memberRoles';
 export const HARMONY_PINS = 'harmony:pins';
 export const HARMONY_PINNED_AT = 'harmony:pinnedAt';
@@ -42,8 +62,12 @@ export const MAX_ROLES = 250;
 export const MAX_PINS = 100;
 /** Roles read for one member. */
 export const MAX_MEMBER_ROLES = 100;
+/** Custom emojis read from one Group. */
+export const MAX_EMOJIS = 1000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Shortcode characters every federation path reads (utils/emojiResolvers.ts); emojis.name holds 64. */
+const EMOJI_NAME = /^[A-Za-z0-9_+-]{1,64}$/;
 const COLOR = /^#[0-9a-f]{6}$/i;
 const MAX_NAME = 100;
 const MAX_EMOJI = 32;
@@ -90,6 +114,26 @@ export interface MemberRoles {
   roles: string[];
 }
 
+/** An emoji row with `url` already the absolute address clients load. */
+export interface EmojiRow {
+  id: string;
+  name: string | null;
+  url: string | null;
+}
+
+export interface ApEmoji {
+  type: 'Emoji';
+  id: string;
+  name: string;
+  icon: { type: 'Image'; url: string };
+}
+
+export interface ParsedEmoji {
+  apId: string;
+  name: string;
+  url: string;
+}
+
 export interface PinsAdvert {
   id: string;
   totalItems: number;
@@ -108,6 +152,22 @@ export function roleApId(serverUrl: string, roleId: string): string {
 
 export function pinsCollectionId(channelUrl: string): string {
   return `${channelUrl}/pins`;
+}
+
+export function emojiApId(serverUrl: string, emojiId: string): string {
+  return `${serverUrl}/emojis/${emojiId}`;
+}
+
+/** harmony:emojis of a server's emoji rows, in row order; a row without a usable name or image is left out. */
+export function emojisToAp(serverUrl: string, rows: EmojiRow[]): ApEmoji[] {
+  const out: ApEmoji[] = [];
+  for (const r of rows) {
+    if (out.length >= MAX_EMOJIS) break;
+    const url = httpUrl(r.url);
+    if (!url || typeof r.name !== 'string' || !EMOJI_NAME.test(r.name)) continue;
+    out.push({ type: 'Emoji', id: emojiApId(serverUrl, r.id), name: `:${r.name}:`, icon: { type: 'Image', url } });
+  }
+  return out;
 }
 
 /** harmony:roles of a server's role rows. */
@@ -228,6 +288,36 @@ export function parseGroupRoles(value: unknown, groupUrl: string): ParsedRole[] 
     });
   }
   return roles;
+}
+
+/** The image url of an Emoji's icon: an Image object, or the first of a list. */
+function iconUrl(icon: unknown): string | null {
+  const first = Array.isArray(icon) ? icon[0] : icon;
+  if (!first || typeof first !== 'object') return null;
+  return httpUrl((first as Record<string, unknown>).url);
+}
+
+/**
+ * harmony:emojis of a Group, each emoji under that Group; null when the Group carries none
+ * (Harmony before 1.9.7), which leaves a copy's emojis as they are.
+ */
+export function parseGroupEmojis(value: unknown, groupUrl: string): ParsedEmoji[] | null {
+  if (!Array.isArray(value)) return null;
+  const prefix = `${groupUrl}/emojis/`;
+  const seen = new Set<string>();
+  const emojis: ParsedEmoji[] = [];
+  for (const entry of value.slice(0, MAX_EMOJIS)) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    if (e.type !== 'Emoji' || typeof e.id !== 'string' || !e.id.startsWith(prefix)) continue;
+    if (!UUID.test(e.id.slice(prefix.length)) || seen.has(e.id)) continue;
+    const name = typeof e.name === 'string' ? e.name.replace(/^:|:$/g, '') : '';
+    const url = iconUrl(e.icon);
+    if (!EMOJI_NAME.test(name) || !url) continue;
+    seen.add(e.id);
+    emojis.push({ apId: e.id, name, url });
+  }
+  return emojis;
 }
 
 function memberRolesEntry(value: unknown, groupUrl: string): MemberRoles | null {

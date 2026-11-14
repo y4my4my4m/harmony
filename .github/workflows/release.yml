@@ -56,15 +56,15 @@ jobs:
       linux-stem: ${{ steps.names.outputs.linux }}
       updater-args: ${{ steps.updater.outputs.args }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.workflow_sha }}
           path: .ci
           sparse-checkout: scripts
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .ci/.nvmrc
       # Absent from tags cut before 2026-07-07; those trees carry their version
@@ -139,10 +139,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -159,12 +159,13 @@ jobs:
             echo "::error::Tree version $version differs from the release job's $EXPECTED."
             exit 1
           fi
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
+          toolchain: stable
           targets: ${{ matrix.rust-targets }}
       # shared-key matches tauri.yml's windows and macos job ids, the key its
       # master runs save under.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
           shared-key: ${{ matrix.name == 'macOS' && 'macos' || 'windows' }}
@@ -200,11 +201,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.workflow_sha }}
           sparse-checkout: scripts
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
       - name: Write latest.json from the release's assets
@@ -231,15 +232,15 @@ jobs:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
       HAS_GOOGLE_SERVICES: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.workflow_sha }}
           path: .ci
           sparse-checkout: scripts
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -248,21 +249,22 @@ jobs:
           if [ -f scripts/set-version.mjs ]; then
             node scripts/set-version.mjs "$RELEASE_TAG"
           fi
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: "21"
       # The action's default package list includes `tools`, which cmdline-tools
       # 16.0 no longer carries; sdkmanager exits 1 on it.
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
         with:
           packages: platform-tools
       - name: Install NDK
         run: sdkmanager "ndk;${NDK_VERSION}" "platforms;android-34" "build-tools;34.0.0"
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
+          toolchain: stable
           targets: aarch64-linux-android
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
           save-if: false
@@ -271,7 +273,7 @@ jobs:
       # restore keys take the newest.
       - name: Enable the Gradle build cache
         run: mkdir -p ~/.gradle && echo 'org.gradle.caching=true' >> ~/.gradle/gradle.properties
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.gradle/caches
@@ -356,7 +358,7 @@ jobs:
           bash .ci/scripts/name-artifact.sh --release Android "$profile" "$1"
 
       - name: Attach APK to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           draft: true
@@ -376,10 +378,10 @@ jobs:
     outputs:
       built: ${{ steps.tree.outputs.built }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.workflow_sha }}
           path: .ci
@@ -393,7 +395,7 @@ jobs:
           else
             echo "::notice::src-tauri/linux/package.sh absent at this tag; no Linux build."
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.tree.outputs.built == 'true'
         with:
           node-version-file: ".nvmrc"
@@ -433,19 +435,21 @@ jobs:
       # cef-dll-sys downloads the CEF distribution into CEF_PATH when missing.
       # The key follows tauri-runtime-cef's pinned cef crate. tauri.yml's linux
       # job saves it on master; with none, cef-dll-sys downloads the distribution.
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         if: steps.tree.outputs.built == 'true'
         with:
           path: ${{ runner.temp }}/cef
           key: cef-152.3.0+152.0.6-linux-x86_64
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         if: steps.tree.outputs.built == 'true'
         with:
           path: ${{ runner.temp }}/linux-tools
           key: linux-tools-${{ hashFiles('src-tauri/linux/package.sh') }}
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         if: steps.tree.outputs.built == 'true'
-      - uses: Swatinem/rust-cache@v2
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         if: steps.tree.outputs.built == 'true'
         with:
           workspaces: src-tauri
@@ -519,10 +523,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.workflow_sha }}
           path: .ci
@@ -535,7 +539,7 @@ jobs:
           else
             echo "::notice::src-tauri/gen/apple/project.yml absent at this tag; no iOS build."
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.tree.outputs.built == 'true'
         with:
           node-version-file: ".nvmrc"
@@ -551,11 +555,12 @@ jobs:
             echo "::error::Tree version $version differs from the release job's $EXPECTED."
             exit 1
           fi
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         if: steps.tree.outputs.built == 'true'
         with:
+          toolchain: stable
           targets: aarch64-apple-ios
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         if: steps.tree.outputs.built == 'true'
         with:
           workspaces: src-tauri

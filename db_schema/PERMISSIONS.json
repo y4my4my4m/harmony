@@ -611,7 +611,7 @@
       ],
       "backend": [
         "bot-gateway/src/gateway/EventDispatcher.ts",
-        "bot-gateway/src/api/BotRestAPI.ts"
+        "bot-gateway/src/api/messageContent.ts"
       ],
       "client": [
         "src/composables/useAutoSuggest.ts"

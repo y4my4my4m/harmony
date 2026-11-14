@@ -36,7 +36,10 @@
         @click="activeAdminTab = tab.key"
       >
         <Icon :name="tab.icon" :size="15" />
-        {{ tab.label }}
+        {{ tab.label }}<template v-if="tab.key === 'reports' && instancePending > 0">
+          <span class="report-count-badge" aria-hidden="true" data-testid="admin-tab-reports-badge">{{ badgeCount(instancePending) }}</span>
+          <span class="sr-only">, {{ $t('moderation.reportAlert.pendingA11y', { count: instancePending }, instancePending) }}</span>
+        </template>
       </button>
     </nav>
 
@@ -145,6 +148,7 @@
     <div v-else-if="activeAdminTab === 'invites'" class="admin-grid single">
       <InstanceInvites />
       <SignupLimits v-if="hasCapability('signup-limits')" />
+      <SignupCaptchaSettings v-if="hasCapability('signup-captcha')" />
     </div>
 
     <div v-else-if="activeAdminTab === 'retention'" class="admin-grid single">
@@ -216,6 +220,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
+import { badgeCount, refreshInstancePendingReports, useReportQueueCounts } from '@/composables/useReportQueueCounts'
 import { hasCapability } from '@/services/instanceCapabilities'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
@@ -234,6 +239,7 @@ const UserManagement = defineAsyncComponent(() => import('@/components/admin/Use
 const RecentSignups = defineAsyncComponent(() => import('@/components/admin/RecentSignups.vue'))
 const InstanceInvites = defineAsyncComponent(() => import('@/components/admin/InstanceInvites.vue'))
 const SignupLimits = defineAsyncComponent(() => import('@/components/admin/SignupLimits.vue'))
+const SignupCaptchaSettings = defineAsyncComponent(() => import('@/components/admin/SignupCaptchaSettings.vue'))
 const RetentionCohorts = defineAsyncComponent(() => import('@/components/admin/RetentionCohorts.vue'))
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 const HostedServersAdmin = defineAsyncComponent(() => import('@/components/admin/HostedServersAdmin.vue'))
@@ -301,7 +307,10 @@ watch(() => route.query.tab, (tab) => {
 })
 
 // Instance staff only; the overview's data is admin-only.
+const { instancePending } = useReportQueueCounts()
+
 onMounted(async () => {
+  void refreshInstancePendingReports()
   if (!authStore.session?.user?.id) {
     router.push('/login')
     return
@@ -705,6 +714,21 @@ const formatNumber = (num: number | undefined) => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.report-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--error-fill);
+  color: var(--text-on-primary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .admin-tab-btn:hover {

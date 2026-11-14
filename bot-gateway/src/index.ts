@@ -12,8 +12,12 @@ import { BotRestAPI } from './api/BotRestAPI.js'
 import { BridgeV2API, MIN_HOST_SECRET_LENGTH } from './api/BridgeV2API.js'
 import { BridgeConfigWatcher } from './gateway/BridgeConfigWatcher.js'
 import { TTLCache } from './utils/TTLCache.js'
-import { getBridgeAttachmentMode, hasDiscordCdnFilePart } from './utils/mirrorExternalMedia.js'
+import { getBridgeAttachmentMode, getUploadCeilingBytes, hasDiscordCdnFilePart, readBridgeAttachmentMode } from './utils/mirrorExternalMedia.js'
+import { mirrorFileToStorage } from './utils/mirrorFile.js'
+import { MirrorWorker } from './bridge/mirrorWorker.js'
+import { removeUnreferencedMirrors } from './bridge/mirrorEnqueue.js'
 import { meetsAssurance } from './utils/sessionAssurance.js'
+import { DiscordLinkRefresher, expiredDiscordAttachmentUrls } from './bridge/discordLinkRefresh.js'
 
 const app = express()
 
@@ -62,6 +66,32 @@ app.use('/bridge/v2', new BridgeV2API().router)
 
 const bridgeConfigWatcher = new BridgeConfigWatcher(gateway)
 bridgeConfigWatcher.start()
+
+// Stores Discord attachments in Harmony storage in the background (mirror mode).
+const mirrorWorker = new MirrorWorker({
+  rpc: async (name, args) => {
+    const { data, error } = await supabase.rpc(name, args)
+    if (error) throw Object.assign(new Error(`${name} failed: ${error.message}`), { code: error.code })
+    return data
+  },
+  readMessage: async (id) => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('id, channel_id, bot_id, content, is_deleted')
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw new Error(`message read failed: ${error.message}`)
+    return data
+  },
+  mode: readBridgeAttachmentMode,
+  ceiling: getUploadCeilingBytes,
+  mirror: mirrorFileToStorage,
+  discard: removeUnreferencedMirrors,
+  gateway,
+  now: () => Date.now(),
+  log: console,
+})
+mirrorWorker.start()
 if (config.bridge.hostSecret && config.bridge.hostSecret.length < MIN_HOST_SECRET_LENGTH) {
   console.warn(`BRIDGE_HOST_SECRET is shorter than ${MIN_HOST_SECRET_LENGTH} characters; GET /bridge/v2/hosted stays disabled`)
 }
@@ -264,11 +294,30 @@ app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
 })
 
 // On-demand attachment refresh, active when bridge_attachment_mode = 'refresh'.
-// The frontend calls this when a bridged message's external CDN URL has
-// expired; a REFRESH_ATTACHMENTS request goes to the owning bridge bot, which
-// re-signs the URLs and patches the message. Deduped so simultaneous viewers
-// produce one Discord API call.
+// The frontend calls this when a message's Discord CDN URL has expired. A message
+// whose bot is connected gets REFRESH_ATTACHMENTS: the bot re-signs and patches
+// it. Any other message, a person's pasted link or a bridged message whose bridge
+// is offline, is re-signed here with the instance Discord application's token.
+// Deduped so simultaneous viewers produce one Discord API call.
 const refreshDedupe = new TTLCache<string, true>(5_000, 15_000)
+
+const linkRefresher = new DiscordLinkRefresher({
+  token: async () => {
+    const { data, error } = await supabase.rpc('discord_bridge_instance_hosted')
+    if (error) throw new Error(`discord_bridge_instance_hosted: ${error.message}`)
+    const token = (data as { discord_token?: unknown } | null)?.discord_token
+    return typeof token === 'string' && token ? token : null
+  },
+  write: async (messageId, oldContent, content) => {
+    const { data, error } = await supabase.rpc('update_message_content_silent', {
+      p_message_id: messageId,
+      p_old_content: oldContent,
+      p_content: content,
+    })
+    if (error) throw new Error(error.message)
+    return data === true
+  },
+})
 
 app.post('/attachments/refresh', async (req, res): Promise<void> => {
   const callerProfileId = await getCallerProfileId(req)
@@ -297,17 +346,17 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
 
   const { data: message } = await supabase
     .from('messages')
-    .select('id, channel_id, bot_id, content')
+    .select('id, channel_id, user_id, bot_id, content, is_deleted')
     .eq('id', messageId)
     .maybeSingle()
 
-  // Only bridged (bot-authored) messages with expirable Discord CDN parts qualify.
-  if (!message?.bot_id || !message.channel_id || !hasDiscordCdnFilePart(message.content)) {
+  // Channel messages with Discord CDN parts qualify, whoever wrote them.
+  if (!message || message.is_deleted || !message.channel_id || !hasDiscordCdnFilePart(message.content)) {
     res.json({ refreshing: false, reason: 'not_applicable' })
     return
   }
 
-  // Caller must be a member of the channel's server; same gate as bridged-users.
+  // Caller must view the channel; same gate as bridged-users.
   const { data: channel } = await supabase
     .from('channels')
     .select('server_id')
@@ -319,31 +368,37 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
     return
   }
 
-  const { data: membership } = await supabase
-    .from('user_servers')
-    .select('user_id')
-    .eq('server_id', channel.server_id)
-    .eq('user_id', callerProfileId)
-    .eq('status', 'accepted')
-    .maybeSingle()
-
-  if (!membership) {
+  if (!(await canViewChannel(callerProfileId, channel.server_id, message.channel_id))) {
     res.status(403).json({ error: 'Forbidden' })
     return
   }
 
-  if (!gateway.isBotConnected(message.bot_id)) {
-    res.json({ refreshing: false, reason: 'bridge_offline' })
+  if (message.bot_id && gateway.isBotConnected(message.bot_id)) {
+    refreshDedupe.set(messageId, true)
+    gateway.sendToBot(message.bot_id, {
+      op: 0,
+      t: 'REFRESH_ATTACHMENTS',
+      d: { messageId: message.id, channelId: message.channel_id, content: message.content },
+    })
+    res.json({ refreshing: true })
     return
   }
 
-  refreshDedupe.set(messageId, true)
-  gateway.sendToBot(message.bot_id, {
-    op: 0,
-    t: 'REFRESH_ATTACHMENTS',
-    d: { messageId: message.id, channelId: message.channel_id, content: message.content },
-  })
+  const urls = expiredDiscordAttachmentUrls(message.content, Date.now())
+  if (urls.length === 0) {
+    res.json({ refreshing: false, reason: 'not_expired' })
+    return
+  }
 
+  const author = message.bot_id ? `bot:${message.bot_id}` : message.user_id ? `user:${message.user_id}` : null
+  const admission = await linkRefresher.request(message.id, message.content, urls, author)
+  if (admission !== 'queued') {
+    // A bridged message with no instance Discord application to fall back on.
+    const reason = admission === 'no_signer' && message.bot_id ? 'bridge_offline' : admission
+    res.json({ refreshing: false, reason })
+    return
+  }
+  refreshDedupe.set(messageId, true)
   res.json({ refreshing: true })
 })
 
@@ -373,10 +428,12 @@ async function shutdown() {
   
   bridgeConfigWatcher.stop()
   interactionPoller.stop()
-
   // Awaited: the exit in the server.close callback drops bot_presence writes still in flight.
   await gateway.shutdown()
-  
+
+  // A download in flight must not hold up the exit; the lease returns its row to the queue.
+  await Promise.race([mirrorWorker.stop(), new Promise((resolve) => setTimeout(resolve, 3000))])
+
   await eventDispatcher.shutdown()
   
   server.close(() => {
@@ -405,5 +462,5 @@ process.on('uncaughtException', (error) => {
   process.exit(1)
 })
 
-export { app, server, gateway, eventDispatcher, interactionPoller }
+export { app, server, gateway, eventDispatcher, interactionPoller, linkRefresher }
 

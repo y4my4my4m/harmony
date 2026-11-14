@@ -51,6 +51,12 @@
       "blockedDomain": "This email provider cannot be used to sign up on this instance. Use another address.",
       "blockedNetwork": "Sign-ups from this network are not available on this instance. Ask this instance's admin for an invitation."
     },
+    "captcha": {
+      "asked": "Complete the check to finish signing up.",
+      "refused": "The check did not pass. Try it again.",
+      "unavailable": "The check could not load. Reload the page, or sign up on this instance's website.",
+      "frameTitle": "Sign-up check"
+    },
     "login": "Login",
     "register": "Register",
     "logout": "Log out",
@@ -969,7 +975,9 @@
       "failed": "Couldn't update the category. Try again.",
       "loadingPermissions": "Loading permissions…",
       "permissionsFailed": "Couldn't load this category's permissions. Close and reopen to try again.",
-      "permissionsSaved": "Permissions saved. No channel in it follows them; sync a channel from its permission settings. | Permissions saved and synced to {count} channel. | Permissions saved and synced to {count} channels."
+      "permissionsSaved": "Permissions saved. No channel in it follows them; sync a channel from its permission settings. | Permissions saved and synced to {count} channel. | Permissions saved and synced to {count} channels.",
+      "overrideLegend": "Channels synced with this category follow these settings. Allow grants, Deny revokes, Inherit uses the server-wide setting.",
+      "discardMessage": "This category has unsaved changes. Close without saving them?"
     },
     "sync": {
       "synced": "Synced with {category}",
@@ -1516,6 +1524,13 @@
   "dm": {
     "title": "Direct messages",
     "recipientDeleted": "This account has been deleted. Messages to it are not delivered.",
+    "undeliverable": "Your message could not be delivered.",
+    "blockedPeer": {
+      "text": "You blocked {name}. Unblock them to send messages.",
+      "unblock": "Unblock",
+      "unblockFailed": "Could not unblock {name}.",
+      "startRefused": "You blocked {name}. Unblock them to start a conversation."
+    },
     "directMessages": "Direct messages",
     "newMessage": "New message",
     "startConversation": "Start a conversation",
@@ -2848,7 +2863,13 @@
       "copyHandle": "Copy handle",
       "copyHandleNamed": "Copy handle {handle}",
       "handleCopied": "Copied {handle}",
-      "handleCopyFailed": "Couldn't copy the handle"
+      "handleCopyFailed": "Couldn't copy the handle",
+      "copyProfileLink": "Copy profile link",
+      "profileLinkCopied": "Profile link copied",
+      "profileLinkCopyFailed": "Couldn't copy the profile link",
+      "refreshProfile": "Refresh profile",
+      "profileRefreshed": "Profile refreshed",
+      "profileRefreshFailed": "Couldn't reach {domain} to refresh this profile"
     },
     "followA11y": {
       "requests": "Requests",
@@ -2969,6 +2990,26 @@
     "instanceSoftwareFilter": "Software"
   },
   "moderation": {
+    "reportAlert": {
+      "title": "New report to review",
+      "titleServer": "New report in {server}",
+      "message": "{kind} was reported: {reason}.",
+      "messageRemote": "{kind} was reported from {instance}: {reason}.",
+      "noReason": "no reason given",
+      "short": "New report",
+      "sender": "Moderation",
+      "setting": "Notify me about new reports",
+      "settingFailed": "Could not save the setting.",
+      "pendingA11y": "{count} report waiting | {count} reports waiting",
+      "kind": {
+        "user": "An account",
+        "post": "A post",
+        "message": "A message",
+        "server": "A server",
+        "sticker": "A sticker",
+        "other": "Content"
+      }
+    },
     "report": "Report",
     "block": "Block",
     "unblock": "Unblock",
@@ -5370,6 +5411,11 @@
       "reportsFailed": "Could not change how reports from this domain are handled"
     },
     "instance": {
+      "mirrorStatusProgress": "Storing Discord files: {queued} waiting, {size} stored",
+      "mirrorStatusTooLarge": "{count} too large ({size}): raise the upload ceiling with harmony config --upload-ceiling 500M",
+      "mirrorStatusFailed": "{count} failed",
+      "mirrorStatusOverQuota": "{count} over the limit per server: raise Stored Discord files per server",
+      "mirrorStatusAllStored": "Every Discord file is stored",
       "maxPostReactions": "Max reactions per person on a post",
       "maxPostReactionsHint": "Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other instances past the limit are dropped. Chat messages hold at most 20 different emoji.",
       "maxPersonalEmojis": "Personal emojis per user",
@@ -5558,7 +5604,7 @@
     },
     "emojis": {
       "title": "Emojis",
-      "description": "Every custom emoji on this instance: uploads, imports, emojis cached from other instances, server emojis and personal ones. Removing an emoji takes it out of every picker; earlier messages and reactions keep showing it, and it can be restored. Purging deletes the emoji and its file: earlier messages and reactions then show a broken-image icon.",
+      "description": "Every custom emoji on this instance: uploads, imports, emojis cached from other instances, server emojis and personal ones. Import copies emojis from other instances into the instance emojis, where everyone here can use them. Removing an emoji takes it out of every picker; earlier messages and reactions keep showing it, and it can be restored. Purging deletes the emoji and its file: earlier messages and reactions then show a broken-image icon.",
       "refresh": "Refresh",
       "retry": "Try again",
       "loading": "Loading emojis",
@@ -5568,7 +5614,7 @@
       "searchHint": "Name, server, owner or domain",
       "newName": "New name",
       "brokenImage": "The image could not be loaded",
-      "hotlinkedHint": "The image is loaded from another site. Re-host copies it to this instance.",
+      "hotlinkedHint": "This emoji already works here, but its image is still loaded from another site. Copying the image to this instance keeps it working if that site changes. Nothing else about the emoji changes.",
       "kinds": {
         "label": "Kind",
         "all": "All",
@@ -5578,7 +5624,7 @@
         "server": "Server",
         "personal": "Personal",
         "ai": "AI generated",
-        "not_imported": "Not imported"
+        "not_imported": "Available to import"
       },
       "status": {
         "label": "Status",
@@ -5593,8 +5639,9 @@
         "usage": "Most used"
       },
       "badges": {
-        "hotlinked": "hotlinked",
-        "removed": "removed"
+        "hotlinked": "hosted elsewhere",
+        "removed": "removed",
+        "nameTaken": "name in use"
       },
       "meta": {
         "server": "in {server}",
@@ -5606,14 +5653,15 @@
         "seen": "seen {count} time | seen {count} times",
         "reactions": "no reactions | {count} reaction | {count} reactions",
         "removedBy": "removed by {user} on {date}",
-        "removedOn": "removed on {date}"
+        "removedOn": "removed on {date}",
+        "license": "Licence: {license}"
       },
       "titles": {
         "rename": "Rename",
         "remove": "Remove",
         "restore": "Restore",
         "purge": "Purge",
-        "rehost": "Re-host",
+        "rehost": "Copy image to this instance",
         "import": "Import"
       },
       "actions": {
@@ -5621,7 +5669,7 @@
         "remove": "Remove {name}",
         "restore": "Restore {name}",
         "purge": "Purge {name}",
-        "rehost": "Re-host {name}",
+        "rehost": "Copy the image of {name} to this instance",
         "import": "Import {name}",
         "select": "Select {name}"
       },
@@ -5631,7 +5679,9 @@
         "selected": "{count} selected | {count} selected",
         "remove": "Remove selected",
         "restore": "Restore selected",
-        "purge": "Purge selected"
+        "purge": "Purge selected",
+        "import": "Import selected",
+        "rehost": "Copy images to this instance"
       },
       "upload": {
         "button": "Upload",
@@ -5654,11 +5704,7 @@
         "purgeTitle": "Purge emoji",
         "purge": "Purge {name}? The emoji and its file are deleted for good. Earlier messages and reactions that use it then show a broken-image icon.",
         "purgeMany": "Purge {count} emoji? The emoji and its file are deleted for good. Earlier messages and reactions that use it then show a broken-image icon. | Purge {count} emojis? The emojis and their files are deleted for good. Earlier messages and reactions that use them then show a broken-image icon.",
-        "purgeButton": "Purge",
-        "importTitle": "Import {name}",
-        "import": "This downloads a copy of the image from {domain} into this instance's storage and adds it to the instance emojis. Leave the name empty to keep {name}.",
-        "importLabel": "Name (without colons)",
-        "importButton": "Import"
+        "purgeButton": "Purge"
       },
       "done": {
         "renamed": "Renamed to {name}",
@@ -5669,7 +5715,8 @@
         "purged": "Purged {name}",
         "purgedMany": "{count} emoji purged | {count} emojis purged",
         "rehosted": "{name} is now hosted on this instance",
-        "imported": "Imported {name}"
+        "rehostedMany": "{count} image copied to this instance | {count} images copied to this instance",
+        "importedMany": "{count} emoji imported | {count} emojis imported"
       },
       "errors": {
         "load": "Could not load emojis.",
@@ -5695,13 +5742,50 @@
           "already_imported": "This emoji is already imported.",
           "name_taken": "An instance emoji already uses that name.",
           "invalid_name": "Names are 2 to 64 letters, digits, _ or -.",
-          "not_instance": "Only instance emojis can be re-hosted.",
+          "not_instance": "Only an instance emoji can have its image copied here.",
           "not_hotlinked": "This emoji is already hosted on this instance.",
           "unsupported_image": "The remote image is not a PNG, GIF, WebP or JPEG.",
           "too_large": "The remote image is larger than the emoji size limit.",
           "fetch_failed": "The remote image could not be downloaded.",
           "internal_error": "Something went wrong. Try again later.",
-          "network_error": "The server could not be reached."
+          "network_error": "The server could not be reached.",
+          "rate_limited": "The hourly import limit is reached. Try again later."
+        },
+        "rehostMany": "{count} image could not be copied. | {count} images could not be copied."
+      },
+      "nameTakenHint": "An instance emoji already uses this name. Importing offers another name.",
+      "import": {
+        "button": "Import",
+        "hint": "Custom emojis seen in posts and reactions from other instances. Importing one downloads its image to this instance and adds it to the instance emojis, where everyone here can use it. The original stays where it is.",
+        "searchHint": "Name",
+        "sourceLabel": "Source instance",
+        "allSources": "All instances",
+        "source": "{domain} ({count})",
+        "title": "Import {count} emoji | Import {count} emojis",
+        "loading": "Checking names",
+        "previewFailed": "Could not check the names. Close and try again.",
+        "explain": "Each image is downloaded to this instance and added to the instance emojis under the name below. Existing emojis are never replaced.",
+        "clashes": "{count} name is already used by an instance emoji. Keep the suggested name, type another, or skip it. | {count} names are already used by instance emojis. Keep the suggested names, type others, or skip them.",
+        "listLabel": "Emojis to import",
+        "nameFor": "Name for {name}",
+        "skip": "Skip",
+        "nameInUse": "An instance emoji already uses this name.",
+        "nameRepeated": "Another emoji in this import uses this name.",
+        "confirm": "Import {count} emoji | Import {count} emojis",
+        "stop": "Stop",
+        "progress": "Importing… {current} of {total} done",
+        "result": {
+          "imported": "No emoji imported | {count} emoji imported | {count} emojis imported",
+          "skipped": "{count} skipped | {count} skipped",
+          "failed": "{count} failed | {count} failed",
+          "stopped": "{count} not started | {count} not started"
+        },
+        "status": {
+          "imported": "Imported as {name}",
+          "skipped": "Skipped",
+          "gone": "No longer available: already imported or removed",
+          "stopped": "Not started",
+          "waiting": "Waiting"
         }
       }
     }
@@ -6048,6 +6132,7 @@
       "unknown": "Not reported yet",
       "showSetup": "Show setup steps",
       "problemsTitle": "{count} problem to fix | {count} problems to fix",
+      "noticesTitle": "{count} note | {count} notes",
       "pairsTitle": "Paired channels",
       "settingsTitle": "Options",
       "maintainTitle": "Maintenance",
@@ -6064,7 +6149,8 @@
       },
       "disconnect": "Disconnect bridge",
       "disconnected": "Bridge disconnected",
-      "finished": "The bridge is set up."
+      "finished": "The bridge is set up.",
+      "disconnectKeeps": "To delete what was bridged as well, use Remove all bridged messages under Bridge privacy first."
     },
     "confirm": {
       "disconnect": {
@@ -6159,6 +6245,17 @@
         "fixHosted": "This is on the instance's side, and the bridge keeps retrying. If it lasts, contact the instance's admin.",
         "fixInstance": "This is on the instance's side, and the bridge keeps retrying. If it lasts, contact the instance's admin."
       },
+      "message_content_needed_for_import": {
+        "title": "A history import is waiting for the Message Content Intent.",
+        "fixSelf": "Discord sends empty messages while it's off. In the Developer Portal, open your application → Bot → Privileged Gateway Intents, switch on Message Content Intent and click Save Changes. Then restart the bridge with the command below; the import starts by itself.",
+        "fixHosted": "Discord sends empty messages while it's off. In the Developer Portal, open your application → Bot → Privileged Gateway Intents, switch on Message Content Intent and click Save Changes. The import starts by itself once the bridge reconnects.",
+        "fixInstance": "This instance's bot doesn't have the Message Content Intent, so it can't import history. Ask the instance's admin."
+      },
+      "private_threads_skipped": {
+        "title": "The import left out the private threads of {channel}.",
+        "titleCount": "The import left out {count} private thread of {channel}. | The import left out {count} private threads of {channel}.",
+        "fix": "Nothing to fix. Harmony has no private threads yet, and everyone in the channel would see them, so they stay on Discord."
+      },
       "unknown": {
         "title": "The bridge reported a problem ({code}).",
         "fixSelf": "The bridge's log has the details:",
@@ -6225,7 +6322,14 @@
       "bridgeExists": "This server already has a Discord bridge set up another way. Disconnect it first to use this instance's bot.",
       "instanceFull": "This instance's bot is already in as many Discord servers as it allows. Ask the instance's admin, or use a Discord bot of your own instead.",
       "instanceOff": "This instance doesn't offer its Discord bot at the moment. Use a Discord bot of your own instead.",
-      "link": "Couldn't start linking with Discord. Try again."
+      "link": "Couldn't start linking with Discord. Try again.",
+      "import": "Couldn't start the import.",
+      "cancelImport": "Couldn't cancel the import.",
+      "pairNotImportable": "This pair can't import history. Only unencrypted channels in pairs that bring Discord messages to Harmony can.",
+      "importChanged": "The import changed in the meantime. It has been refreshed; try again.",
+      "importDisabled": "History import is turned off for this bridge.",
+      "invalidDiscordUser": "That is not a Discord user ID.",
+      "privacy": "The request failed. Try again."
     },
     "time": {
       "secondsAgo": "just now | {count} second ago | {count} seconds ago",
@@ -6334,6 +6438,125 @@
       "settingsSaved": "Discord bot settings saved",
       "saveFailed": "Couldn't save the Discord bot settings",
       "redirectLabel": "Redirect address"
+    },
+    "import": {
+      "button": "Import history",
+      "buttonLabel": "Import history for #{channel}",
+      "importAll": "Import all",
+      "importAllAgain": "Import all again",
+      "importAllAgainConfirm": "Import history again for {count} channel? It re-reads its Discord history from the start; messages already here are skipped. | Import history again for all {count} channels? Each re-reads its Discord history from the start; messages already here are skipped.",
+      "importAllAgainYes": "Import again",
+      "cancelAll": "Cancel all",
+      "cancel": "Cancel",
+      "cancelLabel": "Cancel the import for #{channel}",
+      "cancelling": "Cancelling…",
+      "waiting": "Waiting",
+      "running": "Importing… {percent}%",
+      "runningUnknown": "Importing…",
+      "threadsRunning": "Importing threads…",
+      "repliesRunning": "Linking replies…",
+      "progressLabel": "Import progress for #{channel}",
+      "backTo": "Back to {date}",
+      "messages": "{count} message | {count} messages",
+      "threads": "Threads {done} of {total}",
+      "done": "Imported {count} message | Imported {count} messages",
+      "doneNothingNew": "Up to date: no new messages",
+      "failed": "Import stopped: {reason}",
+      "failedUnknown": "Import stopped",
+      "cancelled": "Cancelled",
+      "paused": "Paused: waiting for the bridge",
+      "retry": "Try again",
+      "retryLabel": "Try the import again for #{channel}",
+      "resume": "Resume",
+      "resumeLabel": "Resume the import for #{channel}",
+      "again": "Import again",
+      "againLabel": "Import history again for #{channel}",
+      "reasons": {
+        "pair_removed": "the channel pair was removed",
+        "channel_encrypted": "the channel is now encrypted",
+        "import_disabled": "history import was turned off",
+        "pair_not_importable": "the pair no longer brings Discord messages to Harmony",
+        "discord_approval_required": "the Discord channel is private: start its import on Discord with /bridge import-history",
+        "discord_channel_unsupported": "the Discord channel is not a text channel",
+        "discord_access_lost": "the bridge can no longer read the Discord channel",
+        "bridge_stalled": "the bridge stopped making progress"
+      },
+      "ineligible": {
+        "direction": "Only pairs that bring Discord messages to Harmony can import history",
+        "encrypted": "Encrypted channels can't import history"
+      },
+      "needsUpdate": "Update the bridge to 2.6.0 or later to import history",
+      "mirrorNote": "Imported files are copied into this instance's storage.",
+      "consent": {
+        "title": "Import the history of {count} channel? | Import the history of {count} channels?",
+        "copies": "Older messages and files are copied to this server with their authors' Discord names and avatars. They stay after the bridge is removed.",
+        "skips": "Messages from people who left the Discord server are skipped. Anyone on Discord keeps theirs out, or erases them, with /bridge-privacy.",
+        "notice": "The bridge pins a notice in each Discord channel when its import starts.",
+        "confirm": "I manage this Discord server, or act with its managers' agreement.",
+        "start": "Start import"
+      },
+      "unavailable": {
+        "instance_off": "History import is turned off on this instance.",
+        "bridge_mode": "History import is only for a bridge you run yourself, with your own Discord application."
+      },
+      "authorsSkipped": "{count} skipped (author left or opted out) | {count} skipped (authors left or opted out)",
+      "automodSkipped": "{count} blocked by AutoMod | {count} blocked by AutoMod"
+    },
+    "privacy": {
+      "title": "Bridge privacy",
+      "lead": "Discord members keep their messages out of this server, or erase them, with /bridge-privacy on Discord. Remove someone here when they cannot run it, for example after they left.",
+      "idLabel": "Discord user ID",
+      "idHelp": "In Discord, turn on Developer Mode, then right-click the user and choose Copy User ID.",
+      "idInvalid": "A Discord user ID is 5 to 20 digits.",
+      "remove": "Remove from this server",
+      "removeConfirm": "Delete every message, file and reaction this bridge brought from Discord user {id}, and stop bringing theirs? This cannot be undone.",
+      "removeYes": "Delete their messages",
+      "removed": "Removed {count} message | Removed {count} messages",
+      "progress": "Removing… {count} message so far | Removing… {count} messages so far",
+      "listTitle": "{count} Discord user left out | {count} Discord users left out",
+      "source": {
+        "self": "Opted out on Discord",
+        "manager": "Removed by a manager",
+        "admin": "Removed by an instance admin"
+      },
+      "restore": "Restore",
+      "restoreLabel": "Bridge Discord user {id} again",
+      "purgeLead": "Remove everything this server's bridge brought from Discord: messages, files and reactions. Messages written on Harmony stay.",
+      "purge": "Remove all bridged messages",
+      "purgeConfirm": "Delete every message, file and reaction brought from Discord into this server? This cannot be undone.",
+      "purgeYes": "Delete them all",
+      "purged": "Removed {count} bridged message | Removed {count} bridged messages"
+    },
+    "importAdmin": {
+      "title": "Discord history import",
+      "lead": "Lets a server copy the older messages of its Discord channels into Harmony, through a bridge its owner runs with their own Discord application. Never through this instance's Discord bot or a bot this instance runs.",
+      "loadFailed": "Couldn't load the history import settings.",
+      "mode": "History import",
+      "modeOff": "Off",
+      "modeSelfRun": "Self-run bridges",
+      "modeHint": "Off refuses every import, including ones already running.",
+      "warningTitle": "Before you turn this on",
+      "warningAuthors": "The people who wrote those messages did not ask for the copy. Authors who left the Discord server are skipped, and members opt out or erase their messages with /bridge-privacy.",
+      "warningRequests": "Deletion requests for content on this instance come to you. Server managers remove a Discord user under Server settings, Discord Bridge; Remove all Discord messages below clears every server.",
+      "warningQuiet": "Imported messages send no notifications, count as read and are not federated. They pass the server's AutoMod word, invite and link rules when its bots are not exempt.",
+      "warningStorage": "With Mirror to storage, imported files are copied to this instance's storage, up to the limit per server below.",
+      "maxRunning": "Imports running at once",
+      "maxRunningHint": "Across the whole instance. Others wait their turn. 0 is no limit.",
+      "messagesPerMinute": "Messages per minute, per import",
+      "messagesPerMinuteHint": "The server slows an import down to this rate, whatever the bridge sends. 0 is no limit.",
+      "mirrorServerLimitMb": "Stored Discord files per server (MB)",
+      "mirrorServerLimitMbHint": "With Mirror to storage, a server past this keeps Discord links for further files. 0 is no limit.",
+      "limitInvalid": "Enter whole numbers, 0 or more.",
+      "save": "Save limits",
+      "saved": "History import settings saved",
+      "saveFailed": "Couldn't save the history import settings.",
+      "totals": "{running} running, {queued} waiting, {imported} messages imported",
+      "totalsStored": "{size} of Discord files stored",
+      "purgeTitle": "Remove all Discord messages",
+      "purgeLead": "Deletes every message, file and reaction any bridge brought from Discord, on every server of this instance. For when this instance must stop holding Discord content, for example when its Discord application loses access.",
+      "purge": "Remove all Discord messages",
+      "purgeConfirm": "Delete everything bridged from Discord on every server of this instance? This cannot be undone.",
+      "purgeYes": "Delete everything"
     }
   },
   "imageEditor": {
@@ -8137,6 +8360,53 @@
     "refusalBlockedDomain": "Refused email domain",
     "refusalMailHost": "Mail host",
     "refusalBlockedNetwork": "Refused address"
+  },
+  "adminSignupCaptcha": {
+    "title": "Sign-up check",
+    "intro": "A captcha asked only when a sign-up looks automated, so most people never see it. Sign-ups through Google, GitHub, Twitch or this instance's own sign-in providers are never asked.",
+    "provider": "Provider",
+    "providerOff": "Off",
+    "providerHint": "Create a widget with the provider and add the hostname of {origin} to it. The apps show the check from that address too.",
+    "siteKey": "Site key",
+    "secret": "Secret key",
+    "secretKept": "Saved. Enter a new one to replace it.",
+    "secretHint": "Only the sign-up check on the server uses it. It is not shown after saving.",
+    "mode": "Ask for the check",
+    "modeSuspect": "When a sign-up looks automated",
+    "modeSuspectHint": "Another sign-up from the same network within the hour, an email domain new to this instance, or a sign-up past a limit that counts without refusing.",
+    "modeAlways": "On every email sign-up",
+    "save": "Save",
+    "saved": "Sign-up check saved",
+    "saveFailed": "Could not save the sign-up check.",
+    "loadFailed": "Could not load the sign-up check settings.",
+    "invalidSiteKey": "Enter the site key from the provider's dashboard.",
+    "invalidSecret": "Enter the secret key from the provider's dashboard.",
+    "countsTitle": "Last 7 days",
+    "asked": "Asked",
+    "passed": "Passed",
+    "failed": "Failed",
+    "unverified": "Not checked",
+    "unverifiedHint": "The provider could not be reached or refused the secret key, so these sign-ups were allowed. Check the secret key.",
+    "test": "Test the keys",
+    "testHint": "Solve the check once with these keys. Turning a provider on or saving new keys needs a passing test.",
+    "testNote": "Solve the check to test the keys.",
+    "testRunning": "Checking the token with the provider…",
+    "testPassed": "The keys work: the server verified the token with the provider.",
+    "needsTest": "Test the keys before saving.",
+    "problem": {
+      "hostname": "The widget does not list {host}. Add it to the widget's hostnames in the provider's dashboard.",
+      "siteKey": "The provider does not know this site key. Copy it again from the dashboard.",
+      "widgetNetwork": "The widget could not load. Check this device's connection and any content blocker.",
+      "widget": "The widget reported an error.",
+      "secret": "The provider refused the secret key. Copy it again from the dashboard.",
+      "mismatch": "The site key and the secret key belong to different widgets.",
+      "token": "The provider refused the token. Solve the check again; if it repeats, the two keys belong to different widgets.",
+      "network": "The database cannot reach the provider over HTTPS (port 443). Allow outbound connections from the database container.",
+      "noHttp": "The database lacks the http extension, so it cannot verify tokens. Use Supabase's Postgres image.",
+      "status": "The provider answered with HTTP {status}. Try again later.",
+      "noSecret": "Enter the secret key first.",
+      "unknown": "The test failed for an unknown reason."
+    }
   },
   "adminInvites": {
     "tab": "Invites",

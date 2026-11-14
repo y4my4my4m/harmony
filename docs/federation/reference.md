@@ -192,6 +192,8 @@ A server is served under the read rules in [Reads and access](#reads-and-access)
 | `harmony:memberCount` | Accepted members |
 | `harmony:channels` | The categories and channels the caller may view |
 | `harmony:roles` | The server's roles but the default one, highest position first |
+| `harmony:emojis` | The server's custom emojis, oldest first, at most 1000 |
+| `harmony:crossServerEmojis` | `true` when members may use the server's custom emojis in other servers |
 | `discoverable` | `toot:discoverable`: `true` while the server is listed in the [server directory](#server-directory), `false` for a private server, absent for a public server that is not listed |
 | `harmony:public` | `true` for a public server, which anyone may join without an invite; `false` for a private one |
 | `harmony:federationEnabled` | Whether the server accepts members from other instances |
@@ -213,6 +215,8 @@ A copy stores them display-only as `channels.host_flags` and `channel_categories
 Each `harmony:roles` entry is a `harmony:Role` with `id` (`/servers/<uuid>/roles/<role uuid>`), `name`, `color` (`#rrggbb` or null), `position`, `hoist`, `mentionable` and, when set, `unicodeEmoji`. Permission bits are not sent: a member instance shows the roles, the host enforces them.
 
 A member instance stores the roles on its copy display-only, with no permissions, and deletes a role of the Group the list no longer names; it reads the pins of a channel whose `harmony:pins` differs from what its copy holds. A Group without these properties (Harmony before 1.9.1) leaves the copy's roles and pins as they are.
+
+Each `harmony:emojis` entry is a `toot:Emoji` with `id` (`/servers/<uuid>/emojis/<emoji uuid>`), `name` (`:shortcode:`) and `icon` (`{ "type": "Image", "url" }`). A removed emoji is not listed. A member instance stores each as a custom emoji of its copy, under its `id`, naming the host's image, which stays on the host: the copy's members pick it in the copy's channels like any server emoji. A reaction with it reaches the host as `:shortcode@<host>:` with the host's image in its `Emoji` tag, which the host reads as its own emoji; a message carries the host's image. A row the instance already held for that image, from an earlier reaction or message, is taken over. An emoji the list no longer names is removed from the copy and still shows where it was used. The copy's instance admins may remove one for their instance, and it stays removed while the Group lists it; its name and image change only with the Group. A copy that is deleted keeps its emojis as emojis seen in activities, so reactions and messages elsewhere keep them. The copy stores `harmony:crossServerEmojis`, which decides whether its members may use the emojis in other servers. A Group without these properties (Harmony before 1.9.7) leaves the copy as it is.
 
 A receiver reads whether a server is public from `harmony:public`. Without it, `discoverable: false` means private and anything else public, as Harmony before 1.9.3 wrote `discoverable`; a public Group that is not listed omits `discoverable`, so both readings agree. The Group's `Update` carries the same `discoverable` and `harmony:public`.
 
@@ -402,7 +406,7 @@ Chat-server activities:
 | `Create` / `Update` | Thread creator | `ChatThread` | A thread is created or changed | As channel messages |
 | `Delete` | `https://<sending domain>/servers/<uuid>` | `ChatThread` with `id` and `context` | A thread of a server hosted here is deleted: from its menu, or by the deletion of its last message | Each instance whose accepted members can all view the channel |
 | `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed, or its encryption or `@everyone`'s view of it changes. A channel's `Add` or `Update` follows an `Update` of its category. The object carries `position` and `order`, both the same number, and `harmony:encryption` and `harmony:private` when they hold | `Add` and `Update`: instances whose accepted members can all view the channel, or for a category a channel in it. `Remove`: member instances |
-| `Update` | Group | `Group`, with `harmony:roles` | The server's name, description, icon, banner, public setting or **Discoverable across federation** setting changes, or a role is created, changed or deleted | Member instances |
+| `Update` | Group | `Group`, with `harmony:roles`, `harmony:emojis` and `harmony:crossServerEmojis` | The server's name, description, icon, banner, public setting, **Discoverable across federation** or cross-server emoji setting changes, a role is created, changed or deleted, or a custom emoji is added, renamed, given a new image, removed or restored. Changes within 5 seconds go out as one `Update` | Member instances |
 | `Update` | Group | `harmony:MemberRoles`: `member` (actor id) and `roles` (all the member's `harmony:Role` ids) | A member is given or loses a role | Member instances |
 | `Update` | Group | `Question`: a poll's message id with its counts and end, `context` and `harmony:serverId` | Votes change the counts of a channel poll the host holds, or it ends; the votes of 2 seconds go out as one | Instances whose accepted members can all view the channel |
 | `Update` | Message author | `Question` with `closed` | The author ends their poll, which the host holds | Group inbox |
@@ -834,6 +838,8 @@ Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person`
 | `harmony:directory` | Instance actor (`Application`) | The [server directory](#server-directory) URL, `@type: @id` |
 | `harmony:channels` | `Group` | Channel and category entries |
 | `harmony:roles`, `harmony:Role` | `Group` | The server's roles; see [Group (chat server)](#group-chat-server) |
+| `harmony:emojis` | `Group` | The server's custom emojis as `toot:Emoji`; see [Group (chat server)](#group-chat-server) |
+| `harmony:crossServerEmojis` | `Group`, `Group` in an `Update` | Whether members may use the server's custom emojis in other servers |
 | `harmony:pins` | `harmony:channels` entries | The channel's pins collection, its `totalItems` and newest pin time |
 | `harmony:encryption` | `harmony:channels` entries, channel document, channel `Add` and `Update` objects | `{ messages, voice }`, end-to-end encrypted on the host; absent when neither |
 | `harmony:private` | `harmony:channels` entries, channel document, channel and category `Add` and `Update` objects | `true` when `@everyone` cannot view it; absent otherwise |

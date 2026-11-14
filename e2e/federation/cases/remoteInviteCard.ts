@@ -162,9 +162,17 @@ export async function caseRemoteInviteCard(ctx: RemoteInviteCardContext): Promis
     eq(requests.filter((r) => r === '/nodeinfo/2.1').length, 1, 'the host\'s NodeInfo is read once for the three links')
 
     // READ --------------------------------------------------------------------------------------
-    const read = (url: string, auth?: string) => fetch(`${localUrl}/remote-invite?${new URLSearchParams({ url })}`, {
-      headers: { Accept: 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) },
-    })
+    // /remote-invite admits 30 requests a minute per client IP (discoveryLimiter), shared with
+    // /lookup-user of earlier cases: a 429 is sent again once the window turns, for at most 75 s.
+    const read = async (url: string, auth?: string) => {
+      for (let attempt = 0; ; attempt++) {
+        const res = await fetch(`${localUrl}/remote-invite?${new URLSearchParams({ url })}`, {
+          headers: { Accept: 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) },
+        })
+        if (res.status !== 429 || attempt >= 15) return res
+        await sleep(5000)
+      }
+    }
     const anonymous = await read(links.valid)
     eq(anonymous.status, 401, 'reading a remote invite needs a session')
     const asked = requests.length

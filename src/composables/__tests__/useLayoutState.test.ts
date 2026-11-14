@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { defineComponent, h, reactive } from 'vue'
+import { defineComponent, h, nextTick, reactive, ref } from 'vue'
 import { mount } from '@vue/test-utils'
 
 const route = reactive({ path: '/today' })
@@ -69,15 +69,26 @@ describe('useLayoutState side panels (mobile)', () => {
   it('opens the right drawer only while a layout declares it', async () => {
     const mod = await load()
     const { state } = host(mod)
-    const layout = host(mod, ['left', 'right'])
+    // The layout leaves in a re-render, as on navigation. Since Vue 3.5.44 an app-level
+    // unmount() no longer flushes the watcher that closes the drawer (vuejs/core#15757).
+    const showLayout = ref(true)
+    const Layout = defineComponent({
+      setup() {
+        mod.useLayoutState()
+        mod.useSidebarPanel('left')
+        mod.useSidebarPanel('right')
+        return () => h('div')
+      },
+    })
+    mount(defineComponent({ setup: () => () => h('div', showLayout.value ? [h(Layout)] : []) }))
     expect(state.hasRightSidebar.value).toBe(true)
     expect(state.leftDrawerWidth.value).toBe(state.SIDEBAR_WIDTH)
 
     state.openRightSidebar()
     expect(state.rightSidebarOpen.value).toBe(true)
 
-    layout.wrapper.unmount()
-    await Promise.resolve()
+    showLayout.value = false
+    await nextTick()
     expect(state.hasRightSidebar.value).toBe(false)
     expect(state.rightSidebarOpen.value).toBe(false)
   })

@@ -9,6 +9,7 @@
  */
 
 import { supabase } from '@/supabase'
+import { fetchRoomMemberIds } from '@/services/memberDirectoryService'
 import { i18n } from '@/i18n'
 import { megolmService, type MegolmEncryptedMessage } from './MegolmService'
 import { recoveryKeyService, type DerivedKeys } from './RecoveryKeyService'
@@ -35,6 +36,9 @@ import { debug } from '@/utils/debug'
 import { HERE_ROLE_ID } from '@/utils/hereMention'
 
 // Session recovery result reuse, ms (see sessionRecoveryAttempts).
+/** Profile ids one user_key_pairs request names. */
+const KEY_ID_CHUNK = 100
+const KEY_READS_AT_ONCE = 6
 const RECOVERY_HIT_TTL_MS = 30_000
 const RECOVERY_MISS_TTL_MS = 2_000
 // Longest wait of a decrypt miss for the unlock catch-up, ms.
@@ -1920,6 +1924,12 @@ export class MegolmMessageEncryptionService {
   private roomMemberCache = new Map<string, { ids: Set<string>; fetchedAt: number }>()
   private static readonly ROOM_MEMBER_CACHE_TTL_MS = 30_000
 
+  /** The room's members (getRoomMemberIds) as a list; null when the instance cannot answer. */
+  async roomRecipients(roomId: string): Promise<string[] | null> {
+    const ids = await this.getRoomMemberIds(roomId)
+    return ids ? [...ids] : null
+  }
+
   /**
    * Profiles the server admits to a room (get_room_member_ids, the rule of the
    * megolm_session_shares insert policy). Null when the RPC is unavailable.
@@ -1931,12 +1941,23 @@ export class MegolmMessageEncryptionService {
       return cached.ids
     }
     try {
-      const { data, error } = await supabase.rpc('get_room_member_ids', { p_room_id: roomId })
-      if (error || !Array.isArray(data)) {
-        debug.warn('get_room_member_ids unavailable, sharing with every recipient:', error)
-        return null
+      // One value, so a row cap cannot cut it: a member left out here gets no session.
+      let members = await fetchRoomMemberIds(roomId)
+      if (!members) {
+        // An instance before get_room_member_id_list answers rows, at most db-max-rows of
+        // them with no error. The count says whether that was all.
+        const { data, error, count } = await supabase.rpc('get_room_member_ids', { p_room_id: roomId }, { count: 'exact' })
+        if (error || !Array.isArray(data)) {
+          debug.warn('get_room_member_ids unavailable, sharing with every recipient:', error)
+          return null
+        }
+        if (typeof count === 'number' && count > data.length) {
+          debug.warn(`get_room_member_ids answered ${data.length} of ${count} members, sharing with every recipient`)
+          return null
+        }
+        members = data.map((row: unknown) => String(row))
       }
-      const ids = new Set<string>(data.map((row: unknown) => String(row)))
+      const ids = new Set<string>(members)
       this.roomMemberCache.set(roomId, { ids, fetchedAt: Date.now() })
       return ids
     } catch (err) {
@@ -1980,22 +2001,29 @@ export class MegolmMessageEncryptionService {
       return []
     }
 
-    // BATCH: Fetch ALL public keys in ONE query
-    const { data: publicKeys, error: keyError } = await supabase
-      .from('user_key_pairs')
-      .select('user_id, identity_public_key')
-      .in('user_id', usersNeedingSession)
-      .eq('is_active', true)
-
-    if (keyError) {
-      debug.error('Error fetching public keys:', keyError)
-      return []
-    }
-
+    // Public keys in batches: one URL carries KEY_ID_CHUNK ids, and a batch stays under a
+    // row cap. KEY_READS_AT_ONCE batches are in flight at a time.
     const keyMap = new Map<string, string>()
-    for (const row of publicKeys || []) {
-      if (row.identity_public_key) {
-        keyMap.set(row.user_id, row.identity_public_key)
+    const batches: string[][] = []
+    for (let i = 0; i < usersNeedingSession.length; i += KEY_ID_CHUNK) {
+      batches.push(usersNeedingSession.slice(i, i + KEY_ID_CHUNK))
+    }
+    for (let i = 0; i < batches.length; i += KEY_READS_AT_ONCE) {
+      const answers = await Promise.all(batches.slice(i, i + KEY_READS_AT_ONCE).map(ids => supabase
+        .from('user_key_pairs')
+        .select('user_id, identity_public_key')
+        .in('user_id', ids)
+        .eq('is_active', true)))
+      for (const { data: publicKeys, error: keyError } of answers) {
+        if (keyError) {
+          debug.error('Error fetching public keys:', keyError)
+          return []
+        }
+        for (const row of publicKeys || []) {
+          if (row.identity_public_key) {
+            keyMap.set(row.user_id, row.identity_public_key)
+          }
+        }
       }
     }
 

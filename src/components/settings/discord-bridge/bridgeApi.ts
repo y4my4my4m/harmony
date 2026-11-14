@@ -3,6 +3,7 @@
  * holding MANAGE_SERVER; every write goes through a discord_bridge_* RPC.
  */
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 import type {
   BridgeMode,
   BridgePairRow,
@@ -21,12 +22,25 @@ export const INSTANCE_BOT_LIMIT_KEY = 'discord_bridge_instance_bot_limit'
 /** Discord's server cap for an unverified bot. */
 export const DEFAULT_INSTANCE_BOT_LIMIT = 100
 
+export const IMPORT_MODE_KEY = 'bridge_history_import'
+export const IMPORT_MAX_RUNNING_KEY = 'bridge_import_max_running'
+export const IMPORT_RATE_KEY = 'bridge_import_messages_per_minute'
+export const MIRROR_SERVER_LIMIT_KEY = 'bridge_mirror_server_limit_mb'
+// Defaults of 20261112700001 and 20261112800001.
+export const DEFAULT_IMPORT_MAX_RUNNING = 1
+export const DEFAULT_IMPORT_RATE = 600
+export const DEFAULT_MIRROR_SERVER_LIMIT_MB = 5120
+
 export type BridgeInstanceConfigKey =
   | typeof HOSTING_ENABLED_KEY
   | typeof HOSTING_LIMIT_KEY
   | typeof INSTANCE_BOT_ENABLED_KEY
   | typeof INSTANCE_BOT_PRESENCE_KEY
   | typeof INSTANCE_BOT_LIMIT_KEY
+  | typeof IMPORT_MODE_KEY
+  | typeof IMPORT_MAX_RUNNING_KEY
+  | typeof IMPORT_RATE_KEY
+  | typeof MIRROR_SERVER_LIMIT_KEY
 
 const BRIDGE_COLUMNS =
   'id, server_id, bot_id, mode, discord_guild_id, discord_guild_name, discord_application_id, discord_bot_name, settings, snapshot, status, bridge_version, last_seen_at, created_at, updated_at'
@@ -268,6 +282,191 @@ export async function fetchBridgeForBot(botId: string): Promise<BridgeOwnerServe
 }
 
 // ---------------------------------------------------------------------------
+// History import
+// ---------------------------------------------------------------------------
+
+export type ImportState = 'queued' | 'running' | 'paused' | 'done' | 'failed' | 'cancelled'
+export type ImportPhase = 'messages' | 'threads' | 'replies'
+
+export interface ImportJob {
+  id: string
+  harmony_channel_id: string
+  discord_channel_id: string
+  state: ImportState
+  phase: ImportPhase
+  cancel_requested: boolean
+  start_discord_message_id: string | null
+  start_at: string | null
+  reached_discord_message_id: string | null
+  reached_at: string | null
+  channel_created_at: string | null
+  threads_total: number | null
+  threads_done: number
+  thread_cursor: Record<string, unknown> | null
+  imported_count: number
+  skipped_count: number
+  pins_skipped: number
+  /** Messages the bridge left out for their author: left the Discord server, or opted out. */
+  authors_skipped: number
+  /** Messages a blocking AutoMod rule of the server refused. */
+  automod_skipped: number
+  error: string | null
+  requested_via: 'harmony' | 'discord'
+  /** The Discord member who ran the command, for a job started from Discord. */
+  requested_by_remote: { id: string; username?: string } | null
+  created_at: string
+  updated_at: string
+  finished_at: string | null
+}
+
+const IMPORT_COLUMNS =
+  'id, harmony_channel_id, discord_channel_id, state, phase, cancel_requested, start_discord_message_id, start_at, reached_discord_message_id, reached_at, channel_created_at, threads_total, threads_done, thread_cursor, imported_count, skipped_count, pins_skipped, authors_skipped, automod_skipped, error, requested_via, requested_by_remote, created_at, updated_at, finished_at'
+
+export async function fetchImports(bridgeId: string): Promise<ImportJob[]> {
+  const { data, error } = await supabase
+    .from('discord_bridge_imports')
+    .select(IMPORT_COLUMNS)
+    .eq('bridge_id', bridgeId)
+    .order('created_at', { ascending: true })
+  raise(error)
+  return (data as ImportJob[] | null) ?? []
+}
+
+/** harmonyChannelIds null queues every importable pair; an empty list queues nothing. */
+export async function startImports(bridgeId: string, harmonyChannelIds: string[] | null): Promise<ImportJob[]> {
+  const { data, error } = await supabase.rpc('discord_bridge_import_start', {
+    p_bridge_id: bridgeId,
+    p_harmony_channel_ids: harmonyChannelIds,
+  })
+  raise(error)
+  return (data as ImportJob[] | null) ?? []
+}
+
+/** importId null cancels every job of the bridge. */
+export async function cancelImports(bridgeId: string, importId: string | null): Promise<ImportJob[]> {
+  const { data, error } = await supabase.rpc('discord_bridge_import_cancel', {
+    p_bridge_id: bridgeId,
+    p_import_id: importId,
+  })
+  raise(error)
+  return (data as ImportJob[] | null) ?? []
+}
+
+/**
+ * bridge_attachment_mode, a public instance_config key (public_instance_config_keys()), so any
+ * signed-in manager reads it. Null when unset or unreadable.
+ */
+export async function fetchBridgeAttachmentMode(): Promise<'link' | 'refresh' | 'mirror' | null> {
+  const { data, error } = await supabase
+    .from('instance_config')
+    .select('config_value')
+    .eq('config_key', 'bridge_attachment_mode')
+    .maybeSingle()
+  if (error) {
+    debug.error('bridge_attachment_mode read failed:', error)
+    return null
+  }
+  const value = (data as { config_value?: unknown } | null)?.config_value
+  return value === 'link' || value === 'refresh' || value === 'mirror' ? value : null
+}
+
+export type HistoryImportMode = 'off' | 'self_run'
+
+/**
+ * bridge_history_import, a public instance_config key. 'off' when unset or unreadable: the
+ * server refuses an import the instance has not switched on.
+ */
+export async function fetchHistoryImportMode(): Promise<HistoryImportMode> {
+  const { data, error } = await supabase
+    .from('instance_config')
+    .select('config_value')
+    .eq('config_key', 'bridge_history_import')
+    .maybeSingle()
+  if (error) {
+    debug.error('bridge_history_import read failed:', error)
+    return 'off'
+  }
+  return (data as { config_value?: unknown } | null)?.config_value === 'self_run' ? 'self_run' : 'off'
+}
+
+// ---------------------------------------------------------------------------
+// Bridge privacy
+// ---------------------------------------------------------------------------
+
+/** bridge_remote_optouts.platform of a Discord bridge. */
+const DISCORD_PLATFORM = 'discord'
+
+export interface BridgeOptout {
+  remote_user_id: string
+  /** self: the Discord member's own /bridge-privacy; manager, admin: removed here. */
+  source: 'self' | 'manager' | 'admin'
+  created_at: string
+}
+
+export interface EraseResult {
+  erased: number
+  /** More rows remain: call again. */
+  more: boolean
+}
+
+export async function fetchBridgeOptouts(serverId: string): Promise<BridgeOptout[]> {
+  const { data, error } = await supabase
+    .from('bridge_remote_optouts')
+    .select('remote_user_id, source, created_at')
+    .eq('server_id', serverId)
+    .eq('platform', DISCORD_PLATFORM)
+    .order('created_at', { ascending: false })
+  raise(error)
+  return (data as BridgeOptout[] | null) ?? []
+}
+
+/** Runs one batch RPC until nothing is left; `onProgress` gets the running total. */
+async function eraseAll(
+  call: () => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>,
+  onProgress?: (total: number) => void,
+): Promise<number> {
+  let total = 0
+  // 200 rows a batch: 5000 batches is a million rows.
+  for (let i = 0; i < 5000; i++) {
+    const { data, error } = await call()
+    raise(error)
+    const result = (data ?? {}) as Partial<EraseResult>
+    total += Number(result.erased) || 0
+    onProgress?.(total)
+    if (result.more !== true) break
+  }
+  return total
+}
+
+/** Opts a Discord user out of the server's bridge and deletes their relayed and imported messages. */
+export function removeBridgedUser(serverId: string, discordUserId: string, onProgress?: (total: number) => void): Promise<number> {
+  return eraseAll(() => supabase.rpc('bridge_privacy_remove_remote_user', {
+    p_server_id: serverId,
+    p_platform: DISCORD_PLATFORM,
+    p_remote_user_id: discordUserId,
+  }), onProgress)
+}
+
+/** Lifts a removal made here. False for a member's own opt-out, which only they lift. */
+export async function restoreBridgedUser(serverId: string, discordUserId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('bridge_privacy_restore_remote_user', {
+    p_server_id: serverId,
+    p_platform: DISCORD_PLATFORM,
+    p_remote_user_id: discordUserId,
+  })
+  raise(error)
+  return data === true
+}
+
+/** Deletes every message, reaction and AutoMod event the server's bridge brought from Discord. */
+export function purgeBridgedMessages(serverId: string, onProgress?: (total: number) => void): Promise<number> {
+  return eraseAll(() => supabase.rpc('bridge_privacy_purge_server', {
+    p_server_id: serverId,
+    p_platform: DISCORD_PLATFORM,
+  }), onProgress)
+}
+
+// ---------------------------------------------------------------------------
 // Instance admin
 // ---------------------------------------------------------------------------
 
@@ -292,10 +491,63 @@ export async function fetchHostingConfig(): Promise<HostingConfig> {
 }
 
 /** Writes one bridge instance_config key; batch_set_instance_config requires an instance admin. */
-export async function saveBridgeInstanceConfig(key: BridgeInstanceConfigKey, value: boolean | number): Promise<void> {
+export async function saveBridgeInstanceConfig(key: BridgeInstanceConfigKey, value: boolean | number | string): Promise<void> {
   const { data, error } = await supabase.rpc('batch_set_instance_config', { p_keys: [key], p_values: [value] })
   if (error) throw new Error(error.message)
   if (data === false) throw new Error(`batch_set_instance_config refused ${key}`)
+}
+
+export interface ImportAdminConfig {
+  mode: HistoryImportMode
+  /** 0 is no limit, for each of the three. */
+  maxRunning: number
+  messagesPerMinute: number
+  mirrorServerLimitMb: number
+}
+
+export async function fetchImportAdminConfig(): Promise<ImportAdminConfig> {
+  const keys = [IMPORT_MODE_KEY, IMPORT_MAX_RUNNING_KEY, IMPORT_RATE_KEY, MIRROR_SERVER_LIMIT_KEY]
+  const { data, error } = await supabase.from('instance_config').select('config_key, config_value').in('config_key', keys)
+  if (error) throw new Error(error.message)
+  const rows = (data as { config_key: string; config_value: unknown }[] | null) ?? []
+  const count = (key: string, fallback: number) => {
+    const raw = rows.find((r) => r.config_key === key)?.config_value
+    const value = Number(raw)
+    return raw != null && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback
+  }
+  return {
+    mode: rows.find((r) => r.config_key === IMPORT_MODE_KEY)?.config_value === 'self_run' ? 'self_run' : 'off',
+    maxRunning: count(IMPORT_MAX_RUNNING_KEY, DEFAULT_IMPORT_MAX_RUNNING),
+    messagesPerMinute: count(IMPORT_RATE_KEY, DEFAULT_IMPORT_RATE),
+    mirrorServerLimitMb: count(MIRROR_SERVER_LIMIT_KEY, DEFAULT_MIRROR_SERVER_LIMIT_MB),
+  }
+}
+
+/** bridge_import_status() and bridge_mirror_status(), for instance admins. Null fields were unreadable. */
+export interface ImportTotals {
+  running: number
+  queued: number
+  imported: number
+  /** Bytes of Discord files in storage; null before 20261112800001 or when unreadable. */
+  storedBytes: number | null
+}
+
+export async function fetchImportTotals(): Promise<ImportTotals | null> {
+  const [imports, mirror] = await Promise.all([supabase.rpc('bridge_import_status'), supabase.rpc('bridge_mirror_status')])
+  if (imports.error || !imports.data) return null
+  const totals = imports.data as { running?: unknown; queued?: unknown; imported?: unknown }
+  const stored = Number((mirror.data as { stored_bytes?: unknown } | null)?.stored_bytes)
+  return {
+    running: Number(totals.running) || 0,
+    queued: Number(totals.queued) || 0,
+    imported: Number(totals.imported) || 0,
+    storedBytes: !mirror.error && Number.isFinite(stored) ? stored : null,
+  }
+}
+
+/** Deletes everything any bridge brought from Discord, on every server. Instance admins only. */
+export function purgeInstanceBridgedMessages(onProgress?: (total: number) => void): Promise<number> {
+  return eraseAll(() => supabase.rpc('bridge_privacy_purge_instance', { p_platform: DISCORD_PLATFORM }), onProgress)
 }
 
 /** discord_bridge_instance_bot_status(): never carries a secret. */

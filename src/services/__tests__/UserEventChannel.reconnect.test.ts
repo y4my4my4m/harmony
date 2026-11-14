@@ -7,7 +7,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 type Status = 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED'
 
+type AuthCallback = (event: string, session: { access_token: string } | null) => void
+
 const rt = vi.hoisted(() => {
+  const authListeners: AuthCallback[] = []
   const channels: Array<{ topic: string; emit: (s: string, err?: Error) => void; removed: boolean }> = []
   const supabase = {
     channel: vi.fn((topic: string) => {
@@ -28,8 +31,20 @@ const rt = vi.hoisted(() => {
       // realtime-js closes an unjoined channel inline.
       ch.__entry.emit('CLOSED')
     }),
+    auth: {
+      onAuthStateChange: (cb: AuthCallback) => {
+        authListeners.push(cb)
+        return { data: { subscription: { unsubscribe: () => {} } } }
+      },
+    },
+    realtime: {
+      accessTokenValue: 'anon-key' as string,
+      setAuth: vi.fn(async (token: string) => {
+        supabase.realtime.accessTokenValue = token
+      }),
+    },
   }
-  return { channels, supabase }
+  return { channels, supabase, authListeners }
 })
 
 vi.mock('@/supabase', () => ({ supabase: rt.supabase }))
@@ -51,6 +66,7 @@ beforeEach(() => {
   rt.channels.length = 0
   rt.supabase.channel.mockClear()
   rt.supabase.removeChannel.mockClear()
+  rt.supabase.realtime.accessTokenValue = 'anon-key'
 })
 
 afterEach(() => {
@@ -186,5 +202,52 @@ describe('UserEventChannel reconnect', () => {
     emit('SUBSCRIBED')
     expect(userEventChannel.isConnected).toBe(true)
     expect(resync).toHaveBeenCalledTimes(1)
+  })
+})
+
+// supabase-js 2.84 hands Realtime the anon key while a token refresh fails; Realtime refuses
+// user:{id} on it. The refresh that succeeds later emits TOKEN_REFRESHED with a member token.
+describe('UserEventChannel, a refusal and the next member token', () => {
+  // supabase-js's own listener, registered first, hands the token to realtime.setAuth.
+  const authEvent = (event: string, token: string) => {
+    rt.supabase.realtime.accessTokenValue = token
+    for (const cb of rt.authListeners) cb(event, { access_token: token })
+  }
+
+  it('opens a channel refused on the anon key again and resyncs once it joins', async () => {
+    const resync = vi.fn()
+    userEventChannel.on('_reconnected', resync)
+    userEventChannel.connect('p1')
+    emit('SUBSCRIBED')
+    emit('CHANNEL_ERROR', new Error(REFUSAL))
+    expect(rt.supabase.channel).toHaveBeenCalledTimes(1)
+
+    authEvent('TOKEN_REFRESHED', 'member-2')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(rt.supabase.channel).toHaveBeenCalledTimes(2)
+    emit('SUBSCRIBED')
+    expect(userEventChannel.isConnected).toBe(true)
+    expect(resync).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a channel refused on the member token closed when that token comes again', async () => {
+    rt.supabase.realtime.accessTokenValue = 'member-1'
+    userEventChannel.connect('p1')
+    emit('CHANNEL_ERROR', new Error(REFUSAL))
+
+    authEvent('SIGNED_IN', 'member-1')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(rt.supabase.channel).toHaveBeenCalledTimes(1)
+    expect(userEventChannel.isConnected).toBe(false)
+  })
+
+  it('leaves a joined channel alone on a refresh', async () => {
+    userEventChannel.connect('p1')
+    emit('SUBSCRIBED')
+
+    authEvent('TOKEN_REFRESHED', 'member-2')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(rt.supabase.channel).toHaveBeenCalledTimes(1)
+    expect(userEventChannel.isConnected).toBe(true)
   })
 })

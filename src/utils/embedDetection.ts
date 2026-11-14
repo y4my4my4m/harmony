@@ -189,16 +189,8 @@ export function buildYouTubeEmbedUrl(url: URL): string | null {
 /** Instance page that frames the YouTube player (public/youtube-embed.html). */
 export const YOUTUBE_RELAY_PATH = '/youtube-embed.html';
 
-/**
- * Origin of the YouTube relay, or null when this page frames YouTube itself.
- * A page on a non-http scheme (tauri://localhost in the macOS and iOS apps) sends no
- * Referer, and YouTube refuses the embed with error 153; the relay is the
- * instance's https origin.
- */
-export function youtubeRelayOrigin(): string | null {
-  if (typeof window === 'undefined') return null;
-  const protocol = window.location.protocol;
-  if (protocol === 'http:' || protocol === 'https:') return null;
+/** Origin of the stored instance when it is https, else null. */
+function storedHttpsOrigin(): string | null {
   const stored = getStoredInstance();
   if (!stored) return null;
   try {
@@ -209,12 +201,39 @@ export function youtubeRelayOrigin(): string | null {
   }
 }
 
+/**
+ * Origin of the YouTube relay, or null when this page frames YouTube itself.
+ * A page on a non-http scheme (tauri://localhost in the macOS and iOS apps) sends no
+ * Referer, and YouTube refuses the embed with error 153; the relay is the
+ * instance's https origin.
+ */
+export function youtubeRelayOrigin(): string | null {
+  if (typeof window === 'undefined') return null;
+  const protocol = window.location.protocol;
+  if (protocol === 'http:' || protocol === 'https:') return null;
+  return storedHttpsOrigin();
+}
+
 /** Instance page that frames provider players and hosts activity players (public/embed-player.html). */
 export const EMBED_RELAY_PATH = '/embed-player.html';
 
 /** Origin of the embed relay, or null when this page frames players itself; as youtubeRelayOrigin. */
 export function embedRelayOrigin(): string | null {
   return youtubeRelayOrigin();
+}
+
+/**
+ * Origin that serves the activity player page (EMBED_RELAY_PATH?activity=1), or null for this
+ * page's own. The native apps' bundled pages (tauri://localhost; http://tauri.localhost on
+ * Windows, Linux and Android) carry the app CSP (src-tauri/tauri.conf.json): frame-src https:
+ * refuses the page on http://tauri.localhost, and script-src 'self' refuses the provider
+ * player APIs it loads. The instance serves the page over https without that policy.
+ */
+export function activityPlayerOrigin(): string | null {
+  if (typeof window === 'undefined') return null;
+  const { protocol, hostname } = window.location;
+  const bundled = (protocol !== 'http:' && protocol !== 'https:') || hostname === 'tauri.localhost';
+  return bundled ? storedHttpsOrigin() : null;
 }
 
 /** Origin of a window that speaks the YouTube IFrame API to this page. */

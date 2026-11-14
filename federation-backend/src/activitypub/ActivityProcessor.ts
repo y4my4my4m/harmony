@@ -23,7 +23,8 @@ import { membershipOutlivesRemove, removalReason, removedByStaff } from './membe
 import { isServerBlockedHere } from './instanceServerBlocks.js';
 import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
 import { actorHostReadsPost, storedPostVisibility } from './postAccess.js';
-import { inboundEmojiOrigin, ownEmojiId } from '../utils/emojiOrigin.js';
+import { inboundEmojiOrigin, inboundEmojiRowId, ownEmojiId } from '../utils/emojiOrigin.js';
+import { cacheInboundEmojiTags } from '../utils/remoteEmojiCache.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri, resolveOutcome, serverFlagReportId } from './flag.js';
@@ -33,9 +34,12 @@ import { activityReference, movedColumns, MOVE_COOLDOWN_MS } from './accountMigr
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata } from './systemNotes.js';
 import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata } from './groupAuthor.js';
 import {
+  HARMONY_EMOJIS,
   HARMONY_ROLES,
   isPinsTarget,
   MEMBER_ROLES_TYPE,
+  parseCrossServerEmojis,
+  parseGroupEmojis,
   parseGroupRoles,
   parseChannelPosition,
   parseMemberRolesObject,
@@ -936,6 +940,8 @@ export class ActivityProcessor {
               ownNoteUrl(object),
             );
 
+            void cacheInboundEmojiTags(supabase, object.tag, normalizeActor(activity.actor));
+
             const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
             const insertedPostAny = insertedPost as any;
             enrichPostLinkPreviews(insertedPostAny)
@@ -1564,7 +1570,8 @@ export class ActivityProcessor {
       if (Object.keys(federationMetadata).length > 0) {
         // Merge with existing federation_metadata
         const existingMeta = existing?.federation_metadata ? (typeof existing.federation_metadata === 'string' ? JSON.parse(existing.federation_metadata) : existing.federation_metadata) : {};
-        updateData.federation_metadata = JSON.stringify({ ...existingMeta, ...federationMetadata });
+        // An object: SQL readers (public pages) take keys with ->, which a JSON-encoded string has none of.
+        updateData.federation_metadata = { ...existingMeta, ...federationMetadata };
       }
 
       await supabase
@@ -1672,6 +1679,10 @@ export class ActivityProcessor {
       if (object.icon?.url) {
         updateData.icon = object.icon.url;
       }
+      const crossServerEmojis = parseCrossServerEmojis(object);
+      if (crossServerEmojis !== null) {
+        updateData.allow_cross_server_emojis = crossServerEmojis;
+      }
       const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js');
       Object.assign(updateData, ServerDiscoveryService.groupSuspension(object) ?? {});
       // Whether its channels' polls federate (activitypub/messagePolls.ts), as a sync records it.
@@ -1696,6 +1707,8 @@ export class ActivityProcessor {
 
       const roles = parseGroupRoles(object[HARMONY_ROLES], serverActorUrl);
       if (roles) await CopyMirrorService.applyGroupRoles(existingServer.id, serverActorUrl, roles);
+      const emojis = parseGroupEmojis(object[HARMONY_EMOJIS], serverActorUrl);
+      if (emojis) await CopyMirrorService.applyGroupEmojis(existingServer.id, serverActorUrl, emojis);
     } else if (object.type === MEMBER_ROLES_TYPE) {
       await this.processMemberRolesUpdate(actorUrl, object);
     }
@@ -2481,7 +2494,7 @@ export class ActivityProcessor {
 
     // An actor holds one row per distinct emoji, so the Undo removes only the
     // rows carrying the emoji it names.
-    const matchesUndo = await this.buildReactionUndoMatcher(supabase, emoji, emojiUrl, emojiName);
+    const matchesUndo = await this.buildReactionUndoMatcher(supabase, emoji, emojiUrl, emojiName, actorUrl);
 
     let post = null;
     
@@ -2575,7 +2588,7 @@ export class ActivityProcessor {
   static async removeMessageReactions(messageId: string, userId: string, like: any): Promise<void> {
     const supabase = getSupabaseClient();
     const { emoji, emojiUrl, emojiName } = extractLikeData({ ...like, actor: like?.actor ?? '', object: like?.object ?? '' });
-    const matchesUndo = await this.buildReactionUndoMatcher(supabase, emoji, emojiUrl, emojiName);
+    const matchesUndo = await this.buildReactionUndoMatcher(supabase, emoji, emojiUrl, emojiName, like?.actor ?? null);
 
     const { data: rows, error: readError } = await supabase
       .from('reactions')
@@ -2616,6 +2629,7 @@ export class ActivityProcessor {
     emoji: string | undefined,
     emojiUrl: string | undefined,
     emojiName: string | undefined,
+    actorUrl: string | null,
   ): Promise<(row: any) => boolean> {
     const isCustomEmoji = !!(emojiUrl && emojiName);
     const undoesFavourite = isFavouriteLike({ emoji, emojiUrl, emojiName });
@@ -2624,12 +2638,14 @@ export class ActivityProcessor {
     // creating a row.
     let emojiId: string | null = null;
     if (isCustomEmoji) {
-      const { data: emojiRow } = await supabase
-        .from('emojis')
-        .select('id')
-        .eq('url', emojiUrl)
-        .maybeSingle();
-      emojiId = emojiRow?.id ?? null;
+      const origin = inboundEmojiOrigin(emojiName!, actorUrl, config.INSTANCE_DOMAIN);
+      let urlHost: string | null = null;
+      try {
+        urlHost = new URL(emojiUrl!).hostname;
+      } catch {
+        urlHost = null;
+      }
+      emojiId = await inboundEmojiRowId(supabase, emojiUrl!, origin.domain ?? urlHost);
     }
 
     // Content strings processLike writes for this emoji.
@@ -3690,13 +3706,8 @@ export class ActivityProcessor {
       }
     }
 
-    const { data: existing } = await supabase
-      .from('emojis')
-      .select('id')
-      .eq('url', emojiUrl)
-      .maybeSingle();
-
-    if (existing) return existing.id;
+    const existingId = await inboundEmojiRowId(supabase, emojiUrl, emojiDomain);
+    if (existingId) return existingId;
 
     const { data: created } = await supabase
       .from('emojis')
@@ -4596,7 +4607,7 @@ export class ActivityProcessor {
     return (data ?? []).map((p: any) => p.id).filter((id: string) => id !== authorId);
   }
 
-  /** Recipients whose profiles.dm_policy admits the sender. A failed check delivers as before. */
+  /** Recipients whose profiles.dm_policy admits the sender and who hold no block with it. A failed check delivers as before; a blocked direct conversation still refuses the row. */
   private static async dmRecipientsAllowing(senderId: string, recipientIds: string[]): Promise<string[]> {
     const { data, error } = await getSupabaseClient()
       .rpc('dm_recipients_allowing', { p_sender: senderId, p_recipients: recipientIds });
@@ -4670,7 +4681,7 @@ export class ActivityProcessor {
 
     const allowedIds = await this.dmRecipientsAllowing(authorId, recipientIds);
     if (allowedIds.length === 0) {
-      logDenied('DM', normalizeActor(activity?.actor ?? object.attributedTo), `refused by the setting of every recipient of ${object.id}`);
+      logDenied('DM', normalizeActor(activity?.actor ?? object.attributedTo), `refused by the setting or a block of every recipient of ${object.id}`);
       return;
     }
 
@@ -4795,7 +4806,7 @@ export class ActivityProcessor {
 
     const allowedIds = await this.dmRecipientsAllowing(authorId, recipientIds);
     if (allowedIds.length === 0) {
-      logDenied('group invite', normalizeActor(object.attributedTo), `refused by the setting of every recipient of ${object.id}`);
+      logDenied('group invite', normalizeActor(object.attributedTo), `refused by the setting or a block of every recipient of ${object.id}`);
       return;
     }
 

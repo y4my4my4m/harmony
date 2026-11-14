@@ -72,12 +72,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { supabase } from '@/supabase'
+import { readAllRows } from '@/services/pagedRead'
+import { searchServerMembers } from '@/services/memberDirectoryService'
 import { debug } from '@/utils/debug'
 import { uid } from '@/utils/a11y/focus'
 import { roleService, type ServerRole } from '@/services/RoleService'
@@ -112,12 +114,74 @@ const memberQuery = ref('')
 const assignableRoles = computed(() => roles.value.filter(r => !r.is_default))
 const selectedMembers = computed(() =>
   props.modelValue.userIds.map(id => members.value.find(m => m.id === id) ?? { id, username: id, display_name: null }))
-const memberMatches = computed(() => {
-  const q = memberQuery.value.trim().toLowerCase()
-  if (!q) return []
-  return members.value
+// Members found for the text typed. The instance searches the membership; where it cannot
+// (no member directory), every member is read once, in pages, and filtered here.
+const found = ref<{ query: string; members: Member[] } | null>(null)
+let everyMember: Promise<Member[]> | null = null
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+let searchSeq = 0
+
+function remember(list: Member[]) {
+  const known = new Set(members.value.map(m => m.id))
+  const fresh = list.filter(m => !known.has(m.id))
+  if (fresh.length > 0) members.value = [...members.value, ...fresh]
+}
+
+function readEveryMember(serverId: string): Promise<Member[]> {
+  everyMember ??= readAllRows<any>(() => supabase
+    .from('user_servers')
+    .select('user_id, profiles:user_id (id, username, display_name)', { count: 'exact' })
+    .eq('server_id', serverId)
+    .or('status.is.null,status.eq.accepted')
+    .order('id'))
+    .then(rows => rows
+      .map((row: any) => row.profiles)
+      .filter((p: any) => p?.id && p?.username)
+      .map((p: any) => ({ id: p.id, username: p.username, display_name: p.display_name ?? null })))
+  return everyMember
+}
+
+async function searchMembers(serverId: string, query: string): Promise<Member[]> {
+  const fromInstance = await searchServerMembers(serverId, query, MAX_MATCHES)
+  if (fromInstance) {
+    return fromInstance
+      .filter(m => m.username)
+      .map(m => ({ id: m.id, username: m.username as string, display_name: m.display_name ?? null }))
+  }
+  const q = query.toLowerCase()
+  return (await readEveryMember(serverId))
     .filter(m => m.username.toLowerCase().includes(q) || (m.display_name ?? '').toLowerCase().includes(q))
     .slice(0, MAX_MATCHES)
+}
+
+watch(memberQuery, (text) => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = null
+  const query = text.trim()
+  const seq = ++searchSeq
+  if (!query) {
+    found.value = null
+    return
+  }
+  const serverId = props.serverId
+  searchTimer = setTimeout(async () => {
+    searchTimer = null
+    try {
+      const list = await searchMembers(serverId, query)
+      if (seq !== searchSeq) return
+      remember(list)
+      found.value = { query, members: list }
+    } catch (error) {
+      debug.warn('Category privacy member search failed:', error)
+    }
+  }, 150)
+})
+onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
+
+const memberMatches = computed(() => {
+  const q = memberQuery.value.trim()
+  if (!q) return []
+  return found.value?.query === q ? found.value.members : []
 })
 
 function update(patch: Partial<CategoryPrivacy>) {
@@ -138,27 +202,28 @@ function toggleUser(userId: string, on: boolean) {
   update({ userIds: on ? [...rest, userId] : rest })
 }
 
+// Roles, and the names of the members already chosen. The membership is not read: the
+// search finds members as they are typed.
 async function load(serverId: string) {
   rolesLoaded.value = false
-  const [roleRows, memberRows] = await Promise.all([
-    roleService.getRolesForServer(serverId),
-    supabase
-      .from('user_servers')
-      .select('user_id, profiles:user_id (id, username, display_name)')
-      .eq('server_id', serverId)
-      .eq('status', 'accepted')
-      .limit(1000),
-  ])
+  everyMember = null
+  found.value = null
+  const roleRows = await roleService.getRolesForServer(serverId)
   roles.value = [...roleRows].sort((a, b) => b.position - a.position)
   rolesLoaded.value = true
-  if (memberRows.error) {
-    debug.warn('Category privacy member list failed:', memberRows.error.message)
-    return
+  const chosen = props.modelValue.userIds
+  for (let i = 0; i < chosen.length; i += 100) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username, display_name')
+      .in('id', chosen.slice(i, i + 100))
+    if (error) {
+      debug.warn('Category privacy member names failed:', error.message)
+      return
+    }
+    remember((data ?? []).filter((p: any) => p?.id && p?.username)
+      .map((p: any) => ({ id: p.id, username: p.username, display_name: p.display_name ?? null })))
   }
-  members.value = (memberRows.data ?? [])
-    .map((row: any) => row.profiles)
-    .filter((p: any) => p?.id && p?.username)
-    .map((p: any) => ({ id: p.id, username: p.username, display_name: p.display_name ?? null }))
 }
 
 watch(() => props.serverId, (serverId) => {

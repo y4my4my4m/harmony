@@ -84,7 +84,10 @@
                     class="nav-item admin-link"
                   >
                     <component :is="section.icon" class="nav-icon" aria-hidden="true" />
-                    {{ $t(section.label) }}
+                    {{ $t(section.label) }}<template v-if="section.id === 'admin' && instancePending > 0">
+                      <span class="nav-badge report-count-badge" aria-hidden="true" data-testid="admin-reports-badge">{{ badgeCount(instancePending) }}</span>
+                      <span class="sr-only">, {{ $t('moderation.reportAlert.pendingA11y', { count: instancePending }, instancePending) }}</span>
+                    </template>
                   </router-link>
                 </li>
               </ul>
@@ -227,6 +230,7 @@
 <script setup lang="ts">
 import { hasOpenLayer } from '@/utils/a11y/layers'
 import { ref, onMounted, computed, watch, onUnmounted, nextTick, useId, provide } from 'vue'
+import { badgeCount, refreshInstancePendingReports, useReportQueueCounts } from '@/composables/useReportQueueCounts'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -680,6 +684,8 @@ const isAdmin = computed(() => {
 })
 
 const isStaff = computed(() => isAdmin.value || profile.value?.is_moderator === true)
+const { instancePending } = useReportQueueCounts()
+watch(isStaff, (staff) => { if (staff) void refreshInstancePendingReports() }, { immediate: true })
 
 const handleAppearanceUpdate = async (appearanceSettings: any) => {
   debug.log('Appearance settings updated:', appearanceSettings)
@@ -1199,5 +1205,10 @@ onUnmounted(() => {
   to {
     opacity: 1;
   }
+}
+
+.nav-badge.report-count-badge {
+  background: var(--error-fill);
+  color: var(--text-on-primary);
 }
 </style>

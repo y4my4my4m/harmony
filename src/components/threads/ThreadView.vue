@@ -327,6 +327,7 @@
 </template>
 
 <script setup lang="ts">
+import { draftThreadId } from '@/utils/draftThreadId'
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
@@ -443,12 +444,12 @@ const canManageThread = computed(() => canManageChannels.value)
 const profileStore = useProfileStore()
 const currentUserId = computed(() => profileStore.profileId)
 
-/** Thread id for composer + typing presence (includes draft threads before DB row exists) */
+/** Thread id for the composer; a draft thread's (draftThreadId) before its row exists. */
 const effectiveThreadIdForTyping = computed(() => {
   if (props.threadId) return props.threadId
   if (props.initialThread?.id) return props.initialThread.id
   if (thread.value?.id && !isOptimisticThreadId(thread.value.id)) return thread.value.id
-  if (props.draftParentMessage?.id) return `draft:${props.draftParentMessage.id}`
+  if (props.draftParentMessage?.id) return draftThreadId(props.draftParentMessage.id)
   return undefined
 })
 

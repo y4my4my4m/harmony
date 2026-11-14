@@ -21,7 +21,7 @@ const tokenRequestSchema = z.object({
   canPublish: z.boolean().optional(),
   canSubscribe: z.boolean().optional(),
   canPublishData: z.boolean().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 const federatedTokenRequestSchema = z.object({
@@ -209,7 +209,7 @@ router.post('/token', requireAuth, requireLiveKit, async (req: Request, res: Res
     if (!validation.success) {
       return res.status(400).json({ 
         error: 'Invalid request', 
-        details: validation.error.errors 
+        details: validation.error.issues 
       });
     }
     
@@ -262,7 +262,7 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
     if (!validation.success) {
       return res.status(400).json({ 
         error: 'Invalid request', 
-        details: validation.error.errors 
+        details: validation.error.issues 
       });
     }
     

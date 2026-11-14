@@ -51,6 +51,12 @@
       "blockedDomain": "このメールプロバイダーはこのインスタンスの登録に使用できません。別のアドレスを使用してください。",
       "blockedNetwork": "このネットワークからの新規登録は、このインスタンスでは利用できません。このインスタンスの管理者に招待を依頼してください。"
     },
+    "captcha": {
+      "asked": "登録を完了するには、確認を済ませてください。",
+      "refused": "確認に失敗しました。もう一度お試しください。",
+      "unavailable": "確認を読み込めませんでした。ページを再読み込みするか、このインスタンスのウェブサイトで登録してください。",
+      "frameTitle": "登録時の確認"
+    },
     "login": "ログイン",
     "register": "登録",
     "logout": "ログアウト",
@@ -1494,6 +1500,13 @@
     "missedCall": "不在着信",
     "title": "ダイレクトメッセージ",
     "recipientDeleted": "このアカウントは削除されています。メッセージは配信されません。",
+    "undeliverable": "メッセージを届けられませんでした。",
+    "blockedPeer": {
+      "text": "{name} さんをブロックしています。メッセージを送るにはブロックを解除してください。",
+      "unblock": "ブロック解除",
+      "unblockFailed": "{name} さんのブロックを解除できませんでした。",
+      "startRefused": "{name} さんをブロックしています。会話を始めるにはブロックを解除してください。"
+    },
     "sendMessage": "メッセージを送信",
     "callInProgress": "通話中です",
     "joinCall": "通話に参加",
@@ -2794,7 +2807,13 @@
       "copyHandle": "ハンドルをコピー",
       "copyHandleNamed": "ハンドル {handle} をコピー",
       "handleCopied": "{handle} をコピーしました",
-      "handleCopyFailed": "ハンドルをコピーできませんでした"
+      "handleCopyFailed": "ハンドルをコピーできませんでした",
+      "copyProfileLink": "プロフィールのリンクをコピー",
+      "profileLinkCopied": "プロフィールのリンクをコピーしました",
+      "profileLinkCopyFailed": "プロフィールのリンクをコピーできませんでした",
+      "refreshProfile": "プロフィールを更新",
+      "profileRefreshed": "プロフィールを更新しました",
+      "profileRefreshFailed": "{domain} に接続できず、プロフィールを更新できませんでした"
     },
     "followA11y": {
       "requests": "リクエスト",
@@ -2915,6 +2934,26 @@
     "instanceSoftwareFilter": "ソフトウェア"
   },
   "moderation": {
+    "reportAlert": {
+      "title": "確認が必要な新しい通報",
+      "titleServer": "{server} で新しい通報",
+      "message": "{kind}が通報されました: {reason}。",
+      "messageRemote": "{kind}が {instance} から通報されました: {reason}。",
+      "noReason": "理由なし",
+      "short": "新しい通報",
+      "sender": "モデレーション",
+      "setting": "新しい通報を通知する",
+      "settingFailed": "設定を保存できませんでした。",
+      "pendingA11y": "{count} 件の通報が対応待ち",
+      "kind": {
+        "user": "アカウント",
+        "post": "投稿",
+        "message": "メッセージ",
+        "server": "サーバー",
+        "sticker": "スタンプ",
+        "other": "コンテンツ"
+      }
+    },
     "report": "報告",
     "block": "ブロック",
     "unblock": "ブロック解除",
@@ -3366,7 +3405,9 @@
       "failed": "カテゴリを更新できませんでした。もう一度お試しください。",
       "loadingPermissions": "権限を読み込み中…",
       "permissionsFailed": "このカテゴリの権限を読み込めませんでした。閉じてから開き直すと再試行できます。",
-      "permissionsSaved": "権限を保存しました。このカテゴリに同期されたチャンネルはありません。チャンネルの権限設定から同期できます。 | 権限を保存し、{count} 件のチャンネルに同期しました。 | 権限を保存し、{count} 件のチャンネルに同期しました。"
+      "permissionsSaved": "権限を保存しました。このカテゴリに同期されたチャンネルはありません。チャンネルの権限設定から同期できます。 | 権限を保存し、{count} 件のチャンネルに同期しました。 | 権限を保存し、{count} 件のチャンネルに同期しました。",
+      "overrideLegend": "このカテゴリと同期されたチャンネルはこの設定に従います。許可は付与、拒否は取り消し、継承はサーバー全体の設定を使います。",
+      "discardMessage": "このカテゴリには未保存の変更があります。保存せずに閉じますか？"
     },
     "sync": {
       "synced": "{category} と同期済み",
@@ -5374,6 +5415,11 @@
       "reportsFailed": "このドメインからの報告の扱いを変更できませんでした"
     },
     "instance": {
+      "mirrorStatusProgress": "Discord のファイルを保存中: {queued} 件待機中、{size} 保存済み",
+      "mirrorStatusTooLarge": "{count} 件が大きすぎます ({size}): harmony config --upload-ceiling 500M でアップロード上限を引き上げてください",
+      "mirrorStatusFailed": "{count} 件失敗",
+      "mirrorStatusOverQuota": "{count} 件がサーバーごとの上限を超えています: 「サーバーごとに保存する Discord ファイル」を引き上げてください",
+      "mirrorStatusAllStored": "すべての Discord ファイルが保存されています",
       "maxPostReactions": "投稿1件あたりの1人の最大リアクション数",
       "maxPostReactionsHint": "1人が1つの投稿にリアクションできる絵文字の種類数（1〜100）。デフォルト：10。上限を超えて他のインスタンスから届いたリアクションは破棄されます。チャットメッセージの絵文字は最大20種類です。",
       "maxPersonalEmojis": "ユーザーごとの個人絵文字数",
@@ -5562,7 +5608,7 @@
     },
     "emojis": {
       "title": "絵文字",
-      "description": "このインスタンスのすべてのカスタム絵文字です。アップロード、インポート、他のインスタンスからキャッシュされた絵文字、サーバー絵文字、個人の絵文字を含みます。削除した絵文字はすべてのピッカーから消えますが、以前のメッセージやリアクションには表示され続け、復元もできます。完全削除すると絵文字とそのファイルが消え、以前のメッセージやリアクションには壊れた画像のアイコンが表示されます。",
+      "description": "このインスタンスのすべてのカスタム絵文字です。アップロード、インポート、他のインスタンスからキャッシュされた絵文字、サーバー絵文字、個人の絵文字を含みます。インポートすると、他のインスタンスの絵文字がインスタンス絵文字にコピーされ、このインスタンスの全員が使えるようになります。削除した絵文字はすべてのピッカーから消えますが、以前のメッセージやリアクションには表示され続け、復元もできます。完全削除すると絵文字とそのファイルが消え、以前のメッセージやリアクションには壊れた画像のアイコンが表示されます。",
       "refresh": "更新",
       "retry": "再試行",
       "loading": "絵文字を読み込み中",
@@ -5572,7 +5618,7 @@
       "searchHint": "名前、サーバー、所有者、ドメイン",
       "newName": "新しい名前",
       "brokenImage": "画像を読み込めませんでした",
-      "hotlinkedHint": "画像は別のサイトから読み込まれています。「ここでホスト」でこのインスタンスにコピーします。",
+      "hotlinkedHint": "この絵文字はすでにここで使えますが、画像はまだ別のサイトから読み込まれています。画像をこのインスタンスにコピーしておくと、そのサイトが変わっても表示され続けます。絵文字のほかの部分は変わりません。",
       "kinds": {
         "label": "種類",
         "all": "すべて",
@@ -5582,7 +5628,7 @@
         "server": "サーバー",
         "personal": "個人",
         "ai": "AI 生成",
-        "not_imported": "未インポート"
+        "not_imported": "インポート可能"
       },
       "status": {
         "label": "状態",
@@ -5597,8 +5643,9 @@
         "usage": "よく使われる順"
       },
       "badges": {
-        "hotlinked": "外部リンク",
-        "removed": "削除済み"
+        "hotlinked": "外部でホスト",
+        "removed": "削除済み",
+        "nameTaken": "名前が使用中"
       },
       "meta": {
         "server": "{server} 内",
@@ -5610,14 +5657,15 @@
         "seen": "{count} 回確認 | {count} 回確認",
         "reactions": "リアクションなし | リアクション {count} 件 | リアクション {count} 件",
         "removedBy": "{date} に {user} が削除",
-        "removedOn": "{date} に削除"
+        "removedOn": "{date} に削除",
+        "license": "ライセンス: {license}"
       },
       "titles": {
         "rename": "名前を変更",
         "remove": "削除",
         "restore": "復元",
         "purge": "完全削除",
-        "rehost": "ここでホスト",
+        "rehost": "画像をこのインスタンスにコピー",
         "import": "インポート"
       },
       "actions": {
@@ -5625,7 +5673,7 @@
         "remove": "{name} を削除",
         "restore": "{name} を復元",
         "purge": "{name} を完全削除",
-        "rehost": "{name} をここでホスト",
+        "rehost": "{name} の画像をこのインスタンスにコピー",
         "import": "{name} をインポート",
         "select": "{name} を選択"
       },
@@ -5635,7 +5683,9 @@
         "selected": "{count} 件選択 | {count} 件選択",
         "remove": "選択した絵文字を削除",
         "restore": "選択した絵文字を復元",
-        "purge": "選択した絵文字を完全削除"
+        "purge": "選択した絵文字を完全削除",
+        "import": "選択した絵文字をインポート",
+        "rehost": "画像をこのインスタンスにコピー"
       },
       "upload": {
         "button": "アップロード",
@@ -5658,11 +5708,7 @@
         "purgeTitle": "絵文字を完全削除",
         "purge": "{name} を完全削除しますか？絵文字とそのファイルは元に戻せません。使用している以前のメッセージやリアクションには、壊れた画像のアイコンが表示されます。",
         "purgeMany": "{count} 件の絵文字を完全削除しますか？絵文字とそのファイルは元に戻せません。使用している以前のメッセージやリアクションには、壊れた画像のアイコンが表示されます。 | {count} 件の絵文字を完全削除しますか？絵文字とそのファイルは元に戻せません。使用している以前のメッセージやリアクションには、壊れた画像のアイコンが表示されます。",
-        "purgeButton": "完全削除",
-        "importTitle": "{name} をインポート",
-        "import": "{domain} から画像のコピーをこのインスタンスのストレージにダウンロードし、インスタンス絵文字に追加します。名前を空欄にすると {name} のままになります。",
-        "importLabel": "名前（コロンなし）",
-        "importButton": "インポート"
+        "purgeButton": "完全削除"
       },
       "done": {
         "renamed": "{name} に名前を変更しました",
@@ -5673,7 +5719,8 @@
         "purged": "{name} を完全削除しました",
         "purgedMany": "{count} 件の絵文字を完全削除しました | {count} 件の絵文字を完全削除しました",
         "rehosted": "{name} はこのインスタンスでホストされるようになりました",
-        "imported": "{name} をインポートしました"
+        "rehostedMany": "{count} 件の画像をこのインスタンスにコピーしました | {count} 件の画像をこのインスタンスにコピーしました",
+        "importedMany": "{count} 件の絵文字をインポートしました | {count} 件の絵文字をインポートしました"
       },
       "errors": {
         "load": "絵文字を読み込めませんでした。",
@@ -5699,13 +5746,50 @@
           "already_imported": "この絵文字はすでにインポートされています。",
           "name_taken": "その名前はインスタンス絵文字が使用しています。",
           "invalid_name": "名前は 2〜64 文字の英数字、_ または - です。",
-          "not_instance": "ここでホストできるのはインスタンス絵文字だけです。",
+          "not_instance": "画像をここにコピーできるのはインスタンス絵文字だけです。",
           "not_hotlinked": "この絵文字はすでにこのインスタンスでホストされています。",
           "unsupported_image": "リモートの画像は PNG、GIF、WebP、JPEG のいずれでもありません。",
           "too_large": "リモートの画像が絵文字のサイズ上限を超えています。",
           "fetch_failed": "リモートの画像をダウンロードできませんでした。",
           "internal_error": "問題が発生しました。しばらくしてからもう一度お試しください。",
-          "network_error": "サーバーに接続できませんでした。"
+          "network_error": "サーバーに接続できませんでした。",
+          "rate_limited": "1 時間あたりのインポート上限に達しました。しばらくしてからもう一度お試しください。"
+        },
+        "rehostMany": "{count} 件の画像をコピーできませんでした。 | {count} 件の画像をコピーできませんでした。"
+      },
+      "nameTakenHint": "この名前はインスタンス絵文字がすでに使用しています。インポート時に別の名前を提案します。",
+      "import": {
+        "button": "インポート",
+        "hint": "他のインスタンスの投稿やリアクションで見つかったカスタム絵文字です。インポートすると画像がこのインスタンスにダウンロードされ、インスタンス絵文字に追加されて、このインスタンスの全員が使えるようになります。元の絵文字はそのまま残ります。",
+        "searchHint": "名前",
+        "sourceLabel": "取得元インスタンス",
+        "allSources": "すべてのインスタンス",
+        "source": "{domain} ({count})",
+        "title": "{count} 件の絵文字をインポート | {count} 件の絵文字をインポート",
+        "loading": "名前を確認しています",
+        "previewFailed": "名前を確認できませんでした。閉じてもう一度お試しください。",
+        "explain": "それぞれの画像をこのインスタンスにダウンロードし、下の名前でインスタンス絵文字に追加します。既存の絵文字が置き換えられることはありません。",
+        "clashes": "{count} 件の名前はインスタンス絵文字がすでに使用しています。提案された名前のままにするか、別の名前を入力するか、スキップしてください。 | {count} 件の名前はインスタンス絵文字がすでに使用しています。提案された名前のままにするか、別の名前を入力するか、スキップしてください。",
+        "listLabel": "インポートする絵文字",
+        "nameFor": "{name} の名前",
+        "skip": "スキップ",
+        "nameInUse": "この名前はインスタンス絵文字がすでに使用しています。",
+        "nameRepeated": "このインポートの別の絵文字が同じ名前を使っています。",
+        "confirm": "{count} 件をインポート | {count} 件をインポート",
+        "stop": "停止",
+        "progress": "インポート中… {total} 件中 {current} 件完了",
+        "result": {
+          "imported": "インポートされた絵文字はありません | {count} 件をインポート | {count} 件をインポート",
+          "skipped": "{count} 件をスキップ | {count} 件をスキップ",
+          "failed": "{count} 件が失敗 | {count} 件が失敗",
+          "stopped": "{count} 件は未開始 | {count} 件は未開始"
+        },
+        "status": {
+          "imported": "{name} としてインポートしました",
+          "skipped": "スキップしました",
+          "gone": "利用できなくなりました（インポート済みまたは削除済み）",
+          "stopped": "未開始",
+          "waiting": "待機中"
         }
       }
     }
@@ -6052,6 +6136,7 @@
       "unknown": "未報告",
       "showSetup": "設定の手順を表示",
       "problemsTitle": "対応が必要な問題: {count} 件 | 対応が必要な問題: {count} 件",
+      "noticesTitle": "お知らせ: {count} 件 | お知らせ: {count} 件",
       "pairsTitle": "ペアのチャンネル",
       "settingsTitle": "オプション",
       "maintainTitle": "メンテナンス",
@@ -6068,7 +6153,8 @@
       },
       "disconnect": "ブリッジを切断",
       "disconnected": "ブリッジを切断しました",
-      "finished": "ブリッジの設定が完了しました。"
+      "finished": "ブリッジの設定が完了しました。",
+      "disconnectKeeps": "ブリッジされたものも削除するには、先に「ブリッジのプライバシー」の「ブリッジされたメッセージをすべて削除」を使ってください。"
     },
     "confirm": {
       "disconnect": {
@@ -6163,6 +6249,17 @@
         "fixHosted": "インスタンス側の問題で、ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。",
         "fixInstance": "インスタンス側の問題で、ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。"
       },
+      "message_content_needed_for_import": {
+        "title": "履歴のインポートが Message Content Intent を待っています。",
+        "fixSelf": "オフの間、Discord は空のメッセージを返します。Developer Portal でアプリケーション → Bot → Privileged Gateway Intents を開き、Message Content Intent をオンにして Save Changes をクリックします。その後、下のコマンドでブリッジを再起動してください。インポートは自動で始まります。",
+        "fixHosted": "オフの間、Discord は空のメッセージを返します。Developer Portal でアプリケーション → Bot → Privileged Gateway Intents を開き、Message Content Intent をオンにして Save Changes をクリックします。ブリッジが再接続するとインポートは自動で始まります。",
+        "fixInstance": "このインスタンスのボットには Message Content Intent がないため、履歴をインポートできません。インスタンスの管理者に相談してください。"
+      },
+      "private_threads_skipped": {
+        "title": "インポートでは {channel} のプライベートスレッドを除外しました。",
+        "titleCount": "インポートでは {channel} のプライベートスレッド {count} 件を除外しました。 | インポートでは {channel} のプライベートスレッド {count} 件を除外しました。",
+        "fix": "対応は不要です。Harmony にはまだプライベートスレッドがなく、チャンネルの全員が読めてしまうため、Discord に残しています。"
+      },
       "unknown": {
         "title": "ブリッジが問題を報告しました（{code}）。",
         "fixSelf": "詳細はブリッジのログにあります:",
@@ -6229,7 +6326,14 @@
       "bridgeExists": "このサーバーには別の方法で設定された Discord ブリッジがすでにあります。このインスタンスのボットを使うには、先にそれを切断してください。",
       "instanceFull": "このインスタンスのボットは、許可されている数の Discord サーバーにすでに参加しています。インスタンスの管理者に相談するか、自分の Discord ボットを使ってください。",
       "instanceOff": "このインスタンスは現在 Discord ボットを提供していません。自分の Discord ボットを使ってください。",
-      "link": "Discord とのリンクを開始できませんでした。もう一度試してください。"
+      "link": "Discord とのリンクを開始できませんでした。もう一度試してください。",
+      "import": "インポートを開始できませんでした。",
+      "cancelImport": "インポートをキャンセルできませんでした。",
+      "pairNotImportable": "このペアは履歴をインポートできません。Discord のメッセージを Harmony に取り込むペアの、暗号化されていないチャンネルだけが対象です。",
+      "importChanged": "インポートの状態が変わったため更新しました。もう一度お試しください。",
+      "importDisabled": "このブリッジでは履歴のインポートがオフになっています。",
+      "invalidDiscordUser": "Discord ユーザー ID ではありません。",
+      "privacy": "リクエストに失敗しました。もう一度お試しください。"
     },
     "time": {
       "secondsAgo": "たった今 | {count} 秒前 | {count} 秒前",
@@ -6338,6 +6442,125 @@
       "settingsSaved": "Discord ボットの設定を保存しました",
       "saveFailed": "Discord ボットの設定を保存できませんでした",
       "redirectLabel": "リダイレクト先のアドレス"
+    },
+    "import": {
+      "button": "履歴をインポート",
+      "buttonLabel": "#{channel} の履歴をインポート",
+      "importAll": "すべてインポート",
+      "importAllAgain": "すべて再インポート",
+      "importAllAgainConfirm": "{count} 件のチャンネルの履歴を再インポートしますか？Discord の履歴を最初から読み直します。すでにあるメッセージはスキップされます。",
+      "importAllAgainYes": "再インポート",
+      "cancelAll": "すべてキャンセル",
+      "cancel": "キャンセル",
+      "cancelLabel": "#{channel} のインポートをキャンセル",
+      "cancelling": "キャンセル中…",
+      "waiting": "待機中",
+      "running": "インポート中… {percent}%",
+      "runningUnknown": "インポート中…",
+      "threadsRunning": "スレッドをインポート中…",
+      "repliesRunning": "返信を関連付け中…",
+      "progressLabel": "#{channel} のインポートの進捗",
+      "backTo": "{date} まで遡り済み",
+      "messages": "{count} 件のメッセージ | {count} 件のメッセージ",
+      "threads": "スレッド {done} / {total}",
+      "done": "{count} 件のメッセージをインポートしました | {count} 件のメッセージをインポートしました",
+      "doneNothingNew": "最新の状態です：新しいメッセージはありません",
+      "failed": "インポートが停止しました: {reason}",
+      "failedUnknown": "インポートが停止しました",
+      "cancelled": "キャンセルしました",
+      "paused": "一時停止中: ブリッジを待っています",
+      "retry": "再試行",
+      "retryLabel": "#{channel} のインポートを再試行",
+      "resume": "再開",
+      "resumeLabel": "#{channel} のインポートを再開",
+      "again": "再度インポート",
+      "againLabel": "#{channel} の履歴を再度インポート",
+      "reasons": {
+        "pair_removed": "チャンネルのペアが削除されました",
+        "channel_encrypted": "チャンネルが暗号化されました",
+        "import_disabled": "履歴のインポートがオフになりました",
+        "pair_not_importable": "このペアは Discord のメッセージを Harmony に取り込まなくなりました",
+        "discord_approval_required": "Discord チャンネルが非公開です。Discord で /bridge import-history を使ってインポートを開始してください",
+        "discord_channel_unsupported": "Discord チャンネルがテキストチャンネルではありません",
+        "discord_access_lost": "ブリッジが Discord チャンネルを読めなくなりました",
+        "bridge_stalled": "ブリッジの処理が進まなくなりました"
+      },
+      "ineligible": {
+        "direction": "Discord のメッセージを Harmony に取り込むペアだけが履歴をインポートできます",
+        "encrypted": "暗号化されたチャンネルは履歴をインポートできません"
+      },
+      "needsUpdate": "履歴をインポートするには、ブリッジを 2.6.0 以降に更新してください",
+      "mirrorNote": "インポートしたファイルは、このインスタンスのストレージにコピーされます。",
+      "consent": {
+        "title": "{count} 個のチャンネルの履歴をインポートしますか? | {count} 個のチャンネルの履歴をインポートしますか?",
+        "copies": "過去のメッセージとファイルが、投稿者の Discord の名前とアバターとともにこのサーバーにコピーされます。ブリッジを削除しても残ります。",
+        "skips": "Discord サーバーを退出した人のメッセージはスキップされます。Discord では誰でも /bridge-privacy で自分のメッセージを対象外にしたり、消去したりできます。",
+        "notice": "インポートを開始すると、ブリッジが各 Discord チャンネルにお知らせをピン留めします。",
+        "confirm": "私はこの Discord サーバーを管理している、または管理者の同意を得ています。",
+        "start": "インポートを開始"
+      },
+      "unavailable": {
+        "instance_off": "このインスタンスでは履歴のインポートがオフになっています。",
+        "bridge_mode": "履歴のインポートは、自分の Discord アプリケーションで自分で実行するブリッジでのみ利用できます。"
+      },
+      "authorsSkipped": "{count} 件をスキップ (投稿者が退出または対象外) | {count} 件をスキップ (投稿者が退出または対象外)",
+      "automodSkipped": "{count} 件を AutoMod がブロック | {count} 件を AutoMod がブロック"
+    },
+    "privacy": {
+      "title": "ブリッジのプライバシー",
+      "lead": "Discord のメンバーは、Discord で /bridge-privacy を使って自分のメッセージをこのサーバーの対象外にしたり、消去したりできます。退出後などコマンドを使えない人は、ここで削除してください。",
+      "idLabel": "Discord ユーザー ID",
+      "idHelp": "Discord で開発者モードをオンにし、ユーザーを右クリックして「ユーザー ID をコピー」を選びます。",
+      "idInvalid": "Discord ユーザー ID は 5 ~ 20 桁の数字です。",
+      "remove": "このサーバーから削除",
+      "removeConfirm": "このブリッジが Discord ユーザー {id} から取り込んだメッセージ、ファイル、リアクションをすべて削除し、今後も取り込まないようにしますか? この操作は元に戻せません。",
+      "removeYes": "メッセージを削除",
+      "removed": "{count} 件のメッセージを削除しました | {count} 件のメッセージを削除しました",
+      "progress": "削除しています… これまでに {count} 件 | 削除しています… これまでに {count} 件",
+      "listTitle": "対象外の Discord ユーザー {count} 人 | 対象外の Discord ユーザー {count} 人",
+      "source": {
+        "self": "Discord で本人が対象外に設定",
+        "manager": "サーバー管理者が削除",
+        "admin": "インスタンス管理者が削除"
+      },
+      "restore": "元に戻す",
+      "restoreLabel": "Discord ユーザー {id} を再びブリッジする",
+      "purgeLead": "このサーバーのブリッジが Discord から取り込んだもの (メッセージ、ファイル、リアクション) をすべて削除します。Harmony で書かれたメッセージは残ります。",
+      "purge": "ブリッジされたメッセージをすべて削除",
+      "purgeConfirm": "Discord からこのサーバーに取り込まれたメッセージ、ファイル、リアクションをすべて削除しますか? この操作は元に戻せません。",
+      "purgeYes": "すべて削除",
+      "purged": "ブリッジされたメッセージ {count} 件を削除しました | ブリッジされたメッセージ {count} 件を削除しました"
+    },
+    "importAdmin": {
+      "title": "Discord の履歴インポート",
+      "lead": "サーバーが、所有者が自分の Discord アプリケーションで実行するブリッジを通じて、Discord チャンネルの過去のメッセージを Harmony にコピーできるようにします。このインスタンスの Discord ボットや、このインスタンスが実行するボットでは利用できません。",
+      "loadFailed": "履歴インポートの設定を読み込めませんでした。",
+      "mode": "履歴のインポート",
+      "modeOff": "オフ",
+      "modeSelfRun": "自分で実行するブリッジ",
+      "modeHint": "オフにすると、実行中のものを含めすべてのインポートを拒否します。",
+      "warningTitle": "オンにする前に",
+      "warningAuthors": "これらのメッセージの投稿者はコピーを求めていません。Discord サーバーを退出した投稿者はスキップされ、メンバーは /bridge-privacy で自分のメッセージを対象外にしたり消去したりできます。",
+      "warningRequests": "このインスタンス上のコンテンツの削除依頼はあなたに届きます。サーバー管理者は「サーバー設定」の「Discord ブリッジ」で Discord ユーザーを削除できます。下の「Discord のメッセージをすべて削除」はすべてのサーバーを対象にします。",
+      "warningQuiet": "インポートされたメッセージは通知を送らず、既読として扱われ、連合されません。サーバーでボットが除外されていない場合、AutoMod の単語、招待、リンクのルールが適用されます。",
+      "warningStorage": "「Mirror to storage」では、インポートしたファイルが下記のサーバーごとの上限まで、このインスタンスのストレージにコピーされます。",
+      "maxRunning": "同時に実行するインポート数",
+      "maxRunningHint": "インスタンス全体での数です。それ以外は順番を待ちます。0 は無制限です。",
+      "messagesPerMinute": "インポート 1 件あたりの毎分のメッセージ数",
+      "messagesPerMinuteHint": "ブリッジが何を送っても、サーバーがインポートをこの速度に抑えます。0 は無制限です。",
+      "mirrorServerLimitMb": "サーバーごとに保存する Discord ファイル (MB)",
+      "mirrorServerLimitMbHint": "「Mirror to storage」では、これを超えたサーバーの以降のファイルは Discord のリンクのままになります。0 は無制限です。",
+      "limitInvalid": "0 以上の整数を入力してください。",
+      "save": "上限を保存",
+      "saved": "履歴インポートの設定を保存しました",
+      "saveFailed": "履歴インポートの設定を保存できませんでした。",
+      "totals": "実行中 {running} 件、待機中 {queued} 件、インポート済みメッセージ {imported} 件",
+      "totalsStored": "保存済みの Discord ファイル {size}",
+      "purgeTitle": "Discord のメッセージをすべて削除",
+      "purgeLead": "このインスタンスのすべてのサーバーで、ブリッジが Discord から取り込んだメッセージ、ファイル、リアクションをすべて削除します。Discord アプリケーションがアクセスを失った場合など、このインスタンスが Discord のコンテンツを保持できなくなったときに使います。",
+      "purge": "Discord のメッセージをすべて削除",
+      "purgeConfirm": "このインスタンスのすべてのサーバーで、Discord からブリッジされたものをすべて削除しますか? この操作は元に戻せません。",
+      "purgeYes": "すべて削除"
     }
   },
   "imageEditor": {
@@ -8141,6 +8364,53 @@
     "refusalBlockedDomain": "拒否されたメールドメイン",
     "refusalMailHost": "メールサーバー",
     "refusalBlockedNetwork": "拒否したアドレス"
+  },
+  "adminSignupCaptcha": {
+    "title": "登録時の確認",
+    "intro": "自動化された登録に見える場合にだけ表示される CAPTCHA です。ほとんどの人には表示されません。Google、GitHub、Twitch、またはこのインスタンス独自のサインインプロバイダーによる登録では表示されません。",
+    "provider": "プロバイダー",
+    "providerOff": "オフ",
+    "providerHint": "プロバイダーでウィジェットを作成し、{origin} のホスト名を追加してください。アプリもこのアドレスから確認を表示します。",
+    "siteKey": "サイトキー",
+    "secret": "シークレットキー",
+    "secretKept": "保存済みです。置き換えるには新しいキーを入力してください。",
+    "secretHint": "サーバー上の確認だけが使用します。保存後は表示されません。",
+    "mode": "確認を求めるタイミング",
+    "modeSuspect": "登録が自動化されているように見えるとき",
+    "modeSuspectHint": "同じネットワークから 1 時間以内の別の登録、このインスタンスにとって新しいメールドメイン、または拒否せずに数えるだけの上限を超えた登録。",
+    "modeAlways": "メールでのすべての登録",
+    "save": "保存",
+    "saved": "登録時の確認を保存しました",
+    "saveFailed": "登録時の確認を保存できませんでした。",
+    "loadFailed": "登録時の確認の設定を読み込めませんでした。",
+    "invalidSiteKey": "プロバイダーのダッシュボードにあるサイトキーを入力してください。",
+    "invalidSecret": "プロバイダーのダッシュボードにあるシークレットキーを入力してください。",
+    "countsTitle": "過去 7 日間",
+    "asked": "要求",
+    "passed": "成功",
+    "failed": "失敗",
+    "unverified": "未確認",
+    "unverifiedHint": "プロバイダーに接続できなかったか、シークレットキーが拒否されたため、これらの登録は許可されました。シークレットキーを確認してください。",
+    "test": "キーをテスト",
+    "testHint": "このキーで確認を一度解いてください。プロバイダーをオンにする場合や新しいキーを保存する場合は、テストに成功する必要があります。",
+    "testNote": "キーをテストするには確認を解いてください。",
+    "testRunning": "プロバイダーでトークンを確認しています…",
+    "testPassed": "キーは有効です。サーバーがプロバイダーでトークンを確認しました。",
+    "needsTest": "保存する前にキーをテストしてください。",
+    "problem": {
+      "hostname": "ウィジェットに {host} が登録されていません。プロバイダーのダッシュボードでウィジェットのホスト名に追加してください。",
+      "siteKey": "プロバイダーはこのサイトキーを認識していません。ダッシュボードからもう一度コピーしてください。",
+      "widgetNetwork": "ウィジェットを読み込めませんでした。この端末の接続とコンテンツブロッカーを確認してください。",
+      "widget": "ウィジェットがエラーを報告しました。",
+      "secret": "プロバイダーがシークレットキーを拒否しました。ダッシュボードからもう一度コピーしてください。",
+      "mismatch": "サイトキーとシークレットキーが別々のウィジェットのものです。",
+      "token": "プロバイダーがトークンを拒否しました。もう一度確認を解いてください。繰り返す場合は、2 つのキーが別々のウィジェットのものです。",
+      "network": "データベースが HTTPS（ポート 443）でプロバイダーに接続できません。データベースコンテナからの外向き接続を許可してください。",
+      "noHttp": "データベースに http 拡張がないため、トークンを確認できません。Supabase の Postgres イメージを使ってください。",
+      "status": "プロバイダーが HTTP {status} を返しました。しばらくしてからもう一度お試しください。",
+      "noSecret": "先にシークレットキーを入力してください。",
+      "unknown": "不明な理由でテストに失敗しました。"
+    }
   },
   "adminInvites": {
     "tab": "招待",

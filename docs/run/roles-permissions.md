@@ -119,9 +119,14 @@ Editing overrides needs **Manage Roles** or **Manage Channels** on that channel,
 
 At the top of the **Permissions** tab, turn on **Private channel**: "Only the roles you choose, the owner and administrators can see it." Then tick the roles under **Who can see it**. This is a shortcut for the overrides it writes: **View Channel** set to **Deny** for `@everyone` and **Allow** for each ticked role. Members holding Administrator still see the channel. The same switch appears when you create a channel.
 
-### Private categories
+### Category permissions
 
-A category carries overrides of its own: a template for its channels. In **Create category** or **Edit category**, turn on **Private category** and tick the roles and members under **Who can see it**: **View Channel** is denied to `@everyone` and allowed to each of them.
+A category carries overrides of its own: a template for its channels. Right-click the category → **Edit category** → **Permissions**:
+
+- **Private category**, with the roles and members ticked under **Who can see it**: **View Channel** is denied to `@everyone` and allowed to each of them. **Create category** offers the same switch.
+- Below it, the channel editor's role list and **Deny** / **Inherit** / **Allow** choices. A category holds text and voice channels, so the list has every group, **Voice** included; a permission a channel type has no use for changes nothing in that channel.
+
+The switch and the role list edit the same overrides: denying **View Channel** to `@everyone` in the list turns **Private category** on. **Save changes** saves the name and the permissions together; closing with unsaved changes asks first. Bits the list does not show stay as they are.
 
 - Saving a category's permissions copies them to every channel in it that is synced with it. A channel is synced when its overrides are exactly the category's.
 - A channel created in a category starts with the category's overrides. **Private channel** at creation adds its own on top.

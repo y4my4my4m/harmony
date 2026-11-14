@@ -2,10 +2,15 @@
  * User handle grammar. Mirror of src/utils/mentionGrammar.ts (frontend);
  * src/utils/__tests__/mentionGrammar.parity.test.ts asserts the two agree.
  *
- *   handle = "@" user [ "@" host ]
- *   user   = 1*( ALPHA / DIGIT / "_" / "-" )
+ *   handle = "@" word [ "@" host ] / "@" word 1*( "." word ) "@" host
+ *   word   = 1*( ALPHA / DIGIT / "_" / "-" )
  *   host   = label *( "." label )        ; any number of labels, no port
  *   label  = alnum [ *( alnum / "-" ) alnum ]
+ *
+ * A dotted user stands only before a host: Bluesky accounts bridged by
+ * Bridgy Fed (`@alice.bsky.social@bsky.brid.gy`), Threads, and other
+ * software name remote accounts so, as Mastodon's Account::USERNAME_RE
+ * allows. Local usernames carry no dot.
  *
  * Left boundary: start of text, or a character other than a letter, digit,
  * "_", "@", "/" or "\\". `bob@example.com`, `@@bob` and `\\@bob` are not handles.
@@ -16,9 +21,11 @@
  */
 
 const LABEL = '[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?';
+const WORD = '[A-Za-z0-9_-]+';
 
+// Exactly two capture groups (user, host): callers splice the pattern into larger ones.
 export const HANDLE_PATTERN =
-  '(?<![\\p{L}\\p{N}_@/\\\\])@([A-Za-z0-9_-]+)' +
+  `(?<![\\p{L}\\p{N}_@/\\\\])@(${WORD}(?:\\.${WORD})+(?=@${LABEL})|${WORD})` +
   `(?:@(${LABEL}(?:\\.${LABEL})*))?` +
   '(?![\\p{L}\\p{N}_@-]|\\.[\\p{L}\\p{N}_-])';
 

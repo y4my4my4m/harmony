@@ -14,7 +14,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import {
   addMember,
   adminClient,
@@ -56,7 +56,10 @@ test.afterAll(async () => {
   await deleteUser(admin, host)
 })
 
-async function enterVoice(page: Page, user: SpecUser) {
+interface Call { serverId: string; channelId: string; roster: string[] }
+
+async function enterVoice(page: Page, user: SpecUser, call?: Call) {
+  const { serverId, channelId, roster } = call ?? { serverId: server.id, channelId: voiceId, roster: [host.id, guest.id] }
   await page.evaluate(({ serverId, channelId, userId, roster }) => {
     type Store = { $patch: (fn: (state: Record<string, any>) => void) => void }
     const root = document.querySelector('#app') as unknown as {
@@ -75,11 +78,33 @@ async function enterVoice(page: Page, user: SpecUser) {
     stores.get('serverUsers')?.$patch((state) => {
       state.usersInVoiceChannels = { ...state.usersInVoiceChannels, [channelId]: roster }
     })
-  }, { serverId: server.id, channelId: voiceId, userId: user.id, roster: [host.id, guest.id] })
+  }, { serverId, channelId, userId: user.id, roster })
 }
 
 const media = (page: Page) => page.getByTestId('activity-media')
 const mediaState = (page: Page) => media(page).evaluate((el: HTMLMediaElement) => ({ paused: el.paused, time: el.currentTime }))
+
+/**
+ * Colour on screen at the player's centre, as "r,g,b". The YouTube stub paints its frame PLAYER_RGB,
+ * so that colour means the player shows there. A hit test cannot tell: the call view makes the app
+ * root, the player included, inert.
+ */
+async function colourAtPlayer(page: Page): Promise<string> {
+  const box = await page.getByTestId('activity-host').boundingBox()
+  if (!box) return 'none'
+  const png = await page.screenshot({ clip: { x: box.x + box.width / 2 - 2, y: box.y + box.height / 2 - 2, width: 4, height: 4 } })
+  return page.evaluate(async (b64) => {
+    const bin = atob(b64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }))
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(bitmap, 0, 0)
+    const [r, g, b] = ctx.getImageData(1, 1, 1, 1).data
+    return `${r},${g},${b}`
+  }, png.toString('base64'))
+}
 
 test('a Drive video plays for everyone in the call and follows the host', async ({ page, browser }) => {
   test.setTimeout(180_000)
@@ -185,10 +210,17 @@ test('a Drive video plays for everyone in the call and follows the host', async 
 // was asked for and answers like the IFrame API: ready, then playing, or error 150 (the
 // uploader disabled embedding) for BLOCKED.
 const BLOCKED = 'blockedVid0'
+const PLAYER_RGB = '255,0,255'
 const IFRAME_API_STUB = `
 window.YT = { Player: function (id, opts) {
   var t = 0, playing = false;
   window.top.postMessage({ ytStub: opts.videoId }, '*');
+  var picture = document.createElement('div');
+  picture.style.position = 'fixed';
+  picture.style.inset = '0';
+  picture.style.zIndex = '2147483647';
+  picture.style.background = 'rgb(${PLAYER_RGB})';
+  document.body.appendChild(picture);
   this.playVideo = function () { playing = true; opts.events.onStateChange({ data: 1 }); };
   this.pauseVideo = function () { playing = false; opts.events.onStateChange({ data: 2 }); };
   this.seekTo = function (s) { t = s; };
@@ -237,6 +269,78 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
     await page.getByTestId('activity-open').click()
     await expect(page.getByTestId('activity-stage')).toBeVisible()
     await expect(page.getByTestId('activity-error')).toHaveCount(0)
+  })
+
+  await test.step('the player shows over the stage, not under the call view', async () => {
+    // The call view is teleported to the end of <body>, after the app root that holds the player.
+    await expect(page.locator('.voice-overlay.overlay-entering')).toHaveCount(0)
+    await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
+  })
+
+  await test.step('a refused autoplay shows Click to play over the player, and it can be clicked', async () => {
+    const setError = (error: string | null) => page.evaluate((value) => {
+      const root = document.querySelector('#app') as unknown as {
+        __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, { setStatus: (s: Record<string, unknown>) => void }> } } } }
+      }
+      root.__vue_app__.config.globalProperties.$pinia._s.get('activities')!.setStatus({ error: value })
+    }, error)
+    await setError('autoplay')
+    const resume = page.getByTestId('activity-stage').getByRole('button', { name: 'Click to play' })
+    await expect(resume).toBeVisible()
+    const box = (await resume.boundingBox())!
+    await expect.poll(() => page.evaluate(([x, y]) =>
+      !!document.elementFromPoint(x, y)?.closest('.activity-stage__resume'), [box.x + box.width / 2, box.y + box.height / 2])).toBe(true)
+    await setError(null)
+    await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
+  })
+
+  await test.step('in full screen the video fills the screen under controls that hide and come back over it', async () => {
+    const overlay = page.getByTestId('voice-overlay')
+    await overlay.getByRole('button', { name: 'Full screen', exact: true }).click()
+    await expect(overlay).toHaveClass(/native-fullscreen/)
+    // The player is drawn in full screen and fills it: the call view's own full screen drew
+    // nothing outside its container, and the player is mounted on <body>.
+    await expect.poll(() => colourAtPlayer(page), { timeout: 5000 }).toBe(PLAYER_RGB)
+    expect(await page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true)
+    const viewport = page.viewportSize()!
+    const hostBox = (await page.getByTestId('activity-host').boundingBox())!
+    expect(Math.round(hostBox.width)).toBe(viewport.width)
+    expect(Math.round(hostBox.height)).toBe(viewport.height)
+    // The scrub bar floats above the call's controls, not across them.
+    const scrub = (await page.getByTestId('activity-stage').getByTestId('activity-controls').boundingBox())!
+    const controls = (await overlay.locator('.voice-controls').boundingBox())!
+    expect(scrub.y + scrub.height).toBeLessThanOrEqual(controls.y + 1)
+    // Still pointer: both hide. The pointer over the video brings them back.
+    await page.mouse.move(viewport.width / 2, viewport.height / 2)
+    await expect(overlay).toHaveClass(/controls-hidden/, { timeout: 6000 })
+    await expect(page.getByTestId('activity-stage').getByTestId('activity-controls')).toHaveCSS('opacity', '0')
+    await page.mouse.move(viewport.width / 2 + 40, viewport.height / 2 + 20)
+    await expect(overlay).not.toHaveClass(/controls-hidden/)
+    await expect(page.getByTestId('activity-stage').getByTestId('activity-controls')).toHaveCSS('opacity', '1')
+    await page.keyboard.press('Escape')
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull()
+    await expect(overlay).not.toHaveClass(/native-fullscreen/)
+    await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
+    // Full screen ends with the call view: minimized, the app is not left full screen.
+    await overlay.getByRole('button', { name: 'Full screen', exact: true }).click()
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true)
+    await overlay.getByRole('button', { name: 'Minimize call view', exact: true }).click()
+    await expect(page.getByTestId('voice-overlay')).toHaveCount(0)
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull()
+    await page.getByTestId('activity-open').click()
+    await expect(page.getByTestId('activity-stage')).toBeVisible()
+    // The app's own full screen (F11), taken over by the call view, stays when it is minimized.
+    await page.keyboard.press('F11')
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true)
+    await page.getByTestId('voice-overlay').getByRole('button', { name: 'Full screen', exact: true }).click()
+    await expect(page.getByTestId('voice-overlay')).toHaveClass(/native-fullscreen/)
+    await page.getByTestId('voice-overlay').getByRole('button', { name: 'Minimize call view', exact: true }).click()
+    await expect(page.getByTestId('voice-overlay')).toHaveCount(0)
+    expect(await page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true)
+    await page.keyboard.press('F11')
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull()
+    await page.getByTestId('activity-open').click()
+    await expect(page.getByTestId('activity-stage')).toBeVisible()
   })
 
   await test.step('the call view stays light: no backdrop blur behind it, one react button', async () => {
@@ -299,4 +403,87 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
     await expect(page.getByTestId('activity-dock-card')).toHaveCount(0)
     await expect(page.locator('html')).not.toHaveAttribute('data-disable-blur', 'true')
   })
+})
+
+// Appearance → Zoom level in a browser is CSS zoom on <html>: a client rect is in viewport
+// pixels, a length written to a style is multiplied by the zoom. The player laid out from the
+// slot's raw rect lands at zoom times the slot's position and size.
+test('at 150% and 80% zoom the player covers its slot, in the dock card and on the stage', async ({ page }) => {
+  test.setTimeout(180_000)
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.context().route('https://www.youtube.com/iframe_api', (route) =>
+    route.fulfill({ contentType: 'text/javascript', body: IFRAME_API_STUB }))
+
+  const viewer = await createUser(admin, 'actz')
+  try {
+    const own = await seedServer(admin, viewer, `Zoomed ${viewer.username}`)
+    const { data, error } = await admin.from('channels').insert({ server_id: own.id, name: 'cinema', type: 1 }).select('id').single()
+    if (error || !data) throw new Error(`voice channel: ${error?.message}`)
+    const call: Call = { serverId: own.id, channelId: data.id, roster: [viewer.id] }
+    const { error: joinError } = await admin.from('voice_channel_participants').insert({ channel_id: call.channelId, user_id: viewer.id, server_id: own.id })
+    if (joinError) throw new Error(`participant: ${joinError.message}`)
+
+    await signIn(page, viewer)
+
+    /** Largest edge difference between the player and `slot`, in viewport pixels. */
+    const offSlot = async (slot: Locator) => {
+      const player = await page.getByTestId('activity-host').boundingBox()
+      const target = await slot.boundingBox()
+      if (!player || !target) return Infinity
+      return Math.max(
+        Math.abs(player.x - target.x),
+        Math.abs(player.y - target.y),
+        Math.abs(player.width - target.width),
+        Math.abs(player.height - target.height),
+      )
+    }
+
+    for (const percent of [150, 80]) {
+      await test.step(`zoom ${percent}%`, async () => {
+        await page.goto('/settings/appearance')
+        await dismissAnnouncements(page)
+        const value = page.getByTestId('zoom-value')
+        await expect(value).toBeVisible({ timeout: 30000 })
+        for (let now = parseInt(await value.innerText(), 10); now !== percent; now += now < percent ? 10 : -10) {
+          await page.getByTestId(now < percent ? 'zoom-in' : 'zoom-out').click()
+        }
+        await expect(value).toHaveText(`${percent}%`)
+        const save = page.getByRole('button', { name: 'Save changes' })
+        await save.click()
+        await expect(save).toBeHidden({ timeout: 15000 })
+        await expect.poll(() => page.evaluate(() => document.documentElement.style.zoom)).toBe(`${percent}%`)
+      })
+
+      await test.step(`${percent}%: the player covers the dock card's slot, then the stage's`, async () => {
+        await openChannel(page, own.id, own.generalChannelId)
+        await enterVoice(page, viewer, call)
+        await page.evaluate(() => {
+          const root = document.querySelector('#app') as unknown as {
+            __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, { $patch: (fn: (s: Record<string, any>) => void) => void }> } } } }
+          }
+          root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')!.$patch((s) => { s.connectionMode = 'livekit' })
+        })
+        await page.getByTestId('activity-button').first().click()
+        await page.getByTestId('activity-link').fill('https://www.youtube.com/watch?v=rFrPz1WkBvk')
+        await page.getByTestId('activity-start').click()
+
+        const card = page.getByTestId('activity-dock-card')
+        await expect(card).toBeVisible({ timeout: 15000 })
+        await expect(page.getByTestId('activity-frame')).toBeVisible()
+        await expect.poll(() => offSlot(card.locator('.activity-dock__slot'))).toBeLessThanOrEqual(1)
+        await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
+
+        await page.getByTestId('activity-open').click()
+        await expect(page.getByTestId('activity-stage')).toBeVisible()
+        await expect.poll(() => offSlot(page.getByTestId('activity-slot'))).toBeLessThanOrEqual(1)
+        await expect(page.locator('.voice-overlay.overlay-entering')).toHaveCount(0)
+        await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
+
+        await page.getByTestId('activity-stage').getByRole('button', { name: 'End for everyone' }).click()
+        await expect(page.getByTestId('activity-host')).toHaveCount(0)
+      })
+    }
+  } finally {
+    await deleteUser(admin, viewer)
+  }
 })

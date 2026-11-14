@@ -65,6 +65,8 @@ import { editorSpaces, linearize, offsetForPoint, plainTextOf, pointForOffset } 
 import { linkPasteText } from '@/utils/maskedLinks';
 import { HERE_ROLE_ID } from '@/utils/hereMention';
 import { isMassMentionWord } from '@/utils/massMentions';
+import { absentLocalHandleCount, localHandleExists, requestLocalHandle } from '@/utils/localHandleLookup';
+import { runtimeConfig } from '@/services/runtimeConfig';
 import { pastedText, writeTokenTextToClipboard } from '@/utils/emojiClipboard';
 import { focusFromNavigationKey, trackNavigationKeys } from '@/utils/a11y/focus';
 import { attachTapToCaret, isAndroidUserAgent } from '@/utils/tapToCaret';
@@ -400,6 +402,9 @@ const processMentionsInText = (text: string): DocumentFragment => {
       } else if (!match[5] && isMassMentionWord(match[4])) {
         // Bare @everyone and @here name no user; the send path decides ping or text.
         fragment.appendChild(document.createTextNode(match[0]));
+      } else if (namesNoLocalAccount(match[4], match[5]?.toLowerCase())) {
+        // Text, as the send path stores it (unifiedContentProcessing).
+        fragment.appendChild(document.createTextNode(match[0]));
       } else {
         const username = match[4];
         const domain = match[5]?.toLowerCase();
@@ -416,6 +421,19 @@ const processMentionsInText = (text: string): DocumentFragment => {
   }
   
   return fragment;
+};
+
+// A local handle is a pill until a lookup finds no account under that exact username, the
+// match the send path makes. A cached profile counts only under the exact username: the cache
+// matches case-insensitively, the send path does not.
+const namesNoLocalAccount = (username: string, domain?: string): boolean => {
+  const localDomain = ((runtimeConfig.domain as string) || '').toLowerCase();
+  if (domain && domain !== localDomain) return false;
+  const cachedId = userDataService.findUserIdByUsername(username, domain);
+  if (cachedId && userDataService.getUserProfile(cachedId)?.username === username) return false;
+  const exists = localHandleExists(username);
+  if (exists === undefined) requestLocalHandle(username);
+  return exists === false;
 };
 
 const createMentionElementFromDisplay = (displayText: string, username: string, domain?: string): HTMLElement => {
@@ -1424,6 +1442,17 @@ watch(unifiedLoaded, (loaded) => {
       renderContent(text);
     }
   }
+});
+
+// A pill of a handle found to name no local account redraws as text.
+watch(absentLocalHandleCount, () => {
+  const root = editorRef.value;
+  if (!root || composing || isRendering.value) return;
+  const stale = [...root.querySelectorAll<HTMLElement>('.editor-mention[data-type="mention"]')].some((pill) => {
+    const username = pill.getAttribute('data-username');
+    return !!username && namesNoLocalAccount(username, pill.getAttribute('data-domain')?.toLowerCase() || undefined);
+  });
+  if (stale) renderContent(getPlainText());
 });
 
 // A pack switch redraws unicode emoji: images under Twemoji, text under System.

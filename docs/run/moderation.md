@@ -127,7 +127,13 @@ The reporter picks a reason (**Spam or unwanted content**, **Harassment or bully
 | A message in a channel of a server hosted on this instance | That server's owner and members with **Manage Messages**, in **Server settings** → **Reports** ("Reports in this server"); also the instance's administrators and moderators |
 | A member, or anything else | The instance's administrators and moderators only |
 
-Server moderators never see who filed a report: it shows as "Anonymous reporter". Nobody is notified when a report arrives; check the **Reports** section.
+Server moderators never see who filed a report: it shows as "Anonymous reporter".
+
+### Notifications of new reports
+
+A new report sends a notification, "New report in" and the server's name for a server's report, "New report to review" for any other, to whoever handles it in the table above: for a server's report its owner and members with **Manage Messages**, for any other the instance's administrators and moderators. The notification names the kind of content and the reason, never the reporter, and opens the queue. Nobody is told about a report against themselves.
+
+**Server settings** → **Reports**, the **Reports** tab of the admin panel and **Instance moderation** in **User settings** show how many reports wait. To stop the notifications, switch off **Notify me about new reports** at the top of either queue; the counts stay.
 
 ### Handle a report
 

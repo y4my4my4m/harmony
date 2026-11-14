@@ -16,7 +16,7 @@ SELECT ok(bool_and(NOT has_function_privilege('anon', fn, 'EXECUTE')
                    AND NOT has_function_privilege('authenticated', fn, 'EXECUTE')
                    AND has_function_privilege('service_role', fn, 'EXECUTE')),
   'only service callers execute the public page readers')
-  FROM unnest(ARRAY['public.public_profile_page(text, uuid, integer)', 'public.public_post_page(uuid)',
+  FROM unnest(ARRAY['public.public_profile_page(text, uuid, integer, text)', 'public.public_post_page(uuid)',
                     'public.public_page_post(uuid, integer)', 'public.public_page_account(uuid)',
                     'public.public_page_instance()']) fn;
 

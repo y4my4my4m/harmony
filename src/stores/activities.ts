@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { supabase } from '@/supabase'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
-import { useAuthStore } from '@/stores/auth'
+import { useProfileStore } from '@/stores/useProfile'
 import {
   controlActivity,
   expectedPosition,
@@ -61,7 +61,11 @@ export const useActivitiesStore = defineStore('activities', () => {
   const offsetMs = ref(0)
   const volume = ref(storedVolume())
   const muted = ref(false)
-  /** Channels whose activity this client chose not to play. */
+  /**
+   * Runs, `${channel_id}:${started_at}`, this client chose not to play. Keyed by run, not by
+   * channel: an end this client never applied (the sidebar refresh drops it without apply) must
+   * not hide the next run, the member's own included.
+   */
   const hidden = ref<Set<string>>(new Set())
   /** Runs, `${channel_id}:${started_at}`, this client joined. */
   const joined = ref<Set<string>>(new Set())
@@ -88,13 +92,21 @@ export const useActivitiesStore = defineStore('activities', () => {
   })
 
   const runKey = (a: VoiceActivity) => `${a.channel_id}:${a.started_at}`
-  const accepted = (a: VoiceActivity) => a.host_id === useAuthStore().session?.user?.id || joined.value.has(runKey(a))
+  /** Per run, the newest revision a peer's state was taken at. */
+  const peerRevision = new Map<string, number>()
+  // host_id is a profile id (get_current_profile_id()), which need not equal the auth user id.
+  const accepted = (a: VoiceActivity) => {
+    const me = useProfileStore().profile?.id
+    return (!!me && a.host_id === me) || joined.value.has(runKey(a))
+  }
 
-  const playingHere = computed(() => !!current.value && !hidden.value.has(current.value.channel_id) && accepted(current.value))
+  /** This client chose not to play run `a`. */
+  const isHidden = (a: VoiceActivity) => hidden.value.has(runKey(a))
+  const playingHere = computed(() => !!current.value && !isHidden(current.value) && accepted(current.value))
   /** The call's activity while it does not play here: never joined, declined, or stopped for me. */
   const waiting = computed(() => (current.value && !playingHere.value ? current.value : null))
   /** waiting, and the member has not answered its invite yet. */
-  const invited = computed(() => !!waiting.value && !hidden.value.has(waiting.value.channel_id))
+  const invited = computed(() => !!waiting.value && !isHidden(waiting.value))
   const slot = computed(() => slots.value[0] ?? null)
 
   function serverTime(): number {
@@ -133,13 +145,16 @@ export const useActivitiesStore = defineStore('activities', () => {
       }
     }
     byChannel.value = { ...byChannel.value, [channelId]: activity }
-    if (!activity || (held && activity.started_at !== held.started_at)) {
-      const next = new Set(hidden.value)
-      next.delete(channelId)
-      hidden.value = next
-      if (held) {
+    if (held && (!activity || activity.started_at !== held.started_at)) {
+      const key = runKey(held)
+      if (hidden.value.has(key)) {
+        const next = new Set(hidden.value)
+        next.delete(key)
+        hidden.value = next
+      }
+      if (joined.value.has(key)) {
         const runs = new Set(joined.value)
-        runs.delete(runKey(held))
+        runs.delete(key)
         joined.value = runs
       }
     }
@@ -237,19 +252,45 @@ export const useActivitiesStore = defineStore('activities', () => {
     apply(payload.channelId, payload.activity ?? null, true)
   }
 
-  /** An activity state from a participant of the call. */
+  /**
+   * An activity state from a participant of the call. A participant is not the database: its state
+   * moves the playback of the item this client holds (play, pause, position, rate) and nothing
+   * else, and only a participant who may control the run. A new run, its host, item and queue come
+   * from the database and its broadcasts; otherwise any participant could start a run naming this
+   * client as host, which plays at once. The held revision stays the database's: a peer's revision
+   * orders peer states among themselves (peerRevision) and never makes a database state look stale.
+   */
   function receivePeer(event: { userId: string; message: unknown }): void {
     const message = event.message as { type?: string; channelId?: string; activity?: VoiceActivity | null }
     if (message?.type !== 'activity' || typeof message.channelId !== 'string') return
     if (message.channelId !== voiceChannelId.value) return
-    if (message.activity && message.activity.channel_id !== message.channelId) return
-    apply(message.channelId, message.activity ?? null, false)
+    const peer = message.activity
+    const held = byChannel.value[message.channelId]
+    if (!peer || !held || peer.channel_id !== held.channel_id || peer.started_at !== held.started_at) return
+    if (held.controls === 'host' && event.userId !== held.host_id) return
+    const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
+    if (!finite(peer.revision) || !finite(peer.position_ms) || !finite(peer.position_at) || peer.position_ms < 0) return
+    // Item and queue changes are the database's: a state naming another item or queue waits for it.
+    if (JSON.stringify(peer.item) !== JSON.stringify(held.item) || JSON.stringify(peer.queue) !== JSON.stringify(held.queue)) return
+    const key = runKey(held)
+    if (peer.revision <= Math.max(held.revision, peerRevision.get(key) ?? -Infinity)) return
+    peerRevision.set(key, peer.revision)
+    apply(message.channelId, {
+      ...held,
+      playing: peer.playing === true,
+      position_ms: peer.position_ms,
+      position_at: peer.position_at,
+      rate: finite(peer.rate) && peer.rate >= 0.25 && peer.rate <= 4 ? peer.rate : held.rate,
+    }, false)
   }
 
+  /** Hides or shows the current run of `channelId` for this client. */
   function hide(channelId: string, value: boolean): void {
+    const a = byChannel.value[channelId]
+    if (!a) return
     const next = new Set(hidden.value)
-    if (value) next.add(channelId)
-    else next.delete(channelId)
+    if (value) next.add(runKey(a))
+    else next.delete(runKey(a))
     hidden.value = next
   }
 
@@ -318,7 +359,7 @@ export const useActivitiesStore = defineStore('activities', () => {
 
   return {
     byChannel, offsetMs, volume, muted, hidden, joined, slots, slot, status, busy, launcherOpen, launcherAnchor,
-    voiceChannelId, current, playingHere, waiting, invited, join,
+    voiceChannelId, current, playingHere, waiting, invited, isHidden, join,
     serverTime, position, syncClock, apply, refresh, refreshServer, start, control, stop, togglePlay, seek,
     itemEnded, receiveBroadcast, receivePeer, hide, setVolume, registerSlot, setStatus, enterCall,
   }

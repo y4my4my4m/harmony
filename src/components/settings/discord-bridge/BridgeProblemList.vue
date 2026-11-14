@@ -7,7 +7,7 @@
       :data-code="problem.code"
     >
       <div class="problem-head">
-        <Icon :name="problem.severity === 'warn' ? 'alert-triangle' : 'alert-circle'" :size="16" aria-hidden="true" />
+        <Icon :name="SEVERITY_ICON[problem.severity]" :size="16" aria-hidden="true" />
         <strong class="problem-title">{{ problem.title }}</strong>
       </div>
       <p class="problem-fix">{{ problem.fix }}</p>
@@ -80,6 +80,7 @@ import {
   DISCORD_DEVELOPER_PORTAL_URL,
   buildDiscordInviteUrl,
   normalizeBridgeSettings,
+  isProblemNotice,
   parseSnapshotGuilds,
   type BridgeProblem,
   type BridgeSettingKey,
@@ -92,12 +93,16 @@ import { updateSettings } from './bridgeApi'
 import { bridgeErrorKey } from './bridgeErrors'
 import BridgeCopyBlock from './BridgeCopyBlock.vue'
 
+type Severity = 'error' | 'warn' | 'info'
+
+const SEVERITY_ICON: Record<Severity, string> = { error: 'alert-circle', warn: 'alert-triangle', info: 'info' }
+
 type Action = 'invite' | 'portal' | 'turnOff' | Extract<SetupStep, 'connect' | 'guild' | 'channels'>
 
 interface ProblemView {
   key: string
   code: string
-  severity: 'error' | 'warn'
+  severity: Severity
   title: string
   fix: string
   commands: string[]
@@ -119,7 +124,7 @@ const emit = defineEmits<{
   changed: []
 }>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const toast = useToast()
 const busy = ref(false)
 const portalUrl = DISCORD_DEVELOPER_PORTAL_URL
@@ -154,6 +159,8 @@ const KNOWN = new Set([
   'rate_limited',
   'discord_unreachable',
   'harmony_unreachable',
+  'message_content_needed_for_import',
+  'private_threads_skipped',
 ])
 
 /** Codes whose fix differs between a bridge you run, one the instance runs, and the instance bot. */
@@ -164,6 +171,7 @@ const MODE_SPECIFIC = new Set([
   'harmony_auth_failed',
   'discord_unreachable',
   'harmony_unreachable',
+  'message_content_needed_for_import',
   'unknown',
 ])
 
@@ -204,6 +212,7 @@ function view(problem: BridgeProblem, index: number): ProblemView {
     guild: guildLabel(problem.params.guild_id),
     url: props.harmonyUrl,
     code: problem.code,
+    count: Number(problem.params.count) || 0,
   }
   const base = `discordBridge.problems.${code}`
   let fixKey = `${base}.fix`
@@ -242,6 +251,10 @@ function view(problem: BridgeProblem, index: number): ProblemView {
         actions.push('connect')
       }
       break
+    case 'message_content_needed_for_import':
+      if (self) commands.push(BRIDGE_RESTART_COMMAND)
+      if (!instance) actions.push('portal')
+      break
     case 'harmony_channel_missing':
     case 'harmony_channel_encrypted':
       actions.push('channels')
@@ -256,8 +269,9 @@ function view(problem: BridgeProblem, index: number): ProblemView {
   return {
     key: `${index}:${problem.code}:${JSON.stringify(problem.params)}`,
     code: problem.code,
-    severity: WARN_CODES.has(code) ? 'warn' : 'error',
-    title: t(`${base}.title`, named),
+    severity: isProblemNotice(problem) ? 'info' : WARN_CODES.has(code) ? 'warn' : 'error',
+    // A count, when the bridge sends one, picks the plural form.
+    title: named.count && te(`${base}.titleCount`) ? t(`${base}.titleCount`, named, named.count) : t(`${base}.title`, named),
     fix: t(fixKey, named),
     commands,
     actions: shownActions,
@@ -305,6 +319,11 @@ async function turnOff(key: BridgeSettingKey) {
   background: color-mix(in srgb, var(--warning) 12%, transparent);
 }
 
+.problem--info {
+  border-left-color: var(--info);
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+}
+
 .problem-head {
   display: flex;
   gap: 8px;
@@ -312,7 +331,8 @@ async function turnOff(key: BridgeSettingKey) {
   color: var(--text-danger);
 }
 
-.problem--warn .problem-head {
+.problem--warn .problem-head,
+.problem--info .problem-head {
   color: var(--text-primary);
 }
 

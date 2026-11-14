@@ -5,9 +5,15 @@
   and sound-only activities keep playing unseen. Moving between slots never moves the player
   in the DOM, so frames keep their state.
 
-  Stacking: the player takes the z-index of the slot's root-level stacking ancestor (the voice
-  layer, .persistent-voice) and paints after it in tree order (App.vue mounts it next). Panels
-  and pickers teleported above that layer cover the player as they cover the call.
+  Stacking: the player paints just above the slot's root-level stacking ancestor. It takes that
+  ancestor's z-index when it follows it in tree order (.persistent-voice; App.vue mounts the
+  player next), one more when it precedes it (the call view, teleported to the end of <body>).
+  Panels and pickers teleported above that layer cover the player as they cover the call.
+  Under a slot inside an element marked data-activity-under (the call view in full screen, whose
+  chrome floats over the video), the player paints just under that root instead: the root's
+  z-index when it precedes it, one less when it follows. The root shows it through a transparent
+  stage and keeps the pointer. While the player reports an error the stage's notice (Click to
+  play, Open on) is drawn in the slot, so the player goes under the root then too.
 
   A slot in the call pop-out window takes the player into that window's activity container
   (components/voice/callPopout.ts). A frame reloads on a move between documents; the relay
@@ -22,8 +28,9 @@
   <Teleport :to="callPopout.activity ?? 'body'" :disabled="!slotInPopout || !callPopout.activity">
   <div
     v-if="active"
+    ref="hostEl"
     class="activity-host"
-    :class="[`activity-host--${placement}`, { 'is-listen': listen }]"
+    :class="[`activity-host--${placement}`, { 'is-listen': listen, 'is-under': under }]"
     :style="boxStyle"
     data-testid="activity-host"
     :data-source="activity!.source"
@@ -110,8 +117,9 @@ import { useActivitiesStore } from '@/stores/activities'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { isListenActivity } from '@/services/activities/activityService'
 import { mediaPartSource } from '@/services/privateMedia'
-import { embedRelayOrigin, EMBED_RELAY_PATH } from '@/utils/embedDetection'
+import { activityPlayerOrigin, EMBED_RELAY_PATH } from '@/utils/embedDetection'
 import { suspendGlass } from '@/composables/useVisualTheme'
+import { styleRect } from '@/utils/appZoom'
 import { callPopout } from '@/components/voice/callPopout'
 
 const TICK_MS = 250
@@ -125,12 +133,16 @@ const { t } = useT()
 const actStore = useActivitiesStore()
 const voice = useUnifiedVoiceChannelStore()
 
+const hostEl = ref<HTMLElement | null>(null)
 const mediaEl = ref<HTMLMediaElement | null>(null)
 const frameEl = ref<HTMLIFrameElement | null>(null)
 const rect = ref<{ left: number; top: number; width: number; height: number } | null>(null)
 const layer = ref<number | null>(null)
+// The slot's root takes the player under it (data-activity-under).
+const under = ref(false)
 const slotInPopout = ref(false)
 let layerFor: Element | null = null
+let layerRoot: { z: number; el: Element } | null = null
 let tickTimer: ReturnType<typeof setInterval> | null = null
 let rafId = 0
 // Frames of the window that shows the slot: a hidden main window runs none.
@@ -160,8 +172,8 @@ const mediaSource = computed(() => {
   return undefined
 })
 
-const playerPage = computed(() => `${embedRelayOrigin() ?? ''}${EMBED_RELAY_PATH}?activity=1`)
-const playerOrigin = computed(() => embedRelayOrigin() ?? window.location.origin)
+const playerPage = computed(() => `${activityPlayerOrigin() ?? ''}${EMBED_RELAY_PATH}?activity=1`)
+const playerOrigin = computed(() => activityPlayerOrigin() ?? window.location.origin)
 
 const placement = computed<'slot' | 'corner' | 'hidden'>(() => {
   if (actStore.slot && rect.value) return 'slot'
@@ -180,14 +192,27 @@ const boxStyle = computed(() => {
   }
 })
 
-/** z-index of the outermost positioned ancestor with one; null when none sets it. */
-function rootLayer(el: Element): number | null {
-  let z: number | null = null
+/**
+ * z-index that paints the player over `root`, one more than it when the player precedes it in tree
+ * order; with `under`, just under it: its own when the player precedes it, one less when it follows.
+ */
+function layerAt(root: { z: number; el: Element } | null, under: boolean): number | null {
+  if (!root) return null
+  const host = hostEl.value
+  const precedes = !!host && host.ownerDocument === root.el.ownerDocument
+    && !!(host.compareDocumentPosition(root.el) & Node.DOCUMENT_POSITION_FOLLOWING)
+  if (under) return precedes ? root.z : root.z - 1
+  return precedes ? root.z + 1 : root.z
+}
+
+/** The outermost positioned ancestor with a z-index, and that z-index; null when none sets it. */
+function rootLayer(el: Element): { z: number; el: Element } | null {
+  let found: { z: number; el: Element } | null = null
   for (let n: Element | null = el; n && n !== el.ownerDocument.body; n = n.parentElement) {
     const s = getComputedStyle(n)
-    if (s.position !== 'static' && s.zIndex !== 'auto') z = Number(s.zIndex) || 0
+    if (s.position !== 'static' && s.zIndex !== 'auto') found = { z: Number(s.zIndex) || 0, el: n }
   }
-  return z
+  return found
 }
 
 function stopTracking(): void {
@@ -209,9 +234,15 @@ function trackSlot(): void {
     if (el && el.isConnected) {
       if (el !== layerFor) {
         layerFor = el
-        layer.value = rootLayer(el)
+        layerRoot = rootLayer(el)
       }
-      const r = el.getBoundingClientRect()
+      // Per frame: the player and the call view move between windows with the pop-out.
+      const below = !!el.closest('[data-activity-under]') || !!actStore.status.error
+      if (under.value !== below) under.value = below
+      const z = layerAt(layerRoot, below)
+      if (layer.value !== z) layer.value = z
+      // Style pixels: under CSS zoom a client rect is zoom times the lengths a style takes.
+      const r = styleRect(el)
       const prev = rect.value
       if (!prev || prev.left !== r.left || prev.top !== r.top || prev.width !== r.width || prev.height !== r.height) {
         rect.value = { left: r.left, top: r.top, width: r.width, height: r.height }
@@ -397,6 +428,10 @@ onBeforeUnmount(() => {
 
 .activity-host--slot {
   border-radius: 10px;
+}
+
+.activity-host--slot.is-under {
+  border-radius: 0;
 }
 
 .activity-host--corner {

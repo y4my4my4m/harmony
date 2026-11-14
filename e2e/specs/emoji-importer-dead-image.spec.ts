@@ -1,4 +1,4 @@
-// Journey: Admin → Emojis, Not imported. A cached remote emoji whose image is gone is drawn as
+// Journey: Admin → Emojis, Available to import. A cached remote emoji whose image is gone is drawn as
 // the broken-image icon after one failed request. The error handler used to set the image to
 // /emoji-placeholder.png, which does not exist; that failure re-entered the handler, so each
 // dead image requested the placeholder without end.

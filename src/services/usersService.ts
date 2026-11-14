@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase';
+import { readAllRows } from '@/services/pagedRead';
 import type { Profile } from '@/types';
 
 // Cache for server member IDs with TTL
@@ -6,8 +7,14 @@ const serverMemberCache = new Map<string, { userIds: string[], timestamp: number
 const pendingServerMemberRequests = new Map<string, Promise<string[]>>()
 const MEMBER_CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 
-// RLS on user_servers is scoped: users can only see memberships for servers
-// they belong to (see migration 20260323_fix_user_servers_select_rls.sql).
+/** Profile ids one `id=in.(...)` request carries; a longer URL is refused by reverse proxies. */
+const PROFILE_ID_CHUNK = 100
+
+/**
+ * Ids of a server's accepted members, read in pages to the end. A whole-membership read:
+ * for an instance without the member directory, and for callers that need every member
+ * (encryption recipients). RLS on user_servers shows a server's rows to its members.
+ */
 const getUserIdsForServer = async (serverId: string): Promise<string[]> => {
   const now = Date.now()
   
@@ -24,14 +31,15 @@ const getUserIdsForServer = async (serverId: string): Promise<string[]> => {
   
   const fetchPromise = (async () => {
     try {
-      const { data, error } = await supabase
+      const rows = await readAllRows<{ user_id: string }>(() => supabase
         .from('user_servers')
-        .select('user_id')
-        .eq('server_id', serverId);
+        .select('user_id', { count: 'exact' })
+        .eq('server_id', serverId)
+        // A row with no status is an accepted member, as current_user_server_ids reads it.
+        .or('status.is.null,status.eq.accepted')
+        .order('user_id'));
 
-      if (error) throw error;
-      
-      const userIds = data.map(item => item.user_id)
+      const userIds = rows.map(item => item.user_id)
       
       // Cache the result
       serverMemberCache.set(serverId, { userIds, timestamp: Date.now() })
@@ -45,48 +53,6 @@ const getUserIdsForServer = async (serverId: string): Promise<string[]> => {
   pendingServerMemberRequests.set(serverId, fetchPromise)
   return fetchPromise
 };
-
-/**
- * Batch-fetch member IDs for multiple servers in a single query.
- * Uses the same cache as getUserIdsForServer - only queries uncached servers.
- */
-const getUserIdsForServers = async (serverIds: string[]): Promise<Map<string, string[]>> => {
-  const now = Date.now()
-  const uncachedIds = serverIds.filter(id => {
-    const cached = serverMemberCache.get(id)
-    return !cached || (now - cached.timestamp) >= MEMBER_CACHE_TTL
-  })
-
-  if (uncachedIds.length > 0) {
-    const { data, error } = await supabase
-      .from('user_servers')
-      .select('user_id, server_id')
-      .in('server_id', uncachedIds)
-
-    if (error) throw error
-
-    const grouped = new Map<string, string[]>()
-    data?.forEach(row => {
-      if (!grouped.has(row.server_id)) grouped.set(row.server_id, [])
-      grouped.get(row.server_id)!.push(row.user_id)
-    })
-    const ts = Date.now()
-    for (const [sid, uids] of grouped) {
-      serverMemberCache.set(sid, { userIds: uids, timestamp: ts })
-    }
-    for (const sid of uncachedIds) {
-      if (!grouped.has(sid)) {
-        serverMemberCache.set(sid, { userIds: [], timestamp: ts })
-      }
-    }
-  }
-
-  const result = new Map<string, string[]>()
-  for (const id of serverIds) {
-    result.set(id, serverMemberCache.get(id)?.userIds || [])
-  }
-  return result
-}
 
 /**
  * Invalidate the member cache for a server (call when members join/leave)
@@ -103,13 +69,17 @@ const clearAllMemberCaches = (): void => {
 }
 
 const getProfiles = async (userIds: string[]): Promise<Profile[]> => {
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', userIds);
+    const profiles: Profile[] = [];
+    for (let i = 0; i < userIds.length; i += PROFILE_ID_CHUNK) {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('id', userIds.slice(i, i + PROFILE_ID_CHUNK));
 
-    if (error) throw error;
-    return data;
+        if (error) throw error;
+        profiles.push(...(data ?? []));
+    }
+    return profiles;
 };
 
 const getProfilesWithAvatarUrls = async (userIds: string[]): Promise<Profile[]> => {
@@ -136,7 +106,6 @@ const getProfilesWithAvatarUrls = async (userIds: string[]): Promise<Profile[]> 
 
 export { 
   getUserIdsForServer,
-  getUserIdsForServers,
   getProfiles, 
   getProfilesWithAvatarUrls,
   invalidateServerMemberCache,

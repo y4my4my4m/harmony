@@ -204,13 +204,15 @@ async function place(): Promise<void> {
   rowRef.value?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
 }
 
-// Browser full screen shows only the fullscreen element's subtree.
+// Browser full screen shows only the fullscreen element's subtree; the document as that element
+// (the call view's full screen) shows <body>.
 watch(() => props.visible, visible => {
   if (!visible) {
     pickerOpen.value = false;
     return;
   }
-  host.value = (document.fullscreenElement as HTMLElement | null) ?? portalTarget.value;
+  const shown = document.fullscreenElement as HTMLElement | null;
+  host.value = shown && shown !== document.documentElement ? shown : portalTarget.value;
   quick.value = buildQuick();
   position.value = { x: -9999, y: -9999 };
   void place();

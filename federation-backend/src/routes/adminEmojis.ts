@@ -9,7 +9,8 @@
  * (png, apng, gif, webp, jpeg), held to the emojis bucket's file_size_limit, stripped of
  * metadata and stored at 00000000-0000-0000-0000-000000000000/<uuid>.<ext>; import_remote_emoji
  * or rehost_emoji then records its public URL. A refused record removes the object.
- * Errors answer { error: <code> }.
+ * import_remote_emoji copies the cache row's licence and origin instance onto the emoji
+ * (20261111200001_emoji_import.sql). Errors answer { error: <code> }; 429 past the hourly limit.
  */
 
 import { randomUUID } from 'crypto';
@@ -25,10 +26,11 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
+// One request per emoji; an admin importing a whole instance's set sends several hundred.
 const writeLimit = createStrictKeyedLimit({
   name: 'admin-emojis',
   windowMs: 60 * 60 * 1000,
-  maxRequests: 300,
+  maxRequests: 1000,
   message: 'Too many emoji imports; try again later.',
 });
 

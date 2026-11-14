@@ -214,6 +214,36 @@ describe('BridgeStatusView', () => {
     expect(w.text()).toContain('1 problem to fix')
   })
 
+  it('stays online when the bridge only reports notices', () => {
+    const notice = { code: 'private_threads_skipped', params: { discord_channel_id: '11', count: '2' } }
+    const w = mountStatus(
+      healthyBridge({
+        discord_guild_id: GUILD_ID,
+        status: { ...HEALTHY_STATUS, problems: [notice, { ...notice, params: { discord_channel_id: '12' } }] },
+      }),
+    )
+    expect(w.find('[data-testid="status-title"]').text()).toBe('Bridge is online')
+    expect(w.text()).toContain('2 notes')
+    expect(w.text()).not.toMatch(/problems? to fix/)
+  })
+
+  it('counts only the problems to fix next to notices', () => {
+    const w = mountStatus(
+      healthyBridge({
+        discord_guild_id: GUILD_ID,
+        status: {
+          ...HEALTHY_STATUS,
+          problems: [
+            { code: 'private_threads_skipped', params: { discord_channel_id: '11' } },
+            { code: 'cannot_send', params: { discord_channel_id: '11' } },
+          ],
+        },
+      }),
+    )
+    expect(w.find('[data-testid="status-title"]').text()).toBe('Bridge is online, with problems')
+    expect(w.text()).toContain('1 problem to fix')
+  })
+
   it('says when a bridge never connected', () => {
     const w = mountStatus(makeBridge({ discord_guild_id: GUILD_ID }))
     expect(w.find('[data-testid="status-title"]').text()).toBe("Bridge hasn't connected yet")

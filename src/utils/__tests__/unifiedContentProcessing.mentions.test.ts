@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 
 // profiles table: local alice, and remote doesnm whose instance is a subdomain.
 // The vitest VITE_DOMAIN is harmony.test.
@@ -6,6 +6,9 @@ const profiles = [
   { id: '00000000-0000-4000-8000-00000000a11c', username: 'alice', domain: 'harmony.test', display_name: 'Alice', is_local: true },
   { id: '00000000-0000-4000-8000-0000000d0e55', username: 'doesnm', domain: 'chat.understars.dev', display_name: 'doesnm', is_local: false },
 ]
+
+// lookup.fail: every profiles query answers with an error.
+const lookup = vi.hoisted(() => ({ fail: false }))
 
 vi.mock('@/supabase', () => {
   const query = () => {
@@ -19,7 +22,7 @@ vi.mock('@/supabase', () => {
         rows = rows.filter((r: any) => pairs.some(([, u, d]) => r.username === u && r.domain === d))
         return q
       },
-      then: (resolve: any) => resolve({ data: rows, error: null }),
+      then: (resolve: any) => resolve(lookup.fail ? { data: null, error: { message: 'unavailable' } } : { data: rows, error: null }),
     }
     return q
   }
@@ -61,11 +64,10 @@ describe('parseContentToMessageParts mentions', () => {
     expect(plain(parts)).toBe('no, it should be doesnm@chat.understars.dev')
   })
 
-  it('never gives a bare @user the local host when only a remote profile has that name', async () => {
+  it('never gives a bare @user the remote profile of that name', async () => {
     const parts = await parse('hi @doesnm')
-    const [m] = mentions(parts)
-    expect(m.userId).not.toBe('00000000-0000-4000-8000-0000000d0e55')
-    expect(m.userId).toBe('unresolved-doesnm')
+    expect(mentions(parts)).toEqual([])
+    expect(parts).toEqual([{ type: 'text', text: 'hi @doesnm' }])
   })
 
   it('does not split a dotted continuation into a chip and text', async () => {
@@ -76,8 +78,10 @@ describe('parseContentToMessageParts mentions', () => {
 
   it('does not fall back to a bare-name profile for an unknown remote handle', async () => {
     const parts = await parse('@doesnm@understars.dev and @doesnm')
-    const [first] = mentions(parts)
-    expect(first).toMatchObject({ username: 'doesnm', domain: 'understars.dev', isLocal: false, userId: 'unresolved-doesnm@understars.dev' })
+    expect(mentions(parts)).toEqual([
+      expect.objectContaining({ username: 'doesnm', domain: 'understars.dev', isLocal: false, userId: 'unresolved-doesnm@understars.dev' }),
+    ])
+    expect(plain(parts)).toBe('<doesnm@understars.dev> and @doesnm')
   })
 
   it('reported message: no chip borrows a profile or the local host', async () => {
@@ -198,5 +202,81 @@ describe('parseContentToMessageParts backslash escapes', () => {
     const parts = await parseContentToMessageParts(`\\${token} ${token}`, {}, {})
     expect(parts.filter((p: any) => p.type === 'emoji')).toHaveLength(1)
     expect((parts[0] as any).text).toBe(`\\${token} `)
+  })
+})
+
+// A typed local handle that names no account stays text; picked or typed, an existing
+// account is a mention.
+describe('parseContentToMessageParts local handles of no account', () => {
+  afterEach(() => { lookup.fail = false })
+
+  it('keeps @<no such user> as text', async () => {
+    const parts = await parse('@gasdghasidghasdg hello')
+    expect(parts).toEqual([{ type: 'text', text: '@gasdghasidghasdg hello' }])
+  })
+
+  it('keeps a time written with @ as text', async () => {
+    const parts = await parse('see you @5:32 ok')
+    expect(parts).toEqual([{ type: 'text', text: 'see you @5:32 ok' }])
+  })
+
+  it('keeps the account a mention beside a name of none', async () => {
+    const parts = await parse('@alice meet at @5:32, not @nobody_here.')
+    expect(plain(parts)).toBe('<alice@harmony.test> meet at @5:32, not @nobody_here.')
+    expect(mentions(parts)).toEqual([
+      expect.objectContaining({ username: 'alice', userId: '00000000-0000-4000-8000-00000000a11c' }),
+    ])
+  })
+
+  it('keeps the text a handle of no account sits in one part, markdown and all', async () => {
+    const parts = await parse('**hey @nobody there**')
+    expect(parts).toEqual([{ type: 'text', text: '**hey @nobody there**' }])
+  })
+
+  it('keeps @<no such user>@<local host> as typed', async () => {
+    const parts = await parse('hi @nobody@Harmony.Test')
+    expect(parts).toEqual([{ type: 'text', text: 'hi @nobody@Harmony.Test' }])
+  })
+
+  it('reads the exact username only, as the lookup does', async () => {
+    const parts = await parse('hi @Alice')
+    expect(parts).toEqual([{ type: 'text', text: 'hi @Alice' }])
+  })
+
+  it('keeps an unknown remote handle a mention for the federation worker', async () => {
+    const parts = await parse('hi @nobody@far.example')
+    expect(mentions(parts)).toEqual([
+      expect.objectContaining({ username: 'nobody', domain: 'far.example', isLocal: false, userId: 'unresolved-nobody@far.example' }),
+    ])
+  })
+
+  it('keeps a typed @everyone the mass mention beside @everyone@<local host> of no account', async () => {
+    const parts = await parseContentToMessageParts('@everyone@harmony.test @everyone', await resolveMentionsUserData('@everyone@harmony.test @everyone'),
+      {}, {}, {}, { massMentions: { allowed: true, everyoneRole: { id: 'r1', name: 'everyone', color: null } } } as any)
+    expect(parts).toEqual([
+      { type: 'text', text: '@everyone@harmony.test ' },
+      { type: 'role_mention', roleId: 'r1', roleName: 'everyone', roleColor: null },
+    ])
+  })
+
+  it('stores the mention unresolved, as before, when the lookup fails', async () => {
+    lookup.fail = true
+    const parts = await parse('hi @nobody')
+    expect(mentions(parts)).toEqual([
+      expect.objectContaining({ username: 'nobody', isLocal: true, userId: 'unresolved-nobody' }),
+    ])
+  })
+
+  it('stores the mention unresolved, as before, under a map from elsewhere', async () => {
+    const parts = await parseContentToMessageParts('hi @nobody', {})
+    expect(mentions(parts)).toEqual([
+      expect.objectContaining({ username: 'nobody', isLocal: true, userId: 'unresolved-nobody' }),
+    ])
+  })
+
+  it('stores a handle the lookup never saw unresolved, not as text', async () => {
+    const map = await resolveMentionsUserData('hi @nobody')
+    const parts = await parseContentToMessageParts('hi @nobody and @other', map)
+    expect(plain(parts)).toBe('hi @nobody and <other@harmony.test>')
   })
 })

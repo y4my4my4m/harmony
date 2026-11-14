@@ -617,6 +617,7 @@ check_services() {
 	fi
 	check_auth_linking
 	check_signup_limits
+	check_signup_captcha
 
 	# The cache answers every public storage read with X-Cache-Status, a miss included.
 	fetch local "https://$DB_DOMAIN/storage/v1/object/public/avatars/doctor-probe" "$TMP/media" -D "$TMP/media.h" >/dev/null
@@ -748,6 +749,60 @@ check_signup_limits() {
 		report OK "signup limits" "hook on, network and domain caps refuse"
 	else
 		report OK "signup limits" "hook on, network and domain caps observe"
+	fi
+}
+
+# Sign-up check (20261111100001): off until an admin sets a provider and both keys. Then a dummy token
+# goes to the provider's siteverify from the database, the path the hook's requests take: a working
+# secret answers invalid-input-response, a wrong one invalid-input-secret (Turnstile and hCaptcha).
+check_signup_captcha() {
+	local cfg provider site secret probe verdict detail codes message host unverified
+	db_ready || return 0
+	[[ "$(db_sql -c "SELECT to_regprocedure('public.signup_captcha_check(text,text,text,text)') IS NOT NULL" 2>/dev/null)" == t ]] || return 0
+	cfg="$(db_sql -c "SELECT coalesce(max(btrim(config_value #>> '{}', '\" ')) FILTER (WHERE config_key = 'signup_captcha_provider'), 'off')
+		|| '|' || (coalesce(max(btrim(config_value #>> '{}', '\" ')) FILTER (WHERE config_key = 'signup_captcha_site_key'), '') <> '')::text
+		|| '|' || (coalesce(max(btrim(config_value #>> '{}', '\" ')) FILTER (WHERE config_key = 'signup_captcha_secret'), '') <> '')::text
+		FROM public.instance_config WHERE config_key LIKE 'signup\_captcha\_%'" 2>/dev/null)"
+	IFS='|' read -r provider site secret <<<"$cfg"
+	case "$provider" in
+		turnstile) host=challenges.cloudflare.com ;;
+		hcaptcha) host=api.hcaptcha.com ;;
+		*) report OK "signup check" "off (Admin, Invites, Sign-up check)"; return 0 ;;
+	esac
+	if [[ "$site" != true || "$secret" != true ]]; then
+		report WARN "signup check" "$provider is chosen without both keys: no check is asked" "Admin, Invites, Sign-up check: enter both keys and test them"
+		return 0
+	fi
+	if [[ "$(db_sql -c "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'http')" 2>/dev/null)" != t ]]; then
+		report FAIL "signup check" "the database has no http extension: every asked sign-up is allowed unverified" \
+			"run the supabase/postgres image of supabase-overrides.yml, then bash bootstrap.sh --migrations-only"
+		return 0
+	fi
+	probe="$(db_sql -c "SELECT r ->> 'verdict', r ->> 'detail',
+			coalesce((SELECT string_agg(c, ',') FROM jsonb_array_elements_text(r -> 'codes') c), ''),
+			replace(coalesce(r ->> 'message', ''), '|', '/')
+		FROM (SELECT public.signup_captcha_check(k.p, k.s, 'harmony-doctor-probe', NULL) r
+		        FROM (SELECT max(btrim(config_value #>> '{}', '\" ')) FILTER (WHERE config_key = 'signup_captcha_provider') p,
+		                     max(btrim(config_value #>> '{}', '\" ')) FILTER (WHERE config_key = 'signup_captcha_secret') s
+		                FROM public.instance_config WHERE config_key LIKE 'signup\_captcha\_%') k) x" 2>/dev/null)"
+	IFS='|' read -r verdict detail codes message <<<"$probe"
+	if [[ "$detail" == network ]]; then
+		report FAIL "signup check" "the database cannot reach $host:443 (${message:-no answer}): every asked sign-up is allowed unverified" \
+			"allow outbound HTTPS from the db container"
+	elif [[ ",$codes," == *,invalid-input-secret,* || ",$codes," == *,missing-input-secret,* ]]; then
+		report FAIL "signup check" "$host refuses the secret key: every asked sign-up is allowed unverified" \
+			"Admin, Invites, Sign-up check: paste the secret key again and test it"
+	elif [[ "$verdict" == pass ]]; then
+		report WARN "signup check" "the secret key passes any token, as a provider's test key does" "Admin, Invites, Sign-up check: enter the widget's own keys"
+	elif [[ "$verdict" == fail ]]; then
+		report OK "signup check" "$provider, secret key accepted by $host"
+	else
+		report WARN "signup check" "$host answered ${codes:-without a verdict}" "Admin, Invites, Sign-up check: test the keys"
+	fi
+	unverified="$(db_sql -c "SELECT coalesce(sum(unverified), 0) FROM public.signup_captcha_counts WHERE day >= current_date - 6" 2>/dev/null)"
+	if [[ "${unverified:-0}" =~ ^[0-9]+$ ]] && (( unverified > 0 )); then
+		report WARN "signup check" "$unverified asked sign-up(s) in 7 days were allowed unverified: the provider was unreachable or refused the secret" \
+			"Admin, Invites, Sign-up check: test the keys"
 	fi
 }
 

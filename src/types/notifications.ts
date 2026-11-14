@@ -39,6 +39,8 @@ export type NotificationType =
   | 'activitypub_follow_request'
   | 'activitypub_follow_accepted'
   | 'report_update'
+  /** A new report for its moderators (20261111600001_report_alerts.sql). */
+  | 'report_created'
   | 'moderation_warning'
   | 'newcomer_message'
   | 'security'
@@ -142,6 +144,9 @@ export interface NotificationPreferences {
   activitypub_mentions: boolean;
   activitypub_replies: boolean;
   activitypub_quotes: boolean;
+
+  /** 'report_created' notifications, for instance staff and server report moderators. */
+  moderation_reports: boolean;
   activitypub_follow_requests: boolean;
   
   // ActivityPub desktop notifications

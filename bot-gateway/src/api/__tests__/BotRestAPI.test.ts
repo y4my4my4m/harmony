@@ -32,7 +32,7 @@ vi.mock('../../auth/BotAuthMiddleware.js', () => ({
   botRateLimit: (_req: any, _res: any, next: any) => next(),
 }))
 
-import { BotRestAPI, botContentParts, botSuppliedMetadata, claimsBridgeAuthor, reactionMetadata } from '../BotRestAPI.js'
+import { BotRestAPI, botContentParts, botSuppliedMetadata, claimsBridgeAuthor, claimsBridgeMapping, reactionMetadata } from '../BotRestAPI.js'
 
 type Result = { data: unknown; error: unknown }
 
@@ -193,6 +193,9 @@ describe('route table', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.id).toBe(BOT_ID)
+    expect(res.body.capabilities).toEqual([
+      'bridge_sound_sync', 'bridge_emoji_sync', 'bridge_sticker_sync', 'bridge_history_import', 'bridge_privacy',
+    ])
   })
 
   it('GET /users/:id answers 404 for an unknown profile', async () => {
@@ -273,8 +276,9 @@ describe('PATCH /messages/:id/metadata', () => {
       .send({ metadata: { discord_message_id: '42', ap_id: 'https://peer.test/m/1', federated: true, type: 'member_ban', bot: false } })
 
     expect(res.status).toBe(200)
+    // The bot is no bridge of the channel: the Discord message id goes with the server-only keys.
     expect(updates).toEqual([
-      { metadata: { bot: true, created_via: 'bot_api', discord_message_id: '42' } },
+      { metadata: { bot: true, created_via: 'bot_api' } },
     ])
   })
 })
@@ -294,6 +298,15 @@ describe('botSuppliedMetadata', () => {
     expect(botSuppliedMetadata(metadata, { bridgeAuthor: true })).toEqual(metadata)
     expect(claimsBridgeAuthor(metadata)).toBe(true)
     expect(claimsBridgeAuthor({ discord_message_id: '2' })).toBe(false)
+  })
+
+  it('keeps a Discord message id only for the channel\'s bridge: the id is unique per channel', () => {
+    const metadata = { discord_message_id: '2', discord_via_webhook: true, bridge_source: 'harmony', label: 'x' }
+    expect(claimsBridgeMapping(metadata)).toBe(true)
+    expect(claimsBridgeMapping({ label: 'x', bridge_source: 'discord' })).toBe(false)
+    expect(botSuppliedMetadata(metadata, { bridgeMapping: false })).toEqual({ label: 'x' })
+    expect(botSuppliedMetadata(metadata, { bridgeMapping: true })).toEqual({ discord_message_id: '2', discord_via_webhook: true, label: 'x' })
+    expect(botSuppliedMetadata(metadata, { bridgeAuthor: true, bridgeMapping: true })).toEqual(metadata)
   })
 
   it('reads anything but a plain object as empty', () => {
@@ -450,6 +463,80 @@ describe('POST /channels/:id/messages file parts', () => {
     expect(inserts).toHaveLength(1)
     expect((inserts[0] as { content: unknown }).content).toEqual([voice, sticker])
   })
+
+  const NATIVE_STICKER = {
+    type: 'sticker',
+    id: '00000000-0000-0000-0000-0000000000a1',
+    url: 'https://db.test/storage/v1/object/public/stickers/server/s/u.png',
+    name: 'wave',
+    description: 'A wave',
+  }
+  const NATIVE_FILE = { type: 'file', fileType: 'image', url: NATIVE_STICKER.url, stickerId: NATIVE_STICKER.id }
+  const STICKER_FIXTURES = {
+    ...OPEN_CHANNEL_FIXTURES,
+    channels: { data: { server_id: '00000000-0000-0000-0000-0000000000s1' }, error: null },
+    instance_config: { data: null, error: null },
+    bot_audit_log: { data: null, error: null },
+  }
+
+  it('stores a native sticker pair as sent', async () => {
+    const inserts = captureInserts('messages', {
+      ...STICKER_FIXTURES,
+      messages: { data: [{ id: 'm1', channel_id: CHANNEL_ID, content: [], bot_id: BOT_ID }], error: null },
+    })
+    routeRpc({})
+
+    const res = await supertest(makeApp())
+      .post(`/api/v1/channels/${CHANNEL_ID}/messages`)
+      .send({ content: [NATIVE_STICKER, NATIVE_FILE] })
+
+    expect(res.status).toBe(201)
+    expect((inserts[0] as { content: unknown }).content).toEqual([NATIVE_STICKER, NATIVE_FILE])
+  })
+
+  it.each(['STICKER_UNKNOWN', 'STICKER_FALLBACK'])('maps %s on send to 422 STICKER_REFUSED', async (code) => {
+    routeTables({
+      ...STICKER_FIXTURES,
+      messages: { data: null, error: { code: '22023', message: `${code}: a sticker part names a sticker` } },
+    })
+    routeRpc({})
+
+    const res = await supertest(makeApp())
+      .post(`/api/v1/channels/${CHANNEL_ID}/messages`)
+      .send({ content: [NATIVE_STICKER, NATIVE_FILE] })
+
+    expect(res.status).toBe(422)
+    expect(res.body.code).toBe('STICKER_REFUSED')
+    expect(res.body.error).toMatch(new RegExp(`^${code}`))
+  })
+
+  it('maps STICKER_UNKNOWN on edit to 422 STICKER_REFUSED', async () => {
+    routeTables({ ...STICKER_FIXTURES, messages: { data: null, error: null } })
+    const route = mocks.from.getMockImplementation()!
+    mocks.from.mockImplementation((table: string) => {
+      if (table !== 'messages') return route(table)
+      const own = { data: { user_id: null, bot_id: BOT_ID, channel_id: CHANNEL_ID, metadata: {} }, error: null }
+      const refused = { data: null, error: { code: '22023', message: 'STICKER_UNKNOWN: a sticker part names a sticker' } }
+      let updating = false
+      const builder: any = new Proxy(
+        {
+          single: async () => own,
+          then: (resolve: any) => resolve(updating ? refused : own),
+          update: () => { updating = true; return builder },
+        },
+        { get: (target, prop) => (prop in target ? (target as any)[prop] : () => builder) },
+      )
+      return builder
+    })
+    routeRpc({})
+
+    const res = await supertest(makeApp())
+      .patch('/api/v1/messages/00000000-0000-0000-0000-0000000000f1')
+      .send({ content: [NATIVE_STICKER, NATIVE_FILE] })
+
+    expect(res.status).toBe(422)
+    expect(res.body.code).toBe('STICKER_REFUSED')
+  })
 })
 
 describe('reactionMetadata', () => {
@@ -507,6 +594,22 @@ describe('PUT /messages/:id/reactions/:emoji', () => {
       custom_emoji_content: 'discord:party:1234567890',
       emoji_id: null,
     }])
+  })
+
+  it('answers 403 BRIDGE_AUTHOR_OPTED_OUT for a reaction of an opted-out relayed author', async () => {
+    const install = OPEN_CHANNEL_FIXTURES.bot_server_permissions.data as Record<string, unknown>
+    routeTables({
+      ...OPEN_CHANNEL_FIXTURES,
+      bot_server_permissions: { data: { ...install, add_reactions: true }, error: null },
+      messages: { data: { channel_id: 'c1' }, error: null },
+      channels: { data: { server_id: 's1' }, error: null },
+      reactions: { data: null, error: { code: '23514', message: 'BRIDGE_AUTHOR_OPTED_OUT' } },
+    })
+
+    const res = await supertest(makeApp()).put(`/api/v1/messages/${MESSAGE_ID}/reactions/%F0%9F%9A%80`).send({})
+
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ error: 'The author opted out of this bridge', code: 'BRIDGE_AUTHOR_OPTED_OUT' })
   })
 
   it('answers a twenty-first emoji on a message with Discord\'s 30010', async () => {

@@ -9,7 +9,9 @@
 //
 //   - a name, or a handle of an unfinished host, sends no lookup;
 //   - the complete handle sends one lookup and lists the account, which opens a conversation;
-//   - an unresolved handle shows no result and is not looked up again within a minute.
+//   - an unresolved handle shows no result and is not looked up again within a minute;
+//   - a dotted user, as Bridgy Fed names a bridged Bluesky account, is looked up the same way
+//     and its profile opens.
 
 import crypto from 'node:crypto'
 import { test, expect, type Page, type Route } from '@playwright/test'
@@ -22,6 +24,7 @@ const marker = Date.now().toString(36)
 const remoteDomain = 'far.e2e.example'
 const remote = { id: crypto.randomUUID(), username: `faraway${marker}` }
 const social = { id: crypto.randomUUID(), username: `elsewhere${marker}` }
+const bridged = { id: crypto.randomUUID(), username: `hltv-mirror${marker}.eurosky.social` }
 const ghost = `ghost${marker}@nowhere.e2e.example`
 let sender: SpecUser
 
@@ -30,7 +33,7 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
-  await admin.from('profiles').delete().in('id', [remote.id, social.id])
+  await admin.from('profiles').delete().in('id', [remote.id, social.id, bridged.id])
   await deleteUser(admin, sender)
 })
 
@@ -141,4 +144,24 @@ test('the social feed search looks up a remote handle through the same search', 
   await expect(dialog.locator('.results-list [role="listitem"]').filter({ hasText: social.username }))
     .toHaveCount(1, { timeout: 30000 })
   expect(lookups).toEqual([`${social.username}@${remoteDomain}`])
+})
+
+test('the social feed search looks up a dotted bridged handle and opens its profile', async ({ page }) => {
+  test.setTimeout(120_000)
+  const lookups = await routeLookups(page, bridged)
+  const handle = `${bridged.username}@${remoteDomain}`
+  await signIn(page, sender)
+  await page.goto('/social')
+  await dismissAnnouncements(page)
+  await page.locator('.mony-header-container').getByRole('button', { name: 'Search' }).click()
+  const dialog = page.getByTestId('user-search-dialog')
+  await expect(dialog).toBeVisible({ timeout: 30000 })
+  await dialog.getByTestId('user-search-input').fill(`@${handle}`)
+  const row = dialog.locator('.results-list [role="listitem"]').filter({ hasText: bridged.username })
+  await expect(row).toHaveCount(1, { timeout: 30000 })
+  expect(lookups).toEqual([handle])
+
+  await row.click()
+  await expect(page.getByTestId('profile-handle')).toHaveText(`@${handle}`, { timeout: 30000 })
+  await expect(page.getByTestId('profile-follow-btn')).toBeVisible()
 })

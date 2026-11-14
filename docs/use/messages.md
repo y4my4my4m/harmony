@@ -247,6 +247,8 @@ Suggestions match display names as well as usernames, in any script and across s
 
 A typed `@name` is always a person: a role is mentioned only by picking it. A role mention shows in the role's colour and is announced as a role; select it to see the role and how many members hold it. A person's mention has neither, even when their name matches a role's.
 
+A typed `@name` that is no account's username on your instance stays plain text and notifies nobody, for example `@5:32` or `@nobody`. The name must be spelled exactly as the username; picking from the list always gets it right. Handles of other instances, `@username@instance.example`, are not affected.
+
 - In server channels, a message that mentions you, a role you hold, `@everyone` or `@here` is highlighted.
 - A message notifies each person once, even when it names them in several ways.
 - Text inside code or inside a link is never a mention.
@@ -350,5 +352,9 @@ Two switches in **User settings** → **Appearance** → **Message display** han
 |---|---|
 | **Convert emoticons I send** | Replaces emoticons with emoji when you send or edit a message. Code, links and email addresses are left alone. |
 | **Show emoticons others send as emoji** | Displays emoticons in received messages as emoji. The original text is kept. |
+
+The emoticons are the ones Discord converts, to the same emoji: `:)` 🙂, `:D` 😄, `:P` 😛, `;)` 😉, `:(` 😦, `:'(` 😢, `:')` 🥲, `:'D` 😂, `:O` 😮, `:|` 😐, `:*` 😗, `8-)` 😎, `O:)` 😇, `>:(` 😠, `:@` 😡, `]:)` 😈, `,:)` 😅, `;(` 😭, `:s` 😒, `<3` ❤️, `</3` 💔, and their variants with a nose (`:-)`) or `=` for eyes (`=)`). Harmony adds `:p`, `xD` and `:/`. A line that starts with `>:(` is greentext, not an emoticon.
+
+In the `:` suggestions, an emoticon's emoji comes first: `:P` lists 😛 ahead of emoji whose names start with p.
 
 The **Greentext** switch, also on unless you turn it off, is in the same section. So is **Animate custom emoji**: off, animated emoji show their first frame on your screen, which leaves them unchanged for everyone else.

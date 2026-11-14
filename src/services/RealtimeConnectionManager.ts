@@ -13,6 +13,7 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { isChannelRefusal } from '@/utils/realtimeRefusal'
+import { currentRealtimeToken, onMemberToken } from '@/services/realtimeMemberToken'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 // Types
@@ -134,6 +135,11 @@ interface ManagedSubscription {
    * false and the leave push resolves inline.
    */
   tearingDown: boolean
+  /**
+   * Realtime token in effect when the server refused this subscription; null when not refused.
+   * A member token other than this one rebuilds it (`retryRefused`).
+   */
+  refusedToken: string | null
 }
 
 // Configuration
@@ -179,6 +185,7 @@ class RealtimeConnectionManagerService {
    * status sweep (short alt-tab).
    */
   private hiddenAt: number | null = null
+  private memberTokenOff: (() => void) | null = null
 
   // Lifecycle Methods
 
@@ -197,6 +204,7 @@ class RealtimeConnectionManagerService {
       }
     })
     this.authListener = { data: { subscription: authListener.subscription } }
+    this.memberTokenOff = onMemberToken((token) => this.retryRefused(token))
 
     this.onlineHandler = () => {
       debug.log('RealtimeManager: Network online, reconnecting subscriptions')
@@ -265,6 +273,10 @@ class RealtimeConnectionManagerService {
       this.authListener.data.subscription.unsubscribe()
       this.authListener = null
     }
+    if (this.memberTokenOff) {
+      this.memberTokenOff()
+      this.memberTokenOff = null
+    }
 
     if (this.onlineHandler) window.removeEventListener('online', this.onlineHandler)
     if (this.offlineHandler) window.removeEventListener('offline', this.offlineHandler)
@@ -324,7 +336,8 @@ class RealtimeConnectionManagerService {
       rapidCloseCount: 0,
       lastClosedAt: null,
       pendingGapFill: false,
-      tearingDown: false
+      tearingDown: false,
+      refusedToken: null,
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -365,6 +378,7 @@ class RealtimeConnectionManagerService {
       lastClosedAt: null,
       pendingGapFill: false,
       tearingDown: false,
+      refusedToken: null,
     }
 
     this.subscriptions.set(channelName, managedSub)
@@ -412,7 +426,8 @@ class RealtimeConnectionManagerService {
       rapidCloseCount: 0,
       lastClosedAt: null,
       pendingGapFill: false,
-      tearingDown: false
+      tearingDown: false,
+      refusedToken: null,
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -449,7 +464,8 @@ class RealtimeConnectionManagerService {
       rapidCloseCount: 0,
       lastClosedAt: null,
       pendingGapFill: false,
-      tearingDown: false
+      tearingDown: false,
+      refusedToken: null,
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -729,6 +745,7 @@ class RealtimeConnectionManagerService {
         }
         managedSub.lastConnectedAt = new Date()
         managedSub.lastError = null
+        managedSub.refusedToken = null
         this.updateSubscriptionStatus(channelName, 'connected')
         debug.log(`RealtimeManager: ${channelName} connected`)
         
@@ -753,10 +770,12 @@ class RealtimeConnectionManagerService {
         managedSub.lastError = err?.message || 'Channel error'
         managedSub.pendingGapFill = true
         if (isChannelRefusal(err)) {
-          // Refused: no retry succeeds until membership or policy changes. realtime-js rejoins an
-          // errored channel on its own until it is removed. forceReconnect (online, visibility)
-          // still tries again.
+          // Refused: no retry on the same token succeeds until membership or policy changes.
+          // realtime-js rejoins an errored channel on its own until it is removed. forceReconnect
+          // (online, visibility) and another member token (retryRefused) try again. The anon key,
+          // which supabase-js 2.84 hands Realtime while a refresh fails, is refused on every topic.
           debug.warn(`RealtimeManager: ${channelName} refused:`, managedSub.lastError)
+          managedSub.refusedToken = currentRealtimeToken()
           if (managedSub.retryTimeoutId) {
             clearTimeout(managedSub.retryTimeoutId)
             managedSub.retryTimeoutId = null
@@ -956,6 +975,16 @@ class RealtimeConnectionManagerService {
     }
     
     this.reconnect(channelName)
+  }
+
+  /** Rebuilds every subscription refused on a token other than `token`. */
+  private retryRefused(token: string): void {
+    for (const [channelName, sub] of this.subscriptions) {
+      if (sub.refusedToken === null || sub.refusedToken === token) continue
+      debug.log(`RealtimeManager: ${channelName} refused on another token, rejoining`)
+      sub.refusedToken = null
+      this.forceReconnect(channelName)
+    }
   }
 
   /** Skips channels already connected or connecting. */

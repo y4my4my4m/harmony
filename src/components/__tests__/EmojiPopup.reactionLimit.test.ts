@@ -39,7 +39,7 @@ vi.mock('@/composables/useHapticSettings', () => ({
   useHapticSettings: () => ({ triggerReaction: vi.fn() }),
 }))
 
-vi.mock('@/composables/useEmojiLoader', () => ({ triggerEmojiDataLoad: vi.fn() }))
+vi.mock('@/composables/useEmojiLoader', () => ({ loadPickerEmojiData: vi.fn() }))
 
 vi.mock('@/composables/usePopupPositioning', () => ({
   usePopupPositioning: () => ({ positionStyle: ref({}), updatePosition: vi.fn() }),

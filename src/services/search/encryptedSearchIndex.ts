@@ -165,6 +165,9 @@ type Drops = Map<string, { key: RowKey; terms: Map<string, Set<number>> }>
 
 const rowId = (key: RowKey) => key.join('|')
 
+/** Connections a versionchange closed before an index held them. */
+const closedInOpen = new WeakSet<IDBDatabase>()
+
 function openDb(name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(name, DB_VERSION)
@@ -195,7 +198,16 @@ function openDb(name: string): Promise<IDBDatabase> {
         unreadable.createIndex('room_at', ['room', 'at'])
       }
     }
-    request.onsuccess = () => resolve(request.result)
+    request.onsuccess = () => {
+      const db = request.result
+      // Set with the connection: one that ignores versionchange holds up deleteDatabase and
+      // upgrades from every tab until it closes.
+      db.onversionchange = () => {
+        closedInOpen.add(db)
+        db.close()
+      }
+      resolve(db)
+    }
   })
 }
 
@@ -256,7 +268,8 @@ export class EncryptedSearchIndex {
 
   /**
    * Opens the account's index with the account storage key. A store sealed under another key
-   * (encryption reset on this device) is deleted and started again. Null when IndexedDB fails.
+   * (encryption reset on this device) is deleted and started again. Null when IndexedDB fails
+   * or another connection deletes the store during the open.
    */
   static async open(profileId: string, storageKey: CryptoKey): Promise<EncryptedSearchIndex | null> {
     const name = INDEX_DB_PREFIX + profileId
@@ -273,6 +286,7 @@ export class EncryptedSearchIndex {
           return null
         }
       }
+      if (closedInOpen.has(db)) return null
       return new EncryptedSearchIndex(profileId, db, keys)
     } catch (error) {
       debug.warn('Search index unavailable:', error)

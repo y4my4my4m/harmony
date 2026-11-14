@@ -334,6 +334,7 @@ import { uid } from '@/utils/a11y/focus';
 import { stylePoint, styleViewport } from '@/utils/appZoom';
 import { customEmojiLabel, humanizeEmojiName } from '@/utils/a11y/emojiNames';
 import { usePortalTarget } from '@/composables/usePortalTarget';
+import { isMobileLayout } from '@/composables/useLayoutState';
 
 const portalTarget = usePortalTarget();
 
@@ -429,13 +430,14 @@ const { searchQuery, activeQuery } = useEmojiSearchQuery();
 const { t } = useT();
 const searchHintId = uid('emoji-search-hint');
 
-// Modal while mounted: focus starts in the search field, Escape closes, and
+// Modal while mounted: focus starts in the search field (the popup itself in the
+// mobile layout, where a focused field raises the keyboard), Escape closes, and
 // focus returns to the control that opened the picker.
 const { focusInitial } = useDialog({
   open: () => true,
   element: emojiPopup,
   onClose: () => props.closeEmojiList?.(),
-  initialFocus: () => searchInput.value,
+  initialFocus: () => (isMobileLayout() ? 'dialog' : searchInput.value),
 });
 
 /** Accessible names: :name: for custom emoji, the shortcode in words otherwise. */
@@ -992,8 +994,8 @@ onMounted(async () => {
   // and by then a hover toolbar trigger may have hidden.
   updatePosition();
 
-  const { triggerEmojiDataLoad } = await import('@/composables/useEmojiLoader')
-  triggerEmojiDataLoad()
+  const { loadPickerEmojiData } = await import('@/composables/useEmojiLoader')
+  loadPickerEmojiData()
   
   await emojiFavoriteService.initializeCache()
   loadFavorites()

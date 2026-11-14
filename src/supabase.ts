@@ -2,6 +2,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getStoredInstance, isTauriRuntime } from '@/services/instanceConfig';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { realtimeAccessToken } from '@/services/realtimeAccessToken';
 
 // native clients pick their instance at runtime; web builds read /config.json, else build-time env
 const storedInstance = getStoredInstance();
@@ -186,6 +187,7 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
   },
   global: { fetch: assuranceAwareFetch },
   // Realtime reconnection is handled by the client; no custom health check.
+  realtime: { accessToken: realtimeAccessToken(() => supabase, supabaseAnonKey) },
 });
 
 /**
@@ -211,6 +213,15 @@ export async function signOutAndForget(): Promise<void> {
   if (!key) return;
   for (const suffix of ['', '-code-verifier', '-user']) {
     sessionAwareStorage.removeItem(key + suffix);
+  }
+  // A failed signOut() emits no SIGNED_OUT, here or over auth-js's BroadcastChannel. Other tabs
+  // then keep their sign-in over an empty store: getSession() answers no session and no error,
+  // every request and Realtime join goes out on the anon key, until a reload. With nothing
+  // stored, signOut() skips GoTrue and runs _removeSession(), which emits and broadcasts it.
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {
+    /* the store is already empty */
   }
 }
 
