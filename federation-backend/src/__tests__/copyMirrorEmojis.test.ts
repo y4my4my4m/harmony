@@ -29,15 +29,27 @@ let failSelect: string | null = null
 
 function query(table: string) {
   const filters: Array<(r: any) => boolean> = []
-  let op: 'select' | 'update' | 'insert' = 'select'
+  let op: 'select' | 'update' | 'insert' | 'delete' = 'select'
   let patch: any
   let window: [number, number] | null = null
   let columns = ''
+  let head = false
+  let sort: { col: string; asc: boolean } | null = null
   const rows = () => {
     const out = ((db as any)[table] || []).filter((r: any) => filters.every(f => f(r)))
+    if (sort) {
+      const { col, asc } = sort
+      out.sort((a: any, b: any) => (String(a[col] ?? '') < String(b[col] ?? '') ? -1 : String(a[col] ?? '') > String(b[col] ?? '') ? 1 : 0) * (asc ? 1 : -1))
+    }
     return window ? out.slice(window[0], window[1] + 1) : out
   }
   const settle = () => {
+    if (op === 'delete') {
+      const hit = new Set(rows())
+      ;(db as any)[table] = (db as any)[table].filter((r: any) => !hit.has(r))
+      return { data: null, error: null }
+    }
+    if (head) return failReads ? { count: null, error: { message: 'statement timeout' } } : { count: rows().length, error: null }
     if (op === 'update') {
       beforeUpdate?.()
       beforeUpdate = null
@@ -49,7 +61,15 @@ function query(table: string) {
     return { data: rows().map((r: any) => ({ ...r })), error: null }
   }
   const q: any = {
-    select: (cols?: string) => { if (cols) columns = cols; return q },
+    select: (cols?: string, opts?: { head?: boolean }) => { if (cols) columns = cols; head = !!opts?.head; return q },
+    gt: (col: string, val: string) => { filters.push(r => String(r[col] ?? '') > val); return q },
+    // The one form CopyMirrorService sends: server_id.is.null,server_id.eq.<id>.
+    or: (expr: string) => {
+      const other = /server_id\.eq\.([^,]+)/.exec(expr)?.[1]
+      filters.push(r => (r.server_id ?? null) === null || r.server_id === other)
+      return q
+    },
+    delete: () => { op = 'delete'; return q },
     eq: (col: string, val: unknown) => { filters.push(r => r[col] === val); return q },
     neq: (col: string, val: unknown) => { filters.push(r => r[col] !== val); return q },
     is: (col: string, val: unknown) => { filters.push(r => (r[col] ?? null) === val); return q },
@@ -58,12 +78,14 @@ function query(table: string) {
       return q
     },
     in: (col: string, vals: unknown[]) => { filters.push(r => vals.includes(r[col])); return q },
-    order: () => q,
+    order: (col: string, opts?: { ascending?: boolean }) => { sort = { col, asc: opts?.ascending !== false }; return q },
     range: (from: number, to: number) => { window = [from, to]; return q },
     update: (p: any) => { op = 'update'; patch = p; return q },
     insert: (r: any) => {
       op = 'insert'
-      for (const row of Array.isArray(r) ? r : [r]) (db as any)[table].push({ id: `new-${++seq}`, deleted_at: null, ...row })
+      for (const row of Array.isArray(r) ? r : [r]) {
+        (db as any)[table].push({ id: `new-${++seq}`, deleted_at: null, deleted_by: null, created_at: new Date().toISOString(), ...row })
+      }
       return Promise.resolve({ error: null })
     },
     then: (resolve: any, reject: any) => Promise.resolve(settle()).then(resolve, reject),
@@ -74,7 +96,7 @@ function query(table: string) {
 vi.mock('../config/supabase.js', () => ({ getSupabaseClient: () => ({ from: query }) }))
 
 const { emojisToAp, parseGroupEmojis, MAX_EMOJIS } = await import('../activitypub/copyMirror.js')
-const { CopyMirrorService, urlChunks } = await import('../services/CopyMirrorService.js')
+const { CopyMirrorService, urlChunks, COPY_EMOJI_INSERTS_PER_HOUR, COPY_EMOJI_REMOVED_KEPT } = await import('../services/CopyMirrorService.js')
 
 const copyRows = () => db.emojis.filter(e => e.server_id === COPY)
 const byAp = (n: number) => db.emojis.find(e => e.ap_id === apId(n))
@@ -174,7 +196,7 @@ describe('applyGroupEmojis', () => {
     expect(parts.length).toBeGreaterThan(1)
     for (const part of parts) expect(part.map((u) => encodeURIComponent(u).length + 9).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(4_000)
 
-    failSelect = 'id, url, deleted_at, deleted_by'
+    failSelect = 'id, url, domain, server_id, ap_id, deleted_at, deleted_by'
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'wave', url: img('wave') }])
     expect(db.emojis).toEqual([])
   })
@@ -233,6 +255,55 @@ describe('applyGroupEmojis', () => {
     })
     expect(db.emojis.find(e => e.id === 'synced')).toMatchObject({ server_id: COPY, ap_id: apId(2), deleted_at: null, deleted_by: null })
     expect(db.emojis).toHaveLength(2)
+  })
+
+  it('keeps an admin\'s removal of an image the Group lists again under a new id, or that an old cached row holds', async () => {
+    db.emojis = [
+      // Removed here by an admin, then listed by the host under another id.
+      { id: 'r1', name: 'rude', url: img('rude'), server_id: COPY, scope: 'server', domain: 'remote.test', ap_id: apId(1),
+        deleted_at: '2026-01-01T00:00:00Z', deleted_by: 'admin-1' },
+      // Cached before 1.9.4 with its image host as domain, removed by an admin.
+      { id: 'old', name: 'gross', url: img('gross'), server_id: null, scope: 'server', domain: 'cdn.remote.test', ap_id: null,
+        deleted_at: '2026-01-02T00:00:00Z', deleted_by: 'admin-1' },
+    ]
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [
+      { apId: apId(2), name: 'rude', url: img('rude') },
+      { apId: apId(3), name: 'gross', url: img('gross') },
+    ])
+    expect(byAp(2)).toMatchObject({ deleted_at: '2026-01-01T00:00:00Z', deleted_by: 'admin-1' })
+    expect(byAp(3)).toMatchObject({ deleted_at: '2026-01-02T00:00:00Z', deleted_by: 'admin-1' })
+    expect(db.emojis.find(e => e.id === 'old')?.server_id).toBeNull()
+  })
+
+  it(`inserts at most ${COPY_EMOJI_INSERTS_PER_HOUR} emojis per copy an hour`, async () => {
+    const recent = new Date().toISOString()
+    db.emojis = Array.from({ length: COPY_EMOJI_INSERTS_PER_HOUR - 1 }, (_, i) => ({
+      id: `recent-${i}`, name: `r${i}`, url: img(`r${i}`), server_id: COPY, scope: 'server', domain: 'remote.test',
+      ap_id: apId(10_000 + i), deleted_at: '2026-01-01T00:00:00Z', deleted_by: null, created_at: recent,
+    }))
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [
+      { apId: apId(1), name: 'one', url: img('one') },
+      { apId: apId(2), name: 'two', url: img('two') },
+    ])
+    expect(byAp(1)).toBeDefined()
+    expect(byAp(2)).toBeUndefined()
+  })
+
+  it(`keeps the ${COPY_EMOJI_REMOVED_KEPT} emojis the list dropped most recently, and every admin removal`, async () => {
+    const at = (i: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString()
+    db.emojis = Array.from({ length: COPY_EMOJI_REMOVED_KEPT + 2 }, (_, i) => ({
+      id: `gone-${i}`, name: `g${i}`, url: img(`g${i}`), server_id: COPY, scope: 'server', domain: 'remote.test',
+      ap_id: apId(20_000 + i), deleted_at: at(i), deleted_by: null, created_at: '2026-01-01T00:00:00Z',
+    }))
+    db.emojis.push({ id: 'banned', name: 'b', url: img('b'), server_id: COPY, scope: 'server', domain: 'remote.test',
+      ap_id: apId(30_000), deleted_at: at(0), deleted_by: 'admin-1', created_at: '2026-01-01T00:00:00Z' })
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [])
+    const left = copyRows()
+    expect(left.filter(e => e.deleted_by === null)).toHaveLength(COPY_EMOJI_REMOVED_KEPT)
+    expect(left.find(e => e.id === 'gone-0')).toBeUndefined()
+    expect(left.find(e => e.id === 'gone-1')).toBeUndefined()
+    expect(left.find(e => e.id === `gone-${COPY_EMOJI_REMOVED_KEPT + 1}`)).toBeDefined()
+    expect(left.find(e => e.id === 'banned')).toBeDefined()
   })
 
   it('stores the emoji when the cached row was taken over meanwhile', async () => {

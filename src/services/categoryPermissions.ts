@@ -88,7 +88,8 @@ export function sameTemplate(a: CategoryOverride[], b: CategoryOverride[]): bool
 /**
  * The edits made from `saved` to `edited`, applied onto `latest`: per role or member, the bits
  * whose state the dialog changed come from `edited`, every other bit from `latest`. Rows the
- * dialog left alone are `latest`'s; rows of roles absent from `roleIds` are dropped.
+ * dialog left alone are `latest`'s. An edit of a role absent from `roleIds` (deleted meanwhile) is
+ * dropped; `latest` holds rows of existing roles only.
  */
 export function rebaseTemplate(
   latest: CategoryOverride[],
@@ -108,6 +109,7 @@ export function rebaseTemplate(
     const [ea, ed] = [mask(after?.allow_permissions), mask(after?.deny_permissions)]
     const changed = (ba ^ ea) | (bd ^ ed)
     if (changed === ZERO) continue
+    if (target.role_id && !roleIds.has(target.role_id)) continue
     const base = out.get(key)
     const [la, ld] = [mask(base?.allow_permissions), mask(base?.deny_permissions)]
     out.set(key, {
@@ -118,7 +120,7 @@ export function rebaseTemplate(
       deny_permissions: ((ld & ~changed) | (ed & changed)).toString(),
     })
   }
-  return [...out.values()].filter(o => hasBits(o) && (!o.role_id || roleIds.has(o.role_id)))
+  return [...out.values()].filter(hasBits)
 }
 
 /** Privacy as the template states it. */
@@ -171,6 +173,13 @@ export function applyPrivacy(
   }
 
   return [...byTarget.values()].filter(hasBits)
+}
+
+/** Ids of the server's roles, read now; throws when the read fails. */
+export async function getServerRoleIds(serverId: string): Promise<Set<string>> {
+  const { data, error } = await supabase.from('server_roles').select('id').eq('server_id', serverId)
+  if (error) throw error
+  return new Set((data ?? []).map((r: { id: string }) => r.id))
 }
 
 export async function getCategoryOverrides(categoryId: string): Promise<CategoryOverride[]> {

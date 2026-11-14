@@ -25,6 +25,8 @@ const ERASE_BATCH = 200
 // Batches one background erase runs: 2,000,000 rows.
 const ERASE_MAX_BATCHES = 10_000
 const ERASE_PAUSE_MS = 50
+// A failed batch (a lock or statement timeout, a deadlock) is tried again after these pauses.
+const ERASE_RETRY_MS = [1_000, 5_000, 30_000]
 // An erase also scans the server's relayed reactions and AutoMod events, which have no author index.
 export const ERASE_COOLDOWN_MS = 60_000
 const ERASE_TRACKED_MAX = 10_000
@@ -64,7 +66,13 @@ async function eraseRest(serverId: string, remoteUserId: string, key: string): P
   try {
     for (let i = 0; i < ERASE_MAX_BATCHES; i++) {
       await new Promise((resolve) => setTimeout(resolve, ERASE_PAUSE_MS))
-      const { data, error } = await eraseBatch(serverId, remoteUserId)
+      let { data, error } = await eraseBatch(serverId, remoteUserId)
+      for (const wait of ERASE_RETRY_MS) {
+        if (!error) break
+        console.warn(`bridge_privacy_erase for server ${serverId} failed, again in ${wait} ms:`, error.code, error.message)
+        await new Promise((resolve) => setTimeout(resolve, wait))
+        ;({ data, error } = await eraseBatch(serverId, remoteUserId))
+      }
       if (error) {
         console.error(`bridge_privacy_erase for server ${serverId} failed:`, error.code, error.message)
         return

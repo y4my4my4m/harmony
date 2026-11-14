@@ -164,9 +164,15 @@ describe('rebaseTemplate', () => {
     expect(byTarget(rebaseTemplate([role('a', 0, 2)], [], [role('a', 2)], roles))).toEqual({ a: '2/0' })
   })
 
-  it('drops a row removed meanwhile that the dialog left alone, and rows of deleted roles', () => {
+  it('drops a row removed meanwhile that the dialog left alone, and edits of deleted roles', () => {
     expect(byTarget(rebaseTemplate([], [role('a', 2), user('u', 2)], [role('a', 2), user('u', 2)], roles))).toEqual({})
     expect(byTarget(rebaseTemplate([], [], [role('gone', 2), user('u', 2)], roles))).toEqual({ u: '2/0' })
+  })
+
+  it('keeps every row it read, whatever roleIds lists: those rows name existing roles', () => {
+    expect(byTarget(rebaseTemplate([role('new', 8), role(EVERYONE, 0, 2)], [], [user('u', 2)], new Set()))).toEqual({
+      new: '8/0', [EVERYONE]: '0/2', u: '2/0',
+    })
   })
 })
 

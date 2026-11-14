@@ -444,16 +444,16 @@ describe('removeUnreferencedMirrors', () => {
     supa.remove.mockImplementation(async (paths: string[]) => ({ data: paths.map((name) => ({ name })), error: null }))
   })
 
-  it('removes the files message_media_deletable names and leaves the referenced one', async () => {
+  it('removes the files bridge_mirror_unreferenced names and leaves the referenced one', async () => {
     supa.rpc.mockResolvedValue({ data: [A], error: null })
     expect(await removeUnreferencedMirrors([A, B, A])).toBe(1)
-    expect(supa.rpc.mock.calls).toEqual([['message_media_deletable', { p_paths: [A, B], p_min_age: '0', p_limit: 2 }]])
+    expect(supa.rpc.mock.calls).toEqual([['bridge_mirror_unreferenced', { p_paths: [A, B] }]])
     expect(supa.bucket).toHaveBeenCalledWith('message_media')
     expect(supa.remove.mock.calls).toEqual([[[A]]])
   })
 
-  it('reads one-column rows as names', async () => {
-    supa.rpc.mockResolvedValue({ data: [{ message_media_deletable: B }], error: null })
+  it('removes only names it asked about', async () => {
+    supa.rpc.mockResolvedValue({ data: [B, 'c/other/bridge/x/y.png'], error: null })
     expect(await removeUnreferencedMirrors([A, B])).toBe(1)
     expect(supa.remove.mock.calls).toEqual([[[B]]])
   })
@@ -489,7 +489,7 @@ describe('removeUnreferencedMirrors', () => {
     const names = Array.from({ length: 501 }, (_, i) => `c/${CHANNEL}/bridge/b1/${i}.png`)
     supa.rpc.mockImplementation(async (_name: string, args: any) => ({ data: args.p_paths, error: null }))
     expect(await removeUnreferencedMirrors(names)).toBe(501)
-    expect(supa.rpc.mock.calls.map((call) => [call[1].p_paths.length, call[1].p_limit])).toEqual([[500, 500], [1, 1]])
+    expect(supa.rpc.mock.calls.map((call) => call[1].p_paths.length)).toEqual([500, 1])
     expect(supa.remove.mock.calls.map((call) => call[0].length)).toEqual([500, 1])
   })
 

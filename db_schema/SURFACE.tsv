@@ -167,6 +167,7 @@ bridge_mirror_observe	p_mode text, p_ceiling bigint	jsonb	definer	public, pg_tem
 bridge_mirror_restart_walk		void	definer	public, pg_temp	service_role	client
 bridge_mirror_server_bytes	p_server_id uuid	bigint	definer	public, pg_temp	service_role	unreferenced
 bridge_mirror_status		jsonb	definer	public, pg_temp	authenticated+service_role	client
+bridge_mirror_unreferenced	p_paths text[]	text[]	definer	public, pg_temp	service_role	client
 bridge_platform_author_key	p_platform text	text	invoker	public, pg_temp	service_role	unreferenced
 bridge_privacy_changed	p_server_id uuid	void	definer	public, pg_temp		unreferenced
 bridge_privacy_check_subject	p_platform text, p_remote_user_id text	void	invoker	public, pg_temp	service_role	unreferenced
@@ -650,6 +651,7 @@ get_voice_activity	p_channel uuid	jsonb	definer	public, pg_temp	authenticated+se
 get_voice_channel_participants	p_channel_id uuid	TABLE(user_id uuid, username text, display_name text, avatar_url text, is_federated boolean, federated_domain text, joined_at timestamp with time zone, is_muted boolean, is_deafened boolean, is_video_enabled boolean, is_screen_sharing boolean)	definer	public, extensions, pg_temp	service_role	unreferenced
 guard_bot_permission_grants		trigger	invoker	public, pg_temp	service_role	trigger
 guard_bridge_author_optout		trigger	definer	public, pg_temp	service_role	trigger
+guard_bridge_reaction_optout		trigger	definer	public, pg_temp	service_role	trigger
 guard_category_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_channel_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_conversation_participant_client_write		trigger	invoker	public, pg_temp	service_role	trigger

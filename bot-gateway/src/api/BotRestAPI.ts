@@ -214,14 +214,27 @@ function isBridgeMappingEntry([key, value]: [string, unknown]): boolean {
   return BRIDGE_MAPPING_KEYS.has(key) || (key === 'bridge_source' && value === 'harmony')
 }
 
+/** Whether `input` names a Discord message id or another bridge mapping key. */
+export function claimsBridgeMapping(input: unknown): boolean {
+  return !!input && typeof input === 'object' && !Array.isArray(input)
+    && Object.entries(input as Record<string, unknown>).some(isBridgeMappingEntry)
+}
+
+/**
+ * The metadata a bot may store. Bridge author keys need `bridgeAuthor`; with `bridgeMapping` false
+ * the mapping keys go too. discord_message_id is unique per channel among live rows, so a bot that
+ * is not the channel's bridge would take the id from the bridge's relay of that message.
+ */
 export function botSuppliedMetadata(
   input: unknown,
-  options: { bridgeAuthor?: boolean } = {},
+  options: { bridgeAuthor?: boolean; bridgeMapping?: boolean } = {},
 ): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {}
   return Object.fromEntries(
-    Object.entries(input as Record<string, unknown>).filter(([key]) =>
-      !SERVER_METADATA_KEYS.has(key) && (options.bridgeAuthor === true || !BRIDGE_AUTHOR_KEYS.has(key))),
+    Object.entries(input as Record<string, unknown>).filter((entry) =>
+      !SERVER_METADATA_KEYS.has(entry[0])
+      && (options.bridgeAuthor === true || !BRIDGE_AUTHOR_KEYS.has(entry[0]))
+      && (options.bridgeMapping !== false || !isBridgeMappingEntry(entry))),
   )
 }
 
@@ -718,8 +731,10 @@ export class BotRestAPI {
     }
 
     const bridgeAuthor = claimsBridgeAuthor(metadata) && await this.bridgePairsChannel(botId, channelId)
+    const bridgeMapping = bridgeAuthor
+      || (claimsBridgeMapping(metadata) && await this.bridgePairsChannel(botId, channelId))
     const messageMetadata = {
-      ...botSuppliedMetadata(metadata, { bridgeAuthor }),
+      ...botSuppliedMetadata(metadata, { bridgeAuthor, bridgeMapping }),
       bot: true,
       created_via: 'bot_api',
       ...(interaction ? { interaction } : {}),
@@ -929,9 +944,11 @@ export class BotRestAPI {
 
       const bridgeAuthor = own && claimsBridgeAuthor(metadata)
         && await this.bridgePairsChannel(botId, message.channel_id)
+      const bridgeMapping = bridgeAuthor
+        || (own && claimsBridgeMapping(metadata) && await this.bridgePairsChannel(botId, message.channel_id))
       const mergedMetadata = {
         ...(message.metadata || {}),
-        ...(own ? botSuppliedMetadata(metadata, { bridgeAuthor }) : metadata),
+        ...(own ? botSuppliedMetadata(metadata, { bridgeAuthor, bridgeMapping }) : metadata),
       }
 
       const { error: updateError } = await supabase
@@ -1551,6 +1568,9 @@ export class BotRestAPI {
       
       if (error) {
         // check_message_emoji_reaction_limit: 20 different emoji per message, as Discord's 30010.
+        if (error.code === '23514' && error.message === BRIDGE_AUTHOR_OPTED_OUT) {
+          return res.status(403).json({ ...OPTED_OUT_BODY })
+        }
         if (error.code === '23514' && error.message?.startsWith('REACTION_LIMIT')) {
           return res.status(400).json({ error: 'Maximum number of reactions reached (20)', code: 30010 })
         }

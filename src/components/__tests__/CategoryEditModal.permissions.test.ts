@@ -9,15 +9,17 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import type { CategoryOverride } from '@/services/categoryPermissions'
 
-const { confirmMock, setTemplateMock, updateCategoryMock, overrides } = vi.hoisted(() => ({
+const { confirmMock, setTemplateMock, updateCategoryMock, overrides, roleIdsMock, toastError } = vi.hoisted(() => ({
   confirmMock: vi.fn(),
   setTemplateMock: vi.fn(),
   updateCategoryMock: vi.fn(),
   overrides: { rows: [] as unknown[] },
+  roleIdsMock: vi.fn(),
+  toastError: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
-vi.mock('vue-toastification', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
+vi.mock('vue-toastification', () => ({ useToast: () => ({ success: vi.fn(), error: toastError }) }))
 vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 vi.mock('@/composables/useDialog', () => ({ useDialog: () => ({ titleId: 'category-edit-title' }) }))
 vi.mock('@/composables/useConfirmDialog', () => ({ useConfirmDialog: () => ({ confirm: confirmMock }) }))
@@ -36,6 +38,7 @@ vi.mock('@/services/RoleService', async (importOriginal) => ({
 vi.mock('@/services/categoryPermissions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/categoryPermissions')>()),
   getCategoryOverrides: vi.fn(async () => JSON.parse(JSON.stringify(overrides.rows))),
+  getServerRoleIds: roleIdsMock,
 }))
 vi.mock('@/components/common/Icon.vue', async () => {
   const { defineComponent, h } = await import('vue')
@@ -60,7 +63,6 @@ vi.mock('@/components/CategoryPrivacyFields.vue', async () => {
 })
 
 import CategoryEditModal from '../CategoryEditModal.vue'
-import { roleService } from '@/services/RoleService'
 
 enableAutoUnmount(afterEach)
 
@@ -94,6 +96,8 @@ beforeEach(() => {
   confirmMock.mockReset()
   setTemplateMock.mockReset().mockResolvedValue(['c1'])
   updateCategoryMock.mockReset().mockResolvedValue(undefined)
+  roleIdsMock.mockReset().mockResolvedValue(new Set(['everyone', 'mod']))
+  toastError.mockReset()
 })
 
 describe('CategoryEditModal permissions', () => {
@@ -147,11 +151,9 @@ describe('CategoryEditModal permissions', () => {
     radio('SEND_MESSAGES', 'deny').click()
     await nextTick()
 
-    // Meanwhile @everyone is denied SEND_MESSAGES too, and a role with a row is deleted.
-    overrides.rows = [row('everyone', 0, 2 | 4096), row('mod', 2)]
-    vi.mocked(roleService.getRolesForServer).mockResolvedValueOnce([
-      { id: 'everyone', name: '@everyone', position: 0, color: null, is_default: true },
-    ] as any)
+    // Meanwhile @everyone is denied SEND_MESSAGES too, and the role edited here is deleted.
+    overrides.rows = [row('everyone', 0, 2 | 4096)]
+    roleIdsMock.mockResolvedValueOnce(new Set(['everyone']))
     await save()
     expect(byTarget(setTemplateMock.mock.calls[0][1])).toEqual({ everyone: `0/${2 | 4096}` })
 
@@ -163,6 +165,18 @@ describe('CategoryEditModal permissions', () => {
     overrides.rows = [row('everyone', 0, 2 | 4096)]
     await save()
     expect(byTarget(setTemplateMock.mock.calls[1][1])).toEqual({ everyone: `0/${2 | 4096}`, mod: '0/4096' })
+  })
+
+  it('saves nothing when the roles cannot be read, so no role row is lost', async () => {
+    overrides.rows = [row('everyone', 0, 2), row('mod', 2)]
+    const wrapper = await openPermissions()
+    radio('SEND_MESSAGES', 'deny').click()
+    await nextTick()
+    roleIdsMock.mockRejectedValueOnce(new Error('offline'))
+    await save()
+    expect(setTemplateMock).not.toHaveBeenCalled()
+    expect(toastError).toHaveBeenCalled()
+    expect(wrapper.emitted('close')).toBeUndefined()
   })
 
   it('keeps bits the editor does not show', async () => {

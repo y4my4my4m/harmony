@@ -180,6 +180,19 @@ describe('DiscordLinkRefresher', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
+  it('holds a message whose write the database refused, as one Discord did not sign', async () => {
+    const { r, fetchImpl, write, advance } = refresher()
+    write.mockRejectedValueOnce(new Error('BRIDGE_AUTHOR_OPTED_OUT'))
+    const content = [{ type: 'url', url: EXPIRED_CLIP }]
+    await r.request('m', content, [EXPIRED_CLIP])
+    await r.drain()
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(await r.request('m', content, [EXPIRED_CLIP])).toBe('failed_recently')
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    advance(10 * 60_000 + 1)
+    expect(await r.request('m', content, [EXPIRED_CLIP])).toBe('queued')
+  })
+
   it('holds a message Discord did not re-sign for ten minutes', async () => {
     const { r, write, advance } = refresher({ fetchImpl: discordAnswer(200, { refreshed_urls: [] }) })
     const content = [{ type: 'url', url: EXPIRED_CLIP }]

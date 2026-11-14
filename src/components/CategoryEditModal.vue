@@ -137,6 +137,7 @@ import { CATEGORY_PERMISSION_GROUPS } from '@/services/channelPermissionGroups'
 import {
   applyPrivacy,
   getCategoryOverrides,
+  getServerRoleIds,
   overrideState,
   privacyFromOverrides,
   rebaseTemplate,
@@ -349,11 +350,11 @@ const saveChanges = async () => {
     if (templateChanged) {
       // The dialog's changes go onto the template as it stands now: others may have changed it,
       // or deleted a role, since it opened.
-      const [latest, serverRoles] = await Promise.all([
+      const [latest, roleIds] = await Promise.all([
         getCategoryOverrides(props.category.id),
-        roleService.getRolesForServer(props.category.server_id),
+        getServerRoleIds(props.category.server_id),
       ])
-      const sent = rebaseTemplate(latest, savedTemplate.value, template.value, new Set(serverRoles.map(r => r.id)))
+      const sent = rebaseTemplate(latest, savedTemplate.value, template.value, roleIds)
       const synced = await serverChannelStore.setCategoryTemplate(props.category.id, sent)
       savedTemplate.value = sent
       template.value = sent.map(row => ({ ...row }))

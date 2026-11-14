@@ -19,6 +19,11 @@ const CHUNK = 80;
 /** Rows per read; PostgREST answers at most max-rows (1000 on Supabase) to one request. */
 const PAGE = 1000;
 
+/** Emoji rows one copy may insert in an hour: twice what a Group lists (MAX_EMOJIS). */
+export const COPY_EMOJI_INSERTS_PER_HOUR = 2_000;
+/** Emojis a copy's list dropped that stay, the most recently removed. */
+export const COPY_EMOJI_REMOVED_KEPT = 500;
+
 /** URL characters per `in` filter of URLs: under Kong's 8 KB request line with the rest of the query. */
 const URL_CHUNK_CHARS = 4_000;
 
@@ -125,13 +130,21 @@ export class CopyMirrorService {
    * the same image, the Group's host as domain) is taken over, so the reactions and messages naming
    * it keep it and one row per image stays; a row of another instance never is, since the Group may
    * list any image. An emoji the list no longer names is removed (deleted_at) and still resolves
-   * where it was used. An emoji an instance admin removed here (deleted_by set) stays removed while
-   * the Group lists it, a cached row taken over included. Rows the copy made itself (no ap_id) stay.
+   * where it was used. Rows the copy made itself (no ap_id) stay.
+   *
+   * An instance admin's removal (deleted_by set) holds for the image: an emoji the Group lists
+   * again, under its id or a new one, with an image an admin removed on this copy or as a cached
+   * row stays removed.
+   *
+   * Bounds against a Group that churns its list: at most COPY_EMOJI_INSERTS_PER_HOUR rows inserted
+   * per copy an hour, and at most COPY_EMOJI_REMOVED_KEPT emojis the list dropped kept per copy,
+   * the most recently removed (an admin's removals are all kept).
    */
   static async applyGroupEmojis(serverId: string, groupUrl: string, emojis: ParsedEmoji[]): Promise<void> {
     const supabase = getSupabaseClient();
     const prefix = `${groupUrl}/emojis/`;
     const domain = new URL(groupUrl).host.toLowerCase();
+    const domains = new Set(emojiDomainForms(domain));
     const current: any[] = [];
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await supabase
@@ -150,34 +163,61 @@ export class CopyMirrorService {
     }
     const byApId = new Map(current.map((r: any) => [r.ap_id as string, r]));
 
-    const cached = new Map<string, { id: string; deleted_at: string | null; deleted_by: string | null }>();
-    const unseen = [...new Set(emojis.filter((e) => !byApId.has(e.apId)).map((e) => e.url))];
-    for (const urls of urlChunks(unseen)) {
+    // One read per chunk of the images the list names anew: rows cached from an activity (to take
+    // over) and an instance admin's removals of the image (to keep).
+    type Removal = { deleted_at: string; deleted_by: string };
+    const cached = new Map<string, { id: string; removal: Removal | null }>();
+    const removedImages = new Map<string, Removal>();
+    const lookup = [...new Set(emojis
+      .filter((e) => byApId.get(e.apId)?.url !== e.url)
+      .map((e) => e.url))];
+    for (const urls of urlChunks(lookup)) {
       const { data, error } = await supabase
         .from('emojis')
-        .select('id, url, deleted_at, deleted_by')
-        .is('server_id', null)
-        .is('ap_id', null)
-        .in('domain', emojiDomainForms(domain))
-        .neq('scope', 'user')
+        .select('id, url, domain, server_id, ap_id, deleted_at, deleted_by')
         .in('url', urls)
+        .or(`server_id.is.null,server_id.eq.${serverId}`)
+        .neq('scope', 'user')
         .order('created_at', { ascending: true });
       // Inserting without this read would put a second row next to a cached one of the same image.
       if (error) {
         logger.warn(`Cached emojis of copy ${serverId} not read, emojis left as they are: ${error.message}`);
         return;
       }
-      for (const row of data || []) if (!cached.has(row.url)) cached.set(row.url, row);
+      for (const row of data || []) {
+        const removal = row.deleted_at && row.deleted_by ? { deleted_at: row.deleted_at, deleted_by: row.deleted_by } : null;
+        if (removal && !removedImages.has(row.url)) removedImages.set(row.url, removal);
+        if (row.server_id === null && row.ap_id === null && domains.has(String(row.domain ?? '').toLowerCase())
+            && !cached.has(row.url)) {
+          cached.set(row.url, { id: row.id, removal });
+        }
+      }
+    }
+
+    let inserts = 0;
+    let insertBudget = 0;
+    if (emojis.some((e) => !byApId.has(e.apId))) {
+      const since = new Date(Date.now() - 3_600_000).toISOString();
+      const { count, error } = await supabase
+        .from('emojis')
+        .select('id', { count: 'exact', head: true })
+        .eq('server_id', serverId)
+        .not('ap_id', 'is', null)
+        .gt('created_at', since);
+      if (error) logger.warn(`Recent emojis of copy ${serverId} not counted, none inserted: ${error.message}`);
+      else insertBudget = Math.max(0, COPY_EMOJI_INSERTS_PER_HOUR - (count ?? 0));
     }
 
     for (const emoji of emojis) {
       const row = byApId.get(emoji.apId);
-      const removedHere = !!row && !!row.deleted_at && !!row.deleted_by;
-      const fields = removedHere
-        ? { name: emoji.name, url: emoji.url, domain, deleted_at: row.deleted_at, deleted_by: row.deleted_by }
+      const own: Removal | null = row?.deleted_at && row?.deleted_by ? { deleted_at: row.deleted_at, deleted_by: row.deleted_by } : null;
+      const removal = own ?? removedImages.get(emoji.url) ?? null;
+      const fields = removal
+        ? { name: emoji.name, url: emoji.url, domain, deleted_at: removal.deleted_at, deleted_by: removal.deleted_by }
         : { name: emoji.name, url: emoji.url, domain, deleted_at: null, deleted_by: null };
       if (row) {
-        if (row.name !== fields.name || row.url !== fields.url || row.domain !== domain || row.deleted_at !== fields.deleted_at) {
+        if (row.name !== fields.name || row.url !== fields.url || row.domain !== domain
+            || row.deleted_at !== fields.deleted_at || (row.deleted_by ?? null) !== fields.deleted_by) {
           const { error } = await supabase.from('emojis').update(fields).eq('id', row.id);
           if (error) logger.warn(`Emoji ${emoji.apId} not updated: ${error.message}`);
         }
@@ -187,16 +227,18 @@ export class CopyMirrorService {
       const adopt = cached.get(emoji.url);
       if (adopt) {
         cached.delete(emoji.url);
-        const removal = adopt.deleted_at && adopt.deleted_by
-          ? { deleted_at: adopt.deleted_at, deleted_by: adopt.deleted_by }
-          : {};
         // Taken over meanwhile (a concurrent sync), the update matches no row and the insert follows.
-        const { data: taken, error } = await supabase.from('emojis').update({ ...owned, ...removal }).eq('id', adopt.id).is('server_id', null).select('id');
+        const { data: taken, error } = await supabase.from('emojis').update(owned).eq('id', adopt.id).is('server_id', null).select('id');
         if (!error && taken && taken.length > 0) continue;
         if (error) logger.warn(`Cached emoji ${adopt.id} not taken over for ${emoji.apId}: ${error.message}`);
       }
+      if (inserts >= insertBudget) continue;
+      inserts++;
       const { error } = await supabase.from('emojis').insert(owned);
       if (error) logger.warn(`Emoji ${emoji.apId} not stored: ${error.message}`);
+    }
+    if (inserts >= insertBudget && emojis.some((e) => !byApId.has(e.apId) && !cached.has(e.url))) {
+      logger.warn(`Copy ${serverId}: ${COPY_EMOJI_INSERTS_PER_HOUR} emojis inserted within the hour, the rest wait for a later sync`);
     }
 
     const listed = new Set(emojis.map((e) => e.apId));
@@ -207,6 +249,26 @@ export class CopyMirrorService {
     for (const ids of chunks(gone)) {
       const { error } = await supabase.from('emojis').update({ deleted_at: removedAt, deleted_by: null }).eq('server_id', serverId).in('id', ids);
       if (error) logger.warn(`Emojis of copy ${serverId} not removed: ${error.message}`);
+    }
+
+    // Emojis the list dropped beyond the most recent COPY_EMOJI_REMOVED_KEPT go. A deleted emoji
+    // leaves its reactions as text (prepare_emoji_deletion).
+    const { data: stale, error: staleError } = await supabase
+      .from('emojis')
+      .select('id')
+      .eq('server_id', serverId)
+      .not('ap_id', 'is', null)
+      .not('deleted_at', 'is', null)
+      .is('deleted_by', null)
+      .order('deleted_at', { ascending: false })
+      .range(COPY_EMOJI_REMOVED_KEPT, COPY_EMOJI_REMOVED_KEPT + PAGE - 1);
+    if (staleError) {
+      logger.warn(`Removed emojis of copy ${serverId} not read: ${staleError.message}`);
+      return;
+    }
+    for (const ids of chunks((stale || []).map((r: any) => r.id as string))) {
+      const { error } = await supabase.from('emojis').delete().eq('server_id', serverId).is('deleted_by', null).in('id', ids);
+      if (error) logger.warn(`Removed emojis of copy ${serverId} not deleted: ${error.message}`);
     }
   }
 

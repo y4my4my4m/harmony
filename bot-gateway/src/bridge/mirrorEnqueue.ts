@@ -15,7 +15,7 @@ export async function enqueueMirror(messageIds: string[]): Promise<void> {
   }
 }
 
-/** Names per message_media_deletable call (its p_limit tops out at 1000) and per storage remove. */
+/** Names per bridge_mirror_unreferenced call and per storage remove. */
 const REMOVE_BATCH = 500
 
 /** A name the mirror gives an object: c/<channel id>/bridge/<bot id>/<uuid>.<ext>. */
@@ -23,11 +23,11 @@ const MIRROR_PATH = /^c\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 
 /**
  * Removes from storage the mirrored files among `paths` that nothing references:
- * public.message_media_deletable(paths, 0) names them (no live message, report snapshot or Drive
- * file holds the object), so a path whose message was stored stays. Names outside the mirror's
- * c/<channel id>/bridge/ paths are ignored. Returns the number removed. Best effort: errors are
- * logged, and the federation backend's message_media sweep removes an unreferenced object after
- * a day.
+ * public.bridge_mirror_unreferenced(paths) names them (no live message or report snapshot holds
+ * the object; the lookup reads idx_messages_media_refs, not the channel), so a path whose message
+ * was stored stays. Names outside the mirror's c/<channel id>/bridge/ paths are ignored. Returns
+ * the number removed. Best effort: errors are logged, and the federation backend's message_media
+ * sweep removes an unreferenced object after a day.
  */
 export async function removeUnreferencedMirrors(paths: string[]): Promise<number> {
   const names = [...new Set(paths.filter((path) => typeof path === 'string' && MIRROR_PATH.test(path)))]
@@ -35,15 +35,9 @@ export async function removeUnreferencedMirrors(paths: string[]): Promise<number
   try {
     for (let i = 0; i < names.length; i += REMOVE_BATCH) {
       const batch = names.slice(i, i + REMOVE_BATCH)
-      const { data, error } = await supabase.rpc('message_media_deletable', {
-        p_paths: batch,
-        p_min_age: '0',
-        p_limit: batch.length,
-      })
-      if (error) throw new Error(`message_media_deletable failed: ${error.message}`)
-      // PostgREST returns a set of text as strings, or as one-column rows.
+      const { data, error } = await supabase.rpc('bridge_mirror_unreferenced', { p_paths: batch })
+      if (error) throw new Error(`bridge_mirror_unreferenced failed: ${error.message}`)
       const deletable = (Array.isArray(data) ? data : [])
-        .map((row: unknown) => (typeof row === 'string' ? row : (row as { message_media_deletable?: unknown } | null)?.message_media_deletable))
         .filter((name: unknown): name is string => typeof name === 'string' && batch.includes(name))
       if (deletable.length === 0) continue
       const { data: gone, error: removeError } = await supabase.storage.from(MESSAGE_MEDIA_BUCKET).remove(deletable)

@@ -368,13 +368,13 @@ describe('relayed authors and server-only content', () => {
     expect(inserted().metadata).toEqual({ bot: true, created_via: 'bot_api' })
   })
 
-  it('drops it from a metadata merge outside a paired channel', async () => {
+  it('drops it, and a Discord message id, from a metadata merge of a bot that is no bridge bot', async () => {
     seed({ botType: 'bot' })
     db.rows('messages').push({ id: '00000000-0000-0000-0000-0000000000f4', channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content: [], metadata: {} })
     const res = await supertest(app()).patch('/api/v1/messages/00000000-0000-0000-0000-0000000000f4/metadata')
       .send({ metadata: { ...AUTHOR, discord_message_id: '8' } })
     expect(res.status).toBe(200)
-    expect(metadataOf('00000000-0000-0000-0000-0000000000f4')).toEqual({ discord_message_id: '8' })
+    expect(metadataOf('00000000-0000-0000-0000-0000000000f4')).toEqual({})
   })
 
   it('strips system parts, malformed embeds and server-only metadata from a sent message', async () => {

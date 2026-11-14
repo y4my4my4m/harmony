@@ -16,6 +16,16 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 
 *(WebRTC media-key agreement, the legacy Signal setup wizard, init/migration parity and HTTP-signature replay were resolved in July 2026, recovery-code MFA in November 2026; `messages` left the Realtime publication in 1.8.7. See `BUGS.md`.)*
 
+## 1.9.8 (from the 1.9.7 review)
+
+- **A live relay that loses to a history import is stored quietly.** When an import inserts a Discord message before the live relay of it (`BotRestAPI` 23505 on `messages_channel_discord_message_id_unique`), the relay answers with the imported row: no realtime insert, unread, notification or federation. Needs a relay delayed past the import's recency margin.
+- **The mirror worker drops a link queued while it downloads.** `bridge_mirror_finish` deletes the queue row after a failed compare-and-swap, so an edit requeued during the download is never mirrored; its Discord link expires after about a day.
+- **The mirror quota adds up every mirrored file of the server per upload.** `bridge_mirror_server_bytes` sums the server's objects channel by channel before each file; keep a running total per server.
+- **An import whose bridge is gone stays "Cancelling".** A running job leaves that state only through its bridge or the stale-job pause another start triggers (never with `bridge_import_max_running` 0). Managers need a way to stop it, and paused jobs a per-channel resume.
+- **Stickers and sounds a manager deletes come back at the next bridge sync.** Emojis carry `bridge_removed_at`; stickers (`delete_sticker`, a hard delete) and sounds (`server_sounds_delete_manager`) have no mark the import respects.
+- **A blocked account can read who blocks it.** RLS policy `user_blocks_check_if_blocked` and `is_blocked_by()` answer it, while DM refusals word a block like a setting.
+- **A blocked account can still edit its earlier direct messages.** `a_messages_dm_block_guard` runs on insert only; edits reach the blocker live.
+
 ## Next (correctness & UX)
 
 2. **DM call decline and busy teardown** (`BUGS.md` H7).

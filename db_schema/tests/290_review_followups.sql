@@ -65,10 +65,10 @@ SELECT is(public.bridge_privacy_remove_remote_user('55555555-0000-0000-0000-0000
           'false', 'the owner removes dana');
 SELECT tests.clear_authentication();
 SELECT is(public.bridge_privacy_set_optout('55555555-0000-0000-0000-000000000005', 'discord', '2900000000000009001', true)
-              ->> 'source', 'self', 'dana then opts out herself: the row is hers');
+              ->> 'self', 'true', 'dana then opts out herself, beside the manager''s removal');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is(public.bridge_privacy_restore_remote_user('55555555-0000-0000-0000-000000000005', 'discord', '2900000000000009001'),
-          false, 'a restore by the manager removes nothing');
+          true, 'a restore by the manager lifts the removal');
 SELECT tests.clear_authentication();
 SELECT is((SELECT source FROM public.bridge_remote_optouts WHERE remote_user_id = '2900000000000009001'), 'self',
           'and dana stays opted out');
@@ -78,10 +78,10 @@ SELECT public.bridge_privacy_remove_remote_user('55555555-0000-0000-0000-0000000
 SELECT tests.clear_authentication();
 SELECT is(public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2900000000000009002', 50) ->> 'opted_out',
           'true', 'eve erases through the bridge after a manager removed her');
-SELECT is((SELECT source FROM public.bridge_remote_optouts WHERE remote_user_id = '2900000000000009002'), 'self',
-          'and her row becomes hers');
+SELECT is((SELECT source || ':' || self_opted_out FROM public.bridge_remote_optouts WHERE remote_user_id = '2900000000000009002'),
+          'manager:true', 'her own opt-out is kept beside the manager''s removal');
 SELECT is(public.bridge_privacy_set_optout('55555555-0000-0000-0000-000000000005', 'discord', '2900000000000009002', true)
-              ->> 'source', 'self', 'opting out again changes nothing');
+              ->> 'self', 'true', 'opting out again changes nothing');
 
 -- Erase in batches, reactions and AutoMod events after the messages. ------------------------------------
 SELECT is(public.bridge_privacy_erase_core('55555555-0000-0000-0000-000000000005', 'discord', '2900000000000009003', 1),
@@ -108,7 +108,7 @@ SELECT lives_ok($q$SELECT public.bot_create_thread('f2900000-0000-0000-0000-0000
                 'a thread started by an opted-out author is created');
 SELECT is((SELECT count(*)::int FROM public.messages
             WHERE channel_id = '66666666-0000-0000-0000-000000000006' AND is_system
-              AND metadata ->> 'thread_name' = 'thread 290' AND NOT (metadata ? 'discord_user')), 1,
+              AND metadata ->> 'thread_name' = 'Thread' AND NOT (metadata ? 'discord_user')), 1,
           'its notice names no author');
 
 -- The import leaves a message whose copy was deleted. --------------------------------------------------

@@ -12,7 +12,7 @@
 --   profiles.federation_metadata
 --                              rows stored as a JSON-encoded string (Update(Person) before 1.9.7)
 --                              become the object they encode; readers use -> on an object. A string
---                              that does not encode an object becomes {}.
+--                              that does not encode an object becomes {}. Triggers stay off for it.
 
 BEGIN;
 
@@ -382,21 +382,35 @@ DO $$
 DECLARE
     r record;
     v jsonb;
+    v_quiet boolean := false;
 BEGIN
+    -- The rows convert with their triggers off (session_replication_role replica, superuser only):
+    -- broadcast_profile_change would send profile:updated to every server of each profile, and
+    -- clients would read each one again. Without a superuser the triggers run.
+    BEGIN
+        PERFORM set_config('session_replication_role', 'replica', true);
+        v_quiet := true;
+    EXCEPTION WHEN insufficient_privilege THEN
+        v_quiet := false;
+    END;
     FOR r IN
         SELECT p.id, p.federation_metadata #>> '{}' AS encoded
           FROM public.profiles p
          WHERE jsonb_typeof(p.federation_metadata) = 'string'
     LOOP
+        -- Any string that does not parse (\u0000 escapes raise 22P05, deep nesting 54001) becomes {}.
         BEGIN
             v := r.encoded::jsonb;
-        EXCEPTION WHEN invalid_text_representation THEN
+        EXCEPTION WHEN OTHERS THEN
             v := NULL;
         END;
         UPDATE public.profiles
            SET federation_metadata = CASE WHEN jsonb_typeof(v) = 'object' THEN v ELSE '{}'::jsonb END
          WHERE id = r.id;
     END LOOP;
+    IF v_quiet THEN
+        PERFORM set_config('session_replication_role', 'origin', true);
+    END IF;
 END;
 $$;
 

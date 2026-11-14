@@ -92,14 +92,14 @@ SELECT is((SELECT (m ->> 'online') || ':' || (m ->> 'presence_status') FROM json
 RESET role;
 DELETE FROM public.user_presence WHERE profile_id = '11111111-0000-0000-0000-000000000001';
 
--- A member who blocks the caller reads absent to it.
+-- A member who blocks the caller is listed with their status, as on Discord.
 INSERT INTO public.user_blocks (blocker_id, blocked_user_id)
 VALUES ('22222222-0000-0000-0000-000000000002', '11111111-0000-0000-0000-000000000001');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
-SELECT is(tests.md284_groups(tests.md284_list()), 'online:1,federated:1,offline:2', 'bob, who blocks alice, lists offline to her');
+SELECT is(tests.md284_groups(tests.md284_list()), 'online:1,away:1,federated:1,offline:1', 'bob, who blocks alice, lists away to her');
 SELECT is((SELECT (m ->> 'presence_status') || ':' || (m ->> 'online') || ':' || (m ->> 'is_mobile')
              FROM jsonb_array_elements(tests.md284_list() -> 'members') m WHERE m ->> 'username' = 'bob'),
-          '0:false:false', 'with no status and no device kind, as any offline member');
+          '2:true:false', 'with the status he published');
 RESET role;
 DELETE FROM public.user_blocks WHERE blocker_id = '22222222-0000-0000-0000-000000000002';
 
@@ -285,13 +285,13 @@ SELECT is((SELECT array_position(member_ids, '11111111-0000-0000-0000-0000000000
             WHERE server_id = 'e2845000-0000-0000-0000-000000000003'), 13,
           'none of it rebuilt the order: alice is still stored offline, after bob');
 
--- A member who blocks the caller: the caller's list is its own, with that member offline.
+-- A member who blocks the caller changes nothing of the caller's list: the stored order serves it.
 INSERT INTO public.user_blocks (blocker_id, blocked_user_id)
 VALUES ((SELECT id FROM public.profiles WHERE username = 'w0001'), '11111111-0000-0000-0000-000000000001');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
-SELECT is(tests.md284_groups(tests.md284_wide()), 'online:11,away:1,offline:240',
-          'w0001, who blocks alice, lists offline to her though the stored order has it online');
-SELECT is((tests.md284_wide() ->> 'max_age_ms')::integer, 0, 'from the tables');
+SELECT is(tests.md284_groups(tests.md284_wide()), 'online:12,away:1,offline:239',
+          'w0001, who blocks alice, lists online to her');
+SELECT ok((tests.md284_wide() ->> 'max_age_ms')::integer > 0, 'from the stored order');
 RESET role;
 UPDATE public.server_member_order SET built_at = built_at - interval '6 seconds'
  WHERE server_id = 'e2845000-0000-0000-0000-000000000003';

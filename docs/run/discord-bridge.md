@@ -306,10 +306,10 @@ Every member can run it, answers are shown only to them, and it works with every
 Members with Manage Server act for someone who cannot run the command, for example after they left, in **Server settings** → **Discord Bridge** → **Bridge privacy**:
 
 - **Remove from this server** takes a Discord user ID, deletes what the bridge brought from that user and stops bringing theirs. In Discord, turn on Developer Mode, right-click the user and choose **Copy User ID**.
-- The list shows who is left out and why: **Opted out on Discord**, or removed by a manager or an instance admin. **Restore** lifts a removal made here; a member's own opt-out is theirs to undo.
+- The list shows who is left out and why: **Opted out on Discord**, or removed by a manager or an instance admin. **Restore** lifts a removal made here; a member's own opt-out is theirs to undo, and a member who opted out as well stays opted out. Opting in on Discord does not lift a removal made here.
 - **Remove all bridged messages** deletes everything this server's bridge brought from Discord. Messages written on Harmony stay.
 
-A message that is the first message of a thread is kept as an empty, deleted message so that the thread and other people's replies stay; its text, files and author are gone. Removal cannot be undone.
+A message that is the first message of a thread is kept as an empty, deleted message so that the thread and other people's replies stay; its text, files and author are gone, and the thread is renamed **Thread**. Notifications that quoted the removed messages are deleted too. A thread an opted-out member starts on Discord arrives named **Thread**, without their name. Removal cannot be undone.
 
 ## Discord permissions
 

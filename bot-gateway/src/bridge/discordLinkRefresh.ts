@@ -317,7 +317,10 @@ export class DiscordLinkRefresher {
           this.log.info(`Re-signed expired Discord links of message ${p.messageId}`)
         }
       } catch (error) {
+        // A write the database refuses (an opted-out author, a deleted message) refuses again:
+        // the message waits FAILED_TTL_MS, as one Discord did not sign.
         this.log.error(`Writing re-signed links of message ${p.messageId} failed:`, error)
+        this.markFailed(p.messageId)
       }
     }
   }

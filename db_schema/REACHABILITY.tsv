@@ -167,6 +167,7 @@ bridge_mirror_observe	definer	jsonb	service_role	client	rpc in bot-gateway/src/b
 bridge_mirror_restart_walk	definer	void	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_server_bytes	definer	bigint	service_role	client	called by bridge_mirror_allows, bridge_mirror_status
 bridge_mirror_status	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/InstanceConfig.vue, src/components/settings/discord-bridge/bridgeApi.ts
+bridge_mirror_unreferenced	definer	text[]	service_role	client	rpc in bot-gateway/src/bridge/mirrorEnqueue.ts
 bridge_platform_author_key	invoker	text	service_role	client	called by bridge_privacy_check_subject
 bridge_privacy_changed	definer	void	-	client	called by bridge_privacy_erase, bridge_privacy_remove_remote_user, bridge_privacy_restore_remote_user, +1
 bridge_privacy_check_subject	invoker	void	service_role	client	called by bridge_privacy_erase, bridge_privacy_erase_core, bridge_privacy_remove_remote_user, +2
@@ -650,6 +651,7 @@ get_voice_activity	definer	jsonb	authenticated+service_role	client	rpc in src/se
 get_voice_channel_participants	definer	TABLE(user_id uuid, username text, display_name text, avatar_url text, is_federated boolean, federated_domain text, joined_at timestamp with time zone, is_muted boolean, is_deafened boolean, is_video_enabled boolean, is_screen_sharing boolean)	service_role	service key	nothing references it
 guard_bot_permission_grants	invoker	trigger	service_role	trigger	trigger public.bot_server_permissions BEFORE INSERT/UPDATE (a_bot_server_permissions_grant_guard)
 guard_bridge_author_optout	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_bridge_optout_guard)
+guard_bridge_reaction_optout	definer	trigger	service_role	trigger	trigger public.reactions BEFORE INSERT (a_reactions_bridge_optout_guard)
 guard_category_client_write	invoker	trigger	service_role	trigger	trigger public.channel_categories BEFORE INSERT/UPDATE (a_channel_categories_client_write_guard)
 guard_channel_client_write	invoker	trigger	service_role	trigger	trigger public.channels BEFORE INSERT/UPDATE (a_channels_client_write_guard)
 guard_conversation_participant_client_write	invoker	trigger	service_role	trigger	trigger public.conversation_participants BEFORE UPDATE (a_conversation_participants_client_write_guard)
@@ -789,7 +791,7 @@ member_voice_channel	definer	uuid	service_role	client	called by move_voice_membe
 merge_own_message_echoes	invoker	integer	-	nothing	nothing references it
 message_custom_emoji_keys	invoker	text[]	service_role	trigger	called by enforce_message_content_permissions
 message_file_names	invoker	text	service_role	trigger	called by index_message_row
-message_media_deletable	definer	SETOF text	service_role	client	rpc in bot-gateway/src/bridge/mirrorEnqueue.ts, federation-backend/src/queue/handlers/messageMediaCleanupHandler.ts
+message_media_deletable	definer	SETOF text	service_role	client	rpc in federation-backend/src/queue/handlers/messageMediaCleanupHandler.ts
 message_media_in_room	definer	boolean	authenticated+service_role	policy	policy storage.objects INSERT on Room members can upload message media
 message_media_named_for	definer	boolean	service_role	client, policy	called by drive_file_readable, message_media_readable
 message_media_readable	definer	boolean	authenticated+service_role	policy	policy storage.objects SELECT on Room members can read message media

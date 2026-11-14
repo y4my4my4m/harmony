@@ -92,6 +92,8 @@ export const useActivitiesStore = defineStore('activities', () => {
   })
 
   const runKey = (a: VoiceActivity) => `${a.channel_id}:${a.started_at}`
+  /** Per run, the newest revision a peer's state was taken at. */
+  const peerRevision = new Map<string, number>()
   // host_id is a profile id (get_current_profile_id()), which need not equal the auth user id.
   const accepted = (a: VoiceActivity) => {
     const me = useProfileStore().profile?.id
@@ -252,9 +254,11 @@ export const useActivitiesStore = defineStore('activities', () => {
 
   /**
    * An activity state from a participant of the call. A participant is not the database: its state
-   * moves the playback of the item this client holds (play, pause, position, rate, revision) and
-   * nothing else. A new run, its host, item and queue come from the database and its broadcasts;
-   * otherwise any participant could start a run naming this client as host, which plays at once.
+   * moves the playback of the item this client holds (play, pause, position, rate) and nothing
+   * else, and only a participant who may control the run. A new run, its host, item and queue come
+   * from the database and its broadcasts; otherwise any participant could start a run naming this
+   * client as host, which plays at once. The held revision stays the database's: a peer's revision
+   * orders peer states among themselves (peerRevision) and never makes a database state look stale.
    */
   function receivePeer(event: { userId: string; message: unknown }): void {
     const message = event.message as { type?: string; channelId?: string; activity?: VoiceActivity | null }
@@ -263,17 +267,20 @@ export const useActivitiesStore = defineStore('activities', () => {
     const peer = message.activity
     const held = byChannel.value[message.channelId]
     if (!peer || !held || peer.channel_id !== held.channel_id || peer.started_at !== held.started_at) return
-    if (typeof peer.revision !== 'number' || typeof peer.position_ms !== 'number' || typeof peer.position_at !== 'number') return
-    // The revision also orders item and queue changes: a state naming another item or queue waits
-    // for the database's, which the revision taken here would otherwise make look stale.
+    if (held.controls === 'host' && event.userId !== held.host_id) return
+    const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
+    if (!finite(peer.revision) || !finite(peer.position_ms) || !finite(peer.position_at) || peer.position_ms < 0) return
+    // Item and queue changes are the database's: a state naming another item or queue waits for it.
     if (JSON.stringify(peer.item) !== JSON.stringify(held.item) || JSON.stringify(peer.queue) !== JSON.stringify(held.queue)) return
+    const key = runKey(held)
+    if (peer.revision <= Math.max(held.revision, peerRevision.get(key) ?? -Infinity)) return
+    peerRevision.set(key, peer.revision)
     apply(message.channelId, {
       ...held,
       playing: peer.playing === true,
       position_ms: peer.position_ms,
       position_at: peer.position_at,
-      rate: typeof peer.rate === 'number' ? peer.rate : held.rate,
-      revision: peer.revision,
+      rate: finite(peer.rate) && peer.rate >= 0.25 && peer.rate <= 4 ? peer.rate : held.rate,
     }, false)
   }
 

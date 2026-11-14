@@ -98,10 +98,11 @@ SELECT is(public.signup_captcha_verdict(200, '{"success":false,"error-codes":["i
   'fail', 'hCaptcha invalid-input-response fails');
 SELECT is(public.signup_captcha_verdict(200, '{"success":false,"error-codes":["already-seen-response"]}'),
   'fail', 'a reused hCaptcha token fails');
+-- 20261115500001: only the instance's keys and the provider's own failure give no verdict.
 SELECT is(public.signup_captcha_verdict(200, '{"success":false,"error-codes":["sitekey-secret-mismatch"]}'),
-  'error', 'mismatched keys give no verdict');
+  'fail', 'a token minted on another site key fails');
 SELECT is(public.signup_captcha_verdict(200, '{"success":false,"error-codes":["invalid-input-response","bad-request"]}'),
-  'error', 'a token code beside a request code gives no verdict');
+  'fail', 'a token code beside a request code fails');
 SELECT is(public.signup_captcha_verdict(200, '{"success":false}'), 'fail', 'a refusal without codes fails');
 SELECT is(public.signup_captcha_verdict(503, '{"success":true}'), 'error', 'a non-200 answer gives no verdict');
 SELECT is(public.signup_captcha_verdict(200, '<html>busy</html>'), 'error', 'nor does a page that is not JSON');

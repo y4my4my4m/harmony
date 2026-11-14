@@ -851,13 +851,20 @@ const toggleNativeFullscreen = async () => {
 // document would otherwise stay full screen with nothing of the call left on it. Full screen the
 // call view took over (F11) stays, without the call.
 function releaseNativeFullscreen() {
-  if (!isNativeFullscreen.value) return;
-  if (ownsFullscreen && document.fullscreenElement === document.documentElement) {
-    void document.exitFullscreen().catch(() => {});
-    return;
-  }
+  if (!fullscreenRequested) return;
+  const owned = ownsFullscreen;
   fullscreenRequested = false;
+  ownsFullscreen = false;
+  // An element full screen over the document (a media viewer) leaves with it: exiting only the top
+  // one would land back in the call view's full screen with no call view.
+  if (owned) void exitEveryFullscreen();
   onFullscreenChange();
+}
+
+async function exitEveryFullscreen(): Promise<void> {
+  for (let i = 0; i < 3 && document.fullscreenElement; i++) {
+    await document.exitFullscreen().catch(() => {});
+  }
 }
 
 watch([callViewShown, poppedOut], ([shown, out]) => {

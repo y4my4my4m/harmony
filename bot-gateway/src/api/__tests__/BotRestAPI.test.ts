@@ -32,7 +32,7 @@ vi.mock('../../auth/BotAuthMiddleware.js', () => ({
   botRateLimit: (_req: any, _res: any, next: any) => next(),
 }))
 
-import { BotRestAPI, botContentParts, botSuppliedMetadata, claimsBridgeAuthor, reactionMetadata } from '../BotRestAPI.js'
+import { BotRestAPI, botContentParts, botSuppliedMetadata, claimsBridgeAuthor, claimsBridgeMapping, reactionMetadata } from '../BotRestAPI.js'
 
 type Result = { data: unknown; error: unknown }
 
@@ -276,8 +276,9 @@ describe('PATCH /messages/:id/metadata', () => {
       .send({ metadata: { discord_message_id: '42', ap_id: 'https://peer.test/m/1', federated: true, type: 'member_ban', bot: false } })
 
     expect(res.status).toBe(200)
+    // The bot is no bridge of the channel: the Discord message id goes with the server-only keys.
     expect(updates).toEqual([
-      { metadata: { bot: true, created_via: 'bot_api', discord_message_id: '42' } },
+      { metadata: { bot: true, created_via: 'bot_api' } },
     ])
   })
 })
@@ -297,6 +298,15 @@ describe('botSuppliedMetadata', () => {
     expect(botSuppliedMetadata(metadata, { bridgeAuthor: true })).toEqual(metadata)
     expect(claimsBridgeAuthor(metadata)).toBe(true)
     expect(claimsBridgeAuthor({ discord_message_id: '2' })).toBe(false)
+  })
+
+  it('keeps a Discord message id only for the channel\'s bridge: the id is unique per channel', () => {
+    const metadata = { discord_message_id: '2', discord_via_webhook: true, bridge_source: 'harmony', label: 'x' }
+    expect(claimsBridgeMapping(metadata)).toBe(true)
+    expect(claimsBridgeMapping({ label: 'x', bridge_source: 'discord' })).toBe(false)
+    expect(botSuppliedMetadata(metadata, { bridgeMapping: false })).toEqual({ label: 'x' })
+    expect(botSuppliedMetadata(metadata, { bridgeMapping: true })).toEqual({ discord_message_id: '2', discord_via_webhook: true, label: 'x' })
+    expect(botSuppliedMetadata(metadata, { bridgeAuthor: true, bridgeMapping: true })).toEqual(metadata)
   })
 
   it('reads anything but a plain object as empty', () => {
@@ -584,6 +594,22 @@ describe('PUT /messages/:id/reactions/:emoji', () => {
       custom_emoji_content: 'discord:party:1234567890',
       emoji_id: null,
     }])
+  })
+
+  it('answers 403 BRIDGE_AUTHOR_OPTED_OUT for a reaction of an opted-out relayed author', async () => {
+    const install = OPEN_CHANNEL_FIXTURES.bot_server_permissions.data as Record<string, unknown>
+    routeTables({
+      ...OPEN_CHANNEL_FIXTURES,
+      bot_server_permissions: { data: { ...install, add_reactions: true }, error: null },
+      messages: { data: { channel_id: 'c1' }, error: null },
+      channels: { data: { server_id: 's1' }, error: null },
+      reactions: { data: null, error: { code: '23514', message: 'BRIDGE_AUTHOR_OPTED_OUT' } },
+    })
+
+    const res = await supertest(makeApp()).put(`/api/v1/messages/${MESSAGE_ID}/reactions/%F0%9F%9A%80`).send({})
+
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ error: 'The author opted out of this bridge', code: 'BRIDGE_AUTHOR_OPTED_OUT' })
   })
 
   it('answers a twenty-first emoji on a message with Discord\'s 30010', async () => {
