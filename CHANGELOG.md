@@ -165,6 +165,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **A server's custom emojis on other instances.** Members who joined a server from another
+  instance saw none of its custom emojis in the emoji picker or in `:name` suggestions. The server
+  now sends its emojis to the instances its members are on, and keeps them current as they are
+  added, renamed or removed; each shows in that server's section of the picker, and a reaction or
+  message with one shows the same emoji on the server. The images stay on the server's instance.
+  Both instances need 1.9.7: a server joined earlier gets its emojis the next time a member opens
+  it.
+- **Every emoji picker lists the same emoji.** The reaction picker showed **My Emoji**, the
+  instance's emoji and **AI Generated** only once the composer's picker had been opened.
+- **Emoji pickers on phones leave the keyboard down.** Opening the reaction or composer emoji
+  picker put the cursor in its search field, and the on-screen keyboard covered most of the list.
+  Tap the search field to type.
 - **Large servers list every member.** Past 1000 members, the member list, the member count and
   `@` suggestions stopped at 1000 on an instance with a row limit, and in any server that size the
   name of someone who had left turned into "Unknown User". The count now comes from the server, the

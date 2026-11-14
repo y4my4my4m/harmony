@@ -22,6 +22,17 @@ const BATCH_WINDOW_MS = 50;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const BASE_RECONNECT_DELAY_MS = 1_000;
 
+/**
+ * Jobs that read their server's current state when they run: one per server per batch. A statement
+ * changing many emojis or roles notifies once per row, and the rows arrive together at its commit.
+ */
+const COLLAPSED_JOBS = new Set(['federate-server-update']);
+
+function collapseKey(notification: JobNotification): string | null {
+  const serverId = notification.data?.server_id;
+  return COLLAPSED_JOBS.has(notification.name) && typeof serverId === 'string' ? `${notification.name}:${serverId}` : null;
+}
+
 interface JobNotification {
   name: string;
   id?: string;
@@ -161,8 +172,14 @@ export class NotificationListener {
     if (batch.length === 0) return;
 
     const addPromises: Promise<void>[] = [];
+    const collapsed = new Set<string>();
     for (const notification of batch) {
       if (notification.name === 'delivery-queue-fallback') continue;
+      const key = collapseKey(notification);
+      if (key) {
+        if (collapsed.has(key)) continue;
+        collapsed.add(key);
+      }
       addPromises.push(this.enqueue(notification));
     }
 

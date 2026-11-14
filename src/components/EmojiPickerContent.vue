@@ -313,7 +313,7 @@
 import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue';
 import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache';
 import { KLIPY_EPHEMERAL_GROUP, registerEphemeralEmoji } from '@/utils/ephemeralEmoji';
-import { authContextService } from '@/services/AuthContextService';
+import { isMobileLayout } from '@/composables/useLayoutState';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService';
@@ -889,9 +889,9 @@ watch(displayedCategories, (cats) => {
 
 // Lifecycle
 onMounted(async () => {
-  const { triggerEmojiDataLoad } = await import('@/composables/useEmojiLoader');
-  triggerEmojiDataLoad();
-  
+  const { loadPickerEmojiData } = await import('@/composables/useEmojiLoader');
+  loadPickerEmojiData();
+
   if (!unifiedLoaded.value && !unifiedLoading.value) {
     import('@/services/unifiedEmojiService').then(({ loadEmojiData }) => {
       loadEmojiData().catch(err => {
@@ -903,15 +903,11 @@ onMounted(async () => {
   await emojiFavoriteService.initializeCache();
   loadFavorites();
 
-  // Load the viewer's personal + instance emoji (incl. AI Generated) so they
-  // appear as picker categories and resolve in :shortcode: at send time.
-  authContextService.getCurrentContext()
-    .then((ctx) => emojiCacheStore.loadPersonalEmojis(ctx.profileId ?? null))
-    .catch(() => emojiCacheStore.loadPersonalEmojis(null));
-
   // Runs after the awaits above. Focus already inside the picker (the dialog's own initial
-  // focus, or a header the user moved to meanwhile) stays where it is.
+  // focus, or a header the user moved to meanwhile) stays where it is. The mobile layout keeps
+  // focus off the field: a focused field raises the on-screen keyboard over the list.
   nextTick(() => {
+    if (isMobileLayout()) return;
     const active = document.activeElement;
     const host = searchInput.value?.closest('[role="dialog"]') ?? searchInput.value?.parentElement?.parentElement;
     if (active && active !== host && host?.contains(active)) return;

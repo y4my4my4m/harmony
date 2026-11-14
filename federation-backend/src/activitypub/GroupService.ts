@@ -21,7 +21,7 @@ import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
 import { activityIdHeldByAnother, activityIdIsStorable } from './inboxClaim.js';
 import { clientIp, inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
-import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
+import { getFullEmojiUrl, getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 import { PUBLIC_AUDIENCE } from '../utils/privateMedia.js';
 import {
   canReadServer,
@@ -42,16 +42,20 @@ import { channelMessageActivity, messageObjectId, withParentObjectIds } from './
 import { withMessagePolls } from './messagePolls.js';
 import { groupAuthorOf } from './groupAuthor.js';
 import {
+  emojisToAp,
+  HARMONY_EMOJIS,
   HARMONY_MEMBER_ROLES,
   HARMONY_PINNED_AT,
   HARMONY_PINS,
   HARMONY_ROLES,
+  MAX_EMOJIS,
   MAX_PINS,
   pinsAdvert,
   pinsCollectionId,
   roleApId,
   rolesToAp,
   summarizePins,
+  type ApEmoji,
   type ApRole,
   type PinSummary,
 } from './copyMirror.js';
@@ -82,6 +86,7 @@ function serverToGroup(
     roles: ApRole[] | null;
     pins: Map<string, PinSummary> | null;
     flags?: Map<string, Record<string, unknown>>;
+    emojis?: ApEmoji[] | null;
   } = { roles: null, pins: null },
   instanceOpen = false,
 ): any {
@@ -97,6 +102,7 @@ function serverToGroup(
       {
         toot: 'http://joinmastodon.org/ns#',
         discoverable: 'toot:discoverable',
+        Emoji: 'toot:Emoji',
         harmony: HARMONY_NS,
         'ChatServer': 'harmony:ChatServer',
         'TextChannel': 'harmony:TextChannel',
@@ -152,6 +158,8 @@ function serverToGroup(
     
     // Display-only roles of the server (copyMirror.ts); absent when unread.
     ...(display.roles ? { [HARMONY_ROLES]: display.roles } : {}),
+    // Custom emojis of the server (copyMirror.ts); absent when unread.
+    ...(display.emojis ? { [HARMONY_EMOJIS]: display.emojis } : {}),
 
     // Harmony extension: Channel structure
     'harmony:channels': channels.map(c => {
@@ -278,6 +286,27 @@ export async function loadApRoles(supabase: ReturnType<typeof getSupabaseClient>
     return null;
   }
   return rolesToAp(serverUrl, data || []);
+}
+
+/**
+ * The server's custom emojis as harmony:emojis lists them, oldest first; null when they cannot be
+ * read. Removed emojis (deleted_at) are left out.
+ */
+export async function loadApEmojis(supabase: ReturnType<typeof getSupabaseClient>, serverId: string, serverUrl: string): Promise<ApEmoji[] | null> {
+  const { data, error } = await supabase
+    .from('emojis')
+    .select('id, name, url')
+    .eq('server_id', serverId)
+    .eq('scope', 'server')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(MAX_EMOJIS);
+  if (error) {
+    logger.error(`Emojis of server ${serverId} not read: ${error.message}`);
+    return null;
+  }
+  return emojisToAp(serverUrl, (data || []).map((e: any) => ({ id: e.id, name: e.name, url: getFullEmojiUrl(e.url) })));
 }
 
 /**
@@ -481,7 +510,12 @@ router.get(
       ownerProfile,
       config.INSTANCE_DOMAIN,
       publicKeyPem,
-      { roles: await loadApRoles(supabase, server.id, serverUrl), pins, flags },
+      {
+        roles: await loadApRoles(supabase, server.id, serverUrl),
+        pins,
+        flags,
+        emojis: await loadApEmojis(supabase, server.id, serverUrl),
+      },
       await instanceFederationOpen(),
     );
 

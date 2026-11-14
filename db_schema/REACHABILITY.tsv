@@ -872,7 +872,7 @@ purge_following_imports	definer	integer	service_role	client	rpc in federation-ba
 purge_processed_ap_activities	definer	integer	service_role	cron	cron 0 3 * * * (activitypub-cleanup-old-activities)
 purge_signup_ledger	definer	void	service_role	cron	cron 17 * * * * (signup-ledger-purge)
 purge_stale_invites	definer	integer	service_role	cron	cron 20 4 * * * (purge-stale-invites)
-queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, before_user_created_hook, +53
+queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, before_user_created_hook, +54
 queue_message_media_cleanup	definer	trigger	service_role	trigger	trigger public.messages AFTER DELETE/UPDATE (z_messages_media_cleanup)
 queue_message_poll_federation	definer	void	service_role	client	called by end_federated_message_poll, end_message_poll, record_federated_message_poll_vote, +1
 queue_outgoing_webhook_ping	definer	uuid	service_role	client	called by create_outgoing_webhook, outgoing_webhook_probes, test_outgoing_webhook, +1
@@ -1137,6 +1137,7 @@ trigger_queue_profile_federation	definer	trigger	service_role	trigger	trigger pu
 trigger_queue_push_notification	definer	trigger	anon+authenticated+service_role	trigger	trigger public.notifications AFTER INSERT (trigger_send_push_notification)
 trigger_queue_report_federation	definer	trigger	service_role	trigger	trigger public.reports BEFORE INSERT (trigger_federate_report)
 trigger_queue_report_resolution	definer	trigger	service_role	trigger	trigger public.reports AFTER UPDATE (trigger_federate_report_resolution)
+trigger_queue_server_emojis_federation	definer	trigger	service_role	trigger	trigger public.emojis AFTER INSERT/DELETE/UPDATE (z_emojis_federation)
 trigger_queue_server_roles_federation	definer	trigger	service_role	trigger	trigger public.server_roles AFTER INSERT/DELETE/UPDATE (z_server_roles_federation)
 trigger_queue_server_update_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.servers AFTER UPDATE (trigger_federate_server_update)
 trigger_queue_thread_delete_federation	definer	trigger	service_role	trigger	trigger public.threads AFTER DELETE (trigger_federate_thread_delete)

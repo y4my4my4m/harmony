@@ -34,9 +34,11 @@ import { activityReference, movedColumns, MOVE_COOLDOWN_MS } from './accountMigr
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata } from './systemNotes.js';
 import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata } from './groupAuthor.js';
 import {
+  HARMONY_EMOJIS,
   HARMONY_ROLES,
   isPinsTarget,
   MEMBER_ROLES_TYPE,
+  parseGroupEmojis,
   parseGroupRoles,
   parseChannelPosition,
   parseMemberRolesObject,
@@ -1699,6 +1701,8 @@ export class ActivityProcessor {
 
       const roles = parseGroupRoles(object[HARMONY_ROLES], serverActorUrl);
       if (roles) await CopyMirrorService.applyGroupRoles(existingServer.id, serverActorUrl, roles);
+      const emojis = parseGroupEmojis(object[HARMONY_EMOJIS], serverActorUrl);
+      if (emojis) await CopyMirrorService.applyGroupEmojis(existingServer.id, serverActorUrl, emojis);
     } else if (object.type === MEMBER_ROLES_TYPE) {
       await this.processMemberRolesUpdate(actorUrl, object);
     }

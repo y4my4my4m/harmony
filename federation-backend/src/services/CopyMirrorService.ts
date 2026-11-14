@@ -1,7 +1,7 @@
 /**
  * The copy of a server hosted elsewhere, brought to what its Group says (activitypub/copyMirror.ts):
- * its roles, its members' roles and its channels' pins. Written with the service role; a client
- * writes none of these on a copy (migration 20261027200001).
+ * its roles, its members' roles, its custom emojis and its channels' pins. Written with the service
+ * role; a client writes none of these on a copy (migration 20261027200001).
  *
  * Roles on a copy are display-only: permissions 0, no administrator flag. get_user_permissions holds
  * member bits only on a copy, and the host enforces its own roles.
@@ -11,7 +11,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { redis } from './RedisService.js';
-import type { MemberRoles, ParsedRole } from '../activitypub/copyMirror.js';
+import type { MemberRoles, ParsedEmoji, ParsedRole } from '../activitypub/copyMirror.js';
 
 /** Ids per `in` filter: the query string stays under 8 KB with URLs of 80 characters. */
 const CHUNK = 80;
@@ -91,6 +91,88 @@ export class CopyMirrorService {
     for (const ids of chunks(gone)) {
       const { error: deleteError } = await supabase.from('server_roles').delete().eq('server_id', serverId).in('id', ids);
       if (deleteError) logger.warn(`Roles of copy ${serverId} not deleted: ${deleteError.message}`);
+    }
+  }
+
+  /**
+   * The Group's custom emojis on its copy: each a server emoji of the copy under its id
+   * (emojis.ap_id), with the host's name and image url and the Group's host as domain; the image
+   * stays on the host. A row cached from an activity (no server, no id, the same image) is taken
+   * over, so the reactions and messages naming it keep it and one row per image stays. An emoji the
+   * list no longer names is removed (deleted_at), and still resolves where it was used. Rows the
+   * copy made itself (no ap_id) stay.
+   */
+  static async applyGroupEmojis(serverId: string, groupUrl: string, emojis: ParsedEmoji[]): Promise<void> {
+    const supabase = getSupabaseClient();
+    const prefix = `${groupUrl}/emojis/`;
+    const domain = new URL(groupUrl).host.toLowerCase();
+    const current: any[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('emojis')
+        .select('id, ap_id, name, url, domain, deleted_at')
+        .eq('server_id', serverId)
+        .not('ap_id', 'is', null)
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) {
+        logger.warn(`Emojis of copy ${serverId} not read: ${error.message}`);
+        return;
+      }
+      current.push(...(data || []));
+      if (!data || data.length < PAGE) break;
+    }
+    const byApId = new Map(current.map((r: any) => [r.ap_id as string, r]));
+
+    const cached = new Map<string, string>();
+    const unseen = [...new Set(emojis.filter((e) => !byApId.has(e.apId)).map((e) => e.url))];
+    for (const urls of chunks(unseen)) {
+      const { data, error } = await supabase
+        .from('emojis')
+        .select('id, url')
+        .is('server_id', null)
+        .is('ap_id', null)
+        .not('domain', 'is', null)
+        .neq('scope', 'user')
+        .in('url', urls)
+        .order('created_at', { ascending: true });
+      if (error) {
+        logger.warn(`Cached emojis of copy ${serverId} not read: ${error.message}`);
+        continue;
+      }
+      for (const row of data || []) if (!cached.has(row.url)) cached.set(row.url, row.id);
+    }
+
+    for (const emoji of emojis) {
+      const fields = { name: emoji.name, url: emoji.url, domain, deleted_at: null, deleted_by: null };
+      const row = byApId.get(emoji.apId);
+      if (row) {
+        if (row.name !== fields.name || row.url !== fields.url || row.domain !== domain || row.deleted_at !== null) {
+          const { error } = await supabase.from('emojis').update(fields).eq('id', row.id);
+          if (error) logger.warn(`Emoji ${emoji.apId} not updated: ${error.message}`);
+        }
+        continue;
+      }
+      const owned = { server_id: serverId, scope: 'server', ap_id: emoji.apId, ...fields };
+      const adopt = cached.get(emoji.url);
+      if (adopt) {
+        cached.delete(emoji.url);
+        const { error } = await supabase.from('emojis').update(owned).eq('id', adopt).is('server_id', null);
+        if (!error) continue;
+        logger.warn(`Cached emoji ${adopt} not taken over for ${emoji.apId}: ${error.message}`);
+      }
+      const { error } = await supabase.from('emojis').insert(owned);
+      if (error) logger.warn(`Emoji ${emoji.apId} not stored: ${error.message}`);
+    }
+
+    const listed = new Set(emojis.map((e) => e.apId));
+    const gone = current
+      .filter((r: any) => r.deleted_at === null && r.ap_id.startsWith(prefix) && !listed.has(r.ap_id))
+      .map((r: any) => r.id as string);
+    const removedAt = new Date().toISOString();
+    for (const ids of chunks(gone)) {
+      const { error } = await supabase.from('emojis').update({ deleted_at: removedAt }).eq('server_id', serverId).in('id', ids);
+      if (error) logger.warn(`Emojis of copy ${serverId} not removed: ${error.message}`);
     }
   }
 

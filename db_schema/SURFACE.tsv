@@ -1137,6 +1137,7 @@ trigger_queue_profile_federation		trigger	definer	public, pg_temp	service_role	t
 trigger_queue_push_notification		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_report_federation		trigger	definer	public, extensions, pg_temp	service_role	trigger
 trigger_queue_report_resolution		trigger	definer	public, extensions, pg_temp	service_role	trigger
+trigger_queue_server_emojis_federation		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_server_roles_federation		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_server_update_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_thread_delete_federation		trigger	definer	public, pg_temp	service_role	trigger
