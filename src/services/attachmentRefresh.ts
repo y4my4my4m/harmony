@@ -3,13 +3,14 @@ import { debug } from '@/utils/debug'
 import { apiUrl } from '@/services/instanceConfig'
 
 /**
- * Lazy refresh of expired bridged (Discord) attachment URLs.
+ * Lazy refresh of expired Discord attachment URLs, bridged or posted by people.
  *
  * Discord CDN URLs are signed and expire (~24h); the `?ex=<hex unix seconds>`
  * query param encodes the expiry. When the instance runs `bridge_attachment_mode
  * = 'refresh'`, viewing a message with an expired URL triggers a request to the
- * bot-gateway, which asks the bridge to re-sign the URLs and silently patch the
- * message. The fresh URL then arrives via the normal realtime message update.
+ * bot-gateway, which has the message's connected bridge, or else the instance's
+ * Discord bot, re-sign the URLs and silently patch the message. The fresh URL
+ * then arrives via the normal realtime message update.
  *
  * Requests are coalesced per message so many expired images (or many viewers)
  * don't fan out into repeated calls.

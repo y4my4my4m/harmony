@@ -87,7 +87,7 @@
           {{ mirrorStatusText }}
         </span>
         <span class="setting-hint" v-else-if="config.chat.bridgeAttachmentMode === 'refresh'">
-          Requires a connected bridge + bot-gateway. Expired attachment URLs are re-signed on demand when a user views them (no disk use, no “edited” badge).
+          Requires the bot gateway. Expired Discord links are re-signed when someone views them (no disk use, no “edited” badge): by the bridge that posted them while it is connected, otherwise by this instance's Discord bot, which links people post on Harmony also need.
         </span>
       </div>
 

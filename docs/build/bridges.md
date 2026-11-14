@@ -329,10 +329,10 @@ Discord CDN attachment URLs expire. The instance administrator chooses how Harmo
 | Mode | Behavior |
 |---|---|
 | `link` (default) | URLs are stored as the bridge sends them. |
-| `refresh` | When a member views a bridged message whose Discord links have expired, the gateway sends the authoring bot [`REFRESH_ATTACHMENTS`](/build/gateway#refresh-attachments). The bridge renews the URLs with Discord and writes the parts back with [`PATCH /messages/{message.id}/content-silent`](/build/rest#patch-content-silently). |
+| `refresh` | When a member views a bridged message whose Discord links have expired, the gateway sends the authoring bot [`REFRESH_ATTACHMENTS`](/build/gateway#refresh-attachments). The bridge renews the URLs with Discord and writes the parts back with [`PATCH /messages/{message.id}/content-silent`](/build/rest#patch-content-silently). While the bridge is offline, and for Discord links people post on Harmony, the gateway renews them with the instance Discord bot when one is set up. |
 | `mirror` | `file` and `url` parts pointing at `discordapp.com` or `discordapp.net` in created or edited messages are copied into the instance's storage, up to the instance's upload ceiling each, and become `file` parts there. Photos and videos are stored without their location, camera and other metadata ([Photo and video metadata](/build/rest#photo-and-video-metadata)). A failed copy keeps the Discord URL. |
 
-The gateway applies `mirror` on its own, so a bridge sends Discord URLs in every mode. Only `refresh` needs the bridge's help: it must answer `REFRESH_ATTACHMENTS`.
+The gateway applies `mirror` on its own, so a bridge sends Discord URLs in every mode. Only `refresh` needs the bridge's help: it must answer `REFRESH_ATTACHMENTS` while it is connected.
 
 ## History import
 

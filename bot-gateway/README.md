@@ -13,7 +13,7 @@ Bot developers: the protocol reference is [docs/build/](../docs/build/index.md) 
 | `/api/v1/*` | `Authorization: Bot <token>` | REST API |
 | `GET /status` | Supabase user JWT | Connected bots: IDs, usernames, last heartbeat |
 | `GET /bridged-users/:channelId`<br>`GET /bridged-users/server/:serverId` | Supabase user JWT, server membership | Discord members registered by a bridge bot; feeds mention autocomplete |
-| `POST /attachments/refresh` | Supabase user JWT, server membership | Asks the owning bridge bot to re-sign expired Discord CDN URLs |
+| `POST /attachments/refresh` | Supabase user JWT, view of the message's channel | Re-signs expired Discord CDN URLs: through the message's bot when it is connected, otherwise with the instance Discord application's token |
 | `GET /bridge-setup/:pairingCode` | none | Resolves a Discord bridge pairing code (`HRM-XXXX-XXXX`) to a server ID and endpoint URLs |
 | `POST /bridge/v2/redeem` | setup code, rate limited per IP | Discord bridge v2: trades a one-time setup code for the bridge bot's token and the instance URLs |
 | `GET /bridge/v2/config`, `POST /bridge/v2/status`, `POST /bridge/v2/pairs`, `DELETE /bridge/v2/pairs/:discordChannelId` | bridge bot token | A bridge's configuration, heartbeat and Discord snapshot, and Discord-side `/bridge link` and `unlink` |
@@ -59,7 +59,9 @@ The service loads `.env` from its working directory. `.env.example` (development
 | `BRIDGE_HOST_SECRET` | unset | Shared secret of the Discord bridge host (`X-Bridge-Host-Secret`). Under 32 characters, `GET /bridge/v2/hosted` and `/bridge/v2/hosted/instance` answer 404. |
 | `BRIDGE_CONFIG_POLL_MS` | `5000` | Interval in ms, clamped to 1000-60000, of the bridge configuration poll behind `BRIDGE_CONFIG_UPDATE`. |
 
-The instance setting **Bridge attachments** (admin instance configuration, stored as `bridge_attachment_mode`) controls Discord CDN attachments posted by bots: `link` stores the URL, `mirror` copies the file into the channel's folder of the private `message_media` bucket, photos and videos without their metadata (`src/utils/stripMetadata.ts`), `refresh` enables `POST /attachments/refresh`.
+The instance setting **Bridge attachments** (admin instance configuration, stored as `bridge_attachment_mode`) controls Discord CDN attachments: `link` stores the URL, `mirror` copies the file of a bot's message into the channel's folder of the private `message_media` bucket, photos and videos without their metadata (`src/utils/stripMetadata.ts`), `refresh` enables `POST /attachments/refresh`.
+
+`POST /attachments/refresh` sends `REFRESH_ATTACHMENTS` to the message's bot while it is connected. Any other channel message, a link a person posted or a bridged message whose bridge is offline, is re-signed by the gateway (`src/bridge/discordLinkRefresh.ts`): Discord's `POST /attachments/refresh-urls` with the instance Discord application's bot token from `discord_bridge_instance_hosted()`, written back by `update_message_content_silent`. Only `cdn.discordapp.com` and `media.discordapp.net` `/attachments/` URLs that are expired, within 60 s of expiry, or unsigned qualify. Requests within 250 ms share one Discord call of up to 50 URLs; at most 60 calls a minute; a 429 pauses for its `retry_after`; a message Discord does not re-sign waits 10 minutes. Without an instance Discord application, the answer is `no_signer` (`bridge_offline` for a bot's message).
 
 ## Running
 
@@ -111,7 +113,7 @@ Server owners add bots from the bot's page (**Add to server**) or under **Server
 | `MESSAGE_DELETE` | Soft or hard delete of a recently seen message, polled every 2 s |
 | `MESSAGE_REACTION_ADD` | New row in `reactions`, polled every 2 s |
 | `MESSAGE_REACTION_REMOVE` | Deleted row in `reactions`, polled every 2 s |
-| `REFRESH_ATTACHMENTS` | `POST /attachments/refresh`; sent only to the bridge bot that authored the message |
+| `REFRESH_ATTACHMENTS` | `POST /attachments/refresh`; sent only to the connected bot that authored the message |
 
 Message and reaction events go to every bot with an active installation holding `read_messages` that sees the channel (`botCanSeeChannel`): the installation's `allowed_channel_ids` names it, whatever @everyone's override denies, or, when that column is NULL, @everyone keeps `VIEW_CHANNEL` there after the channel's @everyone override. REST writes addressed by channel or message, typing and bridge registration (op 6) need the same visibility; REST writes also need the write's bit (`SEND_MESSAGES`, `ADD_REACTIONS`, `MANAGE_MESSAGES`) after @everyone's override, unless `allowed_channel_ids` names the channel (`botCanWriteChannel`). The @everyone layer is cached per channel for 10 seconds. Encrypted messages produce no `MESSAGE_CREATE` or `MESSAGE_UPDATE`. Direct messages produce no events. The installation lookup is cached per server for 5 minutes, so permission changes and removals reach event delivery within that time; REST checks read the database on every request.
 

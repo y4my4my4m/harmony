@@ -218,12 +218,12 @@ The gateway limits these routes per client address, as it sees it through `TRUST
 
 ## Attachments from Discord
 
-Discord's file links expire. **User settings** → **Instance admin** → **Config** → **General** → **Bridge attachments** → **Attachment handling** sets what the bot gateway does with Discord file links in messages bots post, for the whole instance; click **Save changes**.
+Discord's file links expire. **User settings** → **Instance admin** → **Config** → **General** → **Bridge attachments** → **Attachment handling** sets what the bot gateway does with Discord file links, for the whole instance; click **Save changes**.
 
 | Option | Behaviour |
 |---|---|
 | **Link only** (default) | Stores the Discord link; it stops working when it expires |
-| **Refresh on demand** | When someone views a bridged message whose link expired, the gateway asks the owning bridge, which must be connected, to re-sign the links and update the message. No disk use |
+| **Refresh on demand** | When someone views a message whose Discord link expired, its links are re-signed and the message updated, without marking it edited. A bridged message goes to its bridge while the bridge is connected. A link someone posted on Harmony, or one of a bridge that is offline, is re-signed by the gateway with [this instance's Discord bot](#set-up-this-instance-s-discord-bot), which has to be set up and offered to communities; without it, those links stay expired. No disk use |
 | **Mirror to storage** | Copies each file into the instance's message storage when the message arrives, when a community imports old Discord history, and for messages already in Harmony. Permanent; uses disk. A file larger than the upload ceiling, and one that fails to download, keeps its Discord link |
 
 ### Mirror to storage

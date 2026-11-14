@@ -181,6 +181,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Emoji pickers on phones leave the keyboard down.** Opening the reaction or composer emoji
   picker put the cursor in its search field, and the on-screen keyboard covered most of the list.
   Tap the search field to type.
+- **Pasted Discord file links play again after they expire.** With **Refresh on demand**, only
+  messages a bridge relayed from Discord got new links; a `cdn.discordapp.com` link someone posted on
+  Harmony stopped loading a day later. Viewing it now has the instance's Discord bot re-sign it, as
+  it does for a bridged message whose bridge is offline. The message is not marked edited. Needs
+  **This instance's Discord bot** set up and offered to communities (**Instance admin** → **Config**
+  → **Discord bridge**).
 - **Large servers list every member.** Past 1000 members, the member list, the member count and
   `@` suggestions stopped at 1000 on an instance with a row limit, and in any server that size the
   name of someone who had left turned into "Unknown User". The count now comes from the server, the
