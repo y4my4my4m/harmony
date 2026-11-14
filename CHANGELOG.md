@@ -169,9 +169,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
-- **Select and copy code, settings and dialog text.** Inline code and code blocks in messages,
-  and the text of settings pages, dialogs, profile cards and the audit log, could not be selected.
-  They now select like message text; buttons, tabs and switches still do not. (#204, ROODAY)
+- **Select and copy inline code, settings and dialog text.** Inline code in messages, and the
+  text of settings pages, dialogs, profile cards and the audit log, could not be selected. They now
+  select like message text; buttons, tabs and switches still do not. (#204, ROODAY)
 - **Creating a server no longer fails because of a private server's name.** A server's address
   comes from the Latin letters and digits of its name. When a private server you couldn't see
   already held that address, creating the server failed: めじたぐharmony支部 could not be created
