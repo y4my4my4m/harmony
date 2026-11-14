@@ -6,33 +6,51 @@
 --   signup_captcha_verdict        as 20261115700001 without the remoteip codes.
 --   before_user_created_hook      as 20261115700001; the captcha call runs after the refusals that
 --                                 need no provider (blocked network, domain, mailbox), so those
---                                 cost no outbound call, and before the advisory locks.
+--                                 cost no outbound call, and before the domain and network locks.
+--                                 The mailbox cap counts under a lock on the mailbox hash, held to
+--                                 the ledger insert: concurrent sign-ups of one inbox (+tag or dot
+--                                 forms) each counted none of the others.
 --   bridge_remote_optouts.erase_pending
---                                 an erase with rows left. Every erase batch sets it from more;
---                                 bot-gateway finishes pending erases (bridge_privacy_pending)
---                                 after a restart or a failed batch.
+--                                 who asked for an erase with rows left: 'self' (the user's
+--                                 /bridge-privacy erase) or 'manager' (a manager's or admin's
+--                                 removal; the user's own request is kept over a manager's).
+--                                 Every erase batch sets it from more; bot-gateway finishes pending
+--                                 erases (bridge_privacy_pending) after a restart or a failed batch,
+--                                 while a removal stands or, asked by the user, while they stay
+--                                 opted out.
 --   bridge_privacy_erase_core     as 20261115700001; one message statement per scope, each stating
 --                                 its index's predicate (messages_discord_relayed_channel,
 --                                 20261115800001); threads on the author's messages are renamed
---                                 again: Discord fills their title from the message.
+--                                 again: Discord fills their title from the message; the AutoMod
+--                                 alerts of erased events are deleted (messages_automod_alert_event);
+--                                 `removed` counts every row a batch deleted, so a caller tells a
+--                                 batch of reactions from one that found only locked rows.
+--   bridge_privacy_erase_tail     continues a pending erase only while its asker's decision stands.
 --   bridge_privacy_erase_continue a removal's later batches, for a manager: none once a restore
---                                 lifted it. Each call of bridge_privacy_remove_remote_user put the
---                                 removal back.
+--                                 lifted the removal. Each call of bridge_privacy_remove_remote_user
+--                                 put the removal back.
+--   bridge_privacy_restore_remote_user
+--                                 as 20261115500001; also ends the removal's pending erase.
+--   bridge_privacy_purge_server   fails the server's unfinished imports, or they would bring the
+--                                 content back.
 --   bridge_privacy_purge_instance turns history import off and fails unfinished imports.
+--   idx_emojis_instance_imported_from
+--                                 the instance's imports by source image, for a copy's sync.
 --   evict_copy_emojis             ranks the dropped rows before it filters them: rows that stay took
 --                                 the places of rows that go, and rows past the window were never
 --                                 read again.
---   discord_bridge_deleted_threads
---                                 Discord threads whose Harmony thread was deleted; bridge_import_thread
---                                 does not create them again (their mapping goes with the thread).
 
 BEGIN;
 
 SET LOCAL lock_timeout = '5s';
 
-ALTER TABLE public.bridge_remote_optouts ADD COLUMN IF NOT EXISTS erase_pending boolean NOT NULL DEFAULT false;
+ALTER TABLE public.bridge_remote_optouts ADD COLUMN IF NOT EXISTS erase_pending text
+    CONSTRAINT bridge_remote_optouts_erase_pending_check CHECK (erase_pending IN ('self', 'manager'));
 CREATE INDEX IF NOT EXISTS idx_bridge_remote_optouts_erase_pending
-    ON public.bridge_remote_optouts (created_at) WHERE erase_pending;
+    ON public.bridge_remote_optouts (created_at) WHERE erase_pending IS NOT NULL;
+-- A copy's sync looks up the instance's imports of an image by their source (CopyMirrorService).
+CREATE INDEX IF NOT EXISTS idx_emojis_instance_imported_from
+    ON public.emojis (imported_from) WHERE scope = 'instance' AND imported_from IS NOT NULL;
 
 CREATE OR REPLACE FUNCTION public.signup_captcha_check(p_provider text, p_secret text, p_token text, p_remote_ip text)
 RETURNS jsonb
@@ -296,6 +314,9 @@ BEGIN
 
         IF v_reason IS NULL AND v_email IS NOT NULL THEN
             v_mailbox := public.signup_mailbox_hash(v_email);
+            -- Concurrent sign-ups of one inbox count in turn, through the captcha call below to the
+            -- ledger insert. Mailbox before domain before network, in every sign-up.
+            PERFORM pg_advisory_xact_lock(hashtextextended('before_user_created_hook:mailbox:' || coalesce(v_mailbox, ''), 0));
             v_cap := coalesce(nullif(btrim(v_config ->> 'signup_mailbox_cap', '"'), '')::integer, 5);
             IF v_cap > 0 AND (SELECT count(*) FROM public.signup_ledger l
                                WHERE l.mailbox_hash = v_mailbox
@@ -431,21 +452,43 @@ BEGIN
 END;
 $$;
 
+-- Records an erase batch's outcome: who asked ('self' or 'manager') while rows are left, NULL
+-- after. The user's own request stays recorded over a manager's: a restore does not end it.
 CREATE OR REPLACE FUNCTION public.bridge_privacy_mark_pending(
-    p_server_id uuid, p_platform text, p_remote_user_id text, p_result jsonb)
+    p_server_id uuid, p_platform text, p_remote_user_id text, p_asker text, p_result jsonb)
 RETURNS jsonb
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
     UPDATE public.bridge_remote_optouts o
-       SET erase_pending = COALESCE((p_result ->> 'more')::boolean, false)
+       SET erase_pending = v.pending
+      FROM (SELECT CASE WHEN NOT COALESCE((p_result ->> 'more')::boolean, false) THEN NULL
+                        WHEN p_asker = 'self' OR o2.erase_pending = 'self' THEN 'self'
+                        ELSE 'manager' END AS pending
+              FROM public.bridge_remote_optouts o2
+             WHERE o2.server_id = p_server_id AND o2.platform = p_platform
+               AND o2.remote_user_id = p_remote_user_id) v
      WHERE o.server_id = p_server_id AND o.platform = p_platform AND o.remote_user_id = p_remote_user_id
-       AND o.erase_pending IS DISTINCT FROM COALESCE((p_result ->> 'more')::boolean, false);
+       AND o.erase_pending IS DISTINCT FROM v.pending;
     SELECT p_result;
 $$;
 
-REVOKE ALL ON FUNCTION public.bridge_privacy_mark_pending(uuid, text, text, jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.bridge_privacy_mark_pending(uuid, text, text, text, jsonb) FROM PUBLIC, anon, authenticated, service_role;
+
+-- A pending erase continues while a manager's or admin's removal stands, or, asked by the user,
+-- while the user stays opted out.
+CREATE OR REPLACE FUNCTION public.bridge_privacy_erase_stands(p_row public.bridge_remote_optouts)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+SET search_path = public, pg_temp
+AS $$
+    SELECT p_row.erase_pending IS NOT NULL
+           AND (p_row.source IN ('manager', 'admin') OR (p_row.erase_pending = 'self' AND p_row.self_opted_out));
+$$;
+
+REVOKE ALL ON FUNCTION public.bridge_privacy_erase_stands(public.bridge_remote_optouts) FROM PUBLIC, anon, authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.bridge_privacy_erase_core(
     p_server_id uuid,
@@ -466,8 +509,10 @@ DECLARE
     v_federated uuid[];
     v_found integer;
     v_more boolean;
-    v_reactions integer;
-    v_events integer;
+    v_reactions integer := 0;
+    v_events integer := 0;
+    v_event_ids uuid[];
+    v_alerts integer := 0;
     v_prev text := current_setting('harmony.silent_content_update', true);
 BEGIN
     PERFORM public.bridge_privacy_check_subject(p_platform, p_remote_user_id);
@@ -614,21 +659,35 @@ BEGIN
         GET DIAGNOSTICS v_reactions = ROW_COUNT;
 
         IF p_remote_user_id IS NOT NULL THEN
-            DELETE FROM public.automod_events e
-             WHERE e.id IN (SELECT e2.id FROM public.automod_events e2
-                             WHERE e2.details ? 'author_key'
-                               AND (p_server_id IS NULL OR e2.server_id = p_server_id)
-                               AND e2.details ->> 'author_key' = 'discord:' || p_remote_user_id
-                             LIMIT v_limit);
+            WITH gone AS (
+                DELETE FROM public.automod_events e
+                 WHERE e.id IN (SELECT e2.id FROM public.automod_events e2
+                                 WHERE e2.details ? 'author_key'
+                                   AND (p_server_id IS NULL OR e2.server_id = p_server_id)
+                                   AND e2.details ->> 'author_key' = 'discord:' || p_remote_user_id
+                                 LIMIT v_limit)
+                RETURNING e.id)
+            SELECT COALESCE(array_agg(gone.id), ARRAY[]::uuid[]) INTO v_event_ids FROM gone;
         ELSE
-            DELETE FROM public.automod_events e
-             WHERE e.id IN (SELECT e2.id FROM public.automod_events e2
-                             WHERE e2.details ? 'author_key'
-                               AND (p_server_id IS NULL OR e2.server_id = p_server_id)
-                               AND e2.details ->> 'author_key' LIKE 'discord:%'
-                             LIMIT v_limit);
+            WITH gone AS (
+                DELETE FROM public.automod_events e
+                 WHERE e.id IN (SELECT e2.id FROM public.automod_events e2
+                                 WHERE e2.details ? 'author_key'
+                                   AND (p_server_id IS NULL OR e2.server_id = p_server_id)
+                                   AND e2.details ->> 'author_key' LIKE 'discord:%'
+                                 LIMIT v_limit)
+                RETURNING e.id)
+            SELECT COALESCE(array_agg(gone.id), ARRAY[]::uuid[]) INTO v_event_ids FROM gone;
         END IF;
-        GET DIAGNOSTICS v_events = ROW_COUNT;
+        v_events := cardinality(v_event_ids);
+        -- The alerts AutoMod posted for these events quote the author's name and text
+        -- (automod_post_alert; messages_automod_alert_event).
+        IF v_events > 0 THEN
+            DELETE FROM public.messages m
+             WHERE m.metadata ->> 'type' = 'automod_alert'
+               AND m.metadata #>> '{automod,event_id}' = ANY (SELECT x::text FROM unnest(v_event_ids) x);
+            GET DIAGNOSTICS v_alerts = ROW_COUNT;
+        END IF;
         v_more := v_reactions >= v_limit OR v_events >= v_limit;
 
         IF NOT v_more THEN
@@ -641,7 +700,9 @@ BEGIN
         END IF;
     END IF;
 
-    RETURN jsonb_build_object('erased', v_found, 'more', v_more);
+    -- erased: messages; removed: every row deleted or emptied, reactions, events and alerts too.
+    RETURN jsonb_build_object('erased', v_found, 'more', v_more,
+                              'removed', v_found + v_reactions + v_events + v_alerts);
 END;
 $$;
 
@@ -672,7 +733,7 @@ BEGIN
         PERFORM public.bridge_privacy_changed(p_server_id);
     END IF;
     RETURN jsonb_build_object('opted_out', true)
-           || public.bridge_privacy_mark_pending(p_server_id, p_platform, p_remote_user_id,
+           || public.bridge_privacy_mark_pending(p_server_id, p_platform, p_remote_user_id, 'self',
                   public.bridge_privacy_erase_core(p_server_id, p_platform, p_remote_user_id, p_limit));
 END;
 $$;
@@ -688,19 +749,29 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+DECLARE
+    v_row public.bridge_remote_optouts;
 BEGIN
     PERFORM public.bridge_privacy_check_subject(p_platform, p_remote_user_id);
     IF p_server_id IS NULL OR p_remote_user_id IS NULL THEN
         RAISE EXCEPTION 'invalid_remote_user' USING ERRCODE = '22023';
     END IF;
-    -- The batches after the first: an opt-in meanwhile ends the erase, and is not undone.
-    IF NOT EXISTS (SELECT 1 FROM public.bridge_remote_optouts o
-                    WHERE o.server_id = p_server_id AND o.platform = p_platform
-                      AND o.remote_user_id = p_remote_user_id) THEN
+    -- The batches after the first, while the asker's decision stands: an opt-in or a restore
+    -- meanwhile ends the erase, and is not undone.
+    SELECT o.* INTO v_row FROM public.bridge_remote_optouts o
+     WHERE o.server_id = p_server_id AND o.platform = p_platform AND o.remote_user_id = p_remote_user_id;
+    IF NOT FOUND THEN
         RETURN jsonb_build_object('opted_out', false, 'erased', 0, 'more', false);
     END IF;
+    IF NOT public.bridge_privacy_erase_stands(v_row) THEN
+        UPDATE public.bridge_remote_optouts o
+           SET erase_pending = NULL
+         WHERE o.server_id = p_server_id AND o.platform = p_platform
+           AND o.remote_user_id = p_remote_user_id AND o.erase_pending IS NOT NULL;
+        RETURN jsonb_build_object('opted_out', true, 'erased', 0, 'more', false);
+    END IF;
     RETURN jsonb_build_object('opted_out', true)
-           || public.bridge_privacy_mark_pending(p_server_id, p_platform, p_remote_user_id,
+           || public.bridge_privacy_mark_pending(p_server_id, p_platform, p_remote_user_id, v_row.erase_pending,
                   public.bridge_privacy_erase_core(p_server_id, p_platform, p_remote_user_id, p_limit));
 END;
 $$;
@@ -736,7 +807,7 @@ BEGIN
     IF FOUND THEN
         PERFORM public.bridge_privacy_changed(p_server_id);
     END IF;
-    RETURN public.bridge_privacy_mark_pending(p_server_id, p_platform, p_remote_user_id,
+    RETURN public.bridge_privacy_mark_pending(p_server_id, p_platform, p_remote_user_id, 'manager',
                public.bridge_privacy_erase_core(p_server_id, p_platform, p_remote_user_id, 200));
 END;
 $$;
@@ -759,13 +830,14 @@ BEGIN
     IF p_remote_user_id IS NULL THEN
         RAISE EXCEPTION 'invalid_remote_user' USING ERRCODE = '22023';
     END IF;
-    -- The batches after a removal's first: none once the user is no longer left out (a restore).
+    -- The batches after a removal's first, while the removal stands: a restore ends them, and a
+    -- user who only opted out is not erased from here.
     IF NOT EXISTS (SELECT 1 FROM public.bridge_remote_optouts o
                     WHERE o.server_id = p_server_id AND o.platform = p_platform
-                      AND o.remote_user_id = p_remote_user_id) THEN
+                      AND o.remote_user_id = p_remote_user_id AND o.source IN ('manager', 'admin')) THEN
         RETURN jsonb_build_object('erased', 0, 'more', false);
     END IF;
-    RETURN public.bridge_privacy_mark_pending(p_server_id, p_platform, p_remote_user_id,
+    RETURN public.bridge_privacy_mark_pending(p_server_id, p_platform, p_remote_user_id, 'manager',
                public.bridge_privacy_erase_core(p_server_id, p_platform, p_remote_user_id, 200));
 END;
 $$;
@@ -782,13 +854,72 @@ SET search_path = public, pg_temp
 AS $$
     SELECT o.server_id, o.platform, o.remote_user_id
       FROM public.bridge_remote_optouts o
-     WHERE o.erase_pending
+     WHERE o.erase_pending IS NOT NULL
+       AND public.bridge_privacy_erase_stands(o)
      ORDER BY o.created_at
      LIMIT LEAST(GREATEST(COALESCE(p_limit, 50), 1), 500);
 $$;
 
 REVOKE ALL ON FUNCTION public.bridge_privacy_pending(integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.bridge_privacy_pending(integer) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.bridge_privacy_restore_remote_user(
+    p_server_id uuid,
+    p_platform text,
+    p_remote_user_id text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_count integer;
+    v_kept integer;
+BEGIN
+    IF NOT (public.is_current_user_admin() OR public.can_manage_discord_bridge(p_server_id)) THEN
+        RAISE EXCEPTION 'Only a manager of the server can restore a bridged user' USING ERRCODE = '42501';
+    END IF;
+    -- Lifts the manager's or admin's removal and its pending erase; the user's own opt-out stays as
+    -- a self row, with an erase the user asked for.
+    DELETE FROM public.bridge_remote_optouts o
+     WHERE o.server_id = p_server_id AND o.platform = p_platform
+       AND o.remote_user_id = p_remote_user_id AND o.source <> 'self' AND NOT o.self_opted_out;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    UPDATE public.bridge_remote_optouts o
+       SET source = 'self', created_by = NULL,
+           erase_pending = NULLIF(o.erase_pending, 'manager')
+     WHERE o.server_id = p_server_id AND o.platform = p_platform
+       AND o.remote_user_id = p_remote_user_id AND o.source <> 'self' AND o.self_opted_out;
+    GET DIAGNOSTICS v_kept = ROW_COUNT;
+    IF v_count > 0 THEN
+        PERFORM public.bridge_privacy_changed(p_server_id);
+    END IF;
+    RETURN v_count + v_kept > 0;
+END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION public.bridge_privacy_purge_server(p_server_id uuid, p_platform text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF p_server_id IS NULL
+       OR NOT (public.is_current_user_admin() OR public.can_manage_discord_bridge(p_server_id)) THEN
+        RAISE EXCEPTION 'Only a manager of the server can remove its bridged messages' USING ERRCODE = '42501';
+    END IF;
+    -- The server stops holding Discord content: its unfinished imports fail, or they would bring it
+    -- back. A manager may start a new one.
+    UPDATE public.discord_bridge_imports i
+       SET state = 'failed', error = 'server_purged', updated_at = now(), finished_at = now()
+     WHERE i.state IN ('queued', 'running', 'paused')
+       AND i.bridge_id IN (SELECT b.id FROM public.discord_bridges b WHERE b.server_id = p_server_id);
+    RETURN public.bridge_privacy_erase_core(p_server_id, p_platform, NULL, 200);
+END;
+$$;
+
 
 CREATE OR REPLACE FUNCTION public.bridge_privacy_purge_instance(p_platform text)
 RETURNS jsonb
@@ -853,167 +984,6 @@ BEGIN
      WHERE e.id = v.id;
     GET DIAGNOSTICS v_count = ROW_COUNT;
     RETURN v_count;
-END;
-$$;
-
-
-CREATE TABLE IF NOT EXISTS public.discord_bridge_deleted_threads (
-    bridge_id uuid NOT NULL REFERENCES public.discord_bridges(id) ON DELETE CASCADE,
-    discord_thread_id text NOT NULL,
-    deleted_at timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (bridge_id, discord_thread_id)
-);
-
-ALTER TABLE public.discord_bridge_deleted_threads ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS discord_bridge_deleted_threads_service_role ON public.discord_bridge_deleted_threads;
-CREATE POLICY discord_bridge_deleted_threads_service_role ON public.discord_bridge_deleted_threads
-    AS PERMISSIVE FOR ALL TO service_role USING (true) WITH CHECK (true);
-REVOKE ALL ON public.discord_bridge_deleted_threads FROM PUBLIC, anon, authenticated;
-GRANT ALL ON public.discord_bridge_deleted_threads TO service_role;
-
-COMMENT ON TABLE public.discord_bridge_deleted_threads IS
-'Discord threads whose Harmony thread was deleted; bridge_import_thread does not create them again.';
-
--- Before the thread goes: its discord_bridge_threads row goes with it (ON DELETE CASCADE).
-CREATE OR REPLACE FUNCTION public.remember_deleted_bridge_thread()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-BEGIN
-    INSERT INTO public.discord_bridge_deleted_threads (bridge_id, discord_thread_id)
-    SELECT bt.bridge_id, bt.discord_thread_id
-      FROM public.discord_bridge_threads bt
-     WHERE bt.thread_id = OLD.id
-    ON CONFLICT (bridge_id, discord_thread_id) DO NOTHING;
-    RETURN OLD;
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.remember_deleted_bridge_thread() FROM PUBLIC, anon, authenticated;
-
-DROP TRIGGER IF EXISTS a_threads_remember_bridge_thread ON public.threads;
-CREATE TRIGGER a_threads_remember_bridge_thread
-    BEFORE DELETE ON public.threads
-    FOR EACH ROW EXECUTE FUNCTION public.remember_deleted_bridge_thread();
-
-CREATE OR REPLACE FUNCTION public.bridge_import_thread(p_bot_id uuid, p_import_id uuid, p_thread jsonb)
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-DECLARE
-    v_job public.discord_bridge_imports;
-    v_did text := p_thread ->> 'discord_thread_id';
-    v_name text := left(btrim(COALESCE(p_thread ->> 'name', '')), 100);
-    v_created timestamptz;
-    v_starter text := NULLIF(p_thread ->> 'starter_discord_message_id', '');
-    v_user jsonb := p_thread -> 'discord_user';
-    v_archived boolean := COALESCE((p_thread ->> 'archived')::boolean, false);
-    v_locked boolean := COALESCE((p_thread ->> 'locked')::boolean, false);
-    v_parent uuid;
-    v_thread_id uuid;
-    v_notice_id uuid;
-    v_notice jsonb;
-    v_opted boolean;
-BEGIN
-    v_job := public.bridge_import_guard(p_bot_id, p_import_id);
-    IF v_job.state <> 'running' THEN
-        RETURN NULL;
-    END IF;
-    IF p_thread IS NULL OR jsonb_typeof(p_thread) <> 'object' OR v_did IS NULL OR v_did !~ '^[0-9]{1,20}$'
-       OR (p_thread ->> 'created_at') IS NULL THEN
-        RAISE EXCEPTION 'invalid_thread' USING ERRCODE = '22023', DETAIL = COALESCE(v_did, '');
-    END IF;
-    IF v_name = '' THEN
-        RAISE EXCEPTION 'Thread name must be 1 to 100 characters' USING ERRCODE = '22023';
-    END IF;
-    v_created := LEAST((p_thread ->> 'created_at')::timestamptz, now());
-
-    PERFORM set_config('harmony.history_import', 'true', true);
-
-    PERFORM pg_advisory_xact_lock(hashtext('bridge_thread:' || v_job.bridge_id::text || ':' || v_did));
-    SELECT bt.thread_id INTO v_thread_id
-      FROM public.discord_bridge_threads bt
-     WHERE bt.bridge_id = v_job.bridge_id AND bt.discord_thread_id = v_did;
-    IF v_thread_id IS NOT NULL THEN
-        RETURN v_thread_id;
-    END IF;
-    -- A thread a moderator deleted stays deleted: an import does not create it again.
-    IF EXISTS (SELECT 1 FROM public.discord_bridge_deleted_threads d
-                WHERE d.bridge_id = v_job.bridge_id AND d.discord_thread_id = v_did) THEN
-        RETURN NULL;
-    END IF;
-
-    -- An opted-out author's title is their text: the thread is imported under a plain name.
-    v_opted := jsonb_typeof(v_user) = 'object' AND EXISTS (
-        SELECT 1
-          FROM public.bridge_remote_optouts o
-          JOIN public.discord_bridges b ON b.server_id = o.server_id
-         WHERE b.id = v_job.bridge_id AND o.platform = 'discord' AND o.remote_user_id = v_user ->> 'id');
-    IF v_opted THEN
-        v_name := 'Thread';
-    END IF;
-
-    v_notice := jsonb_build_object('type', 'thread_created', 'actor_bot_id', p_bot_id, 'thread_name', v_name,
-                                   'bridge_source', 'discord', 'history_import', true, 'created_via', 'history_import');
-    IF jsonb_typeof(v_user) = 'object' AND v_user ->> 'id' ~ '^[0-9]{1,20}$' AND NOT v_opted THEN
-        v_notice := v_notice || jsonb_build_object('discord_user', jsonb_strip_nulls(jsonb_build_object(
-            'id', v_user ->> 'id',
-            'username', left(v_user ->> 'username', 100),
-            'display_name', left(v_user ->> 'display_name', 100),
-            'avatar_url', CASE WHEN v_user ->> 'avatar_url' ~ '^https://' THEN left(v_user ->> 'avatar_url', 2048) END)));
-    END IF;
-
-    IF v_starter IS NOT NULL THEN
-        SELECT m.id INTO v_parent
-          FROM public.messages m
-         WHERE m.channel_id = v_job.harmony_channel_id
-           AND m.metadata ? 'discord_message_id'
-           AND m.metadata ->> 'discord_message_id' = v_starter
-           AND m.is_deleted IS NOT TRUE
-           AND m.thread_id IS NULL;
-    END IF;
-
-    IF v_parent IS NOT NULL THEN
-        -- One thread per message; an existing one is paired and returned.
-        PERFORM pg_advisory_xact_lock(hashtext('create_thread:' || v_parent::text));
-        SELECT t.id INTO v_thread_id FROM public.threads t WHERE t.parent_message_id = v_parent;
-
-        IF v_thread_id IS NULL THEN
-            INSERT INTO public.threads (channel_id, parent_message_id, name, created_by, auto_archive_duration,
-                                        created_at, updated_at, archived, archived_at, locked)
-            VALUES (v_job.harmony_channel_id, v_parent, v_name, NULL, 1440, v_created, v_created,
-                    v_archived, CASE WHEN v_archived THEN v_created END, v_locked)
-            RETURNING id INTO v_thread_id;
-
-            -- A system row has no author (messages_system_authorless); the bot is in metadata.
-            INSERT INTO public.messages (created_at, channel_id, content, is_system, metadata)
-            VALUES (v_created, v_job.harmony_channel_id,
-                    '[{"type": "text", "text": "started a thread"}]'::jsonb, true,
-                    v_notice || jsonb_build_object('thread_id', v_thread_id));
-        END IF;
-    ELSE
-        v_thread_id := gen_random_uuid();
-        INSERT INTO public.messages (created_at, channel_id, content, is_system, metadata)
-        VALUES (v_created, v_job.harmony_channel_id,
-                '[{"type": "text", "text": "started a thread"}]'::jsonb, true,
-                v_notice || jsonb_build_object('thread_id', v_thread_id, 'standalone', true))
-        RETURNING id INTO v_notice_id;
-
-        INSERT INTO public.threads (id, channel_id, parent_message_id, name, created_by, auto_archive_duration,
-                                    created_at, updated_at, archived, archived_at, locked)
-        VALUES (v_thread_id, v_job.harmony_channel_id, v_notice_id, v_name, NULL, 1440, v_created, v_created,
-                v_archived, CASE WHEN v_archived THEN v_created END, v_locked);
-    END IF;
-
-    INSERT INTO public.discord_bridge_threads (thread_id, bridge_id, discord_thread_id)
-    VALUES (v_thread_id, v_job.bridge_id, v_did)
-    ON CONFLICT (thread_id) DO NOTHING;
-
-    RETURN v_thread_id;
 END;
 $$;
 

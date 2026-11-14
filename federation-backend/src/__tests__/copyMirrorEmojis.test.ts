@@ -307,6 +307,17 @@ describe('applyGroupEmojis', () => {
     expect(db.emojis.find(e => e.id === 'mine')).toMatchObject({ server_id: null, scope: 'instance' })
   })
 
+  it('keeps an admin\'s removal of an import copied into this instance\'s storage', async () => {
+    // POST /admin/emojis/import stores the local copy as url and the source image as imported_from.
+    db.emojis = [
+      { id: 'copied', name: 'rude', url: 'https://local.test/storage/emojis/rude.webp', server_id: null, scope: 'instance',
+        domain: null, ap_id: null, imported_from: img('rude'), deleted_at: '2026-01-04T00:00:00Z', deleted_by: 'admin-1' },
+    ]
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'rude', url: img('rude') }])
+    expect(byAp(1)).toMatchObject({ deleted_at: '2026-01-04T00:00:00Z', deleted_by: 'admin-1' })
+    expect(db.emojis.find(e => e.id === 'copied')).toMatchObject({ server_id: null, url: 'https://local.test/storage/emojis/rude.webp' })
+  })
+
   it('keeps no removal an admin made on another instance\'s cached row of the image', async () => {
     // evil.example reacted with the host's image under its own name; an admin removed that row.
     db.emojis = [

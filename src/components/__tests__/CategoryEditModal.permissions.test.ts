@@ -195,6 +195,34 @@ describe('CategoryEditModal permissions', () => {
     expect(byTarget(setTemplateMock.mock.calls[0][1])).toEqual({ everyone: `0/${2 | 4096}` })
   })
 
+  it('takes no edit while a save runs, in this opening or a later one', async () => {
+    overrides.rows = [row('everyone', 0, 2)]
+    const wrapper = await openPermissions()
+    radio('SEND_MESSAGES', 'deny').click()
+    await nextTick()
+    let release!: (ids: Set<string>) => void
+    roleIdsMock.mockReturnValueOnce(new Promise<Set<string>>((resolve) => { release = resolve }))
+    $('[data-testid="category-edit-save"]')!.click()
+    await nextTick()
+    const fields = () => $<HTMLFieldSetElement>('[data-testid="category-edit-fields"]')!
+    expect(fields().disabled).toBe(true)
+
+    // Closed and opened again on the same category while the save runs.
+    $('.btn-secondary')!.click()
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    $('[role="tab"][data-tab="permissions"]')!.click()
+    await flushPromises()
+    expect(fields().disabled).toBe(true)
+
+    release(new Set(['everyone', 'mod']))
+    await flushPromises()
+    expect(fields().disabled).toBe(false)
+    expect(radio('SEND_MESSAGES', 'deny').getAttribute('aria-checked')).toBe('true')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
   it('saves nothing when the roles cannot be read, so no role row is lost', async () => {
     overrides.rows = [row('everyone', 0, 2), row('mod', 2)]
     const wrapper = await openPermissions()

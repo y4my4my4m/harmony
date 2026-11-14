@@ -406,9 +406,12 @@ export interface BridgeOptout {
 }
 
 export interface EraseResult {
+  /** Messages the batch removed. */
   erased: number
   /** More rows remain: call again. */
   more: boolean
+  /** Every row the batch removed, reactions and AutoMod rows too. */
+  removed?: number
 }
 
 export async function fetchBridgeOptouts(serverId: string): Promise<BridgeOptout[]> {
@@ -449,7 +452,7 @@ async function eraseAll(
     total += erased
     onProgress?.(total)
     if (result.more !== true) return { total, more: false }
-    idle = erased > 0 ? 0 : idle + 1
+    idle = (Number(result.removed ?? erased) || 0) > 0 ? 0 : idle + 1
     if (idle >= IDLE_BATCHES) return { total, more: true }
   }
 }

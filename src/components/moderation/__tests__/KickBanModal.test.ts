@@ -37,7 +37,9 @@ const directory = vi.hoisted(() => ({
   searchMembers: vi.fn(async (_serverId: string, _query: string, _limit: number): Promise<any[] | null> => []),
 }))
 vi.mock('@/services/memberDirectory', () => ({ memberDirectory: directory }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'me' } } }) }))
+// Member ids are profile ids, which need not equal the auth user id.
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'auth-me' } } }) }))
+vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profile: { id: 'me' } }) }))
 vi.mock('@/components/common/Avatar.vue', async () => {
   const { defineComponent, h: render } = await import('vue')
   return { default: defineComponent({ name: 'Avatar', render: () => render('span') }) }

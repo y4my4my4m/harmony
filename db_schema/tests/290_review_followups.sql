@@ -85,21 +85,21 @@ SELECT is(public.bridge_privacy_set_optout('55555555-0000-0000-0000-000000000005
 
 -- Erase in batches, reactions and AutoMod events after the messages. ------------------------------------
 SELECT is(public.bridge_privacy_erase_core('55555555-0000-0000-0000-000000000005', 'discord', '2900000000000009003', 1),
-          '{"erased": 1, "more": true}'::jsonb, 'a full batch says more');
+          '{"erased": 1, "more": true, "removed": 1}'::jsonb, 'a full batch says more');
 SELECT is(public.bridge_privacy_erase_core('55555555-0000-0000-0000-000000000005', 'discord', '2900000000000009003', 1),
-          '{"erased": 0, "more": true}'::jsonb, 'then one reaction and the AutoMod event go, and more stays true');
+          '{"erased": 0, "more": true, "removed": 2}'::jsonb, 'then one reaction and the AutoMod event go, and more stays true');
 SELECT is((SELECT count(*)::int FROM public.reactions WHERE metadata #>> '{discord_user,id}' = '2900000000000009003'), 1,
           'one reaction per call at a limit of 1');
 SELECT is((SELECT count(*)::int FROM public.automod_events WHERE details ->> 'author_key' = 'discord:2900000000000009003'), 0,
           'the AutoMod event is gone');
 SELECT is(public.bridge_privacy_erase_core('55555555-0000-0000-0000-000000000005', 'discord', '2900000000000009003', 1),
-          '{"erased": 0, "more": true}'::jsonb, 'the last reaction goes');
+          '{"erased": 0, "more": true, "removed": 1}'::jsonb, 'the last reaction goes');
 SELECT is(public.bridge_privacy_erase_core('55555555-0000-0000-0000-000000000005', 'discord', '2900000000000009003', 1),
-          '{"erased": 0, "more": false}'::jsonb, 'nothing is left');
+          '{"erased": 0, "more": false, "removed": 0}'::jsonb, 'nothing is left');
 SELECT pg_temp.relayed('f2900000-0000-0000-0000-0000000000a4', '2900000000000010004', '2900000000000009004');
 SELECT pg_temp.relayed('f2900000-0000-0000-0000-0000000000a5', '2900000000000010005', '2900000000000009004');
 SELECT is(public.bridge_privacy_erase_core('55555555-0000-0000-0000-000000000005', 'discord', '2900000000000009004', 5),
-          '{"erased": 2, "more": false}'::jsonb, 'a short batch with nothing left says no more');
+          '{"erased": 2, "more": false, "removed": 2}'::jsonb, 'a short batch with nothing left says no more');
 
 -- A thread an opted-out author starts on Discord. ------------------------------------------------------
 SELECT lives_ok($q$SELECT public.bot_create_thread('f2900000-0000-0000-0000-0000000000b1', '66666666-0000-0000-0000-000000000006',

@@ -194,6 +194,8 @@ async function purge() {
   purged.value = 0
   try {
     const run = await purgeInstanceBridgedMessages((total) => { purged.value = total })
+    // The purge turned history import off (bridge_privacy_purge_instance).
+    mode.value = 'off'
     if (run.more) toast.warning(t('discordBridge.privacy.purgedSome', { count: run.total }, run.total))
     else toast.success(t('discordBridge.privacy.purged', { count: run.total }, run.total))
   } catch (error) {

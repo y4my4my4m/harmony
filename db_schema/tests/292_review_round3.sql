@@ -74,7 +74,7 @@ SELECT is((SELECT count(*)::int FROM public.bridge_remote_optouts WHERE remote_u
           'and does not opt the user out again');
 SELECT public.bridge_privacy_set_optout('55555555-0000-0000-0000-000000000005', 'discord', '2920000000000009002', true);
 SELECT is(public.bridge_privacy_erase_tail('55555555-0000-0000-0000-000000000005', 'discord', '2920000000000009002', 50) ->> 'opted_out',
-          'true', 'while opted out it erases');
+          'true', 'while opted out it says so (293: it erases only what an erase left pending)');
 SELECT ok(NOT has_function_privilege('authenticated', 'public.bridge_privacy_erase_tail(uuid, text, text, integer)', 'EXECUTE')
           AND has_function_privilege('service_role', 'public.bridge_privacy_erase_tail(uuid, text, text, integer)', 'EXECUTE'),
           'the tail is for the service role alone');

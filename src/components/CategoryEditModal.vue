@@ -57,6 +57,8 @@
           :aria-labelledby="`${a11yId}-tab-${activeTab}`"
           tabindex="0"
         >
+          <!-- A save writes what it captured when pressed; nothing is edited until it lands. -->
+          <fieldset class="edit-fields" :disabled="isLoading" data-testid="category-edit-fields">
           <div v-if="activeTab === 'general'" class="form-group">
             <label for="category-name">{{ t('category.edit.name') }}</label>
             <input
@@ -98,6 +100,7 @@
               />
             </template>
           </template>
+          </fieldset>
         </div>
 
         <div class="modal-footer">
@@ -406,6 +409,13 @@ watch(() => props.show, (isVisible) => {
 </script>
 
 <style scoped>
+.edit-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;

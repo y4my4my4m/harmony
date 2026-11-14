@@ -144,7 +144,8 @@ export class CopyMirrorService {
    * An instance admin's removal (deleted_by set) holds for the image: an emoji the Group lists
    * again, under its id or a new one, with an image an admin removed on this copy, or on a row
    * cached from the Group's instance, or on this instance's own import of the image (scope
-   * instance, no domain), stays removed. A row cached before 1.9.4 holds the image's host as
+   * instance, no domain; by url, or by imported_from for a copy in this instance's storage), stays
+   * removed. A row cached before 1.9.4 holds the image's host as
    * domain and counts too. A removal on a row another instance's activity left does not:
    * that instance chose the image and the name.
    *
@@ -206,6 +207,24 @@ export class CopyMirrorService {
         if (row.server_id === null && row.ap_id === null && domains.has(String(row.domain ?? '').toLowerCase())
             && !cached.has(row.url)) {
           cached.set(row.url, { id: row.id, removal });
+        }
+      }
+      // An import copied into this instance's storage holds the source image in imported_from
+      // (import_remote_emoji); an admin's removal of it holds for that image too.
+      const imported = await supabase
+        .from('emojis')
+        .select('imported_from, deleted_at, deleted_by')
+        .in('imported_from', urls)
+        .eq('scope', 'instance')
+        .is('server_id', null)
+        .not('deleted_by', 'is', null);
+      if (imported.error) {
+        logger.warn(`Removed imports for copy ${serverId} not read, emojis left as they are: ${imported.error.message}`);
+        return;
+      }
+      for (const row of imported.data || []) {
+        if (row.deleted_at && row.deleted_by && !removedImages.has(row.imported_from)) {
+          removedImages.set(row.imported_from, { deleted_at: row.deleted_at, deleted_by: row.deleted_by });
         }
       }
     }

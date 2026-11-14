@@ -116,7 +116,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   kind of bridge. For someone who cannot run it, members with Manage Server
   remove a Discord user by ID under **Server settings** → **Discord Bridge** →
   **Bridge privacy**, where **Remove all bridged messages** clears the whole
-  server; instance admins have **Remove all Discord messages** for the
+  server and stops its unfinished imports; instance admins have **Remove all Discord messages** for the
   instance, which also turns Discord history import off. A long erase
   finishes in the background, across restarts. Erasing on Harmony never
   deletes anything on Discord.

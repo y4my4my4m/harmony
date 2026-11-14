@@ -33,6 +33,13 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 - **A remote account that drops all its emojis keeps them on its profile.** The profile emoji resolver (`emojiResolvers.ts`) writes `bio_emojis` and `display_name_emojis` only when it finds some, so an Update(Person) without emojis leaves the old ones.
 - **Undoing a channel reaction can miss a copy's emoji.** `inboundEmojiRowId` prefers a plain row of the image; an Undo that arrives after such a row appears looks there, not at the copy row the reaction holds.
 - **Linking an imported channel's replies is one statement.** `bridge_import_link_replies` links every reply of the channel in one call; a channel with a very long history may reach the statement timeout. Batch it like the message inserts.
+- **A deleted imported thread comes back on the next import, empty.** Its `discord_bridge_threads` mapping goes with the thread, so `bridge_import_thread` creates it again. Skipping it needs its own answer from the import route (not `409 import_not_running`, which ends the bridge's job) and a matching bridge release; record only a moderator's deletion, not a channel's, a server's or an emptied thread's.
+- **Watch together can step back briefly when a broadcast lands after a peer's newer state.** A database state past the last one answered applies below a peer's revision (so a lying peer cannot hold it back); an honest peer's newer state is then rolled back until the next broadcast. Confirming a peer revision within a bound would end it.
+- **An erase batch already running finishes after an opt-in or a Restore.** Only the next batch stops; locking the opt-out row for the batch would order them.
+- **The per-author link-refresh limit can leave a busy author's images broken for a while.** 30 messages a minute per Discord author (`discordLinkRefresh.ts`); the client asks again only after its 30 s window, on a later render.
+- **Roles → Add member can list no one.** It asks `search_server_members` for 30 matches and drops those who hold the role; exclude them in the query.
+- **Queued quick replies are not tied to an account.** The service worker's queue survives sign-out and posts as whoever is signed in next.
+- **A host Group can rename all of a copy's emojis on every update.** Inserts have an hourly budget; renames and image changes do not, and each fires a realtime broadcast. Skip an unchanged list, or budget changed rows as inserts are.
 
 ## Next (correctness & UX)
 

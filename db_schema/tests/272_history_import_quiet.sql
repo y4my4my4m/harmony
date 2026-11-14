@@ -340,7 +340,6 @@ SELECT is_empty($q$
            'messages.z_messages_media_cleanup',
            'messages.z_messages_moderator_delete_audit',
            'threads.a_threads_client_write_guard',
-           'threads.a_threads_remember_bridge_thread',
            'threads.sanitize_thread_name_trigger'])
 $q$, 'every trigger on messages and threads consults the import flag or is listed as running during an import');
 

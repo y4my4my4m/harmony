@@ -159,7 +159,7 @@ SELECT throws_ok($q$SELECT public.bridge_privacy_purge_instance('discord')$q$,
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 CREATE TEMP TABLE e281 AS
 SELECT public.bridge_privacy_remove_remote_user('55555555-0000-0000-0000-000000000005', 'discord', '2810000000000009001') AS j;
-SELECT is((SELECT j FROM e281), '{"erased": 4, "more": false}'::jsonb, 'the owner removes dana: four rows, nothing left');
+SELECT is((SELECT j - 'removed' FROM e281), '{"erased": 4, "more": false}'::jsonb, 'the owner removes dana: four rows, nothing left');
 SELECT is((SELECT (source, created_by)::text FROM public.bridge_remote_optouts
             WHERE remote_user_id = '2810000000000009001'),
           '(manager,11111111-0000-0000-0000-000000000001)', 'dana is opted out by the manager, who reads the row');
@@ -200,11 +200,11 @@ SELECT is((SELECT count(*) FROM public.bridge_remote_optouts), 0::bigint, 'no op
 
 -- Erase through the gateway, in batches ------------------------------------------------------------------
 SELECT pg_temp.relayed(gen_random_uuid(), (2810000000000020000 + g)::text, '2810000000000009003') FROM generate_series(1, 5) g;
-SELECT is(public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2810000000000009003', 2),
+SELECT is(public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2810000000000009003', 2) - 'removed',
           '{"opted_out": true, "erased": 2, "more": true}'::jsonb, 'a batch of two of five');
 SELECT is(public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2810000000000009003', 2) -> 'more',
           'true'::jsonb, 'two more');
-SELECT is(public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2810000000000009003', 2),
+SELECT is(public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2810000000000009003', 2) - 'removed',
           '{"opted_out": true, "erased": 1, "more": false}'::jsonb, 'the last one');
 SELECT is((SELECT count(*) FROM public.messages WHERE metadata #>> '{discord_user,id}' = '2810000000000009003'),
           0::bigint, 'none of that author is left');
@@ -215,7 +215,7 @@ SELECT is((SELECT count(*) FROM public.bridge_remote_optouts o WHERE o.remote_us
 
 -- Purge ---------------------------------------------------------------------------------------------------
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
-SELECT is(public.bridge_privacy_purge_server('55555555-0000-0000-0000-000000000005', 'discord'),
+SELECT is(public.bridge_privacy_purge_server('55555555-0000-0000-0000-000000000005', 'discord') - 'removed',
           '{"erased": 3, "more": false}'::jsonb, 'the owner purges the server: eve''s three messages');
 SELECT tests.clear_authentication();
 SELECT is((SELECT count(*) FROM public.bridge_remote_optouts), 1::bigint, 'a purge keeps the opt-outs');
@@ -225,7 +225,7 @@ SELECT is((SELECT count(*) FROM public.reactions WHERE metadata ? 'discord_user'
 UPDATE public.profiles SET is_admin = true WHERE id = '33333333-0000-0000-0000-000000000003';
 SELECT pg_temp.relayed(gen_random_uuid(), '2810000000000030001', '2810000000000009004');
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
-SELECT is(public.bridge_privacy_purge_instance('discord'), '{"erased": 1, "more": false}'::jsonb,
+SELECT is(public.bridge_privacy_purge_instance('discord') - 'removed', '{"erased": 1, "more": false}'::jsonb,
           'an instance admin purges every server');
 SELECT tests.clear_authentication();
 

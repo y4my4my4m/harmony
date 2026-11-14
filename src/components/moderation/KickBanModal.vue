@@ -149,7 +149,7 @@ import { moderationService, DELETE_MESSAGE_OPTIONS, type DeleteMessageDuration }
 import { userDataService } from '@/services/userDataService'
 import { getUserIdsForServer, getProfiles } from '@/services/usersService'
 import { memberDirectory } from '@/services/memberDirectory'
-import { useAuthStore } from '@/stores/auth'
+import { useProfileStore } from '@/stores/useProfile'
 import Avatar from '@/components/common/Avatar.vue'
 import { useT } from '@/composables/useT'
 import { useDialog } from '@/composables/useDialog'
@@ -190,7 +190,7 @@ const uid = `kbm-${useId()}`
 const dialogEl = ref<HTMLElement | null>(null)
 const { titleId } = useDialog({ open: () => props.show, element: dialogEl, onClose: () => emit('close') })
 
-const authStore = useAuthStore()
+const profileStore = useProfileStore()
 const reason = ref('')
 const deleteSeconds = ref<DeleteMessageDuration>(0)
 const isLoading = ref(false)
@@ -213,7 +213,8 @@ const targetUser = computed<MemberInfo | null>(() => {
 
 const targetDisplayName = computed(() => targetUser.value?.display_name || targetUser.value?.username || '')
 
-const currentUserId = computed(() => authStore.session?.user?.id || '')
+// Member ids are profile ids (get_current_profile_id()), which need not equal the auth user id.
+const currentUserId = computed(() => profileStore.profile?.id || '')
 
 // A server whose member list is windowed holds only the members near the sidebar's viewport:
 // the instance searches the rest.

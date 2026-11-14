@@ -131,4 +131,19 @@ describe('BridgeImportAdmin', () => {
     expect(rpcCalls('bridge_privacy_purge_instance')).toEqual([{ p_platform: 'discord' }, { p_platform: 'discord' }])
     expect(toast.success).toHaveBeenCalledWith('Removed 230 bridged messages')
   })
+
+  it('shows history import off after a purge, which turned it off', async () => {
+    installBackend({ instance_config: config({ bridge_history_import: 'self_run' }) },
+      (name) => (name === 'bridge_privacy_purge_instance' ? { erased: 0, more: false } : null))
+    const w = mountAdmin()
+    await flushPromises()
+    expect((w.get('[data-testid="import-mode"]').element as HTMLSelectElement).value).toBe('self_run')
+
+    await w.get('[data-testid="instance-purge"]').trigger('click')
+    await w.get('[data-testid="instance-purge-yes"]').trigger('click')
+    await flushPromises()
+
+    expect((w.get('[data-testid="import-mode"]').element as HTMLSelectElement).value).toBe('off')
+    expect(w.text()).toContain('History import is turned off and unfinished imports stop.')
+  })
 })

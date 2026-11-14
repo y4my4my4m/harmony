@@ -1,13 +1,13 @@
--- 20261115800001_messages_relayed_channel_index.sql and 20261115900001_review_round4.sql.
+-- 20261115800001_privacy_erase_indexes.sql and 20261115900001_review_round4.sql.
 --
 -- Fixture server_1 (alice owns, bob is a member) with #general. Added: bridge293 run by bot293,
--- paired with #general; relayed rows of Discord authors ...9001 (3), ...9002 (250) and ...9003 (1);
--- copy293, a server copy. Carol (33333333) is made an instance admin for the instance purge.
+-- paired with #general; relayed rows of Discord authors ...9001 (3), ...9002 (250), ...9003 (1),
+-- ...9004 (250) and ...9005 (3); an AutoMod event and alert of ...9006; copy293, a server copy. Carol (33333333) is made an instance admin for the instance purge.
 -- 203.0.113.0/24 is a documentation range and counts as public.
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(29);
+SELECT plan(35);
 
 -- Captcha. ----------------------------------------------------------------------------------------
 CREATE FUNCTION pg_temp.verdict(p_codes text) RETURNS text LANGUAGE sql AS $fn$
@@ -64,25 +64,28 @@ CREATE FUNCTION pg_temp.left_of(p_author text) RETURNS int LANGUAGE sql AS $fn$
     SELECT count(*)::int FROM public.messages
      WHERE channel_id = '66666666-0000-0000-0000-000000000006' AND metadata -> 'discord_user' ->> 'id' = p_author
 $fn$;
-CREATE FUNCTION pg_temp.pending(p_author text) RETURNS boolean LANGUAGE sql AS $fn$
-    SELECT erase_pending FROM public.bridge_remote_optouts
-     WHERE server_id = '55555555-0000-0000-0000-000000000005' AND remote_user_id = p_author
+CREATE FUNCTION pg_temp.pending(p_author text) RETURNS text LANGUAGE sql AS $fn$
+    SELECT COALESCE((SELECT COALESCE(erase_pending, 'none') FROM public.bridge_remote_optouts
+                      WHERE server_id = '55555555-0000-0000-0000-000000000005' AND remote_user_id = p_author), 'no row')
+$fn$;
+CREATE FUNCTION pg_temp.listed() RETURNS text[] LANGUAGE sql AS $fn$
+    SELECT COALESCE(array_agg(remote_user_id ORDER BY remote_user_id), '{}') FROM public.bridge_privacy_pending(50)
 $fn$;
 
-SELECT ok(EXISTS (SELECT 1 FROM pg_index x WHERE x.indexrelid = 'public.messages_discord_relayed_channel'::regclass AND x.indisvalid),
-          'relayed messages are found by channel');
+SELECT ok(EXISTS (SELECT 1 FROM pg_index x WHERE x.indexrelid = 'public.messages_discord_relayed_channel'::regclass AND x.indisvalid)
+          AND EXISTS (SELECT 1 FROM pg_index x WHERE x.indexrelid = 'public.messages_automod_alert_event'::regclass AND x.indisvalid),
+          'relayed messages are found by channel, AutoMod alerts by event');
 
--- An erase with rows left is marked, listed for the gateway, and cleared when it ends.
+-- A user's own erase with rows left is marked, listed for the gateway, and cleared when it ends.
 SELECT pg_temp.relayed('2930000000000009001', 3);
 SELECT is(public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009001', 1) ->> 'more',
           'true', 'a first batch leaves rows');
-SELECT is(pg_temp.pending('2930000000000009001'), true, 'and marks the erase unfinished');
-SELECT is((SELECT array_agg(remote_user_id) FROM public.bridge_privacy_pending(50)), ARRAY['2930000000000009001'],
-          'the gateway is given it');
+SELECT is(pg_temp.pending('2930000000000009001'), 'self', 'and marks the erase unfinished, asked by the user');
+SELECT is(pg_temp.listed(), ARRAY['2930000000000009001'], 'the gateway is given it');
 SELECT is(public.bridge_privacy_erase_tail('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009001', 50) ->> 'more',
           'false', 'the tail ends it');
-SELECT is(pg_temp.pending('2930000000000009001'), false, 'and clears the mark');
-SELECT is((SELECT count(*)::int FROM public.bridge_privacy_pending(50)), 0, 'nothing is left to resume');
+SELECT is(pg_temp.pending('2930000000000009001'), 'none', 'and clears the mark');
+SELECT is(pg_temp.listed(), '{}'::text[], 'nothing is left to resume');
 SELECT ok(NOT has_function_privilege('authenticated', 'public.bridge_privacy_pending(integer)', 'EXECUTE')
           AND has_function_privilege('service_role', 'public.bridge_privacy_pending(integer)', 'EXECUTE'),
           'the list is for the service role alone');
@@ -90,10 +93,10 @@ SELECT ok(NOT has_function_privilege('authenticated', 'public.bridge_privacy_pen
 -- A manager's removal continues only while it stands.
 SELECT pg_temp.relayed('2930000000000009002', 250);
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
-SELECT is(public.bridge_privacy_remove_remote_user('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009002'),
-          '{"erased": 200, "more": true}'::jsonb, 'a removal erases its first batch');
+SELECT is(public.bridge_privacy_remove_remote_user('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009002')
+              - 'removed', '{"erased": 200, "more": true}'::jsonb, 'a removal erases its first batch');
 SELECT tests.clear_authentication();
-SELECT is(pg_temp.pending('2930000000000009002'), true, 'and is marked unfinished');
+SELECT is(pg_temp.pending('2930000000000009002'), 'manager', 'and is marked unfinished, asked by a manager');
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT throws_ok($q$SELECT public.bridge_privacy_erase_continue('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009002')$q$,
                  '42501', NULL, 'a member without Manage Server cannot continue it');
@@ -102,9 +105,34 @@ SELECT public.bridge_privacy_restore_remote_user('55555555-0000-0000-0000-000000
 SELECT is(public.bridge_privacy_erase_continue('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009002'),
           '{"erased": 0, "more": false}'::jsonb, 'after a restore the continuation erases nothing');
 SELECT tests.clear_authentication();
-SELECT is((SELECT count(*)::int FROM public.bridge_remote_optouts WHERE remote_user_id = '2930000000000009002'), 0,
-          'and does not remove the user again');
+SELECT is(pg_temp.pending('2930000000000009002'), 'no row', 'and does not remove the user again');
 SELECT is(pg_temp.left_of('2930000000000009002'), 50, 'their remaining messages stay');
+
+-- A user who only opted out, then was removed and restored: the removal's erase ends with it.
+SELECT pg_temp.relayed('2930000000000009004', 250);
+SELECT public.bridge_privacy_set_optout('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009004', true);
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT public.bridge_privacy_remove_remote_user('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009004');
+SELECT public.bridge_privacy_restore_remote_user('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009004');
+SELECT is(public.bridge_privacy_erase_continue('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009004'),
+          '{"erased": 0, "more": false}'::jsonb, 'the manager''s continuation does not erase a user who only opted out');
+SELECT tests.clear_authentication();
+SELECT is(pg_temp.pending('2930000000000009004'), 'none', 'the restore ends the pending erase; the opt-out stays');
+SELECT is(pg_temp.listed(), '{}'::text[], 'the gateway is not given it');
+SELECT is(public.bridge_privacy_erase_tail('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009004', 50),
+          '{"opted_out": true, "erased": 0, "more": false}'::jsonb, 'nor does a tail erase it');
+SELECT is(pg_temp.left_of('2930000000000009004'), 50, 'their remaining messages stay');
+
+-- A user's own erase outlives a manager's removal and its restore.
+SELECT pg_temp.relayed('2930000000000009005', 250);
+SELECT public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009005', 1);
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT public.bridge_privacy_remove_remote_user('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009005');
+SELECT public.bridge_privacy_restore_remote_user('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009005');
+SELECT tests.clear_authentication();
+SELECT is(pg_temp.pending('2930000000000009005'), 'self', 'the erase the user asked for stays pending');
+SELECT is(public.bridge_privacy_erase_tail('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009005', 100) ->> 'erased',
+          '49', 'and goes on');
 
 -- A thread anyone started on the erased author's message loses the title Discord took from it.
 SELECT pg_temp.relayed('2930000000000009003', 1);
@@ -118,40 +146,40 @@ SELECT public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'disc
 SELECT is((SELECT name FROM public.threads WHERE id = 'f2930000-0000-0000-0000-0000000000c1'), 'Thread',
           'a thread on the erased author''s message is renamed, whoever started it');
 
--- A deleted bridged thread is not imported again. ----------------------------------------------------
-UPDATE public.instance_config SET config_value = '"self_run"'::jsonb WHERE config_key = 'bridge_history_import';
-UPDATE public.instance_config SET config_value = '0'::jsonb
- WHERE config_key IN ('bridge_import_max_running', 'bridge_import_messages_per_minute');
-SELECT count(*) FROM public.discord_bridge_import_start_internal('f2930000-0000-0000-0000-0000000000d1', NULL, 'harmony', NULL);
-CREATE TEMP TABLE j293 AS
-SELECT i.id FROM public.discord_bridge_imports i WHERE i.bridge_id = 'f2930000-0000-0000-0000-0000000000d1';
-SELECT public.discord_bridge_import_update('f2930000-0000-0000-0000-0000000000d1', id, '{"state": "running"}') FROM j293;
-CREATE FUNCTION pg_temp.import_thread() RETURNS uuid LANGUAGE sql AS $fn$
-    SELECT public.bridge_import_thread('f2930000-0000-0000-0000-0000000000b1', (SELECT id FROM j293),
-        jsonb_build_object('discord_thread_id', '2930000000000030001', 'name', 'Plans', 'created_at', '2020-02-01T10:00:00Z',
-                           'archived', false, 'locked', false))
-$fn$;
-CREATE TEMP TABLE t293 AS SELECT pg_temp.import_thread() AS id;
-SELECT set_config('harmony.history_import', 'false', true);
-SELECT isnt((SELECT id FROM t293), NULL, 'a Discord thread is imported');
-DELETE FROM public.threads WHERE id = (SELECT id FROM t293);
-SELECT is((SELECT count(*)::int FROM public.discord_bridge_deleted_threads
-            WHERE bridge_id = 'f2930000-0000-0000-0000-0000000000d1' AND discord_thread_id = '2930000000000030001'), 1,
-          'deleting it records the Discord thread');
-SELECT is(pg_temp.import_thread(), NULL, 'and the import does not create it again');
-SELECT set_config('harmony.history_import', 'false', true);
-SELECT ok(NOT has_table_privilege('authenticated', 'public.discord_bridge_deleted_threads', 'SELECT'),
-          'members do not read the record');
+-- An erased author's AutoMod alerts go with their events, and the batch counts them.
+INSERT INTO public.automod_events (id, server_id, channel_id, bot_id, event_type, details) VALUES
+  ('f2930000-0000-0000-0000-0000000000a6', '55555555-0000-0000-0000-000000000005', '66666666-0000-0000-0000-000000000006',
+   'f2930000-0000-0000-0000-0000000000b1', 'message', '{"author_key": "discord:2930000000000009006", "author_name": "u6"}');
+SELECT public.automod_post_alert('66666666-0000-0000-0000-000000000006', 'f2930000-0000-0000-0000-0000000000a6',
+                                 'Blocked a message from @u6 (Discord): secret words',
+                                 '{"author_key": "discord:2930000000000009006", "excerpt": "secret words"}');
+SELECT is(public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2930000000000009006', 50),
+          '{"opted_out": true, "erased": 0, "more": false, "removed": 2}'::jsonb,
+          'no message, the event and its alert');
+SELECT is((SELECT count(*)::int FROM public.messages WHERE metadata ->> 'type' = 'automod_alert'
+            AND metadata #>> '{automod,event_id}' = 'f2930000-0000-0000-0000-0000000000a6'), 0, 'the alert is gone');
 
--- The instance purge stops imports. ------------------------------------------------------------------
+-- Purges stop imports. ---------------------------------------------------------------------------------
+INSERT INTO public.discord_bridge_imports (id, bridge_id, harmony_channel_id, discord_channel_id, state) VALUES
+  ('f2930000-0000-0000-0000-0000000000f1', 'f2930000-0000-0000-0000-0000000000d1',
+   '66666666-0000-0000-0000-000000000006', '2930000000000000001', 'running');
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT public.bridge_privacy_purge_server('55555555-0000-0000-0000-000000000005', 'discord');
+SELECT tests.clear_authentication();
+SELECT is((SELECT state || ':' || error FROM public.discord_bridge_imports WHERE id = 'f2930000-0000-0000-0000-0000000000f1'),
+          'failed:server_purged', 'a server purge fails the server''s unfinished import');
+
+UPDATE public.instance_config SET config_value = '"self_run"'::jsonb WHERE config_key = 'bridge_history_import';
+UPDATE public.discord_bridge_imports SET state = 'queued', error = NULL, finished_at = NULL
+ WHERE id = 'f2930000-0000-0000-0000-0000000000f1';
 UPDATE public.profiles SET is_admin = true WHERE id = '33333333-0000-0000-0000-000000000003';
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
 SELECT public.bridge_privacy_purge_instance('discord');
 SELECT tests.clear_authentication();
 SELECT is((SELECT config_value FROM public.instance_config WHERE config_key = 'bridge_history_import'), '"off"'::jsonb,
-          'history import is turned off');
-SELECT is((SELECT state || ':' || error FROM public.discord_bridge_imports WHERE id = (SELECT id FROM j293)),
-          'failed:instance_purged', 'and an unfinished import fails');
+          'an instance purge turns history import off');
+SELECT is((SELECT state || ':' || error FROM public.discord_bridge_imports WHERE id = 'f2930000-0000-0000-0000-0000000000f1'),
+          'failed:instance_purged', 'and fails an unfinished import');
 
 -- Eviction ranks every dropped row before it filters. ----------------------------------------------
 INSERT INTO public.profiles (id, username, display_name, domain, federated_id, is_local)

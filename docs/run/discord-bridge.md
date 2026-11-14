@@ -299,13 +299,13 @@ A bridge copies what Discord members write into Harmony. They decide about their
 | `/bridge-privacy opt-out` | From now on the bridge brings none of their messages into this Harmony server, live or imported |
 | `/bridge-privacy opt-in` | Undoes their own opt-out |
 | `/bridge-privacy status` | Says whether they are opted out |
-| `/bridge-privacy erase` | Deletes the messages, files and reactions of theirs that the bridge already brought into this Harmony server, and opts them out |
+| `/bridge-privacy erase` | Deletes the messages, files and reactions of theirs that the bridge already brought into this Harmony server, with AutoMod's records and alerts about them, and opts them out |
 
 Every member can run it, answers are shown only to them, and it works with every kind of bridge. A long history is erased in the background, and a restart of the gateway does not stop it. It does not touch their messages on Discord.
 
 Members with Manage Server act for someone who cannot run the command, for example after they left, in **Server settings** → **Discord Bridge** → **Bridge privacy**:
 
-- **Remove from this server** takes a Discord user ID, deletes what the bridge brought from that user and stops bringing theirs. In Discord, turn on Developer Mode, right-click the user and choose **Copy User ID**. If the page closes before the removal ends, the gateway finishes it; a **Restore** stops it.
+- **Remove from this server** takes a Discord user ID, deletes what the bridge brought from that user and stops bringing theirs. In Discord, turn on Developer Mode, right-click the user and choose **Copy User ID**. If the page closes before the removal ends, the gateway finishes it; a **Restore** stops it, except for an erase the member asked for themselves.
 - The list shows who is left out and why: **Opted out on Discord**, or removed by a manager or an instance admin. **Restore** lifts a removal made here; a member's own opt-out is theirs to undo, and a member who opted out as well stays opted out. Opting in on Discord does not lift a removal made here.
 - **Remove all bridged messages** deletes everything this server's bridge brought from Discord. Messages written on Harmony stay. When rows stay locked by other work, the page says how many it removed and that some remain; run it again.
 

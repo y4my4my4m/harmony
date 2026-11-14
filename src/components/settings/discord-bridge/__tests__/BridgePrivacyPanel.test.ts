@@ -139,6 +139,23 @@ describe('BridgePrivacyPanel', () => {
     expect(toast.success).toHaveBeenCalledWith('Removed 201 bridged messages')
   })
 
+  it('goes on through batches that remove reactions and AutoMod rows, not messages', async () => {
+    const answers = [
+      ...Array(4).fill({ erased: 0, more: true, removed: 200 }),
+      { erased: 0, more: false, removed: 5 },
+    ]
+    installBackend({ bridge_remote_optouts: [] }, (name) => (name === 'bridge_privacy_purge_server' ? answers.shift() : null))
+    const w = mountPanel()
+    await flushPromises()
+    await w.get('[data-testid="privacy-purge"]').trigger('click')
+    await w.get('[data-testid="privacy-confirm-yes"]').trigger('click')
+    await flushPromises()
+
+    expect(rpcCalls('bridge_privacy_purge_server')).toHaveLength(5)
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('Removed 0 bridged messages')
+  })
+
   it('says so when rows remain after batches that remove nothing', async () => {
     installBackend({ bridge_remote_optouts: [] }, (name) => (name === 'bridge_privacy_purge_server' ? { erased: 0, more: true } : null))
     const w = mountPanel()
