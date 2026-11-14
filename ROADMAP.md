@@ -25,6 +25,11 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 - **Stickers and sounds a manager deletes come back at the next bridge sync.** Emojis carry `bridge_removed_at`; stickers (`delete_sticker`, a hard delete) and sounds (`server_sounds_delete_manager`) have no mark the import respects.
 - **A blocked account can read who blocks it.** RLS policy `user_blocks_check_if_blocked` and `is_blocked_by()` answer it, while DM refusals word a block like a setting.
 - **A blocked account can still edit its earlier direct messages.** `a_messages_dm_block_guard` runs on insert only; edits reach the blocker live.
+- **One dead link stops a message's other files from being mirrored.** `mirrorWorker` downloads nothing while any candidate part of the message needs re-signing; a link Discord no longer signs (a deleted attachment) holds the rest until the row fails.
+- **The admin's mirror page adds up every mirrored file every 30 s.** `BridgeImportAdmin` polls `bridge_mirror_status()`, which runs `bridge_mirror_server_bytes` for every server; with the running total above it reads one row.
+- **A history batch can leave mirrored files behind.** Cleanup is keyed by Discord id, so a batch carrying one id twice, or a preparation that throws partway, leaves files until the daily `message_media` sweep.
+- **Member searches can answer into a reopened view.** Kick/ban's member picker and **Server settings** → **Roles** keep a search in flight when the dialog closes or the server changes; a late answer lists the previous server's members until the next one lands.
+- **A remote account's public page scans `profiles`.** The remote branch of `public_profile_page` filters on `lower(username)` and `lower(domain)`, which no index covers; `publicPageLimiter` bounds the rate.
 
 ## Next (correctness & UX)
 

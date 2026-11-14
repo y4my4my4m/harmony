@@ -4,6 +4,7 @@ const toastError = vi.hoisted(() => vi.fn())
 vi.mock('vue-toastification', () => ({ useToast: () => ({ error: toastError }) }))
 
 import {
+  isLastingRejectionCode,
   cleanDbMessage,
   describeBlockNotice,
   isModerationRejectionCode,
@@ -97,5 +98,21 @@ describe('helpers', () => {
 
   it('strips validation prefixes', () => {
     expect(cleanDbMessage('AUTOMOD_INVALID_RULE: at most 25 rules per server')).toBe('at most 25 rules per server')
+  })
+})
+
+describe('isLastingRejectionCode', () => {
+  // A queued quick reply is dropped only for a refusal that answers the same on every retry.
+  it('names refusals that answer the same on every retry', () => {
+    expect(isLastingRejectionCode('AUTOMOD_BLOCKED')).toBe(true)
+    expect(isLastingRejectionCode('DM_NOT_ALLOWED')).toBe(true)
+    expect(isLastingRejectionCode('RULES_NOT_ACCEPTED')).toBe(true)
+  })
+
+  it('leaves out a timeout and a rate limit, which pass on their own', () => {
+    expect(isLastingRejectionCode('MEMBER_TIMED_OUT:1790000000')).toBe(false)
+    expect(isLastingRejectionCode('ANTISPAM_RATE_LIMITED:30')).toBe(false)
+    expect(isLastingRejectionCode('23505')).toBe(false)
+    expect(isLastingRejectionCode(null)).toBe(false)
   })
 })

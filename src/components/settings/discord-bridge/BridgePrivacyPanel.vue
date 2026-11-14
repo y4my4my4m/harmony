@@ -59,6 +59,9 @@
         <li v-for="row in optouts" :key="row.remote_user_id" class="privacy-row" data-testid="privacy-row">
           <code class="privacy-id">{{ row.remote_user_id }}</code>
           <span class="privacy-source">{{ t(`discordBridge.privacy.source.${row.source}`) }}</span>
+          <span v-if="row.source !== 'self' && row.self_opted_out" class="privacy-source" data-testid="privacy-also-self">
+            {{ t('discordBridge.privacy.alsoSelf') }}
+          </span>
           <button
             v-if="row.source !== 'self'"
             type="button"

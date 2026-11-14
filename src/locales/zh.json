@@ -6525,6 +6525,7 @@
       },
       "restore": "恢复",
       "restoreLabel": "重新桥接 Discord 用户 {id}",
+      "alsoSelf": "本人也在 Discord 上退出",
       "purgeLead": "移除此服务器的桥接从 Discord 带来的一切：消息、文件和回应。在 Harmony 上写的消息会保留。",
       "purge": "移除所有桥接消息",
       "purgeConfirm": "删除从 Discord 带入此服务器的所有消息、文件和回应？此操作无法撤销。",

@@ -93,7 +93,8 @@ function query(table: string) {
   return q
 }
 
-vi.mock('../config/supabase.js', () => ({ getSupabaseClient: () => ({ from: query }) }))
+const rpc = vi.fn(async (_name: string, _args: any) => ({ data: 0, error: null }))
+vi.mock('../config/supabase.js', () => ({ getSupabaseClient: () => ({ from: query, rpc }) }))
 
 const { emojisToAp, parseGroupEmojis, MAX_EMOJIS } = await import('../activitypub/copyMirror.js')
 const { CopyMirrorService, urlChunks, COPY_EMOJI_INSERTS_PER_HOUR, COPY_EMOJI_REMOVED_KEPT } = await import('../services/CopyMirrorService.js')
@@ -107,6 +108,7 @@ beforeEach(() => {
   seq = 0
   beforeUpdate = null
   failSelect = null
+  rpc.mockClear()
 })
 
 describe('harmony:emojis on the wire', () => {
@@ -289,21 +291,19 @@ describe('applyGroupEmojis', () => {
     expect(byAp(2)).toBeUndefined()
   })
 
-  it(`keeps the ${COPY_EMOJI_REMOVED_KEPT} emojis the list dropped most recently, and every admin removal`, async () => {
-    const at = (i: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString()
-    db.emojis = Array.from({ length: COPY_EMOJI_REMOVED_KEPT + 2 }, (_, i) => ({
-      id: `gone-${i}`, name: `g${i}`, url: img(`g${i}`), server_id: COPY, scope: 'server', domain: 'remote.test',
-      ap_id: apId(20_000 + i), deleted_at: at(i), deleted_by: null, created_at: '2026-01-01T00:00:00Z',
-    }))
-    db.emojis.push({ id: 'banned', name: 'b', url: img('b'), server_id: COPY, scope: 'server', domain: 'remote.test',
-      ap_id: apId(30_000), deleted_at: at(0), deleted_by: 'admin-1', created_at: '2026-01-01T00:00:00Z' })
+  it(`leaves the dropped emojis past the most recent ${COPY_EMOJI_REMOVED_KEPT} to evict_copy_emojis`, async () => {
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [])
-    const left = copyRows()
-    expect(left.filter(e => e.deleted_by === null)).toHaveLength(COPY_EMOJI_REMOVED_KEPT)
-    expect(left.find(e => e.id === 'gone-0')).toBeUndefined()
-    expect(left.find(e => e.id === 'gone-1')).toBeUndefined()
-    expect(left.find(e => e.id === `gone-${COPY_EMOJI_REMOVED_KEPT + 1}`)).toBeDefined()
-    expect(left.find(e => e.id === 'banned')).toBeDefined()
+    expect(rpc).toHaveBeenCalledWith('evict_copy_emojis', { p_server_id: COPY, p_keep: COPY_EMOJI_REMOVED_KEPT })
+  })
+
+  it('keeps no removal an admin made on another instance\'s cached row of the image', async () => {
+    // evil.example reacted with the host's image under its own name; an admin removed that row.
+    db.emojis = [
+      { id: 'theirs', name: 'slur', url: img('wave'), server_id: null, scope: 'server', domain: 'evil.example', ap_id: null,
+        deleted_at: '2026-01-01T00:00:00Z', deleted_by: 'admin-1' },
+    ]
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'wave', url: img('wave') }])
+    expect(byAp(1)).toMatchObject({ deleted_at: null, deleted_by: null })
   })
 
   it('stores the emoji when the cached row was taken over meanwhile', async () => {

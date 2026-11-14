@@ -170,9 +170,10 @@ bridge_mirror_status	definer	jsonb	authenticated+service_role	client	rpc in src/
 bridge_mirror_unreferenced	definer	text[]	service_role	client	rpc in bot-gateway/src/bridge/mirrorEnqueue.ts
 bridge_platform_author_key	invoker	text	service_role	client	called by bridge_privacy_check_subject
 bridge_privacy_changed	definer	void	-	client	called by bridge_privacy_erase, bridge_privacy_remove_remote_user, bridge_privacy_restore_remote_user, +1
-bridge_privacy_check_subject	invoker	void	service_role	client	called by bridge_privacy_erase, bridge_privacy_erase_core, bridge_privacy_remove_remote_user, +2
+bridge_privacy_check_subject	invoker	void	service_role	client	called by bridge_privacy_erase, bridge_privacy_erase_core, bridge_privacy_erase_tail, +3
 bridge_privacy_erase	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
-bridge_privacy_erase_core	definer	jsonb	-	client	called by bridge_privacy_erase, bridge_privacy_purge_instance, bridge_privacy_purge_server, +1
+bridge_privacy_erase_core	definer	jsonb	-	client	called by bridge_privacy_erase, bridge_privacy_erase_tail, bridge_privacy_purge_instance, +2
+bridge_privacy_erase_tail	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
 bridge_privacy_optout_ids	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgeConfig.ts, bot-gateway/src/bridge/bridgePrivacy.ts
 bridge_privacy_purge_instance	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 bridge_privacy_purge_server	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
@@ -504,6 +505,7 @@ enforce_sticker_limit	definer	trigger	service_role	trigger	trigger public.sticke
 enqueue_outgoing_webhook_event	definer	integer	service_role	client	rpc in bot-gateway/src/gateway/outgoingWebhooks.ts
 ensure_realtime_partitions	definer	integer	-	cron	cron 5 * * * * (realtime-partitions)
 erase_account	definer	void	-	client	called by admin_delete_accounts, delete_my_account
+evict_copy_emojis	definer	integer	service_role	client	rpc in federation-backend/src/services/CopyMirrorService.ts
 execute_channel_webhook	definer	jsonb	service_role	client	rpc in federation-backend/src/routes/webhooks/channelWebhooks.ts
 existing_sticker_ids	definer	TABLE(id uuid, url text)	anon+authenticated+service_role	client	rpc in src/services/stickerService.ts
 export_my_messages	definer	jsonb	authenticated+service_role	client	rpc in src/services/DataExportService.ts

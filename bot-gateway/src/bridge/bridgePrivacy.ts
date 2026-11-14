@@ -50,6 +50,16 @@ function remember(key: string, at: number) {
   }
 }
 
+/** The batches after the first: bridge_privacy_erase_tail stops once the user opted in again. */
+async function eraseTailBatch(serverId: string, remoteUserId: string) {
+  return supabase.rpc('bridge_privacy_erase_tail', {
+    p_server_id: serverId,
+    p_platform: DISCORD_PLATFORM,
+    p_remote_user_id: remoteUserId,
+    p_limit: ERASE_BATCH,
+  })
+}
+
 async function eraseBatch(serverId: string, remoteUserId: string) {
   return supabase.rpc('bridge_privacy_erase', {
     p_server_id: serverId,
@@ -66,12 +76,12 @@ async function eraseRest(serverId: string, remoteUserId: string, key: string): P
   try {
     for (let i = 0; i < ERASE_MAX_BATCHES; i++) {
       await new Promise((resolve) => setTimeout(resolve, ERASE_PAUSE_MS))
-      let { data, error } = await eraseBatch(serverId, remoteUserId)
+      let { data, error } = await eraseTailBatch(serverId, remoteUserId)
       for (const wait of ERASE_RETRY_MS) {
         if (!error) break
-        console.warn(`bridge_privacy_erase for server ${serverId} failed, again in ${wait} ms:`, error.code, error.message)
+        console.warn(`bridge_privacy_erase_tail for server ${serverId} failed, again in ${wait} ms:`, error.code, error.message)
         await new Promise((resolve) => setTimeout(resolve, wait))
-        ;({ data, error } = await eraseBatch(serverId, remoteUserId))
+        ;({ data, error } = await eraseTailBatch(serverId, remoteUserId))
       }
       if (error) {
         console.error(`bridge_privacy_erase for server ${serverId} failed:`, error.code, error.message)

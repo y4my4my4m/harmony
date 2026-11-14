@@ -400,6 +400,8 @@ export interface BridgeOptout {
   remote_user_id: string
   /** self: the Discord member's own /bridge-privacy; manager, admin: removed here. */
   source: 'self' | 'manager' | 'admin'
+  /** The member also opted out on Discord: a restore leaves them out (20261115500001). */
+  self_opted_out?: boolean
   created_at: string
 }
 
@@ -412,7 +414,7 @@ export interface EraseResult {
 export async function fetchBridgeOptouts(serverId: string): Promise<BridgeOptout[]> {
   const { data, error } = await supabase
     .from('bridge_remote_optouts')
-    .select('remote_user_id, source, created_at')
+    .select('remote_user_id, source, self_opted_out, created_at')
     .eq('server_id', serverId)
     .eq('platform', DISCORD_PLATFORM)
     .order('created_at', { ascending: false })

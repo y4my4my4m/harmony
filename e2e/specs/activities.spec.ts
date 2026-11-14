@@ -292,6 +292,19 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
       !!document.elementFromPoint(x, y)?.closest('.activity-stage__resume'), [box.x + box.width / 2, box.y + box.height / 2])).toBe(true)
     await setError(null)
     await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
+
+    // The call bar's card draws no notice: there the player stays over it, error or not.
+    await page.getByTestId('voice-overlay').getByRole('button', { name: 'Minimize call view', exact: true }).click()
+    await expect(page.getByTestId('voice-overlay')).toHaveCount(0)
+    await setError('autoplay')
+    const host = page.getByTestId('activity-host')
+    await expect(host).toBeVisible()
+    const hostBox = (await host.boundingBox())!
+    await expect.poll(() => page.evaluate(([x, y]) =>
+      !!document.elementFromPoint(x, y)?.closest('[data-testid="activity-host"]'), [hostBox.x + hostBox.width / 2, hostBox.y + hostBox.height / 2])).toBe(true)
+    await setError(null)
+    await page.getByTestId('activity-open').click()
+    await expect(page.getByTestId('activity-stage')).toBeVisible()
   })
 
   await test.step('in full screen the video fills the screen under controls that hide and come back over it', async () => {

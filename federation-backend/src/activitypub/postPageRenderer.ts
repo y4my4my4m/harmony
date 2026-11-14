@@ -335,15 +335,23 @@ function emojiMap(emojis?: DisplayNameEmoji[] | null): Map<string, string> {
   return map;
 }
 
-/** Escaped HTML text with each known `:shortcode:` (and the U+200B spacers around it) an image. */
+/**
+ * Escaped HTML with each known `:shortcode:` (and the U+200B spacers around it) an image, in text
+ * only. `escaped` holds tags this renderer wrote (links of textToHtml): a shortcode inside a tag,
+ * in an href, stays as it is; an <img> there would end the attribute, and the emoji's URL, chosen
+ * by its remote account, would add attributes to the tag.
+ */
 export function emojifyHtml(escaped: string, emojis?: DisplayNameEmoji[] | null): string {
   const map = emojiMap(emojis);
   if (map.size === 0) return escaped;
-  return escaped.replace(/\u200B?:([a-zA-Z0-9_+-]+(?:@[a-zA-Z0-9._-]*)?):\u200B?/g, (match, name: string) => {
-    const url = map.get(name) || map.get(name.replace(/@[^@]*$/, ''));
-    if (!url) return match;
-    return `<img src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" title=":${escapeHtml(name)}:" class="custom-emoji" draggable="false">`;
-  });
+  const emojify = (text: string) =>
+    text.replace(/\u200B?:([a-zA-Z0-9_+-]+(?:@[a-zA-Z0-9._-]*)?):\u200B?/g, (match, name: string) => {
+      const url = map.get(name) || map.get(name.replace(/@[^@]*$/, ''));
+      if (!url) return match;
+      return `<img src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" title=":${escapeHtml(name)}:" class="custom-emoji" draggable="false">`;
+    });
+  // Odd pieces are tags: attribute values were escaped, so none holds a '>'.
+  return escaped.split(/(<[^>]*>)/).map((piece, i) => (i % 2 === 1 ? piece : emojify(piece))).join('');
 }
 
 export function renderDisplayNameHtml(displayName: string, emojis?: DisplayNameEmoji[] | null): string {

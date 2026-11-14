@@ -346,7 +346,7 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
 
   const { data: message } = await supabase
     .from('messages')
-    .select('id, channel_id, user_id, bot_id, content, is_deleted')
+    .select('id, channel_id, user_id, bot_id, content, is_deleted, metadata')
     .eq('id', messageId)
     .maybeSingle()
 
@@ -390,7 +390,11 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
     return
   }
 
-  const author = message.bot_id ? `bot:${message.bot_id}` : message.user_id ? `user:${message.user_id}` : null
+  // A bridged message counts against its Discord author: every author of a bridge shares its bot.
+  const discordAuthor = message.bot_id ? (message.metadata as { discord_user?: { id?: unknown } } | null)?.discord_user?.id : null
+  const author = typeof discordAuthor === 'string' && discordAuthor
+    ? `discord:${discordAuthor}`
+    : message.bot_id ? `bot:${message.bot_id}` : message.user_id ? `user:${message.user_id}` : null
   const admission = await linkRefresher.request(message.id, message.content, urls, author)
   if (admission !== 'queued') {
     // A bridged message with no instance Discord application to fall back on.

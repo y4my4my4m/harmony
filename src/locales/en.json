@@ -6521,6 +6521,7 @@
       },
       "restore": "Restore",
       "restoreLabel": "Bridge Discord user {id} again",
+      "alsoSelf": "Also opted out on Discord",
       "purgeLead": "Remove everything this server's bridge brought from Discord: messages, files and reactions. Messages written on Harmony stay.",
       "purge": "Remove all bridged messages",
       "purgeConfirm": "Delete every message, file and reaction brought from Discord into this server? This cannot be undone.",

@@ -173,6 +173,7 @@ bridge_privacy_changed	p_server_id uuid	void	definer	public, pg_temp		unreferenc
 bridge_privacy_check_subject	p_platform text, p_remote_user_id text	void	invoker	public, pg_temp	service_role	unreferenced
 bridge_privacy_erase	p_server_id uuid, p_platform text, p_remote_user_id text, p_limit integer	jsonb	definer	public, pg_temp	service_role	client
 bridge_privacy_erase_core	p_server_id uuid, p_platform text, p_remote_user_id text, p_limit integer	jsonb	definer	public, pg_temp		unreferenced
+bridge_privacy_erase_tail	p_server_id uuid, p_platform text, p_remote_user_id text, p_limit integer	jsonb	definer	public, pg_temp	service_role	client
 bridge_privacy_optout_ids	p_server_id uuid, p_platform text	jsonb	definer	public, pg_temp	service_role	client
 bridge_privacy_purge_instance	p_platform text	jsonb	definer	public, pg_temp	authenticated	client
 bridge_privacy_purge_server	p_server_id uuid, p_platform text	jsonb	definer	public, pg_temp	authenticated	client
@@ -504,6 +505,7 @@ enforce_sticker_limit		trigger	definer	public, pg_temp	service_role	trigger
 enqueue_outgoing_webhook_event	p_event text, p_server_id uuid, p_channel_id uuid, p_bot_ids uuid[], p_payload jsonb	integer	definer	public, pg_temp	service_role	client
 ensure_realtime_partitions		integer	definer	pg_catalog, pg_temp		unreferenced
 erase_account	p_auth_id uuid	void	definer	pg_catalog, public, pg_temp		unreferenced
+evict_copy_emojis	p_server_id uuid, p_keep integer	integer	definer	public, pg_temp	service_role	client
 execute_channel_webhook	p_webhook_id uuid, p_token_hash text, p_content text, p_username text, p_avatar_url text, p_suppress_embeds boolean	jsonb	definer	public, pg_temp	service_role	client
 existing_sticker_ids	p_ids uuid[]	TABLE(id uuid, url text)	definer	public, pg_temp	anon+authenticated+service_role	client
 export_my_messages	p_export_id uuid, p_after_created_at timestamp with time zone, p_after_id uuid, p_limit integer	jsonb	definer	pg_catalog, public, pg_temp	authenticated+service_role	client

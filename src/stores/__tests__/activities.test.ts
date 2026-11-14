@@ -65,8 +65,7 @@ describe('activities store', () => {
 
     store.apply('ch-1', state(), true)
     peer(state({ revision: 2, playing: false, position_ms: 5000, position_at: 2000, host_id: 'me', controls: 'host' }))
-    // The held revision stays the database's.
-    expect(store.current).toMatchObject({ revision: 1, playing: false, position_ms: 5000, host_id: 'p1', controls: 'everyone' })
+    expect(store.current).toMatchObject({ revision: 2, playing: false, position_ms: 5000, host_id: 'p1', controls: 'everyone' })
     expect(store.playingHere).toBe(false)
 
     // A later run naming this member as host plays at once; it comes from the database alone.
@@ -77,7 +76,7 @@ describe('activities store', () => {
     // Another item or queue waits for the database's state of that revision.
     peer(state({ revision: 3, item: { video_id: 'other' } }))
     peer(state({ revision: 3, queue: [{ item: { video_id: 'next' } }] }))
-    expect(store.current).toMatchObject({ revision: 1, item: { video_id: 'dQw4w9WgXcQ' }, queue: [] })
+    expect(store.current).toMatchObject({ revision: 2, item: { video_id: 'dQw4w9WgXcQ' }, queue: [] })
     expect(store.apply('ch-1', state({ revision: 3, item: { video_id: 'other' } }), true)).toBe(true)
   })
 
@@ -87,13 +86,9 @@ describe('activities store', () => {
       store.receivePeer({ userId, message: { type: 'activity', channelId: 'ch-1', activity } })
     store.apply('ch-1', state({ revision: 5 }), true)
 
-    // A huge revision moves the playback once, and the database's next state still applies.
+    // Past the database's revision by more than a few controls: ignored.
     peer(state({ revision: 1e15, playing: false, position_at: 2000 }))
-    expect(store.current).toMatchObject({ revision: 5, playing: false })
-    expect(store.apply('ch-1', state({ revision: 6, playing: true, position_at: 3000 }), true)).toBe(true)
-    // Peer states at or below one already taken are stale.
-    peer(state({ revision: 9, playing: false, position_at: 4000 }))
-    expect(store.current?.playing).toBe(true)
+    expect(store.current).toMatchObject({ revision: 5, playing: true })
 
     store.apply('ch-1', state({ revision: 7, playing: true, position_at: 5000, started_at: '2026-10-14T13:00:00Z' }), true)
     peer(state({ revision: 8, position_ms: Number.NaN, started_at: '2026-10-14T13:00:00Z' }))
@@ -101,6 +96,34 @@ describe('activities store', () => {
     expect(store.current?.position_at).toBe(5000)
     peer(state({ revision: 8, rate: 50, position_at: 6000, started_at: '2026-10-14T13:00:00Z' }))
     expect(store.current).toMatchObject({ position_at: 6000, rate: 1 })
+  })
+
+  it('a peer\'s state carries its revision, which the database\'s next state orders against', () => {
+    const store = useActivitiesStore()
+    const peer = (activity: unknown) =>
+      store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1', activity } })
+    store.apply('ch-1', state({ revision: 5, position_at: 1000 }), true)
+
+    // A seek another member made: the item's end asks for the next one at that revision.
+    peer(state({ revision: 6, position_ms: 90_000, position_at: 2000 }))
+    expect(store.current).toMatchObject({ revision: 6, position_ms: 90_000 })
+
+    // A database answer read before that seek does not roll it back.
+    expect(store.apply('ch-1', state({ revision: 5, position_at: 1500 }), true)).toBe(false)
+    expect(store.current?.position_ms).toBe(90_000)
+
+    // The database's later states apply.
+    expect(store.apply('ch-1', state({ revision: 7, playing: false, position_at: 3000 }), true)).toBe(true)
+    expect(store.current).toMatchObject({ revision: 7, playing: false })
+  })
+
+  it('a database state applies past a peer\'s, whatever revision the peer named', () => {
+    const store = useActivitiesStore()
+    store.apply('ch-1', state({ revision: 5 }), true)
+    store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1', activity: state({ revision: 8, playing: false, position_at: 2000 }) } })
+    expect(store.current).toMatchObject({ revision: 8, playing: false })
+    expect(store.apply('ch-1', state({ revision: 6, playing: true, position_at: 3000 }), true)).toBe(true)
+    expect(store.current).toMatchObject({ revision: 6, playing: true })
   })
 
   it('a host-only run takes playback from its host alone', () => {

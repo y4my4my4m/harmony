@@ -6525,6 +6525,7 @@
       },
       "restore": "Rétablir",
       "restoreLabel": "Relier de nouveau l'utilisateur Discord {id}",
+      "alsoSelf": "S'est aussi exclu sur Discord",
       "purgeLead": "Retirez tout ce que la passerelle de ce serveur a apporté de Discord : messages, fichiers et réactions. Les messages écrits sur Harmony restent.",
       "purge": "Retirer tous les messages de la passerelle",
       "purgeConfirm": "Supprimer tous les messages, fichiers et réactions apportés de Discord sur ce serveur ? Cette action est irréversible.",

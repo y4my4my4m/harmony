@@ -44,6 +44,18 @@ describe('BridgePrivacyPanel', () => {
     expect(rows[1].get('[data-testid="privacy-restore"]').attributes('aria-label')).toBe(`Bridge Discord user ${EVE} again`)
   })
 
+  it('says when a user a manager removed also opted out on Discord: Restore leaves them out', async () => {
+    installBackend({ bridge_remote_optouts: [
+      { server_id: SERVER_ID, platform: 'discord', remote_user_id: EVE, source: 'manager', self_opted_out: true, created_at: '2026-11-12T09:00:00Z' },
+    ] })
+    const w = mountPanel()
+    await flushPromises()
+    const row = w.get('[data-testid="privacy-row"]')
+    expect(row.text()).toContain('Removed by a manager')
+    expect(row.get('[data-testid="privacy-also-self"]').text()).toBe('Also opted out on Discord')
+    expect(row.find('[data-testid="privacy-restore"]').exists()).toBe(true)
+  })
+
   it('restores a user a manager removed', async () => {
     const backend = installBackend({ bridge_remote_optouts: optouts() }, (name, args) => {
       if (name === 'bridge_privacy_restore_remote_user') {

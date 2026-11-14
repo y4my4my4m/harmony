@@ -6525,6 +6525,7 @@
       },
       "restore": "Restaurar",
       "restoreLabel": "Volver a traer al usuario de Discord {id}",
+      "alsoSelf": "También se excluyó en Discord",
       "purgeLead": "Quita todo lo que el puente de este servidor trajo de Discord: mensajes, archivos y reacciones. Los mensajes escritos en Harmony se quedan.",
       "purge": "Quitar todos los mensajes del puente",
       "purgeConfirm": "¿Borrar todos los mensajes, archivos y reacciones traídos de Discord a este servidor? No se puede deshacer.",

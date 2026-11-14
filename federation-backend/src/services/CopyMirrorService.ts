@@ -19,6 +19,15 @@ const CHUNK = 80;
 /** Rows per read; PostgREST answers at most max-rows (1000 on Supabase) to one request. */
 const PAGE = 1000;
 
+/** The host of an image URL, lowercase; '' for one that does not parse. */
+function imageHost(url: string): string {
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
 /** Emoji rows one copy may insert in an hour: twice what a Group lists (MAX_EMOJIS). */
 export const COPY_EMOJI_INSERTS_PER_HOUR = 2_000;
 /** Emojis a copy's list dropped that stay, the most recently removed. */
@@ -133,12 +142,14 @@ export class CopyMirrorService {
    * where it was used. Rows the copy made itself (no ap_id) stay.
    *
    * An instance admin's removal (deleted_by set) holds for the image: an emoji the Group lists
-   * again, under its id or a new one, with an image an admin removed on this copy or as a cached
-   * row stays removed.
+   * again, under its id or a new one, with an image an admin removed on this copy, or on a row
+   * cached from the Group's instance, stays removed. A row cached before 1.9.4 holds the image's
+   * host as domain and counts too. A removal on a row another instance's activity left does not:
+   * that instance chose the image and the name.
    *
    * Bounds against a Group that churns its list: at most COPY_EMOJI_INSERTS_PER_HOUR rows inserted
-   * per copy an hour, and at most COPY_EMOJI_REMOVED_KEPT emojis the list dropped kept per copy,
-   * the most recently removed (an admin's removals are all kept).
+   * per copy an hour, and evict_copy_emojis deletes dropped emojis past the most recent
+   * COPY_EMOJI_REMOVED_KEPT that nothing names and that are older than the hour.
    */
   static async applyGroupEmojis(serverId: string, groupUrl: string, emojis: ParsedEmoji[]): Promise<void> {
     const supabase = getSupabaseClient();
@@ -186,7 +197,9 @@ export class CopyMirrorService {
       }
       for (const row of data || []) {
         const removal = row.deleted_at && row.deleted_by ? { deleted_at: row.deleted_at, deleted_by: row.deleted_by } : null;
-        if (removal && !removedImages.has(row.url)) removedImages.set(row.url, removal);
+        const rowDomain = String(row.domain ?? '').toLowerCase();
+        const sameOrigin = row.server_id === serverId || domains.has(rowDomain) || rowDomain === imageHost(row.url);
+        if (removal && sameOrigin && !removedImages.has(row.url)) removedImages.set(row.url, removal);
         if (row.server_id === null && row.ap_id === null && domains.has(String(row.domain ?? '').toLowerCase())
             && !cached.has(row.url)) {
           cached.set(row.url, { id: row.id, removal });
@@ -251,25 +264,8 @@ export class CopyMirrorService {
       if (error) logger.warn(`Emojis of copy ${serverId} not removed: ${error.message}`);
     }
 
-    // Emojis the list dropped beyond the most recent COPY_EMOJI_REMOVED_KEPT go. A deleted emoji
-    // leaves its reactions as text (prepare_emoji_deletion).
-    const { data: stale, error: staleError } = await supabase
-      .from('emojis')
-      .select('id')
-      .eq('server_id', serverId)
-      .not('ap_id', 'is', null)
-      .not('deleted_at', 'is', null)
-      .is('deleted_by', null)
-      .order('deleted_at', { ascending: false })
-      .range(COPY_EMOJI_REMOVED_KEPT, COPY_EMOJI_REMOVED_KEPT + PAGE - 1);
-    if (staleError) {
-      logger.warn(`Removed emojis of copy ${serverId} not read: ${staleError.message}`);
-      return;
-    }
-    for (const ids of chunks((stale || []).map((r: any) => r.id as string))) {
-      const { error } = await supabase.from('emojis').delete().eq('server_id', serverId).is('deleted_by', null).in('id', ids);
-      if (error) logger.warn(`Removed emojis of copy ${serverId} not deleted: ${error.message}`);
-    }
+    const { error: evictError } = await supabase.rpc('evict_copy_emojis', { p_server_id: serverId, p_keep: COPY_EMOJI_REMOVED_KEPT });
+    if (evictError) logger.warn(`Dropped emojis of copy ${serverId} not evicted: ${evictError.message}`);
   }
 
   /**

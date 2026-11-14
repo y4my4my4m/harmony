@@ -87,6 +87,11 @@ INSERT INTO public.messages (id, bot_id, channel_id, content, metadata) VALUES
 INSERT INTO public.threads (id, channel_id, parent_message_id, name)
 VALUES ('f2910000-0000-0000-0000-0000000000c1', '66666666-0000-0000-0000-000000000006',
         'f2910000-0000-0000-0000-0000000000a2', 'my private title');
+-- The notice bot_create_thread writes for a thread she started on Discord.
+INSERT INTO public.messages (channel_id, content, is_system, metadata) VALUES
+  ('66666666-0000-0000-0000-000000000006', '[{"type": "text", "text": "started a thread"}]', true,
+   '{"type": "thread_created", "thread_name": "my private title", "bridge_source": "discord",
+     "thread_id": "f2910000-0000-0000-0000-0000000000c1", "discord_user": {"id": "2910000000000009004"}}');
 INSERT INTO public.messages (id, bot_id, channel_id, thread_id, content, metadata) VALUES
   ('f2910000-0000-0000-0000-0000000000a3', 'f2910000-0000-0000-0000-0000000000b1', '66666666-0000-0000-0000-000000000006',
    'f2910000-0000-0000-0000-0000000000c1', '[{"type": "text", "text": "reply"}]',
@@ -97,7 +102,7 @@ INSERT INTO public.notifications (user_id, type, data) VALUES
   ('22222222-0000-0000-0000-000000000002', 'mention',
    '{"message_id": "f2910000-0000-0000-0000-0000000000a3", "preview": "reply"}');
 SELECT is(public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2910000000000009004', 50) ->> 'erased',
-          '2', 'dana''s two messages are erased');
+          '3', 'dana''s two messages and her thread notice are erased');
 SELECT is((SELECT count(*)::int FROM public.notifications WHERE data ->> 'message_id' = 'f2910000-0000-0000-0000-0000000000a1'), 0,
           'the notification quoting her message is gone');
 SELECT is((SELECT count(*)::int FROM public.notifications WHERE data ->> 'message_id' = 'f2910000-0000-0000-0000-0000000000a3'), 1,

@@ -141,12 +141,12 @@ describe('POST /attachments/refresh', () => {
   const expired = () => `https://cdn.discordapp.com${CLIP}?ex=${hex(clock - 3_600_000)}&is=1&hm=2&`
   let seq = 0
 
-  function post(content: unknown[], over: { bot_id?: string; channel_id?: string } = {}) {
+  function post(content: unknown[], over: { bot_id?: string; channel_id?: string; metadata?: unknown } = {}) {
     seq += 1
     const id = `00000000-0000-0000-0000-00000000e${String(seq).padStart(3, '0')}`
     state.db.rows('messages').push({
       id, channel_id: over.channel_id ?? GENERAL, author_id: over.bot_id ? null : MEMBER_ID,
-      bot_id: over.bot_id ?? null, content, is_deleted: false,
+      bot_id: over.bot_id ?? null, content, is_deleted: false, metadata: over.metadata ?? {},
     })
     return id
   }
@@ -234,6 +234,22 @@ describe('POST /attachments/refresh', () => {
     await linkRefresher.drain()
     expect(calls).toHaveLength(1)
     expect(state.silentWrites.map((w) => w.p_message_id)).toEqual([id])
+  })
+
+  it('counts a bridged message against its Discord author, not against the whole bridge', async () => {
+    tick()
+    state.instanceToken = 'instance.bot.token'
+    discord()
+    const offlineBot = '00000000-0000-0000-0000-0000000000b8'
+    const answers: unknown[] = []
+    for (let i = 0; i < 35; i++) {
+      const id = post([{ type: 'url', url: expired() }], {
+        bot_id: offlineBot, metadata: { discord_user: { id: String(3_000_000_000_000_000 + i) } },
+      })
+      answers.push((await refresh(id)).body)
+    }
+    expect(answers.every((a) => (a as { refreshing?: boolean }).refreshing === true)).toBe(true)
+    await linkRefresher.drain()
   })
 
   it("answers no_signer for a member's link while the instance has no Discord application", async () => {

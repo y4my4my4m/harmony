@@ -152,18 +152,36 @@ describe('Bridge v2 privacy endpoints', () => {
       expect(rpcCalls('bridge_privacy_erase')).toEqual([{ ...scope, p_remote_user_id: DANA, p_limit: 200 }])
     })
 
+    // The first batch answers the request (bridge_privacy_erase); the rest run in the background
+    // through bridge_privacy_erase_tail, which stops once the user opted in again.
+    const both = (answer: () => unknown) => {
+      rpcHandlers.bridge_privacy_erase = answer as any
+      rpcHandlers.bridge_privacy_erase_tail = answer as any
+    }
+    const batches = () => rpcCalls('bridge_privacy_erase').length + rpcCalls('bridge_privacy_erase_tail').length
+
     it('finishes in the background while more is left', async () => {
       const answers = [
         { opted_out: true, erased: 200, more: true },
         { opted_out: true, erased: 200, more: true },
         { opted_out: true, erased: 7, more: false },
       ]
-      rpcHandlers.bridge_privacy_erase = () => ({ data: answers.shift() ?? { erased: 0, more: false }, error: null })
+      both(() => ({ data: answers.shift() ?? { erased: 0, more: false }, error: null }))
       const res = await erase()
       expect(res.body).toEqual({ opted_out: true, erased: 200, more: true })
-      await vi.waitFor(() => expect(rpcCalls('bridge_privacy_erase')).toHaveLength(3), { timeout: 2_000 })
+      await vi.waitFor(() => expect(batches()).toBe(3), { timeout: 2_000 })
       await new Promise((resolve) => setTimeout(resolve, 150))
-      expect(rpcCalls('bridge_privacy_erase')).toHaveLength(3)
+      expect(rpcCalls('bridge_privacy_erase')).toHaveLength(1)
+      expect(rpcCalls('bridge_privacy_erase_tail')).toHaveLength(2)
+    })
+
+    it('stops when the user opted in meanwhile', async () => {
+      rpcHandlers.bridge_privacy_erase = () => ({ data: { opted_out: true, erased: 200, more: true }, error: null })
+      rpcHandlers.bridge_privacy_erase_tail = () => ({ data: { opted_out: false, erased: 0, more: false }, error: null })
+      await erase()
+      await vi.waitFor(() => expect(rpcCalls('bridge_privacy_erase_tail')).toHaveLength(1), { timeout: 2_000 })
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      expect(rpcCalls('bridge_privacy_erase_tail')).toHaveLength(1)
     })
 
     it('tries a failed background batch again and goes on', async () => {
@@ -172,12 +190,12 @@ describe('Bridge v2 privacy endpoints', () => {
         () => ({ data: null, error: { code: '55P03', message: 'canceling statement due to lock timeout' } }),
         () => ({ data: { opted_out: true, erased: 9, more: false }, error: null }),
       ]
-      rpcHandlers.bridge_privacy_erase = () => (answers.shift() ?? (() => ({ data: { erased: 0, more: false }, error: null })))() as any
+      both(() => (answers.shift() ?? (() => ({ data: { erased: 0, more: false }, error: null })))())
       const res = await erase()
       expect(res.body).toEqual({ opted_out: true, erased: 200, more: true })
-      await vi.waitFor(() => expect(rpcCalls('bridge_privacy_erase')).toHaveLength(3), { timeout: 3_000 })
+      await vi.waitFor(() => expect(batches()).toBe(3), { timeout: 3_000 })
       await new Promise((resolve) => setTimeout(resolve, 150))
-      expect(rpcCalls('bridge_privacy_erase')).toHaveLength(3)
+      expect(batches()).toBe(3)
     })
 
     it('answers 429 erase_recent for the same user inside the cooldown, and serves another user', async () => {

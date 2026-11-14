@@ -6525,6 +6525,7 @@
       },
       "restore": "Wieder zulassen",
       "restoreLabel": "Discord-Person {id} wieder überbrücken",
+      "alsoSelf": "Auch auf Discord abgemeldet",
       "purgeLead": "Entferne alles, was die Bridge dieses Servers von Discord gebracht hat: Nachrichten, Dateien und Reaktionen. Auf Harmony geschriebene Nachrichten bleiben.",
       "purge": "Alle überbrückten Nachrichten entfernen",
       "purgeConfirm": "Alle Nachrichten, Dateien und Reaktionen löschen, die von Discord auf diesen Server gebracht wurden? Das lässt sich nicht rückgängig machen.",

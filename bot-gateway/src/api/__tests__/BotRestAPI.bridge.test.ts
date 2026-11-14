@@ -239,6 +239,17 @@ describe('role and channel mention parts', () => {
     ])
   })
 
+  it('answers 404 for an edit of a deleted message, a tombstone an erase left included', async () => {
+    seed()
+    db.rows('messages').push({ id: '00000000-0000-0000-0000-0000000000fa', channel_id: PAIRED, user_id: null, bot_id: BOT_ID,
+      content: [{ type: 'text', text: '' }], metadata: { bridge_erased: true, bot: true }, is_deleted: true })
+    const res = await supertest(app())
+      .patch('/api/v1/messages/00000000-0000-0000-0000-0000000000fa')
+      .send({ content: 'the opted-out author\'s new words' })
+    expect(res.status).toBe(404)
+    expect(db.writesTo('messages', 'update')).toEqual([])
+  })
+
   it('applies the same check to an edit', async () => {
     seed()
     db.rows('messages').push({ id: '00000000-0000-0000-0000-0000000000f3', channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content: [], metadata: {} })
@@ -614,6 +625,15 @@ describe('PATCH /messages/:id/content-silent never replaces a mirrored part', ()
       id: OWN, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content, metadata: { bot: true }, is_deleted: false,
     })
   }
+
+  it('answers 404 for a deleted message', async () => {
+    seed()
+    db.rows('messages').push({ id: OWN, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content: [], metadata: { bot: true }, is_deleted: true })
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}/content-silent`)
+      .send({ content: [{ type: 'text', text: 'words' }] })
+    expect(res.status).toBe(404)
+    expect(silentCalls()).toHaveLength(0)
+  })
 
   it('refuses to swap a stored file for a Discord link', async () => {
     own([{ type: 'file', fileType: 'image', url: 'https://x/storage/cat.png', path: PATH }])

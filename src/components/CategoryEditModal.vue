@@ -246,7 +246,8 @@ const closeModal = () => {
 // Unsaved edits ask before they are dropped.
 let closePrompt: Promise<void> | null = null
 function requestClose() {
-  if (closePrompt) return
+  // A save in flight finishes first: it reads the category and the template it was given.
+  if (closePrompt || isLoading.value) return
   if (!nameDirty.value && !permissionsDirty.value) {
     closeModal()
     return
@@ -339,11 +340,16 @@ const saveChanges = async () => {
 
   isLoading.value = true
   const toast = useToast()
+  // What this save writes, read before any wait: the dialog can be shown for another category
+  // before the reads below answer.
+  const category = props.category
+  const saved = savedTemplate.value
+  const edited = template.value.map(row => ({ ...row }))
 
   try {
     if (nameChanged) {
       await serverChannelStore.updateCategory({
-        id: props.category.id,
+        id: category.id,
         name: trimmedName
       })
     }
@@ -351,18 +357,20 @@ const saveChanges = async () => {
       // The dialog's changes go onto the template as it stands now: others may have changed it,
       // or deleted a role, since it opened.
       const [latest, roleIds] = await Promise.all([
-        getCategoryOverrides(props.category.id),
-        getServerRoleIds(props.category.server_id),
+        getCategoryOverrides(category.id),
+        getServerRoleIds(category.server_id),
       ])
-      const sent = rebaseTemplate(latest, savedTemplate.value, template.value, roleIds)
-      const synced = await serverChannelStore.setCategoryTemplate(props.category.id, sent)
-      savedTemplate.value = sent
-      template.value = sent.map(row => ({ ...row }))
+      const sent = rebaseTemplate(latest, saved, edited, roleIds)
+      const synced = await serverChannelStore.setCategoryTemplate(category.id, sent)
+      if (props.category?.id === category.id) {
+        savedTemplate.value = sent
+        template.value = sent.map(row => ({ ...row }))
+      }
       toast.success(t('category.edit.permissionsSaved', { count: synced.length }, synced.length))
     }
 
-    emit('updated', { ...props.category, name: trimmedName })
-    closeModal()
+    emit('updated', { ...category, name: trimmedName })
+    if (props.category?.id === category.id) closeModal()
   } catch (error: any) {
     debug.error('Failed to update category:', error)
     toast.error(error?.message || t('category.edit.failed'))

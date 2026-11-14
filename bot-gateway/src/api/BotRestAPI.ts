@@ -447,12 +447,16 @@ export class BotRestAPI {
 
       const { data: message } = await supabase
         .from('messages')
-        .select('bot_id, channel_id, content')
+        .select('bot_id, channel_id, content, is_deleted')
         .eq('id', messageId)
         .single()
 
       if (!message || message.bot_id !== botId) {
         return res.status(403).json({ error: 'Cannot update messages from other bots or users' })
+      }
+      // A deleted message, the tombstone of an erased author included, takes no content.
+      if (message.is_deleted === true) {
+        return res.status(404).json({ error: 'Message not found' })
       }
 
       const access = await this.channelWriteAccess(botId, message.channel_id, 'send_messages')
@@ -1080,12 +1084,16 @@ export class BotRestAPI {
   private async editBotMessage(botId: string, messageId: string, content: any, embeds?: any): Promise<WriteResult> {
     const { data: message } = await supabase
       .from('messages')
-      .select('user_id, bot_id, channel_id, metadata')
+      .select('user_id, bot_id, channel_id, metadata, is_deleted')
       .eq('id', messageId)
       .single()
 
     if (!message || message.bot_id !== botId) {
       return { ok: false, status: 403, body: { error: 'Cannot edit messages from other bots or users' }, failure: 'failed' }
+    }
+    // A deleted message, the tombstone of an erased author included, takes no content.
+    if (message.is_deleted === true) {
+      return { ok: false, status: 404, body: { error: 'Message not found' }, failure: 'failed' }
     }
 
     // BUGS.md H38: editing one's own message requires only `send_messages`.

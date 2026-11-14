@@ -12,8 +12,9 @@
   Under a slot inside an element marked data-activity-under (the call view in full screen, whose
   chrome floats over the video), the player paints just under that root instead: the root's
   z-index when it precedes it, one less when it follows. The root shows it through a transparent
-  stage and keeps the pointer. While the player reports an error the stage's notice (Click to
-  play, Open on) is drawn in the slot, so the player goes under the root then too.
+  stage and keeps the pointer. While the player reports an error, a slot marked
+  data-activity-notice (the stage) draws its notice (Click to play, Open on) where the player is,
+  so the player goes under the root then too; a slot without one (the call bar's card) keeps it.
 
   A slot in the call pop-out window takes the player into that window's activity container
   (components/voice/callPopout.ts). A frame reloads on a move between documents; the relay
@@ -237,7 +238,8 @@ function trackSlot(): void {
         layerRoot = rootLayer(el)
       }
       // Per frame: the player and the call view move between windows with the pop-out.
-      const below = !!el.closest('[data-activity-under]') || !!actStore.status.error
+      const below = !!el.closest('[data-activity-under]')
+        || (!!actStore.status.error && el.hasAttribute('data-activity-notice'))
       if (under.value !== below) under.value = below
       const z = layerAt(layerRoot, below)
       if (layer.value !== z) layer.value = z
