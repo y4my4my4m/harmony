@@ -320,6 +320,7 @@ SELECT is_empty($q$
            'messages.a_messages_room_guard',
            'messages.a_messages_rules_acceptance',
            'messages.a_messages_server_suspension_guard',
+           'messages.a_messages_skip_deleted_discord_import',
            'messages.a_messages_system_part_guard',
            'messages.a_messages_system_row_guard',
            'messages.check_message_sticker_parts',

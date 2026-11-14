@@ -147,7 +147,7 @@ bridge_evict_removed_emojis	definer	TABLE(id uuid, path text)	service_role	clien
 bridge_evict_retired_stickers	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordSticker.test.ts
 bridge_import_admit	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
 bridge_import_automod_hit	definer	text	-	client	called by bridge_import_messages
-bridge_import_guard	definer	discord_bridge_imports	service_role	client	called by bridge_import_admit, bridge_import_link_replies, bridge_import_messages, +1
+bridge_import_guard	definer	discord_bridge_imports	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
 bridge_import_link_replies	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
 bridge_import_link_replies_core	definer	integer	-	client	called by bridge_import_link_replies, bridge_import_messages
 bridge_import_messages	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
@@ -1058,6 +1058,7 @@ signup_mailbox_hash	invoker	text	-	nothing	called by before_user_created_hook
 signup_network_contains	invoker	boolean	-	nothing	called by before_user_created_hook
 signup_review_welcome_server	definer	uuid	service_role	client	called by staff_recent_signups, staff_signup_groups
 signup_spike_status	definer	TABLE(rule text, fired boolean, signups integer, window_signups integer, prior_signups integer)	-	nothing	nothing references it
+skip_deleted_discord_import	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT (a_messages_skip_deleted_discord_import)
 skip_share_from_other_sender	definer	trigger	service_role	trigger	trigger public.megolm_session_shares BEFORE INSERT (b_megolm_session_shares_sender_guard)
 skip_share_hidden_history	definer	trigger	service_role	trigger	trigger public.megolm_session_shares BEFORE INSERT (c_megolm_session_shares_history_guard)
 skip_share_outside_room	definer	trigger	service_role	trigger	trigger public.megolm_session_shares BEFORE INSERT (a_megolm_session_shares_room_guard)

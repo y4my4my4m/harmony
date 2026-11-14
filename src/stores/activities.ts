@@ -250,13 +250,31 @@ export const useActivitiesStore = defineStore('activities', () => {
     apply(payload.channelId, payload.activity ?? null, true)
   }
 
-  /** An activity state from a participant of the call. */
+  /**
+   * An activity state from a participant of the call. A participant is not the database: its state
+   * moves the playback of the item this client holds (play, pause, position, rate, revision) and
+   * nothing else. A new run, its host, item and queue come from the database and its broadcasts;
+   * otherwise any participant could start a run naming this client as host, which plays at once.
+   */
   function receivePeer(event: { userId: string; message: unknown }): void {
     const message = event.message as { type?: string; channelId?: string; activity?: VoiceActivity | null }
     if (message?.type !== 'activity' || typeof message.channelId !== 'string') return
     if (message.channelId !== voiceChannelId.value) return
-    if (message.activity && message.activity.channel_id !== message.channelId) return
-    apply(message.channelId, message.activity ?? null, false)
+    const peer = message.activity
+    const held = byChannel.value[message.channelId]
+    if (!peer || !held || peer.channel_id !== held.channel_id || peer.started_at !== held.started_at) return
+    if (typeof peer.revision !== 'number' || typeof peer.position_ms !== 'number' || typeof peer.position_at !== 'number') return
+    // The revision also orders item and queue changes: a state naming another item or queue waits
+    // for the database's, which the revision taken here would otherwise make look stale.
+    if (JSON.stringify(peer.item) !== JSON.stringify(held.item) || JSON.stringify(peer.queue) !== JSON.stringify(held.queue)) return
+    apply(message.channelId, {
+      ...held,
+      playing: peer.playing === true,
+      position_ms: peer.position_ms,
+      position_at: peer.position_at,
+      rate: typeof peer.rate === 'number' ? peer.rate : held.rate,
+      revision: peer.revision,
+    }, false)
   }
 
   /** Hides or shows the current run of `channelId` for this client. */

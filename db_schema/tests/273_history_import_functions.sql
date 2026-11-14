@@ -352,8 +352,8 @@ SELECT is((SELECT array_agg(x ORDER BY x) FROM unnest(public.bridge_import_prese
               ARRAY['2490000000000010001', '2490000000000010099', '2490000000000099999'])) x),
           ARRAY['2490000000000010001', '2490000000000010099'], 'present_ids returns the ids the channel already holds');
 SELECT is(public.bridge_import_present_ids('f2490000-0000-0000-0000-0000000000b1', pg_temp.job('1'),
-                                           ARRAY['2490000000000010098']), ARRAY[]::text[],
-          'a deleted row does not count as present');
+                                           ARRAY['2490000000000010098']), ARRAY['2490000000000010098'],
+          'a deleted row counts as present: the import leaves a message whose copy was deleted here');
 SELECT is(public.bridge_import_present_ids('f2490000-0000-0000-0000-0000000000b1', pg_temp.job('1'),
                                            ARRAY['2490000000000040001']), ARRAY[]::text[],
           'nor does a row of another channel');

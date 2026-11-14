@@ -48,12 +48,36 @@ describe('activities store', () => {
 
   it('takes peer states for the call it is in only', () => {
     const store = useActivitiesStore()
+    store.apply('ch-1', state(), true)
     store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-2', activity: state({ channel_id: 'ch-2' }) } })
     expect(store.byChannel['ch-2']).toBeUndefined()
-    store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1', activity: state({ channel_id: 'other' }) } })
+    store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1', activity: state({ channel_id: 'other', revision: 2, playing: false }) } })
+    expect(store.current?.playing).toBe(true)
+  })
+
+  it('takes from a peer the playback of the item it holds, and nothing else', () => {
+    const store = useActivitiesStore()
+    const peer = (activity: unknown) => store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1', activity } })
+
+    // No run held: a peer cannot start one.
+    peer(state({ host_id: 'me' }))
     expect(store.current).toBeNull()
-    store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1', activity: state() } })
-    expect(store.current?.source).toBe('youtube')
+
+    store.apply('ch-1', state(), true)
+    peer(state({ revision: 2, playing: false, position_ms: 5000, position_at: 2000, host_id: 'me', controls: 'host' }))
+    expect(store.current).toMatchObject({ revision: 2, playing: false, position_ms: 5000, host_id: 'p1', controls: 'everyone' })
+    expect(store.playingHere).toBe(false)
+
+    // A later run naming this member as host plays at once; it comes from the database alone.
+    peer(state({ host_id: 'me', started_at: '2026-10-14T12:00:00Z', source: 'url', item: { url: 'https://attacker.test/x.mp4' } }))
+    expect(store.current).toMatchObject({ host_id: 'p1', started_at: '2026-10-14T10:00:00Z' })
+    expect(store.playingHere).toBe(false)
+
+    // Another item or queue waits for the database's state of that revision.
+    peer(state({ revision: 3, item: { video_id: 'other' } }))
+    peer(state({ revision: 3, queue: [{ item: { video_id: 'next' } }] }))
+    expect(store.current).toMatchObject({ revision: 2, item: { video_id: 'dQw4w9WgXcQ' }, queue: [] })
+    expect(store.apply('ch-1', state({ revision: 3, item: { video_id: 'other' } }), true)).toBe(true)
   })
 
   it('hides an activity for this client until it ends', () => {

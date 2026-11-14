@@ -1570,7 +1570,8 @@ export class ActivityProcessor {
       if (Object.keys(federationMetadata).length > 0) {
         // Merge with existing federation_metadata
         const existingMeta = existing?.federation_metadata ? (typeof existing.federation_metadata === 'string' ? JSON.parse(existing.federation_metadata) : existing.federation_metadata) : {};
-        updateData.federation_metadata = JSON.stringify({ ...existingMeta, ...federationMetadata });
+        // An object: SQL readers (public pages) take keys with ->, which a JSON-encoded string has none of.
+        updateData.federation_metadata = { ...existingMeta, ...federationMetadata };
       }
 
       await supabase

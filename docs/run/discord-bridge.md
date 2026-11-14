@@ -255,7 +255,7 @@ A pair's progress line says how many messages were skipped for their author.
 - Pins: Discord's pinned messages are pinned in Harmony, up to Harmony's limit of 50 per channel; the rest are skipped.
 - Replies: a reply links to the message it answers once that message is in Harmony. A reply whose original is gone from Discord stays as a plain reply.
 
-Not imported: reactions, messages posted by Discord bots and webhooks (which also leaves out the bridge's own copies of Harmony messages), and Discord's system messages such as joins, boosts and pin notices. The bridge needs **Read Message History** in the channel and the Message Content intent.
+Not imported: reactions, messages posted by Discord bots and webhooks (which also leaves out the bridge's own copies of Harmony messages), Discord's system messages such as joins, boosts and pin notices, and messages whose Harmony copy was deleted: a message a moderator deleted here stays deleted however often a channel is imported. The bridge needs **Read Message History** in the channel and the Message Content intent.
 
 ### Quiet by design
 

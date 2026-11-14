@@ -127,7 +127,8 @@ export interface EncryptedChannelPayload {
 
 /**
  * Encrypts `content` for the channel's Megolm room and appends its mention parts in plaintext.
- * Recipients are the server's members. Threads share the parent channel's room.
+ * Recipients are the room's members (get_room_member_ids, one request, cached by the service); on
+ * an instance without it, every member of the server. Threads share the parent channel's room.
  */
 export async function encryptChannelContent(params: {
   serverId: string | null
@@ -139,16 +140,22 @@ export async function encryptChannelContent(params: {
   if (!service || !service.isInitialized()) {
     throw channelEncryptionError('setup')
   }
-  // The member read does not depend on the key checks; it runs beside them. Every member is
-  // a recipient, so the read is paged to the end: a member past a row cap would get no key.
+  // The member read does not depend on the key checks; it runs beside them. The server's members
+  // are read in pages to the end: a member past a row cap would get no key.
   const serverId = params.serverId
-  const members: Promise<Array<{ user_id: string }>> = serverId
-    ? readAllRows<{ user_id: string }>(() => supabase
-        .from('user_servers')
-        .select('user_id', { count: 'exact' })
-        .eq('server_id', serverId)
-        .order('id'))
-    : Promise.resolve([])
+  const members: Promise<string[]> = (async () => {
+    const room: string[] | null = typeof service.roomRecipients === 'function'
+      ? await service.roomRecipients(params.channelId)
+      : null
+    if (room) return room
+    if (!serverId) return []
+    const rows = await readAllRows<{ user_id: string }>(() => supabase
+      .from('user_servers')
+      .select('user_id', { count: 'exact' })
+      .eq('server_id', serverId)
+      .order('id'))
+    return rows.map(m => m.user_id)
+  })()
   members.catch(() => {})
   if (!(await service.hasRecoveryKey())) {
     throw channelEncryptionError('setup')
@@ -158,7 +165,7 @@ export async function encryptChannelContent(params: {
   }
 
   try {
-    const recipientIds: string[] = (await members).map(m => m.user_id)
+    const recipientIds: string[] = [...(await members)]
     if (!recipientIds.includes(params.senderId)) recipientIds.push(params.senderId)
 
     const encrypted = await service.encryptMessage(params.content, params.channelId, recipientIds)

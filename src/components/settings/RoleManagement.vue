@@ -1191,6 +1191,7 @@ const memberName = (member: { display_name?: string; username: string }): string
 
 // Watch for server changes
 watch(() => props.serverId, () => {
+  everyMember = null
   selectedRole.value = null
   roleDrafts.value = {}
   roles.value = []

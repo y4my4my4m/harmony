@@ -120,6 +120,7 @@ describe('Bridge v2 import endpoints', () => {
   })
 
   it('answers 403 import_disabled on every route while the switch is off or the bridge may not import', async () => {
+    rpcHandlers.bridge_import_guard = () => ({ data: { state: 'failed', error: 'import_disabled' }, error: null })
     for (const reason of ['instance_off', 'bridge_mode']) {
       rpcHandlers.discord_bridge_import_block = () => ({ data: reason, error: null })
       const app = makeApp()
@@ -143,6 +144,17 @@ describe('Bridge v2 import endpoints', () => {
     for (const fn of ['discord_bridge_import_start_internal', 'discord_bridge_import_update', 'bridge_import_messages', 'bridge_import_thread']) {
       expect(rpcCalls(fn)).toEqual([])
     }
+    // Each route naming the job sets it failed first: the bridge stops calling for it.
+    expect(rpcCalls('bridge_import_guard')).toHaveLength(12)
+    expect(new Set(rpcCalls('bridge_import_guard').map((c: any) => c.p_import_id))).toEqual(new Set([IMPORT_ID]))
+  })
+
+  it('answers 403 while blocked even when the job is already stopped or the guard fails', async () => {
+    rpcHandlers.discord_bridge_import_block = () => ({ data: 'instance_off', error: null })
+    rpcHandlers.bridge_import_guard = () => rpcError('import_not_running', '55000')
+    expect((await supertest(makeApp()).patch(`/bridge/v2/imports/${IMPORT_ID}`).send({ state: 'running' }).set(auth)).status).toBe(403)
+    rpcHandlers.bridge_import_guard = () => { throw new Error('network') }
+    expect((await supertest(makeApp()).post(`/bridge/v2/imports/${IMPORT_ID}/cancel`).set(auth)).status).toBe(403)
   })
 
   it('answers 503 when the switch cannot be read', async () => {

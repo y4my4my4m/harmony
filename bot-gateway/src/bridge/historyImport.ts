@@ -11,7 +11,8 @@ import { discardMirroredParts, enqueueMirror } from './mirrorEnqueue.js'
  * bridge_import_* RPCs; errors keep the RPC contract (the exception message is the code).
  *
  * Every route answers 403 import_disabled while discord_bridge_import_block() names a reason:
- * the instance switch is off, or the bridge is hosted or the instance bot.
+ * the instance switch is off, or the bridge is hosted or the instance bot. A route naming a job
+ * sets that job failed first (bridge_import_guard).
  */
 
 type ImportRequest = BotRequest & { bridge?: BridgeRow }
@@ -156,7 +157,22 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
       block = 'error'
     }
     if (block === 'error') return res.status(503).json({ error: 'Import state unavailable' })
-    if (block) return res.status(403).json({ code: 'import_disabled', reason: block })
+    if (block) {
+      // bridge_import_guard sets the named job failed; the bridge stops calling for it, and a
+      // job left running would hold the instance's slot and show as running.
+      const id = req.params.id
+      if (id) {
+        try {
+          const { error } = await supabase.rpc('bridge_import_guard', { p_bot_id: botId(req), p_import_id: id })
+          if (error && error.code !== 'P0002' && error.code !== '55000') {
+            console.error('bridge_import_guard failed:', error.code, error.message)
+          }
+        } catch (error) {
+          console.error('bridge_import_guard threw:', error)
+        }
+      }
+      return res.status(403).json({ code: 'import_disabled', reason: block })
+    }
     next()
   }
   const open = [...guard, allowed]

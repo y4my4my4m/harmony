@@ -277,6 +277,23 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
     await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
   })
 
+  await test.step('a refused autoplay shows Click to play over the player, and it can be clicked', async () => {
+    const setError = (error: string | null) => page.evaluate((value) => {
+      const root = document.querySelector('#app') as unknown as {
+        __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, { setStatus: (s: Record<string, unknown>) => void }> } } } }
+      }
+      root.__vue_app__.config.globalProperties.$pinia._s.get('activities')!.setStatus({ error: value })
+    }, error)
+    await setError('autoplay')
+    const resume = page.getByTestId('activity-stage').getByRole('button', { name: 'Click to play' })
+    await expect(resume).toBeVisible()
+    const box = (await resume.boundingBox())!
+    await expect.poll(() => page.evaluate(([x, y]) =>
+      !!document.elementFromPoint(x, y)?.closest('.activity-stage__resume'), [box.x + box.width / 2, box.y + box.height / 2])).toBe(true)
+    await setError(null)
+    await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
+  })
+
   await test.step('in full screen the video fills the screen under controls that hide and come back over it', async () => {
     const overlay = page.getByTestId('voice-overlay')
     await overlay.getByRole('button', { name: 'Full screen', exact: true }).click()

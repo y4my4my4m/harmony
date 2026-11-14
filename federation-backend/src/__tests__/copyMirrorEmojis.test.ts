@@ -174,7 +174,7 @@ describe('applyGroupEmojis', () => {
     expect(parts.length).toBeGreaterThan(1)
     for (const part of parts) expect(part.map((u) => encodeURIComponent(u).length + 9).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(4_000)
 
-    failSelect = 'id, url'
+    failSelect = 'id, url, deleted_at, deleted_by'
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'wave', url: img('wave') }])
     expect(db.emojis).toEqual([])
   })
@@ -215,6 +215,24 @@ describe('applyGroupEmojis', () => {
     ]
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'renamed', url: img('renamed') }])
     expect(db.emojis[0]).toMatchObject({ name: 'renamed', url: img('renamed'), deleted_at: '2026-01-01T00:00:00Z', deleted_by: 'admin-1' })
+  })
+
+  it('takes over a cached row an instance admin removed and keeps it removed; a removal by a sync is undone', async () => {
+    db.emojis = [
+      { id: 'banned', name: 'rude', url: img('rude'), server_id: null, scope: 'server', domain: 'remote.test', ap_id: null,
+        deleted_at: '2026-01-01T00:00:00Z', deleted_by: 'admin-1' },
+      { id: 'synced', name: 'wave', url: img('wave'), server_id: null, scope: 'server', domain: 'remote.test', ap_id: null,
+        deleted_at: '2026-01-02T00:00:00Z', deleted_by: null },
+    ]
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [
+      { apId: apId(1), name: 'rude', url: img('rude') },
+      { apId: apId(2), name: 'wave', url: img('wave') },
+    ])
+    expect(db.emojis.find(e => e.id === 'banned')).toMatchObject({
+      server_id: COPY, ap_id: apId(1), deleted_at: '2026-01-01T00:00:00Z', deleted_by: 'admin-1',
+    })
+    expect(db.emojis.find(e => e.id === 'synced')).toMatchObject({ server_id: COPY, ap_id: apId(2), deleted_at: null, deleted_by: null })
+    expect(db.emojis).toHaveLength(2)
   })
 
   it('stores the emoji when the cached row was taken over meanwhile', async () => {

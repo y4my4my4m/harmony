@@ -1487,6 +1487,8 @@ onUnmounted(() => {
 .voice-container.native-fullscreen .activity-area :deep(.activity-stage__screen) {
   position: absolute;
   inset: 0;
+  /* A sound activity's screen keeps a fixed height outside full screen (is-listen). */
+  height: auto;
   min-height: 0;
   border-radius: 0;
   background: transparent;

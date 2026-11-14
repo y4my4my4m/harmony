@@ -259,6 +259,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and its timeline lay across the call's controls. The video now fills the screen; the call's
   controls, the timeline and the title float over it, hide while the pointer rests and come back
   when it moves.
+- **Watch together plays only what the call started.** Another member of a call could make your
+  app play a link of their choosing at once, with no invite. Members of a call now change only the
+  play, pause and position of what is already playing; what plays comes from the server.
+- **Custom emoji of accounts on other instances on public pages.** An account on another instance
+  that edited its profile showed `:shortcode:` text instead of its custom emoji in its name and bio
+  on public profile and post pages. Profiles stored that way are corrected by the upgrade.
 - **Bluesky accounts bridged to the fediverse, and other usernames with a dot.** Searching
   `@name.bsky.social@bsky.brid.gy` (Bridgy Fed), a Threads account such as `@john.doe@threads.net`,
   or any account whose username has a dot found nobody; it now finds the account, which you can

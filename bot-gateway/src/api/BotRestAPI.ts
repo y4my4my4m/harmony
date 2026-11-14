@@ -191,14 +191,15 @@ export interface BotRequest extends Request {
 // link-preview payloads (update_message_embeds), suppress_embeds is set through
 // set_message_embeds_suppressed, webhook by execute_channel_webhook, history_import by the
 // history import function alone (it marks rows the dispatcher and realtime must stay quiet for),
-// discord_reply_to likewise (import_link_replies acts on it). interaction names the slash
+// discord_reply_to likewise (import_link_replies acts on it), bridge_erased by the privacy erase
+// (the dispatcher skips its rows). interaction names the slash
 // command invocation a reply answers, and AutoMod judges the message as its invoker's.
 const SERVER_METADATA_KEYS = new Set([
   'type', 'federated', 'ap_id', 'from_domain', 'original_url', 'published', 'conversation',
   'in_reply_to_ap', 'pending_thread_ap_id', 'federated_at', 'federated_to', 'automod',
   'bot', 'created_via', 'embeds', 'suppress_embeds', 'webhook', 'remote_author', 'host_ap_id',
   'interaction',
-  'history_import', 'discord_reply_to',
+  'history_import', 'discord_reply_to', 'bridge_erased',
 ])
 
 // Metadata a bridge bot records on a message it did not write (bridge 2.2): the Discord
