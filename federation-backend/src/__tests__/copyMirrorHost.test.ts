@@ -314,6 +314,12 @@ describe('emojis on the Group', () => {
     expect(doc['@context'][2].Emoji).toBe('toot:Emoji')
   })
 
+  it('says whether the server\'s emojis may be used in other servers', async () => {
+    expect((await groupDoc())['harmony:crossServerEmojis']).toBe(true)
+    db.servers[0].allow_cross_server_emojis = false
+    expect((await groupDoc())['harmony:crossServerEmojis']).toBe(false)
+  })
+
   it('leaves harmony:emojis out when the emojis cannot be read: an empty list removes a copy\'s emojis', async () => {
     seed()
     failWhen = table => table === 'emojis'
@@ -378,6 +384,7 @@ describe('Update(Group)', () => {
     await handleServerUpdated(server(), server())
     const again: any = vi.mocked(DeliveryQueue.enqueue).mock.calls[0][0]
     expect(again.object['harmony:emojis'].map((e: any) => e.name)).toEqual([':wave:'])
+    expect(again.object['harmony:crossServerEmojis']).toBe(true)
   })
 
   it('is not sent, and the job fails for a retry, when the emojis cannot be read', async () => {

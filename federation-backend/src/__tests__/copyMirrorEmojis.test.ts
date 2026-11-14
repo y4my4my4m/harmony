@@ -22,6 +22,8 @@ const img = (name: string) => `https://cdn.remote.test/emojis/${name}.webp`
 let db: { emojis: any[] }
 let failReads = false
 let seq = 0
+/** Runs before an update applies: a concurrent writer. */
+let beforeUpdate: (() => void) | null = null
 
 function query(table: string) {
   const filters: Array<(r: any) => boolean> = []
@@ -34,8 +36,11 @@ function query(table: string) {
   }
   const settle = () => {
     if (op === 'update') {
-      for (const r of rows()) Object.assign(r, patch)
-      return { error: null }
+      beforeUpdate?.()
+      beforeUpdate = null
+      const hit = rows()
+      for (const r of hit) Object.assign(r, patch)
+      return { data: hit.map((r: any) => ({ id: r.id })), error: null }
     }
     if (failReads) return { data: null, error: { message: 'statement timeout' } }
     return { data: rows().map((r: any) => ({ ...r })), error: null }
@@ -75,6 +80,7 @@ beforeEach(() => {
   db = { emojis: [] }
   failReads = false
   seq = 0
+  beforeUpdate = null
 })
 
 describe('harmony:emojis on the wire', () => {
@@ -176,6 +182,25 @@ describe('applyGroupEmojis', () => {
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [])
     expect(typeof byAp(1)?.deleted_at).toBe('string')
     expect(db.emojis).toHaveLength(3)
+  })
+
+  it('keeps an emoji an instance admin removed here while the Group lists it, and takes the host\'s renames', async () => {
+    db.emojis = [
+      { id: 'r1', name: 'old', url: img('old'), server_id: COPY, scope: 'server', domain: 'remote.test', ap_id: apId(1), deleted_at: '2026-01-01T00:00:00Z', deleted_by: 'admin-1' },
+    ]
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'renamed', url: img('renamed') }])
+    expect(db.emojis[0]).toMatchObject({ name: 'renamed', url: img('renamed'), deleted_at: '2026-01-01T00:00:00Z', deleted_by: 'admin-1' })
+  })
+
+  it('stores the emoji when the cached row was taken over meanwhile', async () => {
+    db.emojis = [
+      { id: 'cached', name: 'wave', url: img('wave'), server_id: null, scope: 'server', domain: 'remote.test', ap_id: null, deleted_at: null },
+    ]
+    // A concurrent sync of another copy takes the row first.
+    beforeUpdate = () => { db.emojis[0].server_id = 'other-copy' }
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'wave', url: img('wave') }])
+    expect(copyRows().map((e) => e.ap_id)).toEqual([apId(1)])
+    expect(db.emojis.find((e) => e.id === 'cached')?.server_id).toBe('other-copy')
   })
 
   it('writes nothing when the copy\'s emojis cannot be read', async () => {

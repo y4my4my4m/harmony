@@ -842,6 +842,18 @@ const toggleNativeFullscreen = async () => {
   }
 };
 
+// The call view's full screen ends with it: closed, minimized, popped out or unmounted, the
+// document would otherwise stay full screen with nothing of the call left on it.
+const leaveNativeFullscreen = () => {
+  if (isNativeFullscreen.value && document.fullscreenElement === document.documentElement) {
+    void document.exitFullscreen().catch(() => {});
+  }
+};
+
+watch([callViewShown, poppedOut], ([shown, out]) => {
+  if (!shown || out) leaveNativeFullscreen();
+});
+
 // Esc both exits browser fullscreen and triggers our exit-fullscreen keybind;
 // remember when native fullscreen ended so the keybind doesn't also drop focus
 let lastNativeFullscreenExit = 0;
@@ -1240,6 +1252,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  leaveNativeFullscreen();
   document.removeEventListener('fullscreenchange', onFullscreenChange);
   if (durationTimer) clearInterval(durationTimer);
   stopStageResize?.();

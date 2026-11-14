@@ -38,6 +38,7 @@ import {
   HARMONY_ROLES,
   isPinsTarget,
   MEMBER_ROLES_TYPE,
+  parseCrossServerEmojis,
   parseGroupEmojis,
   parseGroupRoles,
   parseChannelPosition,
@@ -1676,6 +1677,10 @@ export class ActivityProcessor {
       }
       if (object.icon?.url) {
         updateData.icon = object.icon.url;
+      }
+      const crossServerEmojis = parseCrossServerEmojis(object);
+      if (crossServerEmojis !== null) {
+        updateData.allow_cross_server_emojis = crossServerEmojis;
       }
       const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js');
       Object.assign(updateData, ServerDiscoveryService.groupSuspension(object) ?? {});

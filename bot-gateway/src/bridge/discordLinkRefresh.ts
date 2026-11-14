@@ -170,6 +170,8 @@ export class DiscordLinkRefresher {
   /** Message id -> time it may be tried again; insertion order is age order. */
   private readonly failedUntil = new Map<string, number>()
   private pending: Pending[] = []
+  /** Messages of the batches sent and not yet written: a request for one waits on that batch. */
+  private readonly signing = new Set<string>()
   private timer: ReturnType<typeof setTimeout> | null = null
   private inFlight: Promise<void> = Promise.resolve()
   private pausedUntil = 0
@@ -192,7 +194,7 @@ export class DiscordLinkRefresher {
     this.calls = this.calls.filter((t) => t > now - 60_000)
     if (now < this.pausedUntil || this.calls.length >= CALLS_PER_MINUTE) return 'busy'
     if (!(await this.token())) return 'no_signer'
-    if (this.pending.some((p) => p.messageId === messageId)) return 'queued'
+    if (this.signing.has(messageId) || this.pending.some((p) => p.messageId === messageId)) return 'queued'
 
     this.pending.push({ messageId, content, urls: urls.slice(0, REFRESH_URLS_MAX) })
     if (this.pendingUrlCount() >= REFRESH_URLS_MAX) this.flush()
@@ -252,7 +254,13 @@ export class DiscordLinkRefresher {
     }
     if (batch.length === 0) return
     this.calls.push(this.now())
-    this.inFlight = this.inFlight.then(() => this.sign(batch))
+    for (const p of batch) this.signing.add(p.messageId)
+    this.inFlight = this.inFlight
+      .then(() => this.sign(batch))
+      .catch((error) => this.log.error('Re-signing Discord links failed:', error))
+      .finally(() => {
+        for (const p of batch) this.signing.delete(p.messageId)
+      })
   }
 
   private async sign(batch: Pending[]): Promise<void> {

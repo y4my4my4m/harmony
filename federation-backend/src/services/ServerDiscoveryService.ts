@@ -39,6 +39,7 @@ import {
   HARMONY_EMOJIS,
   HARMONY_ROLES,
   MAX_PINS,
+  parseCrossServerEmojis,
   parseGroupEmojis,
   parseGroupRoles,
   parseMemberRoles,
@@ -1923,6 +1924,7 @@ export class ServerDiscoveryService {
           banner: remoteServer.image?.url || null,
           public: groupIsPublic(remoteServer),
           ...(owner === undefined ? {} : { owner }),
+          ...(parseCrossServerEmojis(remoteServer) === null ? {} : { allow_cross_server_emojis: parseCrossServerEmojis(remoteServer) }),
           ...(this.groupSuspension(remoteServer) ?? {}),
           federation_metadata: {
             ...(current?.federation_metadata ?? server.federation_metadata),

@@ -88,6 +88,7 @@ export async function caseCopyEmojis(ctx: CopyEmojisContext): Promise<void> {
     await db.from('messages').delete().eq('id', PEER_MESSAGE)
     await db.from('emojis').delete().in('id', [H_WAVE, CACHED])
     await db.from('emojis').delete().eq('server_id', ids.remoteRef).not('ap_id', 'is', null)
+    await db.from('servers').update({ allow_cross_server_emojis: true }).eq('id', ids.remoteRef)
   }
 }
 
@@ -118,6 +119,7 @@ async function hostedHere(ctx: CopyEmojisContext, backend: (p: string) => Promis
   eq(listed?.type, 'Emoji', 'each an Emoji')
   eq(listed?.name, ':wave:', 'with its shortcode')
   eq(listed?.icon?.url, image, 'and its image')
+  eq(doc.json?.['harmony:crossServerEmojis'], true, 'the Group says its emojis may be used in other servers')
 
   const { handleServerUpdateJob } = await backend('queue/handlers/serverStructureHandler.ts')
   await db.from('emojis').update({ name: 'hello' }).eq('id', H_WAVE)
@@ -164,6 +166,7 @@ async function hostedByPeer(ctx: CopyEmojisContext, backend: (p: string) => Prom
 
   const { ServerDiscoveryService } = await backend('services/ServerDiscoveryService.ts')
   peer.extraGroupFields = {
+    'harmony:crossServerEmojis': false,
     'harmony:emojis': [
       emoji(P_WAVE, 'wave'),
       emoji(P_DANCE, 'dance'),
@@ -181,6 +184,8 @@ async function hostedByPeer(ctx: CopyEmojisContext, backend: (p: string) => Prom
   eq((await copyEmoji(P_DANCE))?.id, CACHED, 'the row an earlier activity cached for an image is taken over, keeping its id')
   const forged = await db.from('emojis').select('id').eq('name', 'forged')
   eq(forged.data?.length ?? -1, 0, 'an emoji under another Group\'s id is not stored')
+  const crossServer = async () => (await db.from('servers').select('allow_cross_server_emojis').eq('id', ids.remoteRef).maybeSingle()).data?.allow_cross_server_emojis
+  eq(await crossServer(), false, 'the copy stores the Group\'s cross-server emoji switch')
 
   peer.extraGroupFields = {}
   await ServerDiscoveryService?.syncRemoteServer?.(ids.remoteRef, { asUserId: ids.bob })
@@ -191,7 +196,7 @@ async function hostedByPeer(ctx: CopyEmojisContext, backend: (p: string) => Prom
   const activity = (actor: string, emojis: unknown[]) => ({
     '@context': [AS, HARMONY], id: `${actor}/activities/${crypto.randomUUID()}`, type: 'Update', actor,
     published: new Date().toISOString(),
-    object: { id: peer.groupUrl, type: 'Group', name: 'Peer private', 'harmony:ChatServer': true, 'harmony:emojis': emojis },
+    object: { id: peer.groupUrl, type: 'Group', name: 'Peer private', 'harmony:ChatServer': true, 'harmony:emojis': emojis, 'harmony:crossServerEmojis': true },
   })
   assert(await deliver(ctx.post, ctx.signedHeaders, inbox, JSON.stringify(activity(peer.groupUrl, [emoji(P_WAVE, 'hello', 'wave')])),
     peer.groupKey.privateKey, `${peer.groupUrl}#main-key`) < 300, 'the inbox takes the Group\'s Update')
@@ -201,6 +206,7 @@ async function hostedByPeer(ctx: CopyEmojisContext, backend: (p: string) => Prom
   })
   assert(renamed, 'the Group\'s Update renames an emoji')
   assert((await copyEmoji(P_DANCE))?.deleted_at, 'and removes one it no longer lists')
+  eq(await crossServer(), true, 'and sets the cross-server emoji switch')
 
   await deliver(ctx.post, ctx.signedHeaders, inbox, JSON.stringify(activity(peer.actorUrl, [])),
     peer.key.privateKey, `${peer.actorUrl}#main-key`)

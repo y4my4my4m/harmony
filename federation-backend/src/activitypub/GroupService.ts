@@ -43,6 +43,7 @@ import { withMessagePolls } from './messagePolls.js';
 import { groupAuthorOf } from './groupAuthor.js';
 import {
   emojisToAp,
+  HARMONY_CROSS_SERVER_EMOJIS,
   HARMONY_EMOJIS,
   HARMONY_MEMBER_ROLES,
   HARMONY_PINNED_AT,
@@ -160,6 +161,7 @@ function serverToGroup(
     ...(display.roles ? { [HARMONY_ROLES]: display.roles } : {}),
     // Custom emojis of the server (copyMirror.ts); absent when unread.
     ...(display.emojis ? { [HARMONY_EMOJIS]: display.emojis } : {}),
+    [HARMONY_CROSS_SERVER_EMOJIS]: server.allow_cross_server_emojis !== false,
 
     // Harmony extension: Channel structure
     'harmony:channels': channels.map(c => {

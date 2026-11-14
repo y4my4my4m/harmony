@@ -351,6 +351,7 @@ delete_sticker	p_sticker_id uuid	text	definer	public, pg_temp	authenticated+serv
 delete_supporter_message	p_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
 deny_device_request	p_request_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
 derive_display_name_emojis		trigger	invoker	public, pg_temp	service_role	trigger
+detach_copy_emojis		trigger	definer	public, pg_temp	service_role	trigger
 detect_embed_provider	p_url text	text	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 detect_message_features	content_parts jsonb	jsonb	invoker	public, extensions, pg_temp	service_role	unreferenced
 determine_message_federation_type	p_message_id uuid	text	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
@@ -652,6 +653,7 @@ guard_bridge_author_optout		trigger	definer	public, pg_temp	service_role	trigger
 guard_category_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_channel_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_conversation_participant_client_write		trigger	invoker	public, pg_temp	service_role	trigger
+guard_copy_emoji_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_dm_block		trigger	definer	public, pg_temp	service_role	trigger
 guard_emoji_object_delete		trigger	definer	public, pg_temp	service_role	trigger
 guard_follow_client_write		trigger	definer	public, pg_temp	service_role	trigger

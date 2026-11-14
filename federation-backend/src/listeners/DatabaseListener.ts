@@ -21,7 +21,7 @@ import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.
 import { getCategoryRecipientGroups, getChannelRecipientGroups, getRemoteMemberGroups } from '../utils/federationUtils.js';
 import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
 import { categoryFlagProperties, channelFlagProperties } from '../activitypub/channelFlags.js';
-import { channelPosition, HARMONY_EMOJIS, HARMONY_ROLES } from '../activitypub/copyMirror.js';
+import { channelPosition, HARMONY_CROSS_SERVER_EMOJIS, HARMONY_EMOJIS, HARMONY_ROLES } from '../activitypub/copyMirror.js';
 import { loadApEmojis, loadApRoles } from '../activitypub/GroupService.js';
 import { DIRECTORY_CONTEXT, groupDiscoverability, instanceFederationOpen } from '../activitypub/serverDirectory.js';
 import { dmPollQuestion, harmonyPollExtension, hasPollPart, loadMessagePolls, QUESTION_CONTEXT, sendsQuestionTo } from '../activitypub/messagePolls.js';
@@ -976,6 +976,7 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
           : null,
         [HARMONY_ROLES]: roles,
         [HARMONY_EMOJIS]: emojis,
+        [HARMONY_CROSS_SERVER_EMOJIS]: server.allow_cross_server_emojis !== false,
         updated: new Date().toISOString(),
       },
       published: new Date().toISOString(),

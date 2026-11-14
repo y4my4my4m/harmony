@@ -304,6 +304,14 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
     await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull()
     await expect(overlay).not.toHaveClass(/native-fullscreen/)
     await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
+    // Full screen ends with the call view: minimized, the app is not left full screen.
+    await overlay.getByRole('button', { name: 'Full screen', exact: true }).click()
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true)
+    await overlay.getByRole('button', { name: 'Minimize call view', exact: true }).click()
+    await expect(page.getByTestId('voice-overlay')).toHaveCount(0)
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull()
+    await page.getByTestId('activity-open').click()
+    await expect(page.getByTestId('activity-stage')).toBeVisible()
   })
 
   await test.step('the call view stays light: no backdrop blur behind it, one react button', async () => {

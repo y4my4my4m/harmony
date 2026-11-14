@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 
-// federate-server-update reads its server as it is when it runs: the notifications one commit
-// sends for many rows of a server queue one job.
+// federate-server-update reads its server as it is when it runs: the notifications of five seconds
+// for one server queue one job at the window's end, whether they came in one commit or many.
 
 vi.mock('../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -19,24 +19,48 @@ function listener() {
 
 const note = (name: string, data: Record<string, unknown>) =>
   JSON.stringify({ name, id: crypto.randomUUID(), data })
+const update = (serverId: string) => note('federate-server-update', { type: 'update', server_id: serverId })
 
-describe('NotificationListener batch', () => {
-  it('queues one federate-server-update per server, and every other job as sent', async () => {
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+describe('NotificationListener collapsing', () => {
+  it('queues one federate-server-update per server for a window of commits, and other jobs at once', async () => {
+    vi.useFakeTimers()
     const { l, added } = listener()
-    for (let i = 0; i < 5; i++) l.handleNotification(note('federate-server-update', { type: 'update', server_id: 's1' }))
-    l.handleNotification(note('federate-server-update', { type: 'update', server_id: 's2' }))
+    for (let i = 0; i < 5; i++) {
+      l.handleNotification(update('s1'))
+      await vi.advanceTimersByTimeAsync(400)
+    }
+    l.handleNotification(update('s2'))
     l.handleNotification(note('federate-channel-pin', { type: 'update', server_id: 's1', message_id: 'm1' }))
     l.handleNotification(note('federate-channel-pin', { type: 'update', server_id: 's1', message_id: 'm2' }))
-    await vi.waitFor(() => expect(added).toHaveLength(4))
+    await vi.advanceTimersByTimeAsync(100)
+    expect(added.map(([n]) => n)).toEqual(['federate-channel-pin', 'federate-channel-pin'])
+
+    await vi.advanceTimersByTimeAsync(5_000)
     expect(added.filter(([n]) => n === 'federate-server-update').map(([, d]) => d.server_id).sort()).toEqual(['s1', 's2'])
-    expect(added.filter(([n]) => n === 'federate-channel-pin')).toHaveLength(2)
   })
 
-  it('queues the same server again in a later batch', async () => {
+  it('opens a new window for a change after the job was queued', async () => {
+    vi.useFakeTimers()
     const { l, added } = listener()
-    l.handleNotification(note('federate-server-update', { type: 'update', server_id: 's1' }))
-    await vi.waitFor(() => expect(added).toHaveLength(1))
-    l.handleNotification(note('federate-server-update', { type: 'update', server_id: 's1' }))
-    await vi.waitFor(() => expect(added).toHaveLength(2))
+    l.handleNotification(update('s1'))
+    await vi.advanceTimersByTimeAsync(5_100)
+    expect(added).toHaveLength(1)
+    l.handleNotification(update('s1'))
+    await vi.advanceTimersByTimeAsync(5_100)
+    expect(added).toHaveLength(2)
+  })
+
+  it('queues what waits when it stops', async () => {
+    vi.useFakeTimers()
+    const { l, added } = listener()
+    l.handleNotification(update('s1'))
+    await vi.advanceTimersByTimeAsync(100)
+    expect(added).toHaveLength(0)
+    await l.stop()
+    expect(added.map(([, d]) => d.server_id)).toEqual(['s1'])
   })
 })

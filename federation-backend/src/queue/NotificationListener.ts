@@ -23,10 +23,13 @@ const MAX_RECONNECT_DELAY_MS = 30_000;
 const BASE_RECONNECT_DELAY_MS = 1_000;
 
 /**
- * Jobs that read their server's current state when they run: one per server per batch. A statement
- * changing many emojis or roles notifies once per row, and the rows arrive together at its commit.
+ * Jobs that read their server's current state when they run: one per server per COLLAPSE_MS, queued
+ * at its end. A statement changing many emojis or roles notifies once per row, and a bridge syncing
+ * a server's emojis commits once per emoji. A notification after the job is queued opens the next
+ * window, so no change goes unsent. A process that stops mid-window queues its jobs as it stops.
  */
 const COLLAPSED_JOBS = new Set(['federate-server-update']);
+const COLLAPSE_MS = 5_000;
 
 function collapseKey(notification: JobNotification): string | null {
   const serverId = notification.data?.server_id;
@@ -50,6 +53,7 @@ export class NotificationListener {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingNotifications: JobNotification[] = [];
   private batchTimer: ReturnType<typeof setTimeout> | null = null;
+  private collapsed = new Map<string, { timer: ReturnType<typeof setTimeout>; notification: JobNotification }>();
 
   constructor(connectionString: string, getQueue: QueueResolver) {
     this.connectionString = connectionString;
@@ -73,6 +77,10 @@ export class NotificationListener {
       clearTimeout(this.batchTimer);
       this.batchTimer = null;
     }
+    const waiting = [...this.collapsed.values()];
+    this.collapsed.clear();
+    for (const { timer } of waiting) clearTimeout(timer);
+    await Promise.allSettled(waiting.map(({ notification }) => this.enqueue(notification)));
 
     if (this.client) {
       try {
@@ -172,13 +180,19 @@ export class NotificationListener {
     if (batch.length === 0) return;
 
     const addPromises: Promise<void>[] = [];
-    const collapsed = new Set<string>();
     for (const notification of batch) {
       if (notification.name === 'delivery-queue-fallback') continue;
       const key = collapseKey(notification);
       if (key) {
-        if (collapsed.has(key)) continue;
-        collapsed.add(key);
+        if (!this.collapsed.has(key)) {
+          const timer = setTimeout(() => {
+            this.collapsed.delete(key);
+            void this.enqueue(notification);
+          }, COLLAPSE_MS);
+          timer.unref?.();
+          this.collapsed.set(key, { timer, notification });
+        }
+        continue;
       }
       addPromises.push(this.enqueue(notification));
     }

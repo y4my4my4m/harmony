@@ -13,6 +13,10 @@
  *       the server's custom emojis, oldest first, at most MAX_EMOJIS. A copy stores each as an
  *       emoji row of the copy (emojis.ap_id) naming the host's image, which stays on the host.
  *       Absent when the emojis cannot be read: an empty list removes a copy's emojis.
+ *   "harmony:crossServerEmojis": boolean
+ *       the server's allow_cross_server_emojis: whether its members may use its emojis in other
+ *       servers. A copy stores it, and emoji_usable reads it there. Absent (Harmony before 1.9.7)
+ *       leaves the copy's value as it is.
  *   "harmony:channels"[i]["harmony:pins"]:
  *       { "type": "OrderedCollection", "id": "<channel>/pins", "totalItems", "updated"? }
  *       totalItems counts the Notes <channel>/pins serves; updated is the newest non-null
@@ -24,7 +28,8 @@
  *   the members of that page holding a role; absent when the assignments cannot be read.
  * Live, the Group's activities, signed with its key:
  *   Update(Group) with "harmony:roles"     the whole list; a role absent from it is deleted
- *   Update(Group) with "harmony:emojis"    the whole list; an emoji absent from it is removed
+ *   Update(Group) with "harmony:emojis"    the whole list; an emoji absent from it is removed;
+ *                                          "harmony:crossServerEmojis" with it
  *   Update { "type": "harmony:MemberRoles", "id", "member", "roles" }   all of the member's roles
  *   Add | Remove { "object": "<Note id>", "target": "<channel>/pins" }
  * Actor: "harmony:instanceRole": "admin" | "moderator", staff of the actor's own instance; taken
@@ -37,6 +42,13 @@
 
 export const HARMONY_ROLES = 'harmony:roles';
 export const HARMONY_EMOJIS = 'harmony:emojis';
+export const HARMONY_CROSS_SERVER_EMOJIS = 'harmony:crossServerEmojis';
+
+/** allow_cross_server_emojis of a Group (harmony:crossServerEmojis); null when it carries none. */
+export function parseCrossServerEmojis(group: Record<string, unknown>): boolean | null {
+  const value = group[HARMONY_CROSS_SERVER_EMOJIS];
+  return typeof value === 'boolean' ? value : null;
+}
 export const HARMONY_MEMBER_ROLES = 'harmony:memberRoles';
 export const HARMONY_PINS = 'harmony:pins';
 export const HARMONY_PINNED_AT = 'harmony:pinnedAt';

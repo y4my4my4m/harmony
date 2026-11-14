@@ -142,6 +142,22 @@ describe('DiscordLinkRefresher', () => {
     expect((write.mock.calls[0][2][0] as { url: string }).url).toMatch(new RegExp(`^https://cdn\\.discordapp\\.com${CLIP}\\?ex=${hex(NOW + 86_400_000)}&`))
   })
 
+  it('does not queue again a message whose batch Discord is signing', async () => {
+    let answer: (r: Response) => void = () => {}
+    const fetchImpl = vi.fn(() => new Promise<Response>((resolve) => { answer = resolve }))
+    const { r, write } = refresher({ fetchImpl: fetchImpl as unknown as ReturnType<typeof discordAnswer> })
+    const a = [{ type: 'url', url: EXPIRED_CLIP }]
+    expect(await r.request('m-a', a, expiredDiscordAttachmentUrls(a, NOW))).toBe('queued')
+    const draining = r.drain()
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1))
+    expect(await r.request('m-a', a, expiredDiscordAttachmentUrls(a, NOW))).toBe('queued')
+    answer(new Response(JSON.stringify({ refreshed_urls: [{ original: EXPIRED_CLIP, refreshed: `${EXPIRED_CLIP.split('?')[0]}?ex=${hex(NOW + 86_400_000)}&is=1&hm=2&` }] }), { status: 200 }))
+    await draining
+    await r.drain()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(write).toHaveBeenCalledTimes(1)
+  })
+
   it(`splits a queue over ${REFRESH_URLS_MAX} links into several calls`, async () => {
     const { r, fetchImpl } = refresher()
     for (let m = 0; m < 3; m++) {

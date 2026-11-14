@@ -351,6 +351,7 @@ delete_sticker	definer	text	authenticated+service_role	client	rpc in src/service
 delete_supporter_message	definer	boolean	authenticated+service_role	client	rpc in src/services/FundingService.ts
 deny_device_request	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 derive_display_name_emojis	invoker	trigger	service_role	trigger	trigger public.profiles BEFORE INSERT/UPDATE (a_profiles_display_name_emojis)
+detach_copy_emojis	definer	trigger	service_role	trigger	trigger public.servers BEFORE DELETE (a_servers_detach_copy_emojis)
 detect_embed_provider	invoker	text	anon+authenticated+service_role	client, trigger	called by fetch_link_preview
 detect_message_features	invoker	jsonb	service_role	trigger	called by message_search_flags
 determine_message_federation_type	invoker	text	anon+authenticated+service_role	trigger	called by handle_message_federation
@@ -652,6 +653,7 @@ guard_bridge_author_optout	definer	trigger	service_role	trigger	trigger public.m
 guard_category_client_write	invoker	trigger	service_role	trigger	trigger public.channel_categories BEFORE INSERT/UPDATE (a_channel_categories_client_write_guard)
 guard_channel_client_write	invoker	trigger	service_role	trigger	trigger public.channels BEFORE INSERT/UPDATE (a_channels_client_write_guard)
 guard_conversation_participant_client_write	invoker	trigger	service_role	trigger	trigger public.conversation_participants BEFORE UPDATE (a_conversation_participants_client_write_guard)
+guard_copy_emoji_write	invoker	trigger	service_role	trigger	trigger public.emojis BEFORE UPDATE (a_emojis_copy_guard)
 guard_dm_block	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT (a_messages_dm_block_guard)
 guard_emoji_object_delete	definer	trigger	service_role	trigger	trigger storage.objects BEFORE DELETE (emoji_object_delete_guard)
 guard_follow_client_write	definer	trigger	service_role	trigger	trigger public.follows BEFORE INSERT/UPDATE (a_follows_client_write_guard)

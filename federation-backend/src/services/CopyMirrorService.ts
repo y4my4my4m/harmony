@@ -99,7 +99,8 @@ export class CopyMirrorService {
    * (emojis.ap_id), with the host's name and image url and the Group's host as domain; the image
    * stays on the host. A row cached from an activity (no server, no id, the same image) is taken
    * over, so the reactions and messages naming it keep it and one row per image stays. An emoji the
-   * list no longer names is removed (deleted_at), and still resolves where it was used. Rows the
+   * list no longer names is removed (deleted_at), and still resolves where it was used. An emoji an
+   * instance admin removed here (deleted_by set) stays removed while the Group lists it. Rows the
    * copy made itself (no ap_id) stay.
    */
   static async applyGroupEmojis(serverId: string, groupUrl: string, emojis: ParsedEmoji[]): Promise<void> {
@@ -110,7 +111,7 @@ export class CopyMirrorService {
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await supabase
         .from('emojis')
-        .select('id, ap_id, name, url, domain, deleted_at')
+        .select('id, ap_id, name, url, domain, deleted_at, deleted_by')
         .eq('server_id', serverId)
         .not('ap_id', 'is', null)
         .order('id', { ascending: true })
@@ -144,10 +145,13 @@ export class CopyMirrorService {
     }
 
     for (const emoji of emojis) {
-      const fields = { name: emoji.name, url: emoji.url, domain, deleted_at: null, deleted_by: null };
       const row = byApId.get(emoji.apId);
+      const removedHere = !!row && !!row.deleted_at && !!row.deleted_by;
+      const fields = removedHere
+        ? { name: emoji.name, url: emoji.url, domain, deleted_at: row.deleted_at, deleted_by: row.deleted_by }
+        : { name: emoji.name, url: emoji.url, domain, deleted_at: null, deleted_by: null };
       if (row) {
-        if (row.name !== fields.name || row.url !== fields.url || row.domain !== domain || row.deleted_at !== null) {
+        if (row.name !== fields.name || row.url !== fields.url || row.domain !== domain || row.deleted_at !== fields.deleted_at) {
           const { error } = await supabase.from('emojis').update(fields).eq('id', row.id);
           if (error) logger.warn(`Emoji ${emoji.apId} not updated: ${error.message}`);
         }
@@ -157,9 +161,10 @@ export class CopyMirrorService {
       const adopt = cached.get(emoji.url);
       if (adopt) {
         cached.delete(emoji.url);
-        const { error } = await supabase.from('emojis').update(owned).eq('id', adopt).is('server_id', null);
-        if (!error) continue;
-        logger.warn(`Cached emoji ${adopt} not taken over for ${emoji.apId}: ${error.message}`);
+        // Taken over meanwhile (a concurrent sync), the update matches no row and the insert follows.
+        const { data: taken, error } = await supabase.from('emojis').update(owned).eq('id', adopt).is('server_id', null).select('id');
+        if (!error && taken && taken.length > 0) continue;
+        if (error) logger.warn(`Cached emoji ${adopt} not taken over for ${emoji.apId}: ${error.message}`);
       }
       const { error } = await supabase.from('emojis').insert(owned);
       if (error) logger.warn(`Emoji ${emoji.apId} not stored: ${error.message}`);
@@ -171,7 +176,7 @@ export class CopyMirrorService {
       .map((r: any) => r.id as string);
     const removedAt = new Date().toISOString();
     for (const ids of chunks(gone)) {
-      const { error } = await supabase.from('emojis').update({ deleted_at: removedAt }).eq('server_id', serverId).in('id', ids);
+      const { error } = await supabase.from('emojis').update({ deleted_at: removedAt, deleted_by: null }).eq('server_id', serverId).in('id', ids);
       if (error) logger.warn(`Emojis of copy ${serverId} not removed: ${error.message}`);
     }
   }
