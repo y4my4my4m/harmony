@@ -23,12 +23,15 @@
         :class="{
           'native-fullscreen': isNativeFullscreen,
           'controls-hidden': isNativeFullscreen && !controlsVisible,
+          'activity-shown': !!stageActivity,
           'with-chat': chatShown,
           'rainbow-party': easterEggState.isActive && easterEggState.type === 'rainbow-party',
           'screen-shake': easterEggState.isActive && easterEggState.type === 'rainbow-party',
         }"
         :style="containerStyle"
+        :data-activity-under="isNativeFullscreen || undefined"
         @mousemove="pokeControls"
+        @focusin="pokeControls"
       >
         <!-- Header -->
         <div ref="headerEl" class="voice-header" :inert="chatSheet || undefined">
@@ -815,16 +818,26 @@ watch(
 // NATIVE FULLSCREEN
 
 const isNativeFullscreen = ref(false);
+// The document goes full screen, not the call view: full screen draws only the fullscreen
+// element's subtree, and the watch together player, menus and dialogs mount on <body>.
+let fullscreenRequested = false;
 
 const toggleNativeFullscreen = async () => {
   if (poppedOut.value) return;
   try {
-    if (document.fullscreenElement) {
+    if (isNativeFullscreen.value) {
       await document.exitFullscreen();
-    } else if (containerEl.value) {
-      await containerEl.value.requestFullscreen();
+    } else if (document.fullscreenElement === document.documentElement) {
+      // Already full screen (F11): the call view takes it over.
+      fullscreenRequested = true;
+      onFullscreenChange();
+    } else {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      fullscreenRequested = true;
+      await document.documentElement.requestFullscreen();
     }
   } catch (error) {
+    fullscreenRequested = false;
     debug.warn('[Fullscreen] Native fullscreen request failed:', error);
   }
 };
@@ -835,7 +848,8 @@ let lastNativeFullscreenExit = 0;
 
 const onFullscreenChange = () => {
   const wasFullscreen = isNativeFullscreen.value;
-  isNativeFullscreen.value = document.fullscreenElement === containerEl.value;
+  if (!document.fullscreenElement) fullscreenRequested = false;
+  isNativeFullscreen.value = fullscreenRequested && document.fullscreenElement === document.documentElement;
   if (isNativeFullscreen.value) {
     pokeControls();
   } else {
@@ -851,12 +865,23 @@ const onFullscreenChange = () => {
 const controlsVisible = ref(true);
 let controlsHideTimer: ReturnType<typeof setTimeout> | null = null;
 
+// The floating chrome: hovered, or holding keyboard focus, it stays. A control clicked with the
+// pointer keeps focus without :focus-visible and lets it hide.
+const FLOATING_CHROME = '.voice-header, .voice-controls, .filmstrip-container, .activity-stage__head, .activity-controls, .activity-stage__queue';
+
 const pokeControls = () => {
   if (!isNativeFullscreen.value) return;
   controlsVisible.value = true;
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
   controlsHideTimer = setTimeout(() => {
-    controlsVisible.value = false;
+    const container = containerEl.value;
+    const focused = document.activeElement;
+    const held = !!container && (
+      !!container.querySelector(`:is(${FLOATING_CHROME}):hover`)
+      || (!!focused && container.contains(focused) && !!focused.closest(FLOATING_CHROME) && focused.matches(':focus-visible'))
+    );
+    if (held) pokeControls();
+    else controlsVisible.value = false;
   }, 2500);
 };
 
@@ -1000,7 +1025,7 @@ const closeSettings = () => {
 const runEscape = () => {
   if (voicePopoverOpen()) {
     dismissVoicePopovers();
-  } else if (!poppedOut.value && document.fullscreenElement) {
+  } else if (!poppedOut.value && isNativeFullscreen.value) {
     void document.exitFullscreen();
   } else if (Date.now() - lastNativeFullscreenExit < 300) {
     // Browser already consumed this Esc to leave native fullscreen
@@ -1402,13 +1427,86 @@ onUnmounted(() => {
 }
 
 /* Native fullscreen: stage is everything, chrome floats over it. The chrome keeps the
-   theme's surface so its text and buttons read as they do outside fullscreen. */
+   theme's surface so its text and buttons read as they do outside fullscreen. The document is
+   the fullscreen element, so the container covers the screen itself. */
 .voice-container.native-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   max-width: none;
   max-height: none;
   border-radius: 0;
   border: none;
+  box-shadow: none;
   background: #000;
+}
+
+/* Watch together in native fullscreen: the player (ActivityHost) fills the screen just under the
+   call view (data-activity-under) and shows through its transparent stage. The activity's title,
+   controls and queue float with the call's chrome and hide with it; the pointer over the video
+   reaches the call view. */
+.voice-container.native-fullscreen.activity-shown,
+.voice-container.native-fullscreen.activity-shown .stage {
+  background: transparent;
+}
+
+.voice-container.native-fullscreen .activity-area {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.voice-container.native-fullscreen .activity-area :deep(.activity-stage__screen) {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.voice-container.native-fullscreen .activity-area :deep(.activity-stage__head),
+.voice-container.native-fullscreen .activity-area :deep(.activity-controls) {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--background-secondary) 88%, transparent);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.voice-container.native-fullscreen .activity-area :deep(.activity-stage__head) {
+  top: var(--fs-top, 60px);
+}
+
+.voice-container.native-fullscreen .activity-area :deep(.activity-controls) {
+  bottom: var(--fs-bottom, 72px);
+}
+
+.voice-container.native-fullscreen .activity-area :deep(.activity-stage__queue) {
+  position: absolute;
+  right: 16px;
+  bottom: calc(var(--fs-bottom, 72px) + 64px);
+  z-index: 21;
+  width: min(420px, calc(100% - 32px));
+  max-height: 50%;
+  overflow-y: auto;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.voice-container.native-fullscreen.controls-hidden .activity-area :deep(.activity-stage__head) {
+  opacity: 0;
+  transform: translateY(-12px);
+  pointer-events: none;
+}
+
+.voice-container.native-fullscreen.controls-hidden .activity-area :deep(.activity-controls),
+.voice-container.native-fullscreen.controls-hidden .activity-area :deep(.activity-stage__queue) {
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
 }
 
 .voice-container.native-fullscreen .voice-header {

@@ -255,6 +255,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Watch together in the full call view.** Since 1.8.3 the video played behind the call view:
   its place there stayed black while the call bar's small player showed it. It now shows in the
   call view.
+- **Watch together in full screen.** With the call view in full screen, the video's place was black
+  and its timeline lay across the call's controls. The video now fills the screen; the call's
+  controls, the timeline and the title float over it, hide while the pointer rests and come back
+  when it moves.
 - **Bluesky accounts bridged to the fediverse, and other usernames with a dot.** Searching
   `@name.bsky.social@bsky.brid.gy` (Bridgy Fed), a Threads account such as `@john.doe@threads.net`,
   or any account whose username has a dot found nobody; it now finds the account, which you can

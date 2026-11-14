@@ -9,6 +9,10 @@
   ancestor's z-index when it follows it in tree order (.persistent-voice; App.vue mounts the
   player next), one more when it precedes it (the call view, teleported to the end of <body>).
   Panels and pickers teleported above that layer cover the player as they cover the call.
+  Under a slot inside an element marked data-activity-under (the call view in full screen, whose
+  chrome floats over the video), the player paints just under that root instead: the root's
+  z-index when it precedes it, one less when it follows. The root shows it through a transparent
+  stage and keeps the pointer.
 
   A slot in the call pop-out window takes the player into that window's activity container
   (components/voice/callPopout.ts). A frame reloads on a move between documents; the relay
@@ -25,7 +29,7 @@
     v-if="active"
     ref="hostEl"
     class="activity-host"
-    :class="[`activity-host--${placement}`, { 'is-listen': listen }]"
+    :class="[`activity-host--${placement}`, { 'is-listen': listen, 'is-under': under }]"
     :style="boxStyle"
     data-testid="activity-host"
     :data-source="activity!.source"
@@ -133,6 +137,8 @@ const mediaEl = ref<HTMLMediaElement | null>(null)
 const frameEl = ref<HTMLIFrameElement | null>(null)
 const rect = ref<{ left: number; top: number; width: number; height: number } | null>(null)
 const layer = ref<number | null>(null)
+// The slot's root takes the player under it (data-activity-under).
+const under = ref(false)
 const slotInPopout = ref(false)
 let layerFor: Element | null = null
 let layerRoot: { z: number; el: Element } | null = null
@@ -185,12 +191,16 @@ const boxStyle = computed(() => {
   }
 })
 
-/** z-index that paints the player over `root`: one more than it when the player precedes it in tree order. */
-function layerOver(root: { z: number; el: Element } | null): number | null {
+/**
+ * z-index that paints the player over `root`, one more than it when the player precedes it in tree
+ * order; with `under`, just under it: its own when the player precedes it, one less when it follows.
+ */
+function layerAt(root: { z: number; el: Element } | null, under: boolean): number | null {
   if (!root) return null
   const host = hostEl.value
   const precedes = !!host && host.ownerDocument === root.el.ownerDocument
     && !!(host.compareDocumentPosition(root.el) & Node.DOCUMENT_POSITION_FOLLOWING)
+  if (under) return precedes ? root.z : root.z - 1
   return precedes ? root.z + 1 : root.z
 }
 
@@ -226,7 +236,9 @@ function trackSlot(): void {
         layerRoot = rootLayer(el)
       }
       // Per frame: the player and the call view move between windows with the pop-out.
-      const z = layerOver(layerRoot)
+      const below = !!el.closest('[data-activity-under]')
+      if (under.value !== below) under.value = below
+      const z = layerAt(layerRoot, below)
       if (layer.value !== z) layer.value = z
       // Style pixels: under CSS zoom a client rect is zoom times the lengths a style takes.
       const r = styleRect(el)
@@ -415,6 +427,10 @@ onBeforeUnmount(() => {
 
 .activity-host--slot {
   border-radius: 10px;
+}
+
+.activity-host--slot.is-under {
+  border-radius: 0;
 }
 
 .activity-host--corner {

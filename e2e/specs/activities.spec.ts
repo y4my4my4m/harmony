@@ -277,6 +277,35 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
     await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
   })
 
+  await test.step('in full screen the video fills the screen under controls that hide and come back over it', async () => {
+    const overlay = page.getByTestId('voice-overlay')
+    await overlay.getByRole('button', { name: 'Full screen', exact: true }).click()
+    await expect(overlay).toHaveClass(/native-fullscreen/)
+    // The player is drawn in full screen and fills it: the call view's own full screen drew
+    // nothing outside its container, and the player is mounted on <body>.
+    await expect.poll(() => colourAtPlayer(page), { timeout: 5000 }).toBe(PLAYER_RGB)
+    expect(await page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true)
+    const viewport = page.viewportSize()!
+    const hostBox = (await page.getByTestId('activity-host').boundingBox())!
+    expect(Math.round(hostBox.width)).toBe(viewport.width)
+    expect(Math.round(hostBox.height)).toBe(viewport.height)
+    // The scrub bar floats above the call's controls, not across them.
+    const scrub = (await page.getByTestId('activity-stage').getByTestId('activity-controls').boundingBox())!
+    const controls = (await overlay.locator('.voice-controls').boundingBox())!
+    expect(scrub.y + scrub.height).toBeLessThanOrEqual(controls.y + 1)
+    // Still pointer: both hide. The pointer over the video brings them back.
+    await page.mouse.move(viewport.width / 2, viewport.height / 2)
+    await expect(overlay).toHaveClass(/controls-hidden/, { timeout: 6000 })
+    await expect(page.getByTestId('activity-stage').getByTestId('activity-controls')).toHaveCSS('opacity', '0')
+    await page.mouse.move(viewport.width / 2 + 40, viewport.height / 2 + 20)
+    await expect(overlay).not.toHaveClass(/controls-hidden/)
+    await expect(page.getByTestId('activity-stage').getByTestId('activity-controls')).toHaveCSS('opacity', '1')
+    await page.keyboard.press('Escape')
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull()
+    await expect(overlay).not.toHaveClass(/native-fullscreen/)
+    await expect.poll(() => colourAtPlayer(page)).toBe(PLAYER_RGB)
+  })
+
   await test.step('the call view stays light: no backdrop blur behind it, one react button', async () => {
     // A full-window backdrop blur re-rendered with every video frame (1.1 s of CPU per second).
     await expect.poll(() => page.locator('.overlay-backdrop').evaluate((el) => getComputedStyle(el).backdropFilter)).toBe('none')
