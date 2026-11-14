@@ -229,7 +229,8 @@ SELECT lives_ok(format('SELECT public.set_category_permissions(%L, %L)', 'f29300
 SELECT throws_ok(format('SELECT public.set_category_permissions(%L, %L)', 'f2930000-0000-0000-0000-0000000000c9',
                         jsonb_build_array(jsonb_build_object('target_type', 'user', 'user_id', '33333333-0000-0000-0000-000000000003',
                                                              'deny_permissions', 1024))),
-                 '22023', NULL, 'a new row still needs a member');
+                 '22023', 'User 33333333-0000-0000-0000-000000000003 is not a member of this server',
+                 'a new row still needs a member');
 SELECT tests.clear_authentication();
 SELECT is((SELECT deny_permissions::int FROM public.channel_category_permission_overrides
             WHERE category_id = 'f2930000-0000-0000-0000-0000000000c9' AND user_id = '22222222-0000-0000-0000-000000000002'),

@@ -45,6 +45,9 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 - **An admin's removal of a copy emoji lapses when that admin's account is deleted.** The sync tells an admin's removal by `deleted_by`, which `ON DELETE SET NULL` clears; mark the sync's own drops in a column instead, as the bridge does with `bridge_removed_at`.
 - **Instances with duplicate cached rows of one image split a copy's reaction pills.** The sync takes over the oldest row; `inboundEmojiRowId` answers the others. Merge duplicates (re-point reactions) once.
 - **Update(Group) collapsing can drop one change when the listener and the worker run on hosts with skewed clocks.** The job id comes from the listener's 5 s window and completed jobs are kept; key the window on the database clock.
+- **A re-import after a purge does not rebuild bridged threads.** A purge keeps a thread's starter as an empty deleted row without its Discord id, and the thread's `discord_bridge_threads` mapping stays: the re-imported starter arrives as a separate message and the replies land in the old thread, named **Thread**. A thread emptied by the purge leaves its notice behind, and the re-import posts a second one. Clear the server's thread mappings in a purge, or re-attach the starter by its Discord id.
+- **A thread started on an AutoMod alert keeps its title after an erase.** The alert stays as an empty row under the thread; the thread and its notice keep the title, which an API client may have taken from the alert. Rename them with the author's threads. The web client offers no thread on system rows.
+- **A cursor update can land after a purge reset it.** `discord_bridge_import_update` takes cursor keys on a failed job; a bridge batch that commits before the purge and reports after it writes the old cursor back. Accept cursor keys only while the job runs.
 
 ## Next (correctness & UX)
 
