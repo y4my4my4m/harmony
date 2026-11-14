@@ -361,8 +361,8 @@ export function isModerationRejectionCode(code: string | null | undefined): bool
   return !!code && REJECTION_PATTERN.test(code)
 }
 
-/** Refusals that pass on their own: the timeout ends, the rate window moves on. */
-const PASSING_REJECTIONS = new Set(['MEMBER_TIMED_OUT', 'ANTISPAM_RATE_LIMITED'])
+/** Refusals that pass within seconds: the rate window moves on. A timeout may last days. */
+const PASSING_REJECTIONS = new Set(['ANTISPAM_RATE_LIMITED'])
 
 /** A moderation or block refusal that answers the same on every retry. */
 export function isLastingRejectionCode(code: string | null | undefined): boolean {

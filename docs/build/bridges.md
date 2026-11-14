@@ -457,7 +457,7 @@ A remote user opts out of a server's bridge, and has what the bridge brought era
 | `GET /privacy/optouts/{id}` | none | `200` `{ "opted_out": boolean, "since": "…" \| null, "source": "self" \| "manager" \| "admin" \| null }` |
 | `PUT /privacy/optouts/{id}` | none | The status, `opted_out` `true` |
 | `DELETE /privacy/optouts/{id}` | none | The status. Opting in lifts the user's own opt-out only: after a removal by a server manager or an instance admin the answer still has `opted_out` `true` with that `source` |
-| `POST /privacy/erase` | `{ "remote_user_id": "…" }` | `202` `{ "opted_out": true, "erased": 37, "more": false }`. Opts the user out and deletes their relayed and imported messages, reactions and AutoMod events in this server. With `more` `true` the gateway finishes in the background. `429` `erase_recent` for the same user within 60 s |
+| `POST /privacy/erase` | `{ "remote_user_id": "…" }` | `202` `{ "opted_out": true, "erased": 37, "more": false }`. Opts the user out and deletes their relayed and imported messages, reactions and AutoMod events in this server. With `more` `true` the gateway finishes in the background; the database marks the erase unfinished, and a restarted gateway resumes it. `429` `erase_recent` for the same user within 60 s |
 
 A bridge keeps the list and sends nothing of an opted-out author: no message, edit, reaction or thread. The gateway enforces it as well:
 

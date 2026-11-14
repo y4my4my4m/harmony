@@ -133,7 +133,8 @@ export const useActivitiesStore = defineStore('activities', () => {
    * Applies a state for `channelId`; false when it is older than the held one. A run of an
    * activity is its started_at; within a run, the revision orders states. An end (null) applies
    * only from the database. A database state past the last one the database answered applies even
-   * below a revision a peer named (receivePeer bounds those), so no peer holds it back.
+   * below a revision a peer named (receivePeer bounds those), so no peer holds it back. Every
+   * database state of the held run counts as answered, applied or not.
    */
   function apply(channelId: string, activity: VoiceActivity | null, authoritative: boolean): boolean {
     const held = byChannel.value[channelId] ?? null
@@ -141,8 +142,10 @@ export const useActivitiesStore = defineStore('activities', () => {
       if (!held || !authoritative) return false
     } else if (held) {
       if (activity.started_at === held.started_at) {
-        const confirmed = dbRevision.get(runKey(held)) ?? held.revision
+        const key = runKey(held)
+        const confirmed = dbRevision.get(key) ?? held.revision
         const newerThanDatabase = authoritative && activity.revision > confirmed
+        if (authoritative) dbRevision.set(key, Math.max(confirmed, activity.revision))
         if (activity.revision < held.revision && !newerThanDatabase) return false
         if (activity.revision === held.revision && activity.position_at === held.position_at) return false
       } else if (activity.started_at < held.started_at) {
@@ -150,7 +153,7 @@ export const useActivitiesStore = defineStore('activities', () => {
       }
     }
     byChannel.value = { ...byChannel.value, [channelId]: activity }
-    if (activity && authoritative) dbRevision.set(runKey(activity), activity.revision)
+    if (activity && authoritative && !dbRevision.has(runKey(activity))) dbRevision.set(runKey(activity), activity.revision)
     if (held && (!activity || activity.started_at !== held.started_at)) {
       const key = runKey(held)
       dbRevision.delete(key)
@@ -187,15 +190,10 @@ export const useActivitiesStore = defineStore('activities', () => {
   async function refreshServer(serverId: string): Promise<void> {
     try {
       const list = await getServerActivities(serverId)
-      const next = { ...byChannel.value }
-      for (const [id, a] of Object.entries(next)) {
-        if (a?.server_id === serverId && !list.some((l) => l.channel_id === id)) next[id] = null
+      for (const [id, a] of Object.entries(byChannel.value)) {
+        if (a?.server_id === serverId && !list.some((l) => l.channel_id === id)) apply(id, null, true)
       }
-      for (const a of list) {
-        const held = next[a.channel_id]
-        if (!held || a.revision >= held.revision) next[a.channel_id] = a
-      }
-      byChannel.value = next
+      for (const a of list) apply(a.channel_id, a, true)
     } catch {
       /* sidebar decoration only */
     }
@@ -265,7 +263,8 @@ export const useActivitiesStore = defineStore('activities', () => {
    * nothing else, and only a participant who may control the run. A new run, its host, item and
    * queue come from the database and its broadcasts; otherwise any participant could start a run
    * naming this client as host, which plays at once. Its revision counts at most
-   * PEER_REVISIONS_AHEAD past the database's, and apply lets the database's next states past it.
+   * PEER_REVISIONS_AHEAD past the database's, and apply lets the database's next states past it;
+   * a run the database has not answered here takes none.
    */
   function receivePeer(event: { userId: string; message: unknown }): void {
     const message = event.message as { type?: string; channelId?: string; activity?: VoiceActivity | null }
@@ -279,8 +278,8 @@ export const useActivitiesStore = defineStore('activities', () => {
     if (!finite(peer.revision) || !finite(peer.position_ms) || !finite(peer.position_at) || peer.position_ms < 0) return
     // Item and queue changes are the database's: a state naming another item or queue waits for it.
     if (JSON.stringify(peer.item) !== JSON.stringify(held.item) || JSON.stringify(peer.queue) !== JSON.stringify(held.queue)) return
-    const confirmed = dbRevision.get(runKey(held)) ?? held.revision
-    if (peer.revision <= held.revision || peer.revision > confirmed + PEER_REVISIONS_AHEAD) return
+    const confirmed = dbRevision.get(runKey(held))
+    if (confirmed === undefined || peer.revision <= held.revision || peer.revision > confirmed + PEER_REVISIONS_AHEAD) return
     apply(message.channelId, {
       ...held,
       playing: peer.playing === true,

@@ -35,7 +35,7 @@ import { BridgeV2API } from '../BridgeV2API.js'
 import { ERASE_COOLDOWN_MS, resetEraseCooldown } from '../../bridge/bridgePrivacy.js'
 
 type RpcResult = { data: unknown; error: { code?: string; message: string } | null }
-let rpcHandlers: Record<string, (args: any) => RpcResult>
+let rpcHandlers: Record<string, (args: any) => RpcResult | Promise<RpcResult>>
 let botId = BOT_ID
 // instance: the public instance bot; privacy routes serve every mode.
 let mode = 'instance'
@@ -196,6 +196,46 @@ describe('Bridge v2 privacy endpoints', () => {
       await vi.waitFor(() => expect(batches()).toBe(3), { timeout: 3_000 })
       await new Promise((resolve) => setTimeout(resolve, 150))
       expect(batches()).toBe(3)
+    })
+
+    it('finishes the erases the database lists as unfinished, one loop per user', async () => {
+      const { resumePendingErases } = await import('../../bridge/bridgePrivacy.js')
+      rpcHandlers.bridge_privacy_pending = () => ({
+        data: [
+          { server_id: SERVER_ID, platform: 'discord', remote_user_id: DANA },
+          { server_id: SERVER_ID, platform: 'discord', remote_user_id: DANA },
+        ],
+        error: null,
+      })
+      rpcHandlers.bridge_privacy_erase_tail = () => ({ data: { opted_out: true, erased: 3, more: false }, error: null })
+      expect(await resumePendingErases()).toBe(1)
+      await vi.waitFor(() => expect(rpcCalls('bridge_privacy_erase_tail')).toHaveLength(1), { timeout: 2_000 })
+      expect(rpcCalls('bridge_privacy_erase_tail')[0]).toMatchObject({ p_server_id: SERVER_ID, p_remote_user_id: DANA })
+    })
+
+    it('resumes one user at a time, and one pass at a time', async () => {
+      const { resumePendingErases } = await import('../../bridge/bridgePrivacy.js')
+      rpcHandlers.bridge_privacy_pending = () => ({
+        data: [
+          { server_id: SERVER_ID, platform: 'discord', remote_user_id: DANA },
+          { server_id: SERVER_ID, platform: 'discord', remote_user_id: EVE },
+        ],
+        error: null,
+      })
+      let inFlight = 0
+      let most = 0
+      rpcHandlers.bridge_privacy_erase_tail = async () => {
+        inFlight++
+        most = Math.max(most, inFlight)
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        inFlight--
+        return { data: { opted_out: true, erased: 1, more: false }, error: null }
+      }
+      const first = resumePendingErases()
+      expect(await resumePendingErases()).toBe(0)
+      expect(await first).toBe(2)
+      expect(most).toBe(1)
+      expect(rpcCalls('bridge_privacy_erase_tail').map((a: any) => a.p_remote_user_id)).toEqual([DANA, EVE])
     })
 
     it('answers 429 erase_recent for the same user inside the cooldown, and serves another user', async () => {

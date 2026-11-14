@@ -422,31 +422,49 @@ export async function fetchBridgeOptouts(serverId: string): Promise<BridgeOptout
   return (data as BridgeOptout[] | null) ?? []
 }
 
-/** Runs one batch RPC until nothing is left; `onProgress` gets the running total. */
-async function eraseAll(
-  call: () => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>,
-  onProgress?: (total: number) => void,
-): Promise<number> {
-  let total = 0
-  // 200 rows a batch: 5000 batches is a million rows.
-  for (let i = 0; i < 5000; i++) {
-    const { data, error } = await call()
-    raise(error)
-    const result = (data ?? {}) as Partial<EraseResult>
-    total += Number(result.erased) || 0
-    onProgress?.(total)
-    if (result.more !== true) break
-  }
-  return total
+/** Batches in a row that remove nothing (rows another transaction holds) before a run stops. */
+const IDLE_BATCHES = 3
+
+export interface EraseRun {
+  total: number
+  /** Rows remain: the run stopped on batches that removed nothing. */
+  more: boolean
 }
 
-/** Opts a Discord user out of the server's bridge and deletes their relayed and imported messages. */
-export function removeBridgedUser(serverId: string, discordUserId: string, onProgress?: (total: number) => void): Promise<number> {
-  return eraseAll(() => supabase.rpc('bridge_privacy_remove_remote_user', {
-    p_server_id: serverId,
-    p_platform: DISCORD_PLATFORM,
-    p_remote_user_id: discordUserId,
-  }), onProgress)
+/**
+ * Runs batch RPCs until nothing is left: `call(0)` first, then `call(n)`. `onProgress` gets the
+ * running total.
+ */
+async function eraseAll(
+  call: (batch: number) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>,
+  onProgress?: (total: number) => void,
+): Promise<EraseRun> {
+  let total = 0
+  let idle = 0
+  for (let batch = 0; ; batch++) {
+    const { data, error } = await call(batch)
+    raise(error)
+    const result = (data ?? {}) as Partial<EraseResult>
+    const erased = Number(result.erased) || 0
+    total += erased
+    onProgress?.(total)
+    if (result.more !== true) return { total, more: false }
+    idle = erased > 0 ? 0 : idle + 1
+    if (idle >= IDLE_BATCHES) return { total, more: true }
+  }
+}
+
+/**
+ * Opts a Discord user out of the server's bridge and deletes their relayed and imported messages.
+ * The later batches continue only while the removal stands (a restore stops them); what this page
+ * leaves, bot-gateway finishes.
+ */
+export async function removeBridgedUser(serverId: string, discordUserId: string, onProgress?: (total: number) => void): Promise<number> {
+  const args = { p_server_id: serverId, p_platform: DISCORD_PLATFORM, p_remote_user_id: discordUserId }
+  const run = await eraseAll((batch) => (batch === 0
+    ? supabase.rpc('bridge_privacy_remove_remote_user', args)
+    : supabase.rpc('bridge_privacy_erase_continue', args)), onProgress)
+  return run.total
 }
 
 /** Lifts a removal made here. False for a member's own opt-out, which only they lift. */
@@ -461,7 +479,7 @@ export async function restoreBridgedUser(serverId: string, discordUserId: string
 }
 
 /** Deletes every message, reaction and AutoMod event the server's bridge brought from Discord. */
-export function purgeBridgedMessages(serverId: string, onProgress?: (total: number) => void): Promise<number> {
+export function purgeBridgedMessages(serverId: string, onProgress?: (total: number) => void): Promise<EraseRun> {
   return eraseAll(() => supabase.rpc('bridge_privacy_purge_server', {
     p_server_id: serverId,
     p_platform: DISCORD_PLATFORM,
@@ -548,7 +566,7 @@ export async function fetchImportTotals(): Promise<ImportTotals | null> {
 }
 
 /** Deletes everything any bridge brought from Discord, on every server. Instance admins only. */
-export function purgeInstanceBridgedMessages(onProgress?: (total: number) => void): Promise<number> {
+export function purgeInstanceBridgedMessages(onProgress?: (total: number) => void): Promise<EraseRun> {
   return eraseAll(() => supabase.rpc('bridge_privacy_purge_instance', { p_platform: DISCORD_PLATFORM }), onProgress)
 }
 

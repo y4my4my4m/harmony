@@ -143,8 +143,9 @@ export class CopyMirrorService {
    *
    * An instance admin's removal (deleted_by set) holds for the image: an emoji the Group lists
    * again, under its id or a new one, with an image an admin removed on this copy, or on a row
-   * cached from the Group's instance, stays removed. A row cached before 1.9.4 holds the image's
-   * host as domain and counts too. A removal on a row another instance's activity left does not:
+   * cached from the Group's instance, or on this instance's own import of the image (scope
+   * instance, no domain), stays removed. A row cached before 1.9.4 holds the image's host as
+   * domain and counts too. A removal on a row another instance's activity left does not:
    * that instance chose the image and the name.
    *
    * Bounds against a Group that churns its list: at most COPY_EMOJI_INSERTS_PER_HOUR rows inserted
@@ -185,7 +186,7 @@ export class CopyMirrorService {
     for (const urls of urlChunks(lookup)) {
       const { data, error } = await supabase
         .from('emojis')
-        .select('id, url, domain, server_id, ap_id, deleted_at, deleted_by')
+        .select('id, url, domain, server_id, ap_id, scope, deleted_at, deleted_by')
         .in('url', urls)
         .or(`server_id.is.null,server_id.eq.${serverId}`)
         .neq('scope', 'user')
@@ -198,7 +199,9 @@ export class CopyMirrorService {
       for (const row of data || []) {
         const removal = row.deleted_at && row.deleted_by ? { deleted_at: row.deleted_at, deleted_by: row.deleted_by } : null;
         const rowDomain = String(row.domain ?? '').toLowerCase();
-        const sameOrigin = row.server_id === serverId || domains.has(rowDomain) || rowDomain === imageHost(row.url);
+        const instanceImport = row.scope === 'instance' && !row.domain;
+        const sameOrigin = row.server_id === serverId || instanceImport || domains.has(rowDomain)
+          || rowDomain === imageHost(row.url);
         if (removal && sameOrigin && !removedImages.has(row.url)) removedImages.set(row.url, removal);
         if (row.server_id === null && row.ap_id === null && domains.has(String(row.domain ?? '').toLowerCase())
             && !cached.has(row.url)) {

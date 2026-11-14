@@ -301,15 +301,15 @@ A bridge copies what Discord members write into Harmony. They decide about their
 | `/bridge-privacy status` | Says whether they are opted out |
 | `/bridge-privacy erase` | Deletes the messages, files and reactions of theirs that the bridge already brought into this Harmony server, and opts them out |
 
-Every member can run it, answers are shown only to them, and it works with every kind of bridge. Erasing takes a moment on a long history. It does not touch their messages on Discord.
+Every member can run it, answers are shown only to them, and it works with every kind of bridge. A long history is erased in the background, and a restart of the gateway does not stop it. It does not touch their messages on Discord.
 
 Members with Manage Server act for someone who cannot run the command, for example after they left, in **Server settings** → **Discord Bridge** → **Bridge privacy**:
 
-- **Remove from this server** takes a Discord user ID, deletes what the bridge brought from that user and stops bringing theirs. In Discord, turn on Developer Mode, right-click the user and choose **Copy User ID**.
+- **Remove from this server** takes a Discord user ID, deletes what the bridge brought from that user and stops bringing theirs. In Discord, turn on Developer Mode, right-click the user and choose **Copy User ID**. If the page closes before the removal ends, the gateway finishes it; a **Restore** stops it.
 - The list shows who is left out and why: **Opted out on Discord**, or removed by a manager or an instance admin. **Restore** lifts a removal made here; a member's own opt-out is theirs to undo, and a member who opted out as well stays opted out. Opting in on Discord does not lift a removal made here.
-- **Remove all bridged messages** deletes everything this server's bridge brought from Discord. Messages written on Harmony stay.
+- **Remove all bridged messages** deletes everything this server's bridge brought from Discord. Messages written on Harmony stay. When rows stay locked by other work, the page says how many it removed and that some remain; run it again.
 
-A message that is the first message of a thread is kept as an empty, deleted message so that the thread and other people's replies stay; its text, files and author are gone, and the thread is renamed **Thread**. Notifications that quoted the removed messages are deleted too. A thread an opted-out member starts on Discord arrives named **Thread**, without their name. Removal cannot be undone.
+A message that is the first message of a thread is kept as an empty, deleted message so that the thread and other people's replies stay; its text, files and author are gone, and the thread is renamed **Thread**, whoever started it, since Discord titles a thread with the first words of its message. Notifications that quoted the removed messages are deleted too. A thread an opted-out member starts on Discord arrives named **Thread**, without their name. Removal cannot be undone.
 
 ## Discord permissions
 

@@ -120,7 +120,7 @@ body.captcha #root { display: flex; justify-content: center; }
     var sitekey = params.get('sitekey') || '';
     var theme = params.get('theme') === 'dark' ? 'dark' : 'light';
     var lang = /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(params.get('lang') || '') ? params.get('lang') : '';
-    if (!CAPTCHA_SCRIPTS[captcha] || !/^[A-Za-z0-9_-]{1,100}$/.test(sitekey)) {
+    if (!Object.prototype.hasOwnProperty.call(CAPTCHA_SCRIPTS, captcha) || !/^[A-Za-z0-9_-]{1,100}$/.test(sitekey)) {
       postCaptcha({ ev: 'captcha-error', message: 'Unknown captcha provider or site key' });
       return;
     }

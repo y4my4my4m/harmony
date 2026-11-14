@@ -6530,7 +6530,8 @@
       "purge": "Quitar todos los mensajes del puente",
       "purgeConfirm": "¿Borrar todos los mensajes, archivos y reacciones traídos de Discord a este servidor? No se puede deshacer.",
       "purgeYes": "Borrarlos todos",
-      "purged": "{count} mensaje del puente quitado | {count} mensajes del puente quitados"
+      "purged": "{count} mensaje del puente quitado | {count} mensajes del puente quitados",
+      "purgedSome": "Se eliminó {count} mensaje puenteado; quedan otros. Vuelve a ejecutarlo. | Se eliminaron {count} mensajes puenteados; quedan otros. Vuelve a ejecutarlo."
     },
     "importAdmin": {
       "title": "Importación de historial de Discord",
@@ -6558,7 +6559,7 @@
       "totals": "{running} en curso, {queued} en espera, {imported} mensajes importados",
       "totalsStored": "{size} de archivos de Discord almacenados",
       "purgeTitle": "Quitar todos los mensajes de Discord",
-      "purgeLead": "Borra todos los mensajes, archivos y reacciones que cualquier puente trajo de Discord, en todos los servidores de esta instancia. Para cuando esta instancia deba dejar de guardar contenido de Discord, por ejemplo si su aplicación de Discord pierde el acceso.",
+      "purgeLead": "Borra todos los mensajes, archivos y reacciones que cualquier puente trajo de Discord, en todos los servidores de esta instancia. Para cuando esta instancia deba dejar de guardar contenido de Discord, por ejemplo si su aplicación de Discord pierde el acceso. La importación del historial se desactiva y las importaciones sin terminar se detienen.",
       "purge": "Quitar todos los mensajes de Discord",
       "purgeConfirm": "¿Borrar todo lo traído de Discord en todos los servidores de esta instancia? No se puede deshacer.",
       "purgeYes": "Borrarlo todo"
@@ -8369,6 +8370,7 @@
   "adminSignupCaptcha": {
     "title": "Verificación de registro",
     "intro": "Un captcha que solo aparece cuando un registro parece automatizado, así que la mayoría de las personas no lo ve nunca. Los registros con Google, GitHub, Twitch o los proveedores de inicio de sesión propios de esta instancia nunca se verifican.",
+    "needsLimits": "La comprobación funciona junto con los límites de registro: mientras «Aplicar límites de registro» esté desactivado, no se pide a nadie.",
     "provider": "Proveedor",
     "providerOff": "Desactivado",
     "providerHint": "Crea un widget con el proveedor y añádele el nombre de host de {origin}. Las apps también muestran la verificación desde esa dirección.",

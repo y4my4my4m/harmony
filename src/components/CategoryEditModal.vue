@@ -174,6 +174,8 @@ const dialogEl = ref<HTMLElement | null>(null)
 const tablistEl = ref<HTMLElement | null>(null)
 const editedName = ref('')
 const isLoading = ref(false)
+/** Times the dialog has opened; a save closes only the opening it was pressed in. */
+let openings = 0
 const nameInput = ref<HTMLInputElement>()
 
 // The template as loaded and as edited. The Private toggle and the role editor both edit
@@ -243,12 +245,12 @@ const closeModal = () => {
   emit('close')
 }
 
-// Unsaved edits ask before they are dropped.
+// Unsaved edits ask before they are dropped. A save in flight drops nothing: it writes what it
+// captured when Save was pressed, closed or not.
 let closePrompt: Promise<void> | null = null
 function requestClose() {
-  // A save in flight finishes first: it reads the category and the template it was given.
-  if (closePrompt || isLoading.value) return
-  if (!nameDirty.value && !permissionsDirty.value) {
+  if (closePrompt) return
+  if (isLoading.value || (!nameDirty.value && !permissionsDirty.value)) {
     closeModal()
     return
   }
@@ -343,6 +345,7 @@ const saveChanges = async () => {
   // What this save writes, read before any wait: the dialog can be shown for another category
   // before the reads below answer.
   const category = props.category
+  const opening = openings
   const saved = savedTemplate.value
   const edited = template.value.map(row => ({ ...row }))
 
@@ -370,7 +373,7 @@ const saveChanges = async () => {
     }
 
     emit('updated', { ...category, name: trimmedName })
-    if (props.category?.id === category.id) closeModal()
+    if (openings === opening && props.show && props.category?.id === category.id) closeModal()
   } catch (error: any) {
     debug.error('Failed to update category:', error)
     toast.error(error?.message || t('category.edit.failed'))
@@ -388,6 +391,7 @@ watch(() => props.category, (newCategory) => {
 // Reopening starts on General, from the saved name and the category's current permissions.
 watch(() => props.show, (isVisible) => {
   if (isVisible) {
+    openings++
     activeTab.value = 'general'
     if (props.category) {
       editedName.value = props.category.name || ''

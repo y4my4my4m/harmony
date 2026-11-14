@@ -109,8 +109,11 @@ describe('isLastingRejectionCode', () => {
     expect(isLastingRejectionCode('RULES_NOT_ACCEPTED')).toBe(true)
   })
 
-  it('leaves out a timeout and a rate limit, which pass on their own', () => {
-    expect(isLastingRejectionCode('MEMBER_TIMED_OUT:1790000000')).toBe(false)
+  it('counts a timeout as lasting: it may run for days, and the reply would post long after', () => {
+    expect(isLastingRejectionCode('MEMBER_TIMED_OUT:1790000000')).toBe(true)
+  })
+
+  it('leaves out a rate limit, which passes in seconds', () => {
     expect(isLastingRejectionCode('ANTISPAM_RATE_LIMITED:30')).toBe(false)
     expect(isLastingRejectionCode('23505')).toBe(false)
     expect(isLastingRejectionCode(null)).toBe(false)

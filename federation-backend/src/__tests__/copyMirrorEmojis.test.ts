@@ -198,7 +198,7 @@ describe('applyGroupEmojis', () => {
     expect(parts.length).toBeGreaterThan(1)
     for (const part of parts) expect(part.map((u) => encodeURIComponent(u).length + 9).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(4_000)
 
-    failSelect = 'id, url, domain, server_id, ap_id, deleted_at, deleted_by'
+    failSelect = 'id, url, domain, server_id, ap_id, scope, deleted_at, deleted_by'
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'wave', url: img('wave') }])
     expect(db.emojis).toEqual([])
   })
@@ -294,6 +294,17 @@ describe('applyGroupEmojis', () => {
   it(`leaves the dropped emojis past the most recent ${COPY_EMOJI_REMOVED_KEPT} to evict_copy_emojis`, async () => {
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [])
     expect(rpc).toHaveBeenCalledWith('evict_copy_emojis', { p_server_id: COPY, p_keep: COPY_EMOJI_REMOVED_KEPT })
+  })
+
+  it('keeps an admin\'s removal of the instance\'s own import of the image', async () => {
+    // Imported for the whole instance (no server, no domain), then removed by an admin.
+    db.emojis = [
+      { id: 'mine', name: 'rude', url: img('rude'), server_id: null, scope: 'instance', domain: null, ap_id: null,
+        deleted_at: '2026-01-03T00:00:00Z', deleted_by: 'admin-1' },
+    ]
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'rude', url: img('rude') }])
+    expect(byAp(1)).toMatchObject({ deleted_at: '2026-01-03T00:00:00Z', deleted_by: 'admin-1' })
+    expect(db.emojis.find(e => e.id === 'mine')).toMatchObject({ server_id: null, scope: 'instance' })
   })
 
   it('keeps no removal an admin made on another instance\'s cached row of the image', async () => {

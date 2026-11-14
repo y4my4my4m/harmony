@@ -433,7 +433,7 @@ export class ServiceWorkerManager {
           await this.handleMarkNotificationRead(notifData)
           debug.log('Quick reply flushed from queue')
         } catch (err) {
-          // A refusal that answers the same on every retry drops the reply; a timeout or a rate
+          // A refusal that answers the same on every retry, or a timeout, drops the reply; a rate
           // limit passes, and the reply waits for the next drain.
           if (isLastingRejectionCode((err as { code?: string } | null)?.code)) {
             debug.warn('Quick reply refused, dropping:', err, entry)

@@ -6530,7 +6530,8 @@
       "purge": "移除所有桥接消息",
       "purgeConfirm": "删除从 Discord 带入此服务器的所有消息、文件和回应？此操作无法撤销。",
       "purgeYes": "全部删除",
-      "purged": "已移除 {count} 条桥接消息 | 已移除 {count} 条桥接消息"
+      "purged": "已移除 {count} 条桥接消息 | 已移除 {count} 条桥接消息",
+      "purgedSome": "已删除 {count} 条桥接消息，仍有剩余。请再次运行。"
     },
     "importAdmin": {
       "title": "Discord 历史记录导入",
@@ -6558,7 +6559,7 @@
       "totals": "{running} 个运行中，{queued} 个等待中，已导入 {imported} 条消息",
       "totalsStored": "已存储 {size} 的 Discord 文件",
       "purgeTitle": "移除所有 Discord 消息",
-      "purgeLead": "删除此实例所有服务器上由任何桥接从 Discord 带来的消息、文件和回应。用于此实例必须停止保存 Discord 内容的情况，例如其 Discord 应用失去访问权限。",
+      "purgeLead": "删除此实例所有服务器上由任何桥接从 Discord 带来的消息、文件和回应。用于此实例必须停止保存 Discord 内容的情况，例如其 Discord 应用失去访问权限。历史导入将被关闭，未完成的导入会停止。",
       "purge": "移除所有 Discord 消息",
       "purgeConfirm": "删除此实例所有服务器上从 Discord 桥接的一切？此操作无法撤销。",
       "purgeYes": "全部删除"
@@ -8369,6 +8370,7 @@
   "adminSignupCaptcha": {
     "title": "注册验证",
     "intro": "仅在注册看起来是自动化时才要求的验证码，大多数人不会看到。通过 Google、GitHub、Twitch 或此实例自有登录服务的注册不会被要求验证。",
+    "needsLimits": "此检查随注册限制一起运行：关闭“应用注册限制”时，不会要求任何人进行检查。",
     "provider": "提供方",
     "providerOff": "关闭",
     "providerHint": "在提供方创建一个小组件，并添加 {origin} 的主机名。应用也会从这个地址显示验证。",

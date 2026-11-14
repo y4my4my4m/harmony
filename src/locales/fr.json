@@ -6530,7 +6530,8 @@
       "purge": "Retirer tous les messages de la passerelle",
       "purgeConfirm": "Supprimer tous les messages, fichiers et réactions apportés de Discord sur ce serveur ? Cette action est irréversible.",
       "purgeYes": "Tout supprimer",
-      "purged": "{count} message de la passerelle retiré | {count} messages de la passerelle retirés"
+      "purged": "{count} message de la passerelle retiré | {count} messages de la passerelle retirés",
+      "purgedSome": "{count} message relayé supprimé ; il en reste. Relancez. | {count} messages relayés supprimés ; il en reste. Relancez."
     },
     "importAdmin": {
       "title": "Importation de l'historique Discord",
@@ -6558,7 +6559,7 @@
       "totals": "{running} en cours, {queued} en attente, {imported} messages importés",
       "totalsStored": "{size} de fichiers Discord stockés",
       "purgeTitle": "Retirer tous les messages Discord",
-      "purgeLead": "Supprime tous les messages, fichiers et réactions qu'une passerelle a apportés de Discord, sur chaque serveur de cette instance. Pour le cas où cette instance ne doit plus conserver de contenu Discord, par exemple si son application Discord perd l'accès.",
+      "purgeLead": "Supprime tous les messages, fichiers et réactions qu'une passerelle a apportés de Discord, sur chaque serveur de cette instance. Pour le cas où cette instance ne doit plus conserver de contenu Discord, par exemple si son application Discord perd l'accès. L’import de l’historique est désactivé et les imports inachevés s’arrêtent.",
       "purge": "Retirer tous les messages Discord",
       "purgeConfirm": "Supprimer tout ce qui vient de Discord sur chaque serveur de cette instance ? Cette action est irréversible.",
       "purgeYes": "Tout supprimer"
@@ -8369,6 +8370,7 @@
   "adminSignupCaptcha": {
     "title": "Vérification d'inscription",
     "intro": "Un captcha demandé seulement quand une inscription semble automatisée : la plupart des gens ne le voient jamais. Les inscriptions via Google, GitHub, Twitch ou les fournisseurs de connexion propres à cette instance ne sont jamais vérifiées.",
+    "needsLimits": "La vérification fonctionne avec les limites d'inscription : tant que Appliquer les limites d’inscription est désactivé, personne n'est sollicité.",
     "provider": "Fournisseur",
     "providerOff": "Désactivé",
     "providerHint": "Créez un widget chez le fournisseur et ajoutez-y le nom d'hôte de {origin}. Les applications affichent aussi la vérification depuis cette adresse.",

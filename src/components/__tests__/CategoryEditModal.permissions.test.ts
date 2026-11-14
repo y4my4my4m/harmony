@@ -167,7 +167,7 @@ describe('CategoryEditModal permissions', () => {
     expect(byTarget(setTemplateMock.mock.calls[1][1])).toEqual({ everyone: `0/${2 | 4096}`, mod: '0/4096' })
   })
 
-  it('saves to the category it was saving, and stays open meanwhile, when the dialog moves on', async () => {
+  it('closes at once while saving, and the save goes to the category it was saving', async () => {
     overrides.rows = [row('everyone', 0, 2)]
     const wrapper = await openPermissions()
     radio('SEND_MESSAGES', 'deny').click()
@@ -177,16 +177,19 @@ describe('CategoryEditModal permissions', () => {
     roleIdsMock.mockReturnValueOnce(new Promise<Set<string>>((resolve) => { release = resolve }))
     $('[data-testid="category-edit-save"]')!.click()
     await nextTick()
-    // Close while saving is held back; the parent then shows another category.
+    // A save that does not answer does not hold the dialog open, and closing asks nothing.
     $('.btn-secondary')!.click()
     await flushPromises()
-    expect(wrapper.emitted('close')).toBeUndefined()
+    expect(confirmMock).not.toHaveBeenCalled()
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    // The parent then shows another category.
     overrides.rows = [row('mod', 2)]
     await wrapper.setProps({ category: { id: 'k2', name: 'Other', server_id: 'srv', position: 1 } as any })
     await flushPromises()
 
     release(new Set(['everyone', 'mod']))
     await flushPromises()
+    expect(wrapper.emitted('close')).toHaveLength(1)
     expect(setTemplateMock).toHaveBeenCalledTimes(1)
     expect(setTemplateMock.mock.calls[0][0]).toBe('k1')
     expect(byTarget(setTemplateMock.mock.calls[0][1])).toEqual({ everyone: `0/${2 | 4096}` })

@@ -15,6 +15,7 @@
       <span class="sc-hint">{{ t('adminSignupCaptcha.providerHint', { origin: pageOrigin }) }}</span>
 
       <template v-if="form.provider !== 'off'">
+        <p class="sc-hint" data-testid="signup-captcha-needs-limits">{{ t('adminSignupCaptcha.needsLimits') }}</p>
         <label class="sc-label" :for="`${uid}-site`">{{ t('adminSignupCaptcha.siteKey') }}</label>
         <input
           :id="`${uid}-site`"

@@ -44,7 +44,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **A captcha only when a sign-up looks automated.** Admins can turn on a sign-up check with
   Cloudflare Turnstile or hCaptcha in **Admin** → **Invites** → **Sign-up check**. It appears for a
   second account from the same network within an hour, an email domain new to the instance, or a
-  sign-up past a counting limit; most people never see it. It works in the apps too. Off until set up.
+  sign-up past a counting limit; most people never see it. It works in the apps too. Off until set up,
+  and asked only while **Apply sign-up limits** is on.
 - **Import emojis from other instances.** **Admin** → **Emojis** → **Import** lists the custom emojis
   seen in posts and reactions from other instances, by instance and name. Pick one or many: each
   image is copied to your instance and the emoji joins the instance emojis for everyone here, with
@@ -116,7 +117,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   remove a Discord user by ID under **Server settings** → **Discord Bridge** →
   **Bridge privacy**, where **Remove all bridged messages** clears the whole
   server; instance admins have **Remove all Discord messages** for the
-  instance. Erasing on Harmony never deletes anything on Discord.
+  instance, which also turns Discord history import off. A long erase
+  finishes in the background, across restarts. Erasing on Harmony never
+  deletes anything on Discord.
 - **Bot API: bridge privacy and import limits.** `/bridge/v2/privacy` lists a
   server's opted-out remote users and takes opt-out, opt-in and erase; a
   relayed message or edit of an opted-out author answers `403`

@@ -150,8 +150,9 @@ async function runConfirmed() {
       toast.success(t('discordBridge.privacy.removed', { count: removed }, removed))
       discordId.value = ''
     } else {
-      const removed = await purgeBridgedMessages(props.serverId, onProgress)
-      toast.success(t('discordBridge.privacy.purged', { count: removed }, removed))
+      const run = await purgeBridgedMessages(props.serverId, onProgress)
+      if (run.more) toast.warning(t('discordBridge.privacy.purgedSome', { count: run.total }, run.total))
+      else toast.success(t('discordBridge.privacy.purged', { count: run.total }, run.total))
     }
   } catch (error) {
     debug.error('bridge privacy erase failed:', error)

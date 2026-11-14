@@ -6526,7 +6526,8 @@
       "purge": "Remove all bridged messages",
       "purgeConfirm": "Delete every message, file and reaction brought from Discord into this server? This cannot be undone.",
       "purgeYes": "Delete them all",
-      "purged": "Removed {count} bridged message | Removed {count} bridged messages"
+      "purged": "Removed {count} bridged message | Removed {count} bridged messages",
+      "purgedSome": "Removed {count} bridged message; some remain. Run it again. | Removed {count} bridged messages; some remain. Run it again."
     },
     "importAdmin": {
       "title": "Discord history import",
@@ -6554,7 +6555,7 @@
       "totals": "{running} running, {queued} waiting, {imported} messages imported",
       "totalsStored": "{size} of Discord files stored",
       "purgeTitle": "Remove all Discord messages",
-      "purgeLead": "Deletes every message, file and reaction any bridge brought from Discord, on every server of this instance. For when this instance must stop holding Discord content, for example when its Discord application loses access.",
+      "purgeLead": "Deletes every message, file and reaction any bridge brought from Discord, on every server of this instance. For when this instance must stop holding Discord content, for example when its Discord application loses access. History import is turned off and unfinished imports stop.",
       "purge": "Remove all Discord messages",
       "purgeConfirm": "Delete everything bridged from Discord on every server of this instance? This cannot be undone.",
       "purgeYes": "Delete everything"
@@ -8365,6 +8366,7 @@
   "adminSignupCaptcha": {
     "title": "Sign-up check",
     "intro": "A captcha asked only when a sign-up looks automated, so most people never see it. Sign-ups through Google, GitHub, Twitch or this instance's own sign-in providers are never asked.",
+    "needsLimits": "The check runs with the sign-up limits: while “Apply sign-up limits” is off, no one is asked.",
     "provider": "Provider",
     "providerOff": "Off",
     "providerHint": "Create a widget with the provider and add the hostname of {origin} to it. The apps show the check from that address too.",

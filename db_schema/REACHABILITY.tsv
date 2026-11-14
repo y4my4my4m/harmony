@@ -170,11 +170,14 @@ bridge_mirror_status	definer	jsonb	authenticated+service_role	client	rpc in src/
 bridge_mirror_unreferenced	definer	text[]	service_role	client	rpc in bot-gateway/src/bridge/mirrorEnqueue.ts
 bridge_platform_author_key	invoker	text	service_role	client	called by bridge_privacy_check_subject
 bridge_privacy_changed	definer	void	-	client	called by bridge_privacy_erase, bridge_privacy_remove_remote_user, bridge_privacy_restore_remote_user, +1
-bridge_privacy_check_subject	invoker	void	service_role	client	called by bridge_privacy_erase, bridge_privacy_erase_core, bridge_privacy_erase_tail, +3
+bridge_privacy_check_subject	invoker	void	service_role	client	called by bridge_privacy_erase, bridge_privacy_erase_continue, bridge_privacy_erase_core, +4
 bridge_privacy_erase	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
-bridge_privacy_erase_core	definer	jsonb	-	client	called by bridge_privacy_erase, bridge_privacy_erase_tail, bridge_privacy_purge_instance, +2
+bridge_privacy_erase_continue	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+bridge_privacy_erase_core	definer	jsonb	-	client	called by bridge_privacy_erase, bridge_privacy_erase_continue, bridge_privacy_erase_tail, +3
 bridge_privacy_erase_tail	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
+bridge_privacy_mark_pending	definer	jsonb	-	client	called by bridge_privacy_erase, bridge_privacy_erase_continue, bridge_privacy_erase_tail, +1
 bridge_privacy_optout_ids	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgeConfig.ts, bot-gateway/src/bridge/bridgePrivacy.ts
+bridge_privacy_pending	definer	TABLE(server_id uuid, platform text, remote_user_id text)	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
 bridge_privacy_purge_instance	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 bridge_privacy_purge_server	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 bridge_privacy_remove_remote_user	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
@@ -920,6 +923,7 @@ regenerate_channel_webhook_token	definer	jsonb	authenticated+service_role	client
 regenerate_discord_bridge_pairing	definer	text	anon+authenticated+service_role	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 register_recovery_key	definer	recovery_key_metadata	authenticated+service_role	client	rpc in src/services/encryption/MegolmMessageEncryptionService.ts
 rehost_emoji	definer	emojis	service_role	client	rpc in federation-backend/src/routes/adminEmojis.ts
+remember_deleted_bridge_thread	definer	trigger	service_role	trigger	trigger public.threads BEFORE DELETE (a_threads_remember_bridge_thread)
 remote_engagement_figure	invoker	integer	service_role	trigger	called by apply_remote_engagement_counts, update_post_reaction_counts, update_post_reblog_count, +1
 remove_emoji	definer	void	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts, src/services/UserEmojiService.ts, src/services/emojiService.ts
 remove_group_icon	definer	jsonb	authenticated+service_role	client	rpc in src/utils/groupIconUtils.ts

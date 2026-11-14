@@ -6530,7 +6530,8 @@
       "purge": "Alle überbrückten Nachrichten entfernen",
       "purgeConfirm": "Alle Nachrichten, Dateien und Reaktionen löschen, die von Discord auf diesen Server gebracht wurden? Das lässt sich nicht rückgängig machen.",
       "purgeYes": "Alle löschen",
-      "purged": "{count} überbrückte Nachricht entfernt | {count} überbrückte Nachrichten entfernt"
+      "purged": "{count} überbrückte Nachricht entfernt | {count} überbrückte Nachrichten entfernt",
+      "purgedSome": "{count} überbrückte Nachricht entfernt; es sind noch welche übrig. Erneut ausführen. | {count} überbrückte Nachrichten entfernt; es sind noch welche übrig. Erneut ausführen."
     },
     "importAdmin": {
       "title": "Discord-Verlaufsimport",
@@ -6558,7 +6559,7 @@
       "totals": "{running} laufen, {queued} warten, {imported} Nachrichten importiert",
       "totalsStored": "{size} Discord-Dateien gespeichert",
       "purgeTitle": "Alle Discord-Nachrichten entfernen",
-      "purgeLead": "Löscht alle Nachrichten, Dateien und Reaktionen, die eine Bridge von Discord gebracht hat, auf jedem Server dieser Instanz. Für den Fall, dass diese Instanz keine Discord-Inhalte mehr halten darf, etwa wenn ihre Discord-Anwendung den Zugang verliert.",
+      "purgeLead": "Löscht alle Nachrichten, Dateien und Reaktionen, die eine Bridge von Discord gebracht hat, auf jedem Server dieser Instanz. Für den Fall, dass diese Instanz keine Discord-Inhalte mehr halten darf, etwa wenn ihre Discord-Anwendung den Zugang verliert. Der Verlaufsimport wird ausgeschaltet, und laufende Importe werden beendet.",
       "purge": "Alle Discord-Nachrichten entfernen",
       "purgeConfirm": "Alles von Discord Überbrückte auf jedem Server dieser Instanz löschen? Das lässt sich nicht rückgängig machen.",
       "purgeYes": "Alles löschen"
@@ -8369,6 +8370,7 @@
   "adminSignupCaptcha": {
     "title": "Prüfung bei der Registrierung",
     "intro": "Ein Captcha, das nur erscheint, wenn eine Registrierung automatisiert wirkt. Die meisten Menschen sehen es nie. Registrierungen über Google, GitHub, Twitch oder die eigenen Anmeldedienste dieser Instanz werden nie geprüft.",
+    "needsLimits": "Die Prüfung läuft mit den Registrierungslimits: Solange „Registrierungslimits anwenden“ aus ist, wird niemand gefragt.",
     "provider": "Anbieter",
     "providerOff": "Aus",
     "providerHint": "Erstelle beim Anbieter ein Widget und trage den Hostnamen von {origin} ein. Die Apps zeigen die Prüfung ebenfalls von dieser Adresse.",

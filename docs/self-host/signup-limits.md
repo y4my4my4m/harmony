@@ -217,7 +217,8 @@ The inbox limit and the domain lists count addresses, and only a confirmation pr
 ## Captcha
 
 Harmony can ask for a captcha, the **sign-up check**, only when a sign-up looks automated. It is off
-until you set it up in **Admin, Invites, Sign-up check**.
+until you set it up in **Admin, Invites, Sign-up check**. It runs with the sign-up limits: while
+**Apply sign-up limits** is off, no one is asked, whatever the mode.
 
 ### Set it up
 
@@ -282,7 +283,8 @@ With **When a sign-up looks automated**, the hook asks when any of these holds:
   limited**, and with no mail host lookup on record;
 - the sign-up is past the network or domain cap while those caps only count.
 
-A sign-up the limits refuse is refused as before; a captcha does not get past a refusal. Sign-ups
+A sign-up the limits refuse is refused as before, without a call to the provider; a captcha does not
+get past a refusal. The token alone goes to the provider, not the person's address. Sign-ups
 through Google, GitHub, Twitch or your own identity provider are never asked, as no widget can run on
 their redirect. Addresses on the instance's own network are exempt, as for every limit.
 

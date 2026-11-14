@@ -10,6 +10,12 @@ vi.mock('@/services/webrtcManager', () => ({ webrtcManager: { sendActivity: vi.f
 vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profile: { id: 'me' } }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'auth-me' } } }) }))
 
+const serverList = vi.hoisted(() => ({ rows: [] as unknown[] }))
+vi.mock('@/services/activities/activityService', async (load) => ({
+  ...(await load<typeof import('@/services/activities/activityService')>()),
+  getServerActivities: async () => serverList.rows,
+}))
+
 const { useActivitiesStore } = await import('@/stores/activities')
 
 const state = (over: Record<string, unknown> = {}) => ({
@@ -124,6 +130,44 @@ describe('activities store', () => {
     expect(store.current).toMatchObject({ revision: 8, playing: false })
     expect(store.apply('ch-1', state({ revision: 6, playing: true, position_at: 3000 }), true)).toBe(true)
     expect(store.current).toMatchObject({ revision: 6, playing: true })
+  })
+
+  it('bounds a peer by the database\'s revision of a run the server list seeded', async () => {
+    const store = useActivitiesStore()
+    const peer = (revision: number) => store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1',
+      activity: state({ revision, playing: revision % 2 === 0, position_at: 1000 + revision }) } })
+    serverList.rows = [state({ revision: 5 })]
+    await store.refreshServer('s')
+    expect(store.current?.revision).toBe(5)
+
+    for (let r = 6; r <= 20; r++) peer(r)
+    expect(store.current?.revision).toBe(8)
+    expect(store.apply('ch-1', state({ revision: 6, playing: true, position_at: 9000 }), true)).toBe(true)
+    expect(store.current).toMatchObject({ revision: 6, playing: true })
+  })
+
+  it('an answer equal to the held state still counts as the database\'s', () => {
+    const store = useActivitiesStore()
+    const peer = (revision: number) => store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1',
+      activity: state({ revision, position_at: 1000 + revision }) } })
+    store.apply('ch-1', state({ revision: 5 }), true)
+    peer(6)
+    // The database answers the peer's change: same revision and position.
+    expect(store.apply('ch-1', state({ revision: 6, position_at: 1006 }), true)).toBe(false)
+    peer(7)
+    // An answer read before revision 6 reached the database does not roll it back.
+    expect(store.apply('ch-1', state({ revision: 6, playing: false, position_at: 1500 }), true)).toBe(false)
+    expect(store.current?.revision).toBe(7)
+    // The peer counts past the database's 6, not its own 7.
+    for (let r = 8; r <= 12; r++) peer(r)
+    expect(store.current?.revision).toBe(9)
+  })
+
+  it('takes no peer state for a run the database never answered', () => {
+    const store = useActivitiesStore()
+    store.apply('ch-1', state({ revision: 5 }), false)
+    store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1', activity: state({ revision: 6, playing: false, position_at: 2000 }) } })
+    expect(store.current).toMatchObject({ revision: 5, playing: true })
   })
 
   it('a host-only run takes playback from its host alone', () => {

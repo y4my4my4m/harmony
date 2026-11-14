@@ -14,8 +14,8 @@ CREATE FUNCTION pg_temp.verdict(p_codes text) RETURNS text LANGUAGE sql AS $fn$
 $fn$;
 SELECT is(pg_temp.verdict('["invalid-widget-id"]'), 'error', 'a Turnstile widget gone gives no verdict');
 SELECT is(pg_temp.verdict('["invalid-parsed-secret"]'), 'error', 'nor a secret Turnstile cannot parse');
-SELECT is(pg_temp.verdict('["missing-remoteip"]'), 'error', 'nor an address hCaptcha wants and lacks');
-SELECT is(pg_temp.verdict('["invalid-remoteip"]'), 'error', 'nor one it refuses');
+SELECT is(pg_temp.verdict('["missing-remoteip"]'), 'fail', 'an answer about an address is a refusal (293: none is sent)');
+SELECT is(pg_temp.verdict('["invalid-remoteip"]'), 'fail', 'as is one refusing it');
 SELECT is(pg_temp.verdict('["sitekey-secret-mismatch"]'), 'fail', 'a token of another site key still fails');
 
 -- The sign-up hook runs its checks when the captcha call fails. -----------------------------------
@@ -64,8 +64,8 @@ INSERT INTO public.messages (bot_id, channel_id, thread_id, content, metadata) V
   ('f2920000-0000-0000-0000-0000000000b1', '66666666-0000-0000-0000-000000000006', 'f2920000-0000-0000-0000-0000000000c1',
    '[{"type": "text", "text": "reply"}]', '{"discord_user": {"id": "2920000000000009009"}, "bot": true}');
 SELECT public.bridge_privacy_erase('55555555-0000-0000-0000-000000000005', 'discord', '2920000000000009001', 50);
-SELECT is((SELECT name FROM public.threads WHERE id = 'f2920000-0000-0000-0000-0000000000c1'), 'bob''s question',
-          'a thread someone else started on the erased author''s message keeps its title');
+SELECT is((SELECT name FROM public.threads WHERE id = 'f2920000-0000-0000-0000-0000000000c1'), 'Thread',
+          'a thread someone else started on the erased author''s message is renamed (293)');
 
 SELECT public.bridge_privacy_set_optout('55555555-0000-0000-0000-000000000005', 'discord', '2920000000000009001', false);
 SELECT is(public.bridge_privacy_erase_tail('55555555-0000-0000-0000-000000000005', 'discord', '2920000000000009001', 50),

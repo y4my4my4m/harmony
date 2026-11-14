@@ -30,6 +30,9 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 - **A history batch can leave mirrored files behind.** Cleanup is keyed by Discord id, so a batch carrying one id twice, or a preparation that throws partway, leaves files until the daily `message_media` sweep.
 - **Member searches can answer into a reopened view.** Kick/ban's member picker and **Server settings** → **Roles** keep a search in flight when the dialog closes or the server changes; a late answer lists the previous server's members until the next one lands.
 - **A remote account's public page scans `profiles`.** The remote branch of `public_profile_page` filters on `lower(username)` and `lower(domain)`, which no index covers; `publicPageLimiter` bounds the rate.
+- **A remote account that drops all its emojis keeps them on its profile.** The profile emoji resolver (`emojiResolvers.ts`) writes `bio_emojis` and `display_name_emojis` only when it finds some, so an Update(Person) without emojis leaves the old ones.
+- **Undoing a channel reaction can miss a copy's emoji.** `inboundEmojiRowId` prefers a plain row of the image; an Undo that arrives after such a row appears looks there, not at the copy row the reaction holds.
+- **Linking an imported channel's replies is one statement.** `bridge_import_link_replies` links every reply of the channel in one call; a channel with a very long history may reach the statement timeout. Batch it like the message inserts.
 
 ## Next (correctness & UX)
 

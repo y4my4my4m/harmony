@@ -88,8 +88,10 @@ describe('BridgePrivacyPanel', () => {
   })
 
   it('removes a Discord user after a confirmation, repeating until nothing is left', async () => {
+    // The first batch removes; the later ones continue only while the removal stands.
     const answers = [{ erased: 200, more: true }, { erased: 200, more: true }, { erased: 12, more: false }]
-    installBackend({ bridge_remote_optouts: [] }, (name) => (name === 'bridge_privacy_remove_remote_user' ? answers.shift() : null))
+    installBackend({ bridge_remote_optouts: [] }, (name) =>
+      (name === 'bridge_privacy_remove_remote_user' || name === 'bridge_privacy_erase_continue' ? answers.shift() : null))
     const w = mountPanel()
     await flushPromises()
     await w.get('[data-testid="privacy-id"]').setValue(DANA)
@@ -104,7 +106,8 @@ describe('BridgePrivacyPanel', () => {
     await w.get('[data-testid="privacy-confirm-yes"]').trigger('click')
     await flushPromises()
 
-    expect(rpcCalls('bridge_privacy_remove_remote_user')).toEqual(Array(3).fill({ ...scope, p_remote_user_id: DANA }))
+    expect(rpcCalls('bridge_privacy_remove_remote_user')).toEqual([{ ...scope, p_remote_user_id: DANA }])
+    expect(rpcCalls('bridge_privacy_erase_continue')).toEqual(Array(2).fill({ ...scope, p_remote_user_id: DANA }))
     expect(toast.success).toHaveBeenCalledWith('Removed 412 messages')
     expect((w.get('[data-testid="privacy-id"]').element as HTMLInputElement).value).toBe('')
     expect(w.find('[data-testid="privacy-progress"]').exists()).toBe(false)
@@ -134,6 +137,19 @@ describe('BridgePrivacyPanel', () => {
 
     expect(rpcCalls('bridge_privacy_purge_server')).toEqual([scope, scope])
     expect(toast.success).toHaveBeenCalledWith('Removed 201 bridged messages')
+  })
+
+  it('says so when rows remain after batches that remove nothing', async () => {
+    installBackend({ bridge_remote_optouts: [] }, (name) => (name === 'bridge_privacy_purge_server' ? { erased: 0, more: true } : null))
+    const w = mountPanel()
+    await flushPromises()
+    await w.get('[data-testid="privacy-purge"]').trigger('click')
+    await w.get('[data-testid="privacy-confirm-yes"]').trigger('click')
+    await flushPromises()
+
+    expect(rpcCalls('bridge_privacy_purge_server')).toHaveLength(3)
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('Removed 0 bridged messages; some remain. Run it again.')
   })
 
   it('says so when the server refuses', async () => {

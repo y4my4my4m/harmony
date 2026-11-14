@@ -95,6 +95,49 @@ async function eraseRest(serverId: string, remoteUserId: string, key: string): P
   }
 }
 
+// Erases the database lists as unfinished (bridge_remote_optouts.erase_pending): a restart, a batch
+// that failed every retry, or a manager's removal whose page closed left them.
+const RESUME_EVERY_MS = 5 * 60_000
+const RESUME_BATCH = 50
+
+let resuming = false
+
+/**
+ * Finishes the erase of each listed user not already erasing here, one user at a time, so a restart
+ * with many pending does not run their batches at once. Returns how many it ran; 0 while a pass runs.
+ */
+export async function resumePendingErases(): Promise<number> {
+  if (resuming) return 0
+  resuming = true
+  try {
+    const { data, error } = await supabase.rpc('bridge_privacy_pending', { p_limit: RESUME_BATCH })
+    if (error) {
+      console.error('bridge_privacy_pending failed:', error.code, error.message)
+      return 0
+    }
+    const rows = (Array.isArray(data) ? data : []) as Array<{ server_id: string; platform: string; remote_user_id: string }>
+    const ran = new Set<string>()
+    for (const row of rows) {
+      if (row.platform !== DISCORD_PLATFORM) continue
+      const key = `${row.server_id}:${row.remote_user_id}`
+      if (ran.has(key) || eraseRunning.has(key)) continue
+      ran.add(key)
+      await eraseRest(row.server_id, row.remote_user_id, key)
+    }
+    return ran.size
+  } finally {
+    resuming = false
+  }
+}
+
+/** resumePendingErases now and every RESUME_EVERY_MS; the returned function stops it. */
+export function startEraseResume(): () => void {
+  void resumePendingErases()
+  const timer = setInterval(() => { void resumePendingErases() }, RESUME_EVERY_MS)
+  timer.unref?.()
+  return () => clearInterval(timer)
+}
+
 /** For tests: forgets every erase seen. */
 export function resetEraseCooldown() {
   eraseSeen.clear()

@@ -72,6 +72,13 @@ describe('SignupCaptchaSettings', () => {
     wrapper = null
   })
 
+  it('says the check runs with sign-up limits on, once a provider is picked', async () => {
+    await mountCard()
+    expect(wrapper!.find('[data-testid="signup-captcha-needs-limits"]').exists()).toBe(false)
+    await q('signup-captcha-provider').setValue('turnstile')
+    expect(q('signup-captcha-needs-limits').text()).toBe('adminSignupCaptcha.needsLimits')
+  })
+
   it('refuses to turn a provider on before a passing test', async () => {
     await mountCard()
     await fillTurnstile()

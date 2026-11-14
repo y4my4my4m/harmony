@@ -15,6 +15,7 @@ import { TTLCache } from './utils/TTLCache.js'
 import { getBridgeAttachmentMode, getUploadCeilingBytes, hasDiscordCdnFilePart, readBridgeAttachmentMode } from './utils/mirrorExternalMedia.js'
 import { mirrorFileToStorage } from './utils/mirrorFile.js'
 import { MirrorWorker } from './bridge/mirrorWorker.js'
+import { startEraseResume } from './bridge/bridgePrivacy.js'
 import { removeUnreferencedMirrors } from './bridge/mirrorEnqueue.js'
 import { meetsAssurance } from './utils/sessionAssurance.js'
 import { DiscordLinkRefresher, expiredDiscordAttachmentUrls } from './bridge/discordLinkRefresh.js'
@@ -92,6 +93,8 @@ const mirrorWorker = new MirrorWorker({
   log: console,
 })
 mirrorWorker.start()
+// Unfinished bridge privacy erases continue after a restart.
+const stopEraseResume = startEraseResume()
 if (config.bridge.hostSecret && config.bridge.hostSecret.length < MIN_HOST_SECRET_LENGTH) {
   console.warn(`BRIDGE_HOST_SECRET is shorter than ${MIN_HOST_SECRET_LENGTH} characters; GET /bridge/v2/hosted stays disabled`)
 }
@@ -432,6 +435,7 @@ async function shutdown() {
   
   bridgeConfigWatcher.stop()
   interactionPoller.stop()
+  stopEraseResume()
   // Awaited: the exit in the server.close callback drops bot_presence writes still in flight.
   await gateway.shutdown()
 

@@ -172,9 +172,12 @@ bridge_platform_author_key	p_platform text	text	invoker	public, pg_temp	service_
 bridge_privacy_changed	p_server_id uuid	void	definer	public, pg_temp		unreferenced
 bridge_privacy_check_subject	p_platform text, p_remote_user_id text	void	invoker	public, pg_temp	service_role	unreferenced
 bridge_privacy_erase	p_server_id uuid, p_platform text, p_remote_user_id text, p_limit integer	jsonb	definer	public, pg_temp	service_role	client
+bridge_privacy_erase_continue	p_server_id uuid, p_platform text, p_remote_user_id text	jsonb	definer	public, pg_temp	authenticated	client
 bridge_privacy_erase_core	p_server_id uuid, p_platform text, p_remote_user_id text, p_limit integer	jsonb	definer	public, pg_temp		unreferenced
 bridge_privacy_erase_tail	p_server_id uuid, p_platform text, p_remote_user_id text, p_limit integer	jsonb	definer	public, pg_temp	service_role	client
+bridge_privacy_mark_pending	p_server_id uuid, p_platform text, p_remote_user_id text, p_result jsonb	jsonb	definer	public, pg_temp		unreferenced
 bridge_privacy_optout_ids	p_server_id uuid, p_platform text	jsonb	definer	public, pg_temp	service_role	client
+bridge_privacy_pending	p_limit integer	TABLE(server_id uuid, platform text, remote_user_id text)	definer	public, pg_temp	service_role	client
 bridge_privacy_purge_instance	p_platform text	jsonb	definer	public, pg_temp	authenticated	client
 bridge_privacy_purge_server	p_server_id uuid, p_platform text	jsonb	definer	public, pg_temp	authenticated	client
 bridge_privacy_remove_remote_user	p_server_id uuid, p_platform text, p_remote_user_id text	jsonb	definer	public, pg_temp	authenticated	client
@@ -920,6 +923,7 @@ regenerate_channel_webhook_token	p_id uuid	jsonb	definer	public, pg_temp	authent
 regenerate_discord_bridge_pairing	p_server_id uuid	text	definer	public, pg_temp	anon+authenticated+service_role	client
 register_recovery_key	p_user_id uuid, p_verification_code text, p_word_count integer	recovery_key_metadata	definer	public, pg_temp	authenticated+service_role	client
 rehost_emoji	p_emoji_id uuid, p_path text, p_url text, p_actor uuid	emojis	definer	public, pg_temp	service_role	client
+remember_deleted_bridge_thread		trigger	definer	public, pg_temp	service_role	trigger
 remote_engagement_figure	p_post_id uuid, p_kind text, p_figure integer, p_fetched_at timestamp with time zone	integer	invoker	public, pg_temp	service_role	unreferenced
 remove_emoji	p_emoji_id uuid	void	definer	public, pg_temp	authenticated+service_role	client
 remove_group_icon	conversation_uuid uuid, user_profile_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
