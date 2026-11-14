@@ -219,6 +219,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Watch together in the Windows, Linux and Android apps.** YouTube, SoundCloud and Spotify
   showed a black frame there: the app's own content rules refused the player page. Those apps now
   load it from your instance, as the macOS and iOS apps do.
+- **Link previews and GIFs on public pages.** Visitors who aren't signed in saw every link of a
+  post as its address on `/@name`, `/@name@example.social` and a post's own page: no preview card,
+  and a link to a GIF as text. They now see the preview stored with the post, the GIF itself, and a
+  link to an image or video file as that file. Nothing is fetched when a visitor opens the page.
 - **Watch together in the full call view.** Since 1.8.3 the video played behind the call view:
   its place there stayed black while the call bar's small player showed it. It now shows in the
   call view.

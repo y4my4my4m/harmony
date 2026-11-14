@@ -428,6 +428,115 @@ function mediaHtml(items: GalleryItem[]): string {
   return `<div class="media-grid media-${layout}${shown.length === 1 ? ' single' : ' multi'}">${cells.join('')}</div>${files.join('')}`;
 }
 
+// Wikimedia projects store still photos as GIF. Mirrors WIKIMEDIA_HOST in services/LinkPreviewService.ts.
+const WIKIMEDIA_HOST = /(^|\.)(wikipedia|wikimedia|wiktionary|wikiquote|wikibooks|wikisource|wikivoyage|wikinews|wikiversity|wikidata)\.org$/;
+const IMAGE_FILE_PATH = /\.(jpe?g|png|gif|webp|avif)$/;
+const VIDEO_FILE_PATH = /\.(mp4|webm|mov|m4v)$/;
+/** Link previews shown under one post. */
+const MAX_LINK_PREVIEWS = 4;
+
+function parsedUrl(url: string): URL | null {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+/** An https URL for `src`: the pages' CSP refuses plain-HTTP media from other hosts. */
+function safeHttpsUrl(url: unknown): string {
+  const safe = safeHttpUrl(url);
+  return /^https:\/\//i.test(safe) ? safe : '';
+}
+
+export type LinkPreviewView =
+  | { kind: 'image' | 'loop' | 'clip'; href: string; src: string; alt: string }
+  | { kind: 'card'; href: string; title: string; description: string; site: string; image: string };
+
+/**
+ * How a link of a post shows under its text. A stored preview (a LinkPreviewService payload)
+ * renders as media as src/utils/gifLinks.ts linkPreviewMedia decides: a mediaOnly video as a
+ * clip, a video file as a loop, a mediaOnly or .gif image as an image. Other previews with a
+ * title render as a card. A link to an image or video file without such a preview renders as
+ * that file, as the app's content renderer shows it (useContentRenderer isImageUrl, isVideoUrl).
+ */
+export function linkPreviewView(url: string, payload: any): LinkPreviewView | null {
+  const href = safeHttpUrl(url);
+  const parsed = href ? parsedUrl(href) : null;
+  if (!parsed) return null;
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+  const stored = payload && typeof payload === 'object' && payload.failed !== true ? payload : null;
+  const title = stored && typeof stored.title === 'string' ? stored.title.trim() : '';
+  const site = stored && typeof stored.siteName === 'string' && stored.siteName.trim() ? stored.siteName.trim() : host;
+  const alt = title && title !== site ? title : '';
+
+  if (stored && !WIKIMEDIA_HOST.test(host)) {
+    const clip = stored.mediaOnly === true ? safeHttpsUrl(stored.video?.url) : '';
+    if (clip) return { kind: 'clip', href, src: clip, alt };
+    const media = safeHttpsUrl(stored.image);
+    const mediaPath = media ? (parsedUrl(media)?.pathname.toLowerCase() ?? '') : '';
+    if (media && VIDEO_FILE_PATH.test(mediaPath)) return { kind: 'loop', href, src: media, alt };
+    if (media && (stored.mediaOnly === true || mediaPath.endsWith('.gif'))) return { kind: 'image', href, src: media, alt };
+  }
+  if (title) {
+    const image = safeHttpsUrl(stored.image);
+    return {
+      kind: 'card',
+      href,
+      title: truncate(title, 200),
+      description: typeof stored.description === 'string' ? truncate(stored.description.trim(), 300) : '',
+      site,
+      image: image && !VIDEO_FILE_PATH.test(parsedUrl(image)?.pathname.toLowerCase() ?? '') ? image : '',
+    };
+  }
+  const path = parsed.pathname.toLowerCase();
+  const file = safeHttpsUrl(href);
+  if (file && IMAGE_FILE_PATH.test(path)) return { kind: 'image', href, src: file, alt: '' };
+  if (file && VIDEO_FILE_PATH.test(path)) return { kind: 'clip', href, src: file, alt: '' };
+  return null;
+}
+
+function linkPreviewHtml(view: LinkPreviewView): string {
+  const href = escapeHtml(view.href);
+  if (view.kind === 'card') {
+    const image = view.image ? `<img class="link-card-image" src="${escapeHtml(view.image)}" alt="" loading="lazy" decoding="async">` : '';
+    const description = view.description ? `<span class="link-card-description">${escapeHtml(view.description)}</span>` : '';
+    return `<a class="link-card" href="${href}" rel="nofollow noopener" target="_blank" data-testid="public-link-card">${image}<span class="link-card-body"><span class="link-card-site">${escapeHtml(view.site)}</span><span class="link-card-title">${escapeHtml(view.title)}</span>${description}</span></a>`;
+  }
+  const src = escapeHtml(view.src);
+  const alt = escapeHtml(view.alt);
+  if (view.kind === 'image') {
+    return `<a class="link-media" href="${href}" rel="nofollow noopener" target="_blank" data-testid="public-link-media"><img src="${src}" alt="${alt}" loading="lazy" decoding="async"></a>`;
+  }
+  if (view.kind === 'loop') {
+    return `<a class="link-media" href="${href}" rel="nofollow noopener" target="_blank" data-testid="public-link-media"><video src="${src}" aria-label="${alt}" autoplay muted loop playsinline preload="metadata"></video></a>`;
+  }
+  return `<div class="link-media" data-testid="public-link-media"><video src="${src}" aria-label="${alt}" controls playsinline preload="metadata"></video></div>`;
+}
+
+/**
+ * The link previews of a post: its url and embed parts in order, one per URL, previews on,
+ * gallery files left out. Stored previews are posts.metadata.embeds by URL (public_page_post's
+ * `embeds`); nothing is fetched here.
+ */
+export function linkPreviewsHtml(post: any, galleryUrls: Set<string> = new Set()): string {
+  const raw = post?.embeds ?? post?.metadata?.embeds;
+  const stored: Record<string, any> = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of Array.isArray(post?.content) ? post.content : []) {
+    if (out.length >= MAX_LINK_PREVIEWS) break;
+    if (part?.type !== 'url' && part?.type !== 'embed') continue;
+    if (part.preview === false || part.preview === 'false') continue;
+    const url = typeof part.url === 'string' ? part.url : '';
+    if (!url || seen.has(url) || galleryUrls.has(url)) continue;
+    seen.add(url);
+    const view = linkPreviewView(url, Object.prototype.hasOwnProperty.call(stored, url) ? stored[url] : null);
+    if (view) out.push(linkPreviewHtml(view));
+  }
+  return out.join('');
+}
+
 function pollHtml(poll: any, ctx: PageContext): string {
   if (!poll || !Array.isArray(poll.options)) return '';
   const count = (v: unknown) => {
@@ -514,11 +623,12 @@ export function renderPostCard(post: any, ctx: PageContext, opts: PostCardOption
     })}</p>`
     : '';
 
-  const mediaBlock = media.length === 0
+  const shownMedia = `${media.length === 0 ? '' : mediaHtml(media)}${linkPreviewsHtml(post, galleryUrls)}`;
+  const mediaBlock = !shownMedia
     ? ''
     : post.is_sensitive && !post.content_warning
-      ? `<details class="sensitive"><summary>${icon('eyeOff')}<span>${escapeHtml(ctx.t.sensitive)}</span><span class="toggle"><span class="more">${escapeHtml(ctx.t.showMore)}</span><span class="less">${escapeHtml(ctx.t.showLess)}</span></span></summary>${mediaHtml(media)}</details>`
-      : mediaHtml(media);
+      ? `<details class="sensitive"><summary>${icon('eyeOff')}<span>${escapeHtml(ctx.t.sensitive)}</span><span class="toggle"><span class="more">${escapeHtml(ctx.t.showMore)}</span><span class="less">${escapeHtml(ctx.t.showLess)}</span></span></summary>${shownMedia}</details>`
+      : shownMedia;
   const body = `<div class="content"${post.language ? ` lang="${escapeHtml(String(post.language))}"` : ''}>${contentHtml}</div>${mediaBlock}${pollHtml(post.poll, ctx)}${quoteHtml(post.quote, ctx)}`;
   const warned = post.content_warning
     ? `<div class="content-warning">${escapeHtml(post.content_warning)}</div>

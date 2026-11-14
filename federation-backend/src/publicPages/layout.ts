@@ -261,6 +261,15 @@ details[open] > summary .toggle .less { display: inline; }
 .media-audio audio { width: 100%; }
 .alt-badge { position: absolute; left: 8px; bottom: 8px; padding: 1px 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.72); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; cursor: help; }
 .media-file { display: inline-flex; align-items: center; gap: 6px; }
+.link-media { display: block; width: fit-content; max-width: 100%; border-radius: 12px; overflow: hidden; background: var(--surface-3); }
+.link-media img, .link-media video { display: block; max-width: 100%; max-height: 420px; height: auto; }
+.link-card { display: flex; min-height: 88px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface-2); color: var(--text); }
+.link-card:hover { text-decoration: none; background: var(--surface-3); }
+.link-card-image { flex: none; width: 112px; min-height: 100%; object-fit: cover; background: var(--surface-3); }
+.link-card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 14px; }
+.link-card-site { color: var(--muted); font-size: 12px; }
+.link-card-title { font-weight: 700; }
+.link-card-description { color: var(--text-2); font-size: 13px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .poll ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .poll-option { position: relative; display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); overflow: hidden; }
 .poll-bar { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--brand) 20%, transparent); }

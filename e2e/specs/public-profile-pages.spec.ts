@@ -17,7 +17,8 @@
 //
 // A remote account reads the same way at /@<name>@<domain>, as this instance holds it: never
 // indexed, a link to its origin, its public posts only; an account this instance has not met is
-// not found. A signed-in reader's "Copy profile link" puts that address on the clipboard.
+// not found. A signed-in reader's "Copy profile link" puts that address on the clipboard. A
+// post's link previews, stored with it, show as a card, and a link to a GIF as the GIF.
 //
 // PUBLIC_PAGE_SHOTS=<directory> saves both pages, light and dark, at desktop and phone width.
 
@@ -45,6 +46,16 @@ const stamp = Date.now().toString(36)
 // Dotted, as Bluesky accounts bridged by Bridgy Fed are; mixed case, as Mastodon allows.
 const remote = { id: randomUUID(), username: `Modiie.${stamp}`, domain: `piaille-${stamp}.e2e.test` }
 const remoteHandle = `${remote.username}@${remote.domain}`
+const LINKS = {
+  story: 'https://news.e2e.test/discoverable',
+  storyImage: 'https://media.e2e.test/og.png',
+  gif: 'https://media.e2e.test/dance.gif',
+}
+/** What the link hosts answer, by path. */
+const LINK_MEDIA: Record<string, { file: string; contentType: string }> = {
+  '/og.png': { file: 'public/img/app_icon_square.png', contentType: 'image/png' },
+  '/dance.gif': { file: 'tests/fixtures/media-metadata/anim.gif', contentType: 'image/gif' },
+}
 
 const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString()
 
@@ -192,6 +203,29 @@ test.beforeAll(async () => {
     })
     if (postError) throw new Error(`remote post: ${postError.message}`)
   }
+  const { error: linkError } = await admin.from('posts').insert({
+    author_id: remote.id,
+    is_local: false,
+    visibility: 'public',
+    content: [
+      { type: 'text', text: 'Discoverable servers on the open web ' },
+      { type: 'url', url: LINKS.story },
+      { type: 'text', text: ' ' },
+      { type: 'url', url: LINKS.gif },
+    ],
+    metadata: {
+      embeds: {
+        [LINKS.story]: {
+          url: LINKS.story, provider: 'generic', title: 'Making content from Discoverable servers easier to discover',
+          description: 'Starting November 16', siteName: 'Discord', image: LINKS.storyImage,
+        },
+      },
+    },
+    ap_id: `https://${remote.domain}/notes/3`,
+    url: `https://${remote.domain}/@${remote.username}/3`,
+    created_at: minutesAgo(9),
+  })
+  if (linkError) throw new Error(`remote link post: ${linkError.message}`)
 
   backend = await startBackend()
 })
@@ -277,6 +311,34 @@ test('a visitor reads a remote account as this instance holds it', async ({ brow
   const missing = await page.goto(`/@ghost${stamp}@${remote.domain}`)
   expect(missing?.status()).toBe(404)
   await expect(page.locator('[data-status="not_found"]')).toBeVisible()
+  await context.close()
+})
+
+test('a visitor sees a post\'s link preview and a linked GIF', async ({ browser }) => {
+  const context = await visitor(browser)
+  await context.route('https://media.e2e.test/**', (route) => {
+    const media = LINK_MEDIA[new URL(route.request().url()).pathname]
+    return media
+      ? route.fulfill({ contentType: media.contentType, body: fs.readFileSync(path.join(ROOT, media.file)) })
+      : route.fulfill({ status: 404 })
+  })
+  const page = await context.newPage()
+  await page.goto(`/@${remoteHandle}`)
+  const post = page.getByTestId('public-post').filter({ hasText: 'Discoverable servers on the open web' })
+
+  const card = post.getByTestId('public-link-card')
+  await expect(card).toHaveAttribute('href', LINKS.story)
+  await expect(card).toContainText('Making content from Discoverable servers easier to discover')
+  await expect(card).toContainText('Discord')
+  await expect(card.locator('img')).toHaveAttribute('src', LINKS.storyImage)
+
+  const gif = post.getByTestId('public-link-media').locator('img')
+  await expect(gif).toHaveAttribute('src', LINKS.gif)
+  await gif.scrollIntoViewIfNeeded()
+  // Loaded, not only named: the pages' CSP admits https media from other hosts.
+  await expect.poll(() => gif.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true)
+
+  if (SHOTS) await shoot(page, 'remote-link-previews')
   await context.close()
 })
 
