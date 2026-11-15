@@ -125,11 +125,20 @@ test('the home timeline is a feed read post by post from the keyboard', async ({
     })
 
     await test.step('Ctrl+End reaches Load more; loading announces and focuses the first new post', async () => {
+      // Ctrl+End scrolls Load more into view, which starts the scroll load. The next
+      // page is held until Enter so the button is still there to read and press.
+      let release: () => void = () => {}
+      const held = new Promise<void>((resolve) => { release = resolve })
+      await page.route('**/rest/v1/rpc/get_home_timeline_page', async (route) => {
+        if (route.request().postDataJSON()?.p_before) await held
+        await route.continue()
+      })
       await page.keyboard.press('Control+End')
       const loadMore = page.getByTestId('feed-load-more')
       await expect(loadMore).toBeFocused()
       await expect(loadMore).toHaveText(/Load more posts|Loading more posts/)
       await page.keyboard.press('Enter')
+      release()
       await expect(polite(page)).toContainText('5 posts loaded', { timeout: 30000 })
       await expect(article(PAGE_SIZE + 1)).toBeFocused({ timeout: 15000 })
       await expect(article(PAGE_SIZE + 1)).toContainText(seeded!.texts[PAGE_SIZE])
