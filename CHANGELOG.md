@@ -112,8 +112,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Bridge privacy.** Discord members decide about their own messages with
   `/bridge-privacy` on Discord: `opt-out` keeps them out of the Harmony server
   from then on, live and imported, `erase` also deletes what the bridge
-  already brought, `opt-in` and `status` do what they say. It works with every
-  kind of bridge. For someone who cannot run it, members with Manage Server
+  already brought, `opt-in` and `status` do what they say. Opting back in,
+  or a manager's **Restore**, brings later messages only: history import
+  leaves out what the member wrote before. It works with every kind of
+  bridge: the member list, mention suggestions and mentions leave out
+  opted-out members whatever a bridge sends. For someone who cannot run it, members with Manage Server
   remove a Discord user by ID under **Server settings** → **Discord Bridge** →
   **Bridge privacy**, where **Remove all bridged messages** clears the whole
   server and stops its unfinished imports; instance admins have **Remove all Discord messages** for the
@@ -127,7 +130,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `privacy_version`. The import routes answer `403` `import_disabled` while
   import is off, `429` `import_busy` and `import_rate_limited` with
   `Retry-After`, and reject a message that cannot be stored alone (`rejected`
-  with `invalid`, `future_date`, `opted_out`, `automod`) instead of failing its
+  with `invalid`, `future_date`, `opted_out`, `before_opt_in`, `automod`) instead of failing its
   batch. See the developer docs, Build → Writing a bridge.
 - **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
   installs an instance on a blank Linux server: it checks the host (offering
@@ -172,6 +175,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **A Discord reply to a message that is gone arrives without the reply.** A reply relayed
+  from Discord to a message erased or purged on Harmony was dropped (`500`); it is now sent
+  without the reply link, as Discord shows it. A bot naming a message of another channel gets
+  `400` `REPLY_OUT_OF_SCOPE`.
 - **Select and copy inline code, settings and dialog text.** Inline code in messages, and the
   text of settings pages, dialogs, profile cards and the audit log, could not be selected. They now
   select like message text; buttons, tabs and switches still do not. (#204, ROODAY)

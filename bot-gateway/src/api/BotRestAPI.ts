@@ -2959,8 +2959,11 @@ export class BotRestAPI {
       if (limitError) return res.status(500).json({ error: limitError.message })
       if (limit == null) return res.status(500).json({ error: 'emoji limit unavailable' })
       // imported: the bridge may remove it. restorable: removed by the bridge, so it may restore it.
+      // A live row the bridge removed was restored by a person (the bridge's restore clears the
+      // mark): it is theirs, as bridge_remove_server_emoji holds.
       const emojis = listed.rows.map((e: any) => {
-        const imported = isBridgeImportedEmoji(serverId, e)
+        const restoredByPerson = e.deleted_at == null && e.bridge_removed_at != null
+        const imported = isBridgeImportedEmoji(serverId, e) && !restoredByPerson
         return {
           id: e.id, name: e.name, url: e.url, discord_emoji_id: e.discord_emoji_id, removed: e.deleted_at != null,
           imported,

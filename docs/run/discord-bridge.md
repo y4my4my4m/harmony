@@ -176,8 +176,8 @@ Presence sync works only together with member list sync. With the instance's bot
 | Deletions | Yes, including bulk deletes (**Sync deletions**) | Yes (**Sync deletions**); see below |
 | Files and pictures | Linked from Discord's CDN; see [Attachments from Discord](#attachments-from-discord) | Uploaded to Discord as attachments up to 8 MB per message by default and within the Discord server's upload limit; larger files are posted as a link |
 | Voice messages, audio | Play in Harmony's audio player | As files |
-| Stickers | As pictures; animated Lottie stickers as the text `[sticker: name]` | Not applicable |
-| Server stickers | The bridge bot can copy the Discord server's PNG, APNG and GIF stickers into the Harmony server (not Lottie); a sticker deleted on Discord is retired in Harmony, see [Server stickers](/run/stickers#edit-or-remove-a-sticker) | Not sent |
+| Stickers | As the Harmony server sticker copied from it (`/bridge sync-stickers`), otherwise as pictures; animated Lottie stickers as the text `[sticker: name]` | Not applicable |
+| Server stickers | The bridge bot can copy the Discord server's PNG, APNG and GIF stickers into the Harmony server (not Lottie); `/bridge sync-stickers` in `mirror` mode retires the copy of a sticker deleted on Discord, see [Server stickers](/run/stickers#edit-or-remove-a-sticker) | Not sent |
 | Forwarded messages | With an italic *↪ Forwarded* line | Not applicable |
 | Custom emoji | As the Discord emoji picture, or as the Harmony server emoji imported from it | As Discord application emoji the bridge uploads on first use |
 | Mentions | Paired channel mentions and synced role mentions become Harmony mentions; `@name` typed by hand becomes a Harmony mention | A mentioned Discord member is pinged on Discord |
@@ -197,13 +197,13 @@ Deletion notes:
 
 - Deleting a Discord member's message on Harmony, by a moderator or by AutoMod, deletes it on Discord too when the bot holds **Manage Messages** there. A bot added without that permission keeps the Discord message; add the bot again to grant it (see [Maintain the bridge](#maintain-the-bridge)).
 - Deleting the Discord copy of a Harmony message does not delete the Harmony original.
+- Deleting an imported message on Harmony leaves the Discord original. Deleting it on Discord deletes the Harmony copy. With bridge 2.6.0 on Harmony 1.9.7 or later, edits, deletions and reactions also cross for messages relayed before the bridge last restarted; older versions drop them.
 
 To mention a Harmony member from Discord, use the `/mention` (or `/m`) command; it autocompletes Harmony users.
 
 ### What does not cross
 
 - Messages sent while the bridge is offline, or before the channels were paired. The bridge copies messages as they arrive and does not replay missed ones; [Import history](#import-history) brings the older Discord messages in.
-- Reactions on imported messages.
 - Messages posted by Discord bots, and by Harmony bots other than the bridge itself.
 - Harmony's join, leave, kick and ban notices.
 - Renaming, archiving or deleting a thread.
@@ -370,9 +370,10 @@ The bridge registers these commands in the bridged Discord server. `/bridge` is 
 | `/bridge sync-perms` | Copy Discord roles and the permissions of every paired channel to Harmony |
 | `/bridge import-history` | Import the channel's past Discord messages into its Harmony channel, after a confirmation; Administrator only; a bridge you run yourself only; options `action` (`start`, `status` or `cancel`) and `scope` (`channel`, the default, or `all`) (bridge 2.6.0 or later); see [Import history](#import-history) |
 | `/bridge-privacy` | For every member: `opt-out`, `opt-in`, `status`, `erase` for their own messages (bridge 2.6.0 or later); see [Bridge privacy](#bridge-privacy) |
-| `/bridge import-emojis` | Copy the Discord server's custom emoji into the Harmony server under the same names; a rerun adds only new ones (Harmony 1.6.25 or later) |
+| `/bridge sync-emojis`, `/bridge sync-stickers`, `/bridge sync-sounds` | Copy the Discord server's emoji, stickers or soundboard to Harmony and keep them up to date; `mode` `merge` (the default: adds and updates), `mirror` (also removes what the bridge copied from a Discord item deleted since, after a confirmation) or `add`, and `dry_run` (bridge 2.6.0 or later) |
+| `/bridge import-emojis` | Copy the Discord server's custom emoji into the Harmony server under the same names; a rerun adds only new ones (Harmony 1.6.25 or later). With bridge 2.6.0 it is `sync-emojis` in `add` mode |
 
-`/bridge link` offers only Harmony channels the bridge's Harmony bot can see. An imported emoji is one emoji on both sides, so reactions with it count together; a Harmony emoji that already has the same name is linked instead of duplicated.
+`/bridge link` offers only Harmony channels the bridge's Harmony bot can see. An imported emoji is one emoji on both sides, so reactions with it count together. A sync never removes what a member uploaded on Harmony and changes it only to rename a member's emoji the bridge linked by name, never restores what a person removed, and never removes again an emoji a person restored after the bridge removed it. A Harmony emoji of the same name that the bridge did not copy is listed as a name clash; bridges before 2.6.0 link it instead.
 
 ## Moderation and spam
 

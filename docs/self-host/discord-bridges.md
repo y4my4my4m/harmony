@@ -145,9 +145,6 @@ All variables the bridge program reads in host mode:
 | `DATA_DIR` | no | State directory; `/data` in the image |
 | `LOG_LEVEL` | no | `error`, `warn`, `info` (default) or `debug`; only `debug` logs message contents |
 | `HEALTH_PORT` | no | Port of the `/health` endpoint, default `8080`; `off` disables it |
-| `BRIDGE_IMPORT_POLL_MS` | no | How often a bridge checks Harmony for history import jobs, in ms; default `10000` (bridge 2.6.0 or later) |
-| `BRIDGE_IMPORT_PAGE_DELAY_MS` | no | Pause between two history pages read from Discord, in ms; default `1000` |
-| `BRIDGE_IMPORT_CONCURRENCY` | no | History imports running at once in this bridge process; default `1` |
 
 Extra variables for the compose service go in `self-host/discord-bridge.env`; `configure.sh` rewrites only `BRIDGE_HOST_SECRET` there and keeps other keys.
 

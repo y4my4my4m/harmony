@@ -239,6 +239,26 @@ describe('role and channel mention parts', () => {
     ])
   })
 
+  it('turns the mention of a Discord member on the opt-out list into text, whatever the bridge sent', async () => {
+    seed()
+    const discordMention = (id: string, name: string) =>
+      ({ type: 'mention', userId: id, username: name, domain: 'discord.com', isLocal: false, displayName: name, isBridged: true, bridgeSource: 'discord' })
+    db.rows('bridge_remote_optouts').push(
+      { server_id: SERVER_ID, platform: 'discord', remote_user_id: '400000000000000002', source: 'manager' },
+      { server_id: OTHER_SERVER, platform: 'discord', remote_user_id: '400000000000000001', source: 'self' },
+    )
+    const res = await supertest(app())
+      .post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [discordMention('400000000000000001', 'kept'), { type: 'text', text: ' and ' }, discordMention('400000000000000002', 'Removed One')] })
+
+    expect(res.status).toBe(201)
+    expect(insertedContent()).toEqual([
+      discordMention('400000000000000001', 'kept'),
+      { type: 'text', text: ' and ' },
+      { type: 'text', text: '@Removed One' },
+    ])
+  })
+
   it('answers 404 for an edit of a deleted message, a tombstone an erase left included', async () => {
     seed()
     db.rows('messages').push({ id: '00000000-0000-0000-0000-0000000000fa', channel_id: PAIRED, user_id: null, bot_id: BOT_ID,

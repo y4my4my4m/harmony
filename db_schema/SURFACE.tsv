@@ -142,6 +142,7 @@ bot_is_integration	p_bot_id uuid	boolean	definer	public, pg_temp	authenticated+s
 bot_permission_mask	p_names jsonb	bigint	invoker	public, pg_temp		unreferenced
 bot_permission_names	p_mask bigint	jsonb	invoker	public, pg_temp		unreferenced
 bot_rate_limit_take	p_bot_id uuid, p_bucket text, p_limit integer, p_window_seconds integer	integer	definer	public, pg_temp	service_role	client
+bridge_author_lock_key	p_server_id uuid, p_platform text, p_remote_user_id text	bigint	invoker	public, pg_temp	service_role	unreferenced
 bridge_delete_server_sound	p_bot_id uuid, p_server_id uuid, p_sound_id uuid	text	definer	public, pg_temp	service_role	client
 bridge_evict_removed_emojis	p_bot_id uuid, p_server_id uuid, p_ids uuid[]	TABLE(id uuid, path text)	definer	public, pg_temp	service_role	client
 bridge_evict_retired_stickers	p_bot_id uuid, p_server_id uuid, p_ids uuid[]	TABLE(id uuid, path text)	definer	public, pg_temp	service_role	client
@@ -806,6 +807,7 @@ message_media_readable	p_name text	boolean	definer	public, pg_temp	authenticated
 message_media_refs	p_content jsonb, p_media_paths text[]	text[]	invoker	pg_catalog, pg_temp	authenticated+service_role	unreferenced
 message_media_reported	p_name text	boolean	definer	public, pg_temp	authenticated+service_role	policy
 message_notification_sender_json	p_user_id uuid, p_bot_id uuid, p_metadata jsonb, p_sender_profile profiles	jsonb	invoker	public, pg_temp	anon+authenticated+service_role	unreferenced
+message_parts_relinked	p_old jsonb, p_new jsonb	boolean	invoker	public, pg_temp	service_role	unreferenced
 message_poll_federation_state	p_message_ids uuid[]	TABLE(message_id uuid, poll_id uuid, question text, allow_multiple boolean, expires_at timestamp with time zone, remote boolean, ap_id text, voters integer, options jsonb)	definer	public, pg_temp	service_role	client
 message_poll_target_encrypted	p_channel_id uuid, p_conversation_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	unreferenced
 message_search_flags	p_message messages, OUT has_media boolean, OUT has_url boolean, OUT has_image boolean, OUT has_video boolean, OUT has_audio boolean, OUT has_embed boolean, OUT is_pinned boolean, OUT mentioned_user_ids uuid[]	record	invoker	public, extensions, pg_temp	service_role	unreferenced

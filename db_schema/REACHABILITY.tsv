@@ -142,6 +142,7 @@ bot_is_integration	definer	boolean	authenticated+service_role	policy, trigger	po
 bot_permission_mask	invoker	bigint	-	client	called by bot_command_upsert_row, bot_commands_replace, bot_install_mask
 bot_permission_names	invoker	jsonb	-	client	called by bot_command_json
 bot_rate_limit_take	definer	integer	service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts
+bridge_author_lock_key	invoker	bigint	service_role	client, trigger	called by bridge_import_messages, bridge_privacy_erase, bridge_privacy_remove_remote_user, +3
 bridge_delete_server_sound	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_evict_removed_emojis	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordEmoji.test.ts
 bridge_evict_retired_stickers	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordSticker.test.ts
@@ -806,6 +807,7 @@ message_media_readable	definer	boolean	authenticated+service_role	policy	policy 
 message_media_refs	invoker	text[]	authenticated+service_role	client, declarative, policy, trigger	index idx_messages_media_refs on public.messages
 message_media_reported	definer	boolean	authenticated+service_role	policy	policy storage.objects SELECT on Room members can read message media
 message_notification_sender_json	invoker	jsonb	anon+authenticated+service_role	trigger	called by handle_channel_message_notifications, handle_message_federation, handle_role_mention_notifications, +1
+message_parts_relinked	invoker	boolean	service_role	trigger	called by guard_bridge_author_optout
 message_poll_federation_state	definer	TABLE(message_id uuid, poll_id uuid, question text, allow_multiple boolean, expires_at timestamp with time zone, remote boolean, ap_id text, voters integer, options jsonb)	service_role	client	rpc in federation-backend/src/activitypub/messagePolls.ts
 message_poll_target_encrypted	definer	boolean	authenticated+service_role	client	called by create_message_poll
 message_search_flags	invoker	record	service_role	trigger	called by index_message_row

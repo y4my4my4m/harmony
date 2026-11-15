@@ -3,15 +3,16 @@
 // bridge bot's token, for what a Discord member does with /bridge-privacy, and as the server's
 // manager in Server settings, Discord Bridge, Bridge privacy.
 //
-// - Dana opts out on Discord: her next message is refused, Eve's still crosses.
+// - Dana opts out on Discord: her next message is refused, Eve's still crosses. The links of her
+//   kept messages are still re-signed; their words cannot change.
 // - Dana erases: her messages leave the channel; Eve's and the manager's own stay.
 // - The manager removes Eve by Discord ID: her messages leave, she is listed as removed by a
 //   manager, her next message is refused, and Restore lets her through again.
 // - Remove all bridged messages leaves only what was written on Harmony.
 //
 // The bridge registers both members with op 6 and keeps them registered, as a bridge older than
-// 2.6.0 does: the member list drops whoever is left out all the same. A reply to an erased message
-// crosses without the reply.
+// 2.6.0 does: the member list drops whoever is left out all the same, and a mention of her arrives
+// as text. A reply to an erased message crosses without the reply.
 //
 // The stack runs the bot gateway as a child process (see botGateway.ts).
 
@@ -129,12 +130,12 @@ async function gatewayCall(path: string, init: { method?: string; body?: unknown
 }
 
 /** A live relayed message of a Discord author, as the bridge posts it. */
-function relay(author: typeof DANA, text: string, replyTo?: string) {
+function relay(author: typeof DANA, text: string, replyTo?: string, files: unknown[] = []) {
   nextDiscordId += 1n
   return gatewayCall(`/api/v1/channels/${server.generalChannelId}/messages`, {
     method: 'POST',
     body: {
-      content: [{ type: 'text', text }],
+      content: [{ type: 'text', text }, ...files],
       ...(replyTo ? { reply_to: replyTo } : {}),
       metadata: { discord_user: author, discord_message_id: String(nextDiscordId), bridge_source: 'discord' },
     },
@@ -181,8 +182,9 @@ test('a Discord member opts out and erases; a manager removes another and clears
   test.setTimeout(300_000)
 
   const sentIds: string[] = []
+  const photo = { type: 'file', fileType: 'image', url: 'https://cdn.discordapp.com/attachments/1500000000000000100/1500000000000000300/photo.png?ex=1', name: 'photo.png' }
   for (const [author, text] of [[DANA, 'Dana one'], [EVE, 'Eve one'], [DANA, 'Dana two'], [EVE, 'Eve two']] as const) {
-    const sent = await relay(author, text)
+    const sent = await relay(author, text, undefined, text === 'Dana two' ? [photo] : [])
     expect(sent.status, sent.text).toBe(201)
     sentIds.push(sent.json?.id)
   }
@@ -223,6 +225,18 @@ test('a Discord member opts out and erases; a manager removes another and clears
     expect(refused.status, refused.text).toBe(403)
     expect(refused.json?.code).toBe('BRIDGE_AUTHOR_OPTED_OUT')
     expect((await relay(EVE, 'Eve three')).status).toBe(201)
+
+    // The bridge still re-signs the links of what she left on Harmony; it cannot change her words.
+    const keptId = sentIds[2]
+    const { data: kept } = await admin.from('messages').select('content').eq('id', keptId).single()
+    const resigned = (kept!.content as Array<Record<string, any>>)
+      .map((p) => (p.type === 'file' ? { ...p, url: `${String(p.url).split('?')[0]}?ex=2` } : p))
+    const refresh = await gatewayCall(`/api/v1/messages/${keptId}/content-silent`, { method: 'PATCH', body: { content: resigned } })
+    expect(refresh.status, refresh.text).toBe(200)
+    const reworded = resigned.map((p) => (p.type === 'text' ? { ...p, text: 'Words Dana never wrote' } : p))
+    const rewrite = await gatewayCall(`/api/v1/messages/${keptId}/content-silent`, { method: 'PATCH', body: { content: reworded } })
+    expect(rewrite.status).toBe(400)
+    expect(rewrite.json?.error).toBe('BRIDGE_AUTHOR_OPTED_OUT')
     // Opting out alone removes nothing.
     expect(await relayedTexts()).toEqual(['Dana one', 'Eve one', 'Dana two', 'Eve two', 'Eve three'])
   })
@@ -291,7 +305,13 @@ test('a Discord member opts out and erases; a manager removes another and clears
     expect(back.status, back.text).toBe(201)
     const { data: stored } = await admin.from('messages').select('reply_to').eq('id', back.json?.id).single()
     expect(stored?.reply_to).toBeNull()
-    expect((await relay(EVE, 'Eve again')).status).toBe(201)
+    // A mention of Dana, still opted out, arrives as text, whatever the bridge sent.
+    const danaMention = { type: 'mention', userId: DANA.id, username: DANA.username, domain: 'discord.com', isLocal: false,
+      displayName: DANA.display_name, isBridged: true, bridgeSource: 'discord' }
+    const again = await relay(EVE, 'Eve again', undefined, [danaMention])
+    expect(again.status, again.text).toBe(201)
+    const { data: mentioning } = await admin.from('messages').select('content').eq('id', again.json?.id).single()
+    expect((mentioning?.content as unknown[])[1]).toEqual({ type: 'text', text: '@Dana' })
   })
 
   await test.step('Remove all bridged messages leaves what was written on Harmony', async () => {

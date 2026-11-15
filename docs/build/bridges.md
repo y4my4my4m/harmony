@@ -462,7 +462,8 @@ A remote user opts out of a server's bridge, and has what the bridge brought era
 
 A bridge keeps the list and sends nothing of an opted-out author: no message, edit, reaction or thread. The gateway enforces it as well:
 
-- `POST /channels/{id}/messages` and an edit whose `metadata.discord_user.id` is opted out answer `403` `{ "code": "BRIDGE_AUTHOR_OPTED_OUT" }`. Drop the message; do not retry.
+- `POST /channels/{id}/messages` and an edit whose `metadata.discord_user.id` is opted out answer `403` `{ "code": "BRIDGE_AUTHOR_OPTED_OUT" }`. Drop the message; do not retry. A silent content update that only re-signs a Discord link (the same URL up to the query) or copies a file into storage still goes through, so the files of messages left on Harmony keep working.
+- A mention part of an opted-out Discord user arrives as the text `@name`.
 - A batch of [history import](#history-import) answers `rejected` with `reason` `opted_out` for it.
 - Opting in, and a manager's restore, is forward-looking: a batch answers `rejected` with `reason` `before_opt_in` for a message the user wrote before. Do not add the user to the opt-out list for it.
 - A delete is always accepted.

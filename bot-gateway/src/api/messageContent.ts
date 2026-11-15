@@ -144,13 +144,18 @@ async function typedMassMentions(parts: any[], content: unknown, channelId: stri
  * of those types becomes the text `@name` or `#name`. @everyone (the server's default role)
  * and @here (roleId `here`) keep their part only for a bot holding mention_everyone there, and
  * otherwise become the text `@everyone` or `@here`. Notifications of a kept role mention
- * follow handle_role_mention_notifications (MENTION_EVERYONE, mentionable roles).
+ * follow handle_role_mention_notifications (MENTION_EVERYONE, mentionable roles). A Discord
+ * member's mention part (MessageTranslator: `bridgeSource` 'discord') of someone on the server's
+ * bridge opt-out list becomes the text `@name`, whatever the bridge's own list held; every one
+ * does when the list cannot be read.
  */
 export async function resolveMentionParts(parts: any[], channelId: string | null | undefined, botId: string): Promise<any[]> {
   if (!Array.isArray(parts)) return parts
   const isRole = (p: any) => p?.type === 'role_mention'
   const isChannel = (p: any) => p?.type === 'channel_mention'
-  if (!parts.some((p) => isRole(p) || isChannel(p))) return parts
+  const isDiscordMember = (p: any) =>
+    p?.type === 'mention' && typeof p.userId === 'string' && (p.bridgeSource === 'discord' || p.domain === 'discord.com')
+  if (!parts.some((p) => isRole(p) || isChannel(p) || isDiscordMember(p))) return parts
 
   const serverId = channelId ? await channelServerId(channelId) : null
   const uuids = (values: unknown[]) =>
@@ -182,10 +187,24 @@ export async function resolveMentionParts(parts: any[], channelId: string | null
     const named = await visibleChannels(botId, serverId, (data ?? []) as Array<{ id: string; name: string }>)
     for (const c of named) channels.set(c.id, c.name)
   }
+  const discordIds = [...new Set(parts.filter(isDiscordMember).map((p) => p.userId as string))]
+  let optedOut: ReadonlySet<string> | null = new Set()
+  if (serverId && discordIds.length > 0) {
+    const { data, error } = await supabase
+      .from('bridge_remote_optouts')
+      .select('remote_user_id')
+      .eq('server_id', serverId)
+      .eq('platform', 'discord')
+      .in('remote_user_id', discordIds)
+    optedOut = error ? null : new Set((data ?? []).map((r: { remote_user_id: string }) => r.remote_user_id))
+  }
 
   const label = (value: unknown, fallback: string) =>
     typeof value === 'string' && value.trim() !== '' ? value : fallback
   return parts.map((part) => {
+    if (isDiscordMember(part) && (optedOut === null || optedOut.has(part.userId))) {
+      return { type: 'text', text: `@${label(part.displayName, label(part.username, 'user'))}` }
+    }
     if (isHere(part)) {
       if (!canPingAll) return { type: 'text', text: `@${HERE_ROLE_ID}` }
       return { type: 'role_mention', roleId: HERE_ROLE_ID, roleName: HERE_ROLE_ID, roleColor: null }

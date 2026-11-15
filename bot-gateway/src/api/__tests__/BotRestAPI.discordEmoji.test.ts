@@ -296,12 +296,15 @@ describe('GET /servers/:serverId/emojis/discord', () => {
       { id: 'e5', name: 'e', url: `https://db.test/storage/v1/object/public/emojis/${SERVER_ID}/u1/e.png`, discord_emoji_id: '5', deleted_at: null, bridge_removed_at: null },
       // Another Discord emoji's image.
       { id: 'e6', name: 'f', url: stored('1'), discord_emoji_id: '6', deleted_at: null, bridge_removed_at: null },
+      // Removed by the bridge, then restored by a person: theirs now.
+      { id: 'e7', name: 'g', url: stored('7'), discord_emoji_id: '7', deleted_at: null, bridge_removed_at: at },
     ]
     routeTables({ discord_bridges: { data: { id: 'b1' }, error: null }, emojis: { data: rows, error: null } })
     mocks.rpc.mockResolvedValue({ data: 50, error: null })
     const res = await get()
     expect(res.body.emojis.map((e: any) => [e.id, e.imported, e.restorable])).toEqual([
       ['e1', true, false], ['e2', true, true], ['e3', true, false], ['e4', true, false], ['e5', false, false], ['e6', false, false],
+      ['e7', false, false],
     ])
   })
 

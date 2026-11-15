@@ -208,13 +208,14 @@ Edits and silent content patches apply the same check.
 
 When the instance's bridge attachment mode is `mirror`, `file` and `url` parts pointing at `discordapp.com` or `discordapp.net` are copied into the instance's storage first; see [Attachments](/build/bridges#attachments). Photos and videos copied this way lose their location, camera and other metadata; see [Photo and video metadata](#photo-and-video-metadata).
 
-Returns `201` with the [message object](#message-object). The instance then fetches link previews for the message's `url` parts.
+Returns `201` with the [message object](#message-object). The instance then fetches link previews for the message's `url` parts. A send whose `metadata.discord_message_id` this bot already stored in the channel answers `200` with that message instead of storing a second one.
 
 | Status | `error` | Cause |
 |---|---|---|
 | `400` | `Cannot send an empty message` | No part is left after the checks above. |
 | `400` | `thread_id is not a thread of this channel` | |
 | `400` | `reply_to names a message in another channel` | `code` is `REPLY_OUT_OF_SCOPE`. |
+| `409` | `That Discord message id is taken in this channel` | `code` is `DISCORD_MESSAGE_ID_TAKEN`: another bot's message holds `metadata.discord_message_id`. Final; do not retry. |
 | `403` | `Thread is locked` | |
 | `403` | `Blocked by the server's AutoMod` | `code` is `AUTOMOD_BLOCKED`. |
 | `400` | `Message text exceeds the instance limit of …` | Text over the length limit. |
@@ -298,7 +299,7 @@ The write applies only if the stored content has not changed since the gateway r
 
 On the bot's own message, reserved keys are dropped as on create. On another author's message, only a bridge bot whose bridge relays the channel may write, and only these keys: `discord_message_id`, `discord_message_ids`, `discord_via_webhook`, `discord_uploaded_files`, and `bridge_source` with the value `harmony`. Both cases need `send_messages` in the channel.
 
-Does not change `edited_timestamp` and sends no event. Returns `{ "ok": true, "metadata": { … } }` with the merged object.
+Does not change `edited_timestamp` and sends no event. Returns `{ "ok": true, "metadata": { … } }` with the merged object. A `discord_message_id` another message of the channel already holds changes nothing: the answer carries the stored metadata.
 
 | Status | `error` |
 |---|---|
@@ -638,7 +639,7 @@ Returns the server's emoji: `id`, `name`, `url`, `server_id`, `discord_emoji_id`
 
 `GET /servers/{server.id}/emojis/discord`
 
-Only the bot of the server's Discord bridge. Returns `{ "limit", "emojis" }`. `limit` is the server's emoji limit. `emojis` holds every active emoji plus removed emoji that still carry a Discord link: `id`, `name`, `url`, `discord_emoji_id`, `removed` (boolean), `imported` (boolean: the bridge imported it, so it may [remove](#remove-a-server-emoji) it; `false` for a member's emoji, also one linked by name) and `restorable` (boolean: the bridge removed it, so `update` may restore it). The list is never partial: past 10,000 rows the answer is `500` with `"code": "LIST_TOO_LARGE"`. `403` `Bot is not the Discord bridge of this server`.
+Only the bot of the server's Discord bridge. Returns `{ "limit", "emojis" }`. `limit` is the server's emoji limit. `emojis` holds every active emoji plus removed emoji that still carry a Discord link: `id`, `name`, `url`, `discord_emoji_id`, `removed` (boolean), `imported` (boolean: the bridge imported it, so it may [remove](#remove-a-server-emoji) it; `false` for a member's emoji, also one linked by name, and for one a person restored after the bridge removed it) and `restorable` (boolean: the bridge removed it, so `update` may restore it). The list is never partial: past 10,000 rows the answer is `500` with `"code": "LIST_TOO_LARGE"`. `403` `Bot is not the Discord bridge of this server`.
 
 ### Import a Discord emoji
 
@@ -666,7 +667,7 @@ The response is `{ "status", "id", "name", "url", "discord_emoji_id", "removed" 
 
 `DELETE /servers/{server.id}/emojis/{emoji.id}`
 
-Only the bot of the server's Discord bridge, and only an emoji it imported. Removes the emoji and answers `204`, also when it was already removed. A removed emoji keeps showing in old messages; the server keeps the 500 the bridge removed last and deletes older ones with their images. `404` when the emoji is not one of this server's; `400` when an ID is not a UUID; `403` `Bot is not the Discord bridge of this server`, or with `"code": "EMOJI_NOT_LINKED"` for an emoji a member uploaded, also one linked to a Discord emoji by name.
+Only the bot of the server's Discord bridge, and only an emoji it imported. Removes the emoji and answers `204`, also when it was already removed. A removed emoji keeps showing in old messages; the server keeps the 500 the bridge removed last and deletes older ones with their images. `404` when the emoji is not one of this server's; `400` when an ID is not a UUID; `403` `Bot is not the Discord bridge of this server`, or with `"code": "EMOJI_NOT_LINKED"` for an emoji a member uploaded, also one linked to a Discord emoji by name, and for one a person restored after the bridge removed it.
 
 ### List Discord-linked stickers
 

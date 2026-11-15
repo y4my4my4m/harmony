@@ -3,7 +3,8 @@
 //
 // The bot removes what it imported and nothing a member added: the member's emoji stays in
 // Server settings › Emoji while the imported one leaves it. The bot restores an emoji it
-// removed, and no longer after the owner removed it.
+// removed, and no longer after the owner removed it; once the owner restores an emoji the bot
+// removed, it is theirs and the bot may not remove it again.
 //
 // The bot gateway runs as a child process (e2e/specs/botGateway.ts); rows the bridge would have
 // imported are written with the service role, with their images where bot-gateway stores them.
@@ -175,6 +176,22 @@ test('the bridge bot removes what it imported and nothing a member added', async
     await page.reload()
     await expect(emoji('members_own')).toBeVisible({ timeout: 30000 })
     await expect(emoji('from_discord')).toHaveCount(0)
+  })
+
+  await test.step('an emoji the owner restores after the bot removed it is theirs: the bot does not remove it again', async () => {
+    const client = await userClient(owner)
+    expect((await client.rpc('restore_emoji', { p_emoji_id: ids.importedEmoji })).error).toBeNull()
+    expect((await api('DELETE', `/servers/${server.id}/emojis/${ids.importedEmoji}`)).status).toBe(204)
+    expect((await client.rpc('restore_emoji', { p_emoji_id: ids.importedEmoji })).error).toBeNull()
+    const res = await api('GET', `/servers/${server.id}/emojis/discord`)
+    const listed = ((await res.json()).emojis as Array<{ name: string; imported: boolean; removed: boolean }>)
+      .find((e) => e.name === 'from_discord')
+    expect(listed).toMatchObject({ imported: false, removed: false })
+    const refused = await api('DELETE', `/servers/${server.id}/emojis/${ids.importedEmoji}`)
+    expect(refused.status).toBe(403)
+    expect((await refused.json()).code).toBe('EMOJI_NOT_LINKED')
+    await page.reload()
+    await expect(emoji('from_discord')).toBeVisible({ timeout: 30000 })
   })
 
   await test.step('stickers: the member\'s is refused, the import is retired', async () => {
