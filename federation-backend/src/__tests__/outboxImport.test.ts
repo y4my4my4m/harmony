@@ -169,15 +169,15 @@ beforeEach(() => {
 
 describe('outbox import', () => {
   it('imports a NeoDB bare Note with a compact public audience and a catalog tag', async () => {
-    const actor = 'https://eggplant.place/@494@eggplant.place/'
+    const actor = 'https://neodb.test/@reader@neodb.test/'
     const outbox = `${actor}outbox/`
     const post = {
-      id: `${actor}posts/644886786419487248/`,
+      id: `${actor}posts/1/`,
       type: 'Note',
       attributedTo: actor,
-      content: '<p>finished watching <a href="https://eggplant.place/movie/example">A Clockwork Orange</a> 🌕🌕🌕🌕🌑</p>',
+      content: '<p>finished watching <a href="https://neodb.test/movie/example">Example Movie</a> 🌕🌕🌕🌕🌑</p>',
       to: 'as:Public',
-      tag: { type: 'Movie', href: 'https://eggplant.place/movie/example', name: 'A Clockwork Orange' },
+      tag: { type: 'Movie', href: 'https://neodb.test/movie/example', name: 'Example Movie' },
     }
     served.set(outbox, { type: 'OrderedCollection', totalItems: 1, orderedItems: [post] })
 
@@ -187,7 +187,7 @@ describe('outbox import', () => {
     expect(tables.posts).toHaveLength(1)
     expect(tables.posts[0]).toMatchObject({ ap_id: post.id, visibility: 'public', ap_type: 'Note' })
     expect(tables.posts[0].content).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'url', label: 'A Clockwork Orange', url: post.tag.href }),
+      expect.objectContaining({ type: 'url', label: 'Example Movie', url: post.tag.href }),
     ]))
   })
 
