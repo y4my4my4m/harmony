@@ -2,6 +2,7 @@ import { ref, computed, nextTick, watch, onScopeDispose } from 'vue';
 import type { Ref } from 'vue';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { memberDirectory } from '@/services/memberDirectory';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
@@ -30,6 +31,8 @@ import { isMassMentionWord } from '@/utils/massMentions';
 import { isImeKeyEvent } from '@/utils/editorShortcuts';
 import { normalizeSearchText } from '@/utils/searchTokens';
 import { useT } from '@/composables/useT';
+import { emoticonEmoji } from '@/utils/emoticons';
+import { emoticonPreferences } from '@/composables/useVisualTheme';
 import {
   flattenBotCommands,
   getChannelBotCommands,
@@ -203,7 +206,7 @@ export function useAutoSuggest(
   const emojiCacheStore = useEmojiCacheStore();
   const serverChannelStore = useServerChannelStore();
   const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
-  const { searchEmojiHits, isLoaded: unifiedLoaded, isNativePack, getTwemojiUrl } = useUnifiedEmoji();
+  const { searchEmojiHits, unicodeToShortcode, isLoaded: unifiedLoaded, isNativePack, getTwemojiUrl } = useUnifiedEmoji();
   const { frequentEmojis } = useFrequentEmojis();
   const { restricted: externalRestricted, serverId: policyServerId } =
     useExternalEmojiPolicy(() => config.channelId?.() ?? null);
@@ -244,6 +247,32 @@ export function useAutoSuggest(
 
   // Search results, ActivityPub mode only.
   const activityPubUsers = ref<any[]>([]);
+
+  // Chat mode, a server whose member list is windowed: members the instance found for a
+  // query, so a member this client has not loaded is suggested like any other.
+  const serverMemberMatches = ref<{ serverId: string; query: string; ids: string[] } | null>(null);
+  let memberSearchTimer: ReturnType<typeof setTimeout> | null = null;
+  let memberSearchSeq = 0;
+  const MEMBER_SEARCH_MS = 150;
+
+  const searchServerMembersDebounced = (serverId: string | null, rawQuery: string) => {
+    if (memberSearchTimer) clearTimeout(memberSearchTimer);
+    memberSearchTimer = null;
+    const query = rawQuery.trim();
+    const seq = ++memberSearchSeq;
+    if (!serverId || !query || memberDirectory.serverId !== serverId || memberDirectory.mode !== 'windowed') return;
+    memberSearchTimer = setTimeout(async () => {
+      memberSearchTimer = null;
+      try {
+        const found = await memberDirectory.searchMembers(serverId, query, finalConfig.maxSuggestions);
+        // The latest query wins.
+        if (seq !== memberSearchSeq || !found) return;
+        serverMemberMatches.value = { serverId, query, ids: found.map(m => m.id) };
+      } catch (error) {
+        debug.warn('Member search failed:', error);
+      }
+    }, MEMBER_SEARCH_MS);
+  };
   
   // Discord users, fetched from bot-gateway.
   const bridgedUsers = ref<BridgedChannelUser[]>([]);
@@ -375,37 +404,51 @@ export function useAutoSuggest(
     });
 
     // Unified pack: twemoji or native, per pack selection.
+    type UnifiedHit = ReturnType<typeof searchEmojiHits>[number];
+    const unifiedItem = (hit: UnifiedHit, shown: string): SuggestionItem => {
+      const emoji = hit.item.emoji;
+      const svgUrl = isNativePack.value ? null : getTwemojiUrl(emoji.unicode);
+      return {
+        id: emoji.unicode || emoji.shortcode,
+        name: shown,
+        display_name: emoji.description || shown,
+        url: isNativePack.value ? undefined : svgUrl || undefined,
+        native: isNativePack.value || !svgUrl ? emoji.unicode : undefined,
+        server_name: 'Emojis',
+        emoji: {
+          id: emoji.unicode || emoji.shortcode,
+          name: shown,
+          url: svgUrl || undefined,
+          native: emoji.unicode,
+          source: 'unified'
+        }
+      };
+    };
     if (unifiedLoaded.value && query.length >= 2) {
       for (const hit of searchEmojiHits(query, limit)) {
         // Listed before a custom emoji of the same name, which is `name~1` in text: the bare
         // `:name:` is the default's (emojiShortcodeResolver.customEmojiIndex).
-        const emoji = hit.item.emoji;
         const sharesCustomName = hit.item.names.some(n => customNames.has(n));
-
-        const svgUrl = isNativePack.value ? null : getTwemojiUrl(emoji.unicode);
-        const shown = hit.tier <= 1 ? hit.matched : hit.item.label;
-
         ranked.push({
-          item: {
-            id: emoji.unicode || emoji.shortcode,
-            name: shown,
-            display_name: emoji.description || shown,
-            url: isNativePack.value ? undefined : svgUrl || undefined,
-            native: isNativePack.value || !svgUrl ? emoji.unicode : undefined,
-            server_name: 'Emojis',
-            emoji: {
-              id: emoji.unicode || emoji.shortcode,
-              name: shown,
-              url: svgUrl || undefined,
-              native: emoji.unicode,
-              source: 'unified'
-            }
-          },
+          item: unifiedItem(hit, hit.tier <= 1 ? hit.matched : hit.item.label),
           tier: hit.tier,
           len: hit.matched.length,
           kind: sharesCustomName ? -1 : 1,
           order: hit.item.order,
         });
+      }
+    }
+
+    // A query that with its colon is an emoticon (`:P`, `:D`) lists that emoticon's emoji first,
+    // as the text converts to it on send. Not alone: a list of one would take Enter from a
+    // message that needs no pick.
+    const emoticonUnicode = ranked.length > 0 && unifiedLoaded.value && emoticonPreferences().convertSent
+      ? emoticonEmoji(`:${state.value.query}`)
+      : undefined;
+    if (emoticonUnicode) {
+      const hit = searchEmojiHits(unicodeToShortcode(emoticonUnicode) ?? '', 1)[0];
+      if (hit && hit.item.emoji.unicode === emoticonUnicode) {
+        ranked.push({ item: unifiedItem(hit, hit.item.label), tier: -1, len: 0, kind: 0, order: 0 });
       }
     }
 
@@ -444,6 +487,21 @@ export function useAutoSuggest(
       }
 
       const seenUsers = new Set<string>();
+
+      // Members the instance found. Matches for the query as it stands are taken as found;
+      // matches for an earlier query stay while they still match, until the answer arrives.
+      const found = serverMemberMatches.value;
+      const foundNow = new Set<string>();
+      if (found && found.serverId === currentServerId) {
+        const current = found.query === (state.value.query || '').trim();
+        const loaded = new Set(usersToSearch.map(u => u.id));
+        for (const id of found.ids) {
+          const userData = userDataService.getUser(id);
+          if (!userData) continue;
+          if (current) foundNow.add(id);
+          if (!loaded.has(id)) usersToSearch = [...usersToSearch, userData];
+        }
+      }
       
       for (const userData of usersToSearch) {
         if (seenUsers.has(userData.id)) {
@@ -454,7 +512,7 @@ export function useAutoSuggest(
         const displayName = normalizeSearchText(userData.displayName || '');
         const usernameStr = normalizeSearchText(userData.username || '');
 
-        if (displayName.includes(query) || usernameStr.includes(query)) {
+        if (foundNow.has(userData.id) || displayName.includes(query) || usernameStr.includes(query)) {
           const isLocal = userData.isLocal;
           const currentDomain = runtimeConfig.domain as string;
           const userDomain = userData.domain || currentDomain;
@@ -627,6 +685,26 @@ export function useAutoSuggest(
   const botTargetKey = (target: BotCommandTarget) => `${target.channelId}:${target.threadId ?? ''}`;
 
   // Asked on every '/' keystroke; botCommandService answers from its 60 s cache.
+  /**
+   * The instance's emoji and the viewer's own, into the emoji cache `:name` reads. Server emoji
+   * load with their server; these two groups load here and in the pickers. The store skips the
+   * request while its copy is fresh.
+   */
+  const loadOwnEmojis = async () => {
+    let profileId: string | null = null;
+    try {
+      const { authContextService } = await import('@/services/AuthContextService');
+      profileId = (await authContextService.getCurrentContext()).profileId ?? null;
+    } catch {
+      // Signed out or not ready: the instance group alone.
+    }
+    try {
+      await emojiCacheStore.loadPersonalEmojis(profileId);
+    } catch (err) {
+      debug.warn('Failed to load instance and personal emoji:', err);
+    }
+  };
+
   const loadBotCommands = (target: BotCommandTarget) => {
     const key = botTargetKey(target);
     const request = ++botCommandsRequest;
@@ -971,6 +1049,8 @@ export function useAutoSuggest(
           if (target) loadBotCommands(target);
         }
 
+        if (trigger.type === 'emoji' && !keepPosition) void loadOwnEmojis();
+
         // Bridge bot check and role load run on '@', not on server change.
         if (trigger.type === 'mention' && finalConfig.mode === 'chat') {
           const serverId = serverChannelStore.currentServerId;
@@ -980,6 +1060,8 @@ export function useAutoSuggest(
             fetchServerRoles(serverId);
           }
           
+          searchServerMembersDebounced(serverId, query);
+
           checkBridgeBotsIfNeeded(serverId).then(hasBridge => {
             if (hasBridge && channelId && channelId !== bridgedUsersChannelId.value) {
               fetchBridgedUsers(channelId);
@@ -1204,6 +1286,10 @@ export function useAutoSuggest(
     state.value.query = '';
     state.value.selectedIndex = 0;
     activityPubUsers.value = [];
+    serverMemberMatches.value = null;
+    memberSearchSeq++;
+    if (memberSearchTimer) clearTimeout(memberSearchTimer);
+    memberSearchTimer = null;
   };
 
   const updatePosition = () => {

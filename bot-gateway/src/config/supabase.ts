@@ -3,12 +3,15 @@ import * as dotenv from 'dotenv'
 
 dotenv.config()
 
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrlEnv = process.env.SUPABASE_URL
+const serviceKeyEnv = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-if (!supabaseUrl || !supabaseServiceKey) {
+if (!supabaseUrlEnv || !serviceKeyEnv) {
   throw new Error('Missing Supabase configuration. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env')
 }
+
+export const supabaseUrl: string = supabaseUrlEnv
+export const supabaseServiceKey: string = serviceKeyEnv
 
 export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {

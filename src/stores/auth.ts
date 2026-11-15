@@ -783,8 +783,13 @@ export const useAuthStore = defineStore('auth', {
       await router.push({ path: '/login', query: { reason } });
     },
 
-    async register(email: string, password: string) {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+    /** `captchaToken` answers the sign-up hook's check (src/utils/signupCaptcha.ts). */
+    async register(email: string, password: string, captchaToken?: string) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        ...(captchaToken ? { options: { data: { captcha_token: captchaToken } } } : {}),
+      });
       if (error) throw error;
       this.session = data.session;
     },

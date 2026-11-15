@@ -5,6 +5,10 @@
 //   - remote follow: every local account's WebFinger carries the OStatus subscribe template
 //     of /authorize_interaction; /lookup-user resolves the account an actor URL names, through
 //     WebFinger on its domain, and answers not_actor for a post;
+//   - a bridged account (bird.makeup-style Service, URL in its bio, no custom emoji) is read
+//     once by handle lookup, then answered from its row; the row keeps its shared inbox,
+//     empty emoji lists and the actor's published date; a copy read over a day ago is
+//     answered as stored and read again in the background;
 //   - a Lemmy community is looked up by handle and followed: the Follow reaches the Group's
 //     inbox signed by the follower, the Group's Accept accepts it;
 //   - FEP-1b12: the Group's Announce{Create{Page}} stores the post as its member's, with the
@@ -94,6 +98,8 @@ export class CommunityHost {
   /** Bytes served at a path, and the GETs that fetched them. */
   readonly media = new Map<string, Buffer>()
   readonly mediaGets: string[] = []
+  /** Paths of the actor and object documents served. */
+  readonly docGets: string[] = []
   base = ''
   proxyDomain = ''
   private server?: http.Server
@@ -158,6 +164,7 @@ export class CommunityHost {
         }
         const doc = this.actors.get(url) ?? this.docs.get(url)
         if (!doc) return void res.writeHead(404).end()
+        this.docGets.push(req.url ?? '')
         res.writeHead(200, { 'Content-Type': 'application/activity+json' })
         res.end(JSON.stringify(doc))
       })
@@ -190,6 +197,11 @@ export async function caseRemoteInteractions(ctx: RemoteInteractionsContext): Pr
   const quiet = host.addActor('/c/fx_quiet', 'Group', 'fx_quiet')
   const ann = host.addActor('/u/fx_ann_lemmy', 'Person', 'fx_ann_lemmy')
   const carol = host.addActor('/u/fx_pollster', 'Person', 'fx_pollster', { webfinger: `acct:fx_pollster@${proxyIp}` })
+  const bridged = host.addActor('/users/fx_bridged', 'Service', 'fx_bridged', {
+    webfinger: `acct:fx_bridged@${proxyIp}`,
+    published: '2009-06-02T20:12:29Z',
+    summary: '<p>Mirror | <a href="https://t.co/aaWhFcbJRO">https://t.co/aaWhFcbJRO</a><br>Partner: @someone</p>',
+  })
   // A community member on another host: the parent author's inbox is not the community's.
   const memberHost = new CommunityHost()
   await memberHost.start(new URL(ctx.peer.base).hostname)
@@ -199,7 +211,7 @@ export async function caseRemoteInteractions(ctx: RemoteInteractionsContext): Pr
 
   // Rows of an earlier run on this stack name that run's port; profiles.domain carries none.
   for (const domain of [proxyIp, new URL(host.base).hostname]) {
-    await db.from('profiles').delete().in('username', ['fx_tech', 'fx_quiet', 'fx_ann_lemmy', 'fx_pollster', 'fx_bea']).eq('domain', domain)
+    await db.from('profiles').delete().in('username', ['fx_tech', 'fx_quiet', 'fx_ann_lemmy', 'fx_pollster', 'fx_bea', 'fx_bridged']).eq('domain', domain)
   }
 
   // The inbox admits 60 deliveries a minute from one signing host, shared with the peer: a 429
@@ -212,11 +224,16 @@ export async function caseRemoteInteractions(ctx: RemoteInteractionsContext): Pr
       await sleep(5000)
     }
   }
+  // /lookup-user admits 30 requests a minute per client IP (discoveryLimiter), shared by every
+  // case: a 429 is sent again once the window turns, for at most 75 s.
   const lookup = async (body: Record<string, unknown>) => {
-    const res = await fetch(`${ctx.localUrl}/lookup-user`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    })
-    return { status: res.status, json: await res.json().catch(() => null) }
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(`${ctx.localUrl}/lookup-user`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (res.status !== 429 || attempt >= 15) return { status: res.status, json: await res.json().catch(() => null) }
+      await sleep(5000)
+    }
   }
   const postBy = async (apId: string) => (await db.from('posts').select('*').eq('ap_id', apId).maybeSingle()).data
 
@@ -257,6 +274,46 @@ export async function caseRemoteInteractions(ctx: RemoteInteractionsContext): Pr
     eq(local_.json?.user?.id, ctx.ids.alice, 'a local profile URL names the local account')
     const notActor = await lookup({ url: staticPage })
     eq(`${notActor.status} ${notActor.json?.kind}`, '404 not_actor', 'a URL that serves no actor is not_actor')
+
+    console.log('\nbridged account by handle -> actor read once, shared inbox and emoji lists stored')
+    const bridgedPath = new URL(bridged).pathname
+    const bridgedReads = () => host.docGets.filter((p) => p === bridgedPath).length
+    const readsBefore = bridgedReads()
+    const firstLookup = await lookup({ handle: `fx_bridged@${proxyIp}` })
+    assert(firstLookup.status === 200 && firstLookup.json?.user?.federated_id === bridged,
+      'the bridged account is looked up by its handle', JSON.stringify(firstLookup).slice(0, 300))
+    const readsAfterFirst = bridgedReads()
+    assert(readsAfterFirst > readsBefore, 'the first lookup reads the actor document')
+    for (let i = 0; i < 2; i++) {
+      const repeat = await lookup({ handle: `fx_bridged@${proxyIp}` })
+      eq(repeat.json?.cached, true, `lookup ${i + 2} of the bridged account is answered from its row`)
+    }
+    eq(bridgedReads(), readsAfterFirst, 'a bio holding a URL and no custom emoji is not read again')
+    const { data: bridgedRow } = await db.from('profiles')
+      .select('shared_inbox_url, federation_metadata').eq('federated_id', bridged).maybeSingle()
+    eq(bridgedRow?.shared_inbox_url, host.url('/inbox'), 'the handle lookup stores the actor\'s shared inbox')
+    const bridgedMeta = bridgedRow?.federation_metadata
+    eq(typeof bridgedMeta, 'object', 'the row holds federation_metadata as an object, not a JSON-encoded string')
+    eq(JSON.stringify([bridgedMeta?.bio_emojis, bridgedMeta?.display_name_emojis]), '[[],[]]',
+      'the row records empty emoji lists')
+    eq(bridgedMeta?.ap_published, '2009-06-02T20:12:29.000Z', 'the row records the actor\'s published date')
+
+    console.log('\nbridged account read over a day ago -> answered as stored, read again in the background')
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+    await db.from('profiles').update({ last_synced_at: twoDaysAgo, display_name: 'fx_bridged (old)' }).eq('federated_id', bridged)
+    const readsBeforeStale = bridgedReads()
+    const staleLookup = await lookup({ handle: `fx_bridged@${proxyIp}` })
+    eq(`${staleLookup.json?.cached} ${staleLookup.json?.refreshing}`, 'true true',
+      'a copy older than a day is answered at once and refreshed in the background')
+    eq(staleLookup.json?.user?.display_name, 'fx_bridged (old)', 'the answer is the stored copy')
+    let refreshedRow: any = null
+    for (let i = 0; i < 50; i++) {
+      refreshedRow = (await db.from('profiles').select('display_name, last_synced_at').eq('federated_id', bridged).maybeSingle()).data
+      if (refreshedRow?.last_synced_at && refreshedRow.last_synced_at > twoDaysAgo) break
+      await sleep(200)
+    }
+    eq(refreshedRow?.display_name, 'fx_bridged', 'the background read stores the actor as it is now')
+    eq(bridgedReads() - readsBeforeStale, 1, 'the background read fetches the actor once')
 
     // COMMUNITY FOLLOW ---------------------------------------------------------------------
     console.log('\ncommunity follow -> Follow, Accept')

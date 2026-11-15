@@ -365,6 +365,48 @@
 
 .selectableText { user-select: text; }
 .draggable { user-select: auto; }
+/* Content regions: text the user may want to copy (settings pages, dialog
+   bodies, profile cards, audit log, error/hint messages, code). The reset
+   above keeps app chrome (rails, lists, menus, tabs) un-selectable and these
+   opt back in. The descendant `*` is needed because the reset matches every
+   element, so selection is not inherited from a region ancestor. Controls
+   inside a region are switched back off below so clicking them does not
+   highlight their labels. */
+:is(.settings-content, .server-settings-main, .modal-body, .modal-content,
+    .unified-profile-card, .audit-log),
+:is(.settings-content, .server-settings-main, .modal-body, .modal-content,
+    .unified-profile-card, .audit-log) *,
+:is(.error-message, .error-text, .form-error, .input-error, .hint, .hint-text,
+    .field-hint, .form-hint, .setting-hint, pre),
+:is(.error-message, .error-text, .form-error, .input-error, .hint, .hint-text,
+    .field-hint, .form-hint, .setting-hint, pre) *,
+code {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+:is(.settings-content, .server-settings-main, .modal-body, .modal-content,
+    .unified-profile-card, .audit-log)
+  :where(button, summary, label, [role="button"], [role="tab"], [role="tablist"],
+         [role="menuitem"], [role="switch"], [role="option"], [draggable="true"],
+         .drag-handle, .btn, .tab, .tabs, .toggle, .switch, .emoji-icon, .inline-emoji),
+:is(.settings-content, .server-settings-main, .modal-body, .modal-content,
+    .unified-profile-card, .audit-log)
+  :where(button, summary, label, [role="button"], [role="tab"], [role="tablist"],
+         [role="menuitem"], [role="switch"], [role="option"], [draggable="true"],
+         .drag-handle, .btn, .tab, .tabs, .toggle, .switch, .emoji-icon, .inline-emoji) * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Fields nested in a label (or other control) must stay editable. */
+:is(.settings-content, .server-settings-main, .modal-body, .modal-content,
+    .unified-profile-card, .audit-log)
+  :is(input, textarea, select, [contenteditable="true"], [contenteditable=""], .rich-text-editor) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 
 /* Always allow native text selection / editing affordances in editable fields.
    These need to support right-click paste (desktop) and long-press callout

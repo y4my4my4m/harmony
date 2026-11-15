@@ -1,6 +1,9 @@
 <!-- Every custom emoji of the instance in one list (admin_list_emojis): instance uploads, imports,
-     the federated cache, server and personal emojis, and remote emojis not yet imported. Remove
-     is the soft delete, Purge the hard one; imports and re-hosting copy the image here. -->
+     the federated cache, server and personal emojis. Remove is the soft delete, Purge the hard
+     one. Import switches the list to remote emojis not yet imported (admin_list_remote_emojis),
+     filtered by instance and name; one or several go through AdminEmojiImportDialog and become
+     instance emojis hosted here. Re-host is a repair: an instance emoji whose image is still
+     loaded from another site gets a copy here, and nothing else about it changes. -->
 <template>
   <section class="admin-module admin-emoji-library" :aria-labelledby="`${uid}-title`" data-testid="admin-emoji-library">
     <div class="module-header">
@@ -10,6 +13,16 @@
         <button type="button" class="action-btn" :disabled="loading" data-testid="admin-emoji-refresh" @click="load()">
           <Icon :name="loading ? 'loader' : 'refresh-cw'" :size="16" :class="{ spin: loading }" />
           <span>{{ t('admin.emojis.refresh') }}</span>
+        </button>
+        <button
+          type="button"
+          class="action-btn"
+          :aria-pressed="kind === 'not_imported'"
+          data-testid="admin-emoji-import-open"
+          @click="toggleImport"
+        >
+          <Icon name="download" :size="16" />
+          <span>{{ t('admin.emojis.import.button') }}</span>
         </button>
         <label class="primary-btn-sm upload-btn" :class="{ disabled: uploading }">
           <Icon name="upload" :size="16" />
@@ -45,15 +58,32 @@
         >{{ t(`admin.emojis.kinds.${k}`) }}</button>
       </div>
 
+      <p v-if="kind === 'not_imported'" class="module-hint import-hint" data-testid="admin-emoji-import-hint">
+        {{ t('admin.emojis.import.hint') }}
+      </p>
+
       <div class="emoji-filters">
         <input
+          ref="searchInput"
           v-model="search"
           type="search"
           class="cyber-input emoji-search"
-          :placeholder="t('admin.emojis.searchHint')"
+          :placeholder="kind === 'not_imported' ? t('admin.emojis.import.searchHint') : t('admin.emojis.searchHint')"
           :aria-label="t('admin.emojis.searchLabel')"
           data-testid="admin-emoji-search"
         />
+        <select
+          v-if="kind === 'not_imported'"
+          v-model="sourceDomain"
+          class="cyber-select emoji-select"
+          :aria-label="t('admin.emojis.import.sourceLabel')"
+          data-testid="admin-emoji-source"
+        >
+          <option value="">{{ t('admin.emojis.import.allSources') }}</option>
+          <option v-for="source in sources" :key="source.domain" :value="source.domain">
+            {{ t('admin.emojis.import.source', { domain: source.domain, count: source.count }) }}
+          </option>
+        </select>
         <select
           v-if="kind !== 'not_imported'"
           v-model="status"
@@ -72,35 +102,54 @@
         </select>
       </div>
 
-      <div v-if="canSelect && rows.length > 0" class="bulk-bar" data-testid="admin-emoji-bulk">
+      <div v-if="rows.length > 0" class="bulk-bar" data-testid="admin-emoji-bulk">
         <template v-if="selecting">
           <button type="button" class="action-btn" data-testid="admin-emoji-select-page" @click="selectPage">
             {{ t('admin.emojis.bulk.selectPage') }}
           </button>
           <span class="bulk-count" aria-live="polite">{{ t('admin.emojis.bulk.selected', { count: selected.size }, selected.size) }}</span>
           <button
-            v-if="status === 'active'"
+            v-if="kind === 'not_imported'"
             type="button"
-            class="action-btn danger-outline"
-            :disabled="selected.size === 0 || bulkBusy"
-            data-testid="admin-emoji-bulk-remove"
-            @click="bulk('remove')"
-          >{{ t('admin.emojis.bulk.remove') }}</button>
-          <button
-            v-else
-            type="button"
-            class="action-btn"
-            :disabled="selected.size === 0 || bulkBusy"
-            data-testid="admin-emoji-bulk-restore"
-            @click="bulk('restore')"
-          >{{ t('admin.emojis.bulk.restore') }}</button>
-          <button
-            type="button"
-            class="action-btn danger-outline"
-            :disabled="selected.size === 0 || bulkBusy"
-            data-testid="admin-emoji-bulk-purge"
-            @click="bulk('purge')"
-          >{{ t('admin.emojis.bulk.purge') }}</button>
+            class="primary-btn-sm"
+            :disabled="selected.size === 0"
+            data-testid="admin-emoji-bulk-import"
+            @click="importSelected"
+          >{{ t('admin.emojis.bulk.import') }}</button>
+          <template v-else>
+            <button
+              v-if="selectedHotlinked.length > 0"
+              type="button"
+              class="action-btn"
+              :disabled="bulkBusy"
+              :title="t('admin.emojis.hotlinkedHint')"
+              data-testid="admin-emoji-bulk-rehost"
+              @click="rehostSelected"
+            >{{ t('admin.emojis.bulk.rehost') }}</button>
+            <button
+              v-if="status === 'active'"
+              type="button"
+              class="action-btn danger-outline"
+              :disabled="selected.size === 0 || bulkBusy"
+              data-testid="admin-emoji-bulk-remove"
+              @click="bulk('remove')"
+            >{{ t('admin.emojis.bulk.remove') }}</button>
+            <button
+              v-else
+              type="button"
+              class="action-btn"
+              :disabled="selected.size === 0 || bulkBusy"
+              data-testid="admin-emoji-bulk-restore"
+              @click="bulk('restore')"
+            >{{ t('admin.emojis.bulk.restore') }}</button>
+            <button
+              type="button"
+              class="action-btn danger-outline"
+              :disabled="selected.size === 0 || bulkBusy"
+              data-testid="admin-emoji-bulk-purge"
+              @click="bulk('purge')"
+            >{{ t('admin.emojis.bulk.purge') }}</button>
+          </template>
           <button ref="selectToggle" type="button" class="action-btn" data-testid="admin-emoji-select" @click="stopSelecting">
             {{ t('common.cancel') }}
           </button>
@@ -163,6 +212,8 @@
         <button type="button" class="action-btn" :disabled="offset + PAGE_SIZE >= total || loading" @click="goTo(offset + PAGE_SIZE)">{{ t('admin.instanceEmojis.next') }}</button>
       </div>
     </div>
+
+    <AdminEmojiImportDialog :show="importRows.length > 0" :rows="importRows" @close="importClosed" />
   </section>
 </template>
 
@@ -172,6 +223,7 @@ import { useToast } from 'vue-toastification'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import AdminEmojiImportDialog from '@/components/admin/AdminEmojiImportDialog.vue'
 import AdminEmojiRow from '@/components/admin/AdminEmojiRow.vue'
 import { emojiUploadCandidates } from '@/components/settings/emojiLibrary'
 import { useAnnouncer } from '@/composables/useAnnouncer'
@@ -181,9 +233,11 @@ import { invalidateEmojiResolverCache } from '@/services/emojiShortcodeResolver'
 import {
   ADMIN_EMOJI_KINDS,
   AdminEmojiRequestError,
+  EMOJI_IMPORT_MAX,
   INSTANCE_EMOJI_NAME,
-  importRemoteEmoji,
   listAdminEmojis,
+  listRemoteEmojiSources,
+  listRemoteEmojis,
   purgeEmoji,
   rehostEmoji,
   removeEmoji,
@@ -192,6 +246,7 @@ import {
   type AdminEmojiKindFilter,
   type AdminEmojiRow as Row,
   type AdminEmojiSort,
+  type RemoteEmojiSource,
 } from '@/services/InstanceEmojiAdminService'
 import { uploadInstanceEmoji } from '@/services/instanceEmojiUpload'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
@@ -205,12 +260,12 @@ const SEARCH_DEBOUNCE_MS = 300
 const BACKEND_CODES = new Set([
   'not_authenticated', 'admin_required', 'insufficient_aal', 'not_found', 'already_imported',
   'name_taken', 'invalid_name', 'not_instance', 'not_hotlinked', 'unsupported_image', 'too_large',
-  'fetch_failed', 'internal_error', 'network_error',
+  'fetch_failed', 'internal_error', 'network_error', 'rate_limited',
 ])
 
 const { t } = useT()
 const toast = useToast()
-const { confirm, prompt } = useConfirmDialog()
+const { confirm } = useConfirmDialog()
 const { polite } = useAnnouncer()
 const uid = `ael-${useId()}`
 
@@ -232,12 +287,18 @@ const selected = reactive(new Set<string>())
 const bulkBusy = ref(false)
 const uploading = ref(false)
 const uploadStatus = ref('')
+/** Import view: origin instance filter ('' is every instance) and the instances offered. */
+const sourceDomain = ref('')
+const sources = ref<RemoteEmojiSource[]>([])
+/** Rows handed to the import dialog; empty while it is closed. */
+const importRows = ref<Row[]>([])
 
 const headingRef = ref<HTMLElement | null>(null)
 const listRef = ref<HTMLElement | null>(null)
 const selectToggle = ref<HTMLButtonElement | null>(null)
+const searchInput = ref<HTMLInputElement | null>(null)
 
-const canSelect = computed(() => kind.value !== 'not_imported')
+const selectedHotlinked = computed(() => rows.value.filter((r) => selected.has(r.id) && r.hotlinked && !r.deleted_at))
 
 let requestSeq = 0
 
@@ -245,14 +306,22 @@ async function load(): Promise<void> {
   const seq = ++requestSeq
   loading.value = true
   try {
-    const page = await listAdminEmojis({
-      search: search.value,
-      kind: kind.value,
-      status: status.value,
-      sort: sort.value,
-      limit: PAGE_SIZE,
-      offset: offset.value,
-    })
+    const page = kind.value === 'not_imported'
+      ? await listRemoteEmojis({
+          search: search.value,
+          domain: sourceDomain.value || null,
+          sort: sort.value,
+          limit: PAGE_SIZE,
+          offset: offset.value,
+        })
+      : await listAdminEmojis({
+          search: search.value,
+          kind: kind.value,
+          status: status.value,
+          sort: sort.value,
+          limit: PAGE_SIZE,
+          offset: offset.value,
+        })
     if (seq !== requestSeq) return
     // A removal can empty the last page; step back to the new last page.
     if (page.rows.length === 0 && offset.value > 0) {
@@ -291,11 +360,34 @@ watch(search, () => {
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(reloadFromStart, SEARCH_DEBOUNCE_MS)
 })
-watch([status, sort], reloadFromStart)
-watch(kind, () => {
+watch([status, sort, sourceDomain], reloadFromStart)
+watch(kind, (next) => {
   selecting.value = false
+  if (next === 'not_imported') void loadSources()
   reloadFromStart()
 })
+
+/** A failed read leaves the instance filter with what it had; the list still loads. */
+async function loadSources() {
+  try {
+    const next = await listRemoteEmojiSources()
+    sources.value = next
+    if (sourceDomain.value && !next.some((s) => s.domain === sourceDomain.value)) sourceDomain.value = ''
+  } catch (err) {
+    debug.error('Failed to load emoji source instances:', err)
+  }
+}
+
+/** The Import button is a toggle: pressed again it returns to every emoji of the instance. */
+async function toggleImport() {
+  if (kind.value === 'not_imported') {
+    kind.value = 'all'
+    return
+  }
+  kind.value = 'not_imported'
+  await nextTick()
+  searchInput.value?.focus()
+}
 
 /** The picker's instance and personal groups and :name: lookups refetch on next open. */
 function refreshPicker() {
@@ -429,24 +521,76 @@ async function rehostOne(row: Row) {
   }, backendMessage)
 }
 
-async function importOne(row: Row) {
-  const value = await prompt({
-    title: t('admin.emojis.confirm.importTitle', { name: `:${row.name}:` }),
-    message: t('admin.emojis.confirm.import', { name: `:${row.name}:`, domain: row.domain ?? '' }),
-    label: t('admin.emojis.confirm.importLabel'),
-    placeholder: row.name,
-    confirmButtonText: t('admin.emojis.confirm.importButton'),
-  })
-  if (value === null) return
-  const name = value.trim().replace(/^:+|:+$/g, '')
-  if (name && !INSTANCE_EMOJI_NAME.test(name)) {
-    toast.error(t('admin.emojis.errors.invalidName'))
+/** Hotlinked rows of the selection, one request each. */
+async function rehostSelected() {
+  const targets = selectedHotlinked.value
+  if (targets.length === 0) return
+  bulkBusy.value = true
+  let failed = 0
+  try {
+    for (const row of targets) {
+      try {
+        await rehostEmoji(row.id)
+        broken.delete(row.id)
+      } catch (err) {
+        debug.error('Bulk emoji re-host failed:', err)
+        failed++
+      }
+    }
+  } finally {
+    bulkBusy.value = false
+  }
+  const done = targets.length - failed
+  if (done > 0) {
+    refreshPicker()
+    const message = t('admin.emojis.done.rehostedMany', { count: done }, done)
+    toast.success(message)
+    polite(message)
+  }
+  if (failed > 0) toast.error(t('admin.emojis.errors.rehostMany', { count: failed }, failed))
+  selecting.value = false
+  selected.clear()
+  await load()
+  await nextTick()
+  ;(selectToggle.value ?? headingRef.value)?.focus()
+}
+
+// The dialog previews names, takes a rename or a skip per row, and reports each result.
+let importFocus: { id: string; index: number } | null = null
+
+function importOne(row: Row) {
+  importFocus = { id: row.id, index: rows.value.findIndex((r) => r.id === row.id) }
+  importRows.value = [row]
+}
+
+function importSelected() {
+  const targets = rows.value.filter((r) => selected.has(r.id)).slice(0, EMOJI_IMPORT_MAX)
+  if (targets.length === 0) return
+  importFocus = null
+  importRows.value = targets
+}
+
+async function importClosed(imported: number) {
+  const focus = importFocus
+  importFocus = null
+  importRows.value = []
+  if (imported === 0) {
+    await nextTick()
+    ;(focus ? control(focus.id, 'import') : selectToggle.value ?? headingRef.value)?.focus()
     return
   }
-  await run(row, 'import', async () => {
-    const emoji = await importRemoteEmoji(row.id, name || undefined)
-    return t('admin.emojis.done.imported', { name: `:${emoji.name || name || row.name}:` })
-  }, backendMessage)
+  refreshPicker()
+  toast.success(t('admin.emojis.done.importedMany', { count: imported }, imported))
+  selecting.value = false
+  selected.clear()
+  void loadSources()
+  if (focus) {
+    await reloadAndRefocus(focus.id, focus.index, 'import')
+    return
+  }
+  await load()
+  await nextTick()
+  ;(selectToggle.value ?? headingRef.value)?.focus()
 }
 
 // Selection ----------------------------------------------------------------------------
@@ -690,9 +834,14 @@ onMounted(load)
   margin-bottom: 12px;
 }
 
-.bulk-bar .action-btn {
+.bulk-bar .action-btn,
+.bulk-bar .primary-btn-sm {
   padding: 6px 12px;
   font-size: 13px;
+}
+
+.import-hint {
+  margin-bottom: 12px;
 }
 
 .bulk-count {

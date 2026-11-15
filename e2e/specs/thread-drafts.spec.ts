@@ -2,7 +2,8 @@
 // thread view a sidebar thread opens, it survives a trip to another channel, a switch to another
 // thread and a reload; the other thread never shows it, and sending empties it. In the side panel,
 // the draft of a thread not created yet stays with its starter message through a close and reopen,
-// and the first send takes it into the new thread.
+// and the first send takes it into the new thread. Typing in a thread not created yet joins no
+// typing topic; once the first send creates the thread, its typing topic is joined.
 
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import {
@@ -25,6 +26,7 @@ const marker = Date.now().toString(36).slice(-6)
 const THREAD_A = `Drafted ${marker}`
 const THREAD_B = `Other ${marker}`
 const STARTER = `Starter for later ${marker}`
+const TYPING_STARTER = `Starter for typing ${marker}`
 let owner: SpecUser
 let server: SeededServer
 let elsewhereId = ''
@@ -60,6 +62,10 @@ test.beforeAll(async () => {
     channel_id: server.generalChannelId, user_id: owner.id, content: [{ type: 'text', text: STARTER }],
   })
   if (posted.error) throw new Error(posted.error.message)
+  const typingStarter = await admin.from('messages').insert({
+    channel_id: server.generalChannelId, user_id: owner.id, content: [{ type: 'text', text: TYPING_STARTER }],
+  })
+  if (typingStarter.error) throw new Error(typingStarter.error.message)
 })
 
 test.afterAll(async () => {
@@ -203,5 +209,51 @@ test('a thread not created yet keeps its draft with its starter message', async 
     await expect(panel.locator('[data-testid="message-list"] .message-item').filter({ hasText: text })).toBeVisible({ timeout: 30000 })
     await expect(previewsIn(panel)).toHaveCount(0)
     await expect.poll(() => textIn(panel)).toBe('')
+  })
+})
+
+test('typing in a thread not created yet joins no typing topic', async ({ page }) => {
+  test.setTimeout(120_000)
+  // The e2e stack runs no Realtime: this socket accepts every join and records its topic.
+  const joins: string[] = []
+  await page.routeWebSocket(/\/realtime\/v1\/websocket/, (ws) => {
+    ws.onMessage((raw) => {
+      if (typeof raw !== 'string') return
+      const m = JSON.parse(raw)
+      const [joinRef, ref, topic, event] = Array.isArray(m) ? m : [m.join_ref, m.ref, m.topic, m.event]
+      if (event === 'phx_join') joins.push(String(topic).replace(/^realtime:/, ''))
+      if (event === 'phx_join' || event === 'heartbeat' || event === 'phx_leave') {
+        const reply = { topic, event: 'phx_reply', payload: { status: 'ok', response: {} }, ref, join_ref: joinRef }
+        ws.send(JSON.stringify(Array.isArray(m) ? [joinRef, ref, topic, 'phx_reply', reply.payload] : reply))
+      }
+    })
+  })
+  const panel = page.locator('.thread-panel')
+  const starterRow = () => page.locator('[data-testid="message-list"]').getByRole('article').filter({ hasText: TYPING_STARTER }).first()
+  const text = `typed before the thread ${marker}`
+
+  await test.step('type in a new thread on a message', async () => {
+    await signIn(page, owner)
+    await openChannel(page, server.id, server.generalChannelId)
+    const row = starterRow()
+    await expect(row).toBeVisible({ timeout: 30000 })
+    await row.hover()
+    await row.getByRole('button', { name: 'Create thread', exact: true }).click()
+    await expect(panel.locator('.draft-hint')).toBeVisible({ timeout: 15000 })
+    await editorIn(panel).click()
+    await editorIn(panel).pressSequentially(text, { delay: 20 })
+    await page.waitForTimeout(2000)
+    expect(joins.filter((t) => t.startsWith('typing:thread:'))).toEqual([])
+  })
+
+  await test.step('the first send creates the thread; typing there joins its topic', async () => {
+    await page.keyboard.press('Enter')
+    const posted = panel.locator('[data-testid="message-list"] .message-item').filter({ hasText: text })
+    await expect(posted).not.toHaveAttribute('data-message-id', /^temp-/, { timeout: 30000 })
+    await expect(panel.locator('.draft-hint')).toHaveCount(0)
+    await editorIn(panel).click()
+    await editorIn(panel).pressSequentially('more', { delay: 20 })
+    await expect.poll(() => joins.filter((t) => t.startsWith('typing:thread:')), { timeout: 15000 })
+      .toEqual([expect.stringMatching(/^typing:thread:[0-9a-f]{8}-[0-9a-f-]{27}$/)])
   })
 })

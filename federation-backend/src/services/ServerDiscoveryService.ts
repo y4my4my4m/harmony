@@ -36,8 +36,11 @@ import {
   HARMONY_MEMBER_ROLES,
   HARMONY_PINNED_AT,
   HARMONY_PINS,
+  HARMONY_EMOJIS,
   HARMONY_ROLES,
   MAX_PINS,
+  parseCrossServerEmojis,
+  parseGroupEmojis,
   parseGroupRoles,
   parseMemberRoles,
   parsePinnedAt,
@@ -1921,6 +1924,7 @@ export class ServerDiscoveryService {
           banner: remoteServer.image?.url || null,
           public: groupIsPublic(remoteServer),
           ...(owner === undefined ? {} : { owner }),
+          ...(parseCrossServerEmojis(remoteServer) === null ? {} : { allow_cross_server_emojis: parseCrossServerEmojis(remoteServer) }),
           ...(this.groupSuspension(remoteServer) ?? {}),
           federation_metadata: {
             ...(current?.federation_metadata ?? server.federation_metadata),
@@ -1939,6 +1943,8 @@ export class ServerDiscoveryService {
 
       const roles = parseGroupRoles(remoteServer[HARMONY_ROLES], server.ap_id);
       if (roles) await CopyMirrorService.applyGroupRoles(serverId, server.ap_id, roles);
+      const emojis = parseGroupEmojis(remoteServer[HARMONY_EMOJIS], server.ap_id);
+      if (emojis) await CopyMirrorService.applyGroupEmojis(serverId, server.ap_id, emojis);
       await this.syncAdvertisedPins(serverId, server.ap_id, remoteServer['harmony:channels'], signer);
 
       logger.info(`Synced remote server: ${remoteServer.name}`);

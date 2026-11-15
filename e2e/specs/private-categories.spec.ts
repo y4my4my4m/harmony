@@ -1,8 +1,9 @@
 // Journey: private categories. A category header, and the category row itself, reach only those
 // who see a channel in it; channel managers see every category, those members cannot see marked.
-// Edit category and Create category carry a Private toggle with roles and members; the template
-// syncs onto the category's synced channels, a new channel in the category inherits it, and a
-// channel edited apart says "Not synced with <category>" with Sync now restoring the template.
+// Edit category and Create category carry a Private toggle with roles and members; Edit
+// category's Permissions tab sets any channel permission per role. The template syncs onto the
+// category's synced channels, a new channel in the category inherits it, and a channel edited
+// apart says "Not synced with <category>" with Sync now restoring the template.
 //
 // The stack has no realtime: each viewer loads the page after the change it checks.
 
@@ -169,6 +170,7 @@ test('making a category private hides it and its channels from @everyone and sho
   await page.locator('.context-menu .context-menu-item').filter({ hasText: 'Edit category' }).click()
   const dialog = page.getByRole('dialog', { name: 'Edit category' })
   await expect(dialog).toBeVisible({ timeout: 15000 })
+  await dialog.getByRole('tab', { name: 'Permissions' }).click()
   const toggle = dialog.getByRole('switch', { name: 'Private category' })
   await expect(toggle).toHaveAttribute('aria-checked', 'false', { timeout: 15000 })
   await toggle.click()
@@ -190,6 +192,64 @@ test('making a category private hides it and its channels from @everyone and sho
   await expect(headerNames(insiderPage)).toHaveText(['Text Channels', 'Voice Channels', 'Lounge'], { timeout: 15000 })
   await expect(header(insiderPage, 'Lounge')).toHaveAttribute('data-private', 'true')
   await expect(channelRow(insiderPage, 'lounge-chat')).toHaveCount(1)
+})
+
+test('a channel manager denies a permission to @everyone from the Permissions tab, and synced channels follow', async ({ page, browser }) => {
+  test.setTimeout(180_000)
+  const { server } = await setupServer('Category perms')
+  const stage = await addCategory(server, 'Stage', 2)
+  const stageChat = await createChannelAsOwner(server, 'stage-chat', stage)
+  expect(await overridesOf(stageChat)).toEqual([])
+
+  await signIn(page, manager)
+  await openChannel(page, server.id, server.generalChannelId)
+  const openEdit = async () => {
+    await header(page, 'Stage').click({ button: 'right' })
+    await page.locator('.context-menu .context-menu-item').filter({ hasText: 'Edit category' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit category' })
+    await expect(dialog).toBeVisible({ timeout: 15000 })
+    await dialog.getByRole('tab', { name: 'Permissions' }).click()
+    return dialog
+  }
+
+  const dialog = await openEdit()
+  const editor = dialog.getByTestId('permission-role-editor')
+  // The seeded server's default role is named "everyone"; the editor opens on it.
+  await expect(editor.getByRole('heading', { name: 'everyone', exact: true })).toBeVisible({ timeout: 15000 })
+  await expect(editor.locator('.perm-role-pill')).toHaveText(['Admin', 'Managers', 'Insiders', 'everyone'])
+  const send = editor.getByRole('radiogroup', { name: 'Send Messages', exact: true })
+  await expect(send.getByRole('radio', { name: 'Inherit' })).toHaveAttribute('aria-checked', 'true')
+  await send.getByRole('radio', { name: 'Deny' }).click()
+  await expect(send.getByRole('radio', { name: 'Deny' })).toHaveAttribute('aria-checked', 'true')
+  await expect(editor.locator('.perm-role-pill.dirty')).toHaveCount(1)
+  await expect(editor.locator('.perm-role-pill.dirty')).toContainText('everyone')
+
+  // Escape with an unsaved change asks first; keeping the edit leaves the dialog as it was.
+  await page.keyboard.press('Escape')
+  const discard = page.getByRole('alertdialog', { name: 'Discard changes?' })
+  await expect(discard).toBeVisible({ timeout: 15000 })
+  await expect(discard).toContainText('This category has unsaved changes.')
+  await discard.getByRole('button', { name: 'Cancel' }).click()
+  await expect(discard).toBeHidden()
+  await expect(send.getByRole('radio', { name: 'Deny' })).toHaveAttribute('aria-checked', 'true')
+
+  await animationsSettled(page)
+  await expectNoAxeViolations(page, { include: '[data-testid="category-edit-dialog"]', label: 'edit category permissions' })
+  await dialog.getByRole('button', { name: 'Save changes' }).click()
+  await expect(dialog).toBeHidden({ timeout: 15000 })
+  await expect(page.locator('.Vue-Toastification__toast')).toContainText('Permissions saved and synced to 1 channel.')
+  await expect.poll(() => overridesOf(stageChat), { timeout: 15000 }).toEqual(['everyone:0/4096'])
+
+  const reopened = await openEdit()
+  await expect(reopened.getByRole('radiogroup', { name: 'Send Messages', exact: true }).getByRole('radio', { name: 'Deny' }))
+    .toHaveAttribute('aria-checked', 'true', { timeout: 15000 })
+  await expect(reopened.getByRole('switch', { name: 'Private category' })).toHaveAttribute('aria-checked', 'false')
+  await reopened.getByRole('button', { name: 'Cancel' }).click()
+  await expect(reopened).toBeHidden()
+
+  const memberPage = await viewAs(browser, member, server)
+  await openChannel(memberPage, server.id, stageChat)
+  await expect(memberPage.getByText('You do not have permission to send messages in this channel.')).toBeVisible({ timeout: 15000 })
 })
 
 test('a channel created in a private category is private', async ({ page, browser }) => {

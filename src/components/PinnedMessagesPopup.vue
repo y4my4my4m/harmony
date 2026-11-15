@@ -51,14 +51,15 @@
               >
                 <div class="message-header">
                   <Avatar
-                    :src="getUserAvatar(message.user_id)"
+                    :src="getAuthorAvatar(message)"
                     size="sm"
                     class="message-avatar"
                   />
                   <!-- The author and time are the jump control; the list item stays clickable for the pointer. -->
                   <button type="button" class="message-info jump-btn" @click.stop="jumpToMessage(message.id)">
-                    <span class="message-author" :style="{ color: getUserColorValue(message.user_id) }">
-                      <DisplayName :userId="message.user_id" :fallback="getUserDisplayName(message.user_id)" />
+                    <span class="message-author" :style="{ color: getAuthorColor(message) }">
+                      <template v-if="foreignAuthorOf(message)">{{ foreignAuthorOf(message)!.name }}</template>
+                      <DisplayName v-else :userId="message.user_id" :fallback="getUserDisplayName(message.user_id)" />
                     </span>
                     <span class="message-time">
                       {{ formatTimestamp(message.created_at) }}
@@ -124,6 +125,9 @@ import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import type { Message } from '@/types'
 import { isUndecrypted } from '@/utils/channelEncryption'
+import { getForeignAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage } from '@/utils/messageAuthor'
+import { ensureBot, getCachedBot } from '@/composables/useMessageAuthorPresentation'
+import { BOT_NAME_COLOR } from '@/utils/botUtils'
 
 interface Props {
   isVisible: boolean
@@ -224,6 +228,37 @@ const getUserColorValue = (userId?: string) => {
 const getUserAvatar = (userId?: string) => {
   if (!userId) return '/default_avatar.webp'
   return getAvatarUrl(userId).value
+}
+
+// Bridged people and webhooks have no profile: their message carries the name shown in chat
+// (metadata.discord_user, metadata.webhook), as useMessageAuthorPresentation reads it. A bot's
+// row carries neither, and the pins query joins no bot: its name comes from the bot cache.
+const isPlainBotPin = (message: Message) =>
+  !!message.bot_id && !isBridgedAuthorMessage(message) && !getWebhookAuthor(message)
+
+watch(pinnedMessages, (messages) => {
+  for (const message of messages) {
+    if (isPlainBotPin(message)) void ensureBot(message.bot_id!)
+  }
+}, { immediate: true })
+
+const foreignAuthorOf = (message: Message) => {
+  const foreign = getForeignAuthor(message)
+  const bot = foreign && isPlainBotPin(message) ? getCachedBot(message.bot_id!) : undefined
+  if (!bot) return foreign
+  return { name: bot.display_name || bot.username || foreign!.name, avatar_url: bot.avatar_url || null }
+}
+
+const getAuthorAvatar = (message: Message) => {
+  const foreign = foreignAuthorOf(message)
+  if (foreign) return foreign.avatar_url || '/default_avatar.webp'
+  return getUserAvatar(message.user_id)
+}
+
+const getAuthorColor = (message: Message) => {
+  if (isBridgedAuthorMessage(message)) return '#5865F2'
+  if (isBotAuthorMessage(message)) return BOT_NAME_COLOR
+  return getUserColorValue(message.user_id)
 }
 
 const formatTimestamp = (date: Date | string) => {

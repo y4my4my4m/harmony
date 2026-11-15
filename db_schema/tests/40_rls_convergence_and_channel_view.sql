@@ -128,7 +128,7 @@ SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT throws_ok(
     $q$INSERT INTO public.messages (conversation_id, user_id, content)
        VALUES ('77777777-0000-0000-0000-000000000007', '11111111-0000-0000-0000-000000000001', '[{"type":"text","text":"t"}]')$q$,
-    '42501'::char(5), NULL, 'a blocked user cannot post into the DM');
+    'P0001'::char(5), 'DM_UNDELIVERABLE', 'a blocked user cannot post into the DM');
 
 SELECT tests.clear_authentication();
 DELETE FROM public.user_blocks WHERE blocker_id = '22222222-0000-0000-0000-000000000002';

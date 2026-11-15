@@ -296,77 +296,52 @@ export class CoreInteractionService {
   // BLOCK MANAGEMENT (SECURE OPERATIONS)
 
   /**
-   * Block/unblock a user (secure with relationship cleanup)
+   * Puts the block row in the asked state. A block already there, or an unblock with none, is
+   * success: the outcome never depends on what this client last read.
    */
-  async toggleBlock(targetUserId: string): Promise<BlockResult> {
+  async setBlocked(targetUserId: string, blocked: boolean): Promise<BlockResult> {
     try {
-      // Authentication verification via centralized service
       const profileId = await this.getCurrentUserProfileId()
 
-      // Input validation
       if (!targetUserId || typeof targetUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Target user ID is required')
       }
-
-      // Self-block prevention
       if (profileId === targetUserId) {
         throw this.createError('INVALID_ACTION', 'Cannot block yourself')
       }
 
-      debug.log(`Core: Toggling block for user: ${targetUserId}`)
-
-      // Check current block status
-      const { data: existingBlock, error: blockError } = await supabase
-        .from('user_blocks')
-        .select('id')
-        .eq('blocker_id', profileId)
-        .eq('blocked_user_id', targetUserId)
-        .maybeSingle()
-
-      if (blockError) throw this.createError('QUERY_FAILED', 'Failed to check block status', blockError)
-
-      let blocked: boolean
-
-      if (existingBlock) {
-        // Unblock - secure deletion with ownership verification
+      if (!blocked) {
         const { error } = await supabase
           .from('user_blocks')
           .delete()
-          .eq('id', existingBlock.id)
-          .eq('blocker_id', profileId) // Security: Double-check ownership
+          .eq('blocker_id', profileId)
+          .eq('blocked_user_id', targetUserId)
 
         if (error) throw this.createError('UNBLOCK_FAILED', 'Failed to unblock user', error)
-        blocked = false
-        debug.log(`Core: Successfully unblocked user: ${targetUserId}`)
-      } else {
-        // Block user with secure transaction (block + remove follows)
-        const { error: blockError } = await supabase
-          .from('user_blocks')
-          .insert({
-            blocker_id: profileId,
-            blocked_user_id: targetUserId,
-            created_at: new Date().toISOString()
-          })
-
-        if (blockError) {
-          if (blockError.code === '23505') {
-            throw this.createError('ALREADY_BLOCKED', 'User is already blocked')
-          }
-          throw this.createError('BLOCK_FAILED', 'Failed to block user', blockError)
-        }
-
-        await supabase
-          .from('follows')
-          .delete()
-          .or(`and(follower_id.eq.${profileId},following_id.eq.${targetUserId}),and(follower_id.eq.${targetUserId},following_id.eq.${profileId})`)
-
-        blocked = true
-        debug.log(`Core: Successfully blocked user: ${targetUserId}`)
+        return { blocked: false }
       }
 
-      return { blocked }
+      const { error: blockError } = await supabase
+        .from('user_blocks')
+        .insert({
+          blocker_id: profileId,
+          blocked_user_id: targetUserId,
+          created_at: new Date().toISOString()
+        })
+
+      // 23505: the block exists.
+      if (blockError && blockError.code !== '23505') {
+        throw this.createError('BLOCK_FAILED', 'Failed to block user', blockError)
+      }
+
+      await supabase
+        .from('follows')
+        .delete()
+        .or(`and(follower_id.eq.${profileId},following_id.eq.${targetUserId}),and(follower_id.eq.${targetUserId},following_id.eq.${profileId})`)
+
+      return { blocked: true }
     } catch (error) {
-      debug.error('Core: Failed to toggle block:', error)
+      debug.error(`Core: Failed to ${blocked ? 'block' : 'unblock'} user:`, error)
       throw error
     }
   }

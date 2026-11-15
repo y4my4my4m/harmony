@@ -44,6 +44,10 @@
 #                           tag vX.Y.Z, otherwise edge
 #   HARMONY_BUILD           1 builds Harmony's images from this checkout
 #                           (docker-compose.build.yml), 0 returns to images
+#   HARMONY_REGISTRY        where Harmony's images come from, default
+#                           ghcr.io/y4my4my4m; a fork's, e.g. ghcr.io/<owner>
+#                           (images.yml publishes there with PUBLISH_IMAGES=true)
+#   DISCORD_BRIDGE_REGISTRY the same for the Discord bridge image
 #   HARMONY_HTTP_PORT       [address:]port Caddy publishes for 80 (default 80)
 #   HARMONY_HTTPS_PORT      [address:]port Caddy publishes for 443 (default 443)
 #   HARMONY_DB_DOMAIN       API name (sign-in, data, uploads, realtime), default
@@ -426,6 +430,19 @@ HARMONY_VERSION="${HARMONY_VERSION:-$(derive_version)}"
 HARMONY_VERSION="${HARMONY_VERSION#v}"
 [[ "$HARMONY_VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]] || die "HARMONY_VERSION '$HARMONY_VERSION' is not an image tag"
 
+# Image registries: the configured value stays until set again; the default
+# (upstream) is not written to .env. docker-compose.yml holds the same defaults.
+DEFAULT_REGISTRY=ghcr.io/y4my4my4m
+registry_answer() { # VAR: the answer, else .env, else the default; no trailing /
+	local v="${!1:-$(env_get "$ENV_FILE" "$1")}"
+	v="${v:-$DEFAULT_REGISTRY}"; v="${v%/}"
+	[[ "$v" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)+$ ]] ||
+		die "$1 '$v' is not a registry path such as ghcr.io/owner (lower case)"
+	printf '%s' "$v"
+}
+HARMONY_REGISTRY="$(registry_answer HARMONY_REGISTRY)"
+DISCORD_BRIDGE_REGISTRY="$(registry_answer DISCORD_BRIDGE_REGISTRY)"
+
 HTTP_PORT="${HARMONY_HTTP_PORT:-$(env_get "$ENV_FILE" HARMONY_HTTP_PORT)}"; HTTP_PORT="${HTTP_PORT:-80}"
 HTTPS_PORT="${HARMONY_HTTPS_PORT:-$(env_get "$ENV_FILE" HARMONY_HTTPS_PORT)}"; HTTPS_PORT="${HTTPS_PORT:-443}"
 for p in "$HTTP_PORT" "$HTTPS_PORT"; do
@@ -687,6 +704,13 @@ env_set     "$ENV_FILE" REGISTRATION "$REGISTRATION"
 # Read by docker compose itself: `docker compose up -d` starts these profiles.
 env_set     "$ENV_FILE" COMPOSE_PROFILES "$PROFILES"
 env_set     "$ENV_FILE" HARMONY_VERSION "$HARMONY_VERSION"
+for reg in HARMONY_REGISTRY DISCORD_BRIDGE_REGISTRY; do
+	if [[ "${!reg}" == "$DEFAULT_REGISTRY" ]]; then
+		[[ -z "$(env_get "$ENV_FILE" "$reg")" ]] || env_del "$ENV_FILE" "$reg"
+	else
+		env_set "$ENV_FILE" "$reg" "${!reg}"
+	fi
+done
 case "$(printf '%s' "${HARMONY_BUILD:-}" | lower)" in
 	1|y|yes|true)
 		env_set "$ENV_FILE" COMPOSE_FILE docker-compose.yml:docker-compose.build.yml ;;

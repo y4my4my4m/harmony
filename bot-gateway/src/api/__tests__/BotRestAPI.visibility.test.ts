@@ -96,6 +96,11 @@ beforeEach(() => {
       const row = db.rows('bot_server_permissions').find((r) => r.bot_id === args.p_bot_id && r.server_id === args.p_server_id && r.is_active)
       return { data: row?.[args.p_permission] === true, error: null }
     }
+    if (name === 'bridge_message_by_discord_id') {
+      const row = db.rows('messages').find((m) => m.channel_id === args.p_channel_id
+        && m.metadata?.discord_message_id === args.p_discord_message_id && m.is_deleted !== true)
+      return { data: row?.id ?? null, error: null }
+    }
     return { data: null, error: null }
   })
   seed()
@@ -128,6 +133,42 @@ describe('GET /servers/:id/categories', () => {
     seed({ manage_channels: true })
     const res = await supertest(app()).get(`/api/v1/servers/${SERVER_ID}/categories`)
     expect(res.body.map((k: { id: string }) => k.id)).toEqual([TEXT_CATEGORY, STAFF_CATEGORY, EMPTY_CATEGORY])
+  })
+})
+
+describe('GET /channels/:id/messages/lookup', () => {
+  const lookup = (channel: string, id: string) =>
+    supertest(app()).get(`/api/v1/channels/${channel}/messages/lookup`).query({ discord_message_id: id })
+  const readsOfMessages = () => mocks.from.mock.calls.filter(([table]) => table === 'messages').length
+
+  it('answers the message that holds the Discord id, found by bridge_message_by_discord_id', async () => {
+    const res = await lookup(GENERAL, '3')
+    expect(res.status).toBe(200)
+    expect(res.body.id).toBe(OLD_GENERAL)
+    expect(mocks.rpc).toHaveBeenCalledWith('bridge_message_by_discord_id', { p_channel_id: GENERAL, p_discord_message_id: '3' })
+  })
+
+  it('answers 404 for an id the channel does not hold, without a read of messages', async () => {
+    const res = await lookup(GENERAL, '2')
+    expect(res.status).toBe(404)
+    expect(readsOfMessages()).toBe(0)
+  })
+
+  it('answers 404 for a row deleted after its id was found', async () => {
+    db.rows('messages').find((m) => m.id === OLD_GENERAL)!.is_deleted = true
+    const answer = mocks.rpc.getMockImplementation()!
+    mocks.rpc.mockImplementation(async (name: string, args: any) =>
+      (name === 'bridge_message_by_discord_id' ? { data: OLD_GENERAL, error: null } : answer(name, args)))
+    expect((await lookup(GENERAL, '3')).status).toBe(404)
+  })
+
+  it('answers 500 when the id lookup fails', async () => {
+    const answer = mocks.rpc.getMockImplementation()!
+    mocks.rpc.mockImplementation(async (name: string, args: any) =>
+      (name === 'bridge_message_by_discord_id' ? { data: null, error: { message: 'boom' } } : answer(name, args)))
+    const res = await lookup(GENERAL, '3')
+    expect(res.status).toBe(500)
+    expect(readsOfMessages()).toBe(0)
   })
 })
 

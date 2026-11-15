@@ -1,6 +1,7 @@
 // Journey: Drive opens files in the media viewer. The viewer names the file and its place
 // among the files of the view; an image zooms from the toolbar, the wheel, a double click and
-// the keys, pans by dragging within its edges, and rotates; the arrow keys and buttons step
+// the keys, below fit too, moves under a mouse drag past its edges with 64 px left on the
+// stage, and rotates; the arrow keys and buttons step
 // through the files and each step resets the image; Download saves the file under its name; a
 // PDF shows in a frame and a text file shows a card with its own Download; Escape closes and
 // focus returns to the file. The picture in Details opens the same viewer at its file. The
@@ -144,12 +145,20 @@ test('a Drive file opens in the media viewer: zoom, pan, rotate, step, download 
     expect(style.background).toBe('rgba(0, 0, 0, 0.88)')
   })
 
-  await test.step('the toolbar, the wheel, a double click and the keys zoom the image', async () => {
+  await test.step('the toolbar, the wheel, a double click and the keys zoom the image, below fit too', async () => {
+    const zoomIn = viewer(page).getByRole('button', { name: 'Zoom in' })
     const zoomOut = viewer(page).getByRole('button', { name: 'Zoom out' })
-    await expect(zoomOut).toBeDisabled()
-    await viewer(page).getByRole('button', { name: 'Zoom in' }).click()
+    await zoomIn.click()
     await expect.poll(async () => (await transform(page)).scale).toBeCloseTo(1.25, 2)
     await zoomOut.click()
+    await expect.poll(async () => (await transform(page)).scale).toBe(1)
+    await zoomOut.click()
+    await expect.poll(async () => (await transform(page)).scale).toBeCloseTo(0.8, 2)
+    await page.keyboard.press('-')
+    await expect.poll(async () => (await transform(page)).scale).toBeCloseTo(0.64, 2)
+    await zoomIn.click()
+    await expect.poll(async () => (await transform(page)).scale).toBeCloseTo(0.8, 2)
+    await zoomIn.click()
     await expect.poll(async () => (await transform(page)).scale).toBe(1)
 
     const c = await centreOf(page)
@@ -162,11 +171,15 @@ test('a Drive file opens in the media viewer: zoom, pan, rotate, step, download 
     await expect.poll(async () => (await transform(page)).scale).toBeCloseTo(1.25, 2)
     await page.keyboard.press('0')
     await expect.poll(async () => (await transform(page)).scale).toBe(1)
+    await page.mouse.wheel(0, 100)
+    await expect.poll(async () => (await transform(page)).scale).toBeCloseTo(0.8, 2)
+    await page.mouse.dblclick(c.x, c.y)
+    await expect.poll(async () => (await transform(page)).scale).toBe(1)
     await page.mouse.dblclick(c.x, c.y)
     await expect.poll(async () => (await transform(page)).scale).toBe(2.5)
   })
 
-  await test.step('a drag pans the zoomed image no further than its edge', async () => {
+  await test.step('a mouse drag moves the zoomed image past its edge, leaving 64 px on the stage', async () => {
     const c = await centreOf(page)
     await page.mouse.move(c.x, c.y)
     await page.mouse.down()
@@ -180,7 +193,7 @@ test('a Drive file opens in the media viewer: zoom, pan, rotate, step, download 
     const edge = await viewer(page).evaluate((el) => {
       const img = el.querySelector<HTMLImageElement>('img.media-image')!
       const stage = el.querySelector<HTMLElement>('.lightbox-stage')!.getBoundingClientRect()
-      return -(img.offsetWidth * 2.5 - stage.width) / 2
+      return -((img.offsetWidth * 2.5 + stage.width) / 2 - 64)
     })
     await expect.poll(async () => (await transform(page)).x).toBeCloseTo(edge, 0)
     await expect(viewer(page)).toBeVisible()

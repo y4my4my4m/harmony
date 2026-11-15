@@ -345,6 +345,7 @@ export type ModerationRejectionCode =
   | 'SERVER_LIMIT_REACHED'
   | 'BOT_LIMIT_REACHED'
   | 'DM_NOT_ALLOWED'
+  | 'DM_UNDELIVERABLE'
   | 'RULES_NOT_ACCEPTED'
 
 export interface ModerationRejection {
@@ -354,10 +355,19 @@ export interface ModerationRejection {
 }
 
 const REJECTION_PATTERN =
-  /(AUTOMOD_BLOCKED|MEMBER_TIMED_OUT|ANTISPAM_RATE_LIMITED|ANTISPAM_LINKS_BLOCKED|ANTISPAM_STRANGER_MENTIONS|SERVER_LIMIT_REACHED|BOT_LIMIT_REACHED|DM_NOT_ALLOWED|RULES_NOT_ACCEPTED)(?::([^\s"]+))?/
+  /(AUTOMOD_BLOCKED|MEMBER_TIMED_OUT|ANTISPAM_RATE_LIMITED|ANTISPAM_LINKS_BLOCKED|ANTISPAM_STRANGER_MENTIONS|SERVER_LIMIT_REACHED|BOT_LIMIT_REACHED|DM_NOT_ALLOWED|DM_UNDELIVERABLE|RULES_NOT_ACCEPTED)(?::([^\s"]+))?/
 
 export function isModerationRejectionCode(code: string | null | undefined): boolean {
   return !!code && REJECTION_PATTERN.test(code)
+}
+
+/** Refusals that pass within seconds: the rate window moves on. A timeout may last days. */
+const PASSING_REJECTIONS = new Set(['ANTISPAM_RATE_LIMITED'])
+
+/** A moderation or block refusal that answers the same on every retry. */
+export function isLastingRejectionCode(code: string | null | undefined): boolean {
+  const match = code ? REJECTION_PATTERN.exec(code) : null
+  return !!match && !PASSING_REJECTIONS.has(match[1])
 }
 
 function t(key: string, params?: Record<string, unknown>): string {
@@ -430,6 +440,9 @@ export function moderationRejectionFromError(error: any): ModerationRejection | 
       return { code, message: t('automod.antispam.botLimit', { count: arg ?? '0' }) }
     case 'DM_NOT_ALLOWED':
       return { code, message: t('automod.antispam.dmNotAllowed') }
+    // 20261111500001_dm_blocks.sql: a block between the two accounts of a direct conversation.
+    case 'DM_UNDELIVERABLE':
+      return { code, message: t('dm.undeliverable') }
     // 20261006300001_welcome_server_and_rules.sql; arg is the server id.
     case 'RULES_NOT_ACCEPTED':
       return { code, message: t('serverWelcome.rulesRequired'), details: { serverId: arg ?? null } }

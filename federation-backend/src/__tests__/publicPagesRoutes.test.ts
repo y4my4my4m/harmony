@@ -165,12 +165,76 @@ describe('GET /@:username', () => {
     expect(res.headers.location).toBe(`/@alice?before=${POST_ID}`)
   })
 
-  it('sends a visitor at a remote handle to sign in and back', async () => {
-    const res = await get('/@bob@remote.example')
-    expect(res.status).toBe(302)
-    expect(res.headers.location).toBe(`/login?redirect=${encodeURIComponent('/@bob@remote.example')}`)
-    expect(res.headers['cache-control']).toBe('no-store')
-    expect(rpc).not.toHaveBeenCalled()
+  describe('a remote account', () => {
+    const modiie = {
+      id: 'b0b00000-0000-4000-8000-000000000001',
+      username: 'Modiie',
+      display_name: 'Modiie',
+      avatar_url: 'https://piaille.example/avatars/m.png',
+      domain: 'piaille.example',
+      is_local: false,
+      federated_id: 'https://piaille.example/users/Modiie',
+      url: 'https://piaille.example/@Modiie',
+      discoverable: true,
+      created_at: null,
+      followers_count: 6481,
+    }
+    const remotePage = (account: Record<string, unknown> = {}) =>
+      profilePage({ posts: [post({ is_local: false, author: modiie, url: 'https://piaille.example/@Modiie/1' })] }, { ...modiie, ...account })
+
+    it('renders as this instance holds it, never indexed', async () => {
+      answer = { data: remotePage(), error: null }
+      const res = await get('/@Modiie@piaille.example')
+      expect(res.status).toBe(200)
+      expect(rpc).toHaveBeenCalledWith('public_profile_page',
+        { p_username: 'Modiie', p_before: null, p_limit: 20, p_domain: 'piaille.example' })
+      expect(res.headers['x-robots-tag']).toBe('noindex, noarchive')
+      expect(res.text).toContain('<meta name="robots"')
+      expect(res.text).toContain('@Modiie@piaille.example')
+      expect(res.text).toContain('data-testid="public-remote-origin"')
+      expect(res.text).toContain('href="https://piaille.example/@Modiie"')
+      expect(res.text).toContain('<link rel="canonical" href="https://piaille.example/@Modiie">')
+      expect(res.text).toContain('<link rel="alternate" type="application/activity+json" href="https://piaille.example/users/Modiie">')
+      expect(res.text).not.toContain('class="joined"')
+      expect(res.text).toContain('hello world')
+    })
+
+    it('pages under its own address', async () => {
+      answer = { data: { ...remotePage(), next: POST_ID }, error: null }
+      const res = await get('/@Modiie@piaille.example')
+      expect(res.text).toContain(`href="/@Modiie@piaille.example?before=${POST_ID}"`)
+    })
+
+    it('moves a handle spelled in another case to its spelling, 301', async () => {
+      answer = { data: remotePage(), error: null }
+      const res = await get('/@modiie@Piaille.Example')
+      expect(res.status).toBe(301)
+      expect(res.headers.location).toBe('/@Modiie@piaille.example')
+      expect(rpc).toHaveBeenCalledWith('public_profile_page',
+        { p_username: 'modiie', p_before: null, p_limit: 20, p_domain: 'piaille.example' })
+    })
+
+    it('answers an account this instance has not met 404, handing a signed-in reader to the app', async () => {
+      answer = { data: { enabled: true, instance: INSTANCE, account: null }, error: null }
+      const res = await get('/@ghost@far.example')
+      expect(res.status).toBe(404)
+      expect(res.text).toContain('data-status="not_found"')
+      expect(res.text).toContain('"/@ghost@far.example"')
+    })
+
+    it('takes a dotted bridged user', async () => {
+      answer = { data: { enabled: true, instance: INSTANCE, account: null }, error: null }
+      await get('/@hltv-mirror.eurosky.social@bsky.brid.gy')
+      expect(rpc).toHaveBeenCalledWith('public_profile_page',
+        { p_username: 'hltv-mirror.eurosky.social', p_before: null, p_limit: 20, p_domain: 'bsky.brid.gy' })
+    })
+
+    it('sends visitors to sign in while the pages are off', async () => {
+      answer = { data: { ...remotePage(), enabled: false }, error: null }
+      const res = await get('/@Modiie@piaille.example')
+      expect(res.status).toBe(302)
+      expect(res.headers.location).toBe(`/login?redirect=${encodeURIComponent('/@Modiie@piaille.example')}`)
+    })
   })
 
   it('answers a malformed username 404 without a read', async () => {

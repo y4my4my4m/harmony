@@ -4,12 +4,14 @@ const toastError = vi.hoisted(() => vi.fn())
 vi.mock('vue-toastification', () => ({ useToast: () => ({ error: toastError }) }))
 
 import {
+  isLastingRejectionCode,
   cleanDbMessage,
   describeBlockNotice,
   isModerationRejectionCode,
   moderationRejectionFromError,
   notifyModerationRejection,
 } from '@/services/AutoModService'
+import { i18n } from '@/i18n'
 
 describe('moderationRejectionFromError', () => {
   it('reads AUTOMOD_BLOCKED from a singular-request error with its JSON detail', () => {
@@ -54,6 +56,10 @@ describe('instance limit refusals', () => {
     expect(moderationRejectionFromError({ message: 'SERVER_LIMIT_REACHED:100' })?.code).toBe('SERVER_LIMIT_REACHED')
     expect(moderationRejectionFromError({ message: 'BOT_LIMIT_REACHED:25' })?.code).toBe('BOT_LIMIT_REACHED')
     expect(moderationRejectionFromError({ message: 'DM_NOT_ALLOWED' })?.code).toBe('DM_NOT_ALLOWED')
+    expect(moderationRejectionFromError({ code: 'P0001', message: 'DM_UNDELIVERABLE' })).toEqual({
+      code: 'DM_UNDELIVERABLE', message: i18n.global.t('dm.undeliverable'),
+    })
+    expect(isModerationRejectionCode('DM_UNDELIVERABLE')).toBe(true)
   })
 
   it('reads a code a wrapper kept inside its own message', () => {
@@ -92,5 +98,24 @@ describe('helpers', () => {
 
   it('strips validation prefixes', () => {
     expect(cleanDbMessage('AUTOMOD_INVALID_RULE: at most 25 rules per server')).toBe('at most 25 rules per server')
+  })
+})
+
+describe('isLastingRejectionCode', () => {
+  // A queued quick reply is dropped only for a refusal that answers the same on every retry.
+  it('names refusals that answer the same on every retry', () => {
+    expect(isLastingRejectionCode('AUTOMOD_BLOCKED')).toBe(true)
+    expect(isLastingRejectionCode('DM_NOT_ALLOWED')).toBe(true)
+    expect(isLastingRejectionCode('RULES_NOT_ACCEPTED')).toBe(true)
+  })
+
+  it('counts a timeout as lasting: it may run for days, and the reply would post long after', () => {
+    expect(isLastingRejectionCode('MEMBER_TIMED_OUT:1790000000')).toBe(true)
+  })
+
+  it('leaves out a rate limit, which passes in seconds', () => {
+    expect(isLastingRejectionCode('ANTISPAM_RATE_LIMITED:30')).toBe(false)
+    expect(isLastingRejectionCode('23505')).toBe(false)
+    expect(isLastingRejectionCode(null)).toBe(false)
   })
 })

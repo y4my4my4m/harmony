@@ -11,7 +11,8 @@ import { runtimeConfig } from '@/services/runtimeConfig'
 
 /**
  * Discord permission bits (https://discord.com/developers/docs/topics/permissions). Manage
- * Messages deletes the Discord original of a Discord message deleted here (bridge 2.2.0).
+ * Messages deletes the Discord original of a Discord message deleted here (bridge 2.2.0). Pin
+ * Messages pins the history import notice (bridge 2.6.0); Manage Messages no longer grants it.
  */
 export const DISCORD_BRIDGE_PERMISSION_FLAGS = {
   addReactions: 1n << 6n,
@@ -24,12 +25,13 @@ export const DISCORD_BRIDGE_PERMISSION_FLAGS = {
   manageWebhooks: 1n << 29n,
   createPublicThreads: 1n << 35n,
   sendMessagesInThreads: 1n << 38n,
+  pinMessages: 1n << 51n,
 } as const
 
 /**
  * View Channels, Send Messages, Manage Messages, Read Message History, Add Reactions, Embed
- * Links, Attach Files, Manage Webhooks, Create Public Threads, Send Messages in Threads =
- * 309774642240. The thread pair carries threads across the bridge (bridge 2.4.0).
+ * Links, Attach Files, Manage Webhooks, Create Public Threads, Send Messages in Threads, Pin
+ * Messages = 2252109588327488. The thread pair carries threads across the bridge (bridge 2.4.0).
  */
 export const DISCORD_BRIDGE_PERMISSIONS_VALUE = Object.values(DISCORD_BRIDGE_PERMISSION_FLAGS)
   .reduce((acc, flag) => acc | flag, 0n)
@@ -480,6 +482,13 @@ export function buildChecklist(bridge: DiscordBridgeRow, now = Date.now()): Chec
     { key: 'invited', state: invited },
     { key: 'harmony', state: harmony },
   ]
+}
+
+/** Codes that report something the bridge did on purpose: shown, but nothing to fix. */
+export const NOTICE_CODES: ReadonlySet<string> = new Set(['private_threads_skipped'])
+
+export function isProblemNotice(problem: BridgeProblem): boolean {
+  return NOTICE_CODES.has(problem.code)
 }
 
 /**

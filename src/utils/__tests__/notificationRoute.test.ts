@@ -4,6 +4,12 @@ import { resolveNotificationRoute, toAppPath } from '@/utils/notificationRoute'
 const route = (type: string, data: Record<string, any>) => resolveNotificationRoute({ type, data })
 
 describe('resolveNotificationRoute', () => {
+  it('opens a new report in the queue that holds it', () => {
+    expect(route('report_created', { report_id: 'r1', scope: 'instance' })).toBe('/admin?tab=reports')
+    expect(route('report_created', { report_id: 'r2', scope: 'server', report_server_id: 's1' }))
+      .toBe('/server/s1?section=reports')
+  })
+
   it('opens DMs and group chats at the message', () => {
     expect(route('dm', { conversation: { id: 'c1' }, message: { id: 'm1' } })).toBe('/dm/c1?messageId=m1')
     expect(route('chat_message', { conversation_id: 'c2' })).toBe('/dm/c2')

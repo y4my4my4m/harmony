@@ -513,6 +513,21 @@ const MESSAGE_TEMPLATES = {
     shortTitle: () => i18n.global.t('outgoingWebhooks.notice.short')
   },
 
+  // notify_report_moderators: a pending report, for whoever can act on it.
+  report_created: {
+    title: (data: any) => data?.scope === 'server' && data?.report_server_name
+      ? i18n.global.t('moderation.reportAlert.titleServer', { server: data.report_server_name })
+      : i18n.global.t('moderation.reportAlert.title'),
+    message: (data: any) => {
+      const kind = i18n.global.t(`moderation.reportAlert.kind.${['user', 'post', 'message', 'server', 'sticker'].includes(data?.report_type) ? data.report_type : 'other'}`)
+      const reason = data?.reason ? String(data.reason).replace(/_/g, ' ') : i18n.global.t('moderation.reportAlert.noReason')
+      return data?.source_instance
+        ? i18n.global.t('moderation.reportAlert.messageRemote', { kind, reason, instance: data.source_instance })
+        : i18n.global.t('moderation.reportAlert.message', { kind, reason })
+    },
+    shortTitle: () => i18n.global.t('moderation.reportAlert.short')
+  },
+
   report_update: {
     title: (data: any) => {
       // apply_server_report_resolution: the outcome of the server's moderators; local staff still decide.
@@ -763,6 +778,10 @@ export class NotificationFormatter {
 
     if (notification.type === 'moderation_warning') {
       return i18n.global.t('moderation.warningNotification.sender')
+    }
+
+    if (notification.type === 'report_created') {
+      return i18n.global.t('moderation.reportAlert.sender')
     }
 
     // Report updates: default to generic label (harassment/backlash prevention); show resolver only if moderator opted in

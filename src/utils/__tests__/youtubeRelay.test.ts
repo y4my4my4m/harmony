@@ -4,6 +4,7 @@ const stored = vi.hoisted(() => ({ value: null as { origin: string } | null }))
 vi.mock('@/services/instanceConfig', () => ({ getStoredInstance: () => stored.value }))
 
 import {
+  activityPlayerOrigin,
   buildYouTubePlayerSrc,
   isYouTubePlayerOrigin,
   youtubeRelayOrigin,
@@ -59,5 +60,48 @@ describe('YouTube relay', () => {
     expect(isAllowedEmbedFrameSrc('https://other.example/youtube-embed.html?v=abc123')).toBe(false)
     onProtocol('http:')
     expect(isAllowedEmbedFrameSrc('https://har.mony.lol/youtube-embed.html?v=abc123')).toBe(false)
+  })
+})
+
+describe('activity player page', () => {
+  function onPage(href: string) {
+    const url = new URL(href)
+    vi.spyOn(window, 'location', 'get').mockReturnValue({
+      ...window.location,
+      protocol: url.protocol,
+      hostname: url.hostname,
+      origin: url.protocol === 'tauri:' ? 'tauri://localhost' : url.origin,
+    } as Location)
+  }
+
+  it('is the instance page from the bundled app on http://tauri.localhost', () => {
+    onPage('http://tauri.localhost/chat')
+    stored.value = { origin: 'https://har.mony.lol' }
+    expect(activityPlayerOrigin()).toBe('https://har.mony.lol')
+    // Embeds in messages still frame YouTube directly there.
+    expect(youtubeRelayOrigin()).toBeNull()
+  })
+
+  it('is the instance page from the bundled app on tauri://localhost', () => {
+    onPage('tauri://localhost/chat')
+    stored.value = { origin: 'https://har.mony.lol/' }
+    expect(activityPlayerOrigin()).toBe('https://har.mony.lol')
+  })
+
+  it("is this page's own on the web and on a dev server", () => {
+    onPage('https://har.mony.lol/chat')
+    expect(activityPlayerOrigin()).toBeNull()
+    onPage('http://localhost:5173/chat')
+    stored.value = { origin: 'https://har.mony.lol' }
+    expect(activityPlayerOrigin()).toBeNull()
+  })
+
+  it("is this page's own without an https instance", () => {
+    onPage('http://tauri.localhost/chat')
+    expect(activityPlayerOrigin()).toBeNull()
+    stored.value = { origin: 'http://192.168.1.5:8080' }
+    expect(activityPlayerOrigin()).toBeNull()
+    stored.value = { origin: 'not a url' }
+    expect(activityPlayerOrigin()).toBeNull()
   })
 })

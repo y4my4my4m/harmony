@@ -11,7 +11,7 @@ beforeEach(() => {
 })
 
 describe('BridgeAdminSection', () => {
-  it('is one Discord bridge section: the instance bot first, then communities\' own bots', async () => {
+  it('is one Discord bridge section: the instance bot, communities\' own bots, then history import', async () => {
     installBackend({ instance_config: [] }, (name) =>
       name === 'discord_bridge_instance_bot_status'
         ? { enabled: false, configured: false, linked_count: 0, limit: 100, presence: false }
@@ -24,9 +24,10 @@ describe('BridgeAdminSection', () => {
     expect(w.findAll('h4').map((h) => h.text())).toEqual([
       "This instance's Discord bot",
       'Let communities bring their own bot',
+      'Discord history import',
     ])
     const sections = w.findAll('[data-testid^="bridge-"]').map((s) => s.attributes('data-testid'))
-    expect(sections).toEqual(['bridge-admin-section', 'bridge-instance-bot-admin', 'bridge-hosting-admin'])
+    expect(sections).toEqual(['bridge-admin-section', 'bridge-instance-bot-admin', 'bridge-hosting-admin', 'bridge-import-admin'])
     expect(missingKeys).toEqual([])
   })
 })

@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { spawnSync } from 'child_process'
+import { spawn, spawnSync } from 'child_process'
 import { createHash } from 'crypto'
 import { readdirSync, readFileSync, statSync } from 'fs'
 import path from 'path'
@@ -409,4 +409,54 @@ describe('check_and_increment_bot_rate_limit', () => {
     expect(second.ok, why(second)).toBe(true)
     expect(Number(second.rows[0][0])).toBeGreaterThan(0)
   })
+})
+
+describe('bridge_import_server_emoji, two overlapping imports of one new Discord emoji', () => {
+  const SERVER_ID = '00000000-0000-0000-0000-0000000000c0'
+  const BRIDGE_BOT_ID = '00000000-0000-0000-0000-0000000000b1'
+  const URL = `https://db.test/storage/v1/object/public/emojis/${SERVER_ID}/discord/777001.png`
+  const LOCK = `hashtextextended('server_emojis:${SERVER_ID}', 0)`
+
+  // The first import is a session that holds the per-server lock with its row inserted and
+  // commits 3 s later. The second finds no row, waits on the lock, and must then answer the
+  // committed row: an error here has the gateway delete the image both imports stored.
+  it('answers existing to the import that waited, and keeps one row', async () => {
+    const seeded = sql(`
+      INSERT INTO public.servers (id, name, owner) VALUES ('${SERVER_ID}', 'Race', '${OWNER_PROFILE_ID}');
+      INSERT INTO public.bots (id, owner_id, username, bot_type) VALUES ('${BRIDGE_BOT_ID}', '${OWNER_PROFILE_ID}', 'racebridge', 'bridge');
+      INSERT INTO public.discord_bridges (server_id, bot_id, mode, discord_guild_id, created_by)
+        VALUES ('${SERVER_ID}', '${BRIDGE_BOT_ID}', 'self', '900000000000000777', '${OWNER_PROFILE_ID}');
+    `)
+    expect(seeded.ok, why(seeded)).toBe(true)
+
+    const first = spawn('docker', ['exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', 'postgres', '-q'])
+    const firstDone = new Promise<number | null>((resolve) => first.on('close', resolve))
+    first.stdin.end(`
+      BEGIN;
+      SELECT pg_advisory_xact_lock(${LOCK});
+      INSERT INTO public.emojis (name, url, server_id, scope, discord_emoji_id)
+        VALUES ('RaceMoji', '${URL}', '${SERVER_ID}', 'server', '777001');
+      SELECT pg_sleep(3);
+      COMMIT;
+    `)
+
+    let held = false
+    for (let i = 0; i < 50 && !held; i++) {
+      const lock = sql(`SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND granted
+                           AND (classid::bigint << 32 | objid::bigint) = ${LOCK}`)
+      held = lock.ok && lock.rows[0]?.[0] === '1'
+      if (!held) await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    expect(held, 'the first import never took the lock').toBe(true)
+
+    const second = sql(
+      `SELECT status FROM public.bridge_import_server_emoji('${BRIDGE_BOT_ID}', '${SERVER_ID}', '777001', 'RaceMoji', '${URL}')`,
+    )
+    expect(await firstDone).toBe(0)
+    expect(second.ok, why(second)).toBe(true)
+    expect(second.rows[0]?.[0]).toBe('existing')
+
+    const rows = sql(`SELECT count(*) FROM public.emojis WHERE server_id = '${SERVER_ID}' AND discord_emoji_id = '777001'`)
+    expect(rows.rows[0]?.[0]).toBe('1')
+  }, 60_000)
 })

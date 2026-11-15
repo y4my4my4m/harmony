@@ -6,18 +6,16 @@
 // url-only part: the stored message holds the emoji's own image and :name: text for the rest,
 // and the page never requests the tracker. A malformed part is refused (22023).
 //
-// An admin imports a remote emoji from Admin › Emojis › Not imported: the backend downloads it
-// from the remote host into the emojis bucket and the new instance emoji's url is that object,
-// with the remote url kept in imported_from. A hotlinked instance emoji is re-hosted the same way.
-// The remote host listens on the gateway of a Docker bridge on E2E_PEER_SUBNET (default
-// 198.51.100.0/24): the backend refuses loopback and private addresses (utils/ssrfProtection.ts).
+// An admin imports a remote emoji from Admin › Emojis › Available to import: the backend
+// downloads it from the remote host (emojiRemoteHost.ts) into the emojis bucket and the new
+// instance emoji's url is that object, with the remote url kept in imported_from. An instance
+// emoji whose image is still on another host gets its image copied the same way.
+// admin-emoji-import.spec.ts covers the instance filter, several at once and held names.
 
-import { execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
-import http from 'node:http'
-import net from 'node:net'
 import { test, expect, type Page } from '@playwright/test'
 import { startBackend, type Backend } from './backend'
+import { REMOTE_PNG as PNG, startRemoteHost, type RemoteHost } from './emojiRemoteHost'
 import {
   adminClient,
   addMember,
@@ -34,11 +32,6 @@ import {
 
 test.use({ serviceWorkers: 'block' })
 
-// 16x16 opaque PNG.
-const PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFUlEQVR42mP8z8AARMQBxlGF1FUIAMJVAf8zYy5CAAAAAElFTkSuQmCC',
-  'base64',
-)
 const TRACKER = 'https://tracker.e2e.test'
 const INSTANCE_FOLDER = '00000000-0000-0000-0000-000000000000'
 
@@ -56,52 +49,6 @@ let otherEmojiId: string
 let cacheId: string
 let hotlinkedId: string
 const madeObjects: string[] = []
-
-interface RemoteHost {
-  origin: string
-  requests: string[]
-  stop(): Promise<void>
-}
-
-function hostHolds(ip: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const probe = net.createServer()
-    probe.once('error', () => resolve(false))
-    probe.listen(0, ip, () => probe.close(() => resolve(true)))
-  })
-}
-
-/** Plain http on the gateway of a Docker bridge network: an address the backend may fetch. */
-async function startRemoteHost(): Promise<RemoteHost> {
-  const subnet = process.env.E2E_PEER_SUBNET ?? '198.51.100.0/24'
-  const ip = `${subnet.split('/')[0].split('.').slice(0, 3).join('.')}.1`
-  const network = `${process.env.E2E_PROJECT ?? 'hme2e'}-emoji-remote`
-  let created = false
-  if (!(await hostHolds(ip))) {
-    try { execFileSync('docker', ['network', 'rm', network], { stdio: 'ignore' }) } catch { /* absent */ }
-    execFileSync('docker', ['network', 'create', '--driver', 'bridge', '--subnet', subnet, '--gateway', ip, network], { stdio: 'ignore' })
-    created = true
-    for (let i = 0; i < 50 && !(await hostHolds(ip)); i++) await new Promise((r) => setTimeout(r, 100))
-    if (!(await hostHolds(ip))) throw new Error(`docker network ${network} gave the host no ${ip}`)
-  }
-  const requests: string[] = []
-  const server = http.createServer((req, res) => {
-    requests.push(req.url ?? '')
-    if (req.url?.endsWith('.png')) res.writeHead(200, { 'Content-Type': 'image/png' }).end(PNG)
-    else res.writeHead(404).end()
-  })
-  await new Promise<void>((resolve) => server.listen(0, ip, resolve))
-  return {
-    origin: `http://${ip}:${(server.address() as { port: number }).port}`,
-    requests,
-    async stop() {
-      await new Promise<void>((resolve) => server.close(() => resolve()))
-      if (created) {
-        try { execFileSync('docker', ['network', 'rm', network], { stdio: 'ignore' }) } catch { /* gone */ }
-      }
-    },
-  }
-}
 
 test.beforeAll(async () => {
   owner = await createUser(admin, 'epvown')
@@ -221,19 +168,21 @@ async function openAdminEmojis(page: Page) {
   return library
 }
 
-test('an import and a re-host copy the remote image into this instance\'s storage', async ({ page }) => {
+test('an import and an image copy bring the remote image into this instance\'s storage', async ({ page }) => {
   test.setTimeout(180_000)
   const library = await openAdminEmojis(page)
 
-  await test.step('import from Not imported', async () => {
+  await test.step('import from Available to import', async () => {
     await library.getByTestId('admin-emoji-kind-not_imported').click()
     await library.getByTestId('admin-emoji-search').fill(`blob${tag}`)
     const row = library.locator(`[data-testid="admin-emoji-row"][data-emoji-id="${cacheId}"]`)
     await expect(row).toBeVisible({ timeout: 30000 })
     await row.getByRole('button', { name: `Import :blob${tag}:` }).click()
-    const dialog = page.getByRole('alertdialog')
+    const dialog = page.getByRole('dialog', { name: 'Import 1 emoji' })
     await expect(dialog).toBeVisible()
-    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+    await dialog.getByTestId('admin-emoji-import-confirm').click()
+    await expect(dialog.getByTestId('admin-emoji-import-summary')).toHaveText('1 emoji imported', { timeout: 30000 })
+    await dialog.getByTestId('admin-emoji-import-close').click()
     await expect(row).toHaveCount(0, { timeout: 30000 })
 
     const { data: imported } = await admin.from('emojis').select('url, imported_from, scope, domain').eq('name', `blob${tag}`).single()
@@ -247,13 +196,13 @@ test('an import and a re-host copy the remote image into this instance\'s storag
     expect(cache?.imported_as).not.toBeNull()
   })
 
-  await test.step('re-host a hotlinked instance emoji', async () => {
+  await test.step('copy the image of a hotlinked instance emoji', async () => {
     await library.getByTestId('admin-emoji-kind-instance').click()
     await library.getByTestId('admin-emoji-search').fill(`hot${tag}`)
     const row = library.locator(`[data-testid="admin-emoji-row"][data-emoji-id="${hotlinkedId}"]`)
     await expect(row).toBeVisible({ timeout: 30000 })
     await expect(row.locator('.badge.hotlinked')).toBeVisible()
-    await row.getByRole('button', { name: `Re-host :hot${tag}:` }).click()
+    await row.getByRole('button', { name: `Copy the image of :hot${tag}: to this instance` }).click()
     await expect(row.locator('.badge.hotlinked')).toHaveCount(0, { timeout: 30000 })
 
     const { data: rehosted } = await admin.from('emojis').select('url, imported_from').eq('id', hotlinkedId).single()

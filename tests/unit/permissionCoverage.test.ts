@@ -154,10 +154,8 @@ describe('permission editors', () => {
   const sectionKeys = [...sections.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1])
   const sectionIds = [...sections.matchAll(/id: '(\w+)'/g)].map((m) => m[1])
 
-  const channelEditor = read('src/components/ChannelEditModal.vue')
-  const overrideKeys = new Set(
-    [...between(channelEditor, 'const PERMISSION_GROUPS', 'interface Props').matchAll(/Permission\.([A-Z_]+)/g)].map((m) => m[1]),
-  )
+  const overrideGroups = read('src/services/channelPermissionGroups.ts')
+  const overrideKeys = new Set([...overrideGroups.matchAll(/Permission\.([A-Z_]+)/g)].map((m) => m[1]))
 
   it('the role editor shows every permission once', () => {
     expect([...sectionKeys].sort()).toEqual([...bitNames].sort())

@@ -240,6 +240,8 @@ export interface UserData {
   isLocal: boolean // true if loaded from local cache, false if fetched from server
   lastCacheUpdate: string // When we last fetched/updated this data in our local cache
   source: 'database' | 'presence' | 'cache'
+  /** userDataService's access counter at the last read or load; orders cache eviction. */
+  lastAccess?: number
 }
 
 export type DisplayNamePart =
@@ -267,6 +269,8 @@ export interface UserContext {
   userIds: Set<string>
   channel?: RealtimeChannel
   lastSync: Date
+  /** userIds holds the members loaded so far, not the whole membership. */
+  partial?: boolean
 }
 
 /**

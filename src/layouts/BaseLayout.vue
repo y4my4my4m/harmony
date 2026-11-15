@@ -604,9 +604,10 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
       
       if (strategy.currentServerId) {
-        const { getUserIdsForServer } = await import('@/services/usersService')
-        const serverUserIds = await getUserIdsForServer(strategy.currentServerId)
-        await userData.subscribeToContext(strategy.currentServerId, 'server', serverUserIds)
+        // The open server's member list and its server-presence topic. The member sidebar
+        // opens the same server; the directory answers both from one read.
+        const { memberDirectory } = await import('@/services/memberDirectory')
+        await memberDirectory.open(strategy.currentServerId)
       }
       
       const allServerIds = serverChannelStore.servers.map(server => server.id)
@@ -713,9 +714,9 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       }
     }
     
-    // Baseline presence set for cross-context online status.
-    // Settings/admin routes render no member list or DM sidebar; the
-    // all-servers member fetch there exceeds the reverse-proxy URL length limit.
+    // DM contacts, for online status outside a conversation. Server members are not part of
+    // it: a server's members load when the server is open, by range, and a message author's
+    // profile loads with the message. Settings/admin routes render no DM sidebar.
     const baselineUserIds = new Set<string>()
     const skipBaselinePresence = strategy.routeType === 'settings'
     
@@ -803,53 +804,31 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       } catch (error) {
         debug.warn('Failed to load current conversation participants:', error)
       }
-    } else if (!skipBaselinePresence) {
-      // Multi-conversation view: load every reachable user.
-    await Promise.all([
-      (async () => {
-        const { getUserIdsForServers } = await import('@/services/usersService')
-        const allServers = serverChannelStore.servers
-        const serverIds = allServers.map(s => s.id)
-        try {
-          const membersByServer = await getUserIdsForServers(serverIds)
-          for (const [, userIds] of membersByServer) {
-            userIds.forEach(id => baselineUserIds.add(id))
-          }
-        } catch (error) {
-          debug.warn('Failed to batch-load server members:', error)
-        }
-      })(),
-      
-      (async () => {
-          if (strategy.routeType !== 'dm') {
-        try {
-          const { data: participations } = await supabase
+    } else if (!skipBaselinePresence && strategy.routeType !== 'dm') {
+      try {
+        const { data: participations } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', userId)
+          .is('left_at', null)
+          .limit(100)
+
+        if (participations && participations.length > 0) {
+          const conversationIds = participations.map(p => p.conversation_id)
+          const { readAllRows } = await import('@/services/pagedRead')
+          const otherParticipants = await readAllRows<{ user_id: string }>(() => supabase
             .from('conversation_participants')
-            .select('conversation_id')
-            .eq('user_id', userId)
+            .select('user_id', { count: 'exact' })
+            .in('conversation_id', conversationIds)
+            .neq('user_id', userId)
             .is('left_at', null)
-            .limit(100)
-          
-          if (participations && participations.length > 0) {
-            const conversationIds = participations.map(p => p.conversation_id)
-            
-            const { data: otherParticipants } = await supabase
-              .from('conversation_participants')
-              .select('user_id')
-              .in('conversation_id', conversationIds)
-              .neq('user_id', userId)
-              .is('left_at', null)
-            
-            if (otherParticipants) {
-              otherParticipants.forEach(p => baselineUserIds.add(p.user_id))
-            }
-          }
-        } catch (error) {
-          debug.warn('Failed to load DM contacts for global presence:', error)
-            }
+            .order('id'))
+
+          otherParticipants.forEach(p => baselineUserIds.add(p.user_id))
         }
-      })()
-    ])
+      } catch (error) {
+        debug.warn('Failed to load DM contacts for global presence:', error)
+      }
     }
     
     if (!skipBaselinePresence && baselineUserIds.size > 0) {

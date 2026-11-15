@@ -92,6 +92,23 @@ differs from `master` needs `HARMONY_BUILD=1`.
 `sha-1a2b3c4`, until the next update or configuration run derives it from
 the checkout again.
 
+### Forks
+
+A fork's image workflow builds on every pull request and push but publishes
+only when the fork sets the repository variable `PUBLISH_IMAGES=true`
+(Settings, Secrets and variables, Actions, Variables). It then publishes the
+same tags into the fork owner's namespace, `ghcr.io/<owner>` in lower case.
+GHCR creates new packages as private: make each public in the package's
+settings, or run `docker login ghcr.io` on the instance. To run them:
+
+```bash
+HARMONY_REGISTRY=ghcr.io/<owner> HARMONY_REMOTE=<fork remote> harmony update --version <branch or tag>
+```
+
+`HARMONY_REGISTRY` stays in `.env` until set again; `HARMONY_REGISTRY=ghcr.io/y4my4my4m`
+returns to the upstream images. `DISCORD_BRIDGE_REGISTRY` does the same for the
+bridge image, published by the bridge repository's own workflow.
+
 ### When an update stops
 
 A failure stops the update at its step and prints

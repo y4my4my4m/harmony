@@ -171,6 +171,7 @@ function query(table: string) {
     in: (col: string, vals: unknown[]) => { filters.push(r => vals.includes(r[col])); return q },
     // Only `.not(col, 'is', value)` is used: IS NOT, so NULL passes.
     not: (col: string, _op: 'is', val: unknown) => { filters.push(r => r[col] !== val); return q },
+    is: (col: string, val: unknown) => { filters.push(r => (r[col] ?? null) === val); return q },
     order: () => q,
     range: () => q,
     limit: () => q,

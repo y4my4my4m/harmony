@@ -26,6 +26,8 @@ import { isModerationRejectionCode, moderationRejectionFromError, notifyModerati
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo'
 import { useMessagePollsStore } from '@/stores/useMessagePolls'
 import { useProfileStore } from '@/stores/useProfile'
+import { useToast } from 'vue-toastification'
+import { i18n } from '@/i18n'
 import { NEWER_PAGE, acceptsLiveRow, appendNewer, cursorOf, isPendingRow, mergeTail, newestPersisted } from '@/utils/messageWindow'
 
 /** Rows a catch-up after the newest loaded message reads at once. */
@@ -401,6 +403,16 @@ export const useDMStore = defineStore('dm', () => {
       cache.messages = cache.messages.filter(msg => msg.id !== messageId)
       cache.lastModified = new Date()
     })
+
+    // A dropped row stops being its conversation's preview; the newest row left takes its place.
+    const conversation = conversations.value.find(c => c.last_message?.id === messageId)
+    if (conversation) {
+      const rest = messageCache.value.get(conversation.id)?.messages ?? []
+      const newest = rest[rest.length - 1]
+      conversation.last_message = newest
+      if (newest) conversation.last_activity = new Date(newest.created_at).toISOString()
+      else void applyNewestRowAsPreview(conversation.id)
+    }
   }
 
   const editMessage = async (messageId: string, content: MessagePart[]) => {
@@ -1942,7 +1954,20 @@ export const useDMStore = defineStore('dm', () => {
 
       if (error) {
         debug.error('Error creating/finding conversation:', error)
-        notifyModerationRejection(error)
+        // The database refuses a block with dm_policy's words; the blocker knows its own blocks.
+        // Imported here: useActivityPub's module graph starts the auth listener.
+        const { useActivityPubStore } = await import('@/stores/useActivityPub')
+        const blockedPeer = [user1Id, user2Id].find(id => useActivityPubStore().isBlocked(id))
+        if (blockedPeer && moderationRejectionFromError(error)?.code === 'DM_NOT_ALLOWED') {
+          const cached = userDataService.getUser(blockedPeer)
+          const row = cached ? null : (await supabase.from('profiles').select('display_name, username')
+            .eq('id', blockedPeer).maybeSingle()).data
+          useToast().error(i18n.global.t('dm.blockedPeer.startRefused', {
+            name: cached?.displayName || cached?.username || row?.display_name || row?.username || '',
+          }))
+        } else {
+          notifyModerationRejection(error)
+        }
         return null
       }
 

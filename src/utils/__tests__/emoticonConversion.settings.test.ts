@@ -76,7 +76,7 @@ describe('send-time conversion', () => {
   })
 
   it('leaves fenced code untouched', async () => {
-    expect(await send('```\n:)\n```\nok :D')).toBe('```\n:)\n```\nok 😃')
+    expect(await send('```\n:)\n```\nok :D')).toBe('```\n:)\n```\nok 😄')
   })
 
   it('sends emoticons verbatim with the setting off', async () => {
@@ -104,7 +104,7 @@ describe('render-time conversion', () => {
 
   it('renders emoticons as emoji when on', () => {
     const { renderedText } = renderChatMessageText('nice :D <3 `:)`', { ...base, convertEmoticons: true })
-    expect(renderedText).toContain('nice 😃 ❤️')
+    expect(renderedText).toContain('nice 😄 ❤️')
     expect(renderedText).toContain('<code class="md-code">:)</code>')
   })
 

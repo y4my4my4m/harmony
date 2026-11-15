@@ -3,8 +3,9 @@ import express from 'express'
 import supertest from 'supertest'
 
 // A local server's Group as its member instances' copies read it (copyMirror.ts): the pins
-// advert counts what each channel's pins collection serves, and an unread role list, pin list or
-// role assignment is left out rather than sent short.
+// advert counts what each channel's pins collection serves, the custom emojis are listed with the
+// address clients load, and an unread role list, emoji list, pin list or role assignment is left
+// out rather than sent short.
 
 vi.mock('../config/index.js', () => {
   const cfg = {
@@ -89,6 +90,7 @@ function query(table: string) {
       return q
     },
     not: (col: string, _op: string, val: unknown) => { filters.push(r => r[col] !== val); return q },
+    is: (col: string, val: unknown) => { filters.push(r => (r[col] ?? null) === val); return q },
     or: () => q,
     order: (col: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) => {
       const asc = opts?.ascending !== false
@@ -185,6 +187,7 @@ beforeEach(() => {
     messages: [],
     profiles: [],
     bots: [],
+    emojis: [],
   }
 })
 
@@ -288,6 +291,44 @@ describe('roles on the Group', () => {
   })
 })
 
+describe('emojis on the Group', () => {
+  const E1 = '00000000-0000-4000-8000-00000000e001'
+  const E2 = '00000000-0000-4000-8000-00000000e002'
+  const seed = () => {
+    db.emojis = [
+      { id: E2, server_id: SERVER, scope: 'server', name: 'later', url: '/emojis/later.webp', created_at: '2026-02-01T00:00:00Z', deleted_at: null },
+      { id: E1, server_id: SERVER, scope: 'server', name: 'wave', url: 'https://cdn.harmony.test/emojis/wave.webp', created_at: '2026-01-01T00:00:00Z', deleted_at: null },
+      { id: 'gone', server_id: SERVER, scope: 'server', name: 'gone', url: '/emojis/gone.webp', created_at: '2026-01-02T00:00:00Z', deleted_at: '2026-03-01T00:00:00Z' },
+      { id: 'other', server_id: 'elsewhere', scope: 'server', name: 'other', url: '/emojis/other.webp', created_at: '2026-01-03T00:00:00Z', deleted_at: null },
+      { id: 'bad', server_id: SERVER, scope: 'server', name: 'has space', url: '/emojis/bad.webp', created_at: '2026-01-04T00:00:00Z', deleted_at: null },
+    ]
+  }
+
+  it('lists its emojis oldest first, under the Group, with the address clients load', async () => {
+    seed()
+    const doc = await groupDoc()
+    expect(doc['harmony:emojis']).toEqual([
+      { type: 'Emoji', id: `${GROUP}/emojis/${E1}`, name: ':wave:', icon: { type: 'Image', url: 'https://cdn.harmony.test/emojis/wave.webp' } },
+      { type: 'Emoji', id: `${GROUP}/emojis/${E2}`, name: ':later:', icon: { type: 'Image', url: 'https://harmony.test/emojis/later.webp' } },
+    ])
+    expect(doc['@context'][2].Emoji).toBe('toot:Emoji')
+  })
+
+  it('says whether the server\'s emojis may be used in other servers', async () => {
+    expect((await groupDoc())['harmony:crossServerEmojis']).toBe(true)
+    db.servers[0].allow_cross_server_emojis = false
+    expect((await groupDoc())['harmony:crossServerEmojis']).toBe(false)
+  })
+
+  it('leaves harmony:emojis out when the emojis cannot be read: an empty list removes a copy\'s emojis', async () => {
+    seed()
+    failWhen = table => table === 'emojis'
+    const doc = await groupDoc()
+    expect(doc.name).toBe('Hall')
+    expect('harmony:emojis' in doc).toBe(false)
+  })
+})
+
 describe('members page', () => {
   const page = async () => (await supertest(app()).get(`/servers/${SERVER}/members?page=1`)).body
   const member = (n: number) => ({
@@ -330,6 +371,26 @@ describe('Update(Group)', () => {
     await handleServerUpdated(server(), server())
     const sent: any = vi.mocked(DeliveryQueue.enqueue).mock.calls[0][0]
     expect(sent.object['harmony:roles'].map((r: any) => r.name)).toEqual(['Mod'])
+  })
+
+  it('carries the emojis it reads, an empty list when there are none', async () => {
+    await handleServerUpdated(server(), server())
+    const sent: any = vi.mocked(DeliveryQueue.enqueue).mock.calls[0][0]
+    expect(sent.object['harmony:emojis']).toEqual([])
+    expect(sent['@context'][1].Emoji).toBe('toot:Emoji')
+
+    db.emojis = [{ id: '00000000-0000-4000-8000-00000000e001', server_id: SERVER, scope: 'server', name: 'wave', url: '/emojis/wave.webp', created_at: '2026-01-01T00:00:00Z', deleted_at: null }]
+    vi.mocked(DeliveryQueue.enqueue).mockClear()
+    await handleServerUpdated(server(), server())
+    const again: any = vi.mocked(DeliveryQueue.enqueue).mock.calls[0][0]
+    expect(again.object['harmony:emojis'].map((e: any) => e.name)).toEqual([':wave:'])
+    expect(again.object['harmony:crossServerEmojis']).toBe(true)
+  })
+
+  it('is not sent, and the job fails for a retry, when the emojis cannot be read', async () => {
+    failWhen = table => table === 'emojis'
+    await expect(handleServerUpdated(server(), server())).rejects.toBeInstanceOf(ServerRolesUnreadError)
+    expect(DeliveryQueue.enqueue).not.toHaveBeenCalled()
   })
 
   it('is not sent, and the job fails for a retry, when the roles cannot be read', async () => {

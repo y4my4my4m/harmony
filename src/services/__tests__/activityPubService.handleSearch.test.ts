@@ -40,6 +40,15 @@ describe('remoteHandleOf', () => {
     expect(remoteHandleOf(' alice@social.example.org ', 'home.test')?.key).toBe('alice@social.example.org')
   })
 
+  it('names a dotted user of a bridge', () => {
+    expect(remoteHandleOf('@hltv-mirror.eurosky.social@bsky.brid.gy', 'home.test')).toEqual({
+      username: 'hltv-mirror.eurosky.social',
+      domain: 'bsky.brid.gy',
+      key: 'hltv-mirror.eurosky.social@bsky.brid.gy',
+    })
+    expect(remoteHandleOf('alice.bsky.social', 'home.test')).toBeNull()
+  })
+
   it('is null for a name, an unfinished host, the local domain or two @', () => {
     for (const query of ['alice', 'alice@', 'alice@har', 'alice@har.', 'alice@har.m', 'alice@HOME.test', 'a@b@c.example', '@@x.example']) {
       expect(remoteHandleOf(query, 'home.test')).toBeNull()

@@ -1,7 +1,8 @@
 /**
- * InstanceEmojiAdminService: admin_list_emojis paging and row mapping, rename_emoji,
- * remove_emoji, restore_emoji, admin_purge_emoji with removal of the file it reports, and the
- * federation backend's import and re-host routes with their { error: <code> } answers.
+ * InstanceEmojiAdminService: admin_list_emojis paging and row mapping, the remote emoji listing,
+ * its source instances and the import name preview, rename_emoji, remove_emoji, restore_emoji,
+ * admin_purge_emoji with removal of the file it reports, and the federation backend's import
+ * and re-host routes with their { error: <code> } answers.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +11,9 @@ import {
   AdminEmojiRequestError,
   importRemoteEmoji,
   listAdminEmojis,
+  listRemoteEmojiSources,
+  listRemoteEmojis,
+  previewEmojiImports,
   purgeEmoji,
   rehostEmoji,
   removeEmoji,
@@ -58,8 +62,18 @@ describe('listAdminEmojis', () => {
     expect(page.total).toBe(120)
     expect(page.rows[0]).toMatchObject({
       id: 'e1', kind: 'server', server_name: 'Hub', usage_count: 0, reaction_count: 4,
-      deleted_by_username: 'mod', hotlinked: false,
+      deleted_by_username: 'mod', hotlinked: false, license: null, source_domain: null,
     })
+  })
+
+  it('maps licence and origin instance', async () => {
+    rpc.mockResolvedValue({
+      data: [{ id: 'e2', kind: 'imported', name: 'blob', url: 'u', created_at: '2026-11-07T00:00:00Z',
+               license: 'CC BY 4.0', source_domain: 'misskey.test', total_count: 1 }],
+      error: null,
+    })
+    const page = await listAdminEmojis({ limit: 50, offset: 0 })
+    expect(page.rows[0]).toMatchObject({ kind: 'imported', license: 'CC BY 4.0', source_domain: 'misskey.test' })
   })
 
   it('sends a blank search as null and reads an empty page as total 0', async () => {
@@ -74,6 +88,61 @@ describe('listAdminEmojis', () => {
   it('rethrows the RPC error', async () => {
     rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'Instance admins only' } })
     await expect(listAdminEmojis({ limit: 50, offset: 0 })).rejects.toMatchObject({ code: '42501' })
+  })
+})
+
+describe('remote emojis', () => {
+  it('lists rows not imported as not_imported rows, filtered by name and instance', async () => {
+    rpc.mockResolvedValue({
+      data: [{
+        id: 'c1', name: 'blob', url: 'https://media.misskey.test/blob.png', domain: 'misskey.test',
+        license: 'CC0', first_seen_at: '2026-11-08T00:00:00Z', usage_count: 7, import_name: 'blob',
+        name_taken: true, total_count: '31',
+      }],
+      error: null,
+    })
+    const page = await listRemoteEmojis({ search: ' blob ', domain: 'misskey.test', sort: 'usage', limit: 50, offset: 0 })
+    expect(rpc).toHaveBeenCalledWith('admin_list_remote_emojis', {
+      p_search: 'blob', p_domain: 'misskey.test', p_sort: 'usage', p_limit: 50, p_offset: 0,
+    })
+    expect(page.total).toBe(31)
+    expect(page.rows[0]).toMatchObject({
+      id: 'c1', kind: 'not_imported', name: 'blob', domain: 'misskey.test', license: 'CC0',
+      created_at: '2026-11-08T00:00:00Z', usage_count: 7, name_taken: true, hotlinked: false,
+    })
+  })
+
+  it('sends no instance and no search as null', async () => {
+    rpc.mockResolvedValue({ data: [], error: null })
+    expect(await listRemoteEmojis({ search: '', domain: '', limit: 50, offset: 0 })).toEqual({ rows: [], total: 0 })
+    expect(rpc).toHaveBeenCalledWith('admin_list_remote_emojis', expect.objectContaining({ p_search: null, p_domain: null, p_sort: 'newest' }))
+  })
+
+  it('reads the source instances with their counts', async () => {
+    rpc.mockResolvedValue({ data: [{ domain: 'misskey.test', emoji_count: '12' }, { domain: 'other.test', emoji_count: 1 }], error: null })
+    expect(await listRemoteEmojiSources()).toEqual([{ domain: 'misskey.test', count: 12 }, { domain: 'other.test', count: 1 }])
+    expect(rpc).toHaveBeenCalledWith('admin_remote_emoji_sources')
+  })
+
+  it('previews import names for at most 200 ids', async () => {
+    rpc.mockResolvedValue({
+      data: [{ id: 'c1', name: 'blob', taken: false, suggested: 'blob' }, { id: 'c2', name: 'party', taken: true, suggested: 'party_1' }],
+      error: null,
+    })
+    const ids = Array.from({ length: 230 }, (_, i) => `c${i}`)
+    expect(await previewEmojiImports(ids)).toEqual([
+      { id: 'c1', name: 'blob', taken: false, suggested: 'blob' },
+      { id: 'c2', name: 'party', taken: true, suggested: 'party_1' },
+    ])
+    expect(rpc.mock.calls[0][0]).toBe('admin_preview_emoji_imports')
+    expect(rpc.mock.calls[0][1].p_ids).toHaveLength(200)
+  })
+
+  it('rethrows a refused listing', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: '42501' } })
+    await expect(listRemoteEmojis({ limit: 50, offset: 0 })).rejects.toMatchObject({ code: '42501' })
+    await expect(listRemoteEmojiSources()).rejects.toMatchObject({ code: '42501' })
+    await expect(previewEmojiImports(['c1'])).rejects.toMatchObject({ code: '42501' })
   })
 })
 
@@ -142,5 +211,10 @@ describe('backend routes', () => {
     await expect(rehostEmoji('e1')).rejects.toMatchObject({ code: 'internal_error', status: 502 })
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
     await expect(rehostEmoji('e1')).rejects.toMatchObject({ code: 'network_error' })
+  })
+
+  it('the hourly limit reads as rate_limited whatever the body says', async () => {
+    fetchMock.mockResolvedValue(json(429, { error: 'Too Many Requests', message: 'Too many emoji imports; try again later.' }))
+    await expect(importRemoteEmoji('c1', 'blob')).rejects.toEqual(new AdminEmojiRequestError('rate_limited', 429))
   })
 })

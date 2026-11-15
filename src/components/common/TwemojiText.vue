@@ -24,3 +24,14 @@ const runs = computed(() => {
   return parts.map((run) => ({ text: run.text, src: run.emoji ? getTwemojiUrl(run.text) : null }))
 })
 </script>
+
+<style scoped>
+/* Pack SVGs are viewBox="0 0 36 36" with no width or height: unsized, an <img> of one lays out
+   at 300px. Both axes are set so the line box holds before the image loads. */
+.inline-emoji {
+  width: 1.2em;
+  height: 1.2em;
+  vertical-align: -0.2em;
+  margin: 0 1px;
+}
+</style>

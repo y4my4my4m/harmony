@@ -21,8 +21,8 @@ import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.
 import { getCategoryRecipientGroups, getChannelRecipientGroups, getRemoteMemberGroups } from '../utils/federationUtils.js';
 import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
 import { categoryFlagProperties, channelFlagProperties } from '../activitypub/channelFlags.js';
-import { channelPosition, HARMONY_ROLES } from '../activitypub/copyMirror.js';
-import { loadApRoles } from '../activitypub/GroupService.js';
+import { channelPosition, HARMONY_CROSS_SERVER_EMOJIS, HARMONY_EMOJIS, HARMONY_ROLES } from '../activitypub/copyMirror.js';
+import { loadApEmojis, loadApRoles } from '../activitypub/GroupService.js';
 import { DIRECTORY_CONTEXT, groupDiscoverability, instanceFederationOpen } from '../activitypub/serverDirectory.js';
 import { dmPollQuestion, harmonyPollExtension, hasPollPart, loadMessagePolls, QUESTION_CONTEXT, sendsQuestionTo } from '../activitypub/messagePolls.js';
 
@@ -928,13 +928,13 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
   }
 }
 
-/** The server's roles could not be read; an Update(Group) without them is not sent. */
+/** The server's roles or emojis could not be read; an Update(Group) without them is not sent. */
 export class ServerRolesUnreadError extends Error {}
 
 /**
  * Sends Update for the server Group object to remote member instances. Throws
- * ServerRolesUnreadError when the roles cannot be read, so the job retries: harmony:roles is the
- * whole list, and copies delete a role it leaves out.
+ * ServerRolesUnreadError when the roles or emojis cannot be read, so the job retries: harmony:roles
+ * and harmony:emojis are whole lists, and copies remove what they leave out.
  */
 export async function handleServerUpdated(server: any, _oldServer: any): Promise<void> {
   try {
@@ -949,6 +949,8 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     const serverUrl = `https://${hostDomain}/servers/${server.id}`;
     const roles = await loadApRoles(getSupabaseClient(), server.id, serverUrl);
     if (!roles) throw new ServerRolesUnreadError(`Roles of server ${server.id} not read; Update(Group) not sent`);
+    const emojis = await loadApEmojis(getSupabaseClient(), server.id, serverUrl);
+    if (!emojis) throw new ServerRolesUnreadError(`Emojis of server ${server.id} not read; Update(Group) not sent`);
     
     const iconUrl = getFullServerIconUrl(server.icon) ?? undefined;
     const bannerUrl = getFullServerBannerUrl(server.banner) ?? undefined;
@@ -973,6 +975,8 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
           ? { at: server.suspended_at, reason: server.suspended_reason ?? null }
           : null,
         [HARMONY_ROLES]: roles,
+        [HARMONY_EMOJIS]: emojis,
+        [HARMONY_CROSS_SERVER_EMOJIS]: server.allow_cross_server_emojis !== false,
         updated: new Date().toISOString(),
       },
       published: new Date().toISOString(),

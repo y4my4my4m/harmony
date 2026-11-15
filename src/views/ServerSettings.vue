@@ -86,7 +86,10 @@
                   :aria-current="activeSection === section.id ? 'page' : undefined"
                   @click="setActiveSection(section.id)"
                 >
-                  {{ section.label }}
+                  {{ section.label }}<template v-if="section.id === 'reports' && serverReportsPending > 0">
+                    <span class="report-count-badge" aria-hidden="true" data-testid="server-reports-badge">{{ badgeCount(serverReportsPending) }}</span>
+                    <span class="sr-only">, {{ $t('moderation.reportAlert.pendingA11y', { count: serverReportsPending }, serverReportsPending) }}</span>
+                  </template>
                 </button>
               </li>
             </ul>
@@ -295,6 +298,7 @@
 import { hasOpenLayer } from '@/utils/a11y/layers'
 import { hasCapability } from '@/services/instanceCapabilities'
 import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent, nextTick, useId } from 'vue'
+import { badgeCount, refreshServerPendingReports, useReportQueueCounts } from '@/composables/useReportQueueCounts'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
@@ -422,6 +426,11 @@ const currentSectionLabel = computed(() => {
 
 // Computed permissions
 const permissions = computed(() => serverSettingsPermissions.value)
+const { serverPending } = useReportQueueCounts()
+const serverReportsPending = computed(() => serverPending.get(props.serverId) ?? 0)
+watch(() => permissions.value.canModerateReports && props.serverId, (id) => {
+  if (id) void refreshServerPendingReports(id)
+}, { immediate: true })
 
 // A copy of a server hosted on another instance. The rail's row is known before the server loads.
 const listedServer = computed(() => serverChannelStore.servers.find(s => s.id === props.serverId) ?? null)
@@ -1081,6 +1090,22 @@ watch(hasUnsavedEdits, (newValue) => {
   padding: 0;
   display: flex;
   flex-direction: column;
+}
+
+.report-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--error-fill);
+  color: var(--text-on-primary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .nav-list .nav-item {

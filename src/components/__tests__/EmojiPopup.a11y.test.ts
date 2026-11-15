@@ -1,8 +1,10 @@
 /**
- * The reaction picker is a modal dialog: named, focus in its labelled search,
- * Escape closing it; emoji are buttons named in words; Enter in the search picks
- * the first result; category headers are disclosure buttons. The grid's tab
- * stop and arrow keys run in the journey (a11y-messages.spec.ts).
+ * The reaction picker is a modal dialog: named, focus in its labelled search
+ * (on the dialog itself in the mobile layout, so no keyboard rises), Escape
+ * closing it; emoji are buttons named in words; Enter in the search picks the
+ * first result; category headers are disclosure buttons. It loads what the
+ * composer's picker loads. The grid's tab stop and arrow keys run in the journey
+ * (a11y-messages.spec.ts).
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -41,7 +43,11 @@ vi.mock('@/composables/useHapticSettings', () => ({
   useHapticSettings: () => ({ triggerReaction: vi.fn() }),
 }))
 
-vi.mock('@/composables/useEmojiLoader', () => ({ triggerEmojiDataLoad: vi.fn() }))
+const loadPickerEmojiData = vi.fn()
+vi.mock('@/composables/useEmojiLoader', () => ({ loadPickerEmojiData }))
+
+let mobileLayout = false
+vi.mock('@/composables/useLayoutState', () => ({ isMobileLayout: () => mobileLayout }))
 
 vi.mock('@/composables/usePopupPositioning', () => ({
   usePopupPositioning: () => ({ positionStyle: ref({}), updatePosition: vi.fn() }),
@@ -92,6 +98,7 @@ async function mountPopup(props: Record<string, unknown> = {}) {
 afterEach(() => {
   wrapper?.unmount()
   wrapper = null
+  mobileLayout = false
 })
 
 describe('EmojiPopup as a dialog', () => {
@@ -104,6 +111,18 @@ describe('EmojiPopup as a dialog', () => {
     const search = w.get('input.search-input')
     expect(search.attributes('aria-label')).toBe('messageA11y.emoji.search')
     expect(document.activeElement).toBe(search.element)
+  })
+
+  it('keeps focus off the search in the mobile layout', async () => {
+    mobileLayout = true
+    const w = await mountPopup({ isReaction: true })
+    expect(document.activeElement).toBe(w.get('.emoji-popup').element)
+  })
+
+  it('loads the groups the composer picker loads', async () => {
+    loadPickerEmojiData.mockClear()
+    await mountPopup({ isReaction: true })
+    expect(loadPickerEmojiData).toHaveBeenCalledTimes(1)
   })
 
   it('names emoji in words', async () => {

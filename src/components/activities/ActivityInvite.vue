@@ -46,7 +46,7 @@ const props = defineProps<{ activity: VoiceActivity }>()
 
 const { t } = useT()
 const actStore = useActivitiesStore()
-const dismissed = computed(() => actStore.hidden.has(props.activity.channel_id))
+const dismissed = computed(() => actStore.isHidden(props.activity))
 </script>
 
 <style scoped>

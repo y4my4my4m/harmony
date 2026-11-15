@@ -26,6 +26,8 @@ The count beside the list shows the server's stickers against the instance's lim
 
 **Edit** changes a sticker's name and description; the image stays. **Delete** removes the sticker after a confirmation. Messages that already sent it show **Sticker removed** in its place.
 
+A sticker the [Discord bridge](/run/discord-bridge) removes, because it was deleted on Discord, is retired rather than deleted: it leaves the list and the picker and nobody can send it again, but messages that already sent it keep showing it. It no longer counts toward the limit or holds its name. The bridge retires only stickers it copied from Discord, never one a member added, and the server keeps the 60 it retired last.
+
 ## Audit log
 
 The [audit log](/run/moderation#audit-log) records `sticker.create`, `sticker.update` (name and description changes) and `sticker.delete`, filtered under **Stickers**.

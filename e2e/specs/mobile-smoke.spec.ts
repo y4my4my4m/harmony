@@ -268,8 +268,10 @@ test('after the reaction picker, a tap on a word of the draft focuses the compos
   await row.dispatchEvent('contextmenu', { clientX: touch.clientX, clientY: touch.clientY, button: 2 })
   await row.dispatchEvent('touchend', { touches: [], changedTouches: [touch], targetTouches: [] })
   await page.getByRole('toolbar', { name: 'Message actions' }).getByTestId('msg-action-react').tap()
+  // The mobile picker opens with focus off its search; a tap puts it there.
   const search = page.locator('.emoji-popup .search-input')
-  await expect(search).toBeFocused({ timeout: 10000 })
+  await search.tap({ timeout: 10000 })
+  await expect(search).toBeFocused()
   await page.keyboard.type('smile')
   await page.locator('.emoji-popup .emoji-item').first().tap()
   await expect(page.locator('.emoji-popup')).toHaveCount(0)

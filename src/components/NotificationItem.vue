@@ -242,6 +242,7 @@ const TYPE_ICONS: Record<string, { icon: string; tone: string }> = {
   activitypub_follow_accepted: { icon: 'user-check', tone: 'follow' },
   move: { icon: 'arrow-right', tone: 'follow' },
   report_update: { icon: 'shield', tone: 'system' },
+  report_created: { icon: 'flag', tone: 'system' },
   moderation_warning: { icon: 'shield', tone: 'system' },
   newcomer_message: { icon: 'user-plus', tone: 'follow' },
   security: { icon: 'shield-check', tone: 'system' },

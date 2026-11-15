@@ -35,6 +35,9 @@ export const CAPABILITIES = [
   // Sign-up limits: the signup_* keys of instance_config and signup_refusal_counts, read by
   // before_user_created_hook (20261109100001). On an older instance a save would have no effect.
   'signup-limits',
+  // Sign-up captcha: the signup_captcha_* keys of instance_config and signup_captcha_counts, read by
+  // before_user_created_hook, and its 428 answer (20261111100001).
+  'signup-captcha',
   // leave_thread and thread_departures (20261110300001).
   'thread-departures',
   // Invite widgets for websites: GET /widget/invite/:code and its badge.svg.
@@ -61,6 +64,9 @@ export const CAPABILITIES = [
   // voice_channel_announce. The voice-channels and voice-channel topics take no client's send
   // (20261110100001).
   'voice-announce',
+  // Server members by range, search and id: get_server_member_list, search_server_members,
+  // get_server_member_roles, get_server_role_member_counts and server_member_stats (20261113100001).
+  'member-directory',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

@@ -91,6 +91,19 @@ export function triggerEmojiDataLoad(): void {
 }
 
 /**
+ * What every emoji picker lists: the unified pack and server emoji (triggerEmojiDataLoad), and the
+ * viewer's own, AI generated and instance groups (loadPersonalEmojis). Non-blocking.
+ */
+export function loadPickerEmojiData(): void {
+  triggerEmojiDataLoad()
+  const emojiCacheStore = useEmojiCacheStore()
+  import('@/services/AuthContextService')
+    .then(({ authContextService }) => authContextService.getCurrentContext())
+    .then((ctx) => emojiCacheStore.loadPersonalEmojis(ctx.profileId ?? null))
+    .catch(() => emojiCacheStore.loadPersonalEmojis(null))
+}
+
+/**
  * Composable that provides emoji loading state and functions
  */
 export function useEmojiLoader() {

@@ -82,7 +82,7 @@ services:
   # environment; a change needs `docker compose up -d`, no rebuild.
   # ---------------------------------------------------------------------------
   web:
-    image: ghcr.io/y4my4my4m/harmony-web:${HARMONY_VERSION:-edge}
+    image: ${HARMONY_REGISTRY:-ghcr.io/y4my4my4m}/harmony-web:${HARMONY_VERSION:-edge}
     container_name: harmony-web
     restart: unless-stopped
     environment:
@@ -120,7 +120,7 @@ services:
   # Federation backend - server (HTTP) and worker (queues) from one image
   # ---------------------------------------------------------------------------
   federation-server:
-    image: ghcr.io/y4my4my4m/harmony-federation:${HARMONY_VERSION:-edge}
+    image: ${HARMONY_REGISTRY:-ghcr.io/y4my4my4m}/harmony-federation:${HARMONY_VERSION:-edge}
     container_name: harmony-federation-server
     restart: unless-stopped
     env_file:
@@ -142,7 +142,7 @@ services:
       - default
 
   federation-worker:
-    image: ghcr.io/y4my4my4m/harmony-federation:${HARMONY_VERSION:-edge}
+    image: ${HARMONY_REGISTRY:-ghcr.io/y4my4my4m}/harmony-federation:${HARMONY_VERSION:-edge}
     container_name: harmony-federation-worker
     restart: unless-stopped
     env_file:
@@ -183,7 +183,7 @@ services:
   # Bot gateway (profile: bots)
   # ---------------------------------------------------------------------------
   bot-gateway:
-    image: ghcr.io/y4my4my4m/harmony-bot-gateway:${HARMONY_VERSION:-edge}
+    image: ${HARMONY_REGISTRY:-ghcr.io/y4my4my4m}/harmony-bot-gateway:${HARMONY_VERSION:-edge}
     container_name: harmony-bot-gateway
     restart: unless-stopped
     env_file:
@@ -210,7 +210,7 @@ services:
   # the gateway on the compose network; BRIDGE_HOST_SECRET equals the
   # gateway's (bot-gateway.env). Its image versions separately from Harmony.
   discord-bridge-host:
-    image: ghcr.io/y4my4my4m/harmony-discord-bridge:${DISCORD_BRIDGE_VERSION:-2}
+    image: ${DISCORD_BRIDGE_REGISTRY:-ghcr.io/y4my4my4m}/harmony-discord-bridge:${DISCORD_BRIDGE_VERSION:-2}
     container_name: harmony-discord-bridge-host
     restart: unless-stopped
     env_file:

@@ -25,6 +25,14 @@ vi.mock('@/services/RoleService', () => ({
   },
 }))
 
+// An instance without the member directory: one read of every assignment fills the map.
+// useServerRoles.memberRoles.test.ts covers the per-member path.
+vi.mock('@/services/memberDirectoryService', () => ({
+  memberDirectoryAvailable: () => false,
+  fetchMemberRoles: vi.fn(async () => null),
+  MEMBER_ROLES_MAX: 200,
+}))
+
 import { useServerRolesStore } from '@/stores/useServerRoles'
 
 beforeEach(() => {

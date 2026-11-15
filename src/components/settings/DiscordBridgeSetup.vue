@@ -68,6 +68,10 @@
           :bridge="bridge"
           :pairs="pairs"
           :harmony-channels="channels"
+          :imports="imports"
+          :encrypted-channel-ids="encryptedChannelIds"
+          :attachment-mode="attachmentMode"
+          :import-mode="importMode"
           :now="now"
           :harmony-url="harmonyUrl"
           @changed="refresh"
@@ -81,6 +85,10 @@
           :bridge="bridge"
           :pairs="pairs"
           :harmony-channels="channels"
+          :imports="imports"
+          :encrypted-channel-ids="encryptedChannelIds"
+          :attachment-mode="attachmentMode"
+          :import-mode="importMode"
           :now="now"
           :harmony-url="harmonyUrl"
           :server-name="serverName"
@@ -136,14 +144,19 @@ import {
   createInstanceLink,
   deleteBridge,
   fetchBridge,
+  fetchBridgeAttachmentMode,
+  fetchHistoryImportMode,
   fetchBridgePairs,
+  fetchImports,
   fetchHostingEnabled,
   fetchInstanceBotEnabled,
   fetchLegacyPairing,
   fetchServerTextChannels,
+  type ImportJob,
   type LegacyPairing,
 } from './discord-bridge/bridgeApi'
 import { bridgeErrorKey, errorDetail } from './discord-bridge/bridgeErrors'
+import { cachedEffectiveChannelEncryption } from '@/services/ChannelEncryptionService'
 import { startInstanceLink } from './discord-bridge/instanceLink'
 import BridgeModeChooser from './discord-bridge/BridgeModeChooser.vue'
 import BridgeSetupStepper from './discord-bridge/BridgeSetupStepper.vue'
@@ -178,6 +191,10 @@ const actionDetail = ref('')
 const bridge = ref<DiscordBridgeRow | null>(null)
 const pairs = ref<BridgePairRow[]>([])
 const channels = ref<HarmonyChannelOption[]>([])
+const imports = ref<ImportJob[]>([])
+const encryptedChannelIds = ref<string[]>([])
+const attachmentMode = ref<string | null>(null)
+const importMode = ref<string | null>(null)
 const legacy = ref<LegacyPairing | null>(null)
 const hostingEnabled = ref(false)
 const instanceBotEnabled = ref(false)
@@ -203,25 +220,47 @@ async function readBridge(): Promise<void> {
   const seq = ++refreshSeq
   const row = await fetchBridge(props.serverId)
   const rows = row ? await fetchBridgePairs(row.id) : []
+  // Import progress is secondary: a failed read keeps the last jobs instead of failing the page.
+  const jobs = row ? await fetchImports(row.id).catch(() => null) : []
+  const encrypted = await readEncryptedChannels(rows)
   if (seq !== refreshSeq) return
   bridge.value = row
   pairs.value = rows
+  if (jobs) imports.value = jobs
+  encryptedChannelIds.value = encrypted
+}
+
+/** Paired channels whose messages are end-to-end encrypted; an unreadable channel counts as plaintext (the server refuses it anyway). */
+async function readEncryptedChannels(rows: BridgePairRow[]): Promise<string[]> {
+  const states = await Promise.all(
+    rows.map((pair) =>
+      cachedEffectiveChannelEncryption(pair.harmony_channel_id).then(
+        (state) => (state?.messagesEncrypted ? pair.harmony_channel_id : null),
+        () => null,
+      ),
+    ),
+  )
+  return states.filter((id): id is string => id !== null)
 }
 
 async function load() {
   loading.value = true
   loadError.value = ''
   unavailable.value = false
-  const [bridgeResult, channelResult, hostingResult, legacyResult, instanceResult] = await Promise.allSettled([
+  const [bridgeResult, channelResult, hostingResult, legacyResult, instanceResult, attachmentResult, importResult] = await Promise.allSettled([
     readBridge(),
     fetchServerTextChannels(props.serverId),
     fetchHostingEnabled(),
     fetchLegacyPairing(props.serverId),
     fetchInstanceBotEnabled(),
+    fetchBridgeAttachmentMode(),
+    fetchHistoryImportMode(),
   ])
   if (channelResult.status === 'fulfilled') channels.value = channelResult.value
   hostingEnabled.value = hostingResult.status === 'fulfilled' && hostingResult.value
   instanceBotEnabled.value = instanceResult.status === 'fulfilled' && instanceResult.value
+  attachmentMode.value = attachmentResult.status === 'fulfilled' ? attachmentResult.value : null
+  importMode.value = importResult.status === 'fulfilled' ? importResult.value : 'off'
   legacy.value = legacyResult.status === 'fulfilled' ? legacyResult.value : null
   if (bridgeResult.status === 'rejected') {
     if (bridgeResult.reason instanceof BridgeUnavailableError) {

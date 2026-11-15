@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { markRaw } from 'vue';
+import { effectScope, markRaw, watch } from 'vue';
 import { supabase } from '@/supabase';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug'
@@ -30,6 +30,34 @@ export function isPersonalEmojiGroup(key: string): boolean {
   return key.startsWith('__');
 }
 
+interface GroupLabel {
+  name: string;
+  icon?: string;
+}
+
+/**
+ * "My Emoji" shows the viewer's avatar. The instance group is named after the instance (e.g.
+ * "Spacify Emoji") and shows the icon other instances see (instance_icon, served in NodeInfo);
+ * the app icon when unset.
+ */
+function personalGroupLabels(
+  avatarUrl: string | null | undefined,
+  instanceName: string | undefined,
+  instanceIcon: string | undefined,
+): Record<string, GroupLabel> {
+  const name = instanceName?.trim();
+  return {
+    [PERSONAL_EMOJI_GROUPS.user]: { name: 'My Emoji', icon: getAvatarUrl(avatarUrl, 64) },
+    [PERSONAL_EMOJI_GROUPS.instance]: {
+      name: name ? `${name} Emoji` : 'Instance Emoji',
+      icon: instanceIcon?.trim() || INSTANCE_ICON_FALLBACK,
+    },
+  };
+}
+
+// Per store: the setup of its group label watcher.
+const labelWatchers = new WeakMap<object, Promise<void>>();
+
 interface EmojiCacheEntry {
   emoji: Emoji;
   lastUpdated: Date;
@@ -45,6 +73,12 @@ interface ServerEmojiCache {
   lastFetched: Date;
   isStale: boolean;
   allowCrossServer: boolean;
+}
+
+interface ResolvedEmojiGroup {
+  server_name: string;
+  server_icon?: string;
+  emojis: ResolvedEmoji[];
 }
 
 interface EmojiMetadata {
@@ -64,11 +98,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     
     nameIndex: new Map<string, EmojiCacheEntry[]>(),
     
-    resolvedEmojis: {} as Record<string, {
-      server_name: string;
-      server_icon?: string;
-      emojis: ResolvedEmoji[];
-    }>,
+    resolvedEmojis: {} as Record<string, ResolvedEmojiGroup>,
     
     maxCacheAge: 15 * 60 * 1000,
     maxCacheSize: 100,
@@ -85,6 +115,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     // re-opening the picker (or switching servers) doesn't refetch + rebuild.
     _personalEmojiLoadedAt: 0,
     _personalEmojiProfileId: null as string | null,
+    _personalGroupLabels: personalGroupLabels(null, undefined, undefined),
 
     _emojiChannel: null as any,
     
@@ -465,27 +496,12 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         const aiEmojis = userEmojis.filter((e) => (e as any).is_ai_generated === true);
         const ownEmojis = userEmojis.filter((e) => (e as any).is_ai_generated !== true);
 
-        // Name the instance group after the instance (e.g. "Spacify Emoji") and show the icon
-        // other instances see (instance_icon, served in NodeInfo); the app icon when unset.
-        let instanceLabel = 'Instance Emoji';
-        let instanceIcon = INSTANCE_ICON_FALLBACK;
-        try {
-          const { useInstanceSettingsStore } = await import('@/stores/useInstanceSettings');
-          const settings = useInstanceSettingsStore().settings;
-          const name = settings.instanceName?.trim();
-          if (name) instanceLabel = `${name} Emoji`;
-          if (settings.instanceIcon?.trim()) instanceIcon = settings.instanceIcon.trim();
-        } catch { /* settings not ready — keep fallback */ }
-        // "My Emoji" shows the viewer's own avatar.
-        let ownIcon: string | undefined;
-        try {
-          const { useProfileStore } = await import('@/stores/useProfile');
-          ownIcon = getAvatarUrl(useProfileStore().profile?.avatar_url, 64);
-        } catch { /* profile not ready — ServerIcon falls back to the monogram */ }
+        await this.followPersonalGroupLabels();
+        const labels = this._personalGroupLabels;
 
         this.updateServerCache(PERSONAL_EMOJI_GROUPS.ai, aiEmojis, { name: 'AI Generated' }, false);
-        this.updateServerCache(PERSONAL_EMOJI_GROUPS.user, ownEmojis, { name: 'My Emoji', icon: ownIcon }, false);
-        this.updateServerCache(PERSONAL_EMOJI_GROUPS.instance, instanceEmojis, { name: instanceLabel, icon: instanceIcon }, false);
+        this.updateServerCache(PERSONAL_EMOJI_GROUPS.user, ownEmojis, labels[PERSONAL_EMOJI_GROUPS.user], false);
+        this.updateServerCache(PERSONAL_EMOJI_GROUPS.instance, instanceEmojis, labels[PERSONAL_EMOJI_GROUPS.instance], false);
         this.rebuildResolvedEmojis();
 
         this._personalEmojiLoadedAt = Date.now();
@@ -493,6 +509,58 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       } catch (e) {
         debug.error('Failed to load personal/instance emoji:', e);
       }
+    },
+
+    /**
+     * Keeps the "My Emoji" and instance group labels current with the profile's avatar and the
+     * instance settings, which can load after the groups and change during the session. Resolves
+     * once the labels reflect both stores.
+     */
+    followPersonalGroupLabels(): Promise<void> {
+      let ready = labelWatchers.get(this);
+      if (ready) return ready;
+      ready = Promise.all([import('@/stores/useProfile'), import('@/stores/useInstanceSettings')])
+        .then(([{ useProfileStore }, { useInstanceSettingsStore }]) => {
+          const profileStore = useProfileStore();
+          const instanceSettings = useInstanceSettingsStore();
+          // Detached: the watcher lives as long as the store, not as long as a caller's component.
+          effectScope(true).run(() => {
+            watch(
+              () => personalGroupLabels(
+                profileStore.profile?.avatar_url,
+                instanceSettings.settings.instanceName,
+                instanceSettings.settings.instanceIcon,
+              ),
+              (labels) => this.setPersonalGroupLabels(labels),
+              { immediate: true },
+            );
+          });
+        })
+        .catch((e) => {
+          labelWatchers.delete(this);
+          debug.warn('Personal emoji group labels do not follow the profile:', e);
+        });
+      labelWatchers.set(this, ready);
+      return ready;
+    },
+
+    /** Applies labels to the cached groups and to resolvedEmojis without a full rebuild. */
+    setPersonalGroupLabels(labels: Record<string, GroupLabel>) {
+      this._personalGroupLabels = labels;
+      let resolved: Record<string, ResolvedEmojiGroup> | null = null;
+      for (const [key, label] of Object.entries(labels)) {
+        const cache = this.serverCaches.get(key);
+        if (cache) {
+          cache.serverName = label.name;
+          cache.serverIcon = label.icon;
+        }
+        const group = this.resolvedEmojis[key];
+        if (group && (group.server_name !== label.name || group.server_icon !== label.icon)) {
+          resolved ??= { ...this.resolvedEmojis };
+          resolved[key] = { ...group, server_name: label.name, server_icon: label.icon };
+        }
+      }
+      if (resolved) this.resolvedEmojis = markRaw(resolved);
     },
 
     /** Add a single emoji to a personal group (e.g. a freshly generated one). */
@@ -540,11 +608,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     },
 
     rebuildResolvedEmojis() {
-      const resolved: Record<string, {
-        server_name: string;
-        server_icon?: string;
-        emojis: ResolvedEmoji[];
-      }> = {};
+      const resolved: Record<string, ResolvedEmojiGroup> = {};
 
       const nameCount: Record<string, number> = {};
 

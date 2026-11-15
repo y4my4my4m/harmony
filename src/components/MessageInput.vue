@@ -305,6 +305,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDraftThreadId } from '@/utils/draftThreadId';
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, markRaw, reactive, toRaw, defineAsyncComponent } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useViewport } from '@/composables/useViewport';
@@ -642,7 +643,8 @@ const readOnlyPlaceholder = computed(() => {
 // Typing context: props first, store as fallback.
 const typingContext = computed(() => {
   if (props.threadId) {
-    return { type: 'thread' as const, threadId: props.threadId }
+    // A draft thread has no row: Realtime refuses its topic, and nobody else can open it.
+    return isDraftThreadId(props.threadId) ? null : { type: 'thread' as const, threadId: props.threadId }
   }
   if (props.conversationId) {
     return { type: 'conversation' as const, conversationId: props.conversationId }
@@ -1158,7 +1160,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     // A press on the attach button while the menu is open closes it on
     // pointerdown ('outside'); the click that follows must not reopen it.
-    let uploadMenuClosedAt = 0;
+    let uploadMenuClosedAt = -Infinity;
     const toggleUploadMenu = (event?: Event) => {
       if (event) {
         event.stopPropagation();

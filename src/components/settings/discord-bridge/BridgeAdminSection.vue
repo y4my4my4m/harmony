@@ -4,6 +4,7 @@
     <p class="hint">{{ t('discordBridge.adminSection.lead') }}</p>
     <BridgeInstanceBotAdmin />
     <BridgeHostingAdmin />
+    <BridgeImportAdmin />
   </section>
 </template>
 
@@ -11,6 +12,7 @@
 import { useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BridgeHostingAdmin from './BridgeHostingAdmin.vue'
+import BridgeImportAdmin from './BridgeImportAdmin.vue'
 import BridgeInstanceBotAdmin from './BridgeInstanceBotAdmin.vue'
 
 const { t } = useI18n()

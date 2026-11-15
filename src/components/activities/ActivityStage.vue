@@ -21,7 +21,7 @@
       </button>
     </header>
 
-    <div ref="slotEl" class="activity-stage__screen" :class="{ 'is-listen': listen }" data-testid="activity-slot">
+    <div ref="slotEl" class="activity-stage__screen" :class="{ 'is-listen': listen }" data-testid="activity-slot" data-activity-notice>
       <p v-if="actStore.status.error === 'autoplay'" class="activity-stage__notice">
         <button type="button" class="activity-stage__resume" @click="resume">{{ t('activities.clickToPlay') }}</button>
       </p>

@@ -34,6 +34,12 @@ export interface AdminEmojiRow {
   imported_from: string | null
   hotlinked: boolean
   is_ai_generated: boolean
+  /** Licence or attribution text the origin instance states. */
+  license: string | null
+  /** Instance an import came from; imported_from is the image URL. */
+  source_domain: string | null
+  /** not_imported rows of admin_list_remote_emojis: an instance emoji holds the name an import takes. */
+  name_taken?: boolean
 }
 
 export interface AdminEmojiPage {
@@ -72,6 +78,8 @@ function toRow(raw: Record<string, any>): AdminEmojiRow {
     imported_from: raw.imported_from ?? null,
     hotlinked: raw.hotlinked === true,
     is_ai_generated: raw.is_ai_generated === true,
+    license: raw.license ?? null,
+    source_domain: raw.source_domain ?? null,
   }
 }
 
@@ -94,6 +102,73 @@ export async function listAdminEmojis(params: {
   if (error) throw error
   const raw = (data ?? []) as Record<string, any>[]
   return { rows: raw.map(toRow), total: raw.length ? Number(raw[0].total_count) : 0 }
+}
+
+/**
+ * admin_list_remote_emojis (20261111200001_emoji_import.sql): remote emoji not imported, as
+ * not_imported rows. search matches the shortcode, domain the origin instance exactly.
+ */
+export async function listRemoteEmojis(params: {
+  search?: string
+  domain?: string | null
+  sort?: AdminEmojiSort
+  limit: number
+  offset: number
+}): Promise<AdminEmojiPage> {
+  const { data, error } = await supabase.rpc('admin_list_remote_emojis', {
+    p_search: params.search?.trim() || null,
+    p_domain: params.domain?.trim() || null,
+    p_sort: params.sort ?? 'newest',
+    p_limit: params.limit,
+    p_offset: params.offset,
+  })
+  if (error) throw error
+  const raw = (data ?? []) as Record<string, any>[]
+  return {
+    rows: raw.map((r) => ({
+      ...toRow({ ...r, kind: 'not_imported', created_at: r.first_seen_at }),
+      name_taken: r.name_taken === true,
+    })),
+    total: raw.length ? Number(raw[0].total_count) : 0,
+  }
+}
+
+export interface RemoteEmojiSource {
+  domain: string
+  count: number
+}
+
+/** admin_remote_emoji_sources: instances with emoji not imported, most emoji first. */
+export async function listRemoteEmojiSources(): Promise<RemoteEmojiSource[]> {
+  const { data, error } = await supabase.rpc('admin_remote_emoji_sources')
+  if (error) throw error
+  return ((data ?? []) as Record<string, any>[]).map((r) => ({ domain: String(r.domain), count: Number(r.emoji_count ?? 0) }))
+}
+
+export interface EmojiImportPreview {
+  /** remote_emojis_cache id. */
+  id: string
+  /** Name the import takes from the shortcode. */
+  name: string
+  /** An instance emoji, or an earlier id of the same call, holds that name. */
+  taken: boolean
+  /** A free name: `name`, or `name_<n>` when taken. */
+  suggested: string
+}
+
+/** admin_preview_emoji_imports clamps to 200 ids. */
+export const EMOJI_IMPORT_MAX = 200
+
+/** Names for importing `ids`, in that order. Ids already imported or gone are left out. */
+export async function previewEmojiImports(ids: string[]): Promise<EmojiImportPreview[]> {
+  const { data, error } = await supabase.rpc('admin_preview_emoji_imports', { p_ids: ids.slice(0, EMOJI_IMPORT_MAX) })
+  if (error) throw error
+  return ((data ?? []) as Record<string, any>[]).map((r) => ({
+    id: String(r.id),
+    name: String(r.name ?? ''),
+    taken: r.taken === true,
+    suggested: String(r.suggested ?? r.name ?? ''),
+  }))
 }
 
 /** rename_emoji: 22023 invalid name, 23505 taken, 42501 not allowed, P0002 absent. */
@@ -162,7 +237,8 @@ async function backendPost(path: string, body?: unknown): Promise<ImportedEmoji>
   }
   const payload = await res.json().catch(() => null)
   if (!res.ok) {
-    const code = typeof payload?.error === 'string' ? payload.error : 'internal_error'
+    // The hourly write limit answers 429 with a sentence, not a code.
+    const code = res.status === 429 ? 'rate_limited' : typeof payload?.error === 'string' ? payload.error : 'internal_error'
     throw new AdminEmojiRequestError(code, res.status)
   }
   const emoji = payload?.emoji

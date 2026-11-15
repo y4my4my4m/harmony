@@ -19,6 +19,20 @@ export function discordEmojiStoragePath(serverId: string, discordEmojiId: string
 }
 
 /**
+ * Whether the row is an emoji the bridge imported: its image is the object stored for that
+ * Discord emoji. Mirrors emoji_is_bridge_import (20261112500001_bridge_sync_guards.sql). A
+ * member's upload linked by name keeps its own image and is not one.
+ */
+export function isBridgeImportedEmoji(
+  serverId: string,
+  row: { url: string | null; discord_emoji_id: string | null },
+): boolean {
+  if (!row.url || !row.discord_emoji_id || !DISCORD_EMOJI_ID.test(row.discord_emoji_id)) return false
+  return row.url.endsWith(`/emojis/${serverId}/discord/${row.discord_emoji_id}.png`)
+    || row.url.endsWith(`/emojis/${serverId}/discord/${row.discord_emoji_id}.gif`)
+}
+
+/**
  * Copies a Discord emoji image into the emojis bucket and answers its public URL.
  * Throws on a non-image response, an oversize body, or a storage error.
  */

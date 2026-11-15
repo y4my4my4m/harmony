@@ -49,7 +49,7 @@ vi.mock('@/composables/useHapticSettings', () => ({
   useHapticSettings: () => ({ triggerReaction: vi.fn() }),
 }))
 
-vi.mock('@/composables/useEmojiLoader', () => ({ triggerEmojiDataLoad: vi.fn() }))
+vi.mock('@/composables/useEmojiLoader', () => ({ loadPickerEmojiData: vi.fn() }))
 
 vi.mock('@/services/unifiedEmojiService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/unifiedEmojiService')>()),

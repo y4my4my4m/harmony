@@ -117,6 +117,24 @@ describe('profile page', () => {
     expect(html).toContain('<title>&lt;img src=x onerror=alert(1)&gt;Eve (@alice@harmony.test) - Harmony Test</title>');
   });
 
+  it('puts a custom emoji only in text: a shortcode inside a linked URL stays text', () => {
+    // A remote account's Emoji icon URL is its own choice; inside an href the inserted <img src="
+    // closed the attribute and the rest of the URL became attributes of the anchor.
+    const html = profile({
+      account: account({
+        is_local: false,
+        domain: 'evil.example',
+        bio: 'see https://evil.example/:x: and :x: here',
+        bio_emojis: [{ name: 'x', url: 'https://evil.example/autofocus/onfocus=alert(document.domain)//' }],
+      }),
+    });
+    for (const tag of startTags(body(html))) {
+      expect(tag.replace(/"[^"]*"/g, '""')).not.toMatch(/\son[a-z]+=|\sautofocus/i);
+    }
+    expect(body(html)).toContain('<a href="https://evil.example/:x:"');
+    expect(body(html)).toMatch(/and <img src="https:\/\/evil\.example\/autofocus\/onfocus=alert\(document\.domain\)\/\/" alt=":x:"/);
+  })
+
   it('keeps an unsafe banner colour out of the style attribute', () => {
     const html = profile({ account: account({ color: 'red; background: url(https://evil.example/x)' }) });
     expect(html).not.toContain('evil.example');

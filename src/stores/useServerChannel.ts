@@ -18,6 +18,7 @@ import {
   getCategoryOverrides,
   setCategoryPermissions,
   syncChannelPermissions,
+  type CategoryOverride,
   type CategoryPrivacy,
 } from '@/services/categoryPermissions';
 import { categoryHiddenFromMembers } from '@/utils/categoryVisibility';
@@ -670,7 +671,15 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (error) throw error;
       if (!everyone?.id) throw new Error('Server has no @everyone role');
       const current = await getCategoryOverrides(categoryId);
-      const synced = await setCategoryPermissions(categoryId, applyPrivacy(current, everyone.id, privacy));
+      return this.setCategoryTemplate(categoryId, applyPrivacy(current, everyone.id, privacy));
+    },
+
+    /**
+     * Replaces the category's template. Channels synced with the category receive it; their
+     * private marks are reread.
+     */
+    async setCategoryTemplate(categoryId: string, overrides: CategoryOverride[]): Promise<string[]> {
+      const synced = await setCategoryPermissions(categoryId, overrides);
       await Promise.all([this._loadPrivateCategories([categoryId]), this._loadPrivateChannels(synced)]);
       return synced;
     },

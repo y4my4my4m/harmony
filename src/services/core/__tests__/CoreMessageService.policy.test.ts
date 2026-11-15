@@ -150,7 +150,12 @@ function setupSupabase({
     }
     if (table === 'user_servers') {
       return {
-        select: () => ({ eq: () => Promise.resolve({ data: [{ user_id: CURRENT_USER_ID }], error: null }) }),
+        // Recipients are read in pages: select(count) .eq .order .range.
+        select: () => ({
+          eq: () => ({
+            order: () => ({ range: () => Promise.resolve({ data: [{ user_id: CURRENT_USER_ID }], error: null, count: 1 }) }),
+          }),
+        }),
       }
     }
     if (table === 'conversation_participants') {

@@ -838,6 +838,7 @@ import type { PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { EmbedPayload, MessagePart, FileContent } from '@/types';
 import { coalesceInlineContentForMarkdown, extractFileParts } from '@/utils/messageContentUtils';
+import { withUnmatchedMentionsAsText } from '@/utils/unmatchedMentions';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import CodeBlock from '@/components/common/CodeBlock.vue';
@@ -1475,23 +1476,23 @@ export default defineComponent({
     // parts stored beside it are server metadata, not message content. A poll
     // renders its card alone: the text part beside it spells the poll out for
     // text-only readers.
-    const displayContent = computed(() =>
-      props.encrypted && !props.decrypted
-        ? undecryptedDisplayParts(props.content)
-        : pollPartOf(props.content)
-        ? props.content.filter((part) => part && typeof part === 'object' && part.type === 'poll')
-        : props.mediaHidden
-        ? withMediaHidden(withoutStickerFallbacks(props.content))
-        : groupMediaGalleryParts(
-            coalesceInlineContentForMarkdown(
-              embedsSuppressed.value
-                ? withoutStickerFallbacks(props.content).map((part) =>
-                    part && typeof part === 'object' && part.type === 'url' ? { ...part, preview: false } : part)
-                : withoutStickerFallbacks(props.content),
-              (url) => isImageUrl(url) || isVideoUrl(url),
-            ),
-          ),
-    );
+    const displayContent = computed(() => {
+      if (props.encrypted && !props.decrypted) return undecryptedDisplayParts(props.content);
+      if (pollPartOf(props.content)) {
+        return props.content.filter((part) => part && typeof part === 'object' && part.type === 'poll');
+      }
+      const content = withUnmatchedMentionsAsText(withoutStickerFallbacks(props.content));
+      if (props.mediaHidden) return withMediaHidden(content);
+      return groupMediaGalleryParts(
+        coalesceInlineContentForMarkdown(
+          embedsSuppressed.value
+            ? content.map((part) =>
+                part && typeof part === 'object' && part.type === 'url' ? { ...part, preview: false } : part)
+            : content,
+          (url) => isImageUrl(url) || isVideoUrl(url),
+        ),
+      );
+    });
     const instanceDomain = getInstanceDomain();
 
     const isAudioUrl = (url: string): boolean => {

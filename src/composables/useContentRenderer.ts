@@ -23,6 +23,7 @@ import { attachmentObjectPosition } from '@/utils/focalPoint';
 import { isMaskedUrlPart, shownLinkLabel } from '@/utils/maskedLinks';
 import { MASKED_LINK_CLASS } from '@/utils/outsideLinks';
 import { isMassMentionWord } from '@/utils/massMentions';
+import { withUnmatchedMentionsAsText } from '@/utils/unmatchedMentions';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -143,8 +144,8 @@ export function useContentRenderer(
   const renderableContent = computed(() => {
     let normalized = normalizeContent(content.value)
       .filter((p) => !(p && typeof p === 'object' && String((p as any).type).toLowerCase() === 'system'));
-    normalized = cleanStrayMentionPrefixes(normalized);
-    
+    normalized = withUnmatchedMentionsAsText(cleanStrayMentionPrefixes(normalized));
+
     if (renderOptions.mode === 'preview' && renderOptions.maxPreviewLength) {
       return truncateContent(normalized, renderOptions.maxPreviewLength);
     }

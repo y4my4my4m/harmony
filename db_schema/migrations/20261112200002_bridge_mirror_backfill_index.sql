@@ -1,0 +1,4 @@
+-- No statement. bridge_mirror_backfill (20261112200001) has no index of its own.
+--
+-- An instance that ran this version while it built idx_messages_bot_created_id
+-- (bot_id, created_at, id) has that index; 20261112800002 drops it and holds the measurement.

@@ -56,6 +56,24 @@ describe('mentionGrammar', () => {
     expect(handles('@doesnm@understars.dev.chat')).toEqual(['doesnm@understars.dev.chat'])
   })
 
+  it('takes a dotted user before a host', () => {
+    expect(handles('follow @hltv-mirror.eurosky.social@bsky.brid.gy now')).toEqual([
+      'hltv-mirror.eurosky.social@bsky.brid.gy',
+    ])
+    expect(handles('(@john.doe@threads.net).')).toEqual(['john.doe@threads.net'])
+    expect(findHandles('hi @a.b@c.example!')[0]).toMatchObject({ start: 3, end: 17, username: 'a.b', domain: 'c.example' })
+  })
+
+  it('reads no dotted user without a host', () => {
+    expect(handles('thanks @john.doe')).toEqual([])
+    expect(handles('thanks @john. next')).toEqual(['john'])
+    expect(handles('@a..b@c.example')).toEqual(['a'])
+    expect(handles('@a.@c.example')).toEqual(['a'])
+    expect(handles('@a.b@-c.example')).toEqual([])
+    expect(handles('@a.b@c.example@d.example')).toEqual([])
+    expect(handles('x.y@a.b@c.example')).toEqual([])
+  })
+
   it('rejects a third @ segment', () => {
     expect(handles('@a@b.example@c.example')).toEqual([])
   })
@@ -84,6 +102,11 @@ describe('mentionGrammar', () => {
     expect(parseHandle('@alice')).toEqual({ username: 'alice', domain: undefined })
     expect(parseHandle('@alice and more')).toBeNull()
     expect(parseHandle('alice@example.com')).toBeNull()
+    expect(parseHandle('@hltv-mirror.eurosky.social@bsky.brid.gy')).toEqual({
+      username: 'hltv-mirror.eurosky.social',
+      domain: 'bsky.brid.gy',
+    })
+    expect(parseHandle('@alice.bsky.social')).toBeNull()
   })
 
   it('isValidHost', () => {

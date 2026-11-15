@@ -176,7 +176,8 @@ Presence sync works only together with member list sync. With the instance's bot
 | Deletions | Yes, including bulk deletes (**Sync deletions**) | Yes (**Sync deletions**); see below |
 | Files and pictures | Linked from Discord's CDN; see [Attachments from Discord](#attachments-from-discord) | Uploaded to Discord as attachments up to 8 MB per message by default and within the Discord server's upload limit; larger files are posted as a link |
 | Voice messages, audio | Play in Harmony's audio player | As files |
-| Stickers | As pictures; animated Lottie stickers as the text `[sticker: name]` | Not applicable |
+| Stickers | As the Harmony server sticker copied from it (`/bridge sync-stickers`), otherwise as pictures; animated Lottie stickers as the text `[sticker: name]` | Not applicable |
+| Server stickers | The bridge bot can copy the Discord server's PNG, APNG and GIF stickers into the Harmony server (not Lottie); `/bridge sync-stickers` in `mirror` mode retires the copy of a sticker deleted on Discord, see [Server stickers](/run/stickers#edit-or-remove-a-sticker) | Not sent |
 | Forwarded messages | With an italic *↪ Forwarded* line | Not applicable |
 | Custom emoji | As the Discord emoji picture, or as the Harmony server emoji imported from it | As Discord application emoji the bridge uploads on first use |
 | Mentions | Paired channel mentions and synced role mentions become Harmony mentions; `@name` typed by hand becomes a Harmony mention | A mentioned Discord member is pinged on Discord |
@@ -188,19 +189,21 @@ A Harmony message longer than 2000 characters, Discord's limit, is posted as sev
 Thread notes:
 
 - Threads cross the bridge on Harmony 1.7.5 or later with bridge 2.4.0 or later. The Discord bot needs **Create Public Threads** and **Send Messages in Threads**.
-- Threads that existed before the bridge are picked up when someone next writes in them.
+- Discord's private threads never cross the bridge, live or imported (bridge 2.6.0 or later): Harmony has no private threads yet, so everyone in the channel could read them.
+- Threads that existed before the bridge are picked up when someone next writes in them, or all at once when you [import the channel's history](#import-history) (bridge 2.6.0 or later).
 - On Harmony 1.7.6 or later, the "started a thread" notice names the Discord member who started the thread.
 
 Deletion notes:
 
 - Deleting a Discord member's message on Harmony, by a moderator or by AutoMod, deletes it on Discord too when the bot holds **Manage Messages** there. A bot added without that permission keeps the Discord message; add the bot again to grant it (see [Maintain the bridge](#maintain-the-bridge)).
 - Deleting the Discord copy of a Harmony message does not delete the Harmony original.
+- Deleting an imported message on Harmony leaves the Discord original. Deleting it on Discord deletes the Harmony copy. With bridge 2.6.0 on Harmony 1.9.7 or later, edits, deletions and reactions also cross for messages relayed before the bridge last restarted; older versions drop them.
 
 To mention a Harmony member from Discord, use the `/mention` (or `/m`) command; it autocompletes Harmony users.
 
 ### What does not cross
 
-- Messages sent while the bridge is offline. The bridge copies messages as they arrive and does not replay missed ones.
+- Messages sent while the bridge is offline, or before the channels were paired. The bridge copies messages as they arrive and does not replay missed ones; [Import history](#import-history) brings the older Discord messages in.
 - Messages posted by Discord bots, and by Harmony bots other than the bridge itself.
 - Harmony's join, leave, kick and ban notices.
 - Renaming, archiving or deleting a thread.
@@ -210,7 +213,103 @@ To mention a Harmony member from Discord, use the `/mention` (or `/m`) command; 
 
 ### Attachments from Discord
 
-Discord's file links expire after a while. The instance operator chooses what Harmony does with them, instance-wide: keep the Discord link (it stops working when it expires), refresh an expired link when someone views it, or copy the file into the instance's storage. Ask your instance's admin which policy applies.
+Discord's file links expire after a while. The instance operator chooses what Harmony does with them, instance-wide: keep the Discord link (it stops working when it expires), refresh an expired link when someone views it, or copy the file into the instance's storage. With copying, files already in Harmony are copied too, up to the instance's upload size limit; a file over it keeps its Discord link, and large files can take a while to appear. Ask your instance's admin which policy applies.
+
+## Import history
+
+A bridge copies messages as they arrive. **Import history** copies what was said in a paired Discord channel before that: its messages, its threads, and its pins, into the paired Harmony channel, so the channel reads as one history.
+
+### Who can import
+
+Import is available when all of these hold; otherwise the bridge page says which one does not:
+
+- The bridge is one you **run yourself**, with your own Discord application. A bridge on **the instance's bot**, or your own bot run on the instance, never imports.
+- The instance's admin has turned history import on. It is off on a new instance; see [History import](/self-host/discord-bridges#history-import).
+- The bridge is 2.6.0 or later (the **Bridge version** on the bridge page).
+
+Members with Manage Server start it in **Server settings** → **Discord Bridge**, under **Paired channels**:
+
+- **Import history** on a pair imports that channel.
+- **Import all** imports every pair that can import and has not finished: pairs with no import yet, or one that failed, was cancelled or is paused. A finished pair runs again only from its own **Import again**. **Cancel all** stops every import in progress.
+
+Each start asks you to confirm what is copied and that you manage the Discord server or act with its managers' agreement.
+
+In Discord, a member with the Administrator permission runs `/bridge import-history` in the Discord channel and confirms. Its `scope` option `all` imports every paired channel the member can see, and `action` is `start`, `status` (progress, which can be run again at any time) or `cancel`. The member who started an import is recorded with it.
+
+A Discord channel that `@everyone` cannot see is imported only when it is started from Discord, by someone who can see that channel. Started from Harmony, it stops with **the Discord channel is private**.
+
+Only pairs that bring Discord messages to Harmony can import: the direction is **Both ways** or **Discord → Harmony only**, and the Harmony channel is not end-to-end encrypted. Other pairs say why, without a button.
+
+### Whose messages are imported
+
+- Messages from people who are no longer members of the Discord server are skipped: they left, were banned, or deleted their account, and cannot say no.
+- Messages from members who opted out with `/bridge-privacy` are skipped; see [Bridge privacy](#bridge-privacy).
+- When a channel's import starts, the bridge pins a notice in that Discord channel saying that older messages are being copied to Harmony and how to opt out.
+
+A pair's progress line says how many messages were skipped for their author.
+
+### What is imported
+
+- Messages from the channel's newest back to its first, with their original dates, their Discord authors' names and pictures, files, embeds, stickers, mentions, emoji and replies. A message edited on Discord reads as edited.
+- Threads: active threads and archived public threads. Each becomes a Harmony thread dated from the Discord thread. Discord's private threads are left out: Harmony has no private threads yet, so everyone in the channel could read them. The bridge page reports how many were left out.
+- Pins: Discord's pinned messages are pinned in Harmony, up to Harmony's limit of 50 per channel; the rest are skipped.
+- Replies: a reply links to the message it answers once that message is in Harmony. A reply whose original is gone from Discord stays as a plain reply.
+
+Not imported: reactions, messages posted by Discord bots and webhooks (which also leaves out the bridge's own copies of Harmony messages), Discord's system messages such as joins, boosts and pin notices, and messages whose Harmony copy was deleted: a message a moderator deleted here stays deleted however often a channel is imported. The bridge needs **Read Message History** in the channel and the Message Content intent.
+
+### Quiet by design
+
+Imported messages notify no one: no push, mention or unread badge, and the channel's last activity and order do not move. A mention in an imported message is plain text. They are not sent to other instances, bots or outgoing webhooks, and slowmode does not apply. Bots and apps see them only when they read the channel's history; an edit or a deletion of an imported message is not sent to them either. Apart from the pinned notice, nothing is posted to Discord.
+
+AutoMod treats imported messages as it treats live bridged ones. With **Exempt bots** off, a rule for keywords, invites or links that blocks messages also keeps a matching old message out, and the pair's progress line counts those. Rules about how fast or how often someone posts do not apply to history.
+
+### Progress
+
+Discord gives no message count, so progress goes by date. Each pair shows its state:
+
+| Shown | Meaning |
+|---|---|
+| **Waiting** | Queued behind another import |
+| **Importing… 42%** with **Back to** *date* and a message count | Walking the channel's messages |
+| **Importing threads…** with **Threads 2 of 5** | Importing the channel's threads |
+| **Linking replies…** | Linking replies to their originals |
+| **Cancelling…** | The bridge is stopping the import |
+| **Paused: waiting for the bridge** | The bridge stopped; the import continues when it returns |
+| **Imported 1,204 messages** | Finished, with **Import again**; the count is what that run added |
+| **Up to date: no new messages** | Finished a re-run that found nothing new, with **Import again** |
+| **Import stopped: …** | Failed, with **Try again**; the reason is shown, for example the channel pair was removed, the channel is now encrypted, the Discord channel is private, or history import was turned off |
+| **Cancelled** | Stopped by a person, with **Resume** |
+
+**Cancel** on a pair stops its import. Messages already imported stay.
+
+### Large servers, repeats and restarts
+
+Discord limits how fast history can be read, and the instance limits how many imports run at once and how many messages each stores per minute, so a busy server takes hours. The import runs in the background and yields to live messages, which keep arriving while it works. **Import all** works through the pairs in turn (**Waiting**), and a pair also waits while another server's import holds the instance's slot.
+
+It is safe to repeat. A message already in the Harmony channel, whether live-bridged or imported earlier, is skipped, so **Import again**, **Resume** and **Try again** never duplicate a message, and they also fill gaps from times the bridge was offline. A message that was deleted in Harmony counts as gone, so it comes back on **Import again**. A restarted bridge carries on from where it stopped.
+
+When the instance copies Discord files into its own storage (see [Attachments from Discord](#attachments-from-discord)), the page says **Imported files are copied into this instance's storage.** Years of pictures can take a lot of disk. The instance sets how much one server may store; past it, further files keep their Discord links.
+
+## Bridge privacy
+
+A bridge copies what Discord members write into Harmony. They decide about their own messages, on Discord, with `/bridge-privacy`:
+
+| Command | Effect |
+|---|---|
+| `/bridge-privacy opt-out` | From now on the bridge brings none of their messages into this Harmony server, live or imported |
+| `/bridge-privacy opt-in` | Undoes their own opt-out, from then on: what they wrote before, erased or written while opted out, stays out of history import |
+| `/bridge-privacy status` | Says whether they are opted out |
+| `/bridge-privacy erase` | Deletes the messages, files and reactions of theirs that the bridge already brought into this Harmony server, with AutoMod's records and alerts about them, and opts them out |
+
+Every member can run it, answers are shown only to them, and it works with every kind of bridge. A long history is erased in the background, and a restart of the gateway does not stop it. It does not touch their messages on Discord.
+
+Members with Manage Server act for someone who cannot run the command, for example after they left, in **Server settings** → **Discord Bridge** → **Bridge privacy**:
+
+- **Remove from this server** takes a Discord user ID, deletes what the bridge brought from that user and stops bringing theirs. In Discord, turn on Developer Mode, right-click the user and choose **Copy User ID**. If the page closes before the removal ends, the gateway finishes it; a **Restore** stops it, except for an erase the member asked for themselves.
+- The list shows who is left out and why: **Opted out on Discord**, or removed by a manager or an instance admin. **Restore** lifts a removal made here, from then on: history import leaves out what the member wrote before. A member's own opt-out is theirs to undo, and a member who opted out as well stays opted out. Opting in on Discord does not lift a removal made here.
+- **Remove all bridged messages** deletes everything this server's bridge brought from Discord. Messages written on Harmony stay. When rows stay locked by other work, the page says how many it removed and that some remain; run it again.
+
+A message that is the first message of a thread is kept as an empty, deleted message so that the thread and other people's replies stay; its text, files and author are gone, and the thread is renamed **Thread**, whoever started it, since Discord titles a thread with the first words of its message. Notifications that quoted the removed messages are deleted too. A thread an opted-out member starts on Discord arrives named **Thread**, without their name. Removal cannot be undone.
 
 ## Discord permissions
 
@@ -228,18 +327,21 @@ The invite links and **Add to Discord** request these Discord permissions:
 | Manage Messages | Deleting a Discord member's message that was deleted on Harmony |
 | Create Public Threads | Starting the Discord side of a Harmony thread |
 | Send Messages in Threads | Posting into bridged threads |
+| Pin Messages | Pinning the notice that a channel's history is being imported. Your own bot only |
 | Use External Emojis | Instance bot only |
 
 | Bot | Permission integer |
 |---|---|
-| Your own bot (run yourself, or on the instance) | `309774642240` |
+| Your own bot (run yourself, or on the instance) | `2252109588327488` |
 | The instance's bot | `309774904384` |
 
 Both invites use the scopes `bot` and `applications.commands`. To build the invite for your own bot by hand, replace `APPLICATION_ID` with the **Application ID** from **General Information**:
 
 ```text
-https://discord.com/oauth2/authorize?client_id=APPLICATION_ID&permissions=309774642240&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=APPLICATION_ID&permissions=2252109588327488&scope=bot+applications.commands
 ```
+
+A bot invited before Harmony 1.9.7 lacks Pin Messages: its history import notice stays unpinned until you invite it again with this link.
 
 In Discord, a channel's own permission settings can take these away again. The bridge page lists each channel where the bot cannot see, post or manage webhooks, with the fix.
 
@@ -255,7 +357,7 @@ These are switched on in the Developer Portal under **Bot** → **Privileged Gat
 
 ## Discord commands
 
-The bridge registers these commands in the bridged Discord server. `/bridge` is visible to, and works for, members with the Discord Administrator permission only.
+The bridge registers these commands in the bridged Discord server. `/bridge` is visible to, and works for, members with the Discord Administrator permission only; `/bridge-privacy` is for every member.
 
 | Command | Effect |
 |---|---|
@@ -266,9 +368,12 @@ The bridge registers these commands in the bridged Discord server. `/bridge` is 
 | `/bridge clone-server` | Create a Harmony channel for every Discord channel and pair them; never overwrites; `dry_run`, `include_voice` and `clone_roles` options |
 | `/bridge sync-order` | Copy Discord's channel and category order to Harmony |
 | `/bridge sync-perms` | Copy Discord roles and the permissions of every paired channel to Harmony |
-| `/bridge import-emojis` | Copy the Discord server's custom emoji into the Harmony server under the same names; a rerun adds only new ones (Harmony 1.6.25 or later) |
+| `/bridge import-history` | Import the channel's past Discord messages into its Harmony channel, after a confirmation; Administrator only; a bridge you run yourself only; options `action` (`start`, `status` or `cancel`) and `scope` (`channel`, the default, or `all`) (bridge 2.6.0 or later); see [Import history](#import-history) |
+| `/bridge-privacy` | For every member: `opt-out`, `opt-in`, `status`, `erase` for their own messages (bridge 2.6.0 or later); see [Bridge privacy](#bridge-privacy) |
+| `/bridge sync-emojis`, `/bridge sync-stickers`, `/bridge sync-sounds` | Copy the Discord server's emoji, stickers or soundboard to Harmony and keep them up to date; `mode` `merge` (the default: adds and updates), `mirror` (also removes what the bridge copied from a Discord item deleted since, after a confirmation) or `add`, and `dry_run` (bridge 2.6.0 or later) |
+| `/bridge import-emojis` | Copy the Discord server's custom emoji into the Harmony server under the same names; a rerun adds only new ones (Harmony 1.6.25 or later). With bridge 2.6.0 it is `sync-emojis` in `add` mode |
 
-`/bridge link` offers only Harmony channels the bridge's Harmony bot can see. An imported emoji is one emoji on both sides, so reactions with it count together; a Harmony emoji that already has the same name is linked instead of duplicated.
+`/bridge link` offers only Harmony channels the bridge's Harmony bot can see. An imported emoji is one emoji on both sides, so reactions with it count together. A sync never removes what a member uploaded on Harmony and changes it only to rename a member's emoji the bridge linked by name, never restores what a person removed, and never removes again an emoji a person restored after the bridge removed it. A Harmony emoji of the same name that the bridge did not copy is listed as a name clash; bridges before 2.6.0 link it instead.
 
 ## Moderation and spam
 
@@ -318,7 +423,7 @@ Click **Remove** next to the pair under **Paired channels**, or run `/bridge unl
 1. On the bridge page, under **Disconnect the bridge**, click **Disconnect bridge**.
 2. Confirm with **Disconnect**.
 
-Bridging stops at once, every channel pair is removed and the bridge's Harmony bot is retired. Messages already bridged stay. This cannot be undone; to bridge again you set it up from the start.
+Bridging stops at once, every channel pair is removed and the bridge's Harmony bot is retired. Messages already bridged stay; to delete them as well, use **Remove all bridged messages** under [Bridge privacy](#bridge-privacy) before you disconnect. This cannot be undone; to bridge again you set it up from the start.
 
 What else to do depends on the mode:
 

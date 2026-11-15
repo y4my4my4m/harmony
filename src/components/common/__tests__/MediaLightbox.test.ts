@@ -164,6 +164,11 @@ describe('MediaLightbox', () => {
     button('a11y.lightbox.previous')!.click()
     await flushPromises()
     expect(image().style.transform).toBe('translate3d(0px, 0px, 0) rotate(0deg) scale(1)')
+    // Zoom out goes on below fit: 11 steps of 1.25 pass MIN_SCALE.
+    expect(button('a11y.lightbox.zoomOut')!.disabled).toBe(false)
+    for (let i = 0; i < 11; i++) button('a11y.lightbox.zoomOut')!.click()
+    await nextTick()
+    expect(image().style.transform).toContain('scale(0.1)')
     expect(button('a11y.lightbox.zoomOut')!.disabled).toBe(true)
   })
 
@@ -441,7 +446,10 @@ describe('the viewer in the portal container of its opener', () => {
   })
 
   it('swipes in a container of another window, as the call pop-out is', async () => {
-    const frame = document.body.appendChild(document.createElement('iframe'))
+    // happy-dom 21 loads no iframe page by default; srcdoc gives the frame its document.
+    const frame = document.createElement('iframe')
+    frame.setAttribute('srcdoc', '<body></body>')
+    document.body.appendChild(frame)
     await new Promise((resolve) => setTimeout(resolve, 0))
     const portals = frame.contentDocument!.body.appendChild(frame.contentDocument!.createElement('div'))
     mount(MediaLightboxHost, { attachTo: document.body })

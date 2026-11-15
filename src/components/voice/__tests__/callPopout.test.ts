@@ -183,7 +183,9 @@ describe('forwardEvents', () => {
 describe('observeResize', () => {
   it("observes through the ResizeObserver of the element's own window", () => {
     const observe = vi.fn()
-    const OwnObserver = vi.fn(() => ({ observe, disconnect: vi.fn() }))
+    // A function, not an arrow: vitest >= 3 calls a mock's implementation with `new`, and an
+    // arrow function cannot be constructed.
+    const OwnObserver = vi.fn(function () { return { observe, disconnect: vi.fn() } })
     const el = document.createElement('div')
     const doc = document.implementation.createHTMLDocument('')
     doc.body.append(doc.adoptNode(el))

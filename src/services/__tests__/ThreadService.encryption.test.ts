@@ -66,7 +66,9 @@ function setup(channelEncrypted: boolean, options: { refusePlaintext?: boolean }
       }
     }
     if (table === 'user_servers') {
-      return { select: () => ({ eq: () => Promise.resolve({ data: [{ user_id: PROFILE_ID }], error: null }) }) }
+      // Recipients are read in pages: select(count) .eq .order .range.
+      const page = () => Promise.resolve({ data: [{ user_id: PROFILE_ID }], error: null, count: 1 })
+      return { select: () => ({ eq: () => ({ order: () => ({ range: page }) }) }) }
     }
     if (table === 'messages') {
       return {

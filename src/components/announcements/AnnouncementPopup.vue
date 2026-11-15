@@ -103,6 +103,7 @@ import { ref, onMounted } from 'vue'
 import { useDialog } from '@/composables/useDialog'
 import { useRouter } from 'vue-router'
 import { renderAnnouncementHtml } from '@/utils/announcementContent'
+import { useInstanceEmojiUrls } from '@/composables/useInstanceEmojiUrls'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { userDataService } from '@/services/userDataService'
 import DisplayName from '@/components/DisplayName.vue'
@@ -120,7 +121,8 @@ const { titleId } = useDialog({
   onClose: () => dismiss(),
 })
 
-const sanitizeContent = renderAnnouncementHtml
+const instanceEmoji = useInstanceEmojiUrls()
+const sanitizeContent = (content: string) => renderAnnouncementHtml(content, instanceEmoji.value)
 
 const getIconName = (icon: string): string => {
   const icons: Record<string, string> = {
@@ -306,6 +308,18 @@ onMounted(async () => {
   color: var(--text-secondary);
   line-height: 1.5;
   margin-bottom: 12px;
+}
+
+.announcement-content :deep(img) {
+  max-width: 100%;
+}
+
+.announcement-content :deep(.inline-emoji) {
+  width: auto;
+  max-width: 120px;
+  height: 1.375em;
+  vertical-align: middle;
+  margin: 0 1px;
 }
 
 .announcement-image {

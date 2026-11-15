@@ -147,6 +147,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { renderAnnouncementHtml } from '@/utils/announcementContent'
+import { useInstanceEmojiUrls } from '@/composables/useInstanceEmojiUrls'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadCount'
 import { userDataService } from '@/services/userDataService'
@@ -172,7 +173,8 @@ const loadError = ref(false)
 const isMarkingAll = ref(false)
 const markingIds = ref<Set<string>>(new Set())
 
-const sanitizeContent = renderAnnouncementHtml
+const instanceEmoji = useInstanceEmojiUrls()
+const sanitizeContent = (content: string) => renderAnnouncementHtml(content, instanceEmoji.value)
 
 const ICON_MAP: Record<string, string> = {
   info: 'ℹ️',
@@ -577,6 +579,18 @@ onMounted(() => {
 
 .announcement-content :deep(p:last-child) {
   margin-bottom: 0;
+}
+
+.announcement-content :deep(img) {
+  max-width: 100%;
+}
+
+.announcement-content :deep(.inline-emoji) {
+  width: auto;
+  max-width: 120px;
+  height: 1.375em;
+  vertical-align: middle;
+  margin: 0 1px;
 }
 
 .announcement-image {

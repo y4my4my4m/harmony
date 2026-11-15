@@ -147,6 +147,22 @@ describe('NotificationFormatter', () => {
       expect(off.message).toBe('Its deliveries failed for three days. Last answer: HTTP 502')
     })
 
+    it('tells moderators of a new report by kind and reason, never by reporter', () => {
+      const instance = makeNotification('report_created', {
+        data: { report_id: 'r1', report_type: 'user', reason: 'username_hoarding', scope: 'instance' },
+      })
+      expect(NotificationFormatter.formatNotification(instance).title).toBe('New report to review')
+      expect(NotificationFormatter.formatNotification(instance).message).toBe('An account was reported: username hoarding.')
+      expect(NotificationFormatter.getUsername(instance)).toBe('Moderation')
+
+      const server = makeNotification('report_created', {
+        data: { report_id: 'r2', report_type: 'message', reason: 'spam', scope: 'server',
+                report_server_id: 's1', report_server_name: 'Lounge', source_instance: 'other.example' },
+      })
+      expect(NotificationFormatter.formatNotification(server).title).toBe('New report in Lounge')
+      expect(NotificationFormatter.formatNotification(server).message).toBe('A message was reported from other.example: spam.')
+    })
+
     it('names no moderator on a report update unless the moderator chose to', () => {
       const hidden = makeNotification('report_update', {
         data: { status: 'resolved', report_type: 'post', show_resolver: false, resolver_username: 'mod' },

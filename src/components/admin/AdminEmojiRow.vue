@@ -59,6 +59,7 @@
         <span class="badge kind" :class="`kind-${row.kind}`">{{ t(`admin.emojis.kinds.${row.kind}`) }}</span>
         <span v-if="row.hotlinked" class="badge hotlinked" :title="t('admin.emojis.hotlinkedHint')">{{ t('admin.emojis.badges.hotlinked') }}</span>
         <span v-if="row.deleted_at" class="badge removed">{{ t('admin.emojis.badges.removed') }}</span>
+        <span v-if="row.name_taken" class="badge name-taken" :title="t('admin.emojis.nameTakenHint')" data-testid="admin-emoji-name-taken">{{ t('admin.emojis.badges.nameTaken') }}</span>
         <span v-if="row.kind === 'server' && row.server_name" class="meta-server">{{ t('admin.emojis.meta.server', { server: row.server_name }) }}</span>
         <span v-if="origin">{{ t('admin.emojis.meta.from', { domain: origin }) }}</span>
         <span v-if="ownerText">{{ ownerText }}</span>
@@ -69,6 +70,7 @@
         </template>
         <span v-if="row.deleted_at">{{ removedText }}</span>
         <span v-else>{{ formatDate(row.created_at) }}</span>
+        <span v-if="row.license" :title="row.license" data-testid="admin-emoji-license">{{ t('admin.emojis.meta.license', { license: row.license }) }}</span>
       </div>
     </div>
 
@@ -209,10 +211,14 @@ function hostOf(url: string | null): string | null {
   }
 }
 
-/** Instance a federated or not-imported emoji comes from; the source host of an import. */
+/**
+ * Instance a federated, not-imported or imported emoji comes from. An import recorded before
+ * source_domain existed shows the host of its image.
+ */
 const origin = computed(() => {
   const { row } = props
   if (row.kind === 'federated' || row.kind === 'not_imported') return row.domain
+  if (row.source_domain) return row.source_domain
   if (row.kind === 'imported' || row.imported_from) return hostOf(row.imported_from) ?? row.domain
   if (row.hotlinked) return hostOf(row.url)
   return null
@@ -342,7 +348,8 @@ const removedText = computed(() => {
   color: var(--text-link);
 }
 
-.badge.hotlinked {
+.badge.hotlinked,
+.badge.name-taken {
   background: color-mix(in srgb, var(--warning) 20%, transparent);
   color: var(--text-primary);
 }

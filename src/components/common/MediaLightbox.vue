@@ -2,11 +2,12 @@
   MediaLightbox - full-window viewer for images, video, audio, PDFs and other files.
 
   Images zoom by pinch, double tap, double click, the wheel and the toolbar, pan when zoomed,
-  and rotate in 90° steps (composables/useMediaZoom, useMediaGestures). Video and audio play
-  in Harmony's player (VideoControls), or the browser's own controls when Appearance asks for
-  them. A PDF shows in the browser's reader; any other file shows its name and a download
-  button. On touch, a horizontal swipe steps through the items and a downward swipe closes
-  the viewer (leaves fullscreen first while fullscreen).
+  move under a mouse drag at any scale, and rotate in 90° steps (composables/useMediaZoom,
+  useMediaGestures). The wheel, toolbar and keys also shrink an image below its fit. Video
+  and audio play in Harmony's player (VideoControls), or the browser's own controls when
+  Appearance asks for them. A PDF shows in the browser's reader; any other file shows its
+  name and a download button. On touch, a horizontal swipe steps through the items and a
+  downward swipe closes the viewer (leaves fullscreen first while fullscreen).
 
   `origin` is the inline player of the start item: the viewer starts there, pauses it while
   open, and hands the position back on close. The fullscreen control fills the screen with
@@ -59,7 +60,7 @@
                   class="lightbox-tool lightbox-tool--zoom"
                   :aria-label="t('a11y.lightbox.zoomIn')"
                   :title="t('a11y.lightbox.zoomIn')"
-                  :disabled="zoom.scale >= MAX_SCALE"
+                  :disabled="zoom.scale >= zoomer.maxScale()"
                   data-testid="lightbox-zoom-in"
                   @click="zoomer.zoomBy(ZOOM_STEP)"
                 >
@@ -249,7 +250,7 @@ import {
   onFullscreenChange,
   toggleFullscreen,
 } from '@/utils/mediaFullscreen';
-import { MAX_SCALE, MIN_SCALE, ZOOM_STEP, type Size } from '@/utils/lightboxGestures';
+import { MIN_SCALE, ZOOM_STEP, type Size } from '@/utils/lightboxGestures';
 
 /** `unavailable`: no source can be read (signing failed); the item shows as a file card. */
 interface ItemFields { src: string; alt?: string; name?: string; unavailable?: boolean }
@@ -544,7 +545,12 @@ function onMedia(clientX: number, clientY: number): boolean {
   return clientX >= box.left && clientX <= box.right && clientY >= box.top && clientY <= box.bottom;
 }
 
-const zoomer = useMediaZoom({ content: contentSize, stage: stageSize });
+function naturalSize(): Size {
+  const img = imageEl.value;
+  return { width: img?.naturalWidth ?? 0, height: img?.naturalHeight ?? 0 };
+}
+
+const zoomer = useMediaZoom({ content: contentSize, stage: stageSize, natural: naturalSize });
 const { zoom, zoomed } = zoomer;
 
 const gestures = useMediaGestures({
@@ -568,7 +574,7 @@ const { drag, dragging, gestureActive } = gestures;
 const imageStyle = computed(() => ({
   transform: zoomer.transform.value,
   transition: gestureActive.value ? 'none' : undefined,
-  cursor: zoomed.value ? 'grab' : 'zoom-in',
+  cursor: gestureActive.value ? 'grabbing' : zoomed.value || zoomer.free.value ? 'grab' : 'zoom-in',
 }));
 
 const slideStyle = computed(() =>

@@ -4,8 +4,8 @@
  */
 
 import { supabase } from '@/supabase'
-import { useServerUsersStore } from '@/stores/useServerUsers'
-import { getUserIdsForServer } from '@/services/usersService'
+import { invalidateServerMemberCache } from '@/services/usersService'
+import { invalidateServerCache } from '@/services/serverMembershipService'
 import { debug } from '@/utils/debug'
 
 export interface MembershipEvent {
@@ -37,13 +37,6 @@ export class MembershipService {
 
   constructor(options: MembershipServiceOptions = {}) {
     this.options = options
-  }
-
-  /**
-   * Get the server users store instance (lazy initialization to avoid circular dependencies)
-   */
-  private getServerUsersStore() {
-    return useServerUsersStore()
   }
 
   /**
@@ -115,21 +108,13 @@ export class MembershipService {
   }
 
   /**
-   * Refresh the user list for a specific server
+   * A membership change on a server: what was cached about its membership is stale. The
+   * member list itself follows the server-presence broadcast (member:join / member:leave);
+   * no event reads the whole membership.
    */
   private async refreshServerUserList(serverId: string): Promise<void> {
-    try {
-      debug.log(`Refreshing user list for server: ${serverId}`)
-      
-      const userIds = await getUserIdsForServer(serverId)
-      
-      await this.getServerUsersStore().fetchUserProfiles(userIds)
-      
-      debug.log(`User list refreshed for server ${serverId}. Current members: ${userIds.length}`)
-    } catch (error) {
-      debug.error('Error refreshing server user list:', error)
-      this.options.onError?.(error as Error)
-    }
+    invalidateServerMemberCache(serverId)
+    invalidateServerCache(serverId)
   }
 
   /**

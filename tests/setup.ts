@@ -2,6 +2,29 @@ import { vi } from 'vitest'
 import { webcrypto } from 'node:crypto'
 import { config } from '@vue/test-utils'
 
+// happy-dom's Node.prototype.nodeName getter returns '' for every node (each subclass defines its
+// own nodeName instead). The DOM spec has Node's getter answer for all node types, and browsers
+// and jsdom do. DOMPurify >= 3.4.8 reads nodeName through the cached Node.prototype getter
+// (clobbering-safe), so under happy-dom it saw every node as unnamed and dropped text. Route the
+// base getter to the subclass's own, as a browser's would answer. Test environment only; files
+// on `@vitest-environment node` have no DOM and skip it.
+if (typeof Node !== 'undefined' && typeof document !== 'undefined') {
+  const base = Object.getOwnPropertyDescriptor(Node.prototype, 'nodeName')
+  if (base?.get && base.get.call(document.createTextNode('')) !== '#text') {
+    const baseGet = base.get
+    Object.defineProperty(Node.prototype, 'nodeName', {
+      ...base,
+      get(this: Node) {
+        for (let p = Object.getPrototypeOf(this); p && p !== Node.prototype; p = Object.getPrototypeOf(p)) {
+          const own = Object.getOwnPropertyDescriptor(p, 'nodeName')
+          if (own?.get) return own.get.call(this)
+        }
+        return baseGet.call(this)
+      },
+    })
+  }
+}
+
 // InlineMarks is markup around its slot: under shallowMount a stub drops the message part inside.
 config.global.stubs = { ...config.global.stubs, InlineMarks: false }
 

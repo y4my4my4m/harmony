@@ -173,85 +173,17 @@
                 </div>
               </div>
             </div>
-            <div class="perm-layout">
-              <!-- Role rail (left) - Discord-style role list -->
-              <div class="perm-role-rail">
-                <h3 :id="`${a11yId}-roles`" class="perm-rail-label">{{ t('server.roles') }}</h3>
-                <ul class="perm-role-list" :aria-labelledby="`${a11yId}-roles`">
-                  <li v-for="role in serverRoles" :key="role.id">
-                    <button
-                      type="button"
-                      class="perm-role-pill"
-                      :class="{ active: selectedRoleId === role.id, dirty: isRoleDirty(role.id) }"
-                      :data-role-id="role.id"
-                      :aria-current="selectedRoleId === role.id ? 'true' : undefined"
-                      @click="selectedRoleId = role.id"
-                    >
-                      <span class="role-color-dot" :style="{ background: role.color || '#99aab5' }" aria-hidden="true"></span>
-                      <span class="role-pill-name">{{ role.name }}</span>
-                      <template v-if="isRoleDirty(role.id)">
-                        <span class="role-pill-dot" :title="t('a11y.unsavedChanges')" aria-hidden="true"></span>
-                        <span class="sr-only">{{ t('a11y.unsavedChanges') }}</span>
-                      </template>
-                    </button>
-                  </li>
-                </ul>
-                <div v-if="!rolesLoading && serverRoles.length === 0" class="perm-empty-mini">
-                  {{ t('channel.edit.noRoles') }}
-                </div>
-              </div>
-
-              <!-- Permission editor (right) -->
-              <section class="perm-editor">
-                <div v-if="rolesLoading" class="perm-loading" role="status">{{ t('channel.edit.loadingRoles') }}</div>
-                <template v-else-if="selectedRole">
-                  <header class="perm-editor-head">
-                    <div class="perm-editor-title">
-                      <span class="role-color-dot" :style="{ background: selectedRole.color || '#99aab5' }" aria-hidden="true"></span>
-                      <h3 ref="roleTitleEl" :id="`${a11yId}-role-title`" tabindex="-1">{{ selectedRole.name }}</h3>
-                    </div>
-                    <p class="perm-editor-sub">
-                      {{ t('channel.edit.overrideLegend') }}
-                      <button
-                        v-if="isRoleDirty(selectedRole.id)"
-                        type="button"
-                        class="perm-reset-link"
-                        :aria-label="t('channel.edit.resetRoleFor', { role: selectedRole.name })"
-                        @click="onResetRole(selectedRole)"
-                      >
-                        {{ t('channel.edit.resetRole') }}
-                      </button>
-                    </p>
-                  </header>
-
-                  <div
-                    v-for="group in permissionGroups"
-                    :key="group.id"
-                    class="perm-group"
-                  >
-                    <h4 class="perm-group-label">{{ t(`channel.edit.groups.${group.id}`) }}</h4>
-                    <div
-                      v-for="perm in group.permissions"
-                      :key="perm.key"
-                      class="perm-row"
-                      :data-perm="perm.key"
-                    >
-                      <div class="perm-row-text">
-                        <span :id="`${a11yId}-perm-${perm.key}`" class="perm-row-label">{{ t(`channel.edit.perms.${perm.key}.label`) }}</span>
-                        <span :id="`${a11yId}-perm-${perm.key}-desc`" class="perm-row-desc">{{ t(`channel.edit.perms.${perm.key}.description`) }}</span>
-                      </div>
-                      <ChannelPermissionTriState
-                        :model-value="getPermState(selectedRole.id, perm.key)"
-                        :labelledby="`${a11yId}-perm-${perm.key}`"
-                        :describedby="`${a11yId}-perm-${perm.key}-desc`"
-                        @update:model-value="setPermState(selectedRole.id, perm.key, $event)"
-                      />
-                    </div>
-                  </div>
-                </template>
-                <div v-else class="perm-empty">{{ t('channel.edit.selectRole') }}</div>
-              </section>
-            </div>
+            <PermissionRoleEditor
+              v-model:selected-role-id="selectedRoleId"
+              :roles="serverRoles"
+              :groups="permissionGroups"
+              :state="workingPermState"
+              :dirty-role-ids="dirtyRoleIds"
+              :loading="rolesLoading"
+              :legend="t('channel.edit.overrideLegend')"
+              @set="setPermState"
+              @reset="resetRole"
+            />
           </template>
 
           <!-- Webhooks tab -->
@@ -304,14 +236,15 @@ import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import ChannelEncryptionSection from '@/components/ChannelEncryptionSection.vue'
 import ChannelWebhooksSection from '@/components/ChannelWebhooksSection.vue'
 import ChannelPermissionSync from '@/components/ChannelPermissionSync.vue'
-import ChannelPermissionTriState, { type TriState } from '@/components/ChannelPermissionTriState.vue'
+import PermissionRoleEditor from '@/components/PermissionRoleEditor.vue'
+import type { TriState } from '@/components/ChannelPermissionTriState.vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useDialog } from '@/composables/useDialog'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
-import { useAnnouncer } from '@/composables/useAnnouncer'
 import { useRovingTabindex } from '@/composables/useRovingTabindex'
-import { uid, focusProgrammatically } from '@/utils/a11y/focus'
+import { uid } from '@/utils/a11y/focus'
 import { userDataService } from '@/services/userDataService'
+import { channelPermissionGroups } from '@/services/channelPermissionGroups'
 import { NAME_MAX_LENGTH, clipName, finalizeChannelNameFor, formatChannelNameFor, nameLength } from '@/utils/channelName'
 import { SLOWMODE_STEPS, formatSlowmode, slowmodeStepIndex } from '@/utils/slowmode'
 import {
@@ -321,66 +254,6 @@ import {
   type ServerRole,
 } from '@/services/RoleService'
 import type { Channel } from '@/types'
-
-// Permissions are grouped Discord-style rather than as one flat toggle list.
-// Only permissions the server resolves per channel are offered. Server-scoped
-// ones are absent: MANAGE_SERVER, MANAGE_EMOJIS, VIEW_AUDIT_LOG, the member
-// moderation bits, and CREATE_INVITE (an invite names no channel).
-// CREATE_PRIVATE_THREADS grants nothing and is absent. MANAGE_ROLES here is
-// Discord's Manage Permissions: this channel's overrides. MANAGE_WEBHOOKS
-// applies to text channels alone. Editing another user's messages is
-// owner/admin-only and lives outside the channel-override surface.
-// Group names are channel.edit.groups.<id>; labels and descriptions
-// channel.edit.perms.<KEY>.{label,description}.
-const PERMISSION_GROUPS: Array<{ id: string; permissions: Array<{ key: Permission }> }> = [
-  {
-    id: 'general',
-    permissions: [
-      { key: Permission.VIEW_CHANNEL },
-      { key: Permission.MANAGE_CHANNELS },
-      { key: Permission.MANAGE_ROLES },
-      { key: Permission.MANAGE_WEBHOOKS },
-    ],
-  },
-  {
-    id: 'messages',
-    permissions: [
-      { key: Permission.SEND_MESSAGES },
-      { key: Permission.EMBED_LINKS },
-      { key: Permission.ATTACH_FILES },
-      { key: Permission.ADD_REACTIONS },
-      { key: Permission.USE_EXTERNAL_EMOJIS },
-      { key: Permission.MENTION_EVERYONE },
-      { key: Permission.MANAGE_MESSAGES },
-      { key: Permission.PIN_MESSAGES },
-      { key: Permission.READ_MESSAGE_HISTORY },
-    ],
-  },
-  {
-    id: 'threads',
-    permissions: [
-      { key: Permission.CREATE_PUBLIC_THREADS },
-      { key: Permission.SEND_MESSAGES_IN_THREADS },
-    ],
-  },
-]
-
-// Webhooks post to text channels (assert_webhook_channel).
-const TEXT_ONLY: ReadonlySet<Permission> = new Set([Permission.MANAGE_WEBHOOKS])
-
-const VOICE_GROUP = {
-  id: 'voice',
-  permissions: [
-    { key: Permission.CONNECT },
-    { key: Permission.SPEAK },
-    { key: Permission.STREAM },
-    { key: Permission.MUTE_MEMBERS },
-    { key: Permission.DEAFEN_MEMBERS },
-    { key: Permission.MOVE_MEMBERS },
-    { key: Permission.USE_SOUNDBOARD },
-    { key: Permission.USE_EXTERNAL_SOUNDS },
-  ],
-}
 
 interface Props {
   show: boolean
@@ -399,12 +272,10 @@ const serverChannelStore = useServerChannelStore()
 const { canManageChannels, canManageWebhooks, isCurrentUserServerOwner } = useServerPermissions()
 const { t } = useI18n()
 const { confirm } = useConfirmDialog()
-const { polite } = useAnnouncer()
 
 const a11yId = uid('channel-edit')
 const dialogEl = ref<HTMLElement | null>(null)
 const tablistEl = ref<HTMLElement | null>(null)
-const roleTitleEl = ref<HTMLElement | null>(null)
 
 const canManageEncryption = computed(() =>
   isCurrentUserServerOwner.value
@@ -604,17 +475,9 @@ const initialPermState = ref<Record<string, Partial<Record<Permission, TriState>
 const workingPermState = ref<Record<string, Partial<Record<Permission, TriState>>>>({})
 const selectedRoleId = ref<string | null>(null)
 
-const selectedRole = computed(() =>
-  serverRoles.value.find(r => r.id === selectedRoleId.value) || null,
-)
-
 // Voice channels add the voice group and drop text-only bits. Saves touch only these bits; the
 // rest of an override stays.
-const permissionGroups = computed(() => {
-  if (props.channel?.type !== 1) return PERMISSION_GROUPS
-  const shared = PERMISSION_GROUPS.map(g => ({ ...g, permissions: g.permissions.filter(p => !TEXT_ONLY.has(p.key)) }))
-  return [...shared, VOICE_GROUP]
-})
+const permissionGroups = computed(() => channelPermissionGroups(props.channel?.type))
 const editablePermissions = computed(() => permissionGroups.value.flatMap(g => g.permissions))
 
 const everyoneRole = computed(() => serverRoles.value.find(r => r.is_default) || null)
@@ -631,24 +494,14 @@ function setRoleCanView(roleId: string, canView: boolean) {
   setPermState(roleId, Permission.VIEW_CHANNEL, canView ? 'allow' : 'inherit')
 }
 
-function isRoleDirty(roleId: string): boolean {
-  const a = initialPermState.value[roleId] ?? {}
-  const b = workingPermState.value[roleId] ?? {}
-  return JSON.stringify(a) !== JSON.stringify(b)
-}
+const dirtyRoleIds = computed(() => new Set(serverRoles.value
+  .filter(role => JSON.stringify(initialPermState.value[role.id] ?? {}) !== JSON.stringify(workingPermState.value[role.id] ?? {}))
+  .map(role => role.id)))
 
 function resetRole(roleId: string) {
   workingPermState.value[roleId] = JSON.parse(
     JSON.stringify(initialPermState.value[roleId] ?? {}),
   )
-}
-
-// The reset link unmounts once the role is clean; focus lands on the role's heading.
-async function onResetRole(role: ServerRole) {
-  resetRole(role.id)
-  polite(t('channel.edit.roleReset', { role: role.name }))
-  await nextTick()
-  focusProgrammatically(roleTitleEl.value)
 }
 
 const permissionsDirty = computed(() => {
@@ -1156,21 +1009,6 @@ watch(() => props.show, (visible) => {
   cursor: pointer;
 }
 
-.perm-layout {
-  display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: 20px;
-  min-height: 360px;
-}
-
-.perm-role-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-right: 4px;
-  border-right: 1px solid var(--border-color);
-}
-
 .perm-rail-label {
   margin: 0;
   font-size: 11px;
@@ -1181,167 +1019,10 @@ watch(() => props.show, (visible) => {
   padding: 0 8px 8px;
 }
 
-.perm-role-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.perm-role-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 10px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.12s, color 0.12s;
-}
-
-.perm-role-pill:hover {
-  background: var(--background-modifier-hover);
-  color: var(--text-primary);
-}
-
-.perm-role-pill.active {
-  background: var(--background-tertiary);
-  color: var(--text-primary);
-}
-
-.perm-role-pill .role-pill-name {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.role-pill-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--harmony-primary);
-  flex-shrink: 0;
-}
-
-.perm-empty-mini {
-  padding: 8px 10px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.perm-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-
-.perm-editor-head {
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 12px;
-}
-
-.perm-editor-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-
-.perm-editor-title h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.perm-editor-sub {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.perm-reset-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 12px;
-  color: var(--text-link);
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.perm-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.perm-group-label {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  margin: 8px 0 4px;
-}
-
-.perm-loading,
-.perm-empty {
-  padding: 24px;
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
 .role-color-dot {
   width: 12px;
   height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
-}
-
-.perm-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 4px;
-  border-top: 1px solid var(--border-color);
-}
-
-.perm-group .perm-row:first-of-type {
-  border-top: none;
-}
-
-.perm-row-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.perm-row-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.perm-row-desc {
-  font-size: 11px;
-  color: var(--text-secondary);
 }
 </style>

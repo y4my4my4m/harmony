@@ -15,8 +15,14 @@
 // to /@<name>. scripts/check-nginx-template.sh and scripts/check-caddyfile.sh cover the proxies
 // themselves.
 //
+// A remote account reads the same way at /@<name>@<domain>, as this instance holds it: never
+// indexed, a link to its origin, its public posts only; an account this instance has not met is
+// not found. A signed-in reader's "Copy profile link" puts that address on the clipboard. A
+// post's link previews, stored with it, show as a card, and a link to a GIF as the GIF.
+//
 // PUBLIC_PAGE_SHOTS=<directory> saves both pages, light and dark, at desktop and phone width.
 
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -36,6 +42,20 @@ let staff: SpecUser
 const posts = { pinned: '', image: '', text: '', unlisted: '', followers: '' }
 const uploaded: string[] = []
 let savedSetting: unknown = null
+const stamp = Date.now().toString(36)
+// Dotted, as Bluesky accounts bridged by Bridgy Fed are; mixed case, as Mastodon allows.
+const remote = { id: randomUUID(), username: `Modiie.${stamp}`, domain: `piaille-${stamp}.e2e.test` }
+const remoteHandle = `${remote.username}@${remote.domain}`
+const LINKS = {
+  story: 'https://news.e2e.test/discoverable',
+  storyImage: 'https://media.e2e.test/og.png',
+  gif: 'https://media.e2e.test/dance.gif',
+}
+/** What the link hosts answer, by path. */
+const LINK_MEDIA: Record<string, { file: string; contentType: string }> = {
+  '/og.png': { file: 'public/img/app_icon_square.png', contentType: 'image/png' },
+  '/dance.gif': { file: 'tests/fixtures/media-metadata/anim.gif', contentType: 'image/gif' },
+}
 
 const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString()
 
@@ -154,6 +174,59 @@ test.beforeAll(async () => {
   posts.unlisted = await post('Unlisted note to self', 'unlisted', 30)
   posts.text = await post('Hello from the public page', 'public', 20)
 
+  const actor = `https://${remote.domain}/users/${remote.username}`
+  const { error: remoteError } = await admin.from('profiles').insert({
+    id: remote.id,
+    username: remote.username,
+    display_name: 'Modiie',
+    bio: 'Streameuse Twitch',
+    domain: remote.domain,
+    is_local: false,
+    federated_id: actor,
+    inbox_url: `${actor}/inbox`,
+    federation_metadata: { url: `https://${remote.domain}/@${remote.username}` },
+    remote_posts_count: 724,
+    remote_followers_count: 6481,
+    remote_following_count: 172,
+    remote_counts_fetched_at: new Date().toISOString(),
+  })
+  if (remoteError) throw new Error(`remote profile: ${remoteError.message}`)
+  for (const [n, text, visibility] of [[1, 'Bonjour depuis piaille', 'public'], [2, 'Abonnés seulement', 'followers']] as const) {
+    const { error: postError } = await admin.from('posts').insert({
+      author_id: remote.id,
+      is_local: false,
+      visibility,
+      content: [{ type: 'text', text }],
+      ap_id: `https://${remote.domain}/notes/${n}`,
+      url: `https://${remote.domain}/@${remote.username}/${n}`,
+      created_at: minutesAgo(10 + n),
+    })
+    if (postError) throw new Error(`remote post: ${postError.message}`)
+  }
+  const { error: linkError } = await admin.from('posts').insert({
+    author_id: remote.id,
+    is_local: false,
+    visibility: 'public',
+    content: [
+      { type: 'text', text: 'Discoverable servers on the open web ' },
+      { type: 'url', url: LINKS.story },
+      { type: 'text', text: ' ' },
+      { type: 'url', url: LINKS.gif },
+    ],
+    metadata: {
+      embeds: {
+        [LINKS.story]: {
+          url: LINKS.story, provider: 'generic', title: 'Making content from Discoverable servers easier to discover',
+          description: 'Starting November 16', siteName: 'Discord', image: LINKS.storyImage,
+        },
+      },
+    },
+    ap_id: `https://${remote.domain}/notes/3`,
+    url: `https://${remote.domain}/@${remote.username}/3`,
+    created_at: minutesAgo(9),
+  })
+  if (linkError) throw new Error(`remote link post: ${linkError.message}`)
+
   backend = await startBackend()
 })
 
@@ -163,6 +236,8 @@ test.afterAll(async () => {
   await backend?.stop()
   if (uploaded.length) await admin.storage.from('user_media').remove(uploaded)
   await admin.from('posts').delete().eq('author_id', author?.id ?? '')
+  await admin.from('posts').delete().eq('author_id', remote.id)
+  await admin.from('profiles').delete().eq('id', remote.id)
   await deleteUser(admin, author)
   await deleteUser(admin, reader)
   await deleteUser(admin, staff)
@@ -205,6 +280,94 @@ test('a visitor reads the profile and its public posts', async ({ browser }) => 
   const moved = await fetch(`${backend.url}/@${author.username.toUpperCase()}`, { redirect: 'manual' })
   expect([moved.status, moved.headers.get('location')]).toEqual([301, `/@${author.username}`])
   await context.close()
+})
+
+test('a visitor reads a remote account as this instance holds it', async ({ browser }) => {
+  const context = await visitor(browser)
+  const page = await context.newPage()
+  const response = await page.goto(`/@${remoteHandle}`)
+  expect(response?.status()).toBe(200)
+  expect(response?.headers()['x-robots-tag']).toBe('noindex, noarchive')
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/)
+
+  const profile = page.getByTestId('public-profile')
+  await expect(profile.getByRole('heading', { level: 1 })).toHaveText('Modiie')
+  await expect(profile).toContainText(`@${remoteHandle}`)
+  await expect(page.getByTestId('public-bio')).toContainText('Streameuse Twitch')
+  await expect(profile.locator('.counts')).toContainText('172')
+  await expect(profile.locator('.joined')).toHaveCount(0)
+  await expect(page.getByTestId('public-remote-origin').getByRole('link', { name: remote.domain }))
+    .toHaveAttribute('href', `https://${remote.domain}/@${remote.username}`)
+  await expect(page.getByTestId('public-feed')).toContainText('Bonjour depuis piaille')
+  await expect(page.locator('body')).not.toContainText('Abonnés seulement')
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `https://${remote.domain}/@${remote.username}`)
+
+  // Another spelling moves to the stored one.
+  await page.goto(`/@${remote.username.toLowerCase()}@${remote.domain.toUpperCase()}`)
+  expect(new URL(page.url()).pathname).toBe(`/@${remoteHandle}`)
+  await expect(profile).toContainText(`@${remoteHandle}`)
+
+  // An account this instance has not met is not found; nothing is fetched for a visitor.
+  const missing = await page.goto(`/@ghost${stamp}@${remote.domain}`)
+  expect(missing?.status()).toBe(404)
+  await expect(page.locator('[data-status="not_found"]')).toBeVisible()
+  await context.close()
+})
+
+test('a visitor sees a post\'s link preview and a linked GIF', async ({ browser }) => {
+  const context = await visitor(browser)
+  await context.route('https://media.e2e.test/**', (route) => {
+    const media = LINK_MEDIA[new URL(route.request().url()).pathname]
+    return media
+      ? route.fulfill({ contentType: media.contentType, body: fs.readFileSync(path.join(ROOT, media.file)) })
+      : route.fulfill({ status: 404 })
+  })
+  const page = await context.newPage()
+  await page.goto(`/@${remoteHandle}`)
+  const post = page.getByTestId('public-post').filter({ hasText: 'Discoverable servers on the open web' })
+
+  const card = post.getByTestId('public-link-card')
+  await expect(card).toHaveAttribute('href', LINKS.story)
+  await expect(card).toContainText('Making content from Discoverable servers easier to discover')
+  await expect(card).toContainText('Discord')
+  await expect(card.locator('img')).toHaveAttribute('src', LINKS.storyImage)
+
+  const gif = post.getByTestId('public-link-media').locator('img')
+  await expect(gif).toHaveAttribute('src', LINKS.gif)
+  await gif.scrollIntoViewIfNeeded()
+  // Loaded, not only named: the pages' CSP admits https media from other hosts.
+  await expect.poll(() => gif.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true)
+
+  if (SHOTS) await shoot(page, 'remote-link-previews')
+  await context.close()
+})
+
+test('a reader copies a remote account\'s link, and a visitor opens it', async ({ browser, baseURL }) => {
+  test.setTimeout(90_000)
+  const context = await visitor(browser)
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseURL })
+  const page = await context.newPage()
+  await signIn(page, reader)
+  await page.goto(`/social/profile/@${remoteHandle}`)
+  await dismissAnnouncements(page)
+  await expect(page.getByTestId('profile-follow-btn')).toBeVisible({ timeout: 30000 })
+
+  await page.getByTestId('profile-more-btn').click()
+  const menu = page.getByTestId('profile-menu')
+  await expect(menu.getByRole('menuitem').first()).toHaveText('Copy profile link')
+  await expect(menu.getByRole('menuitem').nth(1)).toHaveText(`View on ${remote.domain}`)
+  await menu.getByTestId('profile-menu-copy-link').click()
+  await expect(menu).toBeHidden()
+  const copied = await page.evaluate(() => navigator.clipboard.readText())
+  expect(copied).toBe(`${new URL(baseURL!).origin}/@${remoteHandle}`)
+  await context.close()
+
+  const outsider = await visitor(browser)
+  const outsiderPage = await outsider.newPage()
+  const response = await outsiderPage.goto(copied)
+  expect(response?.status()).toBe(200)
+  await expect(outsiderPage.getByTestId('public-profile')).toContainText(`@${remoteHandle}`)
+  await outsider.close()
 })
 
 test('a visitor opens a post and sees its image', async ({ browser }) => {

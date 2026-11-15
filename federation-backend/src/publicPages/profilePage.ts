@@ -1,7 +1,11 @@
 /**
- * The public page of a local account: banner, avatar, name, bio, fields, counts, then its
+ * The public page of an account: banner, avatar, name, bio, fields, counts, then its
  * pinned and public posts, newest first, twenty to a page. Data from
- * public.public_profile_page (migration 20261027800001_public_profile_pages.sql).
+ * public.public_profile_page (migrations 20261027800001_public_profile_pages.sql,
+ * 20261111400001_public_remote_profile_pages.sql).
+ *
+ * A remote account shows as this instance holds it, at /@user@domain, never indexed; its
+ * canonical and ActivityPub links name its origin.
  */
 
 import config from '../config/index.js';
@@ -10,6 +14,7 @@ import { plainDisplayName } from '../utils/plainDisplayName.js';
 import { fieldValueToHtml, textToHtml } from '../activitypub/converters/toActivityPub.js';
 import {
   authorHandle,
+  authorHref,
   avatarOriginal,
   emojifyHtml,
   renderDisplayNameHtml,
@@ -53,8 +58,17 @@ function safeHttp(url: unknown): string {
 export function renderProfilePage(page: ProfilePageData, ctx: PageContext, options: ProfilePageOptions): string {
   const account = page.account;
   const username = String(account.username);
-  const profileUrl = `https://${config.INSTANCE_DOMAIN}/@${encodeURIComponent(username)}`;
-  const actorUrl = `https://${config.INSTANCE_DOMAIN}/users/${encodeURIComponent(username)}`;
+  const remote = account.is_local === false;
+  const origin = remote ? String(account.domain ?? '') : '';
+  // /@user on this instance; /@user@domain for a remote account.
+  const pathHandle = remote
+    ? `${encodeURIComponent(username)}@${encodeURIComponent(origin)}`
+    : encodeURIComponent(username);
+  const pagePath = `/@${pathHandle}`;
+  const profileUrl = remote ? authorHref(account) : `https://${config.INSTANCE_DOMAIN}${pagePath}`;
+  const actorUrl = remote
+    ? safeHttp(account.federated_id)
+    : `https://${config.INSTANCE_DOMAIN}/users/${encodeURIComponent(username)}`;
   const handle = authorHandle(account);
   const displayNamePlain = plainDisplayName(account.display_name, username);
   const nameHtml = renderDisplayNameHtml(account.display_name || username, account.display_name_emojis);
@@ -97,6 +111,13 @@ export function renderProfilePage(page: ProfilePageData, ctx: PageContext, optio
   </div>
 </section>`;
 
+  const originNote = remote
+    ? `<p class="remote-origin" data-testid="public-remote-origin">${icon('external')}<span>${fillHtml(ctx.t.remoteOrigin, {
+      instance: escapeHtml(ctx.instance.name),
+      origin: `<a href="${escapeHtml(profileUrl)}" rel="nofollow noopener">${escapeHtml(origin)}</a>`,
+    })}</span></p>`
+    : '';
+
   const moved = movedTo
     ? `<p class="moved" data-testid="public-moved">${icon('move')}<span>${fillHtml(ctx.t.movedTo, {
       account: `<a href="${escapeHtml(movedTo)}" rel="nofollow noopener">${escapeHtml(movedTo.replace(/^https?:\/\//, ''))}</a>`,
@@ -112,8 +133,8 @@ export function renderProfilePage(page: ProfilePageData, ctx: PageContext, optio
     : page.pinned.length === 0 ? `<p class="card empty">${escapeHtml(ctx.t.noPosts)}</p>` : '';
 
   const pager: string[] = [];
-  if (options.before) pager.push(`<a class="btn btn-ghost" href="/@${encodeURIComponent(username)}" rel="first">${escapeHtml(ctx.t.newestPosts)}</a>`);
-  if (page.next) pager.push(`<a class="btn btn-ghost" href="/@${encodeURIComponent(username)}?before=${encodeURIComponent(page.next)}" rel="next" data-testid="public-older">${escapeHtml(ctx.t.olderPosts)}</a>`);
+  if (options.before) pager.push(`<a class="btn btn-ghost" href="${escapeHtml(pagePath)}" rel="first">${escapeHtml(ctx.t.newestPosts)}</a>`);
+  if (page.next) pager.push(`<a class="btn btn-ghost" href="${escapeHtml(pagePath)}?before=${encodeURIComponent(page.next)}" rel="next" data-testid="public-older">${escapeHtml(ctx.t.olderPosts)}</a>`);
 
   const firstImage = avatarOriginal(account);
 
@@ -122,15 +143,16 @@ export function renderProfilePage(page: ProfilePageData, ctx: PageContext, optio
     title: `${displayNamePlain} (${handle}) - ${ctx.instance.name}`,
     description,
     canonical: profileUrl,
-    noindex: options.noindex === true || account.discoverable === false || Boolean(movedTo) || Boolean(options.before),
+    noindex: options.noindex === true || remote || account.discoverable === false || Boolean(movedTo) || Boolean(options.before),
     ogType: 'profile',
     ogTitle: `${displayNamePlain} (${handle})`,
     ogImage: firstImage,
     twitterCard: 'summary',
     activityPubUrl: actorUrl,
     extraHead: `<meta property="profile:username" content="${escapeHtml(handle.slice(1))}">`,
-    handOff: { app: `/@${encodeURIComponent(username)}`, fallback: `/social/profile/${encodeURIComponent(username)}` },
+    handOff: { app: pagePath, fallback: `/social/profile/${pathHandle}` },
     body: `${header}
+${originNote}
 ${moved}
 ${joinCard(ctx, nameHtml)}
 <h2 class="section-title">${escapeHtml(ctx.t.posts)}</h2>

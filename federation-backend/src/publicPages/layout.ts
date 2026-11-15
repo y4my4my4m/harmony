@@ -138,6 +138,7 @@ const ICONS = {
   move: '<path d="M5 12h14"/><path d="M13 5l7 7-7 7"/>',
   arrowLeft: '<path d="M19 12H5"/><path d="M11 19l-7-7 7-7"/>',
   file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  external: '<path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
 } as const;
 
 export function icon(name: keyof typeof ICONS, label?: string): string {
@@ -260,6 +261,15 @@ details[open] > summary .toggle .less { display: inline; }
 .media-audio audio { width: 100%; }
 .alt-badge { position: absolute; left: 8px; bottom: 8px; padding: 1px 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.72); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; cursor: help; }
 .media-file { display: inline-flex; align-items: center; gap: 6px; }
+.link-media { display: block; width: fit-content; max-width: 100%; border-radius: 12px; overflow: hidden; background: var(--surface-3); }
+.link-media img, .link-media video { display: block; max-width: 100%; max-height: 420px; height: auto; }
+.link-card { display: flex; min-height: 88px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface-2); color: var(--text); }
+.link-card:hover { text-decoration: none; background: var(--surface-3); }
+.link-card-image { flex: none; width: 112px; min-height: 100%; object-fit: cover; background: var(--surface-3); }
+.link-card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 14px; }
+.link-card-site { color: var(--muted); font-size: 12px; }
+.link-card-title { font-weight: 700; }
+.link-card-description { color: var(--text-2); font-size: 13px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .poll ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .poll-option { position: relative; display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); overflow: hidden; }
 .poll-bar { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--brand) 20%, transparent); }
@@ -303,6 +313,8 @@ img.reaction-emoji { width: auto; height: 18px; max-width: 54px; object-fit: con
 .counts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); }
 .counts strong { margin-right: 4px; color: var(--text); font-weight: 800; font-variant-numeric: tabular-nums; }
 .moved { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--warn-bg); color: var(--warn); border-radius: 12px; font-weight: 600; }
+.remote-origin { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--surface-2); color: var(--muted); border-radius: 12px; font-size: 14px; }
+.remote-origin a { font-weight: 600; overflow-wrap: anywhere; }
 @media (max-width: 480px) {
   .topbar { padding: 8px 12px; }
   .post, .post-page { padding: 14px 14px 10px; }

@@ -740,6 +740,7 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_sound_mentions: true,
   activitypub_sound_replies: true,
   activitypub_sound_quotes: true,
+  moderation_reports: true,
 }
 
 const preferences = reactive<NotificationPreferences>({

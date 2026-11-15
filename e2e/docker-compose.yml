@@ -94,6 +94,9 @@ services:
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${E2E_JWT_SECRET:-unset}
       PGRST_LOG_LEVEL: error
+      # Hosted Supabase and `supabase start` answer at most 1000 rows per request, with
+      # status 200. The stack runs under the same cap: an unpaged read is cut here too.
+      PGRST_DB_MAX_ROWS: "1000"
       # v13 has no db-use-legacy-gucs; claims arrive only as the
       # request.jwt.claims JSON GUC. e2e/jwt-claims-compat.sql teaches
       # auth.uid() to read it.

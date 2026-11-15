@@ -69,7 +69,7 @@
                 <span v-if="announcement.isPinned" class="today-tag">{{ t('today.announcements.pinned') }}</span>
               </h2>
               <!-- eslint-disable-next-line vue/no-v-html -->
-              <div class="today-announcement-content" v-html="renderAnnouncementHtml(announcement.content)"></div>
+              <div class="today-announcement-content" v-html="renderAnnouncementHtml(announcement.content, instanceEmoji)"></div>
             </div>
             <button
               type="button"
@@ -532,6 +532,7 @@ import { useTodayDashboard } from '@/composables/useTodayDashboard'
 import { useProfileStore } from '@/stores/useProfile'
 import { todayDigestService, type ChannelHighlight } from '@/services/TodayDigestService'
 import { renderAnnouncementHtml } from '@/utils/announcementContent'
+import { useInstanceEmojiUrls } from '@/composables/useInstanceEmojiUrls'
 import { formatShortRelativeTime } from '@/utils/shortRelativeTime'
 import { userStorage } from '@/utils/userScopedStorage'
 import {
@@ -557,6 +558,7 @@ const router = useRouter()
 const toast = useToast()
 const { t, locale } = useI18n()
 const profileStore = useProfileStore()
+const instanceEmoji = useInstanceEmojiUrls()
 const { todayAiSummariesEnabled } = useTodayDashboard()
 
 const {
@@ -1043,6 +1045,18 @@ button.today-stat:hover {
 
 .today-announcement-content :deep(a) {
   color: var(--text-link);
+}
+
+.today-announcement-content :deep(img) {
+  max-width: 100%;
+}
+
+.today-announcement-content :deep(.inline-emoji) {
+  width: auto;
+  max-width: 120px;
+  height: 1.375em;
+  vertical-align: middle;
+  margin: 0 1px;
 }
 
 /* Columns */

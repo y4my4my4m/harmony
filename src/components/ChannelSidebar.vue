@@ -490,6 +490,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, type WritableComputedRef } from 'vue';
 import { debug } from '@/utils/debug'
 import { useServerUsersStore } from '@/stores/useServerUsers';
+import { memberDirectory } from '@/services/memberDirectory';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerPermissions } from '@/composables/useServerPermissions';
@@ -710,7 +711,8 @@ const currentServerData = computed(() => {
     icon: props.currentServer.icon,
     banner: props.currentServer.banner,
     description: props.currentServer.description,
-    member_count: Object.keys(serverUsersStore.userProfiles).length || props.currentServer.member_count || 0,
+    member_count: (memberDirectory.serverId === props.currentServer.id ? memberDirectory.total : null)
+      ?? props.currentServer.member_count ?? 0,
   };
 });
 

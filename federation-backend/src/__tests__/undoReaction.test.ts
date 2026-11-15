@@ -57,6 +57,12 @@ function fakeSupabase() {
         eq(col: string, val: any) { filters.push((row) => row[col] === val); return builder; },
         is(col: string, val: any) { filters.push((row) => (row[col] ?? null) === val); return builder; },
         in(col: string, vals: any[]) { filters.push((row) => vals.includes(row[col])); return builder; },
+        not(col: string, op: string, val: any) {
+          if (op === 'is') filters.push((row) => (row[col] ?? null) !== val);
+          return builder;
+        },
+        order() { return builder; },
+        limit() { return builder; },
         maybeSingle() { return Promise.resolve({ data: run()[0] ?? null, error: null }); },
         single() {
           const rows = run();

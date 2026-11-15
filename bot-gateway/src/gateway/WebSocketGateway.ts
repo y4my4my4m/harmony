@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { supabase, config } from '../config/supabase.js'
 import * as crypto from 'crypto'
 import { type InstallRow, botCanSeeChannel, loadEveryoneLayers } from '../auth/botPermissions.js'
+import { GATEWAY_CAPABILITIES } from '../capabilities.js'
 
 function logPresenceError(op: string, error: unknown) {
   if (!error) return
@@ -67,6 +68,7 @@ export function identifyRefusalReason(verification: unknown): string {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const NO_IDS: ReadonlySet<string> = new Set()
 
 // Bridged user info, sent by the Discord bridge.
 export interface BridgedDiscordRole {
@@ -391,7 +393,8 @@ export class WebSocketGateway {
           username: botConnection.username
         },
         session_id: botConnection.sessionId,
-        heartbeat_interval: config.websocket.heartbeatInterval
+        heartbeat_interval: config.websocket.heartbeatInterval,
+        capabilities: GATEWAY_CAPABILITIES
       }
     }))
     
@@ -793,20 +796,25 @@ export class WebSocketGateway {
     }
   }
   
-  // Consumed by the REST API.
-  getBridgedUsers(channelId: string): BridgedUser[] {
-    return this.bridgedUsersByChannel.get(channelId) || []
+  /**
+   * A channel's bridged users without the Discord ids in `excluded`. Registrations are the
+   * bridge's word: a bridge older than 2.6.0, or one holding a stale opt-out list, still lists
+   * members who opted out or whom a manager removed.
+   */
+  getBridgedUsers(channelId: string, excluded: ReadonlySet<string> = NO_IDS): BridgedUser[] {
+    const list = this.bridgedUsersByChannel.get(channelId) ?? []
+    return excluded.size === 0 ? list : list.filter(user => !excluded.has(user.id))
   }
 
   /**
    * Merges bridged users across all mapped channels on a server, deduped by
-   * Discord id.
+   * Discord id, without the ids in `excluded`.
    */
-  getBridgedUsersForServer(channelIds: string[]): BridgedUser[] {
+  getBridgedUsersForServer(channelIds: string[], excluded: ReadonlySet<string> = NO_IDS): BridgedUser[] {
     const byDiscordId = new Map<string, BridgedUser>()
     for (const channelId of channelIds) {
       for (const user of this.bridgedUsersByChannel.get(channelId) ?? []) {
-        byDiscordId.set(user.id, user)
+        if (!excluded.has(user.id)) byDiscordId.set(user.id, user)
       }
     }
     return Array.from(byDiscordId.values())

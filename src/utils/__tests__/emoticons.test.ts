@@ -3,9 +3,9 @@ import { convertEmoticons, EMOTICONS } from '@/utils/emoticons'
 
 describe('convertEmoticons table', () => {
   const table: Array<[string, string]> = [
-    [':D', '😃'],
+    [':D', '😄'],
     [':)', '🙂'],
-    [':(', '🙁'],
+    [':(', '😦'],
     [';)', '😉'],
     [':P', '😛'],
     [':p', '😛'],
@@ -19,6 +19,36 @@ describe('convertEmoticons table', () => {
     [':/', '😕'],
     [':-)', '🙂'],
     ['</3', '💔'],
+    // Discord's table
+    [":')", '🥲'],
+    [":'-)", '🥲'],
+    [':,)', '🥲'],
+    [":'D", '😂'],
+    ['=D', '😄'],
+    ['=)', '🙂'],
+    ['=P', '😛'],
+    [':-P', '😛'],
+    ['8-)', '😎'],
+    ['B-)', '😎'],
+    ['O:)', '😇'],
+    ['0:-)', '😇'],
+    [']:)', '😈'],
+    [']:(', '👿'],
+    [',:)', '😅'],
+    [',:(', '😓'],
+    [';(', '😭'],
+    [":,'(", '😭'],
+    [':*', '😗'],
+    [':")', '😊'],
+    [':s', '😒'],
+    [':-S', '😒'],
+    [':$', '😒'],
+    ['x-)', '😆'],
+    [':-\\', '😕'],
+    ['<\\3', '💔'],
+    ['♡', '❤️'],
+    [':@', '😡'],
+    ['=-@', '😡'],
   ]
 
   it.each(table)('%s -> %s', (emoticon, emoji) => {
@@ -31,7 +61,17 @@ describe('convertEmoticons table', () => {
   })
 
   it('covers every exported emoticon', () => {
-    for (const [emoticon, emoji] of EMOTICONS) expect(convertEmoticons(emoticon)).toBe(emoji)
+    for (const [emoticon, emoji] of EMOTICONS) expect(convertEmoticons(`a ${emoticon}`)).toBe(`a ${emoji}`)
+  })
+
+  it('holds Discord\'s 128 emoticons and the 5 additions, each once', () => {
+    expect(EMOTICONS).toHaveLength(133)
+    expect(new Set(EMOTICONS.map(([emoticon]) => emoticon)).size).toBe(133)
+  })
+
+  it('converts an angry face mid-line', () => {
+    expect(convertEmoticons('ugh >:(')).toBe('ugh 😠')
+    expect(convertEmoticons('a\nugh >=-( b')).toBe('a\nugh 😠 b')
   })
 
   it('converts several in one message', () => {
@@ -39,11 +79,11 @@ describe('convertEmoticons table', () => {
   })
 
   it('converts inside parentheses', () => {
-    expect(convertEmoticons('(xD) (:D) (<3)')).toBe('(😆) (😃) (❤️)')
+    expect(convertEmoticons('(xD) (:D) (<3)')).toBe('(😆) (😄) (❤️)')
   })
 
   it('converts inside markdown emphasis', () => {
-    expect(convertEmoticons('*:D*')).toBe('*😃*')
+    expect(convertEmoticons('*:D*')).toBe('*😄*')
   })
 })
 
@@ -65,6 +105,12 @@ describe('convertEmoticons negatives', () => {
     ['unterminated fence', '```js\n:) <3', '```js\n:) <3'],
     ['shortcode', ':D: and :p:', ':D: and :p:'],
     ['greentext angry face', '>:(', '>:('],
+    ['greentext angry face on a later line', 'a\n>:-( b', 'a\n>:-( b'],
+    ['uppercase S', ':S and =S', ':S and =S'],
+    ['kiss before bold', ':**bold**', ':**bold**'],
+    ['email with an emoticon tail', 'bob:@example.com', 'bob:@example.com'],
+    ['equals in an expression', 'x=D and a=)b', 'x=D and a=)b'],
+    ['digit before a nose', '18-) 1B-)', '18-) 1B-)'],
     ['lowercase xd', 'xd', 'xd'],
   ])('%s', (_label, input, expected) => {
     expect(convertEmoticons(input)).toBe(expected)

@@ -130,9 +130,13 @@ function main() {
   // unicode -> gemoji entry, for attaching GitHub aliases (`names`, `tags`)
   // as keywords on each emoji.
   const gemojiByUnicode = new Map();
+  // name -> the emoji GitHub gives it. Discord's names for these emoji are the same.
+  const gemojiByName = new Map();
   for (const g of gemoji) {
     gemojiByUnicode.set(g.emoji, g);
+    for (const name of g.names ?? []) gemojiByName.set(name, g.emoji);
   }
+  const withoutVs16 = (s) => s.replace(/\ufe0f/g, '');
 
   const emojis = [];
   const shortcodeToUnicode = {};
@@ -155,10 +159,18 @@ function main() {
       continue;
     }
     
-    const shortcode = nameToShortcode(data.name);
+    let shortcode = nameToShortcode(data.name);
 
     const gemojiEntry = gemojiByUnicode.get(unicode);
     const githubAliases = gemojiEntry?.names ?? [];
+
+    // A Unicode-derived shortcode that GitHub and Discord give another emoji stays that
+    // emoji's: `:sunglasses:` is 😎, and 🕶️ takes its own GitHub name, `dark_sunglasses`.
+    const nameOwner = gemojiByName.get(shortcode);
+    if (nameOwner && withoutVs16(nameOwner) !== withoutVs16(unicode)) {
+      const own = githubAliases.find(a => /^[a-zA-Z0-9_+-]+$/.test(a) && !shortcodeToUnicode[a]);
+      if (own) shortcode = own;
+    }
     const githubTags = gemojiEntry?.tags ?? [];
 
     const baseKeywords = [

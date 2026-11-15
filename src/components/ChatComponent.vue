@@ -51,6 +51,12 @@
       :server-name="serverChannelStore.currentServer?.name"
       @review="welcomeStore.open(rulesPromptServerId)"
     />
+    <BlockedPeerPrompt
+      v-else-if="blockedDMPeer"
+      :name="blockedDMPeer.display_name || blockedDMPeer.username || ''"
+      :busy="unblockingPeer"
+      @unblock="unblockDMPeer"
+    />
     <MessageInput 
       v-else
       ref="messageInputRef"
@@ -186,6 +192,7 @@
   import Icon from '@/components/common/Icon.vue';
   import KickBanModal from './moderation/KickBanModal.vue';
   import RulesAcceptPrompt from '@/components/welcome/RulesAcceptPrompt.vue';
+  import BlockedPeerPrompt from '@/components/dm/BlockedPeerPrompt.vue';
   import { useServerWelcomeStore } from '@/stores/useServerWelcome';
   const RecoveryKeySetupWizard = defineAsyncComponent(() => import('@/components/encryption/RecoveryKeySetupWizard.vue'));
   const KeyRecoveryModal = defineAsyncComponent(() => import('@/components/encryption/KeyRecoveryModal.vue'));
@@ -195,6 +202,7 @@
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
   import { useDMStore } from '@/stores/useDM';
+  import { useActivityPubStore } from '@/stores/useActivityPub';
   import { useThemeStore } from '@/stores/useTheme';
   import { useDraftsStore } from '@/stores/drafts';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
@@ -321,6 +329,30 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     const serverId = props.serverId ?? serverChannelStore.currentServerId;
     return !props.isDM && serverId && welcomeStore.mustAccept(serverId) ? serverId : null;
   });
+
+  // A direct conversation with an account this one blocked takes no message (20261111500001).
+  const activityPubStore = useActivityPubStore();
+  const blockedDMPeer = computed(() => {
+    if (!props.isDM) return null;
+    const conversationId = props.conversationId || dmStore.currentConversationId;
+    const conversation = dmStore.conversations.find(c => c.id === conversationId);
+    if (!conversation || conversation.type === 'group') return null;
+    const peer = conversation.other_user;
+    return peer?.id && activityPubStore.isBlocked(peer.id) ? peer : null;
+  });
+  const unblockingPeer = ref(false);
+  const unblockDMPeer = async () => {
+    const peer = blockedDMPeer.value;
+    if (!peer || unblockingPeer.value) return;
+    unblockingPeer.value = true;
+    try {
+      await activityPubStore.unblockUser(peer.id);
+    } catch {
+      toast.error(t('dm.blockedPeer.unblockFailed', { name: peer.display_name || peer.username || '' }));
+    } finally {
+      unblockingPeer.value = false;
+    }
+  };
 
   // Polls. End-to-end encrypted channels and DMs refuse them (create_message_poll).
   const showPollModal = ref(false);

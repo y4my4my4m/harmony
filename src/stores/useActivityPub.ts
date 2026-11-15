@@ -2351,7 +2351,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         debug.log('Blocking user:', userId, options);
         
-        const result = await services.interactions.toggleBlock(userId);
+        const result = await services.interactions.setBlocked(userId, true);
         
         if (result.blocking) {
           // New Set instance; Vue does not track Set mutations.
@@ -2382,7 +2382,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         debug.log('Unblocking user:', userId);
         
-        const result = await services.interactions.toggleBlock(userId);
+        const result = await services.interactions.setBlocked(userId, false);
         
         if (!result.blocking) {
           // New Set instance; Vue does not track Set mutations.

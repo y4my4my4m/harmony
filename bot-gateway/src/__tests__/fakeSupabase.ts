@@ -90,7 +90,9 @@ export class FakeQuery implements PromiseLike<FakeResult> {
   }
 
   eq(column: string, value: unknown): this {
-    this.filters.push((row) => row[column] === value)
+    // PostgREST JSON text path, e.g. 'metadata->>discord_message_id'.
+    const [base, key] = column.split('->>')
+    this.filters.push((row) => (key === undefined ? row[column] === value : row[base]?.[key] === value))
     return this
   }
 
@@ -105,7 +107,8 @@ export class FakeQuery implements PromiseLike<FakeResult> {
   }
 
   in(column: string, values: readonly unknown[]): this {
-    this.filters.push((row) => values.includes(row[column]))
+    const [base, key] = column.split('->>')
+    this.filters.push((row) => values.includes(key === undefined ? row[column] : row[base]?.[key]))
     return this
   }
 
