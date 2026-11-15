@@ -177,6 +177,7 @@ bridge_privacy_erase_core	p_server_id uuid, p_platform text, p_remote_user_id te
 bridge_privacy_erase_stands	p_row bridge_remote_optouts	boolean	invoker	public, pg_temp		unreferenced
 bridge_privacy_erase_tail	p_server_id uuid, p_platform text, p_remote_user_id text, p_limit integer	jsonb	definer	public, pg_temp	service_role	client
 bridge_privacy_mark_pending	p_server_id uuid, p_platform text, p_remote_user_id text, p_asker text, p_result jsonb	jsonb	definer	public, pg_temp		unreferenced
+bridge_privacy_note_optin		trigger	definer	public, pg_temp	service_role	trigger
 bridge_privacy_optout_ids	p_server_id uuid, p_platform text	jsonb	definer	public, pg_temp	service_role	client
 bridge_privacy_pending	p_limit integer	TABLE(server_id uuid, platform text, remote_user_id text)	definer	public, pg_temp	service_role	client
 bridge_privacy_purge_instance	p_platform text	jsonb	definer	public, pg_temp	authenticated	client

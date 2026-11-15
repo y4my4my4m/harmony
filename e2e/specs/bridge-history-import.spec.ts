@@ -11,7 +11,8 @@
 // Import is off on a new instance. The first journey finds it off for the manager and for the
 // bridge, an instance admin turns it on in Admin, Config, and the manager then has the button. The
 // second starts an import through the confirmation. A batch with a future-dated message and one
-// by an opted-out author stores neither, and a batch past the instance's rate is told to wait.
+// by an opted-out author stores neither; once that author opts back in, a message they wrote
+// before is still refused; and a batch past the instance's rate is told to wait.
 //
 // The stack runs the bot gateway as a child process (see botGateway.ts). The bridge itself is the
 // test: it holds the bot token and calls the routes the real bridge calls.
@@ -330,6 +331,18 @@ test('a manager imports Discord history: old messages land quietly, in date orde
   ]))
   expect(mixed.json?.rejected).toHaveLength(2)
   importedIds.push(...(mixed.json?.inserted as Array<{ id: string }>).map((m) => m.id))
+
+  // Opting back in is forward-looking: what Carol wrote before stays out.
+  const optIn = await bridgeCall(`/privacy/optouts/${CAROL.id}`, { method: 'DELETE' })
+  expect(optIn.json).toMatchObject({ opted_out: false })
+  const earlier = await bridgeCall(`/imports/${jobId}/messages`, {
+    method: 'POST',
+    body: { messages: [{ discord_message_id: '1400000000000000207', created_at: '2023-01-15T10:07:30.000Z',
+      content: [{ type: 'text', text: 'Carol before opting back in' }], discord_user: CAROL }] },
+  })
+  expect(earlier.status, earlier.text).toBe(200)
+  expect(earlier.json?.inserted).toEqual([])
+  expect(earlier.json?.rejected).toEqual([{ discord_message_id: '1400000000000000207', reason: 'before_opt_in' }])
 
   // Past the instance's rate the batch waits and stores nothing.
   await setConfig('bridge_import_messages_per_minute', 2)

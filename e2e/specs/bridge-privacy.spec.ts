@@ -9,9 +9,14 @@
 //   manager, her next message is refused, and Restore lets her through again.
 // - Remove all bridged messages leaves only what was written on Harmony.
 //
+// The bridge registers both members with op 6 and keeps them registered, as a bridge older than
+// 2.6.0 does: the member list drops whoever is left out all the same. A reply to an erased message
+// crosses without the reply.
+//
 // The stack runs the bot gateway as a child process (see botGateway.ts).
 
 import { test, expect } from '@playwright/test'
+import WebSocket from 'ws'
 import {
   adminClient,
   createUser,
@@ -31,6 +36,8 @@ let server: SeededServer
 let botId = ''
 let token = ''
 let gateway: BotGateway
+let ownerJwt = ''
+let socket: WebSocket | null = null
 
 const GUILD_ID = '900000000000000889'
 const DISCORD_CHANNEL_ID = '1500000000000000100'
@@ -43,6 +50,7 @@ test.beforeAll(async () => {
   server = await seedServer(admin, owner, `Privacy ${owner.username}`)
 
   const client = await userClient(owner)
+  ownerJwt = (await client.auth.getSession()).data.session!.access_token
   const { data, error } = await client.rpc('create_bot', {
     p_username: `bridge${owner.username.slice(-8)}`,
     p_display_name: 'Discord Bridge',
@@ -101,6 +109,7 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
+  socket?.close()
   await gateway?.stop()
   await admin.from('discord_bridges').delete().eq('server_id', server?.id ?? '')
   if (botId) await admin.from('bots').delete().eq('id', botId)
@@ -120,15 +129,40 @@ async function gatewayCall(path: string, init: { method?: string; body?: unknown
 }
 
 /** A live relayed message of a Discord author, as the bridge posts it. */
-function relay(author: typeof DANA, text: string) {
+function relay(author: typeof DANA, text: string, replyTo?: string) {
   nextDiscordId += 1n
   return gatewayCall(`/api/v1/channels/${server.generalChannelId}/messages`, {
     method: 'POST',
     body: {
       content: [{ type: 'text', text }],
+      ...(replyTo ? { reply_to: replyTo } : {}),
       metadata: { discord_user: author, discord_message_id: String(nextDiscordId), bridge_source: 'discord' },
     },
   })
+}
+
+/** Identifies as the bridge and registers both Discord members of #general (op 6). */
+async function registerMembers(): Promise<void> {
+  socket = new WebSocket(gateway.wsUrl)
+  await new Promise((resolve, reject) => { socket!.once('open', resolve); socket!.once('error', reject) })
+  const ready = new Promise<void>((resolve) => {
+    socket!.on('message', (raw) => { if (JSON.parse(raw.toString()).t === 'READY') resolve() })
+  })
+  socket.send(JSON.stringify({ op: 2, d: { token } }))
+  await ready
+  const members = [DANA, EVE].map((u) => ({
+    id: u.id, username: u.username, displayName: u.display_name, avatarUrl: '', source: 'discord', presenceStatus: 'online',
+  }))
+  socket.send(JSON.stringify({ op: 6, d: { channels: [{ harmonyChannelId: server.generalChannelId, members }] } }))
+}
+
+/** Discord ids the gateway serves the owner for #general. */
+async function bridgedIds(): Promise<string[]> {
+  const res = await fetch(`${gateway.url}/bridged-users/${server.generalChannelId}`, {
+    headers: { Authorization: `Bearer ${ownerJwt}` },
+  })
+  expect(res.status).toBe(200)
+  return ((await res.json()).users as Array<{ id: string }>).map((u) => u.id).sort()
 }
 
 /** Texts of the channel's messages that name a relayed author, as stored. */
@@ -146,19 +180,32 @@ async function relayedTexts(): Promise<string[]> {
 test('a Discord member opts out and erases; a manager removes another and clears the rest', async ({ page }) => {
   test.setTimeout(300_000)
 
+  const sentIds: string[] = []
   for (const [author, text] of [[DANA, 'Dana one'], [EVE, 'Eve one'], [DANA, 'Dana two'], [EVE, 'Eve two']] as const) {
     const sent = await relay(author, text)
     expect(sent.status, sent.text).toBe(201)
+    sentIds.push(sent.json?.id)
   }
+  const danaOneId = sentIds[0]
+  await registerMembers()
+  await expect.poll(bridgedIds, { timeout: 15000 }).toEqual([DANA.id, EVE.id].sort())
   const versionBefore = (await gatewayCall('/bridge/v2/config')).json?.privacy_version
   expect(typeof versionBefore).toBe('string')
 
+  // The app reads the members from this spec's gateway.
+  await page.route('**/bot-gateway/bridged-users/**', async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/bot-gateway/, '')
+    await route.fulfill({ response: await route.fetch({ url: `${gateway.url}${path}` }) })
+  })
   await signIn(page, owner)
   await page.goto(`/chat/${server.id}/${server.generalChannelId}`)
   await dismissAnnouncements(page)
   const list = page.locator('[data-testid="message-list"]')
   await expect(list.getByText('Dana two')).toBeVisible({ timeout: 45000 })
   await expect(list.getByText('Eve two')).toBeVisible()
+  const discordMember = (name: string) => page.locator('.user-sidebar .user-item.bridged-discord-user').filter({ hasText: name })
+  await expect(discordMember('Dana')).toBeVisible({ timeout: 20000 })
+  await expect(discordMember('Eve')).toBeVisible()
 
   await test.step('Dana opts out on Discord: her next message is refused, Eve still crosses', async () => {
     expect((await gatewayCall(`/bridge/v2/privacy/optouts/${DANA.id}`)).json?.opted_out).toBe(false)
@@ -195,6 +242,9 @@ test('a Discord member opts out and erases; a manager removes another and clears
     await expect(list.getByText('Written on Harmony')).toBeVisible()
     await expect(list.getByText('Dana one')).toHaveCount(0)
     await expect(list.getByText('Dana two')).toHaveCount(0)
+    // The bridge still registers her; the member list leaves her out.
+    await expect(discordMember('Eve')).toBeVisible({ timeout: 20000 })
+    await expect(discordMember('Dana')).toHaveCount(0)
   })
 
   await page.goto(`/server/${server.id}?section=discord-bridge`)
@@ -223,6 +273,7 @@ test('a Discord member opts out and erases; a manager removes another and clears
 
     expect(await relayedTexts()).toEqual([])
     await expect(rowOf(EVE.id)).toContainText('Removed by a manager')
+    expect(await bridgedIds()).toEqual([])
     const refused = await relay(EVE, 'Eve after removal')
     expect(refused.status, refused.text).toBe(403)
     // Her own opt-in does not lift a manager's removal.
@@ -234,7 +285,12 @@ test('a Discord member opts out and erases; a manager removes another and clears
     await rowOf(EVE.id).locator('[data-testid="privacy-restore"]').click()
     await expect(rowOf(EVE.id)).toHaveCount(0, { timeout: 20000 })
     await expect(rowOf(DANA.id)).toHaveCount(1)
-    expect((await relay(EVE, 'Eve is back')).status).toBe(201)
+    expect(await bridgedIds()).toEqual([EVE.id])
+    // Her first message answers one of Dana's, erased since: it crosses without the reply.
+    const back = await relay(EVE, 'Eve is back', danaOneId)
+    expect(back.status, back.text).toBe(201)
+    const { data: stored } = await admin.from('messages').select('reply_to').eq('id', back.json?.id).single()
+    expect(stored?.reply_to).toBeNull()
     expect((await relay(EVE, 'Eve again')).status).toBe(201)
   })
 

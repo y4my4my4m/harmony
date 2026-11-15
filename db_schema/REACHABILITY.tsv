@@ -177,6 +177,7 @@ bridge_privacy_erase_core	definer	jsonb	-	client	called by bridge_privacy_erase,
 bridge_privacy_erase_stands	invoker	boolean	-	client	called by bridge_privacy_erase_tail, bridge_privacy_pending
 bridge_privacy_erase_tail	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
 bridge_privacy_mark_pending	definer	jsonb	-	client	called by bridge_privacy_erase, bridge_privacy_erase_continue, bridge_privacy_erase_tail, +1
+bridge_privacy_note_optin	definer	trigger	service_role	trigger	trigger public.bridge_remote_optouts AFTER DELETE (a_bridge_remote_optouts_note_optin)
 bridge_privacy_optout_ids	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgeConfig.ts, bot-gateway/src/bridge/bridgePrivacy.ts
 bridge_privacy_pending	definer	TABLE(server_id uuid, platform text, remote_user_id text)	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
 bridge_privacy_purge_instance	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts

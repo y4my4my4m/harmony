@@ -16,6 +16,7 @@ import { getBridgeAttachmentMode, getUploadCeilingBytes, hasDiscordCdnFilePart, 
 import { mirrorFileToStorage } from './utils/mirrorFile.js'
 import { MirrorWorker } from './bridge/mirrorWorker.js'
 import { startEraseResume } from './bridge/bridgePrivacy.js'
+import { DISCORD_PLATFORM } from './bridge/bridgeConfig.js'
 import { removeUnreferencedMirrors } from './bridge/mirrorEnqueue.js'
 import { meetsAssurance } from './utils/sessionAssurance.js'
 import { DiscordLinkRefresher, expiredDiscordAttachmentUrls } from './bridge/discordLinkRefresh.js'
@@ -216,6 +217,20 @@ async function canViewChannel(profileId: string, serverId: string, channelId: st
   return !error && data === true
 }
 
+/** Discord ids left out of a server's bridges (bridge_remote_optouts); null on a failed lookup. */
+async function bridgeOptOutIds(serverId: string): Promise<Set<string> | null> {
+  const { data, error } = await supabase
+    .from('bridge_remote_optouts')
+    .select('remote_user_id')
+    .eq('server_id', serverId)
+    .eq('platform', DISCORD_PLATFORM)
+  if (error || !Array.isArray(data)) {
+    console.error(`bridged-users: bridge_remote_optouts lookup for ${serverId} failed:`, error?.message)
+    return null
+  }
+  return new Set((data as Array<{ remote_user_id: string }>).map(row => row.remote_user_id))
+}
+
 // Discord bridge users, consumed by the frontend for mention autosuggest.
 // The caller must view the channel: the list is that channel's Discord members.
 app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
@@ -246,7 +261,14 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
     return
   }
 
-  const bridgedUsers = gateway.getBridgedUsers(channelId)
+  // Opted-out members never leave this route, whatever the bridge registered.
+  const excluded = await bridgeOptOutIds(channel.server_id)
+  if (!excluded) {
+    res.status(503).json({ error: 'Lookup failed' })
+    return
+  }
+
+  const bridgedUsers = gateway.getBridgedUsers(channelId, excluded)
   const hasBridge = gateway.hasChannelBridge(channelId)
 
   res.json({
@@ -286,7 +308,12 @@ app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
   const allIds = (channels ?? []).map((c: { id: string }) => c.id)
   const viewable = await Promise.all(allIds.map((id) => canViewChannel(callerProfileId, serverId, id)))
   const channelIds = allIds.filter((_id, i) => viewable[i])
-  const bridgedUsers = gateway.getBridgedUsersForServer(channelIds)
+  const excluded = await bridgeOptOutIds(serverId)
+  if (!excluded) {
+    res.status(503).json({ error: 'Lookup failed' })
+    return
+  }
+  const bridgedUsers = gateway.getBridgedUsersForServer(channelIds, excluded)
   const hasBridge = gateway.hasBridgedUsersForServer(channelIds)
 
   res.json({

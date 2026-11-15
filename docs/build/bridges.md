@@ -320,7 +320,7 @@ Harmony threads pair with Discord threads per bridge.
 
 ## Members and presence
 
-A bridge registers the Discord members of each relayed channel with [op 6](/build/gateway#register-bridge-data-op-6), and sends their status changes with [op 7](/build/gateway#bridge-presence-update-op-7). The app lists them in mention autocomplete and the member list of the server. The registration lives in the gateway's memory, so send op 6 again after every reconnect.
+A bridge registers the Discord members of each relayed channel with [op 6](/build/gateway#register-bridge-data-op-6), and sends their status changes with [op 7](/build/gateway#bridge-presence-update-op-7). The app lists them in mention autocomplete and the member list of the server. The registration lives in the gateway's memory, so send op 6 again after every reconnect. The gateway leaves members on the server's opt-out list out of what the app reads, whatever the registration holds; see [Privacy](#privacy).
 
 ## Attachments
 
@@ -420,6 +420,7 @@ Leave out messages whose author is no longer a member of the guild and messages 
 | `invalid` | A field of the wrong type, a date that is no date, a `thread_id` that is not a thread of the channel, or a content part the server refuses |
 | `future_date` | `created_at` or `edited_at` more than a minute ahead of the gateway's clock. Start the walk a few minutes behind now |
 | `opted_out` | The author opted out of this server's bridge; see [Privacy](#privacy) |
+| `before_opt_in` | Written before the author's last opt-in or restore; see [Privacy](#privacy) |
 | `automod` | A blocking keyword, invite or link rule of the server's AutoMod, when its bots are not exempt. Counted in `automod_skipped` |
 | `too_long` | Over the instance's message length limit, 2000 characters by default while Discord allows 4000 |
 | `check_violation` | Another check of the messages table |
@@ -463,6 +464,7 @@ A bridge keeps the list and sends nothing of an opted-out author: no message, ed
 
 - `POST /channels/{id}/messages` and an edit whose `metadata.discord_user.id` is opted out answer `403` `{ "code": "BRIDGE_AUTHOR_OPTED_OUT" }`. Drop the message; do not retry.
 - A batch of [history import](#history-import) answers `rejected` with `reason` `opted_out` for it.
+- Opting in, and a manager's restore, is forward-looking: a batch answers `rejected` with `reason` `before_opt_in` for a message the user wrote before. Do not add the user to the opt-out list for it.
 - A delete is always accepted.
 
 Erasing deletes rows without a `MESSAGE_DELETE` event, so a bridge that mirrors Harmony deletes to the remote platform leaves the originals there. The first message of a thread stays as a deleted row without content or author (`metadata.bridge_erased`), also without an event.

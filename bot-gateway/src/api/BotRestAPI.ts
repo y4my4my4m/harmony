@@ -81,6 +81,8 @@ interface BotMessageInput {
 const MESSAGE_TOO_LONG = /^Message text exceeds the instance limit of \d+ characters/
 // check_message_sticker_parts: a sticker part naming no live sticker, or a sticker pair whose file part differs.
 const STICKER_REFUSED = /^STICKER_(UNKNOWN|FALLBACK)/
+// enforce_message_reply_scope (20261005650001): reply_to names no message, or one in another channel.
+const REPLY_OUT_OF_SCOPE = /^REPLY_OUT_OF_SCOPE/
 // guard_bridge_author_optout (20261112600001): the relayed author opted out of the server's bridge.
 const BRIDGE_AUTHOR_OPTED_OUT = 'BRIDGE_AUTHOR_OPTED_OUT'
 const OPTED_OUT_BODY = { error: 'The author opted out of this bridge', code: BRIDGE_AUTHOR_OPTED_OUT } as const
@@ -751,17 +753,29 @@ export class BotRestAPI {
     // Array response, not .single(): the server's AutoMod drops a blocked row and
     // the insert returns zero rows. PostgREST rolls a zero-row singular request
     // back, which would discard the AutoMod event.
-    const { data: rows, error } = await supabase
+    const insertRow = (replyTo: string | null) => supabase
       .from('messages')
       .insert({
         channel_id: channelId,
         thread_id: threadId,
-        bot_id: botId,  // Use bot_id instead of user_id
+        bot_id: botId,
         content: messageContent,
-        reply_to: reply_to || null,
+        reply_to: replyTo,
         metadata: messageMetadata
       })
       .select(messageSelect)
+    let { data: rows, error } = await insertRow(reply_to || null)
+
+    // A reply to a message that no longer exists (erased by a bridge privacy request, removed by
+    // a purge) is sent without the reply, as Discord shows a reply whose original is gone.
+    let replyOutOfScope = !!error && REPLY_OUT_OF_SCOPE.test(error.message ?? '')
+    if (replyOutOfScope && typeof reply_to === 'string') {
+      const parent = await supabase.from('messages').select('id').eq('id', reply_to).maybeSingle()
+      if (!parent.error && !parent.data) {
+        ;({ data: rows, error } = await insertRow(null))
+        replyOutOfScope = false
+      }
+    }
 
     // No row: the files this request mirrored into its parts have nothing to reference them.
     if (error || !rows?.[0]) await discardMirroredParts(messageContent, error)
@@ -798,6 +812,9 @@ export class BotRestAPI {
       }
       if (MESSAGE_TOO_LONG.test(error.message ?? '')) {
         return { ok: false, status: 400, body: { error: error.message }, failure: 'failed' }
+      }
+      if (replyOutOfScope) {
+        return { ok: false, status: 400, body: { error: 'reply_to names a message in another channel', code: 'REPLY_OUT_OF_SCOPE' }, failure: 'failed' }
       }
       return { ok: false, status: 500, body: { error: error.message }, failure: 'failed' }
     }

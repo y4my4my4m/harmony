@@ -297,7 +297,7 @@ A bridge copies what Discord members write into Harmony. They decide about their
 | Command | Effect |
 |---|---|
 | `/bridge-privacy opt-out` | From now on the bridge brings none of their messages into this Harmony server, live or imported |
-| `/bridge-privacy opt-in` | Undoes their own opt-out |
+| `/bridge-privacy opt-in` | Undoes their own opt-out, from then on: what they wrote before, erased or written while opted out, stays out of history import |
 | `/bridge-privacy status` | Says whether they are opted out |
 | `/bridge-privacy erase` | Deletes the messages, files and reactions of theirs that the bridge already brought into this Harmony server, with AutoMod's records and alerts about them, and opts them out |
 
@@ -306,7 +306,7 @@ Every member can run it, answers are shown only to them, and it works with every
 Members with Manage Server act for someone who cannot run the command, for example after they left, in **Server settings** → **Discord Bridge** → **Bridge privacy**:
 
 - **Remove from this server** takes a Discord user ID, deletes what the bridge brought from that user and stops bringing theirs. In Discord, turn on Developer Mode, right-click the user and choose **Copy User ID**. If the page closes before the removal ends, the gateway finishes it; a **Restore** stops it, except for an erase the member asked for themselves.
-- The list shows who is left out and why: **Opted out on Discord**, or removed by a manager or an instance admin. **Restore** lifts a removal made here; a member's own opt-out is theirs to undo, and a member who opted out as well stays opted out. Opting in on Discord does not lift a removal made here.
+- The list shows who is left out and why: **Opted out on Discord**, or removed by a manager or an instance admin. **Restore** lifts a removal made here, from then on: history import leaves out what the member wrote before. A member's own opt-out is theirs to undo, and a member who opted out as well stays opted out. Opting in on Discord does not lift a removal made here.
 - **Remove all bridged messages** deletes everything this server's bridge brought from Discord. Messages written on Harmony stay. When rows stay locked by other work, the page says how many it removed and that some remain; run it again.
 
 A message that is the first message of a thread is kept as an empty, deleted message so that the thread and other people's replies stay; its text, files and author are gone, and the thread is renamed **Thread**, whoever started it, since Discord titles a thread with the first words of its message. Notifications that quoted the removed messages are deleted too. A thread an opted-out member starts on Discord arrives named **Thread**, without their name. Removal cannot be undone.
@@ -327,18 +327,21 @@ The invite links and **Add to Discord** request these Discord permissions:
 | Manage Messages | Deleting a Discord member's message that was deleted on Harmony |
 | Create Public Threads | Starting the Discord side of a Harmony thread |
 | Send Messages in Threads | Posting into bridged threads |
+| Pin Messages | Pinning the notice that a channel's history is being imported. Your own bot only |
 | Use External Emojis | Instance bot only |
 
 | Bot | Permission integer |
 |---|---|
-| Your own bot (run yourself, or on the instance) | `309774642240` |
+| Your own bot (run yourself, or on the instance) | `2252109588327488` |
 | The instance's bot | `309774904384` |
 
 Both invites use the scopes `bot` and `applications.commands`. To build the invite for your own bot by hand, replace `APPLICATION_ID` with the **Application ID** from **General Information**:
 
 ```text
-https://discord.com/oauth2/authorize?client_id=APPLICATION_ID&permissions=309774642240&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=APPLICATION_ID&permissions=2252109588327488&scope=bot+applications.commands
 ```
+
+A bot invited before Harmony 1.9.7 lacks Pin Messages: its history import notice stays unpinned until you invite it again with this link.
 
 In Discord, a channel's own permission settings can take these away again. The bridge page lists each channel where the bot cannot see, post or manage webhooks, with the fix.
 

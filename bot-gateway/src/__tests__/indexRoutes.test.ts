@@ -127,6 +127,28 @@ describe('GET /bridged-users', () => {
     expect(res.status).toBe(200)
     expect(JSON.stringify(res.body.users)).not.toContain('discord_admin')
   })
+
+  it('leaves out a member who opted out or whom a manager removed, whatever the bridge registered', async () => {
+    const KEPT = '400000000000000001'
+    const REMOVED = '400000000000000002'
+    const byChannel = (gateway as any).bridgedUsersByChannel as Map<string, any[]>
+    byChannel.set(GENERAL, [KEPT, REMOVED].map((id) => ({ id, username: `u${id}`, displayName: `u${id}`, source: 'discord' })))
+    state.db.rows('bridge_remote_optouts').push(
+      { server_id: SERVER_ID, platform: 'discord', remote_user_id: REMOVED, source: 'manager' },
+      { server_id: 'another-server', platform: 'discord', remote_user_id: KEPT, source: 'self' },
+    )
+    try {
+      const channel = await supertest(app).get(`/bridged-users/${GENERAL}`).set('Authorization', 'Bearer auth-member')
+      expect(channel.status).toBe(200)
+      expect(channel.body.has_bridge).toBe(true)
+      expect(channel.body.users.map((u: { id: string }) => u.id)).toEqual([KEPT])
+      const server = await supertest(app).get(`/bridged-users/server/${SERVER_ID}`).set('Authorization', 'Bearer auth-member')
+      expect(server.status).toBe(200)
+      expect(server.body.users.map((u: { id: string }) => u.id)).toEqual([KEPT])
+    } finally {
+      state.db.tables.bridge_remote_optouts = []
+    }
+  })
 })
 
 describe('POST /attachments/refresh', () => {

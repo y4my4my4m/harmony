@@ -537,6 +537,63 @@ describe('POST /channels/:id/messages file parts', () => {
     expect(res.status).toBe(422)
     expect(res.body.code).toBe('STICKER_REFUSED')
   })
+
+  const PARENT_ID = '00000000-0000-0000-0000-0000000000f2'
+  const SENT = { data: [{ id: 'm1', channel_id: CHANNEL_ID, content: [], bot_id: BOT_ID }], error: null }
+  const OUT_OF_SCOPE = {
+    data: null,
+    error: { code: '23514', message: 'REPLY_OUT_OF_SCOPE: a reply names a message in the same channel or conversation' },
+  }
+
+  /** messages: an insert naming a reply is refused; the parent lookup answers `parent`. */
+  function routeReplies(parent: Result): Array<{ reply_to: unknown }> {
+    routeTables({ ...STICKER_FIXTURES, messages: { data: null, error: null } })
+    const route = mocks.from.getMockImplementation()!
+    const inserts: Array<{ reply_to: unknown }> = []
+    mocks.from.mockImplementation((table: string) => {
+      if (table !== 'messages') return route(table)
+      let result: Result = parent
+      const builder: any = new Proxy(
+        {
+          insert: (row: { reply_to: unknown }) => {
+            inserts.push(row)
+            result = row.reply_to ? OUT_OF_SCOPE : SENT
+            return builder
+          },
+          maybeSingle: async () => result,
+          then: (resolve: any) => resolve(result),
+        },
+        { get: (target, prop) => (prop in target ? (target as any)[prop] : () => builder) },
+      )
+      return builder
+    })
+    return inserts
+  }
+
+  it('sends a reply to a message that no longer exists without the reply', async () => {
+    const inserts = routeReplies({ data: null, error: null })
+    routeRpc({})
+
+    const res = await supertest(makeApp())
+      .post(`/api/v1/channels/${CHANNEL_ID}/messages`)
+      .send({ content: [{ type: 'text', text: 'answering an erased message' }], reply_to: PARENT_ID })
+
+    expect(res.status).toBe(201)
+    expect(inserts.map((row) => row.reply_to)).toEqual([PARENT_ID, null])
+  })
+
+  it('answers 400 REPLY_OUT_OF_SCOPE for a reply to a message of another channel', async () => {
+    const inserts = routeReplies({ data: { id: PARENT_ID }, error: null })
+    routeRpc({})
+
+    const res = await supertest(makeApp())
+      .post(`/api/v1/channels/${CHANNEL_ID}/messages`)
+      .send({ content: [{ type: 'text', text: 'answering elsewhere' }], reply_to: PARENT_ID })
+
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('REPLY_OUT_OF_SCOPE')
+    expect(inserts).toHaveLength(1)
+  })
 })
 
 describe('reactionMetadata', () => {

@@ -189,7 +189,7 @@ Edits and silent content patches apply the same check.
 |---|---|---|
 | `content` | string or array | A string becomes one `text` part. An array is the message's [parts](#message-parts). |
 | `embeds` | object[] | Each object is appended as an `embed` part and kept only if it is a valid one. |
-| `reply_to` | UUID | Message this one replies to. |
+| `reply_to` | UUID | Message this one replies to, in this channel. A message that no longer exists is not an error: the message is sent without the reply. |
 | `thread_id` | UUID | Post in this thread of the channel. |
 | `metadata` | object | Stored with the message; see below. |
 
@@ -214,6 +214,7 @@ Returns `201` with the [message object](#message-object). The instance then fetc
 |---|---|---|
 | `400` | `Cannot send an empty message` | No part is left after the checks above. |
 | `400` | `thread_id is not a thread of this channel` | |
+| `400` | `reply_to names a message in another channel` | `code` is `REPLY_OUT_OF_SCOPE`. |
 | `403` | `Thread is locked` | |
 | `403` | `Blocked by the server's AutoMod` | `code` is `AUTOMOD_BLOCKED`. |
 | `400` | `Message text exceeds the instance limit of …` | Text over the length limit. |
