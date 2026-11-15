@@ -175,6 +175,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **Public NeoDB posts appear on imported profiles.** Posts fetched from an account's outbox
+  now use the same visibility rules as incoming federation activities, recognizing NeoDB's
+  compact `as:Public` audience instead of treating public posts as direct messages.
 - **A Discord reply to a message that is gone arrives without the reply.** A reply relayed
   from Discord to a message erased or purged on Harmony was dropped (`500`); it is now sent
   without the reply link, as Discord shows it. A bot naming a message of another channel gets

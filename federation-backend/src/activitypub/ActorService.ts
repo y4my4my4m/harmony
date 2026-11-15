@@ -7,7 +7,7 @@ import { misskeyDisplayNameEmojis } from '../utils/misskeyEmojis.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
-import { ActivityProcessor } from './ActivityProcessor.js';
+import { ActivityProcessor, determineVisibility } from './ActivityProcessor.js';
 import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
 import { cache } from '../utils/cache.js';
@@ -3068,18 +3068,7 @@ async function importOutboxItem(
     // noteToContent resolves mentions, hashtags, emoji and attachments.
     const content = noteToContent(note);
 
-    let visibility = 'public';
-    const to = note.to || [];
-    const cc = note.cc || [];
-    const allRecipients = [...to, ...cc];
-
-    if (allRecipients.includes('https://www.w3.org/ns/activitystreams#Public')) {
-      visibility = to.includes('https://www.w3.org/ns/activitystreams#Public') ? 'public' : 'unlisted';
-    } else if (allRecipients.some((r: string) => r.endsWith('/followers'))) {
-      visibility = 'followers';
-    } else {
-      visibility = 'direct';
-    }
+    const visibility = determineVisibility(note);
 
     const mediaAttachments = extractMediaAttachments(note.attachment);
 
