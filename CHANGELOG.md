@@ -189,8 +189,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   direct message became an unlisted post on the sender's profile. A message to an
   account whose name begins with "followers" was taken for a followers-only post and shown to
   the sender's followers. A followers-only post sent to a personal inbox was refused when its
-  followers address and the stored one differed by a trailing slash. Recipients written as link
-  objects were not read. The followers collection is now the one the author's profile declares.
+  followers address and the stored one differed by a trailing slash. Recipients written as
+  objects were not read; they are now read by their `id`, as Mastodon, Misskey and Pleroma read
+  them. The followers collection is now the one the author's profile declares, else
+  `<actor>/followers`, as on Misskey.
 - **A post addressed to nobody is private.** A fetched post, reply or boosted original that
   names no audience was stored as unlisted, readable by every account here and shown on public
   profile pages; it is now direct, as on Mastodon. A direct message naming no account here is

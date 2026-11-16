@@ -3,7 +3,7 @@ import express from 'express'
 
 // A personal inbox accepts an activity addressed to its user, publicly, through a mention, or to
 // the followers of an actor the user follows. Addressing is read through audience.ts: one value or
-// an array, link objects, compact `as:Public`, and the embedded object's own `to` and `cc`.
+// an array, objects by id, compact `as:Public`, and the embedded object's own `to` and `cc`.
 
 const config = vi.hoisted(() => ({
   INSTANCE_DOMAIN: 'harmony.test',
@@ -111,8 +111,8 @@ describe('personal inbox addressing', () => {
     expect(processed).toHaveLength(1)
   })
 
-  it('accepts the user named by a link object', async () => {
-    expect((await deliver(create({ to: { type: 'Link', href: BOB } }))).status).toBe(202)
+  it('accepts the user named by an object with an id', async () => {
+    expect((await deliver(create({ to: { type: 'Person', id: BOB } }))).status).toBe(202)
     expect(processed).toHaveLength(1)
   })
 

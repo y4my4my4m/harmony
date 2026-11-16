@@ -2,13 +2,16 @@
  * Addressing of incoming ActivityPub objects: `to` and `cc` read once, the same way everywhere.
  *
  * An audience property is one value or an array (AS2 functional vs. non-functional compaction).
- * Each entry is an IRI string, or an Object or Link carrying `id` or `href`. JSON-LD compaction
- * writes the Public collection as `as:Public` or `Public`; it is expanded to AS_PUBLIC here.
+ * Each entry is an IRI string or an object read by its `id`, as Mastodon JsonLdHelper#value_or_id,
+ * Misskey getApId and Pleroma ObjectValidators.ObjectID read it; none of them reads a Link's
+ * `href` there. JSON-LD compaction writes the Public collection as `as:Public` or `Public`; it is
+ * expanded to AS_PUBLIC here, as Mastodon TagManager#public_collection? accepts all three.
  *
- * Visibility mirrors Mastodon ActivityPub::Activity::Create#visibility_from_audience: Public in
- * `to` is public, in `cc` unlisted; the author's followers collection is followers-only; anything
- * else, an object addressed to nobody included, is direct. Deviation: the followers collection
- * may sit in `cc` as well as `to`.
+ * Visibility mirrors Mastodon ActivityPub::Parser::StatusParser#visibility: Public in `to` is
+ * public, in `cc` unlisted; the author's followers collection is followers-only; anything else,
+ * an object addressed to nobody included, is direct. The followers collection is the one the
+ * actor declares, else `<actor>/followers`, and counts in `to` or `cc`: Misskey
+ * ApAudienceService#isFollowers. Mastodon and GoToSocial read it in `to` only.
  */
 
 export const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
@@ -28,13 +31,8 @@ export interface AudienceAuthor {
   followersUrl?: string | null;
 }
 
-/** A Link or Mention addresses its `href`; any other object its `id`. */
 function addressOf(entry: unknown): string | null {
-  let value: unknown = entry;
-  if (entry && typeof entry === 'object') {
-    const { type, id, href } = entry as { type?: unknown; id?: unknown; href?: unknown };
-    value = type === 'Link' || type === 'Mention' ? (href ?? id) : (id ?? href);
-  }
+  const value = entry && typeof entry === 'object' ? (entry as { id?: unknown }).id : entry;
   if (typeof value !== 'string' || value === '') return null;
   return value === 'as:Public' || value === 'Public' ? AS_PUBLIC : value;
 }
@@ -93,34 +91,26 @@ function urlOf(value: string | null | undefined): URL | null {
 const isWeb = (url: URL | null): url is URL => url?.protocol === 'https:' || url?.protocol === 'http:';
 
 /**
- * The author's followers test, with the author parsed once for a whole recipient list. A stored
- * followers value that is no http(s) IRI counts as unknown.
+ * The author's followers collection as a comparison key: the stored `followers` IRI, else
+ * `<actor>/followers`; null when neither is an http(s) IRI.
  */
-function followersTest(author: AudienceAuthor): (address: string) => boolean {
-  const declaredUrl = urlOf(author.followersUrl);
-  if (isWeb(declaredUrl)) {
-    const declared = addressKey(declaredUrl.href);
-    // Parsed only when the declared path occurs in it.
-    const path = declaredUrl.pathname.replace(/\/$/, '').toLowerCase();
-    return (address) => address.toLowerCase().includes(path) && addressKey(address) === declared;
-  }
+function followersKey(author: AudienceAuthor): string | null {
+  const declared = urlOf(author.followersUrl);
+  if (isWeb(declared)) return addressKey(declared.href);
   const actor = urlOf(author.actorUrl);
-  const authorHost = isWeb(actor) ? actor.host.toLowerCase() : null;
-  return (address) => {
-    if (!address.includes('followers')) return false;
-    const url = urlOf(address);
-    if (!isWeb(url)) return false;
-    if (!url.pathname.split('/').includes('followers')) return false;
-    return !author.actorUrl || (authorHost !== null && url.host.toLowerCase() === authorHost);
-  };
+  return isWeb(actor) ? `${addressKey(actor.href)}/followers` : null;
 }
 
-/**
- * True when `address` is the author's followers collection. The stored `followers` IRI decides
- * when known. Otherwise an http(s) IRI with a path segment `followers`, on the author's host when
- * the author is known: `/users/a/followers` (Mastodon, Misskey), `/followers/a` (Friendica),
- * `.../users/1/followers` (WordPress), not `/users/followers_club`.
- */
+/** The author's followers test, with the author parsed once for a whole recipient list. */
+function followersTest(author: AudienceAuthor): (address: string) => boolean {
+  const key = followersKey(author);
+  if (key === null) return () => false;
+  // Parsed only when the collection's path occurs in it.
+  const path = new URL(key).pathname.toLowerCase();
+  return (address) => address.toLowerCase().includes(path) && addressKey(address) === key;
+}
+
+/** True when `address` is the author's followers collection (see followersKey). */
 export function isFollowersAddress(address: string, author: AudienceAuthor = {}): boolean {
   return followersTest(author)(address);
 }

@@ -246,11 +246,11 @@ describe('outbox import', () => {
     expect(storedApIds()).toEqual([note(2).id])
   })
 
-  it('reads a followers path on the author host when the author declares none', async () => {
+  it('reads <actor>/followers when the author declares none, as Misskey', async () => {
     tables.profiles[0].followers_url = null
     serveOutbox([
-      { ...note(1), to: [`${HOST}/followers/alice`], cc: [] },
-      { ...note(2), to: ['https://remote.test/users/alice/followers'], cc: [] },
+      { ...note(1), to: [`${ACTOR}/followers`], cc: [] },
+      { ...note(2), to: [`${HOST}/followers/alice`], cc: [] },
     ])
 
     await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase)

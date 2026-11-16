@@ -70,12 +70,13 @@ describe('determineVisibility (ActivityPub audience targeting)', () => {
 
   describe('followers-only posts', () => {
     it('detects followers-only when only followers collection is addressed', () => {
-      const note = { to: [FOLLOWERS], cc: [] }
+      const note = { attributedTo: 'https://mastodon.social/users/alice', to: [FOLLOWERS], cc: [] }
       expect(determineVisibility(note)).toBe('followers')
     })
 
     it('detects followers-only with multiple follower collections', () => {
       const note = {
+        attributedTo: 'https://mastodon.social/users/alice',
         to: [FOLLOWERS, 'https://other.server/users/bob/followers'],
         cc: [],
       }
@@ -137,6 +138,7 @@ describe('determineVisibility (ActivityPub audience targeting)', () => {
 
     it('Misskey-style addressing with user groups', () => {
       const note = {
+        attributedTo: 'https://misskey.io/users/alice',
         to: ['https://misskey.io/users/alice/followers'],
         cc: [],
       }

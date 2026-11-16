@@ -237,9 +237,9 @@ export async function caseApInbound(ctx: ApInboundContext): Promise<void> {
 
       const dm = `${peer.base}/notes/create-dm-${crypto.randomUUID()}`
       eq((await deliver({
-        id: `${dm}/activity`, type: 'Create', actor: peer.actorUrl, to: [{ type: 'Link', href: target }], cc: [],
+        id: `${dm}/activity`, type: 'Create', actor: peer.actorUrl, to: [{ type: 'Person', id: target }], cc: [],
         object: bare(dm, 'create-addressed dm'),
-      }, asPeer)).status, 202, 'a Create addressed to a local user by a link object, its Note to nobody, is accepted')
+      }, asPeer)).status, 202, 'a Create addressed to a local user as an object with an id, its Note to nobody, is accepted')
       eq(await postByApId(dm), null, 'it is no post')
       eq((await messagesOf(dm)).length, 1, 'it is a direct message')
 

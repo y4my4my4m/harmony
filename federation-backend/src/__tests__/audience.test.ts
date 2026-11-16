@@ -17,9 +17,9 @@ const ALICE = 'https://mastodon.test/users/alice'
 const FOLLOWERS = `${ALICE}/followers`
 
 describe('addresses', () => {
-  it('reads one value or an array, IRIs or link objects, in order and once each', () => {
+  it('reads one value or an array, IRIs or objects by id, in order and once each', () => {
     expect(addresses(ALICE)).toEqual([ALICE])
-    expect(addresses([ALICE, { id: FOLLOWERS }, { type: 'Link', href: 'https://x.test/u/b' }, ALICE]))
+    expect(addresses([ALICE, { id: FOLLOWERS, type: 'Collection' }, 'https://x.test/u/b', ALICE]))
       .toEqual([ALICE, FOLLOWERS, 'https://x.test/u/b'])
   })
 
@@ -29,9 +29,10 @@ describe('addresses', () => {
     expect(addresses(many, 10)).toEqual(many.slice(0, 10))
   })
 
-  it('reads the href of a Link or Mention, the id of anything else', () => {
-    expect(addresses([{ type: 'Link', id: 'https://x.test/link/1', href: ALICE }])).toEqual([ALICE])
-    expect(addresses([{ type: 'Mention', href: ALICE }])).toEqual([ALICE])
+  it('reads an object by its id and never a Link href, as Mastodon, Misskey and Pleroma', () => {
+    expect(addresses([{ type: 'Link', href: ALICE }])).toEqual([])
+    expect(addresses([{ type: 'Mention', href: ALICE }])).toEqual([])
+    expect(addresses([{ type: 'Link', id: 'https://x.test/link/1', href: ALICE }])).toEqual(['https://x.test/link/1'])
     expect(addresses([{ type: 'Person', id: ALICE, href: 'https://x.test/profile' }])).toEqual([ALICE])
   })
 
@@ -73,16 +74,17 @@ describe('isFollowersAddress', () => {
     expect(isFollowersAddress('https://other.test/users/alice/followers', stored)).toBe(false)
   })
 
-  it('is a path segment `followers` on the author host otherwise', () => {
+  it('is <actor>/followers when none is declared, as Misskey, and nothing without an author', () => {
     expect(isFollowersAddress(FOLLOWERS, { actorUrl: ALICE })).toBe(true)
-    expect(isFollowersAddress('https://mastodon.test/followers/alice', { actorUrl: ALICE })).toBe(true)
-    expect(isFollowersAddress('https://other.test/users/alice/followers', { actorUrl: ALICE })).toBe(false)
+    expect(isFollowersAddress(`${FOLLOWERS}/`, { actorUrl: `${ALICE}/` })).toBe(true)
+    expect(isFollowersAddress('https://mastodon.test/followers/alice', { actorUrl: ALICE })).toBe(false)
+    expect(isFollowersAddress('https://mastodon.test/users/bob/followers', { actorUrl: ALICE })).toBe(false)
     expect(isFollowersAddress('https://mastodon.test/users/followers_club', { actorUrl: ALICE })).toBe(false)
-    expect(isFollowersAddress('https://wp.test/wp-json/activitypub/1.0/users/1/followers')).toBe(true)
-    expect(isFollowersAddress('not a url')).toBe(false)
-    expect(isFollowersAddress('urn:x:followers')).toBe(false)
-    expect(isFollowersAddress('https://mastodon.test/users/alice/followers', { actorUrl: 'urn:x:alice' })).toBe(false)
+    expect(isFollowersAddress(FOLLOWERS)).toBe(false)
+    expect(isFollowersAddress(FOLLOWERS, { actorUrl: 'urn:x:alice' })).toBe(false)
+    expect(isFollowersAddress('not a url', { actorUrl: ALICE })).toBe(false)
   })
+
 })
 
 describe('visibilityOf', () => {
