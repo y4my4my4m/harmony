@@ -3,6 +3,8 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![CI](https://github.com/y4my4my4m/harmony/actions/workflows/ci.yml/badge.svg)](https://github.com/y4my4my4m/harmony/actions/workflows/ci.yml)
 
+[![Join Harmony's Town Hall](https://har.mony.lol/api/federation/widget/invite/TYJE4E94/badge.svg)](https://har.mony.lol/invite/TYJE4E94)
+
 Harmony is a federated social app: Discord-style servers and chat with ActivityPub, built on Vue 3 and Supabase.
 
 - **Project home:** <https://mony.lol>
