@@ -178,6 +178,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Public NeoDB posts appear on imported profiles.** Posts fetched from an account's outbox
   now use the same visibility rules as incoming federation activities, recognizing NeoDB's
   compact `as:Public` audience instead of treating public posts as direct messages.
+  (#214, ZaneH)
+- **Who a federated post is for is read one way everywhere.** A post whose audience was stated
+  on its Create activity alone lost it: followers-only and public posts became unlisted, and a
+  direct message became an unlisted post on the sender's profile. A message to an
+  account whose name begins with "followers" was taken for a followers-only post and shown to
+  the sender's followers. A followers-only post sent to a personal inbox was refused when its
+  followers address and the stored one differed by a trailing slash. Recipients written as link
+  objects were not read. The followers collection is now the one the author's profile declares.
 - **A Discord reply to a message that is gone arrives without the reply.** A reply relayed
   from Discord to a message erased or purged on Harmony was dropped (`500`); it is now sent
   without the reply link, as Discord shows it. A bot naming a message of another channel gets

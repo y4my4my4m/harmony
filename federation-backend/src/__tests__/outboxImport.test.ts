@@ -161,7 +161,7 @@ const supabase = fakeSupabase()
 beforeEach(() => {
   served.clear()
   fetchedUrls.length = 0
-  tables = { posts: [], profiles: [{ id: AUTHOR_ID, federated_id: ACTOR, outbox_url: OUTBOX, is_local: false }] }
+  tables = { posts: [], profiles: [{ id: AUTHOR_ID, federated_id: ACTOR, outbox_url: OUTBOX, followers_url: `${ACTOR}/followers`, is_local: false }] }
   nextId = 1
   processor.fetchAndCreateRemotePost.mockReset()
   processor.storeRemotePost.mockReset()
@@ -210,6 +210,32 @@ describe('outbox import', () => {
 
     expect(tables.posts).toHaveLength(1)
     expect(tables.posts[0].visibility).toBe(visibility)
+  })
+
+  it.each([
+    [{ to: [`${ACTOR}/followers`], cc: [] }, 'followers'],
+    [{ to: ['https://www.w3.org/ns/activitystreams#Public'], cc: [`${ACTOR}/followers`] }, 'public'],
+  ])('reads a Create addressed %j whose object states no audience as %s', async (audience, visibility) => {
+    const { to: _to, cc: _cc, ...bare } = note(1)
+    serveOutbox([{ ...create(1), ...audience, object: bare }])
+
+    await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase)
+
+    expect(tables.posts[0]?.visibility).toBe(visibility)
+  })
+
+  it('judges the followers collection by the one the author declares', async () => {
+    tables.profiles[0].followers_url = `${HOST}/followers/alice`
+    serveOutbox([
+      { ...note(1), to: [`${HOST}/followers/alice`], cc: [] },
+      { ...note(2), to: ['https://remote.test/users/followers_club'], cc: [] },
+      { ...note(3), to: ['https://remote.test/users/bob/followers'], cc: [] },
+    ])
+
+    await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase)
+
+    const byId = Object.fromEntries(tables.posts.map((p) => [p.ap_id, p.visibility]))
+    expect(byId).toEqual({ [note(1).id]: 'followers', [note(2).id]: 'direct', [note(3).id]: 'direct' })
   })
 
   it('imports every item of 20-item pages, page after page', async () => {

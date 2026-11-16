@@ -46,6 +46,7 @@ import {
   pinsTargetChannel,
 } from './copyMirror.js';
 import { hostFlagsOf } from './channelFlags.js';
+import { audienceOf, authorActorUrl, recipientsOf, visibilityOf } from './audience.js';
 import { CopyMirrorService } from '../services/CopyMirrorService.js';
 import {
   authorizeChannelWrite,
@@ -77,28 +78,17 @@ export function extractMessageId(url: string): string | null {
 }
 
 /**
- * Determine post visibility from ActivityPub 'to' and 'cc' fields.
- * Exported for direct testing.
+ * Visibility of an incoming post object (audience.ts). `activity` supplies the `to` and `cc` the
+ * object does not state; `followersUrl` is the author's stored followers collection.
  */
-export function determineVisibility(object: any): string {
-  const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
-  const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean);
-
-  // JSON-LD compaction yields `as:Public` or `Public` for the same IRI.
-  const isPublic = (v: unknown) =>
-    v === 'https://www.w3.org/ns/activitystreams#Public' || v === 'as:Public' || v === 'Public';
-
-  if (to.some(isPublic)) return 'public';
-  if (cc.some(isPublic)) return 'unlisted';
-
-  const allRecipients = [...to, ...cc];
-  const hasFollowersCollection = allRecipients.some(
-    (url: any) => typeof url === 'string' && url.includes('/followers')
-  );
-
-  if (!hasFollowersCollection && allRecipients.length > 0) return 'direct';
-  if (hasFollowersCollection) return 'followers';
-  return 'unlisted';
+export function determineVisibility(
+  object: any,
+  context: { activity?: any; followersUrl?: string | null } = {},
+): string {
+  return visibilityOf(audienceOf(object, context.activity), {
+    actorUrl: authorActorUrl(object, context.activity),
+    followersUrl: context.followersUrl,
+  });
 }
 
 /**
@@ -107,13 +97,15 @@ export function determineVisibility(object: any): string {
  * instance domain's URL pattern (covers local users whose federated_id was
  * never set).
  */
-async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string } | null> {
+async function resolveProfileByActorUrl(
+  actorUrl: string,
+): Promise<{ id: string; followers_url?: string | null } | null> {
   const supabase = getSupabaseClient();
 
   // 1) Direct federated_id lookup
   const { data: byFedId } = await supabase
     .from('profiles')
-    .select('id')
+    .select('id, followers_url')
     .eq('federated_id', actorUrl)
     .maybeSingle();
   if (byFedId) return byFedId;
@@ -727,7 +719,7 @@ export class ActivityProcessor {
         logger.warn(`Create rejected: poll ${object.id} is not on the host of actor ${normalizeActor(activity.actor)}`);
         return;
       }
-      if (this.determineVisibility(object) === 'direct' && object['harmony:serverId'] === undefined) {
+      if (this.determineVisibility(object, { activity }) === 'direct' && object['harmony:serverId'] === undefined) {
         await this.ensureRemoteUser(normalizeActor(activity.actor));
         const author = await resolveProfileByActorUrl(normalizeActor(activity.actor));
         if (!author) {
@@ -804,7 +796,7 @@ export class ActivityProcessor {
       
       const content = rawContent;
 
-      const visibility = this.determineVisibility(object);
+      const visibility = this.determineVisibility(object, { activity, followersUrl: author.followers_url });
 
       // Group invite notification, sent when a remote user is added to a group.
       if (object.metadata?.type === 'group_invite') {
@@ -1388,7 +1380,7 @@ export class ActivityProcessor {
 
       const { data: author } = await supabase
         .from('profiles')
-        .select('id, is_suspended')
+        .select('id, is_suspended, followers_url')
         .eq('federated_id', authorUrl)
         .single();
 
@@ -1402,7 +1394,7 @@ export class ActivityProcessor {
       }
 
       const content = noteToContent(remoteObject);
-      const visibility = this.determineVisibility(remoteObject);
+      const visibility = this.determineVisibility(remoteObject, { followersUrl: author.followers_url });
 
       // Walk the reply chain so the imported post lands with `in_reply_to`
       // and `conversation_root_id` set, and missing ancestors are imported
@@ -2818,7 +2810,7 @@ export class ActivityProcessor {
 
     const { data: author } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, followers_url')
       .eq('federated_id', normalizeActor(activity.actor))
       .single();
 
@@ -2828,7 +2820,7 @@ export class ActivityProcessor {
     }
 
     const content = noteToContent(object);
-    const visibility = this.determineVisibility(object);
+    const visibility = this.determineVisibility(object, { activity, followersUrl: author.followers_url });
     const context = noteContext(object);
     const audience = relayAudience ?? noteAudience(object) ?? noteAudience(activity);
 
@@ -4372,7 +4364,7 @@ export class ActivityProcessor {
     // Channel messages travel in Harmony relays, direct posts to their recipients only.
     const object = activity.type === 'Delete' ? null : asNoteObject(activity.object);
     if (object && isPostObjectType(object.type)
-        && (object['harmony:serverId'] || ['direct', 'private'].includes(this.determineVisibility(object)))) {
+        && (object['harmony:serverId'] || ['direct', 'private'].includes(this.determineVisibility(object, { activity })))) {
       logDenied('Group Announce', groupUrl, `${object.id} is a channel message or a direct post`);
       return;
     }
@@ -4656,14 +4648,10 @@ export class ActivityProcessor {
   ): Promise<void> {
     const supabase = getSupabaseClient();
     
-    const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
-    const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean);
-    const allRecipients = [...to, ...cc];
+    const allRecipients = recipientsOf(audienceOf(object, activity));
     
     const resolveResults = await Promise.allSettled(
-      allRecipients
-        .filter((url): url is string => typeof url === 'string')
-        .map(url => resolveProfileByActorUrl(url))
+      allRecipients.map(url => resolveProfileByActorUrl(url))
     );
     const recipientIds = resolveResults
       .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value != null)
@@ -4788,10 +4776,9 @@ export class ActivityProcessor {
   ): Promise<void> {
     const supabase = getSupabaseClient();
 
-    const to: unknown[] = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
+    const { to } = audienceOf(object, activity);
     const resolveResults = await Promise.allSettled(
-      to.filter((url): url is string => typeof url === 'string')
-        .map(url => resolveProfileByActorUrl(url))
+      to.map(url => resolveProfileByActorUrl(url))
     );
     const recipientIds = resolveResults
       .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value != null)
@@ -5031,8 +5018,11 @@ export class ActivityProcessor {
   /**
    * Delegates to the module-level `determineVisibility`.
    */
-  private static determineVisibility(object: any): string {
-    return determineVisibility(object);
+  private static determineVisibility(
+    object: any,
+    context: { activity?: any; followersUrl?: string | null } = {},
+  ): string {
+    return determineVisibility(object, context);
   }
 }
 

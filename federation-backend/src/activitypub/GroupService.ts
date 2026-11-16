@@ -41,6 +41,7 @@ import { groupDiscoverability, instanceFederationOpen } from './serverDirectory.
 import { channelMessageActivity, messageObjectId, withParentObjectIds } from './channelMessageActivity.js';
 import { withMessagePolls } from './messagePolls.js';
 import { groupAuthorOf } from './groupAuthor.js';
+import { addresses } from './audience.js';
 import {
   emojisToAp,
   HARMONY_CROSS_SERVER_EMOJIS,
@@ -1120,8 +1121,8 @@ router.post(
         p_actor_ap_id: actorUrl,
         p_activity_data: activity,
         p_origin_domain: originDomain,
-        p_to_addresses: Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean),
-        p_cc_addresses: Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean),
+        p_to_addresses: addresses(activity.to),
+        p_cc_addresses: addresses(activity.cc),
         p_is_local: false,
       });
       if (storeError) {

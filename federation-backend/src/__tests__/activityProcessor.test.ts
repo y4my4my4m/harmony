@@ -128,6 +128,15 @@ describe('determineVisibility (ActivityPub audience targeting)', () => {
       expect(determineVisibility(note)).toBe('public')
     })
 
+    it('reads the activity addressing an object does not state, and the stored followers IRI', () => {
+      const activity = { actor: 'https://mastodon.social/users/alice', to: [FOLLOWERS] }
+      expect(determineVisibility({ attributedTo: activity.actor }, { activity })).toBe('followers')
+      expect(determineVisibility({ to: ['https://mastodon.social/users/followers_club'] })).toBe('direct')
+      expect(determineVisibility({ to: ['https://mastodon.social/@alice/followers'] }, {
+        followersUrl: FOLLOWERS,
+      })).toBe('direct')
+    })
+
     it('Misskey-style addressing with user groups', () => {
       const note = {
         to: ['https://misskey.io/users/alice/followers'],

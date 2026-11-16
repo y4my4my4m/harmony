@@ -213,6 +213,28 @@ export async function caseApInbound(ctx: ApInboundContext): Promise<void> {
       eq(mappedRow?.language, 'ja', 'in its contentMap language')
     }
 
+    console.log('\ninbound conformance -> an audience stated on the Create alone')
+    {
+      const { data: bob } = await db.from('profiles').select('federated_id').eq('username', 'fx_bob').eq('is_local', true).single()
+      const bare = (id: string, text: string) => ({
+        id, type: 'Note', attributedTo: peer.actorUrl, content: `<p>${text}</p>`, published: new Date().toISOString(),
+      })
+      const dm = `${peer.base}/notes/create-dm-${crypto.randomUUID()}`
+      eq((await deliver({
+        id: `${dm}/activity`, type: 'Create', actor: peer.actorUrl, to: [bob!.federated_id], cc: [], object: bare(dm, 'create-addressed dm'),
+      }, asPeer)).status, 202, 'a Create addressed to a local user, its Note addressed to nobody, is accepted')
+      eq(await postByApId(dm), null, 'it is no post')
+      const { data: dmRows } = await db.from('messages').select('user_id').contains('metadata', { ap_id: dm })
+      eq(dmRows?.length, 1, 'it is a direct message')
+
+      const followersOnly = `${peer.base}/notes/create-followers-${crypto.randomUUID()}`
+      await deliver({
+        id: `${followersOnly}/activity`, type: 'Create', actor: peer.actorUrl, to: [`${peer.actorUrl}/followers`], cc: [],
+        object: bare(followersOnly, 'create-addressed followers post'),
+      }, asPeer)
+      eq((await postByApId(followersOnly))?.visibility, 'followers', 'a Create addressed to followers keeps that audience')
+    }
+
     console.log('\ninbound conformance -> an actor\'s Delete of itself')
     {
       const asLeaving = { key: origin.keyOf(leaving), actor: leaving }
