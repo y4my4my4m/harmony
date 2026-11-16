@@ -6,13 +6,10 @@
  * writes the Public collection as `as:Public` or `Public`; it is expanded to AS_PUBLIC here.
  *
  * Visibility mirrors Mastodon ActivityPub::Activity::Create#visibility_from_audience: Public in
- * `to` is public, in `cc` unlisted; the author's followers collection is followers-only; any
- * other recipient is direct. Deviations: the followers collection may sit in `cc` as well as
- * `to`; an object addressed to nobody is unlisted (Mastodon: direct), since a direct message
- * without recipients has no conversation to land in.
+ * `to` is public, in `cc` unlisted; the author's followers collection is followers-only; anything
+ * else, an object addressed to nobody included, is direct. Deviation: the followers collection
+ * may sit in `cc` as well as `to`.
  */
-
-import { sameOrigin } from '../utils/apOrigin.js';
 
 export const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
@@ -31,25 +28,30 @@ export interface AudienceAuthor {
   followersUrl?: string | null;
 }
 
+/** A Link or Mention addresses its `href`; any other object its `id`. */
 function addressOf(entry: unknown): string | null {
-  const value = typeof entry === 'string'
-    ? entry
-    : entry && typeof entry === 'object'
-      ? ((entry as { id?: unknown }).id ?? (entry as { href?: unknown }).href)
-      : null;
+  let value: unknown = entry;
+  if (entry && typeof entry === 'object') {
+    const { type, id, href } = entry as { type?: unknown; id?: unknown; href?: unknown };
+    value = type === 'Link' || type === 'Mention' ? (href ?? id) : (id ?? href);
+  }
   if (typeof value !== 'string' || value === '') return null;
   return value === 'as:Public' || value === 'Public' ? AS_PUBLIC : value;
 }
 
-/** One audience property as a list of IRIs, in order, without duplicates. */
-export function addresses(value: unknown): string[] {
+/**
+ * One audience property as a list of IRIs, in order, without duplicates; at most `limit` of
+ * them. Linear: Harmony addresses a channel message to every member on the receiving instance.
+ */
+export function addresses(value: unknown, limit = Infinity): string[] {
   const entries = Array.isArray(value) ? value : [value];
-  const out: string[] = [];
+  const out = new Set<string>();
   for (const entry of entries) {
+    if (out.size >= limit) break;
     const address = addressOf(entry);
-    if (address !== null && !out.includes(address)) out.push(address);
+    if (address !== null) out.add(address);
   }
-  return out;
+  return [...out];
 }
 
 /**
@@ -67,18 +69,50 @@ export function recipientsOf(audience: Audience): string[] {
   return [...new Set([...audience.to, ...audience.cc])];
 }
 
-/** Same IRI, ignoring one trailing slash. */
-export function sameAddress(a: string, b: string): boolean {
-  const strip = (s: string) => (s.endsWith('/') ? s.slice(0, -1) : s);
-  return strip(a) === strip(b);
+/** WHATWG-normalised http(s) IRI without one trailing slash; the string itself otherwise. */
+function addressKey(address: string): string {
+  const url = urlOf(address);
+  const key = url && (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : address;
+  return key.endsWith('/') ? key.slice(0, -1) : key;
 }
 
-function hasFollowersSegment(address: string): boolean {
+/** Same IRI, ignoring host case, a default port and one trailing slash. */
+export function sameAddress(a: string, b: string): boolean {
+  return addressKey(a) === addressKey(b);
+}
+
+function urlOf(value: string | null | undefined): URL | null {
+  if (!value) return null;
   try {
-    return new URL(address).pathname.split('/').includes('followers');
+    return new URL(value);
   } catch {
-    return false;
+    return null;
   }
+}
+
+const isWeb = (url: URL | null): url is URL => url?.protocol === 'https:' || url?.protocol === 'http:';
+
+/**
+ * The author's followers test, with the author parsed once for a whole recipient list. A stored
+ * followers value that is no http(s) IRI counts as unknown.
+ */
+function followersTest(author: AudienceAuthor): (address: string) => boolean {
+  const declaredUrl = urlOf(author.followersUrl);
+  if (isWeb(declaredUrl)) {
+    const declared = addressKey(declaredUrl.href);
+    // Parsed only when the declared path occurs in it.
+    const path = declaredUrl.pathname.replace(/\/$/, '').toLowerCase();
+    return (address) => address.toLowerCase().includes(path) && addressKey(address) === declared;
+  }
+  const actor = urlOf(author.actorUrl);
+  const authorHost = isWeb(actor) ? actor.host.toLowerCase() : null;
+  return (address) => {
+    if (!address.includes('followers')) return false;
+    const url = urlOf(address);
+    if (!isWeb(url)) return false;
+    if (!url.pathname.split('/').includes('followers')) return false;
+    return !author.actorUrl || (authorHost !== null && url.host.toLowerCase() === authorHost);
+  };
 }
 
 /**
@@ -88,23 +122,30 @@ function hasFollowersSegment(address: string): boolean {
  * `.../users/1/followers` (WordPress), not `/users/followers_club`.
  */
 export function isFollowersAddress(address: string, author: AudienceAuthor = {}): boolean {
-  if (author.followersUrl) return sameAddress(address, author.followersUrl);
-  if (!hasFollowersSegment(address)) return false;
-  return !author.actorUrl || sameOrigin(address, author.actorUrl);
+  return followersTest(author)(address);
 }
 
 export function visibilityOf(audience: Audience, author: AudienceAuthor = {}): Visibility {
   if (audience.to.includes(AS_PUBLIC)) return 'public';
   if (audience.cc.includes(AS_PUBLIC)) return 'unlisted';
   const recipients = recipientsOf(audience);
-  if (recipients.some((address) => isFollowersAddress(address, author))) return 'followers';
-  return recipients.length > 0 ? 'direct' : 'unlisted';
+  const isFollowers = followersTest(author);
+  if (recipients.some(isFollowers)) return 'followers';
+  return 'direct';
 }
 
-/** The author's actor IRI as the object or activity names it. */
+const GROUP_TYPES = new Set(['Group', 'Organization', 'Service']);
+
+/**
+ * The author's actor IRI: the first `attributedTo` entry that is not a Group (PeerTube lists the
+ * channel after the account), else the first one, else the activity's actor.
+ */
 export function authorActorUrl(object: any, activity?: any): string | null {
-  const attributed = Array.isArray(object?.attributedTo) ? object.attributedTo[0] : object?.attributedTo;
-  const candidate = attributed ?? activity?.actor;
-  const url = typeof candidate === 'string' ? candidate : candidate?.id;
-  return typeof url === 'string' && url !== '' ? url : null;
+  const idOf = (value: any): string | null => {
+    const url = typeof value === 'string' ? value : value?.id;
+    return typeof url === 'string' && url !== '' ? url : null;
+  };
+  const attributed: any[] = Array.isArray(object?.attributedTo) ? object.attributedTo : [object?.attributedTo];
+  const person = attributed.find((entry) => idOf(entry) && !(entry && GROUP_TYPES.has(entry.type)));
+  return idOf(person) ?? attributed.map(idOf).find(Boolean) ?? idOf(activity?.actor);
 }

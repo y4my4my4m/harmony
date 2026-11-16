@@ -685,6 +685,8 @@ async function caseOutboxAudience(ctx: OutboundContext, docs: Docs) {
     { id: `${actorUrl}posts/2/activity`, type: 'Create', actor: actorUrl, to: [followers], cc: [], object: post(2, {}) },
     { id: `${actorUrl}posts/3/activity`, type: 'Create', actor: actorUrl, to: [PUBLIC], cc: [followers], object: post(3, {}) },
     post(4, { to: [`${peer.base}/users/followers_club`], cc: [] }),
+    // Another actor's followers collection on the same host: not the one this actor declares.
+    post(5, { to: [`${peer.base}/users/other/followers`], cc: [] }),
   ]
   docs.set('/@reader/', { contentType: AP, body: actorDoc(actorUrl, 'reader', { outbox, followers }) })
   docs.set('/@reader/outbox/', {
@@ -700,7 +702,12 @@ async function caseOutboxAudience(ctx: OutboundContext, docs: Docs) {
   })
   if (seeded.error) return ctx.fail('seed reader', seeded.error.message)
 
-  const lookup = await postJson(`${localUrl}/lookup-user`, { handle: `reader@${peerHost}` })
+  // /lookup-user admits 30 requests a minute per client IP, shared with earlier cases.
+  let lookup = await postJson(`${localUrl}/lookup-user`, { handle: `reader@${peerHost}` })
+  for (let attempt = 0; lookup.status === 429 && attempt < 15; attempt++) {
+    await sleep(5000)
+    lookup = await postJson(`${localUrl}/lookup-user`, { handle: `reader@${peerHost}` })
+  }
   ctx.assert(lookup.status === 200 && lookup.json?.backfilling === true,
     'opening the NeoDB profile starts the outbox import', JSON.stringify(lookup.json)?.slice(0, 200))
 
@@ -709,6 +716,7 @@ async function caseOutboxAudience(ctx: OutboundContext, docs: Docs) {
     [`${actorUrl}posts/2/`]: 'followers',
     [`${actorUrl}posts/3/`]: 'public',
     [`${actorUrl}posts/4/`]: 'direct',
+    [`${actorUrl}posts/5/`]: 'direct',
   }
   let stored: Record<string, string> = {}
   for (let i = 0; i < 100; i++) {
@@ -717,8 +725,9 @@ async function caseOutboxAudience(ctx: OutboundContext, docs: Docs) {
     if (Object.keys(stored).length >= items.length) break
     await sleep(200)
   }
-  ctx.eq(JSON.stringify(stored, Object.keys(expected).sort()), JSON.stringify(expected, Object.keys(expected).sort()),
-    'each outbox post is stored with the visibility its audience states')
+  const sorted = (rows: Record<string, string>) => Object.fromEntries(Object.entries(rows).sort(([a], [b]) => a.localeCompare(b)))
+  ctx.eq(JSON.stringify(sorted(stored)), JSON.stringify(sorted(expected)),
+    'each outbox post is stored with the visibility its audience states, and nothing else')
   await db.from('posts').delete().eq('author_id', NEODB_READER)
   await db.from('profiles').delete().eq('id', NEODB_READER)
 }

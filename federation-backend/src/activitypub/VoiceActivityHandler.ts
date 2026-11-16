@@ -211,7 +211,7 @@ export class VoiceActivityHandler {
       return;
     }
 
-    const recipients = addresses(activity.to).slice(0, MAX_CALL_RECIPIENTS);
+    const recipients = addresses(activity.to, MAX_CALL_RECIPIENTS);
     
     for (const recipientUrl of recipients) {
       const { data: recipient } = await supabase
@@ -803,7 +803,7 @@ export class VoiceActivityHandler {
   ): Promise<string[]> {
     const supabase = getSupabaseClient();
     const actorHost = urlHost(activity.actor);
-    const recipients = addresses(activity.to).slice(0, MAX_CALL_RECIPIENTS);
+    const recipients = addresses(activity.to, MAX_CALL_RECIPIENTS);
     const out: string[] = [];
     for (const recipientUrl of recipients) {
       const { data: user } = await supabase

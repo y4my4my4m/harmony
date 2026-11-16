@@ -109,8 +109,12 @@ async function resolveProfileByActorUrl(
     .eq('federated_id', actorUrl)
     .maybeSingle();
   if (byFedId) return byFedId;
+  return resolveLocalProfileByActorUrl(actorUrl);
+}
 
-  // 2) Fallback: if the URL matches the instance domain, extract username
+/** A local user named by `https://<INSTANCE_DOMAIN>/users/<username>`, matched by username. */
+async function resolveLocalProfileByActorUrl(actorUrl: string): Promise<{ id: string } | null> {
+  const supabase = getSupabaseClient();
   const localPattern = new RegExp(
     `^https?://${config.INSTANCE_DOMAIN.replace(/\./g, '\\.')}/users/([^/]+)$`,
     'i'
@@ -149,6 +153,51 @@ async function resolveProfileByActorUrl(
   }
 
   return null;
+}
+
+/**
+ * Addresses resolved per direct message or group invite. Harmony lists every participant of a
+ * group conversation and sets no size limit on one.
+ */
+const MAX_DIRECT_RECIPIENTS = 250;
+
+/** federated_id values per `in` filter: PostgREST reads the list from the request URL. */
+const PROFILE_LOOKUP_CHUNK = 25;
+
+interface Recipient {
+  id: string;
+  local: boolean;
+}
+
+/**
+ * Stored profiles of `actorUrls`, in their order; an address of no stored profile is left out,
+ * as is one that is no http(s) IRI or holds a `"` (postgrest-js quotes `,()` in an `in` list but
+ * does not escape `"`). One query per PROFILE_LOOKUP_CHUNK addresses; only an own-host miss
+ * takes the per-address username fallback.
+ */
+async function resolveRecipients(actorUrls: string[]): Promise<Recipient[]> {
+  const supabase = getSupabaseClient();
+  const urls = actorUrls.filter((url) => urlHost(url) !== null && !url.includes('"'));
+  const byUrl = new Map<string, Recipient>();
+  for (let i = 0; i < urls.length; i += PROFILE_LOOKUP_CHUNK) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, federated_id, is_local')
+      .in('federated_id', urls.slice(i, i + PROFILE_LOOKUP_CHUNK));
+    if (error) logger.warn(`Recipient lookup failed: ${error.message}`);
+    for (const row of data ?? []) byUrl.set(row.federated_id, { id: row.id, local: row.is_local === true });
+  }
+  const ownHost = config.INSTANCE_DOMAIN.toLowerCase();
+  const out: Recipient[] = [];
+  for (const url of urls) {
+    let found = byUrl.get(url);
+    if (!found && urlHost(url) === ownHost) {
+      const local = await resolveLocalProfileByActorUrl(url).catch(() => null);
+      if (local) found = { id: local.id, local: true };
+    }
+    if (found && !out.some((r) => r.id === found!.id)) out.push(found);
+  }
+  return out;
 }
 
 const AP_FETCH_RETRY_DELAY_MS = 750;
@@ -196,14 +245,22 @@ export class ActivityProcessor {
 
   /** True for a suspended account, and for a remote account its own Delete removed. */
   private static async isActorSuspended(actorUrl: string): Promise<boolean> {
+    return (await this.actorStanding(actorUrl)).suspended;
+  }
+
+  /** Whether the stored actor is suspended or deleted, and its declared followers IRI. */
+  private static async actorStanding(actorUrl: string): Promise<{ suspended: boolean; followersUrl: string | null }> {
     const supabase = getSupabaseClient();
     const { data } = await supabase
       .from('profiles')
-      .select('is_suspended, is_local, deleted_at')
+      .select('is_suspended, is_local, deleted_at, followers_url')
       .eq('federated_id', actorUrl)
       .maybeSingle();
 
-    return data?.is_suspended === true || (data?.is_local === false && !!data?.deleted_at);
+    return {
+      suspended: data?.is_suspended === true || (data?.is_local === false && !!data?.deleted_at),
+      followersUrl: data?.followers_url ?? null,
+    };
   }
 
   /**
@@ -719,15 +776,17 @@ export class ActivityProcessor {
         logger.warn(`Create rejected: poll ${object.id} is not on the host of actor ${normalizeActor(activity.actor)}`);
         return;
       }
-      if (this.determineVisibility(object, { activity }) === 'direct' && object['harmony:serverId'] === undefined) {
+      if (object['harmony:serverId'] === undefined) {
         await this.ensureRemoteUser(normalizeActor(activity.actor));
         const author = await resolveProfileByActorUrl(normalizeActor(activity.actor));
-        if (!author) {
-          logger.error('Failed to find author for direct poll');
+        if (this.determineVisibility(object, { activity, followersUrl: author?.followers_url }) === 'direct') {
+          if (!author) {
+            logger.error('Failed to find author for direct poll');
+            return;
+          }
+          await this.handleDirectMessage(object, author.id, noteToContent(object), activity, options);
           return;
         }
-        await this.handleDirectMessage(object, author.id, noteToContent(object), activity, options);
-        return;
       }
       logger.info(`Processing poll: ${object.id}`);
       await this.processCreatePoll(activity, object, options.audience);
@@ -4357,14 +4416,18 @@ export class ActivityProcessor {
 
     const activity = outcome.activity;
     const actorUrl = normalizeActor(activity.actor);
-    if (await this.isActorSuspended(actorUrl)) {
+    const standing = await this.actorStanding(actorUrl);
+    if (standing.suspended) {
       logDenied('Group Announce', groupUrl, `${actorUrl} is suspended`);
       return;
     }
     // Channel messages travel in Harmony relays, direct posts to their recipients only.
     const object = activity.type === 'Delete' ? null : asNoteObject(activity.object);
+    const visibility = object
+      ? this.determineVisibility(object, { activity, followersUrl: standing.followersUrl })
+      : null;
     if (object && isPostObjectType(object.type)
-        && (object['harmony:serverId'] || ['direct', 'private'].includes(this.determineVisibility(object, { activity })))) {
+        && (object['harmony:serverId'] || visibility === 'direct' || visibility === 'private')) {
       logDenied('Group Announce', groupUrl, `${object.id} is a channel message or a direct post`);
       return;
     }
@@ -4648,19 +4711,15 @@ export class ActivityProcessor {
   ): Promise<void> {
     const supabase = getSupabaseClient();
     
-    const allRecipients = recipientsOf(audienceOf(object, activity));
-    
-    const resolveResults = await Promise.allSettled(
-      allRecipients.map(url => resolveProfileByActorUrl(url))
+    const recipients = await resolveRecipients(
+      recipientsOf(audienceOf(object, activity)).slice(0, MAX_DIRECT_RECIPIENTS),
     );
-    const recipientIds = resolveResults
-      .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value != null)
-      .map(r => r.value.id);
-    
-    if (recipientIds.length === 0) {
+    // A conversation here needs a participant here.
+    if (!recipients.some((r) => r.local)) {
       logger.warn(`Direct message ${object.id} has no local recipients`);
       return;
     }
+    const recipientIds = recipients.map((r) => r.id);
 
     if (await this.dmStoppedAsSpam(object, authorId, recipientIds, activity, options)) return;
 
@@ -4777,12 +4836,8 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
 
     const { to } = audienceOf(object, activity);
-    const resolveResults = await Promise.allSettled(
-      to.map(url => resolveProfileByActorUrl(url))
-    );
-    const recipientIds = resolveResults
-      .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value != null)
-      .map(r => r.value.id);
+    const recipients = await resolveRecipients(to.slice(0, MAX_DIRECT_RECIPIENTS));
+    const recipientIds = recipients.filter((r) => r.local).map((r) => r.id);
 
     if (recipientIds.length === 0) {
       logger.warn(`Group invite ${object.id} has no local recipients`);

@@ -23,6 +23,18 @@ describe('addresses', () => {
       .toEqual([ALICE, FOLLOWERS, 'https://x.test/u/b'])
   })
 
+  it('stops at `limit` distinct addresses', () => {
+    const many = Array.from({ length: 50_000 }, (_, i) => `https://x.test/u/${i % 25_000}`)
+    expect(addresses(many)).toHaveLength(25_000)
+    expect(addresses(many, 10)).toEqual(many.slice(0, 10))
+  })
+
+  it('reads the href of a Link or Mention, the id of anything else', () => {
+    expect(addresses([{ type: 'Link', id: 'https://x.test/link/1', href: ALICE }])).toEqual([ALICE])
+    expect(addresses([{ type: 'Mention', href: ALICE }])).toEqual([ALICE])
+    expect(addresses([{ type: 'Person', id: ALICE, href: 'https://x.test/profile' }])).toEqual([ALICE])
+  })
+
   it('expands the compact Public forms and drops what is not an address', () => {
     expect(addresses(['as:Public', 'Public', AS_PUBLIC])).toEqual([AS_PUBLIC])
     expect(addresses([null, undefined, '', 42, {}, { id: 7 }])).toEqual([])
@@ -50,7 +62,15 @@ describe('isFollowersAddress', () => {
   it('is the stored followers collection when the author declares one', () => {
     const author = { actorUrl: ALICE, followersUrl: FOLLOWERS }
     expect(isFollowersAddress(`${FOLLOWERS}/`, author)).toBe(true)
+    expect(isFollowersAddress('https://MASTODON.test:443/users/alice/followers', author)).toBe(true)
     expect(isFollowersAddress('https://mastodon.test/users/bob/followers', author)).toBe(false)
+    expect(isFollowersAddress(`${ALICE}/fans`, { actorUrl: ALICE, followersUrl: `${ALICE}/fans` })).toBe(true)
+  })
+
+  it('takes a stored followers value that is no IRI for unknown', () => {
+    const stored = { actorUrl: ALICE, followersUrl: '[object Object]' }
+    expect(isFollowersAddress(FOLLOWERS, stored)).toBe(true)
+    expect(isFollowersAddress('https://other.test/users/alice/followers', stored)).toBe(false)
   })
 
   it('is a path segment `followers` on the author host otherwise', () => {
@@ -60,6 +80,8 @@ describe('isFollowersAddress', () => {
     expect(isFollowersAddress('https://mastodon.test/users/followers_club', { actorUrl: ALICE })).toBe(false)
     expect(isFollowersAddress('https://wp.test/wp-json/activitypub/1.0/users/1/followers')).toBe(true)
     expect(isFollowersAddress('not a url')).toBe(false)
+    expect(isFollowersAddress('urn:x:followers')).toBe(false)
+    expect(isFollowersAddress('https://mastodon.test/users/alice/followers', { actorUrl: 'urn:x:alice' })).toBe(false)
   })
 })
 
@@ -73,7 +95,7 @@ describe('visibilityOf', () => {
     [{ to: ['https://x.test/u/b'], cc: [] }, 'direct'],
     [{ to: ['https://mastodon.test/users/followers_club'], cc: [] }, 'direct'],
     [{ to: ['https://other.test/users/bob/followers'], cc: [] }, 'direct'],
-    [{ to: [], cc: [] }, 'unlisted'],
+    [{ to: [], cc: [] }, 'direct'],
   ])('%j is %s', (audience, visibility) => {
     expect(visibilityOf(audience, author)).toBe(visibility)
   })
@@ -86,5 +108,11 @@ describe('authorActorUrl', () => {
     expect(authorActorUrl({ attributedTo: [ALICE, 'https://x.test/g'] })).toBe(ALICE)
     expect(authorActorUrl({}, { actor: { id: ALICE } })).toBe(ALICE)
     expect(authorActorUrl({})).toBeNull()
+  })
+
+  it('skips a Group and an entry without id in attributedTo, then falls back to the actor', () => {
+    expect(authorActorUrl({ attributedTo: [{ type: 'Group', id: 'https://x.test/c/tv' }, { type: 'Person', id: ALICE }] })).toBe(ALICE)
+    expect(authorActorUrl({ attributedTo: [{ type: 'Person' }] }, { actor: ALICE })).toBe(ALICE)
+    expect(authorActorUrl({ attributedTo: [{ type: 'Group', id: 'https://x.test/c/tv' }] })).toBe('https://x.test/c/tv')
   })
 })

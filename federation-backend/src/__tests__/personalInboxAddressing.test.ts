@@ -42,6 +42,7 @@ vi.mock('../activitypub/ActivityProcessor.js', () => ({
 
 type Row = Record<string, any>
 const tables = vi.hoisted(() => ({} as Record<string, Record<string, any>[]>))
+const rpcArgs = vi.hoisted(() => [] as Array<{ name: string; args: any }>)
 vi.mock('../config/supabase.js', () => ({
   getSupabaseClient: () => ({
     from: (table: string) => {
@@ -55,7 +56,10 @@ vi.mock('../config/supabase.js', () => ({
       }
       return q
     },
-    rpc: async (name: string) => ({ data: name === 'claim_ap_activity' ? true : null, error: null }),
+    rpc: async (name: string, args: any) => {
+      rpcArgs.push({ name, args })
+      return { data: name === 'claim_ap_activity' ? true : null, error: null }
+    },
   }),
   getSupabaseClientWithAuth: vi.fn(),
 }))
@@ -92,6 +96,7 @@ function create(audience: { to?: unknown; cc?: unknown }, objectAudience: { to?:
 
 beforeEach(() => {
   processed.length = 0
+  rpcArgs.length = 0
   tables.profiles = [
     { id: 'bob-row', username: 'bob', is_local: true, federated_id: BOB },
     { id: 'ann-row', federated_id: ANN, followers_url: `${ANN}/followers/` },
@@ -106,18 +111,26 @@ describe('personal inbox addressing', () => {
     expect(processed).toHaveLength(1)
   })
 
-  it('accepts the user named by a link object, and a compact public audience as one string', async () => {
+  it('accepts the user named by a link object', async () => {
     expect((await deliver(create({ to: { type: 'Link', href: BOB } }))).status).toBe(202)
-    expect((await deliver(create({ to: 'as:Public' }))).status).toBe(202)
-    expect(processed).toHaveLength(2)
+    expect(processed).toHaveLength(1)
   })
 
   it('accepts the followers collection the sender declares, trailing slash or not', async () => {
     expect((await deliver(create({ to: `${ANN}/followers` }))).status).toBe(202)
-    expect(processed).toHaveLength(1)
+    tables.profiles[1].followers_url = `${ANN}/followers`
+    expect((await deliver(create({ to: `${ANN}/followers/` }))).status).toBe(202)
+    expect(processed).toHaveLength(2)
   })
 
-  it('ignores an activity addressed to someone else', async () => {
+  it('records the activity with its addresses read once each, compact Public expanded', async () => {
+    await deliver(create({ to: ['as:Public', { id: BOB }, BOB], cc: `${ANN}/followers` }))
+    const stored = rpcArgs.find((c) => c.name === 'upsert_ap_activity')?.args
+    expect(stored?.p_to_addresses).toEqual(['https://www.w3.org/ns/activitystreams#Public', BOB])
+    expect(stored?.p_cc_addresses).toEqual([`${ANN}/followers`])
+  })
+
+  it('ignores an activity addressed to someone else (control)', async () => {
     const res = await deliver(create({ to: ['https://origin.test/users/followers_club'] }))
     expect(res.status).toBe(202)
     expect(res.body).toEqual({ status: 'ignored', reason: 'not addressed to this user' })

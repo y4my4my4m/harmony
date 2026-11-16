@@ -3065,6 +3065,10 @@ async function importOutboxItem(
     if (!sameOrigin(note.id, outboxUrl)) {
       return { saved: false };
     }
+    // A Harmony channel message is no post, as in ActivityProcessor.processCreate.
+    if (note['harmony:serverId'] !== undefined) {
+      return { saved: false, id: note.id };
+    }
 
     const { data: existing } = await supabase
       .from('posts')

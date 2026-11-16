@@ -191,6 +191,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   the sender's followers. A followers-only post sent to a personal inbox was refused when its
   followers address and the stored one differed by a trailing slash. Recipients written as link
   objects were not read. The followers collection is now the one the author's profile declares.
+- **A post addressed to nobody is private.** A fetched post, reply or boosted original that
+  names no audience was stored as unlisted, readable by every account here and shown on public
+  profile pages; it is now direct, as on Mastodon. A direct message naming no account here is
+  no longer stored as a conversation among remote accounts. Opening a Harmony server as a
+  profile no longer imports its channel messages as posts. An incoming message to hundreds of
+  thousands of addresses took seconds of processing; its addresses are now read in linear time
+  and a direct message resolves at most 250 of them.
 - **A Discord reply to a message that is gone arrives without the reply.** A reply relayed
   from Discord to a message erased or purged on Harmony was dropped (`500`); it is now sent
   without the reply link, as Discord shows it. A bot naming a message of another channel gets

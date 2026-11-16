@@ -24,6 +24,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 const AS = 'https://www.w3.org/ns/activitystreams'
 const PUBLIC = `${AS}#Public`
 
+// Fixed so a failure names a row.
+const AUDIENCE_TARGET = 'fed00214-0000-0000-0000-000000000001'
+const AUDIENCE_AUTH = 'fed0a000-0000-0000-0000-000000000214' // auth-user-shim.sql
+const AUDIENCE_NAME = 'fx_audience'
+const ELSEWHERE = 'fed00214-0000-0000-0000-000000000002'
+
 export interface ApInboundContext {
   db: SupabaseClient
   peer: { base: string; actorUrl: string; key: { privateKey: string } }
@@ -216,16 +222,34 @@ export async function caseApInbound(ctx: ApInboundContext): Promise<void> {
     console.log('\ninbound conformance -> an audience stated on the Create alone')
     {
       const { data: bob } = await db.from('profiles').select('federated_id').eq('username', 'fx_bob').eq('is_local', true).single()
+      const instanceDomain = new URL(bob!.federated_id).host
+      const target = `https://${instanceDomain}/users/${AUDIENCE_NAME}`
+      const made = await db.from('profiles').upsert({
+        id: AUDIENCE_TARGET, auth_user_id: AUDIENCE_AUTH, username: AUDIENCE_NAME, display_name: 'Audience', is_local: true,
+        domain: instanceDomain, federated_id: target, dm_policy: 'everyone',
+      }, { onConflict: 'id' })
+      assert(!made.error, 'the DM recipient exists', made.error?.message)
       const bare = (id: string, text: string) => ({
         id, type: 'Note', attributedTo: peer.actorUrl, content: `<p>${text}</p>`, published: new Date().toISOString(),
       })
+      const messagesOf = async (apId: string) =>
+        (await db.from('messages').select('user_id').contains('metadata', { ap_id: apId })).data ?? []
+
       const dm = `${peer.base}/notes/create-dm-${crypto.randomUUID()}`
       eq((await deliver({
-        id: `${dm}/activity`, type: 'Create', actor: peer.actorUrl, to: [bob!.federated_id], cc: [], object: bare(dm, 'create-addressed dm'),
-      }, asPeer)).status, 202, 'a Create addressed to a local user, its Note addressed to nobody, is accepted')
+        id: `${dm}/activity`, type: 'Create', actor: peer.actorUrl, to: [{ type: 'Link', href: target }], cc: [],
+        object: bare(dm, 'create-addressed dm'),
+      }, asPeer)).status, 202, 'a Create addressed to a local user by a link object, its Note to nobody, is accepted')
       eq(await postByApId(dm), null, 'it is no post')
-      const { data: dmRows } = await db.from('messages').select('user_id').contains('metadata', { ap_id: dm })
-      eq(dmRows?.length, 1, 'it is a direct message')
+      eq((await messagesOf(dm)).length, 1, 'it is a direct message')
+
+      const club = `${peer.base}/notes/create-club-${crypto.randomUUID()}`
+      await deliver({
+        id: `${club}/activity`, type: 'Create', actor: peer.actorUrl,
+        object: { ...bare(club, 'to followers_club'), to: [`${peer.base}/users/followers_club`, target], cc: [] },
+      }, asPeer)
+      eq(await postByApId(club), null, 'a message to an account named followers_club is no followers-only post')
+      eq((await messagesOf(club)).length, 1, 'it is a direct message')
 
       const followersOnly = `${peer.base}/notes/create-followers-${crypto.randomUUID()}`
       await deliver({
@@ -233,6 +257,55 @@ export async function caseApInbound(ctx: ApInboundContext): Promise<void> {
         object: bare(followersOnly, 'create-addressed followers post'),
       }, asPeer)
       eq((await postByApId(followersOnly))?.visibility, 'followers', 'a Create addressed to followers keeps that audience')
+
+      const open = `${peer.base}/notes/create-public-${crypto.randomUUID()}`
+      await deliver({
+        id: `${open}/activity`, type: 'Create', actor: peer.actorUrl, to: [PUBLIC], cc: [`${peer.actorUrl}/followers`],
+        object: bare(open, 'create-addressed public post'),
+      }, asPeer)
+      eq((await postByApId(open))?.visibility, 'public', 'a Create addressed to the public keeps that audience')
+
+      // A message among remote accounts only has no participant here.
+      const elsewhere = `${peer.base}/users/fx_elsewhere`
+      await db.from('profiles').upsert({
+        id: ELSEWHERE, username: 'fx_elsewhere', display_name: 'Elsewhere', is_local: false,
+        domain: new URL(peer.base).host, federated_id: elsewhere,
+      }, { onConflict: 'id' })
+      const remoteOnly = `${peer.base}/notes/remote-only-${crypto.randomUUID()}`
+      await deliver({
+        id: `${remoteOnly}/activity`, type: 'Create', actor: peer.actorUrl,
+        object: { ...bare(remoteOnly, 'between remote accounts'), to: [elsewhere], cc: [] },
+      }, asPeer)
+      eq((await messagesOf(remoteOnly)).length, 0, 'a direct message naming no local account is stored nowhere')
+      eq(await postByApId(remoteOnly), null, 'nor as a post')
+
+      // The peer declares a followers collection whose path holds no `followers` segment.
+      const { data: before } = await db.from('profiles').select('followers_url').eq('id', ctx.ids.remote).single()
+      const fans = `${peer.actorUrl}/fans`
+      await db.from('profiles').update({ followers_url: fans }).eq('id', ctx.ids.remote)
+      try {
+        const fansNote = `${peer.base}/notes/fans-${crypto.randomUUID()}`
+        await deliver({
+          id: `${fansNote}/activity`, type: 'Create', actor: peer.actorUrl,
+          object: { ...bare(fansNote, 'to the declared followers'), to: [fans], cc: [] },
+        }, asPeer)
+        eq((await postByApId(fansNote))?.visibility, 'followers', 'a post to the declared followers collection is followers-only')
+
+        const fansPoll = `${peer.base}/polls/fans-${crypto.randomUUID()}`
+        await deliver({
+          id: `${fansPoll}/activity`, type: 'Create', actor: peer.actorUrl,
+          object: {
+            id: fansPoll, type: 'Question', attributedTo: peer.actorUrl, content: '<p>which?</p>',
+            published: new Date().toISOString(), to: [fans], cc: [],
+            endTime: new Date(Date.now() + 86_400_000).toISOString(),
+            oneOf: [{ type: 'Note', name: 'one', replies: { type: 'Collection', totalItems: 0 } },
+              { type: 'Note', name: 'two', replies: { type: 'Collection', totalItems: 0 } }],
+          },
+        }, asPeer)
+        eq((await postByApId(fansPoll))?.visibility, 'followers', 'so is a poll to it, not a direct message')
+      } finally {
+        await db.from('profiles').update({ followers_url: before?.followers_url ?? null }).eq('id', ctx.ids.remote)
+      }
     }
 
     console.log('\ninbound conformance -> an actor\'s Delete of itself')

@@ -201,7 +201,7 @@ describe('outbox import', () => {
     [[`${ACTOR}/followers`], [], 'followers'],
     ['https://remote.test/users/bob', undefined, 'direct'],
     [['https://remote.test/users/bob'], [], 'direct'],
-    [undefined, undefined, 'unlisted'],
+    [undefined, undefined, 'direct'],
     [[null, 'as:Public'], [null], 'public'],
   ])('preserves audience visibility for to=%j cc=%j', async (to, cc, visibility) => {
     serveOutbox([{ ...note(1), to, cc }])
@@ -224,18 +224,39 @@ describe('outbox import', () => {
     expect(tables.posts[0]?.visibility).toBe(visibility)
   })
 
-  it('judges the followers collection by the one the author declares', async () => {
-    tables.profiles[0].followers_url = `${HOST}/followers/alice`
+  it('judges the followers collection by the one the author declares, not by its path', async () => {
+    tables.profiles[0].followers_url = `${ACTOR}/fans`
     serveOutbox([
-      { ...note(1), to: [`${HOST}/followers/alice`], cc: [] },
-      { ...note(2), to: ['https://remote.test/users/followers_club'], cc: [] },
-      { ...note(3), to: ['https://remote.test/users/bob/followers'], cc: [] },
+      { ...note(1), to: [`${ACTOR}/fans`], cc: [] },
+      { ...note(2), to: [`${HOST}/users/bob/followers`], cc: [] },
+      { ...note(3), to: ['https://remote.test/users/followers_club'], cc: [] },
     ])
 
     await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase)
 
     const byId = Object.fromEntries(tables.posts.map((p) => [p.ap_id, p.visibility]))
     expect(byId).toEqual({ [note(1).id]: 'followers', [note(2).id]: 'direct', [note(3).id]: 'direct' })
+  })
+
+  it('stores no Harmony channel message as a post', async () => {
+    serveOutbox([{ ...create(1), object: { ...note(1), 'harmony:serverId': 'srv-1' } }, create(2)])
+
+    await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase)
+
+    expect(storedApIds()).toEqual([note(2).id])
+  })
+
+  it('reads a followers path on the author host when the author declares none', async () => {
+    tables.profiles[0].followers_url = null
+    serveOutbox([
+      { ...note(1), to: [`${HOST}/followers/alice`], cc: [] },
+      { ...note(2), to: ['https://remote.test/users/alice/followers'], cc: [] },
+    ])
+
+    await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase)
+
+    const byId = Object.fromEntries(tables.posts.map((p) => [p.ap_id, p.visibility]))
+    expect(byId).toEqual({ [note(1).id]: 'followers', [note(2).id]: 'direct' })
   })
 
   it('imports every item of 20-item pages, page after page', async () => {

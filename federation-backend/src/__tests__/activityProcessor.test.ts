@@ -61,12 +61,10 @@ describe('determineVisibility (ActivityPub audience targeting)', () => {
       expect(determineVisibility(note)).toBe('unlisted')
     })
 
-    it('defaults to unlisted when no recipients at all', () => {
-      expect(determineVisibility({})).toBe('unlisted')
-    })
-
-    it('defaults to unlisted when to/cc are undefined', () => {
-      expect(determineVisibility({ to: undefined, cc: undefined })).toBe('unlisted')
+    it('is direct when addressed to nobody, as Mastodon', () => {
+      expect(determineVisibility({})).toBe('direct')
+      expect(determineVisibility({ to: undefined, cc: undefined })).toBe('direct')
+      expect(determineVisibility({ to: [], cc: [] })).toBe('direct')
     })
   })
 
