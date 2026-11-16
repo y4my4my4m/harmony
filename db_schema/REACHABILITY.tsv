@@ -78,7 +78,7 @@ assert_grantable_bits	invoker	void	authenticated+service_role	client, trigger	ca
 assert_grantable_bot_flags	invoker	void	authenticated+service_role	client, trigger	called by add_bot_to_server, guard_bot_permission_grants
 assert_security_attempt_budget	definer	void	service_role	client	called by begin_account_move, delete_my_account, redeem_recovery_code_and_disable_mfa, +2
 assert_webhook_channel	invoker	uuid	service_role	client	called by create_channel_webhook, execute_channel_webhook
-assign_default_role_to_member	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers AFTER INSERT/UPDATE (trigger_assign_default_role)
+assign_default_role_to_member	definer	trigger	service_role	trigger	trigger public.user_servers AFTER INSERT/UPDATE (trigger_assign_default_role)
 assign_server_slug	definer	trigger	service_role	trigger	trigger public.servers BEFORE INSERT (trg_assign_server_slug)
 attach_supporter_message	definer	trigger	service_role	trigger	trigger public.instance_donation_history AFTER INSERT (trg_attach_supporter_message)
 auto_archive_threads	definer	void	anon+authenticated+service_role	client	rpc in src/components/ChannelSidebar.vue
@@ -230,7 +230,7 @@ broadcast_voice_activity	definer	trigger	service_role	trigger	trigger public.voi
 build_harmony_embed	invoker	jsonb	anon+authenticated+service_role	client, trigger	called by fetch_link_preview
 bump_room_epoch	definer	integer	service_role	client, trigger	called by bump_server_channel_epochs, request_room_epoch_bump, set_channel_encryption, +1
 bump_server_channel_epochs	definer	void	service_role	trigger	called by trg_server_epoch_bump
-caller_outranks_all	invoker	boolean	authenticated+service_role	client, trigger	called by add_bot_to_server, assert_category_template_writable, assert_grantable_bot_flags, +5
+caller_outranks_all	invoker	boolean	authenticated+service_role	client, trigger	called by add_bot_to_server, assert_category_template_writable, assert_grantable_bot_flags, +6
 caller_reads_member_standing	definer	boolean	service_role	client, policy, trigger	called by get_user_highest_role_position, get_user_permissions
 can_current_user_manage_messages_in_channel	definer	boolean	anon+authenticated+service_role	policy	policy public.messages DELETE on messages_delete_authorized, public.messages UPDATE on messages_update_authorized
 can_current_user_moderate_report	definer	boolean	service_role	client, policy	called by get_reports_with_details, message_media_reported, moderate_report
@@ -652,7 +652,7 @@ get_user_conversations	invoker	jsonb	anon+authenticated+service_role	client	rpc 
 get_user_cycle_donation_total	definer	numeric	service_role	client	called by recompute_supporter_tier
 get_user_emoji_stats	invoker	TABLE(emoji_id uuid, emoji_name text, emoji_url text, usage_count bigint, last_used timestamp with time zone)	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts
 get_user_handle	invoker	text	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
-get_user_highest_role_position	definer	integer	anon+authenticated+service_role	client, trigger	called by ban_server_member, guard_server_role_hierarchy, guard_server_settings_default_role, +3
+get_user_highest_role_position	definer	integer	anon+authenticated+service_role	client, trigger	called by ban_server_member, guard_server_role_hierarchy, guard_server_settings_default_role, +4
 get_user_notifications	invoker	TABLE(id uuid, user_id uuid, type character varying, data jsonb, is_read boolean, is_clicked boolean, created_at timestamp with time zone, updated_at timestamp with time zone, expires_at timestamp with time zone, read_at timestamp with time zone)	anon+authenticated+service_role	client	rpc in src/services/NotificationService.ts
 get_user_permissions	definer	jsonb	anon+authenticated+service_role	client, policy, trigger	rpc in src/services/RoleService.ts
 get_user_prekey_bundle	definer	jsonb	service_role	service key	nothing references it
@@ -988,6 +988,7 @@ search_tsquery	invoker	tsquery	service_role	client	called by search_messages
 search_typo_distance	invoker	integer	service_role	client	called by search_messages
 seed_channel_encryption_on_insert	definer	trigger	service_role	trigger	trigger public.channels AFTER INSERT (trg_seed_channel_encryption)
 seed_channel_encryption_settings	definer	void	service_role	client, trigger	called by apply_server_encryption_floor, seed_channel_encryption_on_insert, set_channel_encryption
+self_assign_refusal	definer	text	service_role	client	called by set_my_self_assignable_role
 send_notification	definer	uuid[]	service_role	client, trigger	called by handle_channel_message_notifications, handle_message_federation, handle_newcomer_first_message, +4
 send_notification_to_user	definer	uuid	service_role	client, trigger	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 server_audit_attribute_bot	definer	trigger	service_role	trigger	trigger public.bot_audit_log AFTER INSERT (z_bot_audit_log_server_audit)
@@ -1050,7 +1051,9 @@ set_kofi_webhook_token	definer	void	authenticated+service_role	client	rpc in src
 set_member_instance	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers BEFORE INSERT (auto_set_member_instance)
 set_message_embeds_suppressed	definer	boolean	authenticated+service_role	client	rpc in src/services/messageEmbeds.ts
 set_my_account_aliases	definer	jsonb	authenticated+service_role	client	rpc in federation-backend/src/routes/accountMigration.ts
+set_my_self_assignable_role	definer	boolean	authenticated+service_role	client	rpc in src/services/RoleService.ts
 set_server_featured	definer	void	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
+set_server_join_role	definer	void	authenticated+service_role	client	rpc in src/services/RoleService.ts
 set_server_member_timeout	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 set_server_newcomer_alerts	definer	jsonb	authenticated+service_role	client	rpc in src/services/NewcomerAlertService.ts
 set_server_raid_lockdown	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts

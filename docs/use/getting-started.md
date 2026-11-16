@@ -126,6 +126,10 @@ When your instance federates, the window has two tabs: **This instance**, the li
 
 An instance that publishes no directory, does not answer, or is blocked on yours shows why in place of the list. In the merged list, a line under the count says how many instances did not answer.
 
+### Pick your roles
+
+Some servers let you choose roles for yourself, such as a colour, pronouns or notification roles. Open the server menu (the server name above the channels) and choose **Pick roles**, or open your own profile card and choose **Pick roles** under your roles. Tap a role to take it and tap it again to drop it. A server may also post a role menu in a channel that works the same way.
+
 ## Find your way around
 
 On a desktop-sized window the app has five areas from left to right:

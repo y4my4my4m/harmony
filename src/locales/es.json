@@ -730,7 +730,16 @@
         "removeMember": "No se pudo quitar al miembro del rol",
         "addMember": "No se pudo añadir al miembro al rol",
         "reorder": "No se pudieron reordenar los roles"
-      }
+      },
+      "selfAssignable": "Los miembros pueden elegir este rol",
+      "selfAssignableDesc": "Aparece en «Elegir roles» y en los menús de roles, para que los miembros se lo pongan y se lo quiten.",
+      "selfAssignGroup": "Grupo",
+      "selfAssignGroupPlaceholder": "p. ej. Colores, Pronombres, Notificaciones",
+      "selfAssignNote": "Descripción corta",
+      "selfAssignNotePlaceholder": "Se muestra bajo el rol al elegir",
+      "selfAssignWarnGrants": "Los miembros no pueden elegir este rol mientras tenga permisos que @everyone no tiene. Quítalos en la pestaña Permisos.",
+      "selfAssignWarnRank": "Los miembros no pueden elegir este rol mientras esté por encima de un rol con permisos extra. Muévelo por debajo de todos los roles de moderación.",
+      "selfAssignWarnAdmin": "Los miembros no pueden elegir roles de administrador."
     },
     "privacy": {
       "federatedMembers": "{count} miembro federado en este servidor | {count} miembros federados en este servidor",
@@ -4777,7 +4786,10 @@
       "expires_at": "Caduca",
       "temporary": "Membresía temporal",
       "messages_deleted": "Mensajes eliminados",
-      "federation_discoverable": "Descubrible en la federación"
+      "federation_discoverable": "Descubrible en la federación",
+      "self_assignable": "Elegible por los miembros",
+      "self_assign_group": "Grupo de elección",
+      "self_assign_note": "Descripción de elección"
     },
     "value": {
       "none": "ninguno",
@@ -8801,5 +8813,43 @@
       "unsuspended": "Suspensión levantada en {count} cuenta | Suspensión levantada en {count} cuentas",
       "deleted": "{count} cuenta eliminada | {count} cuentas eliminadas"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "Elegir roles",
+    "title": "Elige tus roles",
+    "intro": "Toca un rol para tomarlo y tócalo otra vez para quitártelo. Los cambios se aplican al instante.",
+    "empty": "Este servidor aún no tiene roles para elegir.",
+    "otherRoles": "Otros roles",
+    "cardButton": "Elegir roles",
+    "errors": {
+      "notMember": "Únete al servidor para elegir sus roles.",
+      "notLocal": "Los roles de este servidor se eligen en su instancia de origen.",
+      "unavailable": "Ese rol ya no se puede elegir.",
+      "notPickable": "Ese rol da permisos, así que no se puede elegir. Pídeselo a la moderación.",
+      "failed": "No se pudo cambiar tu rol. Inténtalo de nuevo."
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "Elige tus roles",
+    "otherServer": "Este menú de roles pertenece a otro servidor.",
+    "empty": "Aquí aún no hay roles para elegir.",
+    "hint": "Toca un rol para tomarlo y tócalo otra vez para quitártelo.",
+    "createTitle": "Publicar un menú de roles",
+    "noRoles": "Aún no se puede elegir ningún rol. En Ajustes del servidor → Roles, activa primero «Los miembros pueden elegir este rol» en un rol.",
+    "group": "Roles que se ofrecen",
+    "allGroups": "Todos los roles elegibles",
+    "titleLabel": "Título",
+    "preview": "Vista previa",
+    "post": "Publicar",
+    "postFailed": "No se pudo publicar el menú de roles."
+  },
+  "joinRole": {
+    "title": "Rol para nuevos miembros",
+    "description": "Todos los que se unan a partir de ahora reciben este rol. Los miembros actuales conservan sus roles.",
+    "none": "Ninguno",
+    "saved": "Los nuevos miembros recibirán este rol.",
+    "cleared": "Los nuevos miembros ya no reciben un rol.",
+    "tooHigh": "Solo puedes elegir un rol por debajo de tu rol más alto.",
+    "saveFailed": "No se pudo guardar el rol para nuevos miembros."
   }
 }

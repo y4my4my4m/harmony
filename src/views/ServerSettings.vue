@@ -168,6 +168,11 @@
             :server-id="serverId"
           />
 
+          <ServerJoinRole
+            v-if="activeSection === 'roles' && permissions.canManageRoles && server.is_local_server !== false"
+            :server-id="serverId"
+          />
+
           <!-- Roles Section: kept alive, so unsaved role edits survive a section switch. -->
           <KeepAlive>
             <RoleManagement
@@ -334,6 +339,7 @@ import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
 import ServerNewcomerAlerts from '@/components/settings/server/ServerNewcomerAlerts.vue'
 import ServerSystemMessages from '@/components/settings/server/ServerSystemMessages.vue'
+import ServerJoinRole from '@/components/settings/server/ServerJoinRole.vue'
 import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
 import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'
 import ServerWelcomeSettings from '@/components/settings/server/ServerWelcomeSettings.vue'

@@ -730,7 +730,16 @@
         "removeMember": "Failed to remove member from role",
         "addMember": "Failed to add member to role",
         "reorder": "Failed to reorder roles"
-      }
+      },
+      "selfAssignable": "Members can pick this role",
+      "selfAssignableDesc": "Listed in Pick roles and in role menus, so members give it to themselves and take it off again.",
+      "selfAssignGroup": "Group",
+      "selfAssignGroupPlaceholder": "e.g. Colours, Pronouns, Notifications",
+      "selfAssignNote": "Short description",
+      "selfAssignNotePlaceholder": "Shown under the role when members pick",
+      "selfAssignWarnGrants": "Members can’t pick this role while it has permissions @everyone lacks. Remove them on the Permissions tab.",
+      "selfAssignWarnRank": "Members can’t pick this role while it sits above a role with extra permissions. Move it below every moderator role.",
+      "selfAssignWarnAdmin": "Administrator roles can’t be picked by members."
     },
     "privacy": {
       "federatedMembers": "{count} federated member currently in this server | {count} federated members currently in this server",
@@ -4777,7 +4786,10 @@
       "expires_at": "Expires",
       "temporary": "Temporary membership",
       "messages_deleted": "Messages deleted",
-      "federation_discoverable": "Discoverable across federation"
+      "federation_discoverable": "Discoverable across federation",
+      "self_assignable": "Members can pick it",
+      "self_assign_group": "Pick group",
+      "self_assign_note": "Pick description"
     },
     "value": {
       "none": "none",
@@ -8797,5 +8809,43 @@
       "unsuspended": "{count} account unsuspended | {count} accounts unsuspended",
       "deleted": "{count} account deleted | {count} accounts deleted"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "Pick roles",
+    "title": "Pick your roles",
+    "intro": "Tap a role to take it, tap it again to drop it. Changes apply at once.",
+    "empty": "This server has no roles to pick yet.",
+    "otherRoles": "Other roles",
+    "cardButton": "Pick roles",
+    "errors": {
+      "notMember": "Join the server to pick its roles.",
+      "notLocal": "This server’s roles are picked on its home instance.",
+      "unavailable": "That role can no longer be picked.",
+      "notPickable": "That role gives permissions, so it can’t be picked. Ask a moderator.",
+      "failed": "Couldn’t change your role. Try again."
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "Pick your roles",
+    "otherServer": "This role menu belongs to another server.",
+    "empty": "No roles to pick here yet.",
+    "hint": "Tap a role to take it, tap it again to drop it.",
+    "createTitle": "Post a role menu",
+    "noRoles": "No role can be picked yet. In Server settings → Roles, turn on “Members can pick this role” for a role first.",
+    "group": "Roles to offer",
+    "allGroups": "Every pickable role",
+    "titleLabel": "Title",
+    "preview": "Preview",
+    "post": "Post",
+    "postFailed": "Couldn’t post the role menu."
+  },
+  "joinRole": {
+    "title": "Role for new members",
+    "description": "Everyone who joins from now on gets this role. Members already here keep their roles.",
+    "none": "None",
+    "saved": "New members will get this role.",
+    "cleared": "New members no longer get a role.",
+    "tooHigh": "You can only choose a role below your highest role.",
+    "saveFailed": "Couldn’t save the role for new members."
   }
 }

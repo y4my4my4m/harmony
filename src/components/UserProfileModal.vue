@@ -137,6 +137,16 @@
                   {{ role.name }}
                 </div>
               </div>
+              <button
+                v-if="showPickRoles"
+                type="button"
+                class="pick-roles-btn"
+                data-testid="profile-pick-roles"
+                @click="openRolePicker"
+              >
+                <Icon name="plus" :size="14" />
+                {{ t('rolePicker.cardButton') }}
+              </button>
             </div>
           </div>
         </div>
@@ -477,6 +487,9 @@ import { interactionService } from '@/services/InteractionService'
 import { roleService, type ServerRole, Permission } from '@/services/RoleService'
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
+import { useRolePickerStore } from '@/stores/useRolePicker'
+import { useServerRolesStore } from '@/stores/useServerRoles'
+import { pickableRoleGroups } from '@/utils/selfAssignableRoles'
 import KickBanModal from './moderation/KickBanModal.vue'
 import BridgeSourceBadge from './messages/BridgeSourceBadge.vue'
 import { isBridgedDiscordProfileUser } from '@/services/bridgedChannelUsersService'
@@ -1138,6 +1151,22 @@ const sendDirectMessage = async () => {
 
 const openSettings = () => {
   router.push('/settings/account')
+  emit('close')
+}
+
+const rolePickerStore = useRolePickerStore()
+const pickerRolesStore = useServerRolesStore()
+// The signed-in member's own card, in a server of this instance with roles to pick.
+const showPickRoles = computed(() => {
+  const serverId = serverChannelStore.currentServerId
+  if (!isCurrentUser.value || !serverId || serverChannelStore.currentServer?.is_local_server === false) return false
+  return pickableRoleGroups(pickerRolesStore.rolesByServer.get(serverId) ?? []).length > 0
+})
+
+const openRolePicker = () => {
+  const serverId = serverChannelStore.currentServerId
+  if (!serverId) return
+  rolePickerStore.openModal(serverId)
   emit('close')
 }
 
@@ -1892,6 +1921,27 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.pick-roles-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--border-primary);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-xs, 12px);
+  cursor: pointer;
+}
+
+.pick-roles-btn:hover,
+.pick-roles-btn:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
 }
 
 .role-badge {

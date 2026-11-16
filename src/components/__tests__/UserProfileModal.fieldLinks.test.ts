@@ -37,6 +37,8 @@ vi.mock('@/stores/useActivityPub', () => ({ useActivityPubStore: () => store }))
 vi.mock('@/stores/useServerChannel', () => ({
   useServerChannelStore: () => ({ currentServerId: null, servers: [] }),
 }))
+vi.mock('@/stores/useRolePicker', () => ({ useRolePickerStore: () => ({ openModal: vi.fn() }) }))
+vi.mock('@/stores/useServerRoles', () => ({ useServerRolesStore: () => ({ rolesByServer: new Map() }) }))
 vi.mock('@/services/InteractionService', () => ({
   interactionService: { getUserRelationships: relationships },
 }))

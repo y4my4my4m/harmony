@@ -730,7 +730,16 @@
         "removeMember": "Impossible de retirer le membre du rôle",
         "addMember": "Impossible d'ajouter le membre au rôle",
         "reorder": "Impossible de réordonner les rôles"
-      }
+      },
+      "selfAssignable": "Les membres peuvent choisir ce rôle",
+      "selfAssignableDesc": "Apparaît dans « Choisir des rôles » et dans les menus de rôles : les membres se l’attribuent et le retirent eux-mêmes.",
+      "selfAssignGroup": "Groupe",
+      "selfAssignGroupPlaceholder": "ex. Couleurs, Pronoms, Notifications",
+      "selfAssignNote": "Description courte",
+      "selfAssignNotePlaceholder": "Affichée sous le rôle lors du choix",
+      "selfAssignWarnGrants": "Les membres ne peuvent pas choisir ce rôle tant qu’il a des permissions que @everyone n’a pas. Retire-les dans l’onglet Permissions.",
+      "selfAssignWarnRank": "Les membres ne peuvent pas choisir ce rôle tant qu’il est au-dessus d’un rôle avec des permissions en plus. Place-le sous tous les rôles de modération.",
+      "selfAssignWarnAdmin": "Les membres ne peuvent pas choisir un rôle administrateur."
     },
     "privacy": {
       "federatedMembers": "{count} membre fédéré actuellement sur ce serveur | {count} membres fédérés actuellement sur ce serveur",
@@ -4777,7 +4786,10 @@
       "expires_at": "Expire",
       "temporary": "Adhésion temporaire",
       "messages_deleted": "Messages supprimés",
-      "federation_discoverable": "Découvrable dans la fédération"
+      "federation_discoverable": "Découvrable dans la fédération",
+      "self_assignable": "Choisissable par les membres",
+      "self_assign_group": "Groupe de choix",
+      "self_assign_note": "Description de choix"
     },
     "value": {
       "none": "aucun",
@@ -8801,5 +8813,43 @@
       "unsuspended": "Suspension levée pour {count} compte | Suspension levée pour {count} comptes",
       "deleted": "{count} compte supprimé | {count} comptes supprimés"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "Choisir des rôles",
+    "title": "Choisis tes rôles",
+    "intro": "Touche un rôle pour le prendre, touche-le encore pour le retirer. Les changements s’appliquent tout de suite.",
+    "empty": "Ce serveur n’a pas encore de rôles à choisir.",
+    "otherRoles": "Autres rôles",
+    "cardButton": "Choisir des rôles",
+    "errors": {
+      "notMember": "Rejoins le serveur pour choisir ses rôles.",
+      "notLocal": "Les rôles de ce serveur se choisissent sur son instance d’origine.",
+      "unavailable": "Ce rôle ne peut plus être choisi.",
+      "notPickable": "Ce rôle donne des permissions, il ne peut donc pas être choisi. Demande à la modération.",
+      "failed": "Impossible de changer ton rôle. Réessaie."
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "Choisis tes rôles",
+    "otherServer": "Ce menu de rôles appartient à un autre serveur.",
+    "empty": "Aucun rôle à choisir ici pour l’instant.",
+    "hint": "Touche un rôle pour le prendre, touche-le encore pour le retirer.",
+    "createTitle": "Publier un menu de rôles",
+    "noRoles": "Aucun rôle ne peut encore être choisi. Dans Paramètres du serveur → Rôles, active d’abord « Les membres peuvent choisir ce rôle » pour un rôle.",
+    "group": "Rôles proposés",
+    "allGroups": "Tous les rôles à choisir",
+    "titleLabel": "Titre",
+    "preview": "Aperçu",
+    "post": "Publier",
+    "postFailed": "Impossible de publier le menu de rôles."
+  },
+  "joinRole": {
+    "title": "Rôle des nouveaux membres",
+    "description": "Toute personne qui rejoint à partir de maintenant reçoit ce rôle. Les membres déjà présents gardent leurs rôles.",
+    "none": "Aucun",
+    "saved": "Les nouveaux membres recevront ce rôle.",
+    "cleared": "Les nouveaux membres ne reçoivent plus de rôle.",
+    "tooHigh": "Tu ne peux choisir qu’un rôle sous ton rôle le plus élevé.",
+    "saveFailed": "Impossible d’enregistrer le rôle des nouveaux membres."
   }
 }

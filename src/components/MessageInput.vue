@@ -401,6 +401,7 @@ interface Props {
   backgroundSend?: boolean;
   /** The + menu offers Create poll; the parent handles `createPoll`. */
   allowPolls?: boolean;
+  allowRoleMenus?: boolean;
   /** Messages of this room are encrypted: uploads carry no file name to Drive. */
   encryptedRoom?: boolean;
   /**
@@ -418,6 +419,7 @@ const props = withDefaults(defineProps<Props>(), {
   serverId: undefined,
   backgroundSend: false,
   allowPolls: false,
+  allowRoleMenus: false,
   encryptedRoom: false,
 });
 
@@ -861,6 +863,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   mode: 'chat',
   enableChannels: !!props.channelId && !props.conversationId,
   pollsEnabled: () => props.allowPolls,
+  roleMenusEnabled: () => props.allowRoleMenus,
   channelId: () => (props.conversationId ? null : props.channelId),
   botCommandTarget,
 });

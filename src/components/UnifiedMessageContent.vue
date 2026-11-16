@@ -803,6 +803,11 @@
           :message-id="messageId"
         />
 
+        <RoleMenuCard
+          v-else-if="part && typeof part === 'object' && part.type === 'role_menu' && roleMenu"
+          :menu="roleMenu"
+        />
+
         <StickerView
           v-else-if="part && typeof part === 'object' && part.type === 'sticker'"
           :sticker="part"
@@ -870,6 +875,8 @@ import { withMediaHidden } from '@/utils/hiddenMedia';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import PollCard from '@/components/polls/PollCard.vue';
+import RoleMenuCard from '@/components/roles/RoleMenuCard.vue';
+import { roleMenuPartOf } from '@/utils/roleMenu';
 import StickerView from '@/components/stickers/StickerView.vue';
 import { isStickerFallback, isStickerPart, withoutStickerFallbacks } from '@/utils/stickerParts';
 import { groupMediaGalleryParts, type DisplayPart } from '@/utils/mediaGalleryUtils';
@@ -941,6 +948,7 @@ export default defineComponent({
     Icon,
     RoleMentionCard,
     PollCard,
+    RoleMenuCard,
     StickerView,
     VideoControls,
     InlineMarks,
@@ -1476,10 +1484,16 @@ export default defineComponent({
     // parts stored beside it are server metadata, not message content. A poll
     // renders its card alone: the text part beside it spells the poll out for
     // text-only readers.
+    const roleMenu = computed(() => roleMenuPartOf(props.content));
+
     const displayContent = computed(() => {
       if (props.encrypted && !props.decrypted) return undecryptedDisplayParts(props.content);
       if (pollPartOf(props.content)) {
         return props.content.filter((part) => part && typeof part === 'object' && part.type === 'poll');
+      }
+      // A role menu renders its card alone, as a poll does.
+      if (roleMenu.value) {
+        return props.content.filter((part) => part && typeof part === 'object' && part.type === 'role_menu');
       }
       const content = withUnmatchedMentionsAsText(withoutStickerFallbacks(props.content));
       if (props.mediaHidden) return withMediaHidden(content);
@@ -1755,7 +1769,7 @@ export default defineComponent({
       );
     });
     // Parts drawn as a block below the text line: preview cards, media, files, polls, stickers.
-    const BLOCK_PART_TYPES = new Set(['file', 'poll', 'sticker', 'media_gallery', 'media_hidden']);
+    const BLOCK_PART_TYPES = new Set(['file', 'poll', 'role_menu', 'sticker', 'media_gallery', 'media_hidden']);
     const drawsBlock = (partIndex: number): boolean => {
       const part = displayContent.value[partIndex] as any;
       if (!part || typeof part !== 'object') return false;
@@ -2124,6 +2138,7 @@ export default defineComponent({
 
     return {
       rootRef,
+      roleMenu,
       instanceDomain,
       soleDriveLink,
       soleGifLink,

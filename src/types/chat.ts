@@ -593,6 +593,17 @@ export interface PollContent {
   expiresAt?: string | null;
 }
 
+/**
+ * A role menu card: the self-assignable roles of `serverId` (of `group`, or all when null), which
+ * each viewer toggles on themselves. The message's text part names the roles for text-only readers.
+ */
+export interface RoleMenuContent {
+  type: 'role_menu';
+  serverId: string;
+  group: string | null;
+  title?: string;
+}
+
 export type EncryptedPayloadMap = Record<string, string>
 
 /** metadata.webhook: the name and avatar a channel webhook posted under. */
@@ -619,7 +630,7 @@ export interface MessageInteraction {
   followup?: boolean;
 }
 
-export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | StickerContent | SystemContent | PollContent;
+export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | StickerContent | SystemContent | PollContent | RoleMenuContent;
 
 export interface Reaction {
   id: string;

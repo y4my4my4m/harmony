@@ -672,6 +672,7 @@ import type { Message, MessagePart, User, Emoji, ReactionActor, ReactionGroup, S
 import { hasCopyableText, hasSubstantiveMessageContent, messagePartsToPlainText, removeFilePartByUrl } from '@/utils/messageContentUtils';
 import { getHarmonyProfileUserId, getRemoteAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage, messageAuthorKey } from '@/utils/messageAuthor';
 import { pollPartOf } from '@/utils/messagePoll';
+import { roleMenuPartOf } from '@/utils/roleMenu';
 import { remoteServerHost } from '@/utils/serverUtils';
 import { getInstanceDomain } from '@/services/instanceConfig';
 import { mediaLoadKey } from '@/services/privateMedia';
@@ -3572,6 +3573,8 @@ const canEditMessage = (message: Message) => {
   if (isBridgedAuthorMessage(message)) return false;
   // guard_message_poll_parts refuses edits of a poll.
   if (pollPartOf(message.content)) return false;
+  // A role menu's text part spells out its card; an edit would let the two disagree.
+  if (roleMenuPartOf(message.content)) return false;
 
   // Only the author edits; owners, staff and Manage Messages may only delete
   // (guard_message_client_write).

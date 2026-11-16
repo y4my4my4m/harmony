@@ -8,6 +8,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Roles members pick themselves.** In the role editor, **Members can pick this role** (with a group
+  and a short description) lists a role in **Pick roles**, in the server menu and on your own profile
+  card, where members take it and drop it with a tap. `/rolemenu` posts a role menu card in a channel
+  that works the same way, also in end-to-end encrypted servers. Only roles that give nothing a
+  member could misuse can be picked; the editor says why a role cannot.
+- **Role for new members.** **Server settings** → **Roles** → **Role for new members** gives a role
+  to everyone who joins from then on.
 - **Bots can give roles and post files.** `PUT` and `DELETE /servers/{id}/members/{user}/roles/{role}`
   give a member a role or take it away, within the bot's **Manage roles** reach; the server audit log
   names the bot. `POST /channels/{id}/attachments` uploads a file (an edited image, a chart) that the

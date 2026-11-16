@@ -78,7 +78,7 @@ assert_grantable_bits	p_permissions jsonb, p_bits bigint	void	invoker	public, pg
 assert_grantable_bot_flags	p_server_id uuid, p_new jsonb, p_old jsonb	void	invoker	public, pg_temp	authenticated+service_role	unreferenced
 assert_security_attempt_budget	p_auth_user_id uuid, p_kind text	void	definer	pg_catalog, public, pg_temp	service_role	unreferenced
 assert_webhook_channel	p_channel_id uuid	uuid	invoker	public, pg_temp	service_role	unreferenced
-assign_default_role_to_member		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
+assign_default_role_to_member		trigger	definer	public, pg_temp	service_role	trigger
 assign_server_slug		trigger	definer	public, pg_temp	service_role	trigger
 attach_supporter_message		trigger	definer	public, pg_temp	service_role	trigger
 auto_archive_threads		void	definer	public, pg_temp	anon+authenticated+service_role	client
@@ -988,6 +988,7 @@ search_tsquery	p_query text	tsquery	invoker	pg_catalog, pg_temp	service_role	unr
 search_typo_distance	p_words text[], p_fold text	integer	invoker	pg_catalog, pg_temp	service_role	unreferenced
 seed_channel_encryption_on_insert		trigger	definer	public, extensions, pg_temp	service_role	trigger
 seed_channel_encryption_settings	p_channel_ids uuid[]	void	definer	public, extensions, pg_temp	service_role	unreferenced
+self_assign_refusal	p_role_id uuid	text	definer	public, pg_temp	service_role	unreferenced
 send_notification	p_notification_type character varying, to_user_ids uuid[], notification_data jsonb, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid, p_from_user_id uuid, p_priority character varying	uuid[]	definer	public, pg_temp	service_role	unreferenced
 send_notification_to_user	p_notification_type character varying, p_to_user_id uuid, p_notification_data jsonb, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid, p_from_user_id uuid, p_priority character varying	uuid	definer	public, extensions, pg_temp	service_role	client
 server_audit_attribute_bot		trigger	definer	public, pg_temp	service_role	trigger
@@ -1050,7 +1051,9 @@ set_kofi_webhook_token	p_token text	void	definer	public, pg_temp	authenticated+s
 set_member_instance		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 set_message_embeds_suppressed	p_message_id uuid, p_suppressed boolean	boolean	definer	public, pg_temp	authenticated+service_role	client
 set_my_account_aliases	p_uris text[]	jsonb	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
+set_my_self_assignable_role	p_role_id uuid, p_on boolean	boolean	definer	public, pg_temp	authenticated+service_role	client
 set_server_featured	p_server_id uuid, p_is_featured boolean, p_order integer	void	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
+set_server_join_role	p_server_id uuid, p_role_id uuid	void	definer	public, pg_temp	authenticated+service_role	client
 set_server_member_timeout	p_server_id uuid, p_user_id uuid, p_seconds integer, p_reason text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_server_newcomer_alerts	p_server_id uuid, p_enabled boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_server_raid_lockdown	p_server_id uuid, p_active boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client

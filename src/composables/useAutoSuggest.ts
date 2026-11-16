@@ -76,6 +76,8 @@ export interface AutoSuggestConfig {
   enableCommands?: boolean;
   /** '/poll' is offered while this returns true. */
   pollsEnabled?: () => boolean;
+  /** /rolemenu: a channel of a server this instance hosts. */
+  roleMenusEnabled?: () => boolean;
   /** Server channel the text goes to; without USE_EXTERNAL_EMOJIS there, only its server's custom emoji are offered. */
   channelId?: () => string | null | undefined;
   /**
@@ -676,6 +678,7 @@ export function useAutoSuggest(
     { id: 'cmd:meme', name: 'meme', description: 'Search KLIPY for a meme', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a meme' }], enabled: () => instanceSettings.gifMemesEnabled },
     { id: 'cmd:aiemoji', name: 'aiemoji', description: 'Search KLIPY for an AI emoji', permission: '', params: [{ name: 'query', description: 'Search KLIPY for an AI emoji' }], enabled: () => instanceSettings.gifAiEmojisEnabled },
     { id: 'cmd:poll', name: 'poll', description: 'Create a poll', permission: '', enabled: () => finalConfig.pollsEnabled?.() === true },
+    { id: 'cmd:rolemenu', name: 'rolemenu', description: 'Post a menu members pick their roles from', permission: 'MANAGE_ROLES', enabled: () => finalConfig.roleMenusEnabled?.() === true },
   ];
 
   const currentBotTarget = (): BotCommandTarget | null => {

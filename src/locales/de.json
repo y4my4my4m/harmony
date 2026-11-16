@@ -730,7 +730,16 @@
         "removeMember": "Mitglied konnte nicht aus der Rolle entfernt werden",
         "addMember": "Mitglied konnte nicht zur Rolle hinzugefügt werden",
         "reorder": "Rollen konnten nicht neu geordnet werden"
-      }
+      },
+      "selfAssignable": "Mitglieder können diese Rolle wählen",
+      "selfAssignableDesc": "Erscheint unter „Rollen wählen“ und in Rollenmenüs, damit Mitglieder sie sich selbst geben und wieder abnehmen.",
+      "selfAssignGroup": "Gruppe",
+      "selfAssignGroupPlaceholder": "z. B. Farben, Pronomen, Benachrichtigungen",
+      "selfAssignNote": "Kurze Beschreibung",
+      "selfAssignNotePlaceholder": "Wird beim Wählen unter der Rolle angezeigt",
+      "selfAssignWarnGrants": "Solange diese Rolle Berechtigungen hat, die @everyone fehlen, können Mitglieder sie nicht wählen. Entferne sie im Tab Berechtigungen.",
+      "selfAssignWarnRank": "Solange diese Rolle über einer Rolle mit zusätzlichen Berechtigungen steht, können Mitglieder sie nicht wählen. Verschiebe sie unter alle Moderationsrollen.",
+      "selfAssignWarnAdmin": "Administratorrollen können Mitglieder nicht wählen."
     },
     "privacy": {
       "federatedMembers": "{count} föderiertes Mitglied ist derzeit auf diesem Server | {count} föderierte Mitglieder sind derzeit auf diesem Server",
@@ -4777,7 +4786,10 @@
       "expires_at": "Läuft ab",
       "temporary": "Vorübergehende Mitgliedschaft",
       "messages_deleted": "Gelöschte Nachrichten",
-      "federation_discoverable": "Über die Föderation auffindbar"
+      "federation_discoverable": "Über die Föderation auffindbar",
+      "self_assignable": "Für Mitglieder wählbar",
+      "self_assign_group": "Auswahlgruppe",
+      "self_assign_note": "Auswahlbeschreibung"
     },
     "value": {
       "none": "keine",
@@ -8801,5 +8813,43 @@
       "unsuspended": "Suspendierung von {count} Konto aufgehoben | Suspendierung von {count} Konten aufgehoben",
       "deleted": "{count} Konto gelöscht | {count} Konten gelöscht"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "Rollen wählen",
+    "title": "Wähle deine Rollen",
+    "intro": "Tippe auf eine Rolle, um sie zu nehmen, und nochmal, um sie abzulegen. Änderungen gelten sofort.",
+    "empty": "Dieser Server hat noch keine wählbaren Rollen.",
+    "otherRoles": "Weitere Rollen",
+    "cardButton": "Rollen wählen",
+    "errors": {
+      "notMember": "Tritt dem Server bei, um seine Rollen zu wählen.",
+      "notLocal": "Die Rollen dieses Servers werden auf seiner Heim-Instanz gewählt.",
+      "unavailable": "Diese Rolle kann nicht mehr gewählt werden.",
+      "notPickable": "Diese Rolle gibt Berechtigungen und kann daher nicht gewählt werden. Frag die Moderation.",
+      "failed": "Deine Rolle konnte nicht geändert werden. Versuch es nochmal."
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "Wähle deine Rollen",
+    "otherServer": "Dieses Rollenmenü gehört zu einem anderen Server.",
+    "empty": "Hier gibt es noch keine wählbaren Rollen.",
+    "hint": "Tippe auf eine Rolle, um sie zu nehmen, und nochmal, um sie abzulegen.",
+    "createTitle": "Rollenmenü posten",
+    "noRoles": "Noch keine Rolle ist wählbar. Schalte unter Servereinstellungen → Rollen zuerst „Mitglieder können diese Rolle wählen“ für eine Rolle ein.",
+    "group": "Angebotene Rollen",
+    "allGroups": "Alle wählbaren Rollen",
+    "titleLabel": "Titel",
+    "preview": "Vorschau",
+    "post": "Posten",
+    "postFailed": "Das Rollenmenü konnte nicht gepostet werden."
+  },
+  "joinRole": {
+    "title": "Rolle für neue Mitglieder",
+    "description": "Alle, die ab jetzt beitreten, bekommen diese Rolle. Bestehende Mitglieder behalten ihre Rollen.",
+    "none": "Keine",
+    "saved": "Neue Mitglieder bekommen diese Rolle.",
+    "cleared": "Neue Mitglieder bekommen keine Rolle mehr.",
+    "tooHigh": "Du kannst nur eine Rolle unter deiner höchsten Rolle wählen.",
+    "saveFailed": "Die Rolle für neue Mitglieder konnte nicht gespeichert werden."
   }
 }

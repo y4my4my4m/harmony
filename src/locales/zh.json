@@ -730,7 +730,16 @@
         "removeMember": "无法将成员从角色中移除",
         "addMember": "无法将成员添加到角色",
         "reorder": "无法重新排序角色"
-      }
+      },
+      "selfAssignable": "成员可以选择此角色",
+      "selfAssignableDesc": "显示在“选择角色”和角色菜单中，成员可以自行添加或移除。",
+      "selfAssignGroup": "分组",
+      "selfAssignGroupPlaceholder": "例如：颜色、代词、通知",
+      "selfAssignNote": "简短说明",
+      "selfAssignNotePlaceholder": "选择角色时显示在角色下方",
+      "selfAssignWarnGrants": "此角色拥有 @everyone 没有的权限时，成员无法选择。请在“权限”标签页中移除。",
+      "selfAssignWarnRank": "此角色位于拥有额外权限的角色之上时，成员无法选择。请将其移到所有管理角色之下。",
+      "selfAssignWarnAdmin": "成员无法选择管理员角色。"
     },
     "privacy": {
       "federatedMembers": "此服务器当前有 {count} 名联邦成员 | 此服务器当前有 {count} 名联邦成员",
@@ -4777,7 +4786,10 @@
       "expires_at": "过期时间",
       "temporary": "临时成员资格",
       "messages_deleted": "已删除的消息",
-      "federation_discoverable": "在联邦中可被发现"
+      "federation_discoverable": "在联邦中可被发现",
+      "self_assignable": "成员可选择",
+      "self_assign_group": "选择分组",
+      "self_assign_note": "选择说明"
     },
     "value": {
       "none": "无",
@@ -8801,5 +8813,43 @@
       "unsuspended": "已解除停用 {count} 个账号",
       "deleted": "已删除 {count} 个账号"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "选择角色",
+    "title": "选择你的角色",
+    "intro": "点击角色即可获得，再次点击即可移除。更改立即生效。",
+    "empty": "此服务器还没有可选择的角色。",
+    "otherRoles": "其他角色",
+    "cardButton": "选择角色",
+    "errors": {
+      "notMember": "加入服务器后才能选择其角色。",
+      "notLocal": "此服务器的角色需在其所属实例上选择。",
+      "unavailable": "该角色已无法选择。",
+      "notPickable": "该角色会授予权限，因此无法选择。请联系管理员。",
+      "failed": "无法更改你的角色，请重试。"
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "选择你的角色",
+    "otherServer": "此角色菜单属于另一个服务器。",
+    "empty": "这里还没有可选择的角色。",
+    "hint": "点击角色即可获得，再次点击即可移除。",
+    "createTitle": "发布角色菜单",
+    "noRoles": "还没有可选择的角色。请先在 服务器设置 → 角色 中为某个角色开启“成员可以选择此角色”。",
+    "group": "提供的角色",
+    "allGroups": "所有可选择的角色",
+    "titleLabel": "标题",
+    "preview": "预览",
+    "post": "发布",
+    "postFailed": "无法发布角色菜单。"
+  },
+  "joinRole": {
+    "title": "新成员角色",
+    "description": "从现在起加入的每个人都会获得此角色。现有成员的角色保持不变。",
+    "none": "无",
+    "saved": "新成员将获得此角色。",
+    "cleared": "新成员将不再获得角色。",
+    "tooHigh": "只能选择低于你最高角色的角色。",
+    "saveFailed": "无法保存新成员角色。"
   }
 }

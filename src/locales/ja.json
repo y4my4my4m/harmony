@@ -730,7 +730,16 @@
         "removeMember": "メンバーをロールから外せませんでした",
         "addMember": "メンバーをロールに追加できませんでした",
         "reorder": "ロールを並べ替えられませんでした"
-      }
+      },
+      "selfAssignable": "メンバーがこのロールを選べる",
+      "selfAssignableDesc": "「ロールを選ぶ」とロールメニューに表示され、メンバーが自分で付け外しできます。",
+      "selfAssignGroup": "グループ",
+      "selfAssignGroupPlaceholder": "例：カラー、代名詞、通知",
+      "selfAssignNote": "短い説明",
+      "selfAssignNotePlaceholder": "ロールを選ぶときに下に表示されます",
+      "selfAssignWarnGrants": "@everyoneにない権限を持つ間は、メンバーはこのロールを選べません。権限タブで外してください。",
+      "selfAssignWarnRank": "追加の権限を持つロールより上にある間は、メンバーはこのロールを選べません。モデレーターのロールより下に移動してください。",
+      "selfAssignWarnAdmin": "管理者ロールはメンバーが選べません。"
     },
     "privacy": {
       "federatedMembers": "このサーバーには現在 {count} 人の連合メンバーがいます | このサーバーには現在 {count} 人の連合メンバーがいます",
@@ -4777,7 +4786,10 @@
       "expires_at": "有効期限",
       "temporary": "一時的なメンバーシップ",
       "messages_deleted": "削除されたメッセージ",
-      "federation_discoverable": "連合全体で見つけられるようにする"
+      "federation_discoverable": "連合全体で見つけられるようにする",
+      "self_assignable": "メンバーが選べる",
+      "self_assign_group": "選択グループ",
+      "self_assign_note": "選択時の説明"
     },
     "value": {
       "none": "なし",
@@ -8801,5 +8813,43 @@
       "unsuspended": "{count} アカウントの停止を解除しました",
       "deleted": "{count}件のアカウントを削除しました"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "ロールを選ぶ",
+    "title": "ロールを選ぶ",
+    "intro": "ロールをタップすると付き、もう一度タップすると外れます。すぐに反映されます。",
+    "empty": "このサーバーにはまだ選べるロールがありません。",
+    "otherRoles": "その他のロール",
+    "cardButton": "ロールを選ぶ",
+    "errors": {
+      "notMember": "ロールを選ぶにはサーバーに参加してください。",
+      "notLocal": "このサーバーのロールは、ホストのインスタンスで選びます。",
+      "unavailable": "このロールはもう選べません。",
+      "notPickable": "このロールは権限を与えるため選べません。モデレーターに頼んでください。",
+      "failed": "ロールを変更できませんでした。もう一度お試しください。"
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "ロールを選ぶ",
+    "otherServer": "このロールメニューは別のサーバーのものです。",
+    "empty": "ここで選べるロールはまだありません。",
+    "hint": "ロールをタップすると付き、もう一度タップすると外れます。",
+    "createTitle": "ロールメニューを投稿",
+    "noRoles": "まだ選べるロールがありません。サーバー設定 → ロールで、ロールの「メンバーがこのロールを選べる」をオンにしてください。",
+    "group": "提示するロール",
+    "allGroups": "選べるロールすべて",
+    "titleLabel": "タイトル",
+    "preview": "プレビュー",
+    "post": "投稿",
+    "postFailed": "ロールメニューを投稿できませんでした。"
+  },
+  "joinRole": {
+    "title": "新メンバーのロール",
+    "description": "これから参加する全員にこのロールが付きます。今いるメンバーのロールは変わりません。",
+    "none": "なし",
+    "saved": "新メンバーにこのロールが付きます。",
+    "cleared": "新メンバーにロールは付かなくなりました。",
+    "tooHigh": "自分の最上位ロールより下のロールしか選べません。",
+    "saveFailed": "新メンバーのロールを保存できませんでした。"
   }
 }

@@ -60,13 +60,12 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 2. **DM call decline and busy teardown** (`BUGS.md` H7).
    The ring is app-wide and the 30 s timeout leaves the room (`GlobalDMCallListener`). A decline still only shows a toast, so the caller waits out the timeout; `handleRemoteSignal` has no `decline` or `busy` case, and the busy teardown (`abandonOwnRing`) runs only while `DMHeader` is mounted.
 
-3. **Self-assignable roles.**
-   Only members with Manage Roles hand out roles, and the bot API has no route to add or remove a member's role, so Discord-style reaction-role bots are impossible. Add a `self_assignable` flag (with an optional group label) on `server_roles`, an RPC that adds or removes the caller's own self-assignable role and refuses any role at or above a permission-granting position, and a role picker in the server menu and member card. Works in encrypted servers and needs no bot. Separately, a bot route for member roles gated by `manage_roles` and role position.
-
 4. **Warn before posting a sign-in link.**
    Invitation and password-reset links carry a single-use token: whoever opens one first can claim the account, and a self-hoster pasted one into a public support channel. The composer recognises Harmony and GoTrue sign-in links (`/auth/v1/verify?token=…`, `/reset-password?…token_hash=…`) in any message and asks before sending, with "Send anyway" and a short explanation; a link already posted shows a muted "sign-in link" hint instead of a preview.
 
 *(Notifications of new reports to instance staff and a server's moderators, and custom emoji in announcements, shipped in 1.9.7.)*
+
+*(Self-assignable roles, role menus and the role for new members are built in 1.9.8.)*
 
 *(Discord bridge issues, including mention resolution (`BUGS.md` H41, H42), are tracked in [harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge).)*
 

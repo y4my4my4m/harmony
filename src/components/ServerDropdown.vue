@@ -23,6 +23,11 @@
           {{ $t('server.inviteLink') }}
         </button>
       </li>
+      <li v-if="showRolePicker" role="none">
+        <button type="button" role="menuitem" class="dropdown-item" data-testid="server-pick-roles" @click="openRolePicker">
+          {{ $t('rolePicker.menuEntry') }}
+        </button>
+      </li>
       <li role="none">
         <button type="button" role="menuitem" class="dropdown-item" data-testid="server-notification-settings" @click="openNotificationSettings">
           {{ $t('notificationSettings.menuEntry') }}
@@ -51,6 +56,9 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerWelcomeStore } from '@/stores/useServerWelcome';
 import { useLeaveServer } from '@/composables/useLeaveServer';
 import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings';
+import { useRolePickerStore } from '@/stores/useRolePicker';
+import { useServerRolesStore } from '@/stores/useServerRoles';
+import { pickableRoleGroups } from '@/utils/selfAssignableRoles';
 import { closeMobileDrawers } from '@/composables/useLayoutState';
 import ServerCopyBanner from '@/components/settings/server/ServerCopyBanner.vue';
 
@@ -128,6 +136,18 @@ const generateInviteLink = () => {
 };
 
 const notificationSettingsStore = useServerNotificationSettingsStore();
+
+const rolePickerStore = useRolePickerStore();
+const serverRolesStore = useServerRolesStore();
+// A copy's roles are written by its host, where members pick them.
+const showRolePicker = computed(() =>
+  !isCopy.value && !!props.serverId &&
+  pickableRoleGroups(serverRolesStore.rolesByServer.get(props.serverId) ?? []).length > 0);
+
+const openRolePicker = () => {
+  if (props.serverId) rolePickerStore.openModal(props.serverId);
+  closeDropdown();
+};
 
 const openNotificationSettings = () => {
   if (props.serverId) notificationSettingsStore.openModal(props.serverId);

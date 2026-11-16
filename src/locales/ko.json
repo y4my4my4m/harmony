@@ -730,7 +730,16 @@
         "removeMember": "역할에서 멤버를 제거하지 못했습니다",
         "addMember": "역할에 멤버를 추가하지 못했습니다",
         "reorder": "역할 순서를 바꾸지 못했습니다"
-      }
+      },
+      "selfAssignable": "멤버가 이 역할을 고를 수 있음",
+      "selfAssignableDesc": "「역할 고르기」와 역할 메뉴에 표시되어, 멤버가 직접 붙이고 뗄 수 있습니다.",
+      "selfAssignGroup": "그룹",
+      "selfAssignGroupPlaceholder": "예: 색상, 대명사, 알림",
+      "selfAssignNote": "짧은 설명",
+      "selfAssignNotePlaceholder": "역할을 고를 때 아래에 표시됩니다",
+      "selfAssignWarnGrants": "@everyone에 없는 권한이 있는 동안에는 멤버가 이 역할을 고를 수 없습니다. 권한 탭에서 제거하세요.",
+      "selfAssignWarnRank": "추가 권한이 있는 역할보다 위에 있는 동안에는 멤버가 이 역할을 고를 수 없습니다. 모든 모더레이터 역할보다 아래로 옮기세요.",
+      "selfAssignWarnAdmin": "관리자 역할은 멤버가 고를 수 없습니다."
     },
     "privacy": {
       "federatedMembers": "현재 이 서버에 연합 멤버 {count}명이 있습니다 | 현재 이 서버에 연합 멤버 {count}명이 있습니다",
@@ -4777,7 +4786,10 @@
       "expires_at": "만료",
       "temporary": "임시 멤버십",
       "messages_deleted": "삭제된 메시지",
-      "federation_discoverable": "연합 전체에서 검색 가능"
+      "federation_discoverable": "연합 전체에서 검색 가능",
+      "self_assignable": "멤버가 고를 수 있음",
+      "self_assign_group": "고르기 그룹",
+      "self_assign_note": "고르기 설명"
     },
     "value": {
       "none": "없음",
@@ -8801,5 +8813,43 @@
       "unsuspended": "계정 {count}개의 정지를 해제했습니다",
       "deleted": "계정 {count}개를 삭제했습니다"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "역할 고르기",
+    "title": "역할 고르기",
+    "intro": "역할을 누르면 붙고, 다시 누르면 떨어집니다. 바로 적용됩니다.",
+    "empty": "이 서버에는 아직 고를 수 있는 역할이 없습니다.",
+    "otherRoles": "기타 역할",
+    "cardButton": "역할 고르기",
+    "errors": {
+      "notMember": "역할을 고르려면 서버에 참가하세요.",
+      "notLocal": "이 서버의 역할은 원래 인스턴스에서 고릅니다.",
+      "unavailable": "이 역할은 더 이상 고를 수 없습니다.",
+      "notPickable": "이 역할은 권한을 주기 때문에 고를 수 없습니다. 모더레이터에게 요청하세요.",
+      "failed": "역할을 바꾸지 못했습니다. 다시 시도하세요."
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "역할 고르기",
+    "otherServer": "이 역할 메뉴는 다른 서버의 것입니다.",
+    "empty": "여기서 고를 수 있는 역할이 아직 없습니다.",
+    "hint": "역할을 누르면 붙고, 다시 누르면 떨어집니다.",
+    "createTitle": "역할 메뉴 게시",
+    "noRoles": "아직 고를 수 있는 역할이 없습니다. 서버 설정 → 역할에서 역할의 「멤버가 이 역할을 고를 수 있음」을 켜세요.",
+    "group": "제공할 역할",
+    "allGroups": "고를 수 있는 모든 역할",
+    "titleLabel": "제목",
+    "preview": "미리 보기",
+    "post": "게시",
+    "postFailed": "역할 메뉴를 게시하지 못했습니다."
+  },
+  "joinRole": {
+    "title": "새 멤버 역할",
+    "description": "앞으로 참가하는 모든 사람이 이 역할을 받습니다. 기존 멤버의 역할은 그대로입니다.",
+    "none": "없음",
+    "saved": "새 멤버가 이 역할을 받습니다.",
+    "cleared": "새 멤버는 더 이상 역할을 받지 않습니다.",
+    "tooHigh": "내 최상위 역할보다 낮은 역할만 고를 수 있습니다.",
+    "saveFailed": "새 멤버 역할을 저장하지 못했습니다."
   }
 }
