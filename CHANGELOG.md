@@ -373,6 +373,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
+- **A group chat holds up to 10 people**, its creator included, as a Discord group DM. The picker
+  shows the spots left and stops at the tenth person; adding, rejoining or a group arriving from
+  another instance past 10 is refused with "This group is full". A group already larger keeps
+  its members and takes nobody new until it is below 10.
 - **The member list loads as you scroll**, as on Discord. A server of more than 200 members shows
   its groups and their counts at once and fills in the members near what you see; searching the list,
   `@` suggestions, the kick and ban picker, `from:` in message search and the member pickers of roles,

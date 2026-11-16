@@ -1487,6 +1487,8 @@
     "conversationDismissed": "Conversation masquée. Elle réapparaîtra à un nouveau message.",
     "failedToDismissConversation": "Impossible de masquer la conversation",
     "noUsersFound": "Aucun utilisateur trouvé",
+    "groupSpotsLeft": "{count} place restante | {count} places restantes",
+    "groupFull": "Ce groupe est complet : un groupe compte au plus {count} personnes.",
     "call": "Appeler",
     "videoCall": "Appel vidéo",
     "voiceCall": "Appel vocal",

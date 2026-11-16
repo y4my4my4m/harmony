@@ -1487,6 +1487,8 @@
     "conversationDismissed": "会話を非表示にしました。新しいメッセージが届くと再表示されます。",
     "failedToDismissConversation": "会話を非表示にできませんでした",
     "noUsersFound": "ユーザーが見つかりません",
+    "groupSpotsLeft": "残り{count}人 | 残り{count}人",
+    "groupFull": "このグループは満員です。グループは最大{count}人までです。",
     "call": "通話",
     "videoCall": "ビデオ通話",
     "voiceCall": "音声通話",

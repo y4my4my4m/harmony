@@ -495,6 +495,7 @@ enforce_channel_message_encryption	invoker	trigger	service_role	trigger	trigger 
 enforce_channel_slowmode	definer	trigger	anon+authenticated+service_role	client, trigger	named in src/components/MessageInput.vue; trigger public.messages BEFORE INSERT (trigger_enforce_channel_slowmode)
 enforce_conversation_message_encryption	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT (trg_enforce_conversation_encryption)
 enforce_force_sensitive	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.posts BEFORE INSERT (enforce_force_sensitive_on_posts)
+enforce_group_conversation_limit	definer	trigger	service_role	trigger	trigger public.conversation_participants BEFORE INSERT/UPDATE (b_group_conversation_limit)
 enforce_max_servers_per_user	definer	trigger	service_role	trigger	trigger public.servers BEFORE INSERT (y_servers_owner_cap)
 enforce_message_attach_files	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_attach_files)
 enforce_message_content_permissions	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_content_permissions)

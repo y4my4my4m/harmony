@@ -1546,6 +1546,8 @@
     "conversationDismissed": "Conversation dismissed. It'll reappear on a new message.",
     "failedToDismissConversation": "Failed to dismiss conversation",
     "noUsersFound": "No users found",
+    "groupSpotsLeft": "{count} spot left | {count} spots left",
+    "groupFull": "This group is full: a group holds up to {count} people.",
     "call": "Call",
     "videoCall": "Video call",
     "voiceCall": "Voice call",

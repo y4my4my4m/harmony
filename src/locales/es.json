@@ -1487,6 +1487,8 @@
     "conversationDismissed": "Conversación descartada. Volverá a aparecer con un mensaje nuevo.",
     "failedToDismissConversation": "No se pudo descartar la conversación",
     "noUsersFound": "No se encontraron usuarios",
+    "groupSpotsLeft": "Queda {count} plaza | Quedan {count} plazas",
+    "groupFull": "Este grupo está lleno: un grupo admite hasta {count} personas.",
     "call": "Llamar",
     "videoCall": "Videollamada",
     "voiceCall": "Llamada de voz",

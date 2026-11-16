@@ -1487,6 +1487,8 @@
     "conversationDismissed": "Unterhaltung ausgeblendet. Sie erscheint bei einer neuen Nachricht wieder.",
     "failedToDismissConversation": "Unterhaltung konnte nicht ausgeblendet werden",
     "noUsersFound": "Keine Benutzer gefunden",
+    "groupSpotsLeft": "{count} Platz frei | {count} Plätze frei",
+    "groupFull": "Diese Gruppe ist voll: Eine Gruppe hat höchstens {count} Personen.",
     "call": "Anrufen",
     "videoCall": "Videoanruf",
     "voiceCall": "Sprachanruf",

@@ -1487,6 +1487,8 @@
     "conversationDismissed": "对话已隐藏。收到新消息时会重新出现。",
     "failedToDismissConversation": "隐藏对话失败",
     "noUsersFound": "未找到用户",
+    "groupSpotsLeft": "还可添加 {count} 人 | 还可添加 {count} 人",
+    "groupFull": "此群组已满：群组最多 {count} 人。",
     "call": "通话",
     "videoCall": "视频通话",
     "voiceCall": "语音通话",

@@ -60,6 +60,9 @@ describe('instance limit refusals', () => {
       code: 'DM_UNDELIVERABLE', message: i18n.global.t('dm.undeliverable'),
     })
     expect(isModerationRejectionCode('DM_UNDELIVERABLE')).toBe(true)
+    expect(moderationRejectionFromError({ code: 'P0001', message: 'GROUP_CONVERSATION_FULL:10' })).toEqual({
+      code: 'GROUP_CONVERSATION_FULL', message: i18n.global.t('dm.groupFull', { count: '10' }),
+    })
   })
 
   it('reads a code a wrapper kept inside its own message', () => {

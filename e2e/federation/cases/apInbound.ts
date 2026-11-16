@@ -279,6 +279,28 @@ export async function caseApInbound(ctx: ApInboundContext): Promise<void> {
       eq((await messagesOf(remoteOnly)).length, 0, 'a direct message naming no local account is stored nowhere')
       eq(await postByApId(remoteOnly), null, 'nor as a post')
 
+      // A group conversation holds 10 people: the peer, fx_audience and stored remote accounts.
+      const members = Array.from({ length: 9 }, (_, i) => ({
+        id: `fed00214-0000-0000-0000-0000000001${String(i).padStart(2, '0')}`,
+        username: `fx_member${i}`,
+        url: `${peer.base}/users/fx_member${i}`,
+      }))
+      const seededMembers = await db.from('profiles').upsert(members.map((m) => ({
+        id: m.id, username: m.username, display_name: m.username, is_local: false,
+        domain: new URL(peer.base).host, federated_id: m.url,
+      })), { onConflict: 'id' })
+      assert(!seededMembers.error, 'the remote members exist', seededMembers.error?.message)
+      const groupOf = async (n: number) => {
+        const id = `${peer.base}/notes/group-${n}-${crypto.randomUUID()}`
+        await deliver({
+          id: `${id}/activity`, type: 'Create', actor: peer.actorUrl,
+          object: { ...bare(id, `a group of ${n}`), to: [target, ...members.slice(0, n - 2).map((m) => m.url)], cc: [] },
+        }, asPeer)
+        return id
+      }
+      eq((await messagesOf(await groupOf(10))).length, 1, 'a group message among 10 people starts a group')
+      eq((await messagesOf(await groupOf(11))).length, 0, 'one among 11 is refused: a group holds 10')
+
       // The peer declares a followers collection whose path holds no `followers` segment.
       const { data: before } = await db.from('profiles').select('followers_url').eq('id', ctx.ids.remote).single()
       const fans = `${peer.actorUrl}/fans`

@@ -155,11 +155,20 @@ async function resolveLocalProfileByActorUrl(actorUrl: string): Promise<{ id: st
   return null;
 }
 
+/** Participants of a group conversation: 20261116100001_group_conversation_limit.sql. */
+const GROUP_CONVERSATION_LIMIT = 10;
+
 /**
- * Addresses resolved per direct message or group invite. Harmony lists every participant of a
- * group conversation and sets no size limit on one.
+ * Addresses a direct message or group invite may name; one naming more is refused whole, never
+ * cut short. Well above GROUP_CONVERSATION_LIMIT: a group that predates the limit is found by its
+ * remote id, whatever its size.
  */
 const MAX_DIRECT_RECIPIENTS = 250;
+
+/** The database refused a group past GROUP_CONVERSATION_LIMIT. */
+function groupConversationFull(error: { message?: string } | null): boolean {
+  return !!error?.message?.startsWith('GROUP_CONVERSATION_FULL');
+}
 
 /** federated_id values per `in` filter: PostgREST reads the list from the request URL. */
 const PROFILE_LOOKUP_CHUNK = 25;
@@ -4711,9 +4720,12 @@ export class ActivityProcessor {
   ): Promise<void> {
     const supabase = getSupabaseClient();
     
-    const recipients = await resolveRecipients(
-      recipientsOf(audienceOf(object, activity)).slice(0, MAX_DIRECT_RECIPIENTS),
-    );
+    const addressed = recipientsOf(audienceOf(object, activity));
+    if (addressed.length > MAX_DIRECT_RECIPIENTS) {
+      logDenied('DM', normalizeActor(activity?.actor ?? object.attributedTo), `${object.id} names ${addressed.length} recipients`);
+      return;
+    }
+    const recipients = await resolveRecipients(addressed);
     // A conversation here needs a participant here.
     if (!recipients.some((r) => r.local)) {
       logger.warn(`Direct message ${object.id} has no local recipients`);
@@ -4742,6 +4754,11 @@ export class ActivityProcessor {
           p_local_recipient_ids: allowedIds,
           p_remote_conversation_id: remoteConvId
         });
+      if (groupConversationFull(convError)) {
+        logDenied('group DM', normalizeActor(activity?.actor ?? object.attributedTo),
+          `${object.id} would take a group past ${GROUP_CONVERSATION_LIMIT} people`);
+        return;
+      }
       if (convError || !convId) {
         logger.error(`Failed to get/create group conversation:`, convError);
         return;
@@ -4836,7 +4853,11 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
 
     const { to } = audienceOf(object, activity);
-    const recipients = await resolveRecipients(to.slice(0, MAX_DIRECT_RECIPIENTS));
+    if (to.length > MAX_DIRECT_RECIPIENTS) {
+      logDenied('group invite', normalizeActor(object.attributedTo), `${object.id} names ${to.length} recipients`);
+      return;
+    }
+    const recipients = await resolveRecipients(to);
     const recipientIds = recipients.filter((r) => r.local).map((r) => r.id);
 
     if (recipientIds.length === 0) {
@@ -4863,6 +4884,11 @@ export class ActivityProcessor {
       }
     );
 
+    if (groupConversationFull(convError)) {
+      logDenied('group invite', normalizeActor(object.attributedTo),
+        `${object.id} would take a group past ${GROUP_CONVERSATION_LIMIT} people`);
+      return;
+    }
     if (convError || !conversationId) {
       logger.error('Failed to get/create group for invite:', convError);
       return;
