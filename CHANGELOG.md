@@ -175,6 +175,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **Uploads survive a dropped request.** An attachment, avatar, banner or server icon under 6 MB
+  went up in one request, and when that request failed on the network or stalled, the upload
+  failed with "Network error". It is now sent once more a second later, or once the device is back
+  online. When the first request had in fact been stored and only its answer was lost, the upload
+  completes. Some Firefox installs on Android lost such requests after their preflight.
 - **Public NeoDB posts appear on imported profiles.** Posts fetched from an account's outbox
   now use the same visibility rules as incoming federation activities, recognizing NeoDB's
   compact `as:Public` audience instead of treating public posts as direct messages.

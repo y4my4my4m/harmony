@@ -16,6 +16,10 @@ import { stripMediaMetadata } from '@/utils/stripMetadata'
  * body with `cacheControl`, `metadata` (JSON, stored as user_metadata) and the file under an empty
  * field name, `x-upsert`, and the session's access token (the anon key without a session) as
  * bearer, as supabase-js fetchWithAuth. Over XMLHttpRequest: fetch reports no upload progress.
+ * A request that ends without an answer (network error or stall) is sent once more after
+ * WHOLE_RETRY_DELAY_MS, or once the browser is back online. `path` names a fresh object, so a
+ * duplicate refusal of that second request is the first one stored with its answer lost, and
+ * counts as success. Deviation from storage-js, which does not retry.
  *
  * Above it the file goes to storage-api's TUS endpoint (/storage/v1/upload/resumable; tus 1.0.0
  * core, creation and termination) in PATCHes ending on TUS_CHUNK_BYTES boundaries. A PATCH that
@@ -60,6 +64,7 @@ export interface UploadState {
 
 export interface StorageUploadOptions {
   bucket: string
+  /** An object name no stored object holds. */
   path: string
   file: Blob
   /** Stored content type; the file's own type otherwise. */
@@ -147,6 +152,9 @@ export const TUS_MIN_PART_BYTES = 5 * 1024 * 1024
 
 /** Waits before each resume of a failed PATCH, ms; the upload fails after the last. */
 export const TUS_RETRY_DELAYS_MS = [1000, 3000, 5000, 10_000, 20_000, 30_000, 60_000]
+
+/** Wait before the second one-request attempt, ms. */
+export const WHOLE_RETRY_DELAY_MS = 1000
 
 /**
  * A request with no progress event for this long fails, ms. Idle time, not total time: a large
@@ -330,13 +338,21 @@ function sleep(link: Link, ms: number): Promise<void> {
 // One request
 // ---------------------------------------------------------------------------
 
+/**
+ * storage-api's ResourceAlreadyExists: HTTP 400 with statusCode "409" in the body (v1.90.0), or a
+ * plain 409.
+ */
+function duplicate(error: StorageUploadError): boolean {
+  return error.status === 409 || error.statusCode === '409'
+}
+
 async function sendWhole(
   link: Link,
   options: StorageUploadOptions,
   path: string,
+  state: UploadState,
   report: Report,
 ): Promise<void> {
-  const token = await accessToken()
   const body = new FormData()
   body.append('cacheControl', options.cacheControl ?? DEFAULT_CACHE_CONTROL)
   if (options.metadata && Object.keys(options.metadata).length > 0) {
@@ -347,22 +363,34 @@ async function sendWhole(
     : options.file
   body.append('', file)
   const encodedPath = path.split('/').map(encodeURIComponent).join('/')
-  let answer: Answer
-  try {
-    answer = await send(
-      link,
-      'POST',
-      `${SUPABASE_URL}/storage/v1/object/${options.bucket}/${encodedPath}`,
-      { Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON_KEY, 'x-upsert': options.upsert ? 'true' : 'false' },
-      body,
-      // The body carries the form fields too: the file's share follows the body's.
-      (loaded, total) => report(options.file.size * Math.min(1, loaded / total), Math.min(1, loaded / total)),
-    )
-  } catch (error) {
-    if (error instanceof NetworkFailure) throw networkError(error, options.bucket)
-    throw error
+  const url = `${SUPABASE_URL}/storage/v1/object/${options.bucket}/${encodedPath}`
+  for (let attempt = 0; ; attempt++) {
+    const token = await accessToken()
+    let answer: Answer
+    try {
+      answer = await send(
+        link,
+        'POST',
+        url,
+        { Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON_KEY, 'x-upsert': options.upsert ? 'true' : 'false' },
+        body,
+        // The body carries the form fields too: the file's share follows the body's.
+        (loaded, total) => report(options.file.size * Math.min(1, loaded / total), Math.min(1, loaded / total)),
+      )
+    } catch (error) {
+      if (!(error instanceof NetworkFailure)) throw error
+      if (attempt > 0) throw networkError(error, options.bucket)
+      state.reconnecting = true
+      report(0)
+      await sleep(link, WHOLE_RETRY_DELAY_MS)
+      state.reconnecting = false
+      continue
+    }
+    if (answer.status >= 200 && answer.status < 300) return
+    const refused = refusal(answer, options.bucket)
+    if (attempt > 0 && !options.upsert && duplicate(refused)) return
+    throw refused
   }
-  if (answer.status < 200 || answer.status >= 300) throw refusal(answer, options.bucket)
 }
 
 /** The blob with another type; a File keeps its name. */
@@ -743,7 +771,7 @@ export function startStorageUpload(options: StorageUploadOptions): StorageUpload
       }
     }
     state.transport = 'multipart'
-    await sendWhole(link, options, options.path, report)
+    await sendWhole(link, options, options.path, state, report)
     return options.path
   }
 

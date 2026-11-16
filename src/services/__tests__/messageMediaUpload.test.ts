@@ -16,6 +16,7 @@ import {
   messageMediaUploadState,
   startMessageMediaUpload,
 } from '@/services/messageMediaUpload'
+import { WHOLE_RETRY_DELAY_MS } from '@/services/uploads/storageUpload'
 
 const PATH = 'c/66666666-0000-4000-8000-000000000006/aaaaaaaa-0000-4000-8000-000000000001/x.png'
 
@@ -119,7 +120,7 @@ describe('startMessageMediaUpload', () => {
     expect(FakeXHR.last).toBeNull()
   })
 
-  it('fails an upload with no progress for the stall window, however long it runs', async () => {
+  it('fails an upload whose request and its one retry each go the stall window without progress', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const upload = startMessageMediaUpload(PATH, new File(['png'], 'x.png', { type: 'image/png' }))
     await flushPromises()
@@ -130,6 +131,12 @@ describe('startMessageMediaUpload', () => {
       xhr.upload.onprogress?.({ lengthComputable: true, loaded: sent, total: 100 })
     }
     expect(upload.state.status).toBe('uploading')
+
+    await vi.advanceTimersByTimeAsync(UPLOAD_STALL_MS)
+    expect(upload.state).toMatchObject({ status: 'uploading', reconnecting: true })
+    await vi.advanceTimersByTimeAsync(WHOLE_RETRY_DELAY_MS)
+    expect(FakeXHR.last).not.toBe(xhr)
+    expect(upload.state.reconnecting).toBe(false)
 
     await vi.advanceTimersByTimeAsync(UPLOAD_STALL_MS)
     await expect(upload.result).rejects.toThrow('message.upload.stalled')
