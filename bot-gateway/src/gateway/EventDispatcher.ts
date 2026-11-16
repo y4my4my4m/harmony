@@ -521,6 +521,7 @@ export class EventDispatcher {
     await this.dispatch(type, serverId, channelId, botIds, {
       reaction_id: reaction.id,
       message_id: reaction.message_id,
+      server_id: serverId,
       channel_id: reaction.channel_id,
       user_id: reaction.user_id ?? null,
       bot_id: reaction.bot_id ?? null,
@@ -912,6 +913,7 @@ export class EventDispatcher {
     
     await this.dispatch('MESSAGE_DELETE', serverId, message.channel_id, botIds, {
       id: message.id,
+      server_id: serverId,
       channel_id: message.channel_id,
       thread_id: message.thread_id ?? null,
       metadata: message.metadata
@@ -1033,6 +1035,7 @@ export class EventDispatcher {
     
     return {
       id: message.id,
+      server_id: serverId,
       channel_id: message.channel_id,
       thread_id: message.thread_id ?? null,
       author,

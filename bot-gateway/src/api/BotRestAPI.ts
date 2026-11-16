@@ -41,6 +41,8 @@ import { DISCORD_EMOJI_ID, EMOJI_BUCKET, EMOJI_NAME, discordEmojiStoragePath, is
 import { DISCORD_SOUND_ID, MAX_SERVER_SOUNDS, storeDiscordSound, removeStoredSound } from '../utils/discordSoundImport.js'
 import { LIST_MAX_ROWS, LIST_PAGE, selectAllById } from '../utils/pagedSelect.js'
 import { GATEWAY_CAPABILITIES } from '../capabilities.js'
+import { EmptyFileError, OverQuotaError, TooLargeError, storeBotUpload } from '../utils/mirrorFile.js'
+import { fileTypeOf, getUploadCeilingBytes } from '../utils/mirrorExternalMedia.js'
 import { TTLCache } from '../utils/TTLCache.js'
 import { MAX_COMMANDS, validateCommand, validateCommands } from '../commands/validate.js'
 
@@ -304,6 +306,7 @@ export class BotRestAPI {
     // CHANNEL ENDPOINTS
 
     this.route('post', '/channels/:channelId/messages', this.sendMessage)
+    this.route('post', '/channels/:channelId/attachments', this.uploadAttachment)
 
     this.route('get', '/channels/:channelId/messages', this.getMessages)
 
@@ -362,6 +365,8 @@ export class BotRestAPI {
     this.route('post', '/servers/:serverId/roles', this.createRole)
     this.route('patch', '/servers/:serverId/roles/:roleId', this.updateRole)
     this.route('delete', '/servers/:serverId/roles/:roleId', this.deleteRole)
+    this.route('put', '/servers/:serverId/members/:userId/roles/:roleId', this.addMemberRole)
+    this.route('delete', '/servers/:serverId/members/:userId/roles/:roleId', this.removeMemberRole)
 
     // Channel permission overrides; used by Discord bridge permission sync.
     this.route('get', '/channels/:channelId/permission-overrides', this.getChannelPermissionOverrides)
@@ -1283,7 +1288,7 @@ export class BotRestAPI {
    * against the interaction's channel), with no message written.
    */
   private async privateReplyParts(content: any, embeds: any, channelId: string, botId: string): Promise<any[]> {
-    return resolveMentionParts(formatContent(content, embeds), channelId, botId)
+    return resolveMentionParts(formatContent(content, embeds, { channelId, botId }), channelId, botId)
   }
 
   private privateReply(reply: any, parts: any[]) {
@@ -1753,8 +1758,13 @@ export class BotRestAPI {
       if (error) {
         return res.status(500).json({ error: error.message })
       }
-      
-      res.json(members?.map(m => this.formatMember(m)) || [])
+
+      const page = members ?? []
+      const rolesByUser = await this.memberRoleIds(serverId, page.map((m: { user_id: string }) => m.user_id))
+      if (!rolesByUser) {
+        return res.status(500).json({ error: 'Role lookup failed' })
+      }
+      res.json(page.map(m => this.formatMember({ ...m, roles: rolesByUser.get(m.user_id) ?? [] })))
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
@@ -2269,6 +2279,160 @@ export class BotRestAPI {
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal server error' })
     }
+  }
+
+  /**
+   * POST /channels/:channelId/attachments: the request body is the file, `filename` names it.
+   * Needs send_messages and attach_files in the channel. Answers the file part a message or an
+   * interaction reply of this channel names it by (stripBotSuppliedPaths keeps its path).
+   */
+  private async uploadAttachment(req: BotRequest, res: Response) {
+    const channelId = req.params.channelId
+    const botId = req.bot!.id
+    // An answer sent before the body is read leaves it unread; resume() drains it.
+    const refuse = (status: number, body: Record<string, unknown>) => {
+      req.resume()
+      return res.status(status).json(body)
+    }
+    try {
+      if (!UUID_PATTERN.test(channelId)) return refuse(400, { error: 'channelId must be a UUID' })
+      const contentType = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase()
+      if (contentType === 'application/json' || contentType.startsWith('multipart/') || contentType === 'application/x-www-form-urlencoded') {
+        return refuse(415, { error: 'Send the file itself as the request body, with its own Content-Type' })
+      }
+      for (const flag of ['send_messages', 'attach_files'] as const) {
+        const access = await this.channelWriteAccess(botId, channelId, flag)
+        if (!access.ok) return refuse(403, { error: access.error })
+      }
+      const ceiling = await getUploadCeilingBytes()
+      const declared = Number(req.headers['content-length'])
+      if (Number.isFinite(declared) && declared > ceiling) {
+        return refuse(413, { error: 'File too large', max_bytes: ceiling })
+      }
+
+      const rawName = typeof req.query.filename === 'string' ? req.query.filename : ''
+      // The last path segment, without control characters, at most 255 characters.
+      const fileName = rawName.split(/[\\/]/).pop()!.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 255) || 'file'
+
+      const stored = await storeBotUpload(req, { botId, channelId, fileName, contentType: contentType || undefined, ceiling })
+      await this.logBotAction(botId, 'file_uploaded', { channel_id: channelId, path: stored.path, bytes: stored.bytes }, { channelId })
+      res.status(201).json({
+        type: 'file',
+        path: stored.path,
+        url: stored.url,
+        fileType: fileTypeOf(stored.contentType),
+        fileName,
+        fileSize: stored.bytes,
+        mimeType: stored.contentType,
+      })
+    } catch (error: any) {
+      if (error instanceof TooLargeError) return refuse(413, { error: 'File too large', max_bytes: await getUploadCeilingBytes() })
+      if (error instanceof EmptyFileError) return refuse(400, { error: 'The request body is empty' })
+      if (error instanceof OverQuotaError) return refuse(507, { error: 'This server\'s storage for bot files is full' })
+      console.error('Bot upload failed:', error?.message || error)
+      if (!res.headersSent) refuse(500, { error: 'Upload failed' })
+    }
+  }
+
+  private async addMemberRole(req: BotRequest, res: Response) {
+    return this.writeMemberRole(req, res, true)
+  }
+
+  private async removeMemberRole(req: BotRequest, res: Response) {
+    return this.writeMemberRole(req, res, false)
+  }
+
+  /**
+   * Adds or removes one role of a member. The role is one the bot may manage (loadManageableRole);
+   * an added role carries only bits the bot may grant. A repeat changes nothing and answers 204.
+   */
+  private async writeMemberRole(req: BotRequest, res: Response, add: boolean) {
+    try {
+      const { serverId, userId, roleId } = req.params
+      const botId = req.bot!.id
+      if (!UUID_PATTERN.test(userId) || !UUID_PATTERN.test(roleId)) {
+        return res.status(400).json({ error: 'userId and roleId must be UUIDs' })
+      }
+
+      const authority = await this.loadRoleAuthority(botId, serverId)
+      if (!authority.ok) {
+        return res.status(authority.status).json({ error: authority.error })
+      }
+      const existing = await this.loadManageableRole(serverId, roleId, authority.positionCap)
+      if (!existing.ok) {
+        return res.status(existing.status).json({ error: existing.error })
+      }
+      if (add) {
+        const missing = u64(parseMask(existing.role.permissions ?? 0) ?? 0n) & ~authority.grantable
+        if (missing !== 0n) {
+          return res.status(403).json(this.missingBitsError(missing, 'through this role'))
+        }
+      }
+
+      const { data: member, error: memberError } = await supabase
+        .from('user_servers')
+        .select('user_id')
+        .eq('server_id', serverId)
+        .eq('user_id', userId)
+        .eq('status', 'accepted')
+        .maybeSingle()
+      if (memberError) {
+        console.error('Member lookup failed:', memberError.message)
+        return res.status(500).json({ error: 'Member lookup failed' })
+      }
+      if (!member) {
+        return res.status(404).json({ error: 'Member not found' })
+      }
+
+      const write = add
+        ? supabase
+          .from('user_roles')
+          .upsert({ user_id: userId, role_id: roleId, server_id: serverId }, { onConflict: 'user_id,role_id', ignoreDuplicates: true })
+          .select('id')
+        : supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', userId)
+          .eq('role_id', roleId)
+          .eq('server_id', serverId)
+          .select('id')
+      const { data: changed, error } = await write
+      if (error) return res.status(500).json({ error: error.message })
+
+      if (Array.isArray(changed) && changed.length > 0) {
+        await this.logBotAction(
+          botId,
+          add ? 'member_role_added' : 'member_role_removed',
+          { server_id: serverId, user_id: userId, role_id: roleId },
+          { serverId },
+        )
+      }
+      res.status(204).send()
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  /** Role ids per member of `userIds`, @everyone excluded; null on a failed read. 100 ids per query bound the URL. */
+  private async memberRoleIds(serverId: string, userIds: string[]): Promise<Map<string, string[]> | null> {
+    const byUser = new Map<string, string[]>()
+    for (let i = 0; i < userIds.length; i += 100) {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('user_id, role_id')
+        .eq('server_id', serverId)
+        .in('user_id', userIds.slice(i, i + 100))
+      if (error || !Array.isArray(data)) {
+        console.error('Member role lookup failed:', error?.message)
+        return null
+      }
+      for (const row of data as Array<{ user_id: string; role_id: string }>) {
+        const list = byUser.get(row.user_id)
+        if (list) list.push(row.role_id)
+        else byUser.set(row.user_id, [row.role_id])
+      }
+    }
+    return byUser
   }
 
   private async resolveChannelServer(channelId: string): Promise<string | null> {

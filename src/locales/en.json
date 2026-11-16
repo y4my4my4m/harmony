@@ -4016,7 +4016,11 @@
       },
       "manage_roles": {
         "label": "Manage roles",
-        "description": "Create, edit and delete roles below its installer's highest role, with permissions it holds."
+        "description": "Create, edit, delete and give members roles below its installer's highest role, with permissions it holds."
+      },
+      "attach_files": {
+        "label": "Attach files",
+        "description": "Upload images and other files to post in channels where it can send messages."
       }
     },
     "commands": {

@@ -4016,7 +4016,11 @@
       },
       "manage_roles": {
         "label": "Gestionar roles",
-        "description": "Crear, editar y eliminar roles por debajo del rol más alto de quien lo instaló, con los permisos que tiene."
+        "description": "Crear, editar, eliminar y asignar a miembros roles por debajo del rol más alto de quien lo instaló, con los permisos que tiene."
+      },
+      "attach_files": {
+        "label": "Adjuntar archivos",
+        "description": "Subir imágenes y otros archivos para publicarlos en los canales donde puede enviar mensajes."
       }
     },
     "commands": {

@@ -730,15 +730,19 @@ describe('server routes', () => {
       user: { id: ALICE, username: 'alice', display_name: 'Alice', avatar_url: null, domain: null, is_local: true },
     }
 
-    it('reports joined_at from the membership row', async () => {
-      routeTables({ ...INSTALLED, user_servers: { data: [membership], error: null } })
+    it('reports joined_at from the membership row and the member\'s role ids', async () => {
+      routeTables({
+        ...INSTALLED,
+        user_servers: { data: [membership], error: null },
+        user_roles: { data: [{ user_id: ALICE, role_id: '00000000-0000-0000-0000-0000000000e1' }], error: null },
+      })
       const res = await supertest(makeApp()).get(`/api/v1/servers/${SERVER_ID}/members`)
 
       expect(res.status).toBe(200)
       expect(res.body).toEqual([{
         user: { id: ALICE, username: 'alice', display_name: 'Alice', domain: null, is_local: true },
         nick: 'Al',
-        roles: [],
+        roles: ['00000000-0000-0000-0000-0000000000e1'],
         joined_at: '2026-10-01T09:00:00+00:00',
       }])
     })

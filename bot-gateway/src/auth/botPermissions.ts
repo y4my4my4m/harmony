@@ -184,6 +184,7 @@ export const CHANNEL_WRITE_BITS = {
   send_messages: permissionMask('SEND_MESSAGES'),
   manage_messages: permissionMask('MANAGE_MESSAGES'),
   add_reactions: permissionMask('ADD_REACTIONS'),
+  attach_files: permissionMask('ATTACH_FILES'),
 } as const
 
 export type ChannelWriteFlag = keyof typeof CHANNEL_WRITE_BITS

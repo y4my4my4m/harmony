@@ -68,6 +68,7 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | Method | Path | Access | Purpose |
 |---|---|---|---|
 | `POST` | [`/channels/{channel.id}/messages`](#create-message) | `send_messages` | Post a message, in the channel or one of its threads |
+| `POST` | [`/channels/{channel.id}/attachments`](#upload-a-file) | `send_messages`, `attach_files` | Upload a file to post in the channel |
 | `GET` | [`/channels/{channel.id}/messages`](#get-channel-messages) | `read_messages` | List a channel's messages, newest first |
 | `GET` | [`/channels/{channel.id}/messages/lookup`](#look-up-a-bridged-message) | `read_messages` | Find a message by the Discord message ID in its metadata |
 | `GET` | [`/messages/{message.id}`](#get-message) | `read_messages` | Read one message |
@@ -94,6 +95,8 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | `POST` | [`/servers/{server.id}/roles`](#create-role) | `manage_roles` | Create a role |
 | `PATCH` | [`/servers/{server.id}/roles/{role.id}`](#edit-role) | `manage_roles` | Edit a role |
 | `DELETE` | [`/servers/{server.id}/roles/{role.id}`](#delete-role) | `manage_roles` | Delete a role |
+| `PUT` | [`/servers/{server.id}/members/{user.id}/roles/{role.id}`](#member-roles) | `manage_roles` | Give a member a role |
+| `DELETE` | [`/servers/{server.id}/members/{user.id}/roles/{role.id}`](#member-roles) | `manage_roles` | Take a role from a member |
 | `GET` | [`/channels/{channel.id}/permission-overrides`](#list-permission-overrides) | Installed | List a channel's permission overrides |
 | `PUT` | [`/channels/{channel.id}/permission-overrides`](#set-a-permission-override) | `manage_channels` | Create, replace or clear an override |
 | `DELETE` | [`/channels/{channel.id}/permission-overrides/role/{role.id}`](#delete-a-role-override) | `manage_channels` | Delete a role's override |
@@ -159,14 +162,14 @@ A message's content is an array of parts. These are the part types a bot sends; 
 | `role_mention` | `roleId`, `roleName`, `roleColor` | A role mention; `roleId` `here` is @here. See [Mentions](#mentions). |
 | `channel_mention` | `channelId`, `name`, optional `messageId` | A channel link. The server fills in `serverId` and the stored name. |
 | `emoji` | `emoji`: `{ "id", "name", "url" }` | A custom emoji. |
-| `file` | `url`, `fileType`, optional `fileName`, `fileSize`, `altText` | An attachment by URL; there is no upload route. `fileType` is `image`, `video`, `audio` or `file`: the app shows images and videos inline, plays `audio` in a player, and links the rest. |
+| `file` | `url`, `fileType`, optional `fileName`, `fileSize`, `altText`, `path`, `mimeType` | An attachment by URL, or a file the bot [uploaded](#upload-a-file) to the same channel, sent as the upload returned it. `fileType` is `image`, `video`, `audio` or `file`: the app shows images and videos inline, plays `audio` in a player, and links the rest. |
 | `embed` | `url`, `provider`, `previewId`, optional `collapsed` | Kept only when `url` is an `http(s)` URL of at most 2048 characters, `provider` is one of `harmony-post`, `harmony-invite`, `fediverse-post`, `youtube`, `spotify`, `generic`, and `previewId` is a non-empty string; reduced to those fields. |
 
-The server drops `system` parts a bot sends, and removes `path` from every part on create and edit: a bot names attachments by URL.
+The server drops `system` parts a bot sends, and removes `path` from every part on create and edit, except a `file` part whose `path` is a file this bot uploaded to the message's channel.
 
 ### Photo and video metadata
 
-Every photo or video the instance stores on a bot's behalf (a [mirrored](/build/bridges#attachments) attachment, an [imported Discord emoji](#import-a-discord-emoji)) is stored without its location, camera and other metadata, on the server, before it is written. Bots have no option to keep it. What is removed is what the app removes from its members' uploads: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC and AVIF, and the location, camera and other metadata boxes of MP4 and MOV, without re-encoding. Other formats are stored as they are. Files a bot names by URL and the instance does not copy are not touched.
+Every photo or video the instance stores on a bot's behalf (an [uploaded](#upload-a-file) file, a [mirrored](/build/bridges#attachments) attachment, an [imported Discord emoji](#import-a-discord-emoji)) is stored without its location, camera and other metadata, on the server, before it is written. Bots have no option to keep it. What is removed is what the app removes from its members' uploads: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC and AVIF, and the location, camera and other metadata boxes of MP4 and MOV, without re-encoding. Other formats are stored as they are. Files a bot names by URL and the instance does not copy are not touched.
 
 The text parts of a message may hold at most the instance's message length limit, 2000 characters unless the operator changed it. A longer message fails with `400` and an error such as `Message text exceeds the instance limit of 2000 characters (got 2417)`.
 
@@ -221,6 +224,37 @@ Returns `201` with the [message object](#message-object). The instance then fetc
 | `400` | `Message text exceeds the instance limit of …` | Text over the length limit. |
 
 Channel access errors are listed under [Errors](#errors).
+
+### Upload a file
+
+`POST /channels/{channel.id}/attachments?filename=<name>`
+
+The request body is the file itself, sent with its own `Content-Type` (`image/png`, `video/mp4`…); a JSON, form or multipart body answers `415`. `filename` names it; the server keeps its last path segment, at most 255 characters, `file` when absent. The stored type and extension follow the file's leading bytes, not the declared type or name, and photos and videos lose their [metadata](#photo-and-video-metadata).
+
+Returns `201` with a `file` part to send in a message or an [interaction reply](/build/commands#respond) of the same channel:
+
+```json
+{
+  "type": "file",
+  "path": "c/6b1d…/bridge/9f0c…/0f0e0d0c-….png",
+  "url": "https://harmony.example.com/storage/v1/object/sign/message_media/c/6b1d…",
+  "fileType": "image",
+  "fileName": "deepfried.png",
+  "fileSize": 48213,
+  "mimeType": "image/png"
+}
+```
+
+`url` is a signed link valid seven days; `path` is what the app reads. Uploads count toward the server's cap on files bots store (5 GB unless the operator changed it), and a file no message names after a day is deleted.
+
+| Status | `error` | Cause |
+|---|---|---|
+| `413` | `File too large` | Over the instance's upload limit; `max_bytes` gives it. |
+| `400` | `The request body is empty` | |
+| `415` | `Send the file itself as the request body, with its own Content-Type` | |
+| `507` | `This server's storage for bot files is full` | The server's cap has no room for the file. |
+
+The bot needs `send_messages` and `attach_files` in the channel; see [Channel access](/build/permissions-rate-limits#channel-access).
 
 ### Get channel messages
 
@@ -446,7 +480,7 @@ Returns member objects ordered by user ID. To read every member, request again w
 | `user.is_local` | boolean | `false` for members from other instances. |
 | `user.avatar` | string | Absolute URL; omitted when unset. |
 | `nick` | string or `null` | Nickname in this server. |
-| `roles` | array | Always empty; role assignments are not exposed. |
+| `roles` | UUID[] | IDs of the roles the member holds, @everyone not included. |
 | `joined_at` | timestamp | When the membership was created. |
 
 `400` `after must be a user id` when `after` is not a UUID. A bot without an installation gets `403` `Bot not in guild`.
@@ -571,6 +605,20 @@ The create errors apply as well.
 `DELETE /servers/{server.id}/roles/{role.id}`
 
 Returns `204`. The default role, administrator roles and roles at or above the bot's position limit answer `403`, as on edit.
+
+### Member roles
+
+`PUT /servers/{server.id}/members/{user.id}/roles/{role.id}` gives the member the role; `DELETE` on the same path takes it away. Both return `204`, also when the member already had or lacked the role. The member's server audit log entry names the bot.
+
+| Status | `error` | Cause |
+|---|---|---|
+| `403` | `Missing permission: manage_roles` | |
+| `403` | `Cannot modify default or admin roles via bot API` | @everyone or an administrator role. |
+| `403` | `Role is at or above the bot's highest manageable position` | See [Role writes](/build/permissions-rate-limits#role-writes). |
+| `403` | `Cannot grant permissions the bot does not hold through this role` | `PUT` only; `missing_permissions` names the bits. |
+| `404` | `Role not found` | Not a role of this server. |
+| `404` | `Member not found` | Not a member, or a pending or banned one. |
+| `400` | `userId and roleId must be UUIDs` | |
 
 ## Channel permission overrides
 

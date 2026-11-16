@@ -292,7 +292,7 @@ describe('author.nickname', () => {
     })
 
     expect(sent.filter((s) => s.event.t === 'MESSAGE_CREATE').map((s) => s.event.d)).toEqual([
-      expect.objectContaining({ author: null, is_system: true, mention_everyone: false, metadata }),
+      expect.objectContaining({ server_id: SERVER_ID, author: null, is_system: true, mention_everyone: false, metadata }),
     ])
     expect(nicknameQueries()).toBe(0)
   })
@@ -440,7 +440,7 @@ describe('message change feed', () => {
     db.rows('messages').find((m) => m.id === 'm-soft')!.updated_at = at(dbClock)
     await poll()
 
-    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-soft', channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA }])
+    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-soft', server_id: SERVER_ID, channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA }])
     expect(events('MESSAGE_UPDATE')).toEqual([])
   })
 
@@ -452,7 +452,7 @@ describe('message change feed', () => {
     await dispatcher.messageHardDeleted({ id: 'm-hard', channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA })
     await poll()
 
-    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-hard', channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA }])
+    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-hard', server_id: SERVER_ID, channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA }])
   })
 
   // A thread's messages carry the parent channel's channel_id plus thread_id.
@@ -464,7 +464,7 @@ describe('message change feed', () => {
     await poll()
 
     expect(events('MESSAGE_DELETE')).toEqual([
-      { id: 'm-in-thread', channel_id: GENERAL, thread_id: THREAD_ID, metadata: BRIDGE_METADATA },
+      { id: 'm-in-thread', server_id: SERVER_ID, channel_id: GENERAL, thread_id: THREAD_ID, metadata: BRIDGE_METADATA },
     ])
   })
 
@@ -473,7 +473,7 @@ describe('message change feed', () => {
     await dispatcher.messageHardDeleted({ id: 'm-hard-thread', channel_id: GENERAL, thread_id: THREAD_ID, metadata: null })
 
     expect(events('MESSAGE_DELETE')).toEqual([
-      { id: 'm-hard-thread', channel_id: GENERAL, thread_id: THREAD_ID, metadata: null },
+      { id: 'm-hard-thread', server_id: SERVER_ID, channel_id: GENERAL, thread_id: THREAD_ID, metadata: null },
     ])
   })
 
@@ -709,6 +709,7 @@ describe('reaction removal', () => {
     expect(events('MESSAGE_REACTION_REMOVE')).toEqual([{
       reaction_id: 'r1',
       message_id: 'm1',
+      server_id: SERVER_ID,
       channel_id: GENERAL,
       user_id: OWNER_ID,
       bot_id: null,

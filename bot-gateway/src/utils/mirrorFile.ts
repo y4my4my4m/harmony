@@ -35,6 +35,14 @@ export class TooLargeError extends Error {
   }
 }
 
+/** A bot upload whose body held no bytes. */
+export class EmptyFileError extends Error {
+  constructor() {
+    super('Empty file')
+    this.name = 'EmptyFileError'
+  }
+}
+
 /** The server's cap on mirrored files (bridge_mirror_allows) has no room for `bytes` more. */
 export class OverQuotaError extends Error {
   constructor(readonly bytes: number) {
@@ -285,6 +293,67 @@ async function readHead(file: string, length: number): Promise<Buffer> {
 }
 
 /**
+ * The stored-file half of mirrorFileToStorage, shared with storeBotUpload: strips location and
+ * camera metadata from `file` (stripMetadata.ts), types it by its leading bytes (sniffContainer),
+ * asks `admit` for its stored size and uploads it as <prefix>/<uuid>.<ext>.
+ */
+async function storeLocalFile(
+  file: string,
+  opts: { prefix: string; declaredType: string; declaredExtension: string; admit: (size: number) => Promise<void> },
+): Promise<{ path: string; url: string; contentType: string; bytes: number }> {
+  let size = (await stat(file)).size
+  const sniffed = sniffContainer(await readHead(file, SNIFF_BYTES))
+
+  // Location and camera metadata never reach storage from a bot (utils/stripMetadata.ts).
+  if (sniffed === 'isobmff') {
+    // MP4, MOV, 3GP, HEIF, AVIF: patched on disk, the file is never read whole.
+    await stripMediaFileInPlace(file)
+  } else if (sniffed && size <= IMAGE_MAX_BYTES) {
+    const original = new Uint8Array(await readFile(file))
+    const stripped = await stripMediaBytes(original)
+    if (stripped !== original) {
+      await writeFile(file, stripped)
+      size = stripped.length
+    }
+  }
+
+  const stored = storedTypeOf(sniffed, opts.declaredType, opts.declaredExtension)
+  // An APNG stored as .png is served as a static thumbnail: clients downscale .png only.
+  const animatedPng = sniffed === 'png' && isAnimatedPng(await readHead(file, APNG_PROBE_BYTES))
+  let contentType = animatedPng ? 'image/apng' : stored.contentType
+  const extension = animatedPng ? 'apng' : stored.extension
+
+  await opts.admit(size)
+
+  const storagePath = `${opts.prefix}/${randomUUID()}.${extension}`
+  try {
+    try {
+      await uploadFileToStorage(file, storagePath, { contentType, cacheControl: '31536000', size })
+    } catch (error) {
+      // The bucket allows only some types (markdown, HTML, fonts, RAW photos… are refused).
+      // Store the file as a plain download instead; the part keeps its name and original type.
+      if (!(error instanceof UnsupportedTypeError) || contentType === FALLBACK_CONTENT_TYPE) throw error
+      contentType = FALLBACK_CONTENT_TYPE
+      await uploadFileToStorage(file, storagePath, { contentType, cacheControl: '31536000', size })
+    }
+  } catch (error) {
+    // A size or type refusal stored nothing. Any other failure (timeout, reset, 5xx) may
+    // follow a stored object.
+    if (!(error instanceof TooLargeError || error instanceof UnsupportedTypeError)) await removeStored(storagePath)
+    throw error
+  }
+
+  // The signed url serves clients before 1.6.6; without one the part carries the reference.
+  let url: string | undefined
+  try {
+    url = (await signMessageMediaPaths([storagePath])).get(storagePath)
+  } catch (error: any) {
+    console.warn(`Signing ${storagePath} failed: ${error?.message || error}`)
+  }
+  return { path: storagePath, url: url ?? referenceUrl(storagePath), contentType, bytes: size }
+}
+
+/**
  * Streams a Discord CDN attachment through a temp file into the channel's room of message_media
  * as c/<channel id>/bridge/<bot id>/<uuid>.<ext>, without its location and camera metadata
  * (stripMetadata.ts). The strip and the stored type follow the file's leading bytes
@@ -342,57 +411,89 @@ export async function mirrorFileToStorage(
     const file = join(dir, 'download')
     await pipeline(Readable.fromWeb(response.body as any), byteLimit(opts.ceiling), createWriteStream(file))
 
-    let size = (await stat(file)).size
-    const sniffed = sniffContainer(await readHead(file, SNIFF_BYTES))
-
-    // Location and camera metadata never reach storage from a bot (utils/stripMetadata.ts).
-    if (sniffed === 'isobmff') {
-      // MP4, MOV, 3GP, HEIF, AVIF: patched on disk, the file is never read whole.
-      await stripMediaFileInPlace(file)
-    } else if (sniffed && size <= IMAGE_MAX_BYTES) {
-      const original = new Uint8Array(await readFile(file))
-      const stripped = await stripMediaBytes(original)
-      if (stripped !== original) {
-        await writeFile(file, stripped)
-        size = stripped.length
-      }
-    }
-
     const declaredType = opts.contentType || response.headers.get('content-type') || FALLBACK_CONTENT_TYPE
-    const stored = storedTypeOf(sniffed, declaredType, extensionFrom(opts.fileName, declaredType, sourceUrl))
-    // An APNG stored as .png is served as a static thumbnail: clients downscale .png only.
-    const animatedPng = sniffed === 'png' && isAnimatedPng(await readHead(file, APNG_PROBE_BYTES))
-    let contentType = animatedPng ? 'image/apng' : stored.contentType
-    const extension = animatedPng ? 'apng' : stored.extension
+    return await storeLocalFile(file, {
+      prefix: `c/${opts.channelId.toLowerCase()}/bridge/${opts.botId}`,
+      declaredType,
+      declaredExtension: extensionFrom(opts.fileName, declaredType, sourceUrl),
+      admit,
+    })
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
 
-    await admit(size)
-
-    const storagePath = `c/${opts.channelId.toLowerCase()}/bridge/${opts.botId}/${randomUUID()}.${extension}`
-    try {
-      try {
-        await uploadFileToStorage(file, storagePath, { contentType, cacheControl: '31536000', size })
-      } catch (error) {
-        // The bucket allows only some types (markdown, HTML, fonts, RAW photos… are refused).
-        // Store the file as a plain download instead; the part keeps its name and original type.
-        if (!(error instanceof UnsupportedTypeError) || contentType === FALLBACK_CONTENT_TYPE) throw error
-        contentType = FALLBACK_CONTENT_TYPE
-        await uploadFileToStorage(file, storagePath, { contentType, cacheControl: '31536000', size })
+/**
+ * Writes `body` to `file`, TooLargeError past `ceiling` bytes. Unlike pipeline(), a refusal leaves
+ * `body` undestroyed and draining, so the request it reads can still be answered (413).
+ */
+function writeLimited(body: Readable, file: string, ceiling: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const out = createWriteStream(file)
+    let size = 0
+    let failed = false
+    const fail = (error: Error) => {
+      if (failed) return
+      failed = true
+      body.off('data', onData)
+      body.resume()
+      out.destroy()
+      reject(error)
+    }
+    const onData = (chunk: Buffer) => {
+      size += chunk.length
+      if (size > ceiling) return fail(new TooLargeError(size))
+      if (!out.write(chunk)) {
+        body.pause()
+        out.once('drain', () => body.resume())
       }
-    } catch (error) {
-      // A size or type refusal stored nothing. Any other failure (timeout, reset, 5xx) may
-      // follow a stored object.
-      if (!(error instanceof TooLargeError || error instanceof UnsupportedTypeError)) await removeStored(storagePath)
-      throw error
     }
+    body.on('data', onData)
+    body.once('end', () => { if (!failed) out.end() })
+    body.once('aborted', () => fail(new Error('Upload aborted')))
+    body.once('error', fail)
+    out.once('error', fail)
+    out.once('close', () => { if (!failed) resolve(size) })
+  })
+}
 
-    // The signed url serves clients before 1.6.6; without one the part carries the reference.
-    let url: string | undefined
-    try {
-      url = (await signMessageMediaPaths([storagePath])).get(storagePath)
-    } catch (error: any) {
-      console.warn(`Signing ${storagePath} failed: ${error?.message || error}`)
-    }
-    return { path: storagePath, url: url ?? referenceUrl(storagePath), contentType, bytes: size }
+export interface BotUploadOptions {
+  botId: string
+  channelId: string
+  fileName?: string
+  contentType?: string
+  /** Largest body accepted, bytes; TooLargeError past it. */
+  ceiling: number
+  /** The server's cap on bot-stored files, asked with the stored size (bridge_mirror_allows). */
+  allows?: (bytes: number) => Promise<boolean>
+  tmpDir?: string
+}
+
+/**
+ * A file a bot sends in a request body (POST /channels/:id/attachments), stored like a mirrored
+ * attachment: c/<channel id>/bridge/<bot id>/<uuid>.<ext>, metadata stripped, typed by its
+ * leading bytes, counted toward the server's cap (bridge_mirror_server_bytes) and removed by the
+ * message_media sweep after a day when no message names it.
+ */
+export async function storeBotUpload(
+  body: Readable,
+  opts: BotUploadOptions,
+): Promise<{ path: string; url: string; contentType: string; bytes: number }> {
+  const allows = opts.allows ?? ((bytes: number) => mirrorAllows(opts.channelId, bytes))
+  const dir = await mkdtemp(join(opts.tmpDir ?? (process.env.BRIDGE_MIRROR_TMPDIR || tmpdir()), 'upload-'))
+  try {
+    const file = join(dir, 'upload')
+    if ((await writeLimited(body, file, opts.ceiling)) === 0) throw new EmptyFileError()
+    const declaredType = opts.contentType || FALLBACK_CONTENT_TYPE
+    return await storeLocalFile(file, {
+      prefix: `c/${opts.channelId.toLowerCase()}/bridge/${opts.botId}`,
+      declaredType,
+      declaredExtension: extensionFrom(opts.fileName, declaredType, ''),
+      admit: async (size: number) => {
+        const bytes = Math.max(0, Math.ceil(size))
+        if (!(await allows(bytes))) throw new OverQuotaError(bytes)
+      },
+    })
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

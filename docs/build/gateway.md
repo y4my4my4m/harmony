@@ -118,7 +118,6 @@ To recover messages missed while disconnected, read the channels you care about 
 - **Timing.** The gateway reads the database on a schedule: new messages every second (up to 50 per read), edits and deletes every 2 seconds, reactions every 2 seconds (up to 100 new reactions per read), member and moderation events every 2 seconds.
 - **Permission changes.** The gateway caches each server's installations and rechecks them every 10 seconds; a removed bot or changed permission or channel list affects delivery within about 10 seconds. Whether @everyone can view a channel is cached for 10 seconds.
 - **Author details.** Usernames, display names and avatars are cached for 10 minutes and nicknames for 60 seconds, so a change can take that long to show in events.
-- **No server ID.** Message and reaction payloads carry `channel_id` and no server ID. [`GET /servers/{server.id}/channels`](/build/rest#list-channels) maps channels to servers. [Member events](#member-events) carry `server_id`.
 - **Without a connection.** An [outgoing webhook](/build/outgoing-webhooks) receives the same events by HTTPS POST, connected or not.
 - **No thread events.** Messages posted in a thread arrive as `MESSAGE_CREATE` with `thread_id` set; there is no separate thread event.
 - **Interactions.** `INTERACTION_CREATE` goes only to the bot whose command was run, on every open connection, without the `read_messages` check: running the command is the member addressing that bot. The gateway reads new interactions every 250 milliseconds. One that cannot reach an open connection fails at once; one older than its 5-second answer window when the gateway reads it is dropped. Outgoing webhooks do not receive it.
@@ -153,6 +152,7 @@ See [Identify](#identify).
 | Field | Type | Description |
 |---|---|---|
 | `id` | UUID | Message ID. |
+| `server_id` | UUID | Server of the channel. |
 | `channel_id` | UUID | Channel ID. A thread's messages carry the thread's parent channel. |
 | `thread_id` | UUID or `null` | Thread the message was posted in. |
 | `author` | object or `null` | The shown author; see [Authors](#authors). `null` when the author's account no longer exists. |
@@ -174,6 +174,7 @@ In `content_raw`, a `file` part whose `path` names an attachment stored on the i
   "t": "MESSAGE_CREATE",
   "d": {
     "id": "0b9e5a61-…",
+    "server_id": "1e7d…",
     "channel_id": "c2d4f8a0-…",
     "thread_id": null,
     "author": {
@@ -235,6 +236,7 @@ Sent once per message, when the message is deleted in the app or through the RES
 | Field | Type | Description |
 |---|---|---|
 | `id` | UUID | Message ID. |
+| `server_id` | UUID | Server of the channel. |
 | `channel_id` | UUID | Channel ID. |
 | `thread_id` | UUID or `null` | Thread the message was in. |
 | `metadata` | object or `null` | The message's last metadata. |
@@ -247,6 +249,7 @@ A message removed from the database by other means, such as deleting its channel
 |---|---|---|
 | `reaction_id` | UUID | Reaction ID. |
 | `message_id` | UUID | Message the reaction is on. |
+| `server_id` | UUID | Server of the channel. |
 | `channel_id` | UUID | Channel of that message. |
 | `user_id` | UUID or `null` | Reacting member, when a member reacted. |
 | `bot_id` | UUID or `null` | Reacting bot, when a bot reacted. |

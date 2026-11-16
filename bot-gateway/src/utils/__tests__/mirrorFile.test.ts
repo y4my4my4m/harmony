@@ -47,6 +47,7 @@ vi.mock('../stripMetadata.js', async (importOriginal) => {
 })
 
 import {
+  EmptyFileError,
   GoneError,
   OverQuotaError,
   TooLargeError,
@@ -54,6 +55,7 @@ import {
   isDiscordLinkExpired,
   mirrorFileToStorage,
   needsDiscordResign,
+  storeBotUpload,
   storedTypeOf,
 } from '../mirrorFile.js'
 
@@ -639,5 +641,58 @@ describe('mirrorFileToStorage leaves no unreferenced object', () => {
     expect(out.path).toBe(uploadedPath())
     expect(out.url).toMatch(new RegExp(`/storage/v1/object/authenticated/message_media/${out.path}$`))
     expect(mocks.remove).not.toHaveBeenCalled()
+  })
+})
+
+describe('storeBotUpload', () => {
+  const upload = { botId: BOT, channelId: CHANNEL, ceiling: 4 * MB }
+  const OWN_PATH = new RegExp(`^c/${CHANNEL.toLowerCase()}/bridge/${BOT}/[0-9a-f-]{36}\\.(\\w+)$`)
+
+  it('stores the body under the bot\'s path in the channel, typed by its bytes and without its metadata', async () => {
+    const jpeg = fixture('gps-upright.jpg')
+    const out = await storeBotUpload(Readable.from([Buffer.from(jpeg)]), {
+      ...upload, fileName: 'photo.png', contentType: 'image/png', tmpDir: tmp, allows: mocks.allows,
+    })
+
+    expect(out.path).toMatch(OWN_PATH)
+    expect(out.path.endsWith('.jpg')).toBe(true)
+    expect(out.contentType).toBe('image/jpeg')
+    expect(out.url).toBe(`https://signed.test/${out.path}`)
+    expect(uploads).toHaveLength(1)
+    expect(uploads[0].url).toBe(`/storage/v1/object/message_media/${out.path}`)
+    const stored = uploads[0].body.toString('latin1')
+    for (const marker of MARKERS) expect(stored).not.toContain(marker)
+    expect(mocks.allows).toHaveBeenCalledWith(out.bytes)
+    expect(await readdir(tmp)).toEqual([])
+  })
+
+  it('refuses a body past the ceiling without destroying it, so the request can still be answered', async () => {
+    const body = Readable.from([Buffer.alloc(8), Buffer.alloc(8), Buffer.alloc(8)])
+    const err = await storeBotUpload(body, { ...upload, ceiling: 10, tmpDir: tmp }).catch((e) => e)
+
+    expect(err).toBeInstanceOf(TooLargeError)
+    // Drained to its end, not destroyed early (pipeline() would leave readableEnded false).
+    if (!body.closed) await new Promise((resolve) => body.once('close', resolve))
+    expect(body.readableEnded).toBe(true)
+    expect(body.errored).toBeNull()
+    expect(uploads).toHaveLength(0)
+    expect(await readdir(tmp)).toEqual([])
+  })
+
+  it('refuses an empty body and a file the server cap has no room for, storing nothing', async () => {
+    const empty = await storeBotUpload(Readable.from([]), { ...upload, tmpDir: tmp }).catch((e) => e)
+    expect(empty).toBeInstanceOf(EmptyFileError)
+
+    mocks.allows.mockResolvedValue(false)
+    const full = await storeBotUpload(Readable.from([Buffer.from('hello')]), { ...upload, tmpDir: tmp, allows: mocks.allows }).catch((e) => e)
+    expect(full).toBeInstanceOf(OverQuotaError)
+    expect(uploads).toHaveLength(0)
+    expect(await readdir(tmp)).toEqual([])
+  })
+
+  it('asks bridge_mirror_allows for the channel when no cap check is given', async () => {
+    await storeBotUpload(Readable.from([Buffer.from('plain text')]), { ...upload, fileName: 'notes.txt', contentType: 'text/plain', tmpDir: tmp })
+    expect(mocks.rpc).toHaveBeenCalledWith('bridge_mirror_allows', { p_channel_id: CHANNEL, p_bytes: 10 })
+    expect(uploads).toHaveLength(1)
   })
 })

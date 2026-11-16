@@ -8,6 +8,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Bots can give roles and post files.** `PUT` and `DELETE /servers/{id}/members/{user}/roles/{role}`
+  give a member a role or take it away, within the bot's **Manage roles** reach; the server audit log
+  names the bot. `POST /channels/{id}/attachments` uploads a file (an edited image, a chart) that the
+  bot then sends in a message or a slash-command reply; it needs the new **Attach files** permission,
+  on by default, counts toward the server's stored-bot-files limit, and loses its location and camera
+  metadata like any upload. Message and reaction events now carry `server_id`, and the member list
+  shows each member's role IDs.
 - **Category permissions.** **Edit category** has a **Permissions** tab, as a channel does: the
   **Private category** switch, then each role's channel permissions as **Deny**, **Inherit** or
   **Allow**, voice included. Saving applies them to every channel synced with the category. Closing

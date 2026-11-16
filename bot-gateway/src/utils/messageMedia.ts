@@ -117,10 +117,24 @@ export async function withSignedMessageMedia(
   })
 }
 
-/** Bot-supplied parts lose `path`: bots name attachments by URL. */
-export function stripBotSuppliedPaths(parts: any[]): any[] {
+/** Object names storeBotUpload (utils/mirrorFile.ts) gives a bot's files: <uuid>.<ext> under c/<channel>/bridge/<bot>/. */
+const OWN_FILE_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z0-9]{1,8}$/
+
+/** `path` names a file this bot stored in this channel's room. */
+export function isOwnBotFilePath(path: unknown, own: { channelId: string; botId: string }): boolean {
+  if (typeof path !== 'string') return false
+  const prefix = `c/${own.channelId.toLowerCase()}/bridge/${own.botId}/`
+  return path.startsWith(prefix) && OWN_FILE_NAME.test(path.slice(prefix.length))
+}
+
+/**
+ * Bot-supplied parts lose `path`: bots name attachments by URL, or by the path of a file they
+ * stored in the same channel (POST /channels/:id/attachments), kept when `own` is given.
+ */
+export function stripBotSuppliedPaths(parts: any[], own?: { channelId: string; botId: string }): any[] {
   return parts.map((part) => {
     if (!part || typeof part !== 'object' || !('path' in part)) return part
+    if (own && part.type === 'file' && isOwnBotFilePath(part.path, own)) return part
     const { path: _path, ...rest } = part
     return rest
   })

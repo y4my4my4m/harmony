@@ -4016,7 +4016,11 @@
       },
       "manage_roles": {
         "label": "Gérer les rôles",
-        "description": "Créer, modifier et supprimer des rôles inférieurs au rôle le plus élevé de la personne qui l'a installé, avec les permissions dont il dispose."
+        "description": "Créer, modifier, supprimer et attribuer aux membres des rôles inférieurs au rôle le plus élevé de la personne qui l'a installé, avec les permissions qu'il détient."
+      },
+      "attach_files": {
+        "label": "Joindre des fichiers",
+        "description": "Téléverser des images et d'autres fichiers pour les publier dans les salons où il peut envoyer des messages."
       }
     },
     "commands": {
