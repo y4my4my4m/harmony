@@ -15,6 +15,14 @@ Activities are the multiplayer apps members start with **Play together** (see [P
 | --- | --- | --- |
 | DrawinPhone | 2–16 | DMs, groups, text channels, voice channels |
 
+## Install an activity package
+
+Besides the built-in activities, an admin can install packages: **Admin** → **Activities** → **Install an activity**, then choose a `.zip` or paste its `https://` address and select **Preview**. The preview shows the name, version, players, where it runs, its size and the package's SHA-256. **Install** stores exactly the previewed file; a package from an address that changed since the preview is refused. A new package starts switched off.
+
+An installed package is served by this instance from its own copy, at `/api/federation/activities/pkg/<id>/<sha256>.js`; nothing is fetched from the author afterwards. **Check for update** previews the package at its address again. **Remove** ends its sessions and deletes it. An instance holds at most 50 packages.
+
+A package runs in the same sandbox as a built-in. It is still code from its author running on your members' devices: install the ones you trust, as you would add a bot.
+
 ## What the proxy carries
 
 Three paths serve activities. The bundled Caddy proxy (`self-host/Caddyfile`) carries all of them as installed.
@@ -24,6 +32,7 @@ Three paths serve activities. The bundled Caddy proxy (`self-host/Caddyfile`) ca
 | `/activities/index.json`, `/activities/<id>/…` | web container | The catalog and the built scripts. The catalog carries `Access-Control-Allow-Origin: *` for the desktop and mobile apps, and `Cache-Control: no-cache`; scripts are named by content hash and cached for a year. |
 | `/api/federation/activities/frame/<id>` | federation backend | The sandboxed document each activity runs in. |
 | `/api/federation/activities/socket` | federation backend | The relay, a WebSocket. |
+| `/api/federation/activities/pkg/<id>/<sha256>.<ext>` | federation backend | Installed packages' scripts and icons, served sandboxed and cached for a year. |
 
 Behind your own nginx, the relay needs a location that passes the WebSocket upgrade, ahead of the general `/api/federation/` location:
 

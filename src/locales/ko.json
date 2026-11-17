@@ -8929,7 +8929,46 @@
         "network": "콘텐츠 정책이 네트워크 요청, 팝업, 양식, 프레임을 거부하며 자체 폴더의 파일만 불러옵니다. 다른 페이지로 이동한 프레임은 중지됩니다.",
         "relay": "플레이어는 이 인스턴스의 릴레이를 통해 통신합니다. 릴레이는 모든 멤버를 확인하고 메시지 크기와 빈도를 제한하며, 세션 후 게임 데이터를 보관하지 않습니다.",
         "members": "대화나 채널의 멤버만 참여할 수 있으며, 나가거나 통화를 떠나거나 로그아웃하면 30초 안에 게임에서 제외됩니다."
+      },
+      "package": "패키지",
+      "checkUpdate": "업데이트 확인",
+      "remove": "제거",
+      "removeConfirm": "완전히 제거할까요?",
+      "installTitle": "활동 설치",
+      "installIntro": "활동 패키지(.zip)를 업로드하거나 HTTPS 주소를 입력하세요. 설치 전에 내용을 확인할 수 있습니다.",
+      "chooseZip": ".zip 선택",
+      "or": "또는",
+      "urlLabel": "패키지 주소",
+      "preview": "미리 보기",
+      "replaces": "v{version} 대체",
+      "id": "ID",
+      "playersLabel": "플레이어",
+      "runsIn": "실행 위치",
+      "size": "크기",
+      "from": "출처",
+      "trustWarning": "이 활동은 작성자의 코드를 샌드박스 안에서 멤버의 기기에서 실행합니다. 봇을 추가할 때처럼 신뢰하는 활동만 설치하세요.",
+      "update": "업데이트",
+      "install": "설치",
+      "cancel": "취소",
+      "updated": "활동을 업데이트했습니다",
+      "installed": "활동을 설치했습니다(꺼진 상태)",
+      "removed": "활동을 제거했습니다",
+      "errors": {
+        "NOT_A_ZIP": "zip 파일이 아닙니다.",
+        "TOO_LARGE": "패키지가 너무 큽니다(최대 6MB, 스크립트 5MB, 아이콘 256KB).",
+        "UNEXPECTED_FILE": "manifest.json, 스크립트, 아이콘 외의 파일이 들어 있습니다.",
+        "MISSING_FILE": "매니페스트에 지정된 파일이 없습니다.",
+        "BAD_MANIFEST": "manifest.json이 올바르지 않습니다.",
+        "BAD_ENTRY": "스크립트가 비어 있거나 텍스트가 아닙니다.",
+        "BAD_ICON": "아이콘이 선언한 SVG, PNG, WebP가 아닙니다.",
+        "BUILTIN_ID": "이 ID는 이미 기본 활동이 사용 중입니다.",
+        "TOO_MANY_PACKAGES": "이 인스턴스에는 이미 패키지가 50개 있습니다.",
+        "PACKAGE_CHANGED": "미리 보기 이후 해당 주소의 패키지가 바뀌었습니다. 다시 미리 보기하세요.",
+        "FETCH_FAILED": "패키지를 다운로드할 수 없습니다.",
+        "BAD_URL": "https:// 주소를 사용하세요."
       }
-    }
+    },
+    "thirdParty": "서드파티",
+    "thirdPartyNotice": "이 인스턴스가 설치한 서드파티 활동입니다. Harmony는 활동 안에서 비밀번호를 묻지 않습니다."
   }
 }

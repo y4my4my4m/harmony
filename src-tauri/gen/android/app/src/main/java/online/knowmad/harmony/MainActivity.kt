@@ -39,8 +39,12 @@ class MainActivity : TauriActivity() {
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
-    // wry sets its chrome client after this hook, in the same main-thread task.
-    webView.post { wrapChromeClient(webView) }
+    // wry sets its clients and adds the `ipc` Java interface after this hook, in the same
+    // main-thread task, then posts the first load: this runnable runs between the two.
+    webView.post {
+      wrapChromeClient(webView)
+      if (!MainFrameIpc.install(webView)) android.util.Log.w("Harmony", "WebMessageListener missing: subframes keep the IPC bridge")
+    }
   }
 
   private fun wrapChromeClient(webView: WebView) {

@@ -740,6 +740,7 @@ index_message		trigger	definer	public, extensions, pg_temp	service_role	trigger
 index_message_row	p_message messages	void	definer	public, extensions, pg_temp	service_role	unreferenced
 initialize_user_encryption	p_user_id uuid, p_identity_public_key text, p_identity_private_key_encrypted text, p_device_id text	jsonb	definer	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 insert_ap_activity_outbound	p_ap_id text, p_ap_type text, p_actor_id uuid, p_actor_ap_id text, p_activity_data jsonb, p_object_id text, p_object_type text, p_to_addresses text[], p_cc_addresses text[], p_origin_domain text	uuid	definer	public, pg_temp	service_role	unreferenced
+install_activity_package	p_admin uuid, p_app jsonb, p_files jsonb	jsonb	definer	public, pg_temp	service_role	client
 instance_config_flag	p_value jsonb	boolean	invoker	public, pg_temp	service_role	unreferenced
 instance_count_cap	p_key text, p_default integer	integer	invoker	public, pg_temp	service_role	unreferenced
 instance_emoji_import_name	p_shortcode text	text	invoker	public, pg_temp	service_role	unreferenced
@@ -939,6 +940,7 @@ regenerate_discord_bridge_pairing	p_server_id uuid	text	definer	public, pg_temp	
 register_recovery_key	p_user_id uuid, p_verification_code text, p_word_count integer	recovery_key_metadata	definer	public, pg_temp	authenticated+service_role	client
 rehost_emoji	p_emoji_id uuid, p_path text, p_url text, p_actor uuid	emojis	definer	public, pg_temp	service_role	client
 remote_engagement_figure	p_post_id uuid, p_kind text, p_figure integer, p_fetched_at timestamp with time zone	integer	invoker	public, pg_temp	service_role	unreferenced
+remove_activity_package	p_admin uuid, p_app text	boolean	definer	public, pg_temp	service_role	client
 remove_emoji	p_emoji_id uuid	void	definer	public, pg_temp	authenticated+service_role	client
 remove_group_icon	conversation_uuid uuid, user_profile_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
 remove_members_from_other_instances	p_server_id uuid	integer	definer	public, pg_temp	service_role	unreferenced

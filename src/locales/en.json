@@ -8925,7 +8925,46 @@
         "network": "Its content policy refuses network requests, popups, forms and frames, and loads files only from its own folder; a frame that navigates away is stopped.",
         "relay": "Players talk through this instance’s relay, which checks every member, caps message sizes and rates, and keeps no game data after a session.",
         "members": "Only members of the conversation or channel can join; anyone who leaves it, leaves the call or signs out is removed from the game within 30 seconds."
+      },
+      "package": "Package",
+      "checkUpdate": "Check for update",
+      "remove": "Remove",
+      "removeConfirm": "Remove for good?",
+      "installTitle": "Install an activity",
+      "installIntro": "Upload an activity package (.zip) or give its HTTPS address. You see what it is before anything is installed.",
+      "chooseZip": "Choose a .zip",
+      "or": "or",
+      "urlLabel": "Package address",
+      "preview": "Preview",
+      "replaces": "replaces v{version}",
+      "id": "ID",
+      "playersLabel": "Players",
+      "runsIn": "Runs in",
+      "size": "Size",
+      "from": "From",
+      "trustWarning": "This activity runs code from its author on your members’ devices, inside the sandbox. Install only activities you trust, as you would add a bot.",
+      "update": "Update",
+      "install": "Install",
+      "cancel": "Cancel",
+      "updated": "Activity updated",
+      "installed": "Activity installed, switched off",
+      "removed": "Activity removed",
+      "errors": {
+        "NOT_A_ZIP": "This is not a zip file.",
+        "TOO_LARGE": "The package is too large (6 MB at most, 5 MB for the script, 256 KB for the icon).",
+        "UNEXPECTED_FILE": "The package holds a file other than manifest.json, the script and the icon.",
+        "MISSING_FILE": "The package is missing a file its manifest names.",
+        "BAD_MANIFEST": "manifest.json is invalid.",
+        "BAD_ENTRY": "The script is empty or not text.",
+        "BAD_ICON": "The icon is not the SVG, PNG or WebP it claims to be.",
+        "BUILTIN_ID": "A built-in activity already uses this ID.",
+        "TOO_MANY_PACKAGES": "This instance already has 50 packages.",
+        "PACKAGE_CHANGED": "The package at that address changed since the preview. Preview it again.",
+        "FETCH_FAILED": "The package could not be downloaded.",
+        "BAD_URL": "Use an https:// address."
       }
-    }
+    },
+    "thirdParty": "Third-party",
+    "thirdPartyNotice": "Third-party activity, installed by this instance. Harmony never asks for your password inside an activity."
   }
 }

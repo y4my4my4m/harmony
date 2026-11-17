@@ -67,6 +67,10 @@
         </button>
       </div>
     </header>
+    <p v-if="store.joined!.app.source === 'package'" class="pt-panel__notice" data-testid="play-together-third-party">
+      <Icon name="shield" :size="13" />
+      <span>{{ t('playTogether.thirdPartyNotice') }}</span>
+    </p>
     <div ref="frameArea" class="pt-panel__frame" data-testid="play-together-slot" />
     <div
       v-if="!expanded && !stage"
@@ -99,6 +103,7 @@
       />
     </div>
     <span class="pt-banner__text">{{ bannerText }}</span>
+    <span v-if="runningApp?.source === 'package'" class="pt-chip" data-testid="play-together-banner-third-party">{{ t('playTogether.thirdParty') }}</span>
     <button
       type="button"
       class="pt-btn"
@@ -351,6 +356,35 @@ onBeforeUnmount(() => {
 .pt-panel__frame {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.pt-panel__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs, 12px);
+  line-height: 1.35;
+}
+
+.pt-panel__notice :deep(svg) {
+  flex: none;
+  margin-top: 1px;
+}
+
+.pt-chip {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs, 12px);
+  line-height: 1.5;
+  white-space: nowrap;
 }
 
 .pt-panel__resize {

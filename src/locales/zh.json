@@ -8929,7 +8929,46 @@
         "network": "其内容策略拒绝网络请求、弹窗、表单和框架，只能加载自身文件夹中的文件；跳转到其他页面的框架会被停止。",
         "relay": "玩家通过本实例的中继通信，中继会验证每位成员、限制消息大小和频率，并且在会话结束后不保留任何游戏数据。",
         "members": "只有对话或频道的成员可以加入；离开对话、离开通话或退出登录的人会在 30 秒内被移出游戏。"
+      },
+      "package": "软件包",
+      "checkUpdate": "检查更新",
+      "remove": "移除",
+      "removeConfirm": "确定永久移除？",
+      "installTitle": "安装活动",
+      "installIntro": "上传活动软件包（.zip）或填写其 HTTPS 地址。安装前你会先看到它的内容。",
+      "chooseZip": "选择 .zip",
+      "or": "或",
+      "urlLabel": "软件包地址",
+      "preview": "预览",
+      "replaces": "替换 v{version}",
+      "id": "ID",
+      "playersLabel": "玩家",
+      "runsIn": "可在以下位置运行",
+      "size": "大小",
+      "from": "来源",
+      "trustWarning": "此活动会在沙盒中于成员的设备上运行其作者的代码。请像添加机器人一样，只安装你信任的活动。",
+      "update": "更新",
+      "install": "安装",
+      "cancel": "取消",
+      "updated": "活动已更新",
+      "installed": "活动已安装（处于关闭状态）",
+      "removed": "活动已移除",
+      "errors": {
+        "NOT_A_ZIP": "这不是 zip 文件。",
+        "TOO_LARGE": "软件包过大（最多 6 MB，脚本 5 MB，图标 256 KB）。",
+        "UNEXPECTED_FILE": "软件包包含 manifest.json、脚本和图标以外的文件。",
+        "MISSING_FILE": "缺少清单中指定的文件。",
+        "BAD_MANIFEST": "manifest.json 无效。",
+        "BAD_ENTRY": "脚本为空或不是文本。",
+        "BAD_ICON": "图标不是其声明的 SVG、PNG 或 WebP。",
+        "BUILTIN_ID": "此 ID 已被内置活动使用。",
+        "TOO_MANY_PACKAGES": "此实例已有 50 个软件包。",
+        "PACKAGE_CHANGED": "预览后该地址的软件包已更改。请重新预览。",
+        "FETCH_FAILED": "无法下载软件包。",
+        "BAD_URL": "请使用 https:// 地址。"
       }
-    }
+    },
+    "thirdParty": "第三方",
+    "thirdPartyNotice": "此第三方活动由本实例安装。Harmony 绝不会在活动内要求你输入密码。"
   }
 }

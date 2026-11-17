@@ -1,12 +1,15 @@
 /**
- * GET /activities/frame/:appId?entry=<file>.js — the document an activity runs in.
+ * GET /activities/frame/:appId?entry=<file>.js[&source=package] — the document an activity runs in.
  *
- * The page is Harmony's, not the activity's: a loader that adds the activity's script from
- * <APP_URL>/activities/<appId>/<entry> once it finds itself framed and in an opaque origin. Its
- * Content-Security-Policy carries `sandbox allow-scripts allow-pointer-lock`, so the document runs
- * in an opaque origin even when opened directly, never with the instance's storage, and refuses
- * every network connection (connect-src 'none'). Scripts, styles, images, media and fonts load from
- * the app's own folder, data: and blob: only; frame-ancestors names the web app and the native apps.
+ * The page is Harmony's, not the activity's: a loader that adds the activity's script once it finds
+ * itself framed and in an opaque origin, and that posts {hp: 1, t: 'gone'} to the client when the
+ * document is left. A built-in's script is <APP_URL>/activities/<appId>/<entry> (the web build); an
+ * installed package's is <APP_URL>/api/federation/activities/pkg/<appId>/<sha256>.js
+ * (packageRoutes.ts). The Content-Security-Policy carries `sandbox allow-scripts
+ * allow-pointer-lock`, so the document runs in an opaque origin even when opened directly, never
+ * with the instance's storage, and refuses every network connection (connect-src 'none'). Scripts,
+ * styles, images, media and fonts load from the app's own folder, data: and blob: only;
+ * frame-ancestors names the web app and the native apps.
  */
 
 import { randomBytes } from 'node:crypto'
@@ -16,6 +19,7 @@ import { corsOrigins } from '../config/nativeOrigins.js'
 
 const APP_ID = /^[a-z][a-z0-9-]{1,39}$/
 const ENTRY = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}\.js$/
+const PACKAGE_ENTRY = /^[0-9a-f]{64}\.js$/
 
 /** Origin the web build (and so /activities/<id>/) is served from. */
 export function assetOrigin(): string {
@@ -26,8 +30,13 @@ export function frameAncestors(): string[] {
   return [...new Set([assetOrigin(), ...corsOrigins(config.CORS_ORIGIN)])]
 }
 
-export function frameCsp(appId: string, nonce: string): string {
-  const folder = `${assetOrigin()}/activities/${appId}/`
+/** The folder an activity's files load from. */
+export function appFolder(appId: string, packaged: boolean): string {
+  return packaged ? `${assetOrigin()}/api/federation/activities/pkg/${appId}/` : `${assetOrigin()}/activities/${appId}/`
+}
+
+export function frameCsp(appId: string, nonce: string, packaged = false): string {
+  const folder = appFolder(appId, packaged)
   return [
     'sandbox allow-scripts allow-pointer-lock',
     "default-src 'none'",
@@ -83,7 +92,8 @@ const router = Router()
 router.get('/frame/:appId', (req: Request, res: Response) => {
   const appId = String(req.params.appId)
   const entry = typeof req.query.entry === 'string' ? req.query.entry : ''
-  if (!APP_ID.test(appId) || !ENTRY.test(entry)) {
+  const packaged = req.query.source === 'package'
+  if (!APP_ID.test(appId) || !(packaged ? PACKAGE_ENTRY : ENTRY).test(entry)) {
     res.status(400).type('text/plain').send('Bad activity')
     return
   }
@@ -92,12 +102,12 @@ router.get('/frame/:appId', (req: Request, res: Response) => {
   res.removeHeader('Cross-Origin-Resource-Policy')
   res.removeHeader('Cross-Origin-Embedder-Policy')
   res.removeHeader('Origin-Agent-Cluster')
-  res.setHeader('Content-Security-Policy', frameCsp(appId, nonce))
+  res.setHeader('Content-Security-Policy', frameCsp(appId, nonce, packaged))
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), display-capture=(), usb=(), serial=(), hid=(), payment=(), clipboard-read=()')
   res.setHeader('Referrer-Policy', 'no-referrer')
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Cache-Control', 'no-store')
-  res.type('text/html').send(frameHtml(`${assetOrigin()}/activities/${appId}/${entry}`, nonce))
+  res.type('text/html').send(frameHtml(`${appFolder(appId, packaged)}${entry}`, nonce))
 })
 
 export default router

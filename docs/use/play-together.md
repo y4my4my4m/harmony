@@ -44,8 +44,10 @@ The host (whoever started the game, or the next player if they leave) picks the 
 
 ## Privacy
 
-Activities run in a sandbox. An activity sees the names and avatars of the people playing and what they send in the game, nothing else: not your account, your messages or other conversations. It cannot open windows, download files or navigate the app. Saving an image from an activity goes through Harmony's own download, and only as a picture.
+Activities run in a sandbox. An activity sees the names and avatars of the people playing and what they send in the game, nothing else: not your account, your messages or other conversations. It cannot open windows, download files or navigate the app. Saving an image from an activity goes through Harmony's own download, only as a picture, only right after you click in the activity, and at most 20 per game.
 
 What you type or draw in an activity goes to the activity and the other players. Never type a password into an activity: Harmony never asks for one there.
+
+Activities your instance's admins installed from outside Harmony show a **Third-party** label in the picker and on the Join banner, and a line above the game while you play.
 
 Activities are available only to accounts on this instance, and only in servers this instance hosts. Your instance's admins choose which activities are offered.

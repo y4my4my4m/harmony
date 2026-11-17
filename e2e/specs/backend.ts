@@ -104,6 +104,12 @@ export async function startBackend(extraEnv: Record<string, string> = {}): Promi
       const forward = async (route: Route) => {
         const target = new URL(route.request().url())
         const path = target.pathname.replace(/^\/api\/federation(?=\/)/, '')
+        // The activity frame document goes over the network: a fulfilled response has no
+        // address, and Chromium's Local Network Access then refuses the frame's localhost script.
+        if (path.startsWith('/activities/frame/')) {
+          await route.continue({ url: `${url}${path}${target.search}` })
+          return
+        }
         let response
         try {
           response = await route.fetch({ url: `${url}${path}${target.search}` })

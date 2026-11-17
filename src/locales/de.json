@@ -8929,7 +8929,46 @@
         "network": "Ihre Inhaltsrichtlinie verweigert Netzwerkanfragen, Pop-ups, Formulare und Frames und lädt nur Dateien aus ihrem eigenen Ordner; ein Frame, der wegnavigiert, wird gestoppt.",
         "relay": "Spieler kommunizieren über das Relay dieser Instanz, das jedes Mitglied prüft, Größe und Rate der Nachrichten begrenzt und nach einer Sitzung keine Spieldaten behält.",
         "members": "Nur Mitglieder der Unterhaltung oder des Kanals können beitreten; wer sie verlässt, den Anruf verlässt oder sich abmeldet, fliegt innerhalb von 30 Sekunden aus dem Spiel."
+      },
+      "package": "Paket",
+      "checkUpdate": "Nach Update suchen",
+      "remove": "Entfernen",
+      "removeConfirm": "Endgültig entfernen?",
+      "installTitle": "Aktivität installieren",
+      "installIntro": "Lade ein Aktivitätspaket (.zip) hoch oder gib seine HTTPS-Adresse an. Du siehst, was es ist, bevor etwas installiert wird.",
+      "chooseZip": ".zip auswählen",
+      "or": "oder",
+      "urlLabel": "Paketadresse",
+      "preview": "Vorschau",
+      "replaces": "ersetzt v{version}",
+      "id": "ID",
+      "playersLabel": "Spieler",
+      "runsIn": "Läuft in",
+      "size": "Größe",
+      "from": "Quelle",
+      "trustWarning": "Diese Aktivität führt Code ihres Autors auf den Geräten deiner Mitglieder aus, in der Sandbox. Installiere nur Aktivitäten, denen du vertraust, wie du einen Bot hinzufügen würdest.",
+      "update": "Aktualisieren",
+      "install": "Installieren",
+      "cancel": "Abbrechen",
+      "updated": "Aktivität aktualisiert",
+      "installed": "Aktivität installiert, ausgeschaltet",
+      "removed": "Aktivität entfernt",
+      "errors": {
+        "NOT_A_ZIP": "Das ist keine ZIP-Datei.",
+        "TOO_LARGE": "Das Paket ist zu groß (höchstens 6 MB, 5 MB für das Skript, 256 KB für das Symbol).",
+        "UNEXPECTED_FILE": "Das Paket enthält eine Datei außer manifest.json, dem Skript und dem Symbol.",
+        "MISSING_FILE": "Eine im Manifest genannte Datei fehlt.",
+        "BAD_MANIFEST": "manifest.json ist ungültig.",
+        "BAD_ENTRY": "Das Skript ist leer oder kein Text.",
+        "BAD_ICON": "Das Symbol ist nicht das angegebene SVG, PNG oder WebP.",
+        "BUILTIN_ID": "Eine eingebaute Aktivität nutzt diese ID bereits.",
+        "TOO_MANY_PACKAGES": "Diese Instanz hat bereits 50 Pakete.",
+        "PACKAGE_CHANGED": "Das Paket unter dieser Adresse hat sich seit der Vorschau geändert. Zeige die Vorschau erneut.",
+        "FETCH_FAILED": "Das Paket konnte nicht heruntergeladen werden.",
+        "BAD_URL": "Verwende eine https://-Adresse."
       }
-    }
+    },
+    "thirdParty": "Drittanbieter",
+    "thirdPartyNotice": "Aktivität eines Drittanbieters, von dieser Instanz installiert. Harmony fragt innerhalb einer Aktivität nie nach deinem Passwort."
   }
 }

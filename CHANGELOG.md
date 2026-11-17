@@ -17,6 +17,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   favourites. Activities run sandboxed with no access to your account or your messages, and talk
   through a relay in the federation backend; instance admins turn each on or off in **Admin** →
   **Activities**. Developers: see the Activities SDK in the docs.
+- **Install activities.** **Admin** → **Activities** → **Install an activity** takes an activity
+  package (a `.zip`, uploaded or from an `https://` address), shows what it is and its SHA-256
+  before installing, installs it switched off, and later checks its address for updates or removes
+  it. The instance serves its own copy in the same sandbox as the built-ins. Installed activities
+  carry a **Third-party** label in the picker, on the Join banner and above the game.
 - **Roles members pick themselves.** In the role editor, **Members can pick this role** (with a group
   and a short description) lists a role in **Pick roles**, in the server menu and on your own profile
   card, where members take it and drop it with a tap. `/rolemenu` posts a role menu card in a channel
@@ -452,6 +457,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ### Security
 - Federation, API routes and database functions check what a request acts on, not only who sent
   it. Update to this release.
+- Android: content embedded in the app (activities, YouTube and X posts, media players) can no
+  longer run the app's native commands. The Android WebView handed every embedded frame the same
+  bridge to the app as Harmony's own page; the bridge now answers Harmony's page only.
 
 ### Notes for self-hosters
 - Discord history import is off after the upgrade. To let communities import through bridges they

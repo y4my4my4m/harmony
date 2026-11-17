@@ -49,6 +49,18 @@ An activity lives in `activities/<id>/`:
 
 The web build writes `activities/index.json` (the catalog) and `activities/<id>/app.<hash>.js`. On the dev server, `/activities/dev/` opens a harness that runs several players side by side against an in-memory relay, with buttons to add and remove players and to drop the host.
 
+## Publish a package
+
+Any instance can install an activity that is not built in. Build your entry into one classic script (esbuild `--bundle --format=iife`, the SDK included) and zip three files, at the root or inside one folder:
+
+| File | Limit |
+| --- | --- |
+| `manifest.json` | 64 KB; the fields above, `accent` as `#rrggbb`, `i18n` keys among `en es fr de ja ko zh` |
+| the script `manifest.entry` names, ending `.js` | 5 MB, UTF-8 |
+| the icon `manifest.icon` names | SVG, PNG or WebP, 256 KB |
+
+The zip is at most 6 MB and holds nothing else. Admins install it from a file or an `https://` address; the instance keeps its own copy and serves it at hash-named paths, so a new version means a new zip and an update by each instance's admin. A package cannot take the id of a built-in activity.
+
 ## What the sandbox allows
 
 | Allowed | Refused |
@@ -58,7 +70,7 @@ The web build writes `activities/index.json` (the catalog) and `activities/<id>/
 | | Popups, forms, top navigation, downloads, `alert`/`confirm` |
 | | Camera, microphone, geolocation, clipboard reads |
 
-Keep everything in memory. A frame that leaves its document (navigating itself, or `location.reload()`) is detached for good. `saveImage` checks the bytes against the declared type and names the file with that type's extension.
+Keep everything in memory. A frame that leaves its document (navigating itself, or `location.reload()`) is detached for good. `saveImage` checks the bytes against the declared type and names the file with that type's extension. Call it from a click in the frame: Harmony refuses a save while the frame does not have focus, more than one every 2 seconds, or more than 20 per game.
 
 ## SDK
 

@@ -46,6 +46,12 @@
               <span class="pt-launcher__meta">
                 <Icon name="users" :size="13" />
                 {{ t('playTogether.players', { min: app.minPlayers, max: app.maxPlayers }) }}
+                <span
+                  v-if="app.source === 'package'"
+                  class="pt-launcher__chip"
+                  :title="t('playTogether.thirdPartyNotice')"
+                  :data-testid="`play-together-third-party-${app.id}`"
+                >{{ t('playTogether.thirdParty') }}</span>
               </span>
             </span>
           </button>
@@ -222,6 +228,15 @@ async function joinRunning(): Promise<void> {
   margin-top: 2px;
   font-size: var(--font-size-xs, 12px);
   color: var(--text-muted);
+}
+
+.pt-launcher__chip {
+  margin-left: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 
 .pt-launcher__empty {

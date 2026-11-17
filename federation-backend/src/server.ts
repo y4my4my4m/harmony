@@ -60,6 +60,7 @@ import driveLinkPageRouter from './routes/driveLinkPage.js';
 import publicPagesRouter from './publicPages/routes.js';
 import pushRelayRouter from './routes/pushRelay.js';
 import activityFrameRouter from './activities/frame.js';
+import { adminActivitiesRouter, packageFilesRouter } from './activities/packageRoutes.js';
 import { ActivityRelay } from './activities/relay.js';
 import { reapActivitySessions, supabaseRelayDeps } from './activities/relayDeps.js';
 import { documentCache, subscribeDocumentInvalidation } from './middleware/documentCache.js';
@@ -154,6 +155,10 @@ export function createApp(): Application {
   app.use('/api/federation/admin/emojis', adminEmojisRouter);
   app.use('/activities', activityFrameRouter);
   app.use('/api/federation/activities', activityFrameRouter);
+  app.use('/activities', packageFilesRouter);
+  app.use('/api/federation/activities', packageFilesRouter);
+  app.use('/admin/activities', adminActivitiesRouter);
+  app.use('/api/federation/admin/activities', adminActivitiesRouter);
 
   // Donation webhooks - each provider handles its own body parser internally.
   // Ko-fi posts application/x-www-form-urlencoded which the global json

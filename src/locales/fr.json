@@ -8929,7 +8929,46 @@
         "network": "Sa politique de contenu refuse les requêtes réseau, fenêtres surgissantes, formulaires et cadres, et ne charge que les fichiers de son propre dossier ; un cadre qui navigue ailleurs est arrêté.",
         "relay": "Les joueurs communiquent par le relais de cette instance, qui vérifie chaque membre, limite la taille et le débit des messages et ne garde aucune donnée de jeu après une session.",
         "members": "Seuls les membres de la conversation ou du salon peuvent rejoindre ; quiconque la quitte, quitte l’appel ou se déconnecte quitte la partie en moins de 30 secondes."
+      },
+      "package": "Paquet",
+      "checkUpdate": "Chercher une mise à jour",
+      "remove": "Retirer",
+      "removeConfirm": "Retirer définitivement ?",
+      "installTitle": "Installer une activité",
+      "installIntro": "Téléversez un paquet d’activité (.zip) ou indiquez son adresse HTTPS. Vous voyez ce que c’est avant toute installation.",
+      "chooseZip": "Choisir un .zip",
+      "or": "ou",
+      "urlLabel": "Adresse du paquet",
+      "preview": "Aperçu",
+      "replaces": "remplace la v{version}",
+      "id": "ID",
+      "playersLabel": "Joueurs",
+      "runsIn": "Fonctionne dans",
+      "size": "Taille",
+      "from": "Source",
+      "trustWarning": "Cette activité exécute le code de son auteur sur les appareils de vos membres, dans le bac à sable. N’installez que des activités de confiance, comme vous ajouteriez un bot.",
+      "update": "Mettre à jour",
+      "install": "Installer",
+      "cancel": "Annuler",
+      "updated": "Activité mise à jour",
+      "installed": "Activité installée, désactivée",
+      "removed": "Activité retirée",
+      "errors": {
+        "NOT_A_ZIP": "Ce n’est pas un fichier zip.",
+        "TOO_LARGE": "Le paquet est trop volumineux (6 Mo au plus, 5 Mo pour le script, 256 Ko pour l’icône).",
+        "UNEXPECTED_FILE": "Le paquet contient un fichier autre que manifest.json, le script et l’icône.",
+        "MISSING_FILE": "Il manque un fichier nommé par le manifeste.",
+        "BAD_MANIFEST": "manifest.json n’est pas valide.",
+        "BAD_ENTRY": "Le script est vide ou n’est pas du texte.",
+        "BAD_ICON": "L’icône n’est pas le SVG, PNG ou WebP annoncé.",
+        "BUILTIN_ID": "Une activité intégrée utilise déjà cet ID.",
+        "TOO_MANY_PACKAGES": "Cette instance a déjà 50 paquets.",
+        "PACKAGE_CHANGED": "Le paquet à cette adresse a changé depuis l’aperçu. Refaites l’aperçu.",
+        "FETCH_FAILED": "Le paquet n’a pas pu être téléchargé.",
+        "BAD_URL": "Utilisez une adresse https://."
       }
-    }
+    },
+    "thirdParty": "Tierce",
+    "thirdPartyNotice": "Activité tierce, installée par cette instance. Harmony ne vous demande jamais votre mot de passe dans une activité."
   }
 }

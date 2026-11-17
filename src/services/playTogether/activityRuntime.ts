@@ -65,6 +65,9 @@ const AVATAR_CACHE_SIZE = 64
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024
 const FRAME_RATE_PER_SECOND = 60
 const FRAME_RATE_BURST = 120
+/** Image saves need the frame focused (the click that asked for one), and are spaced and counted. */
+export const SAVE_INTERVAL_MS = 2_000
+export const SAVE_MAX_PER_SESSION = 20
 const MAX_TARGETS = 64
 
 /** Insertion-ordered: a hit moves to the end, the first entry is the least recently used. */
@@ -140,6 +143,8 @@ export class ActivityRuntime {
   private chain: Promise<void> = Promise.resolve()
   private tokens = FRAME_RATE_BURST
   private tokensAt = Date.now()
+  private saves = 0
+  private lastSaveAt = -Infinity
   private readonly onWindowMessage = (event: MessageEvent) => this.fromFrame(event)
 
   constructor(
@@ -331,10 +336,19 @@ export class ActivityRuntime {
       case 'save': {
         const id = Number(msg.id)
         const blob = msg.blob
-        if (!(blob instanceof Blob) || !(SAVE_TYPES as readonly string[]).includes(blob.type)) {
+        const now = Date.now()
+        if (
+          !(blob instanceof Blob)
+          || !(SAVE_TYPES as readonly string[]).includes(blob.type)
+          || document.activeElement !== this.frame
+          || this.saves >= SAVE_MAX_PER_SESSION
+          || now - this.lastSaveAt < SAVE_INTERVAL_MS
+        ) {
           this.post({ hp: PROTOCOL_VERSION, t: 'saved', id, ok: false })
           return
         }
+        this.saves += 1
+        this.lastSaveAt = now
         checkedImage(blob, String(msg.name ?? ''))
           .then((image) => (image ? this.options.save(image.blob, image.name) : false))
           .then((ok) => this.post({ hp: PROTOCOL_VERSION, t: 'saved', id, ok }))

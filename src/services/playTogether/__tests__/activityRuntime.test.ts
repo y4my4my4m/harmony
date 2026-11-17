@@ -18,7 +18,7 @@ vi.mock('../relayConnection', () => ({
   },
 }))
 
-import { ActivityRuntime, type RuntimeView } from '../activityRuntime'
+import { ActivityRuntime, SAVE_INTERVAL_MS, SAVE_MAX_PER_SESSION, type RuntimeView } from '../activityRuntime'
 import type { ActivitySession } from '../sessions'
 
 const ALICE = 'a1'
@@ -53,6 +53,13 @@ function fromFrame(data: unknown, source: unknown = frame.contentWindow) {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
+/** Makes the frame stand-in the focused element, as a click inside the frame does. */
+function focusFrame(focused: boolean) {
+  Object.defineProperty(document, 'activeElement', { configurable: true, get: () => (focused ? frame : document.body) })
+}
+
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 1, 2, 3])
+
 beforeEach(() => {
   sent.length = 0
   posted = []
@@ -73,6 +80,8 @@ beforeEach(() => {
 
 afterEach(() => {
   runtime.destroy()
+  delete (document as unknown as Record<string, unknown>).activeElement
+  vi.useRealTimers()
 })
 
 describe('ActivityRuntime', () => {
@@ -181,10 +190,12 @@ describe('ActivityRuntime', () => {
     runtime.start()
     runtime.attachFrame(frame as unknown as HTMLIFrameElement)
     fromFrame({ hp: 1, t: 'ready', sdk: '1.0.0' })
-    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 1, 2, 3])
+    focusFrame(true)
+    vi.useFakeTimers({ toFake: ['Date'] })
     fromFrame({ hp: 1, t: 'save', id: 1, blob: new Blob(['x'], { type: 'text/html' }), name: 'a.html' })
     fromFrame({ hp: 1, t: 'save', id: 2, blob: new Blob(['@echo off and more bytes'], { type: 'image/png' }), name: 'update.bat' })
-    fromFrame({ hp: 1, t: 'save', id: 3, blob: new Blob([png], { type: 'image/png' }), name: '../chain.bat' })
+    vi.advanceTimersByTime(SAVE_INTERVAL_MS)
+    fromFrame({ hp: 1, t: 'save', id: 3, blob: new Blob([PNG], { type: 'image/png' }), name: '../chain.bat' })
     for (let i = 0; i < 5; i++) await flush()
     expect(save).toHaveBeenCalledTimes(1)
     expect((save.mock.calls[0] as unknown[])[1]).toBe('_chain.png')
@@ -193,6 +204,39 @@ describe('ActivityRuntime', () => {
       { hp: 1, t: 'saved', id: 2, ok: false },
       { hp: 1, t: 'saved', id: 3, ok: true },
     ])
+  })
+
+  it('saves only while the frame has focus, spaced and counted', async () => {
+    const save = vi.fn(async () => true)
+    runtime.destroy()
+    runtime = new ActivityRuntime({ id: 's1' } as ActivitySession, () => null, view, {
+      locale: () => 'en', theme: () => ({ scheme: 'dark', accent: '#000', reducedMotion: false }), visible: () => true,
+      notify: vi.fn(), leave: vi.fn(), save,
+    })
+    runtime.start()
+    runtime.attachFrame(frame as unknown as HTMLIFrameElement)
+    fromFrame({ hp: 1, t: 'ready', sdk: '1.0.0' })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const ask = async (id: number) => {
+      fromFrame({ hp: 1, t: 'save', id, blob: new Blob([PNG], { type: 'image/png' }), name: 'page' })
+      for (let i = 0; i < 5; i++) await flush()
+      return posted.find((m) => m.t === 'saved' && m.id === id)?.ok
+    }
+
+    focusFrame(false)
+    expect(await ask(1)).toBe(false)
+    focusFrame(true)
+    expect(await ask(2)).toBe(true)
+    expect(await ask(3)).toBe(false)
+    vi.advanceTimersByTime(SAVE_INTERVAL_MS)
+    expect(await ask(4)).toBe(true)
+    for (let id = 5; id < 5 + SAVE_MAX_PER_SESSION; id++) {
+      vi.advanceTimersByTime(SAVE_INTERVAL_MS)
+      await ask(id)
+    }
+    expect(save).toHaveBeenCalledTimes(SAVE_MAX_PER_SESSION)
+    vi.advanceTimersByTime(SAVE_INTERVAL_MS)
+    expect(await ask(100)).toBe(false)
   })
 
   it('posts nothing to a frame that has not reported ready', async () => {
