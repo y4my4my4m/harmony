@@ -4,12 +4,11 @@ import { useServerRolesStore } from '@/stores/useServerRoles'
 import { supabase } from '@/supabase'
 import { BOT_NAME_COLOR } from '@/utils/botUtils'
 import type { Message } from '@/types'
+import { bridgedAuthorColor } from '@/services/bridgedChannelUsersService'
 import {
-  findBridgedUserInCache,
-  resolveBridgedUserColor,
-} from '@/services/bridgedChannelUsersService'
-import {
+  bridgedAuthorName,
   getBridgeSource,
+  getBridgedAuthor,
   getHarmonyProfileUserId,
   getRemoteAuthor,
   getWebhookAuthor,
@@ -66,10 +65,8 @@ export function useMessageAuthorPresentation(
   const displayName = computed(() => {
     const msg = message.value
     if (!msg) return 'Deleted User'
-    if (msg.metadata?.discord_user) {
-      const bridged = msg.metadata.discord_user
-      return bridged.display_name || bridged.username || 'Unknown'
-    }
+    const bridged = getBridgedAuthor(msg)
+    if (bridged) return bridgedAuthorName(bridged)
     const webhook = getWebhookAuthor(msg)
     if (webhook) return webhook.name
     const remote = getRemoteAuthor(msg)
@@ -85,9 +82,8 @@ export function useMessageAuthorPresentation(
   const avatarUrl = computed(() => {
     const msg = message.value
     if (!msg) return '/default_avatar.webp'
-    if (msg.metadata?.discord_user) {
-      return msg.metadata.discord_user.avatar_url || '/default_avatar.webp'
-    }
+    const bridged = getBridgedAuthor(msg)
+    if (bridged) return bridged.avatar_url || '/default_avatar.webp'
     const webhook = getWebhookAuthor(msg)
     if (webhook) return webhook.avatar_url || '/default_avatar.webp'
     const remote = getRemoteAuthor(msg)
@@ -101,13 +97,8 @@ export function useMessageAuthorPresentation(
     const msg = message.value
     if (!msg) return DEFAULT_USER_COLOR
     if (isBridgedAuthorMessage(msg)) {
-      const discordId = msg.metadata?.discord_user?.id
-      if (discordId) {
-        const cached = findBridgedUserInCache(null, discordId)
-        const color = cached ? resolveBridgedUserColor(cached) : undefined
-        if (color) return color
-      }
-      return '#5865F2'
+      const bridged = getBridgedAuthor(msg)
+      return bridgedAuthorColor(bridged?.platform, bridged?.id)
     }
     if (isBotAuthorMessage(msg)) return BOT_NAME_COLOR
     if (msg.user_id) {

@@ -5,7 +5,7 @@ description: Connect a Harmony server with a Discord server, choose where the br
 
 # Discord bridge
 
-This page is for Harmony server owners and members with the Manage Server permission who want to connect their server with a Discord server. It covers the three ways to run the bridge, the setup steps in **Server settings** → **Discord Bridge**, what crosses the bridge, the Discord permissions it needs, and how to fix what it reports. Instance operators who want to offer bridges to their communities read [Hosting Discord bridges](/self-host/discord-bridges).
+This page is for Harmony server owners and members with the Manage Server permission who want to connect their server with a Discord server. It covers the three ways to run the bridge, the setup steps in **Server settings** → **Bridges** → **Discord**, what crosses the bridge, the Discord permissions it needs, and how to fix what it reports. Instance operators who want to offer bridges to their communities read [Hosting Discord bridges](/self-host/discord-bridges).
 
 ## What the bridge does
 
@@ -45,7 +45,7 @@ You need:
 ## Open the bridge page
 
 1. Click the server name at the top of the channel list and choose **Server settings**.
-2. Open **Discord Bridge**. The entry appears only to members who can manage the server.
+2. Open **Bridges**, on its **Discord** tab. The entry appears only to members who can manage the server.
 
 The page polls every few seconds, so checks and channel lists update without a reload.
 
@@ -226,7 +226,7 @@ Import is available when all of these hold; otherwise the bridge page says which
 - The instance's admin has turned history import on. It is off on a new instance; see [History import](/self-host/discord-bridges#history-import). The admin allows either **Self-run bridges**, the ones a server's owner runs with their own Discord application, or **All bridges**, which adds **the instance's bot** and your own bot run on the instance.
 - The bridge is 2.6.0 or later (the **Bridge version** on the bridge page). On the instance's bot or a bot the instance runs for you, the instance's bridge service needs 2.8.0.
 
-Members with Manage Server start it in **Server settings** → **Discord Bridge**, under **Paired channels**:
+Members with Manage Server start it in **Server settings** → **Bridges** → **Discord**, under **Paired channels**:
 
 - **Import history** on a pair imports that channel.
 - **Import all** imports every pair that can import and has not finished: pairs with no import yet, or one that failed, was cancelled or is paused. A finished pair runs again only from its own **Import again**. **Cancel all** stops every import in progress.
@@ -302,7 +302,7 @@ A bridge copies what Discord members write into Harmony. They decide about their
 
 Every member can run it, answers are shown only to them, and it works with every kind of bridge. A long history is erased in the background, and a restart of the gateway does not stop it. It does not touch their messages on Discord.
 
-Members with Manage Server act for someone who cannot run the command, for example after they left, in **Server settings** → **Discord Bridge** → **Bridge privacy**:
+Members with Manage Server act for someone who cannot run the command, for example after they left, in **Server settings** → **Bridges** → **Discord** → **Bridge privacy**:
 
 - **Remove from this server** takes a Discord user ID, deletes what the bridge brought from that user and stops bringing theirs. In Discord, turn on Developer Mode, right-click the user and choose **Copy User ID**. If the page closes before the removal ends, the gateway finishes it; a **Restore** stops it, except for an erase the member asked for themselves.
 - The list shows who is left out and why: **Opted out on Discord**, or removed by a manager or an instance admin. **Restore** lifts a removal made here, from then on: history import leaves out what the member wrote before. A member's own opt-out is theirs to undo, and a member who opted out as well stays opted out. Opting in on Discord does not lift a removal made here.

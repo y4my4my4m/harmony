@@ -314,6 +314,7 @@ SELECT is_empty($q$
            'messages.a_messages_content_permissions',
            'messages.a_messages_deleted_recipient_guard',
            'messages.a_messages_dm_block_guard',
+           'messages.a_messages_matrix_author_guard',
            'messages.a_messages_media_path_guard',
            'messages.a_messages_poll_guard',
            'messages.a_messages_reply_scope',

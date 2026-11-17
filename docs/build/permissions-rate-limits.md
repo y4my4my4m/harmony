@@ -32,7 +32,7 @@ Installations also carry `embed_links` (on by default) and `kick_members` and `b
 |---|---|
 | **User settings** → **My bots** → **Add to server** | Read messages, Send messages, Add reactions, Attach files; Manage channels too for a bot of type Bridge |
 | **Server bots** → **Add a bot** | The flags checked in the dialog |
-| A Discord bridge set up under **Server settings** → **Discord Bridge** | Read messages, Send messages, Manage channels, Manage roles |
+| A Discord bridge set up under **Server settings** → **Bridges** → **Discord** | Read messages, Send messages, Manage channels, Manage roles |
 
 ## How permissions are computed
 

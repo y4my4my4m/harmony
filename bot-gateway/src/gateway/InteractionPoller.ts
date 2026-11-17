@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js'
 import type { WebSocketGateway } from './WebSocketGateway.js'
 import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
+import { relayAllowed, serverOfChannel } from '../bridge/memberConsent.js'
 
 export const INTERACTION_POLL_MS = 250
 export const INTERACTION_CLAIM_LIMIT = 50
@@ -98,9 +99,35 @@ export class InteractionPoller {
       console.error('claim_bot_interactions answered a row without bot_id or id:', row)
       return
     }
-    const sockets = this.gateway.sendToBot(botId, { op: 0, t: 'INTERACTION_CREATE', d: interactionEvent(row) })
-    if (sockets > 0) return
-    const { error } = await supabase.rpc('bot_interaction_fail', { p_bot_id: botId, p_id: id, p_error: 'offline' })
+    let failure = 'failed'
+    try {
+      if (typeof row.channel_id !== 'string' || !isObject(row.user) || typeof row.user.id !== 'string') {
+        throw new Error('Interaction has no channel or invoker')
+      }
+      const resolved = isObject(row.data) && isObject(row.data.resolved) ? row.data.resolved : {}
+      // The invoker addresses the bot. Another member named in the options, who opted out of
+      // the bot's bridge platform, withholds the whole invocation from a bridge.
+      const named = new Set([
+        ...Object.keys(isObject(resolved.users) ? resolved.users : {}),
+        ...Object.keys(isObject(resolved.members) ? resolved.members : {}),
+      ])
+      named.delete(row.user.id)
+      if (named.size > 0) {
+        const serverId = await serverOfChannel(row.channel_id)
+        if (!serverId) throw new Error('Interaction channel has no server')
+        for (const userId of named) {
+          if (!(await relayAllowed(botId, serverId, row.channel_id, userId))) {
+            throw new Error('Interaction names a member who opted out of this bridge')
+          }
+        }
+      }
+      const sockets = this.gateway.sendToBot(botId, { op: 0, t: 'INTERACTION_CREATE', d: interactionEvent(row) })
+      if (sockets > 0) return
+      failure = 'offline'
+    } catch (error) {
+      console.error(`Interaction ${id} delivery refused:`, error)
+    }
+    const { error } = await supabase.rpc('bot_interaction_fail', { p_bot_id: botId, p_id: id, p_error: failure })
     if (error) console.error(`bot_interaction_fail failed for ${id}:`, error.message)
   }
 }

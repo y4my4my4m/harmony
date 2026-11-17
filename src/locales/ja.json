@@ -1,4 +1,70 @@
 {
+  "bridgeSource": {
+    "from": "{platform} からのブリッジ",
+    "profile": {
+      "joinedServer": "サーバー参加日",
+      "memberSince": "{platform} の登録日",
+      "status": "ステータス",
+      "roles": "ロール | ロール",
+      "copyId": "ID をコピー",
+      "copied": "コピーしました",
+      "open": "{platform} で開く"
+    }
+  },
+  "matrixBridge": {
+    "title": "Matrix ブリッジ",
+    "pairsTitle": "ペアのチャンネル",
+    "description": "既存の Matrix ルームブリッジに Harmony のメッセージを送る方法を選びます。",
+    "requirements": "個別モードでは、Harmony の投稿者ごとに実際の Matrix メンバーを使います。アプリケーションサービスのユーザー名前空間と、そのユーザーを Matrix ルームに招待する権限が必要です。",
+    "history": "モードの変更は今後の配信にのみ適用されます。既存の履歴は保持されます。",
+    "delivery": "個別モードを選んでも、登録や配信が完了したことにはなりません。Matrix で配信に成功したメッセージの送信者を確認してください。",
+    "loading": "Matrix ブリッジを読み込み中…",
+    "reload": "再読み込み",
+    "empty": "このサーバーに設定済みの Matrix ブリッジはありません。",
+    "waitingRoom": "ブリッジが Matrix ルームに接続するのを待っています。モードは今のうちに保存できます。",
+    "senderMode": "Harmony のメッセージの送信元",
+    "ghost": "個別のブリッジユーザー（推奨）",
+    "relay": "共有ブリッジアカウント",
+    "saving": "モードを保存中…",
+    "loadError": "Matrix ブリッジの設定を読み込めませんでした。再読み込みしてください。",
+    "saveError": "モード変更を確認できませんでした。再読み込みして現在の設定を確認してください。",
+    "privacy": {
+      "lead": "ここで Matrix ユーザーを削除すると、このサーバーのブリッジがそのユーザーから取り込んだものをすべて削除し、今後もメッセージを取り込まないようにします。",
+      "idLabel": "Matrix ユーザー ID",
+      "idHelp": "{'@'}sam:example.org のような完全な Matrix ID です。",
+      "idInvalid": "Matrix ユーザー ID は {'@'}名前:サーバー の形式です。",
+      "removeConfirm": "このブリッジが Matrix ユーザー {id} から取り込んだメッセージ、ファイル、リアクションをすべて削除し、今後も取り込まないようにしますか? この操作は元に戻せません。",
+      "listTitle": "対象外の Matrix ユーザー {count} 人 | 対象外の Matrix ユーザー {count} 人",
+      "source": {
+        "self": "Matrix で本人が対象外に設定"
+      },
+      "restoreLabel": "Matrix ユーザー {id} を再びブリッジする",
+      "alsoSelf": "Matrix で本人も対象外に設定",
+      "purgeLead": "このサーバーのブリッジが Matrix から取り込んだもの (メッセージ、ファイル、リアクション) をすべて削除します。Harmony で書かれたメッセージは残ります。",
+      "purgeConfirm": "Matrix からこのサーバーに取り込まれたメッセージ、ファイル、リアクションをすべて削除しますか? この操作は元に戻せません。"
+    }
+  },
+  "bridges": {
+    "navLabel": "ブリッジ",
+    "title": "ブリッジ",
+    "intro": "ブリッジは、このサーバーのチャンネルを他のチャットプラットフォームのチャンネルやルームとつなぎます。どちらかで送られたメッセージは、送信者の名前と画像付きでもう一方にも表示されます。",
+    "tabs": {
+      "discord": "Discord",
+      "matrix": "Matrix"
+    }
+  },
+  "bridgePrivacy": {
+    "title": "ブリッジのプライバシー",
+    "description": "このサーバーで今後送信する自分のメッセージを、ブリッジが他のプラットフォームへ転送しないようにします。",
+    "scope": "このサーバーのブリッジにのみ適用されます。すでに転送されたコピーの削除や、他のボットが読める内容の変更は行いません。",
+    "optOut": "自分のメッセージを {platform} に転送しない",
+    "none": "現在、このサーバーのメッセージを転送しているブリッジはありません。",
+    "loading": "ブリッジのプライバシーを読み込み中",
+    "saving": "保存中…",
+    "loadError": "プライバシー設定を読み込めませんでした。もう一度お試しください。",
+    "saveError": "変更を確認できませんでした。再読み込みして現在の設定を確認してください。",
+    "retry": "再試行"
+  },
   "common": {
     "save": "保存",
     "cancel": "キャンセル",
@@ -1658,9 +1724,9 @@
       "compactMode": "コンパクトモード",
       "compactModeDesc": "間隔を狭めてより多くのメッセージを表示します。",
       "bridgeSourceBadge": "ブリッジ元の表示",
-      "bridgeSourceBadgeDesc": "ブリッジされたメッセージ（Discord など）の送信元を投稿者名の横にどう表示するかを設定します。",
+      "bridgeSourceBadgeDesc": "Discord や Matrix などのブリッジされたプラットフォームの人の送信元を、名前の横にどう表示するかを設定します。",
       "bridgeSourceBadgeIcon": "プラットフォームアイコン",
-      "bridgeSourceBadgeText": "テキストラベル（DISCORD）",
+      "bridgeSourceBadgeText": "テキストラベル（DISCORD、MATRIX）",
       "floatingVideo": "フローティング動画プレーヤー",
       "floatingVideoDesc": "スクロールすると再生中の動画が隅に移動します。YouTubeとネイティブ動画で動作します。",
       "videoPlayer": "ビデオプレーヤー",
@@ -3885,7 +3951,7 @@
       "bot": "標準",
       "botHint": "トークンで接続し、ゲートウェイと REST API を通じて動作します。",
       "bridge": "ブリッジ",
-      "bridgeHint": "Harmony と他のプラットフォーム間でメッセージを中継します。Discord の場合は、代わりにサーバー設定 → Discord ブリッジを使ってください。専用のボットを作成・管理します。"
+      "bridgeHint": "Harmony と他のプラットフォーム間でメッセージを中継します。Discord の場合は、代わりにサーバー設定 → ブリッジ → Discord を使ってください。専用のボットを作成・管理します。"
     },
     "usernameErrors": {
       "tooShort": "3文字以上にしてください。",
@@ -5866,7 +5932,6 @@
     }
   },
   "discordBridge": {
-    "navLabel": "Discord ブリッジ",
     "title": "Discord ブリッジ",
     "intro": "ブリッジは、このサーバーのチャンネルと Discord サーバーのチャンネルをつなぎます。どちらかで送られたメッセージは、送信者の名前と画像付きでもう一方にも表示されます。",
     "loading": "Discord ブリッジを読み込んでいます…",
@@ -6418,7 +6483,7 @@
       "managed": "このボットは {server} の Discord ブリッジです。設定と管理はそちらで行うため、ここで設定することはありません。",
       "aServer": "あなたのサーバーのひとつ",
       "openSettings": "ブリッジの設定を開く",
-      "unmanaged": "Discord ブリッジはサーバーの設定（サーバー設定 → Discord ブリッジ）で設定します。そのページがブリッジのボットを作成・管理するため、ここでボットを作る必要はありません。",
+      "unmanaged": "Discord ブリッジはサーバーの設定（サーバー設定 → ブリッジ → Discord）で設定します。そのページがブリッジのボットを作成・管理するため、ここでボットを作る必要はありません。",
       "legacyTitle": "古いブリッジ（v1）の手動設定",
       "legacyLead": "設定ファイルを読み込む古い harmony-discord-bridge プログラム専用です。",
       "harmonyPermissions": "このボットを「メッセージを読む」「メッセージを送信」権限付きでサーバーに追加します（/bridge clone-server には「チャンネルの管理」も必要）。",
@@ -6428,7 +6493,7 @@
     },
     "adminSection": {
       "title": "Discord ブリッジ",
-      "lead": "コミュニティは サーバー設定 → Discord ブリッジ で Discord サーバーを接続します。このインスタンスのボットを提供することも、コミュニティ自身のボットを持ち込んでもらうことも、その両方もできます。ブリッジを自分のコンピューターで動かす方法はいつでも使えます。"
+      "lead": "コミュニティは サーバー設定 → ブリッジ → Discord で Discord サーバーを接続します。このインスタンスのボットを提供することも、コミュニティ自身のボットを持ち込んでもらうことも、その両方もできます。ブリッジを自分のコンピューターで動かす方法はいつでも使えます。"
     },
     "admin": {
       "title": "コミュニティ自身のボットを持ち込めるようにする",
@@ -6502,7 +6567,7 @@
       "clearConfirm": "ボットの認証情報を削除しますか？ボットを設定し直すまで、リンクされたコミュニティのブリッジは止まります。ブリッジとチャンネルのペアは残ります。",
       "cancel": "キャンセル",
       "enable": "このボットをコミュニティに提供する",
-      "enableHint": "サーバー管理者には、サーバー設定 → Discord ブリッジ で「このインスタンスのボットを使う」が最初に表示されます。",
+      "enableHint": "サーバー管理者には、サーバー設定 → ブリッジ → Discord で「このインスタンスのボットを使う」が最初に表示されます。",
       "enableNeedsConfig": "先に Application ID、クライアントシークレット、ボットトークンを保存してください。",
       "presence": "プレゼンス同期",
       "presenceHint": "リンクされたすべてのサーバーで Discord の Presence インテントを要求し、コミュニティが誰がオンラインかを表示できるようにします。送られるのは状態の変化だけです。Developer Portal で Presence インテントがオンの間だけオンにしてください。100 サーバーを超えると Discord の承認が必要です。",
@@ -6837,7 +6902,7 @@
       "clearSearch": "検索をクリア",
       "found": "{count} 人のメンバーが見つかりました",
       "group": "{title}、{count} 人",
-      "discord": "Discord ブリッジのメンバー",
+      "bridged": "{platform} ブリッジのメンバー",
       "instanceAdmin": "インスタンス管理者",
       "instanceMod": "インスタンスモデレーター",
       "searchHint": "名前またはユーザー名",

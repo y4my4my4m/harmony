@@ -5,7 +5,7 @@ import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
 
 // The displayed author of a relayed message (src/utils/messageAuthor.ts in the client). Kept
 // only from a bridge bot whose bridge relays the channel (bridgePairsChannel).
-export const BRIDGE_AUTHOR_KEYS = new Set(['discord_user', 'bridge_source'])
+export const BRIDGE_AUTHOR_KEYS = new Set(['discord_user', 'bridge_source', 'bridge_author'])
 
 /** EmbedProvider in the client's src/types/chat.ts. */
 const EMBED_PROVIDERS = new Set(['harmony-post', 'harmony-invite', 'fediverse-post', 'youtube', 'spotify', 'generic'])

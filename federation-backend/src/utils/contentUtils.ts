@@ -9,6 +9,7 @@
 
 import config from '../config/index.js';
 import { shownLinkLabel } from './maskedLinks.js';
+import { isMatrixMention } from './mentionParts.js';
 import { hashtagUrl, imageMediaTypeFromUrl, safeAttrUrlOutbound } from '../activitypub/converters/toActivityPub.js';
 
 /**
@@ -76,6 +77,10 @@ export function convertContentToHTML(content: any): string {
           return lines(part.text || '');
 
         case 'mention': {
+          if (isMatrixMention(part)) {
+            const id = typeof part.userId === 'string' && /^@[^:\s]+:[^\s/]+$/.test(part.userId) ? part.userId : null;
+            return id ? `<a href="https://matrix.to/#/${encodeURIComponent(id)}">${escapeHtml(id)}</a>` : escapeHtml(`@${part.username || 'user'}`);
+          }
           const mentionDomain = part.domain || config.INSTANCE_DOMAIN;
           const isLocalMention = !part.domain || part.domain === config.INSTANCE_DOMAIN;
           const mentionDisplay = isLocalMention ? `@${part.username}` : `@${part.username}@${part.domain}`;
@@ -166,7 +171,7 @@ export function extractActivityPubTags(content: any, mentionActorUrls?: Map<stri
   const tags: any[] = [];
   
   for (const part of content) {
-    if (part.type === 'mention' && part.username) {
+    if (part.type === 'mention' && part.username && !isMatrixMention(part)) {
       const mentionDomain = part.domain || config.INSTANCE_DOMAIN;
       const known = typeof part.userId === 'string' ? mentionActorUrls?.get(part.userId) : undefined;
       tags.push({

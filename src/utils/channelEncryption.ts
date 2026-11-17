@@ -15,6 +15,7 @@
  * payload and never from the parts beside the ciphertext.
  */
 import type { ChannelHostFlags, MessagePart } from '@/types'
+import { isMatrixMention } from '@/utils/matrixMentions'
 import { HERE_ROLE_ID } from '@/utils/hereMention'
 
 export type ServerEncryptionMode = 'disabled' | 'optional' | 'required' | 'required_local_only'
@@ -167,6 +168,7 @@ export function extractPlaintextMentionParts(content: readonly MessagePart[] | n
     if (!part || typeof part !== 'object') continue
 
     if (part.type === 'mention') {
+      if (isMatrixMention(part)) continue
       const username = typeof part.username === 'string' ? part.username : ''
       if (!username || username.length > MAX_USERNAME) continue
       const mention: PlaintextMentionPart = { type: 'mention', username }

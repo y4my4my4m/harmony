@@ -11,6 +11,7 @@
 
 import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
+import { isMatrixMention } from './mentionParts.js';
 
 interface ResolvedProfile {
   id: string;
@@ -48,7 +49,7 @@ export async function resolveMentionUserIds(content: any[]): Promise<any[]> {
   if (!Array.isArray(content)) return content;
 
   const mentions = content.filter(
-    (part: any) => part.type === 'mention' && part.username
+    (part: any) => part.type === 'mention' && part.username && !part.isBridged && !isMatrixMention(part)
   );
 
   if (mentions.length === 0) return content;
@@ -125,7 +126,7 @@ export async function resolveMentionUserIds(content: any[]): Promise<any[]> {
   }
 
   return content.map((part: any) => {
-    if (part.type !== 'mention' || !part.username) return part;
+    if (part.type !== 'mention' || !part.username || part.isBridged || isMatrixMention(part)) return part;
 
     const username = (part.username || '').replace(/^@+/, '');
     const domain = typeof part.domain === 'string' ? part.domain.toLowerCase() : part.domain;

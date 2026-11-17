@@ -558,7 +558,7 @@ test('Discord members of a bridge join the list in their presence groups, whole 
   ].map((u) => ({ ...u, avatarUrl: '/default_avatar.webp', source: 'discord', harmonyRoleIds: [], customStatus: null }))
   await page.route(/\/bot-gateway\/bridged-users\/(?!server\/)[^/?]+/, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ has_bridge: true, users: discord }) }))
-  const bridgedRow = (name: string) => sidebar(page).locator('.user-item.bridged-discord-user').filter({ hasText: name })
+  const bridgedRow = (name: string) => sidebar(page).locator('.user-item.bridged-user').filter({ hasText: name })
 
   await signIn(page, viewer)
   // A server held whole.

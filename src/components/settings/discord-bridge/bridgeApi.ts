@@ -1,5 +1,5 @@
 /**
- * Reads and RPCs behind Server Settings → Discord Bridge. Tables are readable by members
+ * Reads and RPCs behind Server Settings → Bridges → Discord. Tables are readable by members
  * holding MANAGE_SERVER; every write goes through a discord_bridge_* RPC.
  */
 import { supabase } from '@/supabase'
@@ -410,12 +410,13 @@ export async function fetchHistoryImportMode(): Promise<HistoryImportMode> {
 // Bridge privacy
 // ---------------------------------------------------------------------------
 
-/** bridge_remote_optouts.platform of a Discord bridge. */
-const DISCORD_PLATFORM = 'discord'
+/** bridge_remote_optouts.platform: the platform the remote user is on. */
+export type BridgeRemotePlatform = 'discord' | 'matrix'
+const DISCORD_PLATFORM: BridgeRemotePlatform = 'discord'
 
 export interface BridgeOptout {
   remote_user_id: string
-  /** self: the Discord member's own /bridge-privacy; manager, admin: removed here. */
+  /** self: the remote member's own opt-out on their platform; manager, admin: removed here. */
   source: 'self' | 'manager' | 'admin'
   /** The member also opted out on Discord: a restore leaves them out (20261115500001). */
   self_opted_out?: boolean
@@ -431,12 +432,12 @@ export interface EraseResult {
   removed?: number
 }
 
-export async function fetchBridgeOptouts(serverId: string): Promise<BridgeOptout[]> {
+export async function fetchBridgeOptouts(serverId: string, platform: BridgeRemotePlatform = DISCORD_PLATFORM): Promise<BridgeOptout[]> {
   const { data, error } = await supabase
     .from('bridge_remote_optouts')
     .select('remote_user_id, source, self_opted_out, created_at')
     .eq('server_id', serverId)
-    .eq('platform', DISCORD_PLATFORM)
+    .eq('platform', platform)
     .order('created_at', { ascending: false })
   raise(error)
   return (data as BridgeOptout[] | null) ?? []
@@ -475,12 +476,17 @@ async function eraseAll(
 }
 
 /**
- * Opts a Discord user out of the server's bridge and deletes their relayed and imported messages.
- * The later batches continue only while the removal stands (a restore stops them); what this page
- * leaves, bot-gateway finishes.
+ * Opts a remote user out of the server's bridges of `platform` and deletes their relayed and
+ * imported messages. The later batches continue only while the removal stands (a restore stops
+ * them); what this page leaves, bot-gateway finishes.
  */
-export async function removeBridgedUser(serverId: string, discordUserId: string, onProgress?: (total: number) => void): Promise<number> {
-  const args = { p_server_id: serverId, p_platform: DISCORD_PLATFORM, p_remote_user_id: discordUserId }
+export async function removeBridgedUser(
+  serverId: string,
+  remoteUserId: string,
+  onProgress?: (total: number) => void,
+  platform: BridgeRemotePlatform = DISCORD_PLATFORM,
+): Promise<number> {
+  const args = { p_server_id: serverId, p_platform: platform, p_remote_user_id: remoteUserId }
   const run = await eraseAll((batch) => (batch === 0
     ? supabase.rpc('bridge_privacy_remove_remote_user', args)
     : supabase.rpc('bridge_privacy_erase_continue', args)), onProgress)
@@ -488,21 +494,29 @@ export async function removeBridgedUser(serverId: string, discordUserId: string,
 }
 
 /** Lifts a removal made here. False for a member's own opt-out, which only they lift. */
-export async function restoreBridgedUser(serverId: string, discordUserId: string): Promise<boolean> {
+export async function restoreBridgedUser(
+  serverId: string,
+  remoteUserId: string,
+  platform: BridgeRemotePlatform = DISCORD_PLATFORM,
+): Promise<boolean> {
   const { data, error } = await supabase.rpc('bridge_privacy_restore_remote_user', {
     p_server_id: serverId,
-    p_platform: DISCORD_PLATFORM,
-    p_remote_user_id: discordUserId,
+    p_platform: platform,
+    p_remote_user_id: remoteUserId,
   })
   raise(error)
   return data === true
 }
 
-/** Deletes every message, reaction and AutoMod event the server's bridge brought from Discord. */
-export function purgeBridgedMessages(serverId: string, onProgress?: (total: number) => void): Promise<EraseRun> {
+/** Deletes every message, reaction and AutoMod event the server's bridges brought from `platform`. */
+export function purgeBridgedMessages(
+  serverId: string,
+  onProgress?: (total: number) => void,
+  platform: BridgeRemotePlatform = DISCORD_PLATFORM,
+): Promise<EraseRun> {
   return eraseAll(() => supabase.rpc('bridge_privacy_purge_server', {
     p_server_id: serverId,
-    p_platform: DISCORD_PLATFORM,
+    p_platform: platform,
   }), onProgress)
 }
 

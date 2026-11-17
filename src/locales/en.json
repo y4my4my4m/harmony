@@ -1,4 +1,70 @@
 {
+  "bridgeSource": {
+    "from": "Bridged from {platform}",
+    "profile": {
+      "joinedServer": "Joined server",
+      "memberSince": "{platform} member since",
+      "status": "Status",
+      "roles": "Role | Roles",
+      "copyId": "Copy ID",
+      "copied": "Copied",
+      "open": "Open on {platform}"
+    }
+  },
+  "matrixBridge": {
+    "title": "Matrix bridge",
+    "pairsTitle": "Paired channels",
+    "description": "Choose how Harmony messages are sent to your existing Matrix room bridges.",
+    "requirements": "Individual mode uses real Matrix members for Harmony authors. It requires an application-service user namespace and permission to invite them into the Matrix room.",
+    "history": "Mode changes affect future deliveries only. Existing history is preserved.",
+    "delivery": "Choosing individual mode does not confirm registration or delivery. Verify the sender on a successfully delivered message in Matrix.",
+    "loading": "Loading Matrix bridges…",
+    "reload": "Reload",
+    "empty": "No configured Matrix bridges for this server.",
+    "waitingRoom": "Waiting for the bridge to connect a Matrix room. Your mode choice can be saved now.",
+    "senderMode": "Send Harmony messages as",
+    "ghost": "Individual bridged users (recommended)",
+    "relay": "Shared bridge account",
+    "saving": "Saving mode…",
+    "loadError": "Could not load Matrix bridge settings. Reload to try again.",
+    "saveError": "Could not confirm the mode change. Reload to check the current setting.",
+    "privacy": {
+      "lead": "Remove a Matrix user here to delete everything this server's bridge brought from them and stop bringing their messages.",
+      "idLabel": "Matrix user ID",
+      "idHelp": "The full Matrix ID, such as {'@'}sam:example.org.",
+      "idInvalid": "A Matrix user ID looks like {'@'}name:server.",
+      "removeConfirm": "Delete every message, file and reaction this bridge brought from Matrix user {id}, and stop bringing theirs? This cannot be undone.",
+      "listTitle": "{count} Matrix user left out | {count} Matrix users left out",
+      "source": {
+        "self": "Opted out on Matrix"
+      },
+      "restoreLabel": "Bridge Matrix user {id} again",
+      "alsoSelf": "Also opted out on Matrix",
+      "purgeLead": "Remove everything this server's bridge brought from Matrix: messages, files and reactions. Messages written on Harmony stay.",
+      "purgeConfirm": "Delete every message, file and reaction brought from Matrix into this server? This cannot be undone."
+    }
+  },
+  "bridges": {
+    "navLabel": "Bridges",
+    "title": "Bridges",
+    "intro": "Bridges link channels on this server with channels and rooms on other chat platforms. Messages sent on either side show up on the other, with each sender's name and picture.",
+    "tabs": {
+      "discord": "Discord",
+      "matrix": "Matrix"
+    }
+  },
+  "bridgePrivacy": {
+    "title": "Bridge privacy",
+    "description": "Prevent bridges from forwarding your future messages from this server to other platforms.",
+    "scope": "This applies only to bridges in this server. It does not remove existing remote copies or change what other bots can read.",
+    "optOut": "Do not forward my messages to {platform}",
+    "none": "No bridge forwards messages from this server right now.",
+    "loading": "Loading bridge privacy",
+    "saving": "Saving…",
+    "loadError": "Could not load your bridge privacy setting. Try again.",
+    "saveError": "Could not confirm the change. Reload to check your current setting.",
+    "retry": "Try again"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -1746,9 +1812,9 @@
       "compactMode": "Compact mode",
       "compactModeDesc": "Show more messages at once with reduced spacing.",
       "bridgeSourceBadge": "Bridge source indicator",
-      "bridgeSourceBadgeDesc": "How bridged messages (e.g. from Discord) show their source next to the author name.",
+      "bridgeSourceBadgeDesc": "How people from bridged platforms such as Discord and Matrix show their source next to their name.",
       "bridgeSourceBadgeIcon": "Platform icon",
-      "bridgeSourceBadgeText": "Text label (DISCORD)",
+      "bridgeSourceBadgeText": "Text label (DISCORD, MATRIX)",
       "floatingVideo": "Floating video player",
       "floatingVideoDesc": "Keep a playing video in a small player when you scroll away from it. Works with YouTube and uploaded videos.",
       "videoPlayer": "Video player",
@@ -3885,7 +3951,7 @@
       "bot": "Standard",
       "botHint": "Connects with its token and acts through the gateway and the REST API.",
       "bridge": "Bridge",
-      "bridgeHint": "Relays messages between Harmony and another platform. For Discord, use Server Settings → Discord Bridge instead: it creates and manages its own bot."
+      "bridgeHint": "Relays messages between Harmony and another platform. For Discord, use Server Settings → Bridges → Discord instead: it creates and manages its own bot."
     },
     "usernameErrors": {
       "tooShort": "Use at least 3 characters.",
@@ -5862,7 +5928,6 @@
     }
   },
   "discordBridge": {
-    "navLabel": "Discord Bridge",
     "title": "Discord bridge",
     "intro": "A bridge links channels on this server with channels on a Discord server. Messages sent on either side show up on the other, with each sender's name and picture.",
     "loading": "Loading the Discord bridge…",
@@ -6414,7 +6479,7 @@
       "managed": "This bot is the Discord bridge of {server}. It is set up and managed there; there is nothing to configure here.",
       "aServer": "one of your servers",
       "openSettings": "Open the bridge settings",
-      "unmanaged": "Discord bridges are set up from a server's settings: Server Settings → Discord Bridge. That page creates and manages the bridge's bot for you, so you don't need to create one here.",
+      "unmanaged": "Discord bridges are set up from a server's settings: Server Settings → Bridges → Discord. That page creates and manages the bridge's bot for you, so you don't need to create one here.",
       "legacyTitle": "Manual setup for the old bridge (v1)",
       "legacyLead": "Only for the old harmony-discord-bridge program that reads a config file.",
       "harmonyPermissions": "Add this bot to the server with Read Messages and Send Messages (and Manage Channels for /bridge clone-server).",
@@ -6424,7 +6489,7 @@
     },
     "adminSection": {
       "title": "Discord bridge",
-      "lead": "Communities connect a Discord server in Server Settings → Discord Bridge. Offer them this instance's bot, let them bring their own, or both. Running the bridge on a computer of their own is always possible."
+      "lead": "Communities connect a Discord server in Server Settings → Bridges → Discord. Offer them this instance's bot, let them bring their own, or both. Running the bridge on a computer of their own is always possible."
     },
     "admin": {
       "title": "Let communities bring their own bot",
@@ -6498,7 +6563,7 @@
       "clearConfirm": "Remove the bot's credentials? Linked communities stop bridging until a bot is set up again. Their bridges and channel pairs stay.",
       "cancel": "Cancel",
       "enable": "Offer this bot to communities",
-      "enableHint": "Server admins see “Use this instance's bot” first in Server Settings → Discord Bridge.",
+      "enableHint": "Server admins see “Use this instance's bot” first in Server Settings → Bridges → Discord.",
       "enableNeedsConfig": "Save the Application ID, client secret and bot token first.",
       "presence": "Presence sync",
       "presenceHint": "Requests Discord's Presence intent for every linked server, so communities can show who is online. Only changes of status are sent. Turn it on only while the Presence intent is on in the Developer Portal; past 100 servers, Discord has to approve it.",
@@ -6833,7 +6898,7 @@
       "clearSearch": "Clear search",
       "found": "{count} member found | {count} members found",
       "group": "{title}, {count} member | {title}, {count} members",
-      "discord": "Discord bridge member",
+      "bridged": "{platform} bridge member",
       "instanceAdmin": "instance admin",
       "instanceMod": "instance moderator",
       "searchHint": "Name or username",
