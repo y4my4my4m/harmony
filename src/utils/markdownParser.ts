@@ -23,6 +23,8 @@ export interface MarkdownToken {
   raw?: string;
   /** A link's text between the parentheses (utils/maskedLinks). */
   destination?: string;
+  /** `![alt](url)`: a `!` precedes the brackets. */
+  image?: boolean;
   children?: MarkdownToken[];
 }
 
@@ -253,6 +255,7 @@ function parseInlineChildren(content: string, parentType: string): MarkdownToken
     content: string;
     raw: string;
     destination?: string;
+    image?: boolean;
   }
 
   const matches: InnerMatch[] = [];
@@ -264,6 +267,7 @@ function parseInlineChildren(content: string, parentType: string): MarkdownToken
       content: link.rawLabel,
       raw: content.slice(link.start, link.end),
       destination: link.rawDestination,
+      image: link.image,
     });
   }
   for (const [type, pattern] of Object.entries(innerPatterns)) {
@@ -308,6 +312,7 @@ function parseInlineChildren(content: string, parentType: string): MarkdownToken
       raw: m.raw
     };
     if (m.destination !== undefined) token.destination = m.destination;
+    if (m.image) token.image = true;
 
     if (FORMATTING_TYPES.has(m.type)) {
       const children = parseInlineChildren(m.content, m.type);
@@ -353,6 +358,7 @@ function parseMarkers(text: string): MarkdownToken[] {
     raw: string;
     isIncomplete?: boolean;
     destination?: string;
+    image?: boolean;
   }
 
   const findAllMatches = (text: string): Match[] => {
@@ -440,6 +446,7 @@ function parseMarkers(text: string): MarkdownToken[] {
         content: link.rawLabel,
         raw,
         destination: link.rawDestination,
+        image: link.image,
       });
     }
 
@@ -488,6 +495,7 @@ function parseMarkers(text: string): MarkdownToken[] {
         language: match.language,
         raw: match.raw,
         ...(match.destination !== undefined ? { destination: match.destination } : {}),
+        ...(match.image ? { image: true } : {}),
       });
     }
 

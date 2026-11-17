@@ -767,8 +767,9 @@ function storedUrl(rawUrl: string, mirror: boolean): string {
 }
 
 /**
- * Splits text into url and emoji parts. Masked links `[label](url)` become url parts with a
- * label (utils/maskedLinks); the label stays as typed. URL tracking-parameter stripping and the
+ * Splits text into url and emoji parts. Masked links `[label](url)`, images and linked images
+ * become url parts with a label (utils/maskedLinks); the label stays as typed, and a blank alt
+ * gives none. URL tracking-parameter stripping and the
  * post-link mirrors of utils/mirrorLinks (storedUrl) happen here so every caller (ActivityPub,
  * DMs, chat) gets them.
  */
@@ -782,7 +783,7 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
   let last = 0;
   for (const link of links) {
     if (link.start > last) parts.push(...await parseTextForBareUrls(text.slice(last, link.start), emojiDataMap));
-    parts.push({ type: 'url', url: storedUrl(link.url, false), preview: link.preview, label: link.label });
+    parts.push({ type: 'url', url: storedUrl(link.url, false), preview: link.preview, ...(link.label ? { label: link.label } : {}) });
     last = link.end;
   }
   if (last < text.length) parts.push(...await parseTextForBareUrls(text.slice(last), emojiDataMap));

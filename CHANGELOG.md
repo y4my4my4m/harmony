@@ -198,6 +198,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **A server invite's Markdown badge works in chat.** Pasting the badge from **Add to your
+  website** (`[![Join …](…/badge.svg)](…/invite/…)`) sent stray brackets, the badge image and the
+  bare invite URL. It now sends one link to the invite, labelled "Join …", with the invite card
+  below. `![alt](https://…)` sends a link to the image labelled with its alt text, and `\[` and
+  `\]` in a link label stand for brackets.
+- **A closed invite names the other instance by its address.** The card of an invite to a server
+  on another instance that takes no outside members said "Only people on Harmony can join this
+  server." whenever that instance kept the default name. It now names the instance's domain, as
+  the invite dialog does.
 - **Uploads survive a dropped request.** An attachment, avatar, banner or server icon under 6 MB
   went up in one request, and when that request failed on the network or stalled, the upload
   failed with "Network error". It is now sent once more a second later, or once the device is back

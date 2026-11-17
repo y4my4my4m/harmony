@@ -76,8 +76,9 @@ const errorTitle = computed(() => (invite.value?.status === 'closed'
 
 const label = computed(() => (server.value ? t('embeds.invite.label', { name: server.value.name }) : errorTitle.value))
 
+/** A closed card names the host by domain: unrenamed instances all call themselves "Harmony". */
 const errorMessage = computed(() => (invite.value?.status === 'closed'
-  ? t('embeds.remoteInvite.closedMessage', { instance: instanceName.value })
+  ? t('embeds.remoteInvite.closedMessage', { instance: invite.value.domain })
   : t('embeds.remoteInvite.notFound')))
 
 const serverIcon = computed(() => (server.value ? server.value.icon ?? serverMonogramUrl(server.value.name) : null))

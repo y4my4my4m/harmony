@@ -859,7 +859,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
         el.appendChild(className === 'editor-link-label' ? emojiText(text) : document.createTextNode(text));
         span.appendChild(el);
       };
-      piece('editor-marker', '[');
+      piece('editor-marker', token.image ? '![' : '[');
       piece('editor-link-label', token.content);
       piece('editor-marker', '](');
       piece('editor-link-url', token.destination ?? '');
