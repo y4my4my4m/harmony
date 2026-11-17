@@ -237,6 +237,9 @@
                       <UnifiedMessageContent
                         :content="displayParentMessage.content"
                         :message-id="displayParentMessage.id"
+                        :encrypted="displayParentMessage.encrypted || false"
+                        :decrypted="displayParentMessage.decrypted || false"
+                        :unrecoverable="displayParentMessage.decryption_unrecoverable || false"
                         :media-hidden="mediaHidden"
                       />
                     </div>
@@ -493,7 +496,7 @@ const { checkMissing: checkThreadMissing } = useOpenThreadGone(thread, (how) => 
   close()
 })
 const messages = ref<Message[]>([])
-useThreadMessageDecryption(messages, () => thread.value?.id)
+const { readableArrival, readableUpdate } = useThreadMessageDecryption(messages, () => thread.value)
 const loading = ref(false)
 const loadingMore = ref(false)
 const hasMore = ref(false)
@@ -1438,7 +1441,9 @@ const setupRealtimeSubscription = () => {
       const payloadNew = payload.new as any
       
       if (payloadNew.thread_id === thread.value?.id) {
-        const newMessage: Message = {
+        // The send response may have placed it already.
+        if (messages.value.some(m => m.id === payloadNew.id)) return
+        const newMessage = await readableArrival({
           id: payloadNew.id,
           created_at: new Date(payloadNew.created_at),
           channel_id: payloadNew.channel_id,
@@ -1454,9 +1459,10 @@ const setupRealtimeSubscription = () => {
           encrypted: payloadNew.encrypted || false,
           encryption_metadata: payloadNew.encryption_metadata || null,
           thread_id: payloadNew.thread_id,
-        }
+        })
+        if (!newMessage) return
         
-        // The send response may have placed it already, or may still hold its optimistic row.
+        // The optimistic row of the send may still be held, or the send response landed meanwhile.
         if (!landThreadReply(messages.value, newMessage)) return
         if (refreshInFlight) arrivedDuringFetch.add(newMessage.id)
 
@@ -1488,14 +1494,14 @@ const setupRealtimeSubscription = () => {
         return
       }
       
-      const index = messages.value.findIndex(m => m.id === payloadNew.id)
-      if (index !== -1) {
+      if (messages.value.some(m => m.id === payloadNew.id)) {
+        const fields = await readableUpdate(payloadNew)
+        // The row may have gone, or a newer update of it landed, during the decryption.
+        const index = fields ? messages.value.findIndex(m => m.id === payloadNew.id) : -1
+        if (!fields || index === -1) return
         const updatedMessage: Message = {
           ...messages.value[index],
-          content: payloadNew.content,
-          encrypted: payloadNew.encrypted || false,
-          decrypted: false,
-          encryption_metadata: payloadNew.encryption_metadata || null,
+          ...fields,
           updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
           metadata: payloadNew.metadata || null,
           is_pinned: pinsStore.pending[payloadNew.id]?.pinned ?? payloadNew.is_pinned,
