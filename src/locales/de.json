@@ -1,4 +1,31 @@
 {
+  "bridgeSource": { "from": "Über {platform} verbunden" },
+  "matrixBridge": {
+    "navLabel": "Matrix-Brücke", "title": "Matrix-Brücke",
+    "description": "Wähle, wie Harmony-Nachrichten an bestehende Matrix-Raumbrücken gesendet werden.",
+    "requirements": "Der Einzelmodus verwendet echte Matrix-Mitglieder für Harmony-Autoren. Er benötigt einen Benutzer-Namensraum des Application Service und die Berechtigung, sie in den Matrix-Raum einzuladen.",
+    "history": "Modusänderungen gelten nur für zukünftige Zustellungen. Der bisherige Verlauf bleibt erhalten.",
+    "delivery": "Die Auswahl bestätigt weder Registrierung noch Zustellung. Prüfe den Absender einer erfolgreich zugestellten Nachricht in Matrix.",
+    "loading": "Matrix-Brücken werden geladen…", "reload": "Neu laden",
+    "empty": "Für diesen Server sind keine Matrix-Brücken konfiguriert.",
+    "waitingRoom": "Warte auf die Verbindung mit einem Matrix-Raum. Die Moduswahl kann schon gespeichert werden.",
+    "senderMode": "Harmony-Nachrichten senden als", "ghost": "Einzelne überbrückte Benutzer (empfohlen)", "relay": "Gemeinsames Brückenkonto",
+    "saving": "Modus wird gespeichert…", "loadError": "Matrix-Brückeneinstellungen konnten nicht geladen werden. Bitte neu laden.",
+    "saveError": "Die Modusänderung konnte nicht bestätigt werden. Lade neu, um die aktuelle Einstellung zu prüfen.",
+    "externalIdentity": "Dies ist eine externe Matrix-Identität, kein Harmony-Profil. Harmony-Profilaktionen sind nicht verfügbar.",
+    "openMatrix": "In Matrix öffnen", "members": "Matrix-Mitglieder"
+  },
+  "bridgePrivacy": {
+    "title": "Bridge-Datenschutz",
+    "description": "Verhindere, dass Bridges deine zukünftigen Nachrichten aus diesem Server an andere Plattformen weiterleiten.",
+    "scope": "Dies gilt nur für Bridges in diesem Server. Bereits vorhandene Kopien auf anderen Plattformen werden nicht entfernt und die Leserechte anderer Bots bleiben unverändert.",
+    "optOut": "Meine Nachrichten nicht weiterleiten",
+    "loading": "Bridge-Datenschutz wird geladen",
+    "saving": "Wird gespeichert…",
+    "loadError": "Deine Bridge-Datenschutzeinstellung konnte nicht geladen werden. Versuche es erneut.",
+    "saveError": "Die Änderung konnte nicht bestätigt werden. Lade die Einstellung erneut, um den aktuellen Stand zu prüfen.",
+    "retry": "Erneut versuchen"
+  },
   "common": {
     "save": "Speichern",
     "cancel": "Abbrechen",

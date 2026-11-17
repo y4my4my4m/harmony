@@ -151,8 +151,9 @@ export interface User {
   // Server activity fields shown in profile cards.
   message_count?: number;
   voice_time?: number;
-  /** Ephemeral Discord bridge profile (not a Harmony profile row). */
-  bridge_source?: 'discord';
+  /** Ephemeral external bridge identity (not a Harmony profile row). */
+  bridge_source?: 'discord' | 'matrix';
+  matrix_id?: string;
   discord_id?: string;
   discord_joined_at?: string | null;
   discord_custom_status?: { text: string; emoji: string | null } | null;
@@ -484,6 +485,8 @@ export interface MentionContent {
   username: string;
   domain: string;
   isLocal: boolean;
+  isBridged?: boolean;
+  bridgeSource?: 'discord' | 'matrix';
   /**
    * Display name carried alongside the mention for rendering. Populated when
    * the mention resolves against the profile cache.
@@ -632,6 +635,14 @@ export interface MessageInteraction {
 
 export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | StickerContent | SystemContent | PollContent | RoleMenuContent;
 
+export interface BridgeAuthor {
+  platform: 'matrix' | 'discord';
+  id: string;
+  username: string;
+  display_name?: string;
+  avatar_url?: string;
+}
+
 export interface Reaction {
   id: string;
   created_at: Date;
@@ -647,6 +658,7 @@ export interface Reaction {
    * Harmony profile lookup.
    */
   metadata?: {
+    bridge_author?: BridgeAuthor;
     discord_user?: {
       id: string;
       username?: string;
@@ -731,6 +743,7 @@ export interface Message {
     embeds?: Record<string, EmbedPayload>;
     webhook?: MessageWebhookAuthor;
     remote_author?: MessageRemoteAuthor;
+    bridge_author?: BridgeAuthor;
     interaction?: MessageInteraction;
   }; // for federated messages and other metadata
   sending?: boolean; // local state: true while message is being sent to server

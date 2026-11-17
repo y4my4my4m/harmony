@@ -36,6 +36,10 @@
       {{ t('notificationSettings.menuEntry') }}
     </button>
 
+    <button v-if="server.is_local_server !== false" type="button" role="menuitem" class="rail-menu-item" data-action="bridge-privacy" @click="act({ type: 'bridge-privacy' })">
+      {{ t('bridgePrivacy.title') }}
+    </button>
+
     <div class="rail-menu-divider" role="separator"></div>
 
     <button type="button" role="menuitem" class="rail-menu-item" data-action="settings" @click="act({ type: 'settings' })">
@@ -108,6 +112,7 @@ export type ServerMenuAction =
   | { type: 'invite' }
   | { type: 'mute'; until: Date | null | false }
   | { type: 'notification-settings' }
+  | { type: 'bridge-privacy' }
   | { type: 'settings' }
   | { type: 'create-channel' }
   | { type: 'create-category' }

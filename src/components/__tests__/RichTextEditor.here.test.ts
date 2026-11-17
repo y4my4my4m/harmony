@@ -37,7 +37,23 @@ async function editorWith(text: string) {
   return wrapper
 }
 
-describe('RichTextEditor with @here', () => {
+describe('RichTextEditor mention pills', () => {
+  it('shows readable Matrix identities while preserving source tokens for sends and edits', async () => {
+    const token = '<@matrix:%40sam%3Aexample.org%3A8448>'
+    const text = `hello ${token} there`
+    const wrapper = await editorWith(text)
+    const pill = wrapper.get('.editor-mention')
+    expect(pill.text()).toBe('@sam:example.org:8448')
+    expect(pill.attributes('data-display-text')).toBe(token)
+    expect((wrapper.vm as unknown as { getPlainText: () => string }).getPlainText()).toBe(text)
+  })
+
+  it.each(['<@matrix:%ZZ>', '<@matrix:%40sam%3Aexample.org', '\\<@matrix:%40sam%3Aexample.org>', 'https://example.org/<@matrix:%40sam%3Aexample.org>', '`<@matrix:%40sam%3Aexample.org>`'])('does not render a Matrix pill for literal text %s', async text => {
+    const wrapper = await editorWith(text)
+    expect(wrapper.findAll('.editor-mention').filter(pill => pill.attributes('title')?.startsWith('Matrix:'))).toHaveLength(0)
+    expect((wrapper.vm as unknown as { getPlainText: () => string }).getPlainText()).toBe(text)
+  })
+
   it('renders @role:here as the @here pill', async () => {
     const text = '@role:here standup'
     const wrapper = await editorWith(text)

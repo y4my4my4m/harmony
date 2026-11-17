@@ -38,6 +38,23 @@ describe('reactionUsers', () => {
     ])).toEqual(['u1'])
   })
 
+  it('keeps generic bridge actors separate across platforms and out of profile lookups', () => {
+    const actors = (['matrix', 'discord'] as const).map(platform => ({ reaction_id: platform, user_id: 'relay',
+      metadata: { bridge_author: { platform, id: 'same-id', username: '@sam:example.org', display_name: 'Sam' } } }))
+    expect(reactionProfileIds(actors)).toEqual([])
+    const users = toReactionUsers(actors, resolvers)
+    expect(users.map(user => user.key)).toEqual(['matrix:same-id', 'discord:same-id'])
+    expect(users[0]).toMatchObject({ kind: 'matrix', displayName: 'Sam', handle: 'same-id', bridgeSource: 'matrix' })
+    expect(users[1].discordUser?.username).toBe('@sam:example.org')
+  })
+
+  it('uses the full Matrix ID rather than a short localpart as the handle', () => {
+    const users = toReactionUsers([{ reaction_id: 'matrix', bot_id: 'relay', metadata: {
+      bridge_author: { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam' },
+    } }], resolvers)
+    expect(users[0].handle).toBe('@sam:example.org')
+  })
+
   it('formats local and remote handles', () => {
     expect(formatUserHandle({ username: 'alice', domain: 'here.example', isLocal: true })).toBe('@alice')
     expect(formatUserHandle({ username: 'bob', domain: 'there.example', isLocal: false })).toBe('@bob@there.example')

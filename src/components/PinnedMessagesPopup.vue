@@ -60,6 +60,7 @@
                     <span class="message-author" :style="{ color: getAuthorColor(message) }">
                       <template v-if="foreignAuthorOf(message)">{{ foreignAuthorOf(message)!.name }}</template>
                       <DisplayName v-else :userId="message.user_id" :fallback="getUserDisplayName(message.user_id)" />
+                      <BridgeSourceBadge v-if="getBridgeSource(message)" :source="getBridgeSource(message)!" />
                     </span>
                     <span class="message-time">
                       {{ formatTimestamp(message.created_at) }}
@@ -125,9 +126,10 @@ import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import type { Message } from '@/types'
 import { isUndecrypted } from '@/utils/channelEncryption'
-import { getForeignAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage } from '@/utils/messageAuthor'
+import { getBridgeSource, getForeignAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage } from '@/utils/messageAuthor'
 import { ensureBot, getCachedBot } from '@/composables/useMessageAuthorPresentation'
 import { BOT_NAME_COLOR } from '@/utils/botUtils'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 
 interface Props {
   isVisible: boolean

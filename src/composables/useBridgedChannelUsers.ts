@@ -7,7 +7,7 @@ import {
 const PRESENCE_POLL_MS = 60_000
 
 /**
- * Ephemeral bridged (Discord) members for a Harmony channel.
+ * Ephemeral bridged (Discord / Matrix) members for a Harmony channel.
  * Shares cache with mention autocomplete - one fetch per channel per TTL.
  * Polls periodically while mounted so Discord presence stays reasonably fresh.
  */
@@ -17,6 +17,7 @@ export function useBridgedChannelUsers(channelId: MaybeRefOrGetter<string | null
   const loaded = ref(false)
   const loading = ref(false)
 
+  let revision = 0
   let pollTimer: ReturnType<typeof setInterval> | null = null
 
   const stopPolling = () => {
@@ -27,16 +28,18 @@ export function useBridgedChannelUsers(channelId: MaybeRefOrGetter<string | null
   }
 
   const load = async (id: string, options: { background?: boolean } = {}) => {
+    const request = revision
     if (!options.background) {
       loading.value = true
       loaded.value = false
     }
     try {
       const result = await fetchBridgedChannelUsers(id, { force: options.background })
+      if (request !== revision) return
       users.value = result.users
       hasBridge.value = result.hasBridge
     } finally {
-      if (!options.background) {
+      if (request === revision && !options.background) {
         loading.value = false
         loaded.value = true
       }
@@ -46,15 +49,18 @@ export function useBridgedChannelUsers(channelId: MaybeRefOrGetter<string | null
   watch(
     () => toValue(channelId),
     async (id) => {
+      const request = ++revision
       stopPolling()
+      users.value = []
+      hasBridge.value = false
+      loading.value = false
       if (!id) {
-        users.value = []
-        hasBridge.value = false
         loaded.value = true
         return
       }
 
       await load(id)
+      if (request !== revision) return
       pollTimer = setInterval(() => {
         void load(id, { background: true })
       }, PRESENCE_POLL_MS)
@@ -62,7 +68,7 @@ export function useBridgedChannelUsers(channelId: MaybeRefOrGetter<string | null
     { immediate: true },
   )
 
-  onScopeDispose(stopPolling)
+  onScopeDispose(() => { revision++; stopPolling() })
 
   return { users, hasBridge, loaded, loading }
 }

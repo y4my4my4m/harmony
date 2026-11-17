@@ -92,6 +92,7 @@ beforeEach(() => {
   mocks.rpc.mockReset()
   mocks.from.mockReset()
   mocks.rpc.mockImplementation(async (name: string, args: any) => {
+    if (name === 'bridge_visible_message_ids') return { data: args.p_message_ids, error: null }
     if (name === 'check_bot_permission') {
       const row = db.rows('bot_server_permissions').find((r) => r.bot_id === args.p_bot_id && r.server_id === args.p_server_id && r.is_active)
       return { data: row?.[args.p_permission] === true, error: null }

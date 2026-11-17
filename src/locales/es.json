@@ -1,4 +1,30 @@
 {
+  "bridgeSource": { "from": "Conectado desde {platform}" },
+  "matrixBridge": {
+    "navLabel": "Puente de Matrix", "title": "Puente de Matrix",
+    "description": "Elige cómo se envían los mensajes de Harmony a tus puentes de salas de Matrix existentes.",
+    "requirements": "El modo individual utiliza miembros reales de Matrix para los autores de Harmony. Requiere un espacio de nombres de usuarios del servicio de aplicaciones y permiso para invitarlos a la sala de Matrix.",
+    "history": "Los cambios de modo solo afectan a futuras entregas. Se conserva el historial existente.",
+    "delivery": "Elegir el modo individual no confirma el registro ni la entrega. Comprueba el remitente en un mensaje entregado correctamente en Matrix.",
+    "loading": "Cargando puentes de Matrix…", "reload": "Recargar", "empty": "No hay puentes de Matrix configurados para este servidor.",
+    "waitingRoom": "Esperando a que el puente conecte una sala de Matrix. Ya puedes guardar el modo.",
+    "senderMode": "Enviar mensajes de Harmony como", "ghost": "Usuarios individuales del puente (recomendado)", "relay": "Cuenta compartida del puente",
+    "saving": "Guardando modo…", "loadError": "No se pudieron cargar los ajustes del puente de Matrix. Recarga para volver a intentarlo.",
+    "saveError": "No se pudo confirmar el cambio de modo. Recarga para comprobar el ajuste actual.",
+    "externalIdentity": "Esta es una identidad externa de Matrix, no un perfil de Harmony. Las acciones de perfil de Harmony no están disponibles.",
+    "openMatrix": "Abrir en Matrix", "members": "Miembros de Matrix"
+  },
+  "bridgePrivacy": {
+    "title": "Privacidad de los puentes",
+    "description": "Impide que los puentes reenvíen tus futuros mensajes de este servidor a otras plataformas.",
+    "scope": "Solo se aplica a los puentes de este servidor. No elimina copias remotas existentes ni cambia lo que otros bots pueden leer.",
+    "optOut": "No reenviar mis mensajes",
+    "loading": "Cargando privacidad de los puentes",
+    "saving": "Guardando…",
+    "loadError": "No se pudo cargar tu ajuste de privacidad. Inténtalo de nuevo.",
+    "saveError": "No se pudo confirmar el cambio. Recarga para comprobar el ajuste actual.",
+    "retry": "Reintentar"
+  },
   "common": {
     "save": "Guardar",
     "cancel": "Cancelar",

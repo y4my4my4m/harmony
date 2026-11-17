@@ -33,6 +33,11 @@
           {{ $t('notificationSettings.menuEntry') }}
         </button>
       </li>
+      <li v-if="!isCopy" role="none">
+        <button type="button" role="menuitem" class="dropdown-item" data-testid="server-bridge-privacy" @click="openBridgePrivacy">
+          {{ $t('bridgePrivacy.title') }}
+        </button>
+      </li>
       <li v-if="showWelcomeEntry" role="none">
         <button type="button" role="menuitem" class="dropdown-item" data-testid="server-welcome-entry" @click="openWelcome">
           {{ $t('serverWelcome.menuEntry') }}
@@ -61,6 +66,7 @@ import { useServerRolesStore } from '@/stores/useServerRoles';
 import { pickableRoleGroups } from '@/utils/selfAssignableRoles';
 import { closeMobileDrawers } from '@/composables/useLayoutState';
 import ServerCopyBanner from '@/components/settings/server/ServerCopyBanner.vue';
+import { useBridgePrivacyStore } from '@/stores/useBridgePrivacy';
 
 interface Props {
   serverId?: string
@@ -151,6 +157,12 @@ const openRolePicker = () => {
 
 const openNotificationSettings = () => {
   if (props.serverId) notificationSettingsStore.openModal(props.serverId);
+  closeDropdown();
+};
+
+const bridgePrivacy = useBridgePrivacyStore();
+const openBridgePrivacy = () => {
+  if (props.serverId) void bridgePrivacy.open(props.serverId);
   closeDropdown();
 };
 

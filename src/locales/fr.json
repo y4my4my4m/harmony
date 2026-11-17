@@ -1,4 +1,30 @@
 {
+  "bridgeSource": { "from": "Relayé depuis {platform}" },
+  "matrixBridge": {
+    "navLabel": "Passerelle Matrix", "title": "Passerelle Matrix",
+    "description": "Choisissez comment les messages Harmony sont envoyés vers vos passerelles de salons Matrix existantes.",
+    "requirements": "Le mode individuel utilise de vrais membres Matrix pour les auteurs Harmony. Il nécessite un espace de noms du service applicatif et l’autorisation de les inviter dans le salon Matrix.",
+    "history": "Les changements de mode ne concernent que les futurs envois. L’historique existant est conservé.",
+    "delivery": "Choisir le mode individuel ne confirme ni inscription ni livraison. Vérifiez l’expéditeur sur un message livré avec succès dans Matrix.",
+    "loading": "Chargement des passerelles Matrix…", "reload": "Recharger", "empty": "Aucune passerelle Matrix configurée pour ce serveur.",
+    "waitingRoom": "En attente de connexion à un salon Matrix. Vous pouvez déjà enregistrer le mode.",
+    "senderMode": "Envoyer les messages Harmony en tant que", "ghost": "Utilisateurs individuels de la passerelle (recommandé)", "relay": "Compte partagé de la passerelle",
+    "saving": "Enregistrement du mode…", "loadError": "Impossible de charger les paramètres de la passerelle Matrix. Rechargez pour réessayer.",
+    "saveError": "Impossible de confirmer le changement de mode. Rechargez pour vérifier le paramètre actuel.",
+    "externalIdentity": "Il s’agit d’une identité Matrix externe, pas d’un profil Harmony. Les actions de profil Harmony ne sont pas disponibles.",
+    "openMatrix": "Ouvrir dans Matrix", "members": "Membres Matrix"
+  },
+  "bridgePrivacy": {
+    "title": "Confidentialité des passerelles",
+    "description": "Empêcher les passerelles de transmettre vos futurs messages de ce serveur à d’autres plateformes.",
+    "scope": "Ce réglage concerne uniquement les passerelles de ce serveur. Il ne supprime pas les copies distantes existantes et ne change pas ce que les autres bots peuvent lire.",
+    "optOut": "Ne pas transmettre mes messages",
+    "loading": "Chargement de la confidentialité des passerelles",
+    "saving": "Enregistrement…",
+    "loadError": "Impossible de charger votre réglage de confidentialité. Réessayez.",
+    "saveError": "Impossible de confirmer la modification. Rechargez pour vérifier le réglage actuel.",
+    "retry": "Réessayer"
+  },
   "common": {
     "save": "Enregistrer",
     "cancel": "Annuler",

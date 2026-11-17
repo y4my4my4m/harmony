@@ -119,6 +119,7 @@ beforeEach(() => {
   mocks.from.mockReset()
   // check_bot_permission() as in the baseline: the install's flag column, active installs only.
   mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+    if (fn === 'bridge_visible_message_ids') return { data: args.p_message_ids, error: null }
     if (fn === 'update_message_content_silent') return { data: true, error: null }
     if (fn !== 'check_bot_permission') throw new Error(`test called unmocked rpc: ${fn}`)
     const row = db.rows('bot_server_permissions').find(
@@ -585,7 +586,20 @@ describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
       .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
 
     expect(res.status).toBe(204)
-    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: null, metadata: { bot: true } }])
+    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: null, metadata: { bot: true }, user_id: null, bot_id: BOT_ID }])
+  })
+
+  it('retains interaction invoker attribution and backing bot after the callback row is gone', async () => {
+    seedWithBotMessages(install())
+    const metadata = { interaction: { id: 'invocation', name: 'weather', user_id: OWNER_ID } }
+    db.rows('messages').find((m) => m.id === BOT_PUBLIC_MESSAGE)!.metadata = metadata
+    const deleted: any[] = []
+    const res = await supertest(appWith({ messageHardDeleted: async (m) => { deleted.push(m) } }))
+      .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
+    expect(res.status).toBe(204)
+    expect(db.rows('messages').some(m => m.id === BOT_PUBLIC_MESSAGE)).toBe(false)
+    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: null,
+      user_id: null, bot_id: BOT_ID, metadata }])
   })
 
   it('reports the thread of a deleted thread message', async () => {
@@ -596,7 +610,7 @@ describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
       .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
 
     expect(res.status).toBe(204)
-    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: THREAD_ID, metadata: { bot: true } }])
+    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: THREAD_ID, metadata: { bot: true }, user_id: null, bot_id: BOT_ID }])
   })
 
   it('reports nothing for a refused delete or an already soft-deleted row', async () => {

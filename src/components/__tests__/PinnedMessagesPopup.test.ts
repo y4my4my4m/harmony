@@ -71,7 +71,7 @@ async function mountPopup(props: Record<string, unknown>) {
     global: {
       stubs: {
         Teleport: true, Transition: false, Avatar: true, LoadingSpinner: true, Icon: true, EmptyState: true, DisplayName: true,
-        UnifiedMessageContent: ContentStub,
+        UnifiedMessageContent: ContentStub, BridgeSourceBadge: true,
       },
       mocks: { $t: (key: string) => key },
     },
@@ -90,6 +90,15 @@ beforeEach(() => {
 })
 
 describe('PinnedMessagesPopup', () => {
+  it('shows a pinned Matrix author, avatar and source rather than a native profile', async () => {
+    s.pins = [{ ...PROFILE_PIN, user_id: null, bot_id: 'matrix-bot', metadata: { bridge_author: { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/s.png' } } }]
+    const w = await mountPopup({ channelId: 'c1' })
+    expect(w.get('.message-author').text()).toContain('Sam')
+    expect(w.findComponent({ name: 'BridgeSourceBadge' }).props('source')).toBe('matrix')
+    expect(w.findComponent({ name: 'Avatar' }).props('src')).toBe('https://cdn.test/s.png')
+    expect(w.findComponent({ name: 'DisplayName' }).exists()).toBe(false)
+  })
+
   it('offers Unpin in a conversation after a copy of a remote server was the last server viewed', async () => {
     s.local = false
     s.canPinInChannel = false

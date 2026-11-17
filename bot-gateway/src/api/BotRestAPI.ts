@@ -1,5 +1,5 @@
 import { discardMirroredParts, enqueueMirror } from '../bridge/mirrorEnqueue.js'
-import { Router, Request, Response } from 'express'
+import { Router, Request, Response, raw } from 'express'
 import { supabase } from '../config/supabase.js'
 import { botAuthMiddleware, botRateLimit } from '../auth/BotAuthMiddleware.js'
 import {
@@ -43,6 +43,11 @@ import { LIST_MAX_ROWS, LIST_PAGE, selectAllById } from '../utils/pagedSelect.js
 import { GATEWAY_CAPABILITIES } from '../capabilities.js'
 import { EmptyFileError, OverQuotaError, TooLargeError, storeBotUpload } from '../utils/mirrorFile.js'
 import { fileTypeOf, getUploadCeilingBytes } from '../utils/mirrorExternalMedia.js'
+import { BridgeFileError, MAX_BRIDGE_FILE_BYTES, decodedFileName, downloadBridgeFile, isDriveFilePath, storeBridgeFile } from '../utils/bridgeFiles.js'
+import { bridgeAuthor as normalizedBridgeAuthor, bridgedMessageAuthor } from '../bridge/bridgeAuthors.js'
+import { bridgeChannelPlatform, visibleMessageIds } from '../bridge/memberConsent.js'
+import { bridgeAvatarBytes, nativeBridgeAvatar, storeBridgeAvatar } from '../utils/bridgeAvatar.js'
+import { MATRIX_ROOM_ID, matrixRoomBinding, matrixBridgeMembers, publicMatrixBridgeMembers } from '../bridge/matrixRooms.js'
 import { TTLCache } from '../utils/TTLCache.js'
 import { MAX_COMMANDS, validateCommand, validateCommands } from '../commands/validate.js'
 
@@ -231,15 +236,24 @@ export function claimsBridgeMapping(input: unknown): boolean {
  */
 export function botSuppliedMetadata(
   input: unknown,
-  options: { bridgeAuthor?: boolean; bridgeMapping?: boolean } = {},
+  options: { bridgeAuthor?: boolean; bridgeMapping?: boolean; bridgePlatform?: 'matrix' | 'discord' } = {},
 ): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {}
-  return Object.fromEntries(
-    Object.entries(input as Record<string, unknown>).filter((entry) =>
-      !SERVER_METADATA_KEYS.has(entry[0])
+  const entries = input as Record<string, unknown>
+  const metadata = Object.fromEntries(
+    Object.entries(entries).filter((entry) =>
+      !SERVER_METADATA_KEYS.has(entry[0]) && entry[0] !== 'bridge_author'
+      && !(options.bridgePlatform === 'matrix' && entry[0] === 'discord_user')
       && (options.bridgeAuthor === true || !BRIDGE_AUTHOR_KEYS.has(entry[0]))
       && (options.bridgeMapping !== false || !isBridgeMappingEntry(entry))),
   )
+  const author = options.bridgeAuthor ? normalizedBridgeAuthor(entries.bridge_author, options.bridgePlatform ?? null) : null
+  if (author) {
+    metadata.bridge_author = author
+    metadata.bridge_source = author.platform
+    if (author.platform === 'discord') metadata.discord_user = author
+  }
+  return metadata
 }
 
 /** The string fields of a bridged thread's Discord starter, or null (bot_create_thread p_discord_user). */
@@ -255,9 +269,16 @@ export function threadStarter(input: unknown): Record<string, string> | null {
 }
 
 /** A reaction's bot-supplied metadata; remote_emoji_url is kept only when it is an https Discord CDN URL. */
-export function reactionMetadata(input: unknown): unknown {
+export function reactionMetadata(input: unknown, platform?: 'matrix' | 'discord'): unknown {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return input || null
   const metadata = { ...(input as Record<string, unknown>) }
+  const author = normalizedBridgeAuthor(metadata.bridge_author, platform ?? null)
+  delete metadata.bridge_author
+  if (author) {
+    metadata.bridge_author = author
+    metadata.bridge_source = author.platform
+    if (author.platform === 'matrix') delete metadata.discord_user
+  }
   if ('remote_emoji_url' in metadata && !isDiscordCdnUrl(metadata.remote_emoji_url)) {
     delete metadata.remote_emoji_url
   }
@@ -266,7 +287,7 @@ export function reactionMetadata(input: unknown): unknown {
 
 /** Receives each row this API hard-deletes, for MESSAGE_DELETE dispatch. */
 export interface MessageDeleteSink {
-  messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown }): Promise<void>
+  messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown; user_id?: string | null; bot_id?: string | null }): Promise<void>
 }
 
 /** Most messages one history read returns, Discord's maximum. */
@@ -305,10 +326,29 @@ export class BotRestAPI {
   private setupRoutes() {
     // CHANNEL ENDPOINTS
 
+    // Raw bytes only on this authenticated/rate-limited route; global JSON stays at 10 MiB.
+    this.router.post('/channels/:channelId/bridge-files', botRateLimit, async (req: BotRequest, res, next) => {
+      if (!(await this.matrixFilesAccess(req, res))) return
+      if (!req.is('application/octet-stream')) return res.status(415).json({ error: 'Expected application/octet-stream' })
+      raw({ type: 'application/octet-stream', limit: MAX_BRIDGE_FILE_BYTES, inflate: false })(req, res, error => {
+        if (error) return res.status((error as any).status === 413 ? 413 : 415).json({ error: 'Unsupported or oversized attachment body' })
+        next()
+      })
+    }, this.uploadBridgeFile.bind(this))
+    this.route('get', '/channels/:channelId/messages/:messageId/bridge-files/:index', this.getBridgeFile)
+
     this.route('post', '/channels/:channelId/messages', this.sendMessage)
     this.route('post', '/channels/:channelId/attachments', this.uploadAttachment)
 
     this.route('get', '/channels/:channelId/messages', this.getMessages)
+    this.route('get', '/channels/:channelId/encryption', this.getChannelEncryption)
+    this.route('get', '/channels/:channelId/bridge-platform', this.getBridgePlatform)
+    this.route('get', '/channels/:channelId/bridge-consent/:userId', this.getBridgeConsent)
+    this.route('post', '/channels/:channelId/bridge-avatar', this.uploadBridgeAvatar)
+    this.route('get', '/channels/:channelId/bridge-room', this.getMatrixBridgeRoom)
+    this.route('put', '/channels/:channelId/bridge-room', this.bindMatrixBridgeRoom)
+    this.route('get', '/channels/:channelId/bridge-members', this.getMatrixBridgeMembers)
+    this.route('get', '/channels/:channelId/bridge-members/:userId/avatar', this.getNativeBridgeAvatar)
 
     // Lookup by bridged Discord message ID, stored in metadata.discord_message_id.
     this.route('get', '/channels/:channelId/messages/lookup', this.lookupMessageByDiscordId)
@@ -699,6 +739,7 @@ export class BotRestAPI {
       if (!result.ok) return res.status(result.status).json(result.body)
       res.status(result.duplicate ? 200 : 201).json(this.formatMessage(result.message))
     } catch (error: any) {
+      if (error instanceof BridgeFileError) return res.status(error.status).json({ error: error.message })
       console.error('Send message error:', error)
       res.status(500).json({ error: error.message || 'Internal server error' })
     }
@@ -734,6 +775,15 @@ export class BotRestAPI {
       threadId = thread.id
     }
 
+    const hasGenericAuthor = Object.prototype.hasOwnProperty.call(metadata ?? {}, 'bridge_author')
+    const platform = hasGenericAuthor ? await bridgeChannelPlatform(botId, channelId) : undefined
+    if (hasGenericAuthor && !platform) {
+      return { ok: false, status: 403, body: { error: 'No bridge registered for this channel' }, failure: 'failed' }
+    }
+    if (hasGenericAuthor && !normalizedBridgeAuthor(metadata.bridge_author, platform ?? null)) {
+      return { ok: false, status: 400, body: { error: 'Invalid bridge author or mismatched platform' }, failure: 'failed' }
+    }
+
     // Instance attachment policy (e.g. mirroring Discord CDN URLs into
     // user_media) is applied here, keeping bots policy-agnostic.
     const { parts: messageContent, mirrorDeferred } = await prepareBotMessageContent({ content, embeds, metadata, channelId, botId })
@@ -741,11 +791,11 @@ export class BotRestAPI {
       return { ok: false, status: 400, body: { error: 'Cannot send an empty message' }, failure: 'failed' }
     }
 
-    const bridgeAuthor = claimsBridgeAuthor(metadata) && await this.bridgePairsChannel(botId, channelId)
+    const bridgeAuthor = !!platform || (claimsBridgeAuthor(metadata) && await this.bridgePairsChannel(botId, channelId))
     const bridgeMapping = bridgeAuthor
       || (claimsBridgeMapping(metadata) && await this.bridgePairsChannel(botId, channelId))
     const messageMetadata = {
-      ...botSuppliedMetadata(metadata, { bridgeAuthor, bridgeMapping }),
+      ...botSuppliedMetadata(metadata, { bridgeAuthor, bridgeMapping, bridgePlatform: platform ?? undefined }),
       bot: true,
       created_via: 'bot_api',
       ...(interaction ? { interaction } : {}),
@@ -884,6 +934,201 @@ export class BotRestAPI {
     return { id: typeof data === 'string' ? data : null }
   }
 
+  private async requireMatrixFilesAccess(botId: string, channelId: string): Promise<void> {
+    try {
+      if (!UUID_PATTERN.test(channelId)) throw new BridgeFileError(400, 'Invalid channel ID')
+      if (!(await this.matrixChannelAccess(botId, channelId))) {
+        throw new BridgeFileError(403, 'No Matrix read/send binding for this channel')
+      }
+      await matrixRoomBinding(botId, channelId)
+      const { data, error } = await supabase.rpc('channel_messages_encrypted', { p_channel_id: channelId })
+      if (error || typeof data !== 'boolean') throw new Error()
+      if (data) throw new BridgeFileError(403, 'Encrypted channel attachments are not supported')
+    } catch (error) {
+      if (error instanceof BridgeFileError) throw error
+      throw new BridgeFileError(503, 'Matrix attachment access unavailable')
+    }
+  }
+
+  private async matrixFilesAccess(req: BotRequest, res: Response): Promise<boolean> {
+    try {
+      await this.requireMatrixFilesAccess(req.bot!.id, req.params.channelId)
+      return true
+    } catch (error) {
+      const failure = error as BridgeFileError
+      res.status(failure.status).json({ error: failure.message })
+      return false
+    }
+  }
+
+  private async uploadBridgeFile(req: BotRequest, res: Response) {
+    try {
+      if (!(await this.matrixFilesAccess(req, res))) return
+      const name = decodedFileName(req.get('X-File-Name'))
+      const bytes = req.body == null ? Buffer.alloc(0) : req.body
+      if (!Buffer.isBuffer(bytes)) return res.status(415).json({ error: 'Expected a raw attachment body' })
+      const part = await storeBridgeFile(bytes, name, req.get('X-File-Type'), req.bot!.id, req.params.channelId)
+      if (!(await this.matrixFilesAccess(req, res))) return
+      return res.status(201).json(part)
+    } catch (error) {
+      return res.status(error instanceof BridgeFileError ? error.status : 503).json({ error: error instanceof BridgeFileError ? error.message : 'Private attachment upload unavailable' })
+    }
+  }
+
+  private async attachmentMessage(botId: string, channelId: string, messageId: string, index: number): Promise<any> {
+    const { data: message, error } = await supabase.from('messages').select('*')
+      .eq('id', messageId).eq('channel_id', channelId).eq('is_deleted', false).maybeSingle()
+    if (error) throw new BridgeFileError(503, 'Attachment visibility unavailable')
+    if (!message || !(await this.withinHistory(botId, channelId, message.created_at))
+      || !(await visibleMessageIds(botId, [messageId])).has(messageId)) throw new BridgeFileError(404, 'Message not found')
+    if ((message.encrypted != null && message.encrypted !== false) || message.encryption_metadata != null || message.media_paths?.length
+      || !Array.isArray(message.content)) throw new BridgeFileError(422, 'Encrypted message attachments are not supported')
+    if (!message.content[index] || message.content[index].type !== 'file') throw new BridgeFileError(422, 'No supported file at this content index')
+    const part = message.content[index]
+    let driveOwned = false
+    if (typeof part.path === 'string' && part.path.startsWith('u/')) {
+      if (!isDriveFilePath(part.path) || !UUID_PATTERN.test(message.user_id ?? '')) throw new BridgeFileError(422, 'Unsupported Drive attachment descriptor')
+      const owner = await supabase.rpc('drive_file_owned_by', { p_path: part.path, p_profile: message.user_id })
+      if (owner.error || typeof owner.data !== 'boolean') throw new BridgeFileError(503, 'Drive attachment ownership unavailable')
+      if (!owner.data) throw new BridgeFileError(404, 'Attachment not available')
+      driveOwned = true
+    }
+    return { part, driveOwned }
+  }
+
+  private async getBridgeFile(req: BotRequest, res: Response) {
+    try {
+      const { channelId, messageId, index } = req.params
+      if (!UUID_PATTERN.test(messageId) || !/^(?:0|[1-9][0-9]{0,5})$/.test(index)) return res.status(400).json({ error: 'Invalid message ID or raw content index' })
+      if (!(await this.matrixFilesAccess(req, res))) return
+      const original = await this.attachmentMessage(req.bot!.id, channelId, messageId, Number(index))
+      const snapshot = JSON.stringify(original.part)
+      const file = await downloadBridgeFile(original.part, channelId, original.driveOwned)
+      // Downloads may be slow: consent, binding, encryption and the stored part are fresh at emit.
+      if (!(await this.matrixFilesAccess(req, res))) return
+      const current = await this.attachmentMessage(req.bot!.id, channelId, messageId, Number(index))
+      if (JSON.stringify(current.part) !== snapshot) return res.status(409).json({ error: 'Attachment changed during download; retry the message' })
+      res.set({ 'Content-Type': 'application/octet-stream', 'Content-Length': String(file.bytes.length),
+        'X-File-Name': encodeURIComponent(file.fileName), 'X-File-Type': file.mimeType,
+        'Content-Disposition': 'attachment', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' })
+      return res.send(file.bytes)
+    } catch (error) {
+      return res.status(error instanceof BridgeFileError ? error.status : 503).json({ error: error instanceof BridgeFileError ? error.message : 'Private attachment download unavailable' })
+    }
+  }
+
+  private async uploadBridgeAvatar(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      const botId = req.bot!.id
+      const access = await this.channelWriteAccess(botId, channelId, 'send_messages')
+      if (!access.ok) return res.status(403).json({ error: access.error })
+      if (!(await this.canReadChannel(botId, channelId)) || await bridgeChannelPlatform(botId, channelId) !== 'matrix') {
+        return res.status(403).json({ error: 'No Matrix bridge registered for this channel' })
+      }
+      const { data, content_type } = req.body ?? {}
+      const image = bridgeAvatarBytes(data, content_type)
+      if (!image) return res.status(400).json({ error: 'Expected a base64 raster avatar, at most 1 MiB, with matching content_type' })
+      return res.json({ avatar_url: await storeBridgeAvatar(botId, image, content_type) })
+    } catch {
+      return res.status(503).json({ error: 'Bridge avatar storage or registration unavailable' })
+    }
+  }
+
+  private async matrixChannelAccess(botId: string, channelId: string): Promise<boolean> {
+    return await this.canReadChannel(botId, channelId)
+      && (await this.channelWriteAccess(botId, channelId, 'send_messages')).ok
+      && await bridgeChannelPlatform(botId, channelId) === 'matrix'
+  }
+
+  private async getMatrixBridgeRoom(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      return res.json(await matrixRoomBinding(req.bot!.id, channelId))
+    } catch { return res.status(503).json({ error: 'Matrix room binding unavailable' }) }
+  }
+
+  private async bindMatrixBridgeRoom(req: BotRequest, res: Response) {
+    const { room_id, initial_sender_mode } = req.body ?? {}
+    if (typeof room_id !== 'string' || !MATRIX_ROOM_ID.test(room_id) || !['ghost', 'relay'].includes(initial_sender_mode)) {
+      return res.status(400).json({ error: 'Expected room_id and initial_sender_mode (ghost or relay)' })
+    }
+    try {
+      const { channelId } = req.params
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      return res.json(await matrixRoomBinding(req.bot!.id, channelId, { room_id, sender_mode: initial_sender_mode }))
+    } catch { return res.status(503).json({ error: 'Matrix room binding unavailable; unpair before changing rooms' }) }
+  }
+
+  private async getMatrixBridgeMembers(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      return res.json(publicMatrixBridgeMembers(await matrixBridgeMembers(req.bot!.id, channelId)))
+    } catch { return res.status(503).json({ error: 'Matrix member consent unavailable' }) }
+  }
+
+  private async getNativeBridgeAvatar(req: BotRequest, res: Response) {
+    const { channelId, userId } = req.params
+    if (!UUID_PATTERN.test(userId)) return res.status(400).json({ error: 'Invalid user ID' })
+    try {
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      const member = (await matrixBridgeMembers(req.bot!.id, channelId)).find(member => member.id === userId)
+      const avatar = member?.avatar_url ? await nativeBridgeAvatar(member.avatar_url) : null
+      if (!avatar) return res.status(404).json({ error: 'No supported consenting member avatar' })
+      return res.json(avatar)
+    } catch { return res.status(503).json({ error: 'Native bridge avatar unavailable' }) }
+  }
+
+  private async getBridgePlatform(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.canReadChannel(req.bot!.id, channelId))) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+      return res.json({ platform: await bridgeChannelPlatform(req.bot!.id, channelId) })
+    } catch {
+      return res.status(503).json({ error: 'Bridge registration unavailable' })
+    }
+  }
+
+  private async getBridgeConsent(req: BotRequest, res: Response) {
+    try {
+      const { channelId, userId } = req.params
+      if (!UUID_PATTERN.test(userId)) return res.status(400).json({ error: 'Invalid user ID' })
+      if (!(await this.canReadChannel(req.bot!.id, channelId))) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+      const { data, error } = await supabase.rpc('can_bridge_member_messages', {
+        p_bot_id: req.bot!.id, p_channel_id: channelId, p_user_id: userId,
+      })
+      if (error || typeof data !== 'boolean') return res.status(503).json({ error: 'Bridge consent unavailable' })
+      return res.json({ relay_allowed: data })
+    } catch {
+      return res.status(503).json({ error: 'Bridge consent unavailable' })
+    }
+  }
+
+  private async getChannelEncryption(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.canReadChannel(req.bot!.id, channelId))) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+
+      const { data, error } = await supabase.rpc('channel_messages_encrypted', {
+        p_channel_id: channelId,
+      })
+      if (error || typeof data !== 'boolean') {
+        return res.status(503).json({ error: 'Channel encryption status unavailable' })
+      }
+      return res.json({ messages_encrypted: data })
+    } catch {
+      return res.status(503).json({ error: 'Channel encryption status unavailable' })
+    }
+  }
+
   private async lookupMessageByDiscordId(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
@@ -920,7 +1165,8 @@ export class BotRestAPI {
       if (error) {
         return res.status(500).json({ error: error.message })
       }
-      if (!message || message.is_deleted === true || !(await this.withinHistory(botId, channelId, message.created_at))) {
+      if (!message || message.is_deleted === true || !(await this.withinHistory(botId, channelId, message.created_at))
+        || !(await visibleMessageIds(botId, [message.id])).has(message.id)) {
         return res.status(404).json({ error: 'Message not found' })
       }
 
@@ -961,6 +1207,12 @@ export class BotRestAPI {
         if (!mappingOnly || !(await this.bridgePairsChannel(botId, message.channel_id))) {
           return res.status(403).json({ error: 'Bots can only update metadata on their own messages' })
         }
+        if (!(await this.canReadChannel(botId, message.channel_id))) {
+          return res.status(403).json({ error: 'Missing permission: read_messages' })
+        }
+        if (!(await visibleMessageIds(botId, [messageId])).has(messageId)) {
+          return res.status(404).json({ error: 'Message not found' })
+        }
       }
 
       const access = await this.channelWriteAccess(botId, message.channel_id, 'send_messages')
@@ -968,13 +1220,19 @@ export class BotRestAPI {
         return res.status(403).json({ error: access.error })
       }
 
-      const bridgeAuthor = own && claimsBridgeAuthor(metadata)
-        && await this.bridgePairsChannel(botId, message.channel_id)
+      const hasGenericAuthor = Object.prototype.hasOwnProperty.call(metadata, 'bridge_author')
+      const platform = own && hasGenericAuthor ? await bridgeChannelPlatform(botId, message.channel_id) : undefined
+      if (hasGenericAuthor && !platform) return res.status(403).json({ error: 'No bridge registered for this channel' })
+      if (hasGenericAuthor && !normalizedBridgeAuthor(metadata.bridge_author, platform ?? null)) {
+        return res.status(400).json({ error: 'Invalid bridge author or mismatched platform' })
+      }
+      const bridgeAuthor = !!platform || (own && claimsBridgeAuthor(metadata)
+        && await this.bridgePairsChannel(botId, message.channel_id))
       const bridgeMapping = bridgeAuthor
         || (own && claimsBridgeMapping(metadata) && await this.bridgePairsChannel(botId, message.channel_id))
       const mergedMetadata = {
         ...(message.metadata || {}),
-        ...(own ? botSuppliedMetadata(metadata, { bridgeAuthor, bridgeMapping }) : metadata),
+        ...(own ? botSuppliedMetadata(metadata, { bridgeAuthor, bridgeMapping, bridgePlatform: platform ?? undefined }) : metadata),
       }
 
       const { error: updateError } = await supabase
@@ -1042,7 +1300,8 @@ export class BotRestAPI {
         return res.status(500).json({ error: error.message })
       }
       
-      res.json(messages?.map(m => this.formatMessage(m)) || [])
+      const allowed = await visibleMessageIds(botId, (messages ?? []).map(m => m.id))
+      res.json((messages ?? []).filter(m => allowed.has(m.id)).map(m => this.formatMessage(m)))
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
@@ -1080,7 +1339,8 @@ export class BotRestAPI {
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
       }
-      if (!(await this.withinHistory(botId, message.channel_id, message.created_at, channel.server_id))) {
+      if (!(await this.withinHistory(botId, message.channel_id, message.created_at, channel.server_id))
+        || !(await visibleMessageIds(botId, [message.id])).has(message.id)) {
         return res.status(404).json({ error: 'Message not found' })
       }
       
@@ -1543,7 +1803,9 @@ export class BotRestAPI {
             id: messageId,
             channel_id: message.channel_id,
             thread_id: message.thread_id ?? null,
-            metadata: message.metadata ?? null,
+            metadata: message.metadata,
+            user_id: message.user_id,
+            bot_id: message.bot_id,
           })
           .catch(err => console.error(`MESSAGE_DELETE dispatch failed for ${messageId}:`, err))
       }
@@ -1577,10 +1839,16 @@ export class BotRestAPI {
       
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji)
       
+      const hasGenericAuthor = Object.prototype.hasOwnProperty.call(metadata ?? {}, 'bridge_author')
+      const platform = hasGenericAuthor ? await bridgeChannelPlatform(botId, message.channel_id) : undefined
+      if (hasGenericAuthor && !platform) return res.status(403).json({ error: 'No bridge registered for this channel' })
+      if (hasGenericAuthor && !normalizedBridgeAuthor(metadata.bridge_author, platform ?? null)) {
+        return res.status(400).json({ error: 'Invalid bridge author or mismatched platform' })
+      }
       const insertData: any = {
         message_id: messageId,
         bot_id: botId,
-        metadata: reactionMetadata(metadata)
+        metadata: reactionMetadata(metadata, platform ?? undefined)
       }
       
       if (isUUID) {
@@ -2691,24 +2959,25 @@ export class BotRestAPI {
    * discord_bridge_channels pair of the v2 bridge whose bot it is, or, for a bot that is no v2
    * bridge's bot, a v1 discord_bridge_pairings row of the channel's server whose bot the pairing's
    * creator or the server's owner owns or installed. A pairing names no bot. False on any failed
-   * lookup. A true answer is cached for BRIDGE_PAIR_TTL_MS.
+   * lookup. Discord pairing answers are cached; the durable bot platform is always fresh.
    */
   private async bridgePairsChannel(botId: string, channelId: string | null | undefined): Promise<boolean> {
     if (!channelId) return false
+    const { data: bot, error: botError } = await supabase
+      .from('bots')
+      .select('bot_type, bridge_platform, owner_id')
+      .eq('id', botId)
+      .maybeSingle()
+    if (botError || bot?.bot_type !== 'bridge'
+      || ![null, undefined, 'discord'].includes(bot.bridge_platform)) return false
     const key = `${botId}:${channelId}`
     if (this.bridgePairs.get(key)) return true
-    const paired = await this.lookupBridgePair(botId, channelId)
+    const paired = await this.lookupBridgePair(botId, channelId, bot.owner_id)
     if (paired) this.bridgePairs.set(key, true)
     return paired
   }
 
-  private async lookupBridgePair(botId: string, channelId: string): Promise<boolean> {
-    const { data: bot, error: botError } = await supabase
-      .from('bots')
-      .select('bot_type, owner_id')
-      .eq('id', botId)
-      .maybeSingle()
-    if (botError || bot?.bot_type !== 'bridge') return false
+  private async lookupBridgePair(botId: string, channelId: string, ownerId: string): Promise<boolean> {
 
     const { data: bridges, error: bridgeError } = await supabase
       .from('discord_bridges')
@@ -2747,7 +3016,7 @@ export class BotRestAPI {
       .eq('server_id', serverId)
       .maybeSingle()
     const trusted = [pairing.created_by, server?.owner].filter(Boolean)
-    return trusted.includes(bot.owner_id) || trusted.includes(install?.installed_by)
+    return trusted.includes(ownerId) || trusted.includes(install?.installed_by)
   }
 
   /**
@@ -2842,13 +3111,13 @@ export class BotRestAPI {
       id: message.id,
       channel_id: message.channel_id,
       thread_id: message.thread_id ?? null,
-      author: author ? {
+      author: bridgedMessageAuthor(message) ?? (author ? {
         id: author.id,
         username: author.username,
         display_name: author.display_name,
         avatar: this.formatAvatarUrl(author.avatar_url),
-        bot: !!message.bot  // Flag to indicate if this is a bot message
-      } : null,
+        bot: !!message.bot
+      } : null),
       content: this.contentToText(message.content),
       // A system notice has no author; metadata names the people it is about.
       is_system: message.is_system === true,

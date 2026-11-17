@@ -65,10 +65,10 @@ afterEach(() => {
 describe('InteractionPoller', () => {
   it('claims for the connected bots only, once each, and sends INTERACTION_CREATE without bot_id', async () => {
     connected = [BOT_A, BOT_B, BOT_A]
-    mocks.rpc.mockResolvedValue({ data: [claimed('i1', BOT_A)], error: null })
+    mocks.rpc.mockImplementation(async (fn, args) => ({ data: fn === 'bridge_member_recipients' ? args.p_bot_ids : [claimed('i1', BOT_A)], error: null }))
     await new InteractionPoller(gateway()).poll()
 
-    expect(mocks.rpc).toHaveBeenCalledTimes(1)
+    expect(mocks.rpc).toHaveBeenCalledTimes(2)
     expect(mocks.rpc).toHaveBeenCalledWith('claim_bot_interactions', { p_bot_ids: [BOT_A, BOT_B], p_limit: INTERACTION_CLAIM_LIMIT })
     expect(INTERACTION_CLAIM_LIMIT).toBe(50)
     expect(sent).toHaveLength(1)
@@ -87,8 +87,9 @@ describe('InteractionPoller', () => {
 
   it('fails a claimed interaction that reached no socket as offline', async () => {
     connected = [BOT_A, BOT_B]
-    mocks.rpc.mockImplementation(async (fn: string) => {
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
       if (fn === 'claim_bot_interactions') return { data: [claimed('i1', BOT_B), claimed('i2', BOT_A)], error: null }
+      if (fn === 'bridge_member_recipients') return { data: args.p_bot_ids, error: null }
       return { data: null, error: null }
     })
     await new InteractionPoller(gateway()).poll()
@@ -97,6 +98,22 @@ describe('InteractionPoller', () => {
     expect(mocks.rpc.mock.calls.filter(([fn]) => fn === 'bot_interaction_fail')).toEqual([
       ['bot_interaction_fail', { p_bot_id: BOT_B, p_id: 'i1', p_error: 'offline' }],
     ])
+  })
+
+  it.each(['invoker', 'resolved-user', 'resolved-member', 'unavailable', 'malformed'])('fails closed on %s privacy without disclosing an invocation', async kind => {
+    const extra = kind.startsWith('resolved-') ? { data: { resolved: { [kind === 'resolved-user' ? 'users' : 'members']: { [BOB]: { id: BOB, username: 'private' } } } } } : {}
+    mocks.rpc.mockImplementation(async (fn, args) => {
+      if (fn === 'claim_bot_interactions') return { data: [claimed('i1', BOT_A, extra)], error: null }
+      if (fn === 'bridge_member_recipients') {
+        if (kind === 'unavailable') throw new Error('offline')
+        if (kind === 'malformed') return { data: true, error: null }
+        return { data: kind === 'invoker' || args.p_user_id === BOB ? [] : [BOT_A], error: null }
+      }
+      return { data: null, error: null }
+    })
+    await new InteractionPoller(gateway()).poll()
+    expect(sent).toEqual([])
+    expect(mocks.rpc).toHaveBeenCalledWith('bot_interaction_fail', { p_bot_id: BOT_A, p_id: 'i1', p_error: 'failed' })
   })
 
   it('never overlaps polls', async () => {
@@ -138,8 +155,9 @@ describe('InteractionPoller', () => {
     await poller.poll()
     expect(sent).toEqual([])
 
-    mocks.rpc.mockImplementation(async (fn: string) => {
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
       if (fn === 'claim_bot_interactions') return { data: [claimed('i1', BOT_B), claimed('i2', BOT_A)], error: null }
+      if (fn === 'bridge_member_recipients') return { data: args.p_bot_ids, error: null }
       throw new Error('network down')
     })
     await poller.poll()
