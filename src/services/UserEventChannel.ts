@@ -25,6 +25,8 @@ type UserEventType =
   | 'conversation:new' | 'conversation:updated'
   // conversation_encryption_settings changed (20261018100001_conversation_encryption_enforcement.sql).
   | 'conversation:encryption'
+  // A conversation message turned deleted (20261118100001_dm_preview_skips_deleted.sql).
+  | 'conversation:message_deleted'
   | 'server:joined' | 'server:left' | 'server:updated'
   | 'preferences:updated'
   | 'post:new' | 'post:updated' | 'post:deleted' | 'post:interaction'

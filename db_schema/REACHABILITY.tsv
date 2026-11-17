@@ -218,6 +218,7 @@ broadcast_conversation_encryption_change	definer	trigger	service_role	trigger	tr
 broadcast_conversation_participant_event	definer	trigger	anon+authenticated+service_role	trigger	trigger public.conversation_participants AFTER INSERT (trg_broadcast_conversation_participant)
 broadcast_conversation_updated	definer	trigger	anon+authenticated+service_role	trigger	trigger public.conversations AFTER UPDATE (trg_broadcast_conversation_updated)
 broadcast_device_approval_event	definer	trigger	anon+authenticated+service_role	client, trigger	named in src/composables/useDeviceApprovals.ts; trigger public.device_approval_requests AFTER INSERT/UPDATE (trg_broadcast_device_approval_event)
+broadcast_dm_message_deleted	definer	trigger	service_role	trigger	trigger public.messages AFTER UPDATE (trigger_broadcast_dm_message_deleted)
 broadcast_emoji_change	definer	trigger	anon+authenticated+service_role	trigger	trigger public.emojis AFTER INSERT/DELETE/UPDATE (trg_broadcast_emoji_change)
 broadcast_follow_event	definer	trigger	anon+authenticated+service_role	trigger	trigger public.follows AFTER INSERT/DELETE/UPDATE (trg_broadcast_follow_event)
 broadcast_home_feed_entry	definer	trigger	anon+authenticated+service_role	client, trigger	named in src/composables/useFeedRealtime.ts, src/services/UserEventChannel.ts, src/stores/useActivityPub.ts; trigger public.timeline_entries AFTER INSERT (trg_broadcast_home_feed_entry)
@@ -782,7 +783,7 @@ is_current_user_moderator	definer	boolean	anon+authenticated+service_role	client
 is_encrypted_channel_content	invoker	boolean	authenticated+service_role	trigger	called by enforce_channel_message_encryption, enforce_conversation_message_encryption
 is_federation_enabled_for_user	invoker	boolean	anon+authenticated+service_role	client	rpc in src/services/federation/FederationDecisionService.ts
 is_heart_reaction	invoker	boolean	anon+authenticated+service_role	client, trigger	called by add_post_emoji_reaction, fold_heart_reaction, remove_post_emoji_reaction
-is_history_import	invoker	boolean	service_role	client, trigger	called by broadcast_message_event, broadcast_thread_change, enforce_channel_slowmode, +17
+is_history_import	invoker	boolean	service_role	client, trigger	called by broadcast_dm_message_deleted, broadcast_message_event, broadcast_thread_change, +18
 is_muted_by	definer	boolean	service_role	service key	nothing references it
 is_plaintext_mention_part	invoker	boolean	authenticated+service_role	trigger	called by is_encrypted_channel_content
 is_room_member	definer	boolean	authenticated+service_role	client, policy, trigger	policy public.megolm_session_shares INSERT on megolm_session_shares_insert, public.megolm_session_shares UPDATE on megolm_session_shares_update, public.room_epoch_state SELECT on room_epoch_state_select; rpc in src/services/encryption/MegolmKeyBackupService.ts

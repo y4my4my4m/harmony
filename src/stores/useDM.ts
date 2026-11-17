@@ -71,6 +71,9 @@ export interface DMConversation {
   // Per-user dismissal: when set, the conversation is hidden from the list
   // unless its latest activity is newer than this timestamp.
   hidden_at?: string | null
+
+  // The preview message was deleted and the newest row left is being read.
+  preview_pending?: boolean
 }
 
 /**
@@ -411,8 +414,12 @@ export const useDMStore = defineStore('dm', () => {
       const rest = messageCache.value.get(conversation.id)?.messages ?? []
       const newest = rest[rest.length - 1]
       conversation.last_message = newest
-      if (newest) conversation.last_activity = new Date(newest.created_at).toISOString()
-      else void applyNewestRowAsPreview(conversation.id)
+      if (newest) {
+        conversation.last_activity = new Date(newest.created_at).toISOString()
+      } else {
+        conversation.preview_pending = true
+        void refreshConversationPreview(conversation.id)
+      }
     }
   }
 
@@ -776,8 +783,9 @@ export const useDMStore = defineStore('dm', () => {
       const lastMessageScanLimit = Math.min(conversationIds.length * 5, 1000)
       const { data: lastMessages, error: messagesError } = await supabase
         .from('messages')
-        .select('conversation_id, content, encrypted, created_at, user_id, is_system, metadata')
+        .select('id, conversation_id, content, encrypted, created_at, user_id, is_system, metadata')
         .in('conversation_id', conversationIds)
+        .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: false })
         .limit(lastMessageScanLimit)
 
@@ -825,7 +833,7 @@ export const useDMStore = defineStore('dm', () => {
           unread_count: 0, // filled in below from unread_counts
           participant_count: otherParticipants.length + 1, // +1 for current user
           last_message: lastMessage ? {
-            id: '', // preview only; ID unused
+            id: lastMessage.id,
             content: lastMessage.content,
             is_system: lastMessage.is_system === true,
             metadata: lastMessage.metadata || {},
@@ -1510,6 +1518,7 @@ export const useDMStore = defineStore('dm', () => {
       .from('messages')
       .select('id, user_id, content, encrypted, created_at, metadata')
       .eq('conversation_id', conversationId)
+      .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -1536,6 +1545,7 @@ export const useDMStore = defineStore('dm', () => {
         .from('messages')
         .select('id, user_id, content, created_at, metadata, conversation_id')
         .in('conversation_id', conversationIds)
+        .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: false })
         .limit(limit)
 
@@ -2397,6 +2407,7 @@ export const useDMStore = defineStore('dm', () => {
         .from('messages')
         .select('*')
         .eq('conversation_id', conversationId)
+        .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: true })
         .limit(50)
 
@@ -2726,7 +2737,12 @@ export const useDMStore = defineStore('dm', () => {
       .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
       .limit(1)
-    if (error || !data?.length) return
+    if (error) return
+    if (!data?.length) {
+      const empty = conversations.value.find(c => c.id === conversationId)
+      if (empty) empty.preview_pending = false
+      return
+    }
 
     let row: Message = {
       ...data[0],
@@ -2746,6 +2762,7 @@ export const useDMStore = defineStore('dm', () => {
 
     const conv = conversations.value.find(c => c.id === conversationId)
     if (!conv) return
+    conv.preview_pending = false
     const shownAt = conv.last_message ? new Date(conv.last_message.created_at).getTime() : -Infinity
     if (row.created_at.getTime() >= shownAt) {
       conv.last_message = {
@@ -2877,7 +2894,14 @@ export const useDMStore = defineStore('dm', () => {
       }))
     })
 
-    _globalBroadcastUnsubs = [unsubNew, unsubUpdated, unsubUnread, unsubReconnect, unsubEncryption]
+    // A delete in any of the user's conversations, open or not. The open one also receives the
+    // row on dm-conversation-<id>; removal is idempotent.
+    const unsubMessageDeleted = userEventChannel.on('conversation:message_deleted', (data) => {
+      if (typeof data?.message_id !== 'string') return
+      removeMessageFromCache(data.message_id)
+    })
+
+    _globalBroadcastUnsubs = [unsubNew, unsubUpdated, unsubUnread, unsubReconnect, unsubEncryption, unsubMessageDeleted]
     _globalBroadcastRegistered = true
     debug.log('Global conversation broadcast handlers registered')
   }

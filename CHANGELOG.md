@@ -240,6 +240,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and Discord's "pinned a message" line is removed (bridge 2.8.0).
 
 ### Fixed
+- **A deleted direct message leaves the conversation list.** The preview under a conversation in
+  the DM list showed "[deleted]" after a reload once its last message was deleted, and the deleted
+  text itself when the message was deleted on another instance, by the other person, or on another
+  of your devices. It now shows the message before it, at once on every device, for everyone in
+  the conversation; with nothing left it reads "No messages yet". A conversation you open again
+  no longer shows messages deleted while it was closed.
 - **A server invite's Markdown badge works in chat.** Pasting the badge from **Add to your
   website** (`[![Join …](…/badge.svg)](…/invite/…)`) sent stray brackets, the badge image and the
   bare invite URL. It now sends one link to the invite, labelled "Join …", with the invite card

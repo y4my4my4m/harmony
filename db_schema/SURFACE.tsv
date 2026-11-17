@@ -218,6 +218,7 @@ broadcast_conversation_encryption_change		trigger	definer	public, extensions, pg
 broadcast_conversation_participant_event		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 broadcast_conversation_updated		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 broadcast_device_approval_event		trigger	definer	public, pg_temp	anon+authenticated+service_role	client
+broadcast_dm_message_deleted		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_emoji_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 broadcast_follow_event		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 broadcast_home_feed_entry		trigger	definer	public, pg_temp	anon+authenticated+service_role	client
