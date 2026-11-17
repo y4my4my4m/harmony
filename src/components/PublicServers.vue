@@ -53,8 +53,10 @@
         :aria-labelledby="remoteDirectoryAvailable ? 'discovery-tab-local' : undefined"
       >
         <PublicServersSearch
+          ref="localSearch"
           v-model:search-query="searchQuery"
           v-model:selected-category="selectedCategory"
+          v-model:expanded="localControlsExpanded"
           :is-searching="publicServersStore.isSearching"
           :has-active-filter="publicServersStore.hasActiveFilter"
           :categories="publicServersStore.categories"
@@ -76,6 +78,7 @@
           @open-server="handleOpenServer"
           @view-owner-profile="handleViewOwnerProfile"
           @refresh="publicServersStore.retry()"
+          @scroll="onLocalListScroll"
         />
       </div>
 
@@ -148,6 +151,9 @@ const openServer = useOpenServer()
 
 const searchQuery = ref('')
 const selectedCategory = ref<string | null>(null)
+// Folded on open: the list takes the height; the bar still shows active filters and the count.
+const localControlsExpanded = ref(false)
+const localSearch = ref<InstanceType<typeof PublicServersSearch> | null>(null)
 const showCreateServerForm = ref(false)
 const showJoinFederatedServer = ref(false)
 const loadingServerIds = ref<Set<string>>(new Set())
@@ -179,6 +185,10 @@ function onTabKeydown(event: KeyboardEvent) {
   event.preventDefault()
   activeTab.value = TABS[next]
   tabEls[TABS[next]]?.focus()
+}
+
+function onLocalListScroll(event: Event) {
+  localSearch.value?.listScrolled((event.target as HTMLElement).scrollTop)
 }
 
 function openJoinFederatedServer(url?: string) {

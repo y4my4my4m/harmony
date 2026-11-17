@@ -240,6 +240,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and Discord's "pinned a message" line is removed (bridge 2.8.0).
 
 ### Fixed
+- **Other instances' list keeps up.** Typed text narrows the servers shown at once, and the count
+  appears with the answer for that text instead of the previous one's. More than 60 servers loaded
+  stay loaded while an instance is still being read; the list is read again in pages. A failed
+  **Load more** says so and tries again on the next press. The last **Load more**, on both tabs,
+  hands keyboard focus to the first server it added instead of dropping it to the top of the page.
 - **Self-hosted instances no longer all go by "Harmony".** The installer offered Harmony, the
   software's name, as the instance name, so other servers listed every instance that kept it under
   that one name, in invite cards and server lists alike. The installer now offers the instance's
@@ -470,6 +475,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
+- **Discover communities shows more servers.** On both tabs the search and filters fold behind a
+  **Search and filters** button and open folded; the tabs, the count and every active filter stay
+  on screen, each filter a chip that clears it, and scrolling the list folds open controls. Other
+  instances has one field: it filters the listed servers as you type, and a typed domain is offered
+  as **Browse example.social** (or Enter); the known instances still filter by instance. Join sits
+  beside a server's icon. In a 1280×1000 window the sheet shows 4 whole cards on This instance and
+  12 on Other instances, where it showed 1 and 3; on a phone 2 and 4, where it showed 1 and 1.
 - **A group chat holds up to 10 people**, its creator included, as a Discord group DM. The picker
   shows the spots left and stops at the tenth person; adding, rejoining or a group arriving from
   another instance past 10 is refused with "This group is full". A group already larger keeps

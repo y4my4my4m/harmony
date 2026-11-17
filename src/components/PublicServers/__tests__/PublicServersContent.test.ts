@@ -1,6 +1,7 @@
 /**
  * PublicServersContent.vue: a new list or page renders a first batch of cards
- * in its first frame and the rest of the page two animation frames later.
+ * in its first frame and the rest of the page two animation frames later; the
+ * last Load more hands its focus to the first card it added.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -131,5 +132,51 @@ describe('PublicServersContent staged rendering', () => {
     const wrapper = mountContent({ servers: servers(30) })
     wrapper.unmount()
     expect(cancel).toHaveBeenCalled()
+  })
+})
+
+describe('PublicServersContent Load more focus', () => {
+  it('moves focus from Load more to the first card it added when that page is the last', async () => {
+    const wrapper = mount(PublicServersContent, {
+      props: {
+        servers: servers(30), featuredServers: [], isLoading: false, isEmpty: false, isEmptyResults: false,
+        searchQuery: '', joinedServerIds: new Set<string>(), loadingServerIds: new Set<string>(), error: null,
+      },
+      global: { mocks: { $t: (key: string) => key } },
+      attachTo: document.body,
+    })
+    try {
+      await settle()
+      const button = wrapper.get('.load-more-section button')
+      ;(button.element as HTMLButtonElement).focus()
+      await button.trigger('click')
+      await nextTick()
+      await nextTick()
+      expect(wrapper.find('.load-more-section').exists()).toBe(false)
+      expect((document.activeElement as HTMLElement).dataset.id).toBe('s20')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('leaves focus on Load more while more pages remain', async () => {
+    const wrapper = mount(PublicServersContent, {
+      props: {
+        servers: servers(50), featuredServers: [], isLoading: false, isEmpty: false, isEmptyResults: false,
+        searchQuery: '', joinedServerIds: new Set<string>(), loadingServerIds: new Set<string>(), error: null,
+      },
+      global: { mocks: { $t: (key: string) => key } },
+      attachTo: document.body,
+    })
+    try {
+      await settle()
+      const button = wrapper.get('.load-more-section button')
+      ;(button.element as HTMLButtonElement).focus()
+      await button.trigger('click')
+      await nextTick()
+      expect(document.activeElement).toBe(button.element)
+    } finally {
+      wrapper.unmount()
+    }
   })
 })
