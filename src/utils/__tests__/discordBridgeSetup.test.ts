@@ -337,6 +337,15 @@ describe('channel pairing helpers', () => {
     const matches = matchChannelsByName(harmony, discord, [{ harmony_channel_id: 'h4', discord_channel_id: 'd4' }])
     expect(matches.map((m) => [m.harmony.id, m.discord.id])).toEqual([['h1', 'd1']])
   })
+
+  it('never matches a Harmony voice channel by name', () => {
+    const harmony = [
+      { id: 'h1', name: 'general', categoryName: null },
+      { id: 'h2', name: 'lounge', categoryName: null, voice: true },
+    ]
+    const discord = [channel({ id: 'd1', name: 'general' }), channel({ id: 'd2', name: 'lounge' })]
+    expect(matchChannelsByName(harmony, discord, []).map((m) => [m.harmony.id, m.discord.id])).toEqual([['h1', 'd1']])
+  })
 })
 
 describe('instance bot', () => {

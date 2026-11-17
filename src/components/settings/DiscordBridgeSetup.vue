@@ -151,7 +151,7 @@ import {
   fetchHostingEnabled,
   fetchInstanceBotEnabled,
   fetchLegacyPairing,
-  fetchServerTextChannels,
+  fetchServerChannels,
   type ImportJob,
   type LegacyPairing,
 } from './discord-bridge/bridgeApi'
@@ -249,7 +249,7 @@ async function load() {
   unavailable.value = false
   const [bridgeResult, channelResult, hostingResult, legacyResult, instanceResult, attachmentResult, importResult] = await Promise.allSettled([
     readBridge(),
-    fetchServerTextChannels(props.serverId),
+    fetchServerChannels(props.serverId),
     fetchHostingEnabled(),
     fetchLegacyPairing(props.serverId),
     fetchInstanceBotEnabled(),

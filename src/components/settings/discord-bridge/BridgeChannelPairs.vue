@@ -314,7 +314,7 @@ const pairedDiscord = computed(() => new Set(props.pairs.map((p) => p.discord_ch
 const harmonyGroups = computed(() => {
   const groups: { label: string; channels: HarmonyChannelOption[] }[] = []
   for (const channel of props.harmonyChannels) {
-    if (pairedHarmony.value.has(channel.id)) continue
+    if (channel.voice || pairedHarmony.value.has(channel.id)) continue
     const label = channel.categoryName ?? ''
     let group = groups.find((g) => g.label === label)
     if (!group) groups.push((group = { label, channels: [] }))

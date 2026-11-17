@@ -4,6 +4,7 @@
  */
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { VOICE_CHANNEL_TYPE } from '@/utils/channelName'
 import type {
   BridgeMode,
   BridgePairRow,
@@ -96,8 +97,11 @@ interface CategoryRow {
   order: number | null
 }
 
-/** Text channels (type 0) in sidebar order, uncategorised first. */
-export async function fetchServerTextChannels(serverId: string): Promise<HarmonyChannelOption[]> {
+/**
+ * Text and voice channels in sidebar order, uncategorised first. Voice channels are flagged: a
+ * Discord voice channel's chat can already be paired with one, and its pair row needs the name.
+ */
+export async function fetchServerChannels(serverId: string): Promise<HarmonyChannelOption[]> {
   const [channels, categories] = await Promise.all([
     supabase.from('channels').select('id, name, type, category, order').eq('server_id', serverId),
     supabase.from('channel_categories').select('id, name, order').eq('server_id', serverId),
@@ -107,13 +111,18 @@ export async function fetchServerTextChannels(serverId: string): Promise<Harmony
   const categoryOrder = new Map(categoryRows.map((c) => [c.id, c.order ?? 0]))
   const categoryName = new Map(categoryRows.map((c) => [c.id, c.name]))
   return ((channels.data as ChannelRow[] | null) ?? [])
-    .filter((c) => c.type === 0)
+    .filter((c) => c.type === 0 || c.type === VOICE_CHANNEL_TYPE)
     .sort((a, b) => {
       const ca = a.category ? (categoryOrder.get(a.category) ?? 0) + 1 : 0
       const cb = b.category ? (categoryOrder.get(b.category) ?? 0) + 1 : 0
       return ca - cb || (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name)
     })
-    .map((c) => ({ id: c.id, name: c.name, categoryName: c.category ? (categoryName.get(c.category) ?? null) : null }))
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      categoryName: c.category ? (categoryName.get(c.category) ?? null) : null,
+      ...(c.type === VOICE_CHANNEL_TYPE ? { voice: true } : {}),
+    }))
 }
 
 function configBool(value: unknown): boolean {

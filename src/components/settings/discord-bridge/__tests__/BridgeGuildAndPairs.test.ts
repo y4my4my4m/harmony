@@ -135,6 +135,24 @@ describe('BridgeChannelPairs', () => {
     expect(discordOptions).toEqual(['Choose…', '#announcements (No webhook permission)', "#secret (Bot can't see it)", '#memes'])
   })
 
+  it('names a pair whose Harmony side is a voice channel, and offers no voice channel for a new pair', () => {
+    const channels = [
+      ...HARMONY_CHANNELS,
+      { id: 'h-lounge', name: 'Lounge', categoryName: null, voice: true },
+      { id: 'h-stage', name: 'Stage', categoryName: null, voice: true },
+    ]
+    const w = mount(BridgeChannelPairs, {
+      props: { bridge: bridge(), pairs: [makePair({ harmony_channel_id: 'h-lounge' })], harmonyChannels: channels },
+      global: global(),
+    })
+    const row = w.find('[data-testid="pair-row"]')
+    expect(row.text()).toContain('#Lounge')
+    expect(row.text()).not.toContain('h-lounge')
+    const harmonyOptions = w.findAll('[data-testid="select-harmony"] option').map((o) => o.text())
+    expect(harmonyOptions).not.toContain('#Stage')
+    expect(harmonyOptions).toContain('#general')
+  })
+
   it('adds a pair through discord_bridge_pair', async () => {
     const w = mountPairs([])
     await w.find('[data-testid="select-harmony"]').setValue('h-memes')
