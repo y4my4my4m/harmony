@@ -384,6 +384,7 @@ import { keepPendingEdit } from '@/stores/shared/optimisticEdit'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useOpenThreadGone } from '@/composables/useOpenThreadGone'
 import { useThreadDraft } from '@/composables/useThreadDraft'
+import { useThreadMessageDecryption } from '@/composables/useThreadMessageDecryption'
 import { getForeignAuthor } from '@/utils/messageAuthor'
 import { useDialog } from '@/composables/useDialog'
 import { useMenu, useMenuButton } from '@/composables/useMenu'
@@ -492,6 +493,7 @@ const { checkMissing: checkThreadMissing } = useOpenThreadGone(thread, (how) => 
   close()
 })
 const messages = ref<Message[]>([])
+useThreadMessageDecryption(messages, () => thread.value?.id)
 const loading = ref(false)
 const loadingMore = ref(false)
 const hasMore = ref(false)
@@ -1491,6 +1493,9 @@ const setupRealtimeSubscription = () => {
         const updatedMessage: Message = {
           ...messages.value[index],
           content: payloadNew.content,
+          encrypted: payloadNew.encrypted || false,
+          decrypted: false,
+          encryption_metadata: payloadNew.encryption_metadata || null,
           updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
           metadata: payloadNew.metadata || null,
           is_pinned: pinsStore.pending[payloadNew.id]?.pinned ?? payloadNew.is_pinned,

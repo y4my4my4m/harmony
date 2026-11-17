@@ -237,6 +237,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   profile no longer imports its channel messages as posts. An incoming message to hundreds of
   thousands of addresses took seconds of processing; its addresses are now read in linear time
   and a direct message resolves at most 250 of them.
+- **Encrypted thread replies are readable.** Replies decrypt for readers, including their sender,
+  in both the thread panel and full thread view, after sending, reopening, editing or unlocking
+  encryption, instead of staying encrypted on screen. (#181)
 - **A Discord reply to a message that is gone arrives without the reply.** A reply relayed
   from Discord to a message erased or purged on Harmony was dropped (`500`); it is now sent
   without the reply link, as Discord shows it. A bot naming a message of another channel gets
