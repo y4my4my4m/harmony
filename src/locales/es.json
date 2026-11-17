@@ -111,6 +111,7 @@
       "google": "Continuar con Google",
       "twitch": "Continuar con Twitch",
       "github": "Continuar con GitHub",
+      "discord": "Continuar con Discord",
       "custom": "Continuar con {name}"
     },
     "callback": {
@@ -5478,6 +5479,53 @@
       "maxInstanceStickersHint": "De 0 a 500. Todas las cuentas locales pueden enviar stickers de la instancia. 0 los desactiva.",
       "maxPersonalStickers": "Stickers personales por usuario",
       "maxPersonalStickersHint": "De 0 a 100. 0, el valor predeterminado, desactiva los stickers personales."
+    },
+    "signInProviders": {
+      "title": "Proveedores de inicio de sesión",
+      "lead": "Inicio de sesión con Google, Twitch, GitHub o Discord. Crea una aplicación OAuth en el proveedor con la URL de retorno de abajo y pega aquí su ID de cliente y su secreto. El servicio de inicio de sesión los aplica en unos 15 segundos, sin reiniciar.",
+      "loadFailed": "No se pudo cargar la configuración de los proveedores de inicio de sesión.",
+      "writerOff": "El servicio de inicio de sesión de esta instancia no toma credenciales de aquí: su servidor de federación no tiene HARMONY_AUTH_CONFIG_DIR. Ponlas en el entorno del servicio de inicio de sesión, como explica la guía de autoalojamiento sobre el inicio de sesión OAuth.",
+      "writerStopped": "El servidor de federación aplicó la configuración de inicio de sesión por última vez el {time} y ahora no está en marcha. Los cambios hechos aquí esperan a que vuelva.",
+      "writerError": "El servidor de federación no pudo aplicar la configuración de inicio de sesión: {error}",
+      "callback": "URL de retorno (redirección) que debes registrar en cada proveedor:",
+      "copy": "Copiar",
+      "copied": "URL de retorno copiada",
+      "copyFailed": "No se pudo copiar. Selecciona la URL y cópiala a mano.",
+      "showButton": "En la página de inicio de sesión",
+      "showButtonLabel": "Mostrar {provider} en la página de inicio de sesión",
+      "clientId": "ID de cliente",
+      "secret": "Secreto de cliente",
+      "secretSaved": "Guardado. Escribe uno nuevo para reemplazarlo.",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "clear": "Quitar",
+      "clearTitle": "¿Quitar el inicio de sesión con {provider}?",
+      "clearMessage": "Se borran el ID de cliente y el secreto y se desactiva el inicio de sesión con {provider}. Las cuentas creadas con {provider} entran de otra forma hasta que se vuelva a configurar.",
+      "saved": "Credenciales de {provider} guardadas",
+      "cleared": "Credenciales de {provider} quitadas",
+      "saveFailed": "No se pudieron guardar las credenciales de {provider}.",
+      "buttonsSaved": "Página de inicio de sesión actualizada",
+      "buttonsFailed": "No se pudo actualizar la página de inicio de sesión.",
+      "status": {
+        "active": "Activo",
+        "applying": "Aplicando…",
+        "hidden": "Apagado: oculto en la página de inicio de sesión",
+        "server": "Configurado en el servidor",
+        "unset": "Sin configurar",
+        "unknown": "Estado desconocido"
+      },
+      "problem": {
+        "clientId": "Un ID de cliente solo lleva letras, dígitos y . _ ~ + / = -.",
+        "discordId": "El ID de cliente de Discord es el ID de la aplicación: de 17 a 20 dígitos.",
+        "secret": "Un secreto de cliente tiene de 8 a 512 letras, dígitos y caracteres . _ ~ + / = -.",
+        "needBoth": "Escribe un ID de cliente y un secreto de cliente."
+      },
+      "where": {
+        "google": "Consola de Google Cloud, APIs y servicios, Credenciales: un ID de cliente OAuth de tipo aplicación web.",
+        "twitch": "Consola de desarrolladores de Twitch, Applications: registra una aplicación.",
+        "github": "GitHub, Settings, Developer settings, OAuth Apps: una nueva OAuth App.",
+        "discord": "Discord Developer Portal, tu aplicación, OAuth2: el Client ID y el secreto que muestra Reset Secret."
+      }
     },
     "activityLog": {
       "configKeys": {

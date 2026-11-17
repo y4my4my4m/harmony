@@ -631,57 +631,7 @@
 
     <!-- OAuth Providers -->
     <fieldset v-if="configTab === 'oauth'" class="config-section" :disabled="!configLoaded">
-      <h3>OAuth providers</h3>
-      <p class="setting-hint" style="margin-bottom: 16px;">
-        Enable or disable OAuth login providers. When disabled, the provider will not appear on the login/register page.
-      </p>
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-weight: 500;">Google</span>
-            <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Google</span>
-          </div>
-          <input 
-            type="checkbox" 
-            v-model="oauthProviders.google"
-            @change="oauthProvidersChanged = true"
-          />
-          <span class="toggle-slider"></span>
-        </label>
-        <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-weight: 500;">Twitch</span>
-            <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Twitch</span>
-          </div>
-          <input 
-            type="checkbox" 
-            v-model="oauthProviders.twitch"
-            @change="oauthProvidersChanged = true"
-          />
-          <span class="toggle-slider"></span>
-        </label>
-        <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-weight: 500;">GitHub</span>
-            <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with GitHub</span>
-          </div>
-          <input 
-            type="checkbox" 
-            v-model="oauthProviders.github"
-            @change="oauthProvidersChanged = true"
-          />
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <button 
-        @click="saveOAuthProviders" 
-        class="save-btn" 
-        :disabled="!oauthProvidersChanged || savingOAuthProviders"
-        style="margin-top: 16px;"
-      >
-        <Icon name="save" :size="16" />
-        {{ savingOAuthProviders ? 'Saving…' : 'Save OAuth settings' }}
-      </button>
+      <OAuthProvidersAdmin />
 
       <section class="custom-oauth" data-testid="admin-custom-oauth" aria-labelledby="custom-oauth-title">
         <h4 id="custom-oauth-title">{{ $t('admin.instance.customOAuthTitle') }}</h4>
@@ -777,6 +727,7 @@ import Icon from '@/components/common/Icon.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import NewcomerAlertsDefault from '@/components/admin/NewcomerAlertsDefault.vue'
 import UploadLimitsAdmin from '@/components/admin/UploadLimitsAdmin.vue'
+import OAuthProvidersAdmin from '@/components/admin/OAuthProvidersAdmin.vue'
 import BridgeAdminSection from '@/components/settings/discord-bridge/BridgeAdminSection.vue'
 import { adminService } from '@/services/AdminService'
 import { trendingService } from '@/services/TrendingService'
@@ -846,14 +797,6 @@ const instanceBannerFile = ref<File | null>(null)
 // One rule per line in the editor; persisted as a jsonb string array
 const instanceRulesText = ref('')
 
-// OAuth provider configuration
-const oauthProviders = ref({
-  google: false,
-  twitch: false,
-  github: false
-})
-const oauthProvidersChanged = ref(false)
-const savingOAuthProviders = ref(false)
 // Read-only: each provider's client secret lives in GoTrue on the host.
 const customOAuthProviders = ref<CustomOAuthProvider[]>([])
 // GoTrue's callback for custom providers: GOTRUE_CUSTOM_OAUTH_EXTERNAL_URL (API_EXTERNAL_URL/auth/v1)
@@ -1073,32 +1016,6 @@ const loadInstanceConfig = async () => {
       }
       instanceRulesText.value = (cfg.instance.rules || []).join('\n')
 
-      if (cfg.instance.oauthProviders) {
-        const providers = cfg.instance.oauthProviders
-        if (Array.isArray(providers)) {
-          // If it's an array like ["google", "github"]
-          oauthProviders.value = {
-            google: providers.includes('google'),
-            twitch: providers.includes('twitch'),
-            github: providers.includes('github')
-          }
-        } else if (typeof providers === 'object' && providers !== null) {
-          // If it's an object like { google: true, twitch: false }
-          oauthProviders.value = {
-            google: providers.google === true || providers.google === 'true',
-            twitch: providers.twitch === true || providers.twitch === 'true',
-            github: providers.github === true || providers.github === 'true'
-          }
-        }
-      } else {
-        // If no config or empty, all providers are disabled
-        oauthProviders.value = {
-          google: false,
-          twitch: false,
-          github: false
-        }
-      }
-      oauthProvidersChanged.value = false
       customOAuthProviders.value = cfg.instance.customOAuthProviders || []
     }
     configLoaded.value = !!cfg
@@ -1367,38 +1284,6 @@ const clearDefaultTheme = async () => {
     }
   }
 }
-
-const saveOAuthProviders = async () => {
-  if (!authStore.session?.user?.id) {
-    toast.error('You must be logged in to save OAuth provider settings')
-    return
-  }
-
-  savingOAuthProviders.value = true
-  try {
-    const enabledProviders: string[] = []
-    if (oauthProviders.value.google) enabledProviders.push('google')
-    if (oauthProviders.value.twitch) enabledProviders.push('twitch')
-    if (oauthProviders.value.github) enabledProviders.push('github')
-
-    await adminService.setInstanceConfig(
-      'oauth_providers',
-      enabledProviders, // Pass as array, Supabase will convert to JSONB
-      authStore.session.user.id,
-      'Enabled OAuth providers'
-    )
-
-    oauthProvidersChanged.value = false
-    toast.success('OAuth provider settings saved')
-    debug.log('OAuth providers saved:', enabledProviders)
-  } catch (error: any) {
-    debug.error('Failed to save OAuth provider settings:', error)
-    toast.error(error.message || 'Failed to save OAuth provider settings')
-  } finally {
-    savingOAuthProviders.value = false
-  }
-}
-
 
 onMounted(() => {
   void loadInstanceConfig()

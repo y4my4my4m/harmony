@@ -37,6 +37,8 @@ PORT="${E2E_PORT:-54480}"
 BASE_URL="http://localhost:$PORT"
 
 IDP_DIR="$E2E/idp"
+# GoTrue's --config-dir: e2e/auth-config-writer.ts writes sign-in provider settings into it.
+AUTH_CONFIG_DIR="$E2E/auth-config"
 IDP_PORT="${E2E_IDP_PORT:-$((PORT + 2000))}"
 idp_net=$((PORT % 512))
 IDP_SUBNET="${E2E_IDP_SUBNET:-198.$((18 + idp_net / 256)).$((idp_net % 256)).0/24}"
@@ -121,6 +123,11 @@ E2E_IDP_PASSWORD=$IDP_PASSWORD
 E2E_IDP_NEW_EMAIL=$IDP_NEW_EMAIL
 E2E_IDP_LINK_EMAIL=$IDP_LINK_EMAIL
 E2E_IDP_APART_EMAIL=$IDP_APART_EMAIL
+
+# GoTrue runs as this user and watches E2E_AUTH_CONFIG_DIR, where the writer leaves 0600 files.
+E2E_UID=$(id -u)
+E2E_GID=$(id -g)
+E2E_AUTH_CONFIG_DIR=$AUTH_CONFIG_DIR
 EOF
   ok "wrote e2e/stack.env"
 }
@@ -208,6 +215,8 @@ cmd_up() {
 
   write_env
   write_idp
+  rm -rf "$AUTH_CONFIG_DIR"
+  mkdir -p "$AUTH_CONFIG_DIR"
 
   log "starting postgres"
   compose up -d db
@@ -329,7 +338,7 @@ cmd_down() {
   [ -n "$leftovers" ] && docker network rm $leftovers >/dev/null 2>&1 || true
 
   rm -f "$ENV_FILE" "$FIXTURE_FILE"
-  rm -rf "$IDP_DIR"
+  rm -rf "$IDP_DIR" "$AUTH_CONFIG_DIR"
   ok "stack down"
 }
 

@@ -170,10 +170,13 @@ services:
       IMGPROXY_MAX_SRC_RESOLUTION: 50
       IMGPROXY_MAX_ANIMATION_FRAMES: 120
 
-  # Sign-in with Google, GitHub or Twitch: set <PROVIDER>_ENABLED=true,
-  # <PROVIDER>_CLIENT_ID and <PROVIDER>_SECRET in supabase/.env. The provider's
-  # callback URL is API_EXTERNAL_URL/auth/v1/callback (https://db.DOMAIN/...).
-  # Admin, Instance, OAuth chooses which buttons the sign-in page shows.
+  # Sign-in with Google, GitHub, Twitch or Discord: client id and secret in Admin, Instance,
+  # Authentication. The federation server renders them into the auth-config volume as
+  # 50-harmony-oauth.env (GOTRUE_EXTERNAL_<PROVIDER>_*), and GoTrue, started with --config-dir,
+  # reloads that directory 5 s after a change; a provider set there overrides the variables
+  # below. Without it: <PROVIDER>_ENABLED=true, <PROVIDER>_CLIENT_ID and <PROVIDER>_SECRET in
+  # supabase/.env. The provider's callback URL is API_EXTERNAL_URL/auth/v1/callback
+  # (https://db.DOMAIN/...). The same page chooses which buttons the sign-in page shows.
   #
   # Sign-in with the instance's own OAuth 2.0 / OIDC providers: `harmony auth
   # add-provider`. GoTrue keeps them in auth.custom_oauth_providers.
@@ -215,8 +218,11 @@ services:
   # function fails every sign-up.
   auth:
     image: ${GOTRUE_IMAGE:-supabase/gotrue:v2.197.0}
+    command: ["auth", "--config-dir", "/etc/harmony-auth"]
     depends_on:
       analytics: { condition: service_healthy, required: false }
+    volumes:
+      - auth-config:/etc/harmony-auth:ro
     environment:
       GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED: "true"
       GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED: "true"
@@ -237,5 +243,13 @@ services:
       GOTRUE_EXTERNAL_TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID:-}
       GOTRUE_EXTERNAL_TWITCH_SECRET: ${TWITCH_SECRET:-}
       GOTRUE_EXTERNAL_TWITCH_REDIRECT_URI: ${API_EXTERNAL_URL}/auth/v1/callback
+      GOTRUE_EXTERNAL_DISCORD_ENABLED: ${DISCORD_ENABLED:-false}
+      GOTRUE_EXTERNAL_DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_DISCORD_SECRET: ${DISCORD_SECRET:-}
+      GOTRUE_EXTERNAL_DISCORD_REDIRECT_URI: ${API_EXTERNAL_URL}/auth/v1/callback
       GOTRUE_MAILER_TEMPLATES_INVITE: ${MAILER_TEMPLATES_INVITE:-http://web/email-templates/invite.html}
       GOTRUE_MAILER_TEMPLATES_RECOVERY: ${MAILER_TEMPLATES_RECOVERY:-http://web/email-templates/recovery.html}
+
+volumes:
+  # Written by federation-server (docker-compose.yml), read by auth.
+  auth-config:

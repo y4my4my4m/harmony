@@ -8,6 +8,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Sign in with Discord.** **Continue with Discord** joins Google, Twitch and GitHub on the sign-in
+  and registration pages. A first sign-in starts the profile with the Discord display name, avatar
+  and username. Three or more sign-in buttons sit two to a row under the provider's name, so the
+  password form stays in view on a phone.
+- **Sign-in providers set up in the admin panel.** **Admin** → **Config** → **Authentication** takes
+  the client ID and secret of Google, Twitch, GitHub and Discord, shows the callback URL to register,
+  and says when the sign-in service has them; the federation server hands them to it within about
+  15 seconds, with no restart and no `supabase/.env` edit. The secret is write-only and kept in
+  Supabase Vault. Self-host: `harmony update` sets this up. Instances that keep their credentials in
+  `supabase/.env` work as before, and a self-host install that keeps providers apart from existing
+  accounts keeps Discord apart too.
 - **Play together.** The gamepad button in a DM, a group, a text channel or a call starts a
   multiplayer activity everyone there can join from the notice it posts; nobody needs to be in a
   call. In a call the activity takes the stage like a shared screen. The panel docks above the

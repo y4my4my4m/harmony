@@ -111,6 +111,7 @@
       "google": "Google로 계속",
       "twitch": "Twitch로 계속",
       "github": "GitHub로 계속",
+      "discord": "Discord로 계속",
       "custom": "{name}(으)로 계속"
     },
     "callback": {
@@ -5478,6 +5479,53 @@
       "maxInstanceStickersHint": "0~500. 모든 로컬 계정이 인스턴스 스티커를 보낼 수 있습니다. 0이면 꺼집니다.",
       "maxPersonalStickers": "사용자당 개인 스티커 수",
       "maxPersonalStickersHint": "0~100. 기본값 0이면 개인 스티커가 꺼집니다."
+    },
+    "signInProviders": {
+      "title": "로그인 제공자",
+      "lead": "Google, Twitch, GitHub, Discord로 로그인합니다. 제공자에서 아래 콜백 URL로 OAuth 애플리케이션을 만든 다음 클라이언트 ID와 시크릿을 여기에 붙여 넣으세요. 로그인 서비스가 재시작 없이 약 15초 안에 반영합니다.",
+      "loadFailed": "로그인 제공자 설정을 불러오지 못했습니다.",
+      "writerOff": "이 인스턴스의 로그인 서비스는 여기서 자격 증명을 받지 않습니다. 페더레이션 서버에 HARMONY_AUTH_CONFIG_DIR이 없습니다. 셀프 호스팅 가이드의 OAuth 로그인 설명대로 로그인 서비스의 환경 변수에 설정하세요.",
+      "writerStopped": "페더레이션 서버가 마지막으로 로그인 설정을 반영한 시각은 {time}이며 지금은 실행 중이 아닙니다. 여기서 바꾼 내용은 서버가 돌아올 때까지 기다립니다.",
+      "writerError": "페더레이션 서버가 로그인 설정을 반영하지 못했습니다: {error}",
+      "callback": "각 제공자에 등록할 콜백(리디렉션) URL:",
+      "copy": "복사",
+      "copied": "콜백 URL을 복사했습니다",
+      "copyFailed": "복사하지 못했습니다. URL을 선택해 직접 복사하세요.",
+      "showButton": "로그인 페이지에 표시",
+      "showButtonLabel": "로그인 페이지에 {provider} 표시",
+      "clientId": "클라이언트 ID",
+      "secret": "클라이언트 시크릿",
+      "secretSaved": "저장됨. 바꾸려면 새 값을 입력하세요.",
+      "save": "저장",
+      "saving": "저장 중…",
+      "clear": "삭제",
+      "clearTitle": "{provider} 로그인을 삭제할까요?",
+      "clearMessage": "클라이언트 ID와 시크릿을 삭제하고 {provider} 로그인을 끕니다. {provider}로 만든 계정은 다시 설정될 때까지 다른 방법으로 로그인합니다.",
+      "saved": "{provider} 자격 증명을 저장했습니다",
+      "cleared": "{provider} 자격 증명을 삭제했습니다",
+      "saveFailed": "{provider} 자격 증명을 저장하지 못했습니다.",
+      "buttonsSaved": "로그인 페이지를 업데이트했습니다",
+      "buttonsFailed": "로그인 페이지를 업데이트하지 못했습니다.",
+      "status": {
+        "active": "활성",
+        "applying": "반영 중…",
+        "hidden": "꺼짐: 로그인 페이지에서 숨김",
+        "server": "서버에서 설정됨",
+        "unset": "설정 안 됨",
+        "unknown": "상태 알 수 없음"
+      },
+      "problem": {
+        "clientId": "클라이언트 ID에는 영문자, 숫자와 . _ ~ + / = -만 쓸 수 있습니다.",
+        "discordId": "Discord 클라이언트 ID는 애플리케이션 ID로, 17~20자리 숫자입니다.",
+        "secret": "클라이언트 시크릿은 영문자, 숫자와 . _ ~ + / = - 문자로 된 8~512자입니다.",
+        "needBoth": "클라이언트 ID와 클라이언트 시크릿을 입력하세요."
+      },
+      "where": {
+        "google": "Google Cloud 콘솔, API 및 서비스, 사용자 인증 정보: 유형이 웹 애플리케이션인 OAuth 클라이언트 ID.",
+        "twitch": "Twitch 개발자 콘솔, Applications: 애플리케이션 등록.",
+        "github": "GitHub, Settings, Developer settings, OAuth Apps: 새 OAuth App.",
+        "discord": "Discord Developer Portal, 내 애플리케이션, OAuth2: Client ID와 Reset Secret이 보여 주는 시크릿."
+      }
     },
     "activityLog": {
       "configKeys": {

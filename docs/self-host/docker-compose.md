@@ -80,7 +80,7 @@ lists the options of `configure.sh` and `bootstrap.sh`;
 | `rest` | Image `POSTGREST_IMAGE` (default `postgrest/postgrest:v14.18`) in place of the stack's `v12.2.12`. `PGRST_APP_SETTINGS_JWT_SECRET` removed, so SQL run through the API cannot read the JWT secret |
 | `imgproxy` | Image `darthsim/imgproxy:v4.0.22` in place of the stack's `v3.8.0`. `IMGPROXY_MAX_SRC_RESOLUTION: 50` and `IMGPROXY_MAX_ANIMATION_FRAMES: 120`, for animated emoji and large images; `IMGPROXY_AUTO_WEBP` from `IMGPROXY_ENABLE_WEBP_DETECTION`, a name v4 no longer reads; `IMGPROXY_PREFERRED_FORMATS: jpeg,png,gif,webp,avif`, so WebP and AVIF stay WebP and AVIF for clients that do not ask for WebP |
 | `studio`, `meta` | Profile `studio`, started only with `harmony studio on`. Images `supabase/studio:2026.11.02-sha-a05e7ec` and `supabase/postgres-meta:v0.100.0` in place of the stack's 2025 releases. Studio gets the database's host, port and name and listens on all addresses (`HOSTNAME: 0.0.0.0`) |
-| `auth` | Image `GOTRUE_IMAGE` (at least `supabase/gotrue:v2.197.0`); Google, GitHub and Twitch sign-in and your own providers' linking (`PROVIDER_LINKING_DOMAINS`) from `supabase/.env`; see [OAuth sign-in](/self-host/oauth) |
+| `auth` | Image `GOTRUE_IMAGE` (at least `supabase/gotrue:v2.197.0`); Google, GitHub, Twitch and Discord sign-in and your own providers' linking (`PROVIDER_LINKING_DOMAINS`) from `supabase/.env`; started with `--config-dir /etc/harmony-auth` on the `auth-config` volume, read-only, where `federation-server` writes the credentials set in the admin panel; see [OAuth sign-in](/self-host/oauth) |
 
 ### Networks and volumes
 
@@ -100,6 +100,7 @@ guard keeps seeing the public address for its own domain.
 | Caddy's certificates and state | volumes `caddy-data`, `caddy-config` |
 | Redis | volume `redis-data` |
 | Discord bridge host | volume `discord-bridge-data` |
+| Sign-in provider credentials for the auth service | volume `auth-config`, written by `federation-server`; the database holds the source |
 
 ### Build Harmony's images yourself
 

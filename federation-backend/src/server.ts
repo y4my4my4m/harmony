@@ -38,6 +38,7 @@ import driveLinkRouter from './routes/driveLink.js';
 import accountMigrationRouter from './routes/accountMigration.js';
 import adminInvitesRouter from './routes/adminInvites.js';
 import adminEmojisRouter from './routes/adminEmojis.js';
+import { createAuthProviderConfigWriter } from './services/authProviderConfigStart.js';
 
 import webFingerRouter from './activitypub/WebFingerService.js';
 import actorRouter from './activitypub/ActorService.js';
@@ -262,4 +263,10 @@ export async function startServer(): Promise<void> {
     PushNotificationService.getFcmSender();
   });
   attachActivityRelay(server, app);
+
+  const authConfig = createAuthProviderConfigWriter();
+  if (authConfig) {
+    authConfig.start();
+    logger.info(`Sign-in provider settings go to ${config.HARMONY_AUTH_CONFIG_DIR}`);
+  }
 }

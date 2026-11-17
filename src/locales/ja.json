@@ -111,6 +111,7 @@
       "google": "Google で続ける",
       "twitch": "Twitch で続ける",
       "github": "GitHub で続ける",
+      "discord": "Discord で続ける",
       "custom": "{name} で続ける"
     },
     "callback": {
@@ -5478,6 +5479,53 @@
       "maxInstanceStickersHint": "0〜500。すべてのローカルアカウントがインスタンスのスタンプを送信できます。0 で無効にします。",
       "maxPersonalStickers": "ユーザーごとの個人スタンプ数",
       "maxPersonalStickersHint": "0〜100。既定の 0 で個人スタンプを無効にします。"
+    },
+    "signInProviders": {
+      "title": "サインインプロバイダー",
+      "lead": "Google、Twitch、GitHub、Discord でのサインインです。プロバイダーで下のコールバック URL を使って OAuth アプリケーションを作成し、そのクライアント ID とシークレットをここに貼り付けてください。サインインサービスは再起動なしで約 15 秒以内に反映します。",
+      "loadFailed": "サインインプロバイダーの設定を読み込めませんでした。",
+      "writerOff": "このインスタンスのサインインサービスはここから認証情報を受け取りません。フェデレーションサーバーに HARMONY_AUTH_CONFIG_DIR がありません。セルフホストガイドの OAuth サインインの説明どおり、サインインサービスの環境変数に設定してください。",
+      "writerStopped": "フェデレーションサーバーが最後にサインイン設定を反映したのは {time} で、現在は動いていません。ここでの変更はサーバーが戻るまで反映されません。",
+      "writerError": "フェデレーションサーバーがサインイン設定を反映できませんでした： {error}",
+      "callback": "各プロバイダーに登録するコールバック（リダイレクト）URL：",
+      "copy": "コピー",
+      "copied": "コールバック URL をコピーしました",
+      "copyFailed": "コピーできませんでした。URL を選択して手動でコピーしてください。",
+      "showButton": "サインインページに表示",
+      "showButtonLabel": "{provider} をサインインページに表示",
+      "clientId": "クライアント ID",
+      "secret": "クライアントシークレット",
+      "secretSaved": "保存済み。置き換えるには新しい値を入力してください。",
+      "save": "保存",
+      "saving": "保存中…",
+      "clear": "削除",
+      "clearTitle": "{provider} でのサインインを削除しますか？",
+      "clearMessage": "クライアント ID とシークレットを削除し、{provider} でのサインインをオフにします。{provider} で作成したアカウントは、再設定されるまで別の方法でサインインします。",
+      "saved": "{provider} の認証情報を保存しました",
+      "cleared": "{provider} の認証情報を削除しました",
+      "saveFailed": "{provider} の認証情報を保存できませんでした。",
+      "buttonsSaved": "サインインページを更新しました",
+      "buttonsFailed": "サインインページを更新できませんでした。",
+      "status": {
+        "active": "有効",
+        "applying": "反映中…",
+        "hidden": "オフ： サインインページで非表示",
+        "server": "サーバーで設定済み",
+        "unset": "未設定",
+        "unknown": "状態不明"
+      },
+      "problem": {
+        "clientId": "クライアント ID に使えるのは英数字と . _ ~ + / = - だけです。",
+        "discordId": "Discord のクライアント ID はアプリケーション ID で、17〜20 桁の数字です。",
+        "secret": "クライアントシークレットは英数字と . _ ~ + / = - の 8〜512 文字です。",
+        "needBoth": "クライアント ID とクライアントシークレットを入力してください。"
+      },
+      "where": {
+        "google": "Google Cloud コンソール、API とサービス、認証情報： 種類が「ウェブ アプリケーション」の OAuth クライアント ID。",
+        "twitch": "Twitch Developer Console、Applications： アプリケーションを登録。",
+        "github": "GitHub、Settings、Developer settings、OAuth Apps： 新しい OAuth App。",
+        "discord": "Discord Developer Portal、あなたのアプリケーション、OAuth2： Client ID と、Reset Secret で表示されるシークレット。"
+      }
     },
     "activityLog": {
       "configKeys": {

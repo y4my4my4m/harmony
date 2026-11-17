@@ -13,8 +13,9 @@ export interface CustomOAuthProvider {
   icon: string | null
 }
 
-/** Providers with built-in sign-in buttons. */
-export const BUILT_IN_OAUTH_PROVIDERS = ['google', 'twitch', 'github'] as const
+/** Providers with built-in sign-in buttons, in their order on the sign-in page. */
+export const BUILT_IN_OAUTH_PROVIDERS = ['google', 'twitch', 'github', 'discord'] as const
+export type BuiltInOAuthProvider = (typeof BUILT_IN_OAUTH_PROVIDERS)[number]
 
 // GoTrue's custom_oauth_providers_identifier_format, ^[a-z0-9][a-z0-9:-]{0,48}[a-z0-9]$,
 // with the custom: prefix it requires: 8 to 50 characters.
@@ -28,7 +29,7 @@ export function isCustomOAuthProviderId(value: unknown): value is string {
   return typeof value === 'string' && IDENTIFIER.test(value)
 }
 
-const BUILT_IN_LABELS: Record<string, string> = { google: 'Google', twitch: 'Twitch', github: 'GitHub' }
+const BUILT_IN_LABELS: Record<string, string> = { google: 'Google', twitch: 'Twitch', github: 'GitHub', discord: 'Discord' }
 
 /**
  * Display name of a sign-in provider id: the built-in brand names, a custom provider's name from

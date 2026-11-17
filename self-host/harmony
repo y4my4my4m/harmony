@@ -24,7 +24,7 @@
 #                                   unless --link-existing-accounts
 #   harmony auth remove-provider ID
 #   harmony auth linking PROVIDER --separate-accounts | --link-existing-accounts
-#                                   how github, google, twitch, ... treat existing accounts
+#                                   how discord, github, google, twitch, ... treat existing accounts
 #   harmony config                  change the answers (configure.sh), apply
 #   harmony config --upload-ceiling [SIZE]
 #                                   largest file storage accepts (500MB, 2GB);

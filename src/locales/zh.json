@@ -111,6 +111,7 @@
       "google": "使用 Google 继续",
       "twitch": "使用 Twitch 继续",
       "github": "使用 GitHub 继续",
+      "discord": "使用 Discord 继续",
       "custom": "使用 {name} 继续"
     },
     "callback": {
@@ -5478,6 +5479,53 @@
       "maxInstanceStickersHint": "0 到 500。所有本地账号都可以发送实例贴纸。0 表示关闭。",
       "maxPersonalStickers": "每位用户的个人贴纸数",
       "maxPersonalStickersHint": "0 到 100。默认值 0 表示关闭个人贴纸。"
+    },
+    "signInProviders": {
+      "title": "登录提供方",
+      "lead": "使用 Google、Twitch、GitHub 或 Discord 登录。在提供方用下方的回调 URL 创建 OAuth 应用，然后把它的客户端 ID 和密钥粘贴到这里。登录服务约 15 秒内生效，无需重启。",
+      "loadFailed": "无法加载登录提供方设置。",
+      "writerOff": "本实例的登录服务不从这里读取凭据：它的联邦服务器没有设置 HARMONY_AUTH_CONFIG_DIR。请按自托管指南中 OAuth 登录一节的说明，把凭据写入登录服务的环境变量。",
+      "writerStopped": "联邦服务器最后一次应用登录设置是在 {time}，目前没有运行。这里的更改会等到它恢复后生效。",
+      "writerError": "联邦服务器无法应用登录设置：{error}",
+      "callback": "要在每个提供方登记的回调（重定向）URL：",
+      "copy": "复制",
+      "copied": "已复制回调 URL",
+      "copyFailed": "无法复制。请选中 URL 手动复制。",
+      "showButton": "显示在登录页",
+      "showButtonLabel": "在登录页显示 {provider}",
+      "clientId": "客户端 ID",
+      "secret": "客户端密钥",
+      "secretSaved": "已保存。输入新值即可替换。",
+      "save": "保存",
+      "saving": "正在保存…",
+      "clear": "清除",
+      "clearTitle": "清除 {provider} 登录？",
+      "clearMessage": "这会删除客户端 ID 和密钥，并关闭 {provider} 登录。通过 {provider} 创建的账户在重新设置之前需改用其他方式登录。",
+      "saved": "已保存 {provider} 凭据",
+      "cleared": "已清除 {provider} 凭据",
+      "saveFailed": "无法保存 {provider} 凭据。",
+      "buttonsSaved": "登录页已更新",
+      "buttonsFailed": "无法更新登录页。",
+      "status": {
+        "active": "已启用",
+        "applying": "正在应用…",
+        "hidden": "已关闭：在登录页隐藏",
+        "server": "已在服务器上设置",
+        "unset": "未设置",
+        "unknown": "状态未知"
+      },
+      "problem": {
+        "clientId": "客户端 ID 只能包含字母、数字和 . _ ~ + / = -。",
+        "discordId": "Discord 客户端 ID 就是应用 ID，为 17 到 20 位数字。",
+        "secret": "客户端密钥为 8 到 512 个字母、数字或 . _ ~ + / = - 字符。",
+        "needBoth": "请输入客户端 ID 和客户端密钥。"
+      },
+      "where": {
+        "google": "Google Cloud 控制台，API 和服务，凭据：类型为 Web 应用的 OAuth 客户端 ID。",
+        "twitch": "Twitch 开发者控制台，Applications：注册一个应用。",
+        "github": "GitHub，Settings，Developer settings，OAuth Apps：新建 OAuth App。",
+        "discord": "Discord Developer Portal，你的应用，OAuth2：Client ID，以及 Reset Secret 显示的密钥。"
+      }
     },
     "activityLog": {
       "configKeys": {

@@ -57,6 +57,7 @@ Some settings exist both as a variable and in the database:
 | Instance name | `INSTANCE_NAME` | `instance_config.instance_name` | `bootstrap.sh` copies the variable into a new database; afterwards the admin panel's name applies. The web app shows the variable until the instance settings load. The federation backend reports the variable in `/health` and `/instance-info`, and uses it in NodeInfo only when the database has no name |
 | Domain | `DOMAIN` | `instance_config.domain` | Both must be the same. `bootstrap.sh` sets the database value on a new database; `harmony doctor` fails when they differ |
 | OAuth buttons | `ENABLED_OAUTH_PROVIDERS` | `instance_config.oauth_providers` | The database list when it names at least one provider, else the variable. See [OAuth sign-in](/self-host/oauth) |
+| Credentials of Google, GitHub, Twitch and Discord | `<PROVIDER>_ENABLED`, `<PROVIDER>_CLIENT_ID`, `<PROVIDER>_SECRET` in `supabase/.env` | `auth_provider_credentials` (secret in Vault) | The database, per provider, once **Authentication** saved one: the federation server renders it into the auth service's `--config-dir`. See [OAuth sign-in](/self-host/oauth#set-it-up-in-the-admin-panel) |
 | Buttons of your own sign-in providers | none | `instance_config.custom_oauth_providers` | The database. `harmony auth add-provider` and `remove-provider` write it; **Authentication** lists it read-only. See [Your own identity provider](/self-host/oauth#your-own-identity-provider) |
 | Terms and privacy links | `TERMS_URL`, `PRIVACY_URL` | `instance_config.terms_url`, `privacy_url` | The database value, empty included, once the instance settings load. A new database holds empty values, so set the links in **Config** → **Branding** |
 | Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env`. Sign-up follows `DISABLE_SIGNUP`; NodeInfo announces `open_registration`. The admin panel's **Invites** states the first and notes when the second differs |
@@ -366,9 +367,10 @@ database role. Both files override some backend variables themselves
 `FEDERATION_LISTENER_URL`).
 
 The self-host stack's `supabase-overrides.yml` maps the OAuth variables onto
-the sign-in service. A Supabase stack without it needs the
-`GOTRUE_EXTERNAL_*` settings added to its `auth` service by hand; see
-[OAuth sign-in](/self-host/oauth).
+the sign-in service and starts it with `--config-dir` on the `auth-config`
+volume, which `federation-server` writes from the admin panel. A Supabase stack
+without it needs the `GOTRUE_EXTERNAL_*` settings added to its `auth` service
+by hand; see [OAuth sign-in](/self-host/oauth).
 
 ## Self-host .env
 
@@ -399,7 +401,7 @@ the sign-in service. A Supabase stack without it needs the
 | `HARMONY_HTTPS_PORT` | `443` | `[address:]port` Caddy publishes for 443/tcp and 443/udp |
 | `HARMONY_KEEP_UPDATE_BACKUPS` | `5` | Update backups `harmony update` keeps of each kind; `0` keeps all ([Delete old backups](/self-host/update-backup#delete-old-backups)) |
 | `SUPABASE_ANON_KEY` | required | Supabase anon key for the web container; copied from `supabase/.env` |
-| `ENABLED_OAUTH_PROVIDERS` | empty | Comma-separated OAuth buttons (`google`, `github`, `twitch`) for the web container |
+| `ENABLED_OAUTH_PROVIDERS` | empty | Comma-separated OAuth buttons (`google`, `github`, `twitch`, `discord`) for the web container |
 | `TERMS_URL`, `PRIVACY_URL` | empty | Legal links for the web container; see the table above for which value applies |
 | `STATUS_URL` | empty | Service status page (an Uptime Kuma status page, for example) linked under the sign-in form and in Settings; no link when empty |
 | `REDIS_PASSWORD` | generated | Redis password (`requirepass`) |
@@ -425,8 +427,8 @@ values.
 | `ENABLE_EMAIL_AUTOCONFIRM` | `true` without SMTP, `false` with | `false` makes new accounts confirm their address by email |
 | `STUDIO_DEFAULT_PROJECT` | instance name | Project name in Studio |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_ADMIN_EMAIL`, `SMTP_SENDER_NAME` | from the email answers | Outgoing email. See [Email (SMTP)](/self-host/email) |
-| `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET`, and the same for `GITHUB` and `TWITCH` | not written | OAuth providers, mapped by `supabase-overrides.yml`. See [OAuth sign-in](/self-host/oauth) |
-| `PROVIDER_LINKING_DOMAINS` | `github=github,google=google,twitch=twitch` while `ENABLE_EMAIL_AUTOCONFIRM=true` (`configure.sh`, for each built-in provider without an entry); `harmony auth add-provider` adds `custom:ID=custom:ID` per provider | Sign-in providers that never join an existing account by its address, as comma-separated `provider=domain` pairs (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`); `PROVIDER=default` joins by address. `harmony auth linking` sets a built-in provider's entry. A value that is not such pairs stops the sign-in service from starting. See [Existing accounts](/self-host/oauth#existing-accounts) and [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
+| `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET`, and the same for `GITHUB`, `TWITCH` and `DISCORD` | not written | OAuth providers, mapped by `supabase-overrides.yml`. See [OAuth sign-in](/self-host/oauth) |
+| `PROVIDER_LINKING_DOMAINS` | `discord=discord,github=github,google=google,twitch=twitch` while `ENABLE_EMAIL_AUTOCONFIRM=true` (`configure.sh`, for each built-in provider without an entry); `harmony auth add-provider` adds `custom:ID=custom:ID` per provider | Sign-in providers that never join an existing account by its address, as comma-separated `provider=domain` pairs (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`); `PROVIDER=default` joins by address. `harmony auth linking` sets a built-in provider's entry. A value that is not such pairs stops the sign-in service from starting. See [Existing accounts](/self-host/oauth#existing-accounts) and [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
 | `FILE_SIZE_LIMIT` | not written; `harmony config --upload-ceiling` writes it | Largest file storage accepts, bytes, resumable uploads included; `52428800` when absent (`supabase-overrides.yml`). See [Upload limits](#upload-limits) |
 | `RATE_LIMIT_EMAIL_SENT` | not written; the stack reads it as `100` | Mail per hour for the whole instance while email confirmation is on. Keep it under your SMTP provider's limit. See [Sign-up limits](/self-host/signup-limits#email-budget) |
 | `GOTRUE_IMAGE` | `configure.sh` | The sign-in service's image: the Supabase stack's own `supabase/gotrue` image from `v2.197.0` on, otherwise `supabase/gotrue:v2.197.0`. A newer image set by hand stays |
@@ -567,7 +569,8 @@ process and names the variable.
 | `LOG_LEVEL` | `info` | `error`, `warn`, `info` or `debug` |
 | `INSTANCE_NAME` | `Harmony` | Name in `/health` and `/instance-info`, and in NodeInfo when the database has none |
 | `INSTANCE_DESCRIPTION` | `A federated social platform` | NodeInfo description when the database has none |
-| `PUBLIC_SUPABASE_URL` | `SUPABASE_URL` | Public Supabase URL: storage URLs sent to other instances and the `supabaseUrl` in `/instance-info`. Set it whenever `SUPABASE_URL` is an internal address |
+| `PUBLIC_SUPABASE_URL` | `SUPABASE_URL` | Public Supabase URL: storage URLs sent to other instances and the `supabaseUrl` in `/instance-info`. Set it whenever `SUPABASE_URL` is an internal address. Base of the redirect URI written for the sign-in providers of the admin panel |
+| `HARMONY_AUTH_CONFIG_DIR` | unset; `/var/lib/harmony-auth` in the self-host stack | Directory the federation server (`FEDERATION_MODE` server or unified) writes the sign-in provider credentials of **Authentication** into, as `50-harmony-oauth.env`, mode `0600`; the auth service reads it as `--config-dir`. Unset: the admin panel cannot set credentials |
 | `VERSION` | the release (`1.8.10`) | Version reported by `/health`, `/instance-info`, NodeInfo and the outgoing `User-Agent` |
 | `APP_URL` | `https://INSTANCE_DOMAIN` | Origin of the web app. Invitation links from the admin panel land on its `/reset-password?invite=1` |
 

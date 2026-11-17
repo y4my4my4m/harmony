@@ -35,11 +35,11 @@ To switch instances later, sign out. The login screen of the app shows a bar wit
 
 If the instance publishes terms of service or a privacy policy, links to them appear under the form.
 
-### Sign up with Google, Twitch or GitHub
+### Sign up with Google, Twitch, GitHub or Discord
 
-When the instance operator has enabled them, buttons appear above the email form: **Continue with Google**, **Continue with Twitch** and **Continue with GitHub**. Only providers the operator turned on are shown, and an instance with none shows only the email form. Operators enable them as described in [OAuth sign-in providers](/self-host/oauth).
+When the instance operator has enabled them, buttons appear above the email form: **Continue with Google**, **Continue with Twitch**, **Continue with GitHub** and **Continue with Discord**. Only providers the operator turned on are shown, and an instance with none shows only the email form. Operators enable them as described in [OAuth sign-in providers](/self-host/oauth).
 
-Signing in with a provider for the first time creates your account. The profile form then starts with the name and picture from that provider and a suggested username, all of which you can change before continuing.
+Signing in with a provider for the first time creates your account. The profile form then starts with the name and picture from that provider and a suggested username, all of which you can change before continuing. With Discord, that is your Discord display name, avatar and username.
 
 ### Instances that limit registration
 

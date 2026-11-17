@@ -87,6 +87,13 @@ assert_webhook_channel	p_channel_id uuid	uuid	invoker	public, pg_temp	service_ro
 assign_default_role_to_member		trigger	definer	public, pg_temp	service_role	trigger
 assign_server_slug		trigger	definer	public, pg_temp	service_role	trigger
 attach_supporter_message		trigger	definer	public, pg_temp	service_role	trigger
+auth_provider_button_on	p_provider text	boolean	definer	public, pg_temp		unreferenced
+auth_provider_credentials_clear	p_provider text	jsonb	definer	public, pg_temp	authenticated	client
+auth_provider_credentials_render		TABLE(provider text, client_id text, client_secret text, enabled boolean)	definer	public, pg_temp	service_role	client
+auth_provider_credentials_set	p_provider text, p_client_id text, p_secret text	jsonb	definer	public, pg_temp	authenticated	client
+auth_provider_credentials_status		jsonb	definer	public, pg_temp	authenticated	client
+auth_provider_valid_value	p_value text	boolean	invoker	public, pg_temp		unreferenced
+auth_provider_writer_report	p_applied boolean, p_error text	void	definer	public, pg_temp	service_role	client
 auto_archive_threads		void	definer	public, pg_temp	anon+authenticated+service_role	client
 automod_apply_raid_lockdown	p_server_id uuid, p_active boolean, p_actor uuid	jsonb	definer	public, pg_temp	service_role	unreferenced
 automod_canonical_actions	p_actions jsonb	jsonb	invoker	public, pg_temp	service_role	unreferenced

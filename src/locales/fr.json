@@ -111,6 +111,7 @@
       "google": "Continuer avec Google",
       "twitch": "Continuer avec Twitch",
       "github": "Continuer avec GitHub",
+      "discord": "Continuer avec Discord",
       "custom": "Continuer avec {name}"
     },
     "callback": {
@@ -5478,6 +5479,53 @@
       "maxInstanceStickersHint": "De 0 à 500. Chaque compte local peut envoyer les stickers de l'instance. 0 les désactive.",
       "maxPersonalStickers": "Stickers personnels par utilisateur",
       "maxPersonalStickersHint": "De 0 à 100. 0, la valeur par défaut, désactive les stickers personnels."
+    },
+    "signInProviders": {
+      "title": "Fournisseurs de connexion",
+      "lead": "Connexion avec Google, Twitch, GitHub ou Discord. Créez une application OAuth chez le fournisseur avec l’URL de rappel ci-dessous, puis collez ici son identifiant client et son secret. Le service de connexion les prend en compte en 15 secondes environ, sans redémarrage.",
+      "loadFailed": "Impossible de charger les réglages des fournisseurs de connexion.",
+      "writerOff": "Le service de connexion de cette instance ne prend pas d’identifiants depuis ici : son serveur de fédération n’a pas de HARMONY_AUTH_CONFIG_DIR. Indiquez-les plutôt dans l’environnement du service de connexion, comme le décrit le guide d’auto-hébergement sur la connexion OAuth.",
+      "writerStopped": "Le serveur de fédération a appliqué les réglages de connexion pour la dernière fois le {time} et ne tourne pas actuellement. Les changements faits ici attendent son retour.",
+      "writerError": "Le serveur de fédération n’a pas pu appliquer les réglages de connexion : {error}",
+      "callback": "URL de rappel (redirection) à déclarer chez chaque fournisseur :",
+      "copy": "Copier",
+      "copied": "URL de rappel copiée",
+      "copyFailed": "Copie impossible. Sélectionnez l’URL et copiez-la à la main.",
+      "showButton": "Sur la page de connexion",
+      "showButtonLabel": "Afficher {provider} sur la page de connexion",
+      "clientId": "Identifiant client",
+      "secret": "Secret client",
+      "secretSaved": "Enregistré. Saisissez-en un nouveau pour le remplacer.",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "clear": "Effacer",
+      "clearTitle": "Effacer la connexion avec {provider} ?",
+      "clearMessage": "L’identifiant client et le secret sont supprimés et la connexion avec {provider} est coupée. Les comptes créés via {provider} se connectent autrement jusqu’à ce qu’elle soit de nouveau configurée.",
+      "saved": "Identifiants {provider} enregistrés",
+      "cleared": "Identifiants {provider} effacés",
+      "saveFailed": "Impossible d’enregistrer les identifiants {provider}.",
+      "buttonsSaved": "Page de connexion mise à jour",
+      "buttonsFailed": "Impossible de mettre à jour la page de connexion.",
+      "status": {
+        "active": "Actif",
+        "applying": "Application…",
+        "hidden": "Coupé : masqué sur la page de connexion",
+        "server": "Configuré sur le serveur",
+        "unset": "Non configuré",
+        "unknown": "État inconnu"
+      },
+      "problem": {
+        "clientId": "Un identifiant client ne contient que des lettres, des chiffres et . _ ~ + / = -.",
+        "discordId": "L’identifiant client Discord est l’identifiant de l’application : 17 à 20 chiffres.",
+        "secret": "Un secret client compte de 8 à 512 lettres, chiffres et caractères . _ ~ + / = -.",
+        "needBoth": "Saisissez un identifiant client et un secret client."
+      },
+      "where": {
+        "google": "Console Google Cloud, API et services, Identifiants : un ID client OAuth de type application Web.",
+        "twitch": "Console développeur Twitch, Applications : enregistrez une application.",
+        "github": "GitHub, Settings, Developer settings, OAuth Apps : une nouvelle OAuth App.",
+        "discord": "Discord Developer Portal, votre application, OAuth2 : le Client ID et le secret qu’affiche Reset Secret."
+      }
     },
     "activityLog": {
       "configKeys": {

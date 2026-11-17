@@ -87,6 +87,13 @@ assert_webhook_channel	invoker	uuid	service_role	client	called by create_channel
 assign_default_role_to_member	definer	trigger	service_role	trigger	trigger public.user_servers AFTER INSERT/UPDATE (trigger_assign_default_role)
 assign_server_slug	definer	trigger	service_role	trigger	trigger public.servers BEFORE INSERT (trg_assign_server_slug)
 attach_supporter_message	definer	trigger	service_role	trigger	trigger public.instance_donation_history AFTER INSERT (trg_attach_supporter_message)
+auth_provider_button_on	definer	boolean	-	client	called by auth_provider_credentials_render
+auth_provider_credentials_clear	definer	jsonb	authenticated	client	rpc in src/services/authProviderCredentials.ts
+auth_provider_credentials_render	definer	TABLE(provider text, client_id text, client_secret text, enabled boolean)	service_role	client	rpc in federation-backend/src/services/authProviderConfigStart.ts
+auth_provider_credentials_set	definer	jsonb	authenticated	client	rpc in src/services/authProviderCredentials.ts
+auth_provider_credentials_status	definer	jsonb	authenticated	client	rpc in src/services/authProviderCredentials.ts
+auth_provider_valid_value	invoker	boolean	-	client	called by auth_provider_credentials_render, auth_provider_credentials_set
+auth_provider_writer_report	definer	void	service_role	client	rpc in federation-backend/src/services/authProviderConfigStart.ts
 auto_archive_threads	definer	void	anon+authenticated+service_role	client	rpc in src/components/ChannelSidebar.vue
 automod_apply_raid_lockdown	definer	jsonb	service_role	client, trigger	called by automod_member_joined, set_server_raid_lockdown
 automod_canonical_actions	invoker	jsonb	service_role	client, trigger	called by automod_install_preset, upsert_server_automod_rule
@@ -371,7 +378,7 @@ detect_embed_provider	invoker	text	anon+authenticated+service_role	client, trigg
 detect_message_features	invoker	jsonb	service_role	trigger	called by message_search_flags
 determine_message_federation_type	invoker	text	anon+authenticated+service_role	trigger	called by handle_message_federation
 disable_federation_triggers	definer	void	service_role	service key	nothing references it
-discord_bridge_assert_vault	invoker	void	-	client	called by discord_bridge_create, discord_bridge_hosted_list, discord_bridge_instance_bot_secrets, +4
+discord_bridge_assert_vault	invoker	void	-	client	called by auth_provider_credentials_render, auth_provider_credentials_set, discord_bridge_create, +6
 discord_bridge_bot_pair	definer	uuid	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_bot_unpair	definer	boolean	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_channels_check	definer	trigger	-	trigger	trigger public.discord_bridge_channels BEFORE INSERT/UPDATE (discord_bridge_channels_check)
@@ -791,7 +798,7 @@ list_server_webhooks	definer	jsonb	authenticated+service_role	http authenticated
 list_soundboard_library	definer	TABLE(id uuid, server_id uuid, server_name text, server_icon text, name text, emoji text, emoji_id uuid, emoji_name text, emoji_url text, volume numeric, duration_ms integer, storage_path text, created_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/soundboard/sounds.ts
 lock_managed_channel_webhook	invoker	channel_webhooks	service_role	client	called by delete_channel_webhook, regenerate_channel_webhook_token, update_channel_webhook
 lock_managed_outgoing_webhook	definer	outgoing_webhooks	service_role	client	called by delete_outgoing_webhook, list_outgoing_webhook_deliveries, rotate_outgoing_webhook_secret, +2
-log_admin_action	definer	uuid	service_role	client	called by admin_delete_accounts, admin_delete_outgoing_webhook, admin_drive_remove_file, +40
+log_admin_action	definer	uuid	service_role	client	called by admin_delete_accounts, admin_delete_outgoing_webhook, admin_drive_remove_file, +42
 log_key_generation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_key_pairs AFTER INSERT (audit_key_generation)
 lookup_discord_bridge_pairing_public	definer	TABLE(server_id uuid)	anon+authenticated+service_role	client	rpc in bot-gateway/src/index.ts
 lookup_invite_by_code	definer	TABLE(id uuid, code text, server_id uuid, created_by uuid, uses integer, max_uses integer, used boolean, temporary boolean, expires_at timestamp with time zone, created_at timestamp with time zone, server_name text, server_icon text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts

@@ -111,6 +111,7 @@
       "google": "Mit Google fortfahren",
       "twitch": "Mit Twitch fortfahren",
       "github": "Mit GitHub fortfahren",
+      "discord": "Mit Discord fortfahren",
       "custom": "Mit {name} fortfahren"
     },
     "callback": {
@@ -5478,6 +5479,53 @@
       "maxInstanceStickersHint": "0 bis 500. Jedes lokale Konto kann Instanz-Sticker senden. 0 schaltet sie aus.",
       "maxPersonalStickers": "Persönliche Sticker pro Person",
       "maxPersonalStickersHint": "0 bis 100. 0, der Standard, schaltet persönliche Sticker aus."
+    },
+    "signInProviders": {
+      "title": "Anmeldeanbieter",
+      "lead": "Anmeldung mit Google, Twitch, GitHub oder Discord. Lege beim Anbieter eine OAuth-Anwendung mit der Callback-URL unten an und füge hier ihre Client-ID und ihr Secret ein. Der Anmeldedienst übernimmt sie in etwa 15 Sekunden, ohne Neustart.",
+      "loadFailed": "Die Einstellungen der Anmeldeanbieter konnten nicht geladen werden.",
+      "writerOff": "Der Anmeldedienst dieser Instanz übernimmt hier keine Zugangsdaten: Ihr Föderationsserver hat kein HARMONY_AUTH_CONFIG_DIR. Trage sie stattdessen in die Umgebung des Anmeldedienstes ein, wie es die Self-Hosting-Anleitung zur OAuth-Anmeldung beschreibt.",
+      "writerStopped": "Der Föderationsserver hat die Anmeldeeinstellungen zuletzt am {time} übernommen und läuft gerade nicht. Änderungen hier warten, bis er wieder läuft.",
+      "writerError": "Der Föderationsserver konnte die Anmeldeeinstellungen nicht übernehmen: {error}",
+      "callback": "Callback-URL (Weiterleitung), die du bei jedem Anbieter einträgst:",
+      "copy": "Kopieren",
+      "copied": "Callback-URL kopiert",
+      "copyFailed": "Kopieren fehlgeschlagen. Markiere die URL und kopiere sie von Hand.",
+      "showButton": "Auf der Anmeldeseite",
+      "showButtonLabel": "{provider} auf der Anmeldeseite zeigen",
+      "clientId": "Client-ID",
+      "secret": "Client-Secret",
+      "secretSaved": "Gespeichert. Gib ein neues ein, um es zu ersetzen.",
+      "save": "Speichern",
+      "saving": "Speichern…",
+      "clear": "Entfernen",
+      "clearTitle": "Anmeldung mit {provider} entfernen?",
+      "clearMessage": "Client-ID und Secret werden gelöscht und die Anmeldung mit {provider} wird abgeschaltet. Über {provider} erstellte Konten melden sich anders an, bis sie wieder eingerichtet ist.",
+      "saved": "Zugangsdaten für {provider} gespeichert",
+      "cleared": "Zugangsdaten für {provider} entfernt",
+      "saveFailed": "Die Zugangsdaten für {provider} konnten nicht gespeichert werden.",
+      "buttonsSaved": "Anmeldeseite aktualisiert",
+      "buttonsFailed": "Die Anmeldeseite konnte nicht aktualisiert werden.",
+      "status": {
+        "active": "Aktiv",
+        "applying": "Wird übernommen…",
+        "hidden": "Aus: auf der Anmeldeseite ausgeblendet",
+        "server": "Auf dem Server eingerichtet",
+        "unset": "Nicht eingerichtet",
+        "unknown": "Status unbekannt"
+      },
+      "problem": {
+        "clientId": "Eine Client-ID besteht nur aus Buchstaben, Ziffern und . _ ~ + / = -.",
+        "discordId": "Die Discord-Client-ID ist die Anwendungs-ID: 17 bis 20 Ziffern.",
+        "secret": "Ein Client-Secret hat 8 bis 512 Buchstaben, Ziffern und die Zeichen . _ ~ + / = -.",
+        "needBoth": "Gib eine Client-ID und ein Client-Secret ein."
+      },
+      "where": {
+        "google": "Google Cloud Console, APIs & Dienste, Anmeldedaten: eine OAuth-Client-ID vom Typ Webanwendung.",
+        "twitch": "Twitch Developer Console, Applications: eine Anwendung registrieren.",
+        "github": "GitHub, Settings, Developer settings, OAuth Apps: eine neue OAuth App.",
+        "discord": "Discord Developer Portal, deine Anwendung, OAuth2: die Client-ID und das Secret, das Reset Secret anzeigt."
+      }
     },
     "activityLog": {
       "configKeys": {

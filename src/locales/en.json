@@ -116,6 +116,7 @@
       "google": "Continue with Google",
       "twitch": "Continue with Twitch",
       "github": "Continue with GitHub",
+      "discord": "Continue with Discord",
       "custom": "Continue with {name}"
     },
     "callback": {
@@ -5474,6 +5475,53 @@
       "maxInstanceStickersHint": "0 to 500. Every local account can send instance stickers. 0 turns them off.",
       "maxPersonalStickers": "Personal stickers per user",
       "maxPersonalStickersHint": "0 to 100. 0, the default, turns personal stickers off."
+    },
+    "signInProviders": {
+      "title": "Sign-in providers",
+      "lead": "Continue with Google, Twitch, GitHub or Discord. Create an OAuth application at the provider with the callback URL below, then paste its client ID and secret here. The sign-in service takes them within about 15 seconds, without a restart.",
+      "loadFailed": "Couldn't load the sign-in provider settings.",
+      "writerOff": "This instance's sign-in service doesn't take credentials from here: its federation server has no HARMONY_AUTH_CONFIG_DIR. Set them in the sign-in service's environment instead, as the self-hosting guide on OAuth sign-in describes.",
+      "writerStopped": "The federation server last applied sign-in settings on {time} and is not running now. Changes made here wait until it is back.",
+      "writerError": "The federation server could not apply the sign-in settings: {error}",
+      "callback": "Callback (redirect) URL to register with each provider:",
+      "copy": "Copy",
+      "copied": "Callback URL copied",
+      "copyFailed": "Couldn't copy. Select the URL and copy it by hand.",
+      "showButton": "On sign-in page",
+      "showButtonLabel": "Show {provider} on the sign-in page",
+      "clientId": "Client ID",
+      "secret": "Client secret",
+      "secretSaved": "Saved. Type a new one to replace it.",
+      "save": "Save",
+      "saving": "Saving…",
+      "clear": "Clear",
+      "clearTitle": "Clear {provider} sign-in?",
+      "clearMessage": "This deletes the client ID and secret and turns {provider} sign-in off. Accounts made through {provider} sign in another way until it is set up again.",
+      "saved": "{provider} credentials saved",
+      "cleared": "{provider} credentials cleared",
+      "saveFailed": "Couldn't save the {provider} credentials.",
+      "buttonsSaved": "Sign-in page updated",
+      "buttonsFailed": "Couldn't update the sign-in page.",
+      "status": {
+        "active": "Active",
+        "applying": "Applying…",
+        "hidden": "Off: hidden from the sign-in page",
+        "server": "Set on the server",
+        "unset": "Not set up",
+        "unknown": "Status unknown"
+      },
+      "problem": {
+        "clientId": "A client ID is letters, digits and . _ ~ + / = - only.",
+        "discordId": "A Discord client ID is the application ID: 17 to 20 digits.",
+        "secret": "A client secret is 8 to 512 letters, digits and . _ ~ + / = - characters.",
+        "needBoth": "Enter a client ID and a client secret."
+      },
+      "where": {
+        "google": "Google Cloud console, APIs & Services, Credentials: an OAuth client ID of type web application.",
+        "twitch": "Twitch developer console, Applications: register an application.",
+        "github": "GitHub, Settings, Developer settings, OAuth Apps: a new OAuth app.",
+        "discord": "Discord Developer Portal, your application, OAuth2: the client ID, and the secret Reset Secret shows."
+      }
     },
     "activityLog": {
       "configKeys": {
