@@ -95,9 +95,8 @@ export interface BridgedUser {
   source: 'discord' | 'matrix'
 }
 
-/** `excluded` holds Discord ids (bridge_privacy_optout_ids). */
-const isExcluded = (user: BridgedUser, excluded: ReadonlySet<string>) =>
-  (user.source ?? 'discord') === 'discord' && excluded.has(user.id)
+/** `excluded` holds remote ids of either platform (bridge_remote_optouts). */
+const isExcluded = (user: BridgedUser, excluded: ReadonlySet<string>) => excluded.has(user.id)
 
 function uniqueBridgeMembers(users: BridgedUser[]): BridgedUser[] {
   return Array.from(new Map(users.filter(user => user && typeof user.id === 'string')

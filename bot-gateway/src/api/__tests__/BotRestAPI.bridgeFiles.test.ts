@@ -5,56 +5,72 @@ import express from 'express'
 import supertest from 'supertest'
 import { FakeDb } from '../../__tests__/fakeSupabase.js'
 
-const BOT = '00000000-0000-0000-0000-0000000000b0', OTHER_BOT = '00000000-0000-0000-0000-0000000000b2'
+const BOT = '00000000-0000-0000-0000-0000000000b0'
 const CHANNEL = '00000000-0000-0000-0000-0000000000c1', OTHER_CHANNEL = '00000000-0000-0000-0000-0000000000c2'
 const SERVER = '00000000-0000-0000-0000-00000000005a', USER = '00000000-0000-0000-0000-0000000000a1', MESSAGE = '00000000-0000-0000-0000-0000000000f1'
-const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), upload: vi.fn(), signed: vi.fn(), bucket: vi.fn(), rate: vi.fn() }))
-vi.mock('../../config/supabase.js', () => ({ supabase: { from: mocks.from, rpc: mocks.rpc, storage: { getBucket: mocks.bucket, from: () => ({ upload: mocks.upload, createSignedUrl: mocks.signed }) } }, config: {} }))
+const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), signed: vi.fn(), bucket: vi.fn(), rate: vi.fn(), store: vi.fn() }))
+vi.mock('../../config/supabase.js', () => ({ supabase: { from: mocks.from, rpc: mocks.rpc, storage: { getBucket: mocks.bucket, from: () => ({ createSignedUrl: mocks.signed }) } }, config: {} }))
 vi.mock('../../auth/BotAuthMiddleware.js', () => ({
   botAuthMiddleware: (req: any, res: any, next: any) => { if (req.headers.authorization !== 'Bearer test') return res.status(401).json({ error: 'Unauthorized' }); req.bot = { id: BOT, username: 'matrix', scopes: ['bot'] }; next() },
   botRateLimit: (req: any, res: any, next: any) => { mocks.rate(); if (req.headers['x-rate-test']) return res.status(429).json({ error: 'Rate limited' }); next() },
 }))
+vi.mock('../../utils/mirrorFile.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../utils/mirrorFile.js')>()
+  return { ...actual, storeBotUpload: mocks.store }
+})
+vi.mock('../../utils/mirrorExternalMedia.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../utils/mirrorExternalMedia.js')>()
+  return { ...actual, getUploadCeilingBytes: async () => 1000 }
+})
 import { BotRestAPI } from '../BotRestAPI.js'
 import { MAX_BRIDGE_FILE_BYTES } from '../../utils/bridgeFiles.js'
+import { EmptyFileError, OverQuotaError, TooLargeError } from '../../utils/mirrorFile.js'
+import { forgetBridgeConsent } from '../../bridge/memberConsent.js'
 
 const nativePath = `c/${CHANNEL}/${USER}/native.txt`, drivePath = `u/${USER}/drive.txt`
 const native = { type: 'file', path: nativePath, url: 'https://evil.invalid/do-not-fetch?token=secret', fileName: 'hello world.txt', fileType: 'file', mimeType: 'text/plain', fileSize: 5 }
 const base = `/api/v1/channels/${CHANNEL}`, getPath = `${base}/messages/${MESSAGE}/bridge-files/2`
+const STORED = `c/${CHANNEL}/bridge/${BOT}/0f0e0d0c-0b0a-4908-8706-050403020100.png`
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])
 const objects = new Map<string, { bytes: Buffer; mime: string }>()
-let db: FakeDb, platform: string | null, encrypted: unknown, room: unknown, visible: string[], driveOwner: unknown
+let db: FakeDb, platform: string | null, encrypted: unknown, room: unknown, optedOut: string[], storedType: string
 const fetcher = vi.fn()
 function app() { const a = express(); a.use(express.json({ limit: '10mb' })); a.use('/api/v1', new BotRestAPI().router); return a }
-function upload(bytes = Buffer.from('hello'), name = 'hello world.txt', type = 'text/plain') {
-  return supertest(app()).post(base + '/bridge-files').set('Authorization', 'Bearer test').set('Content-Type', 'application/octet-stream').set('X-File-Name', encodeURIComponent(name)).set('X-File-Type', type).send(bytes)
+function upload(bytes: Buffer = PNG, name: string | null = encodeURIComponent('hello world.png'), type = 'image/png') {
+  const request = supertest(app()).post(base + '/bridge-files').set('Authorization', 'Bearer test').set('Content-Type', 'application/octet-stream').set('X-File-Type', type)
+  return (name === null ? request : request.set('X-File-Name', name)).send(bytes)
 }
 function get(path = getPath) { return supertest(app()).get(path).set('Authorization', 'Bearer test') }
-function post(content: any[], metadata?: any) { return supertest(app()).post(base + '/messages').set('Authorization', 'Bearer test').send({ content, metadata }) }
 function fixture(name: string) { return readFileSync(resolve(__dirname, '../../../../tests/fixtures/media-metadata', name)) }
 beforeEach(() => {
-  vi.clearAllMocks(); platform = 'matrix'; encrypted = false; visible = [MESSAGE]; room = { room_id: '!room:hs', sender_mode: 'ghost' }; driveOwner = true
+  vi.clearAllMocks(); forgetBridgeConsent()
+  platform = 'matrix'; encrypted = false; optedOut = []; room = { room_id: '!room:hs', sender_mode: 'ghost' }; storedType = 'image/png'
   vi.stubEnv('SUPABASE_URL', 'https://storage.harmony.test'); vi.stubEnv('PUBLIC_URL', 'https://harmony.test')
-  objects.clear(); objects.set(nativePath, { bytes: Buffer.from('hello'), mime: 'text/plain' }); objects.set(drivePath, { bytes: Buffer.from('drive'), mime: 'text/plain' })
+  vi.spyOn(console, 'log').mockImplementation(() => {}); vi.spyOn(console, 'error').mockImplementation(() => {})
+  objects.clear(); objects.set(nativePath, { bytes: Buffer.from('hello'), mime: 'text/plain' })
   db = new FakeDb({
-    bots: [{ id: BOT, bot_type: 'bridge', bridge_platform: 'matrix' }], servers: [{ id: SERVER, owner: USER }], channels: [{ id: CHANNEL, server_id: SERVER }],
+    bots: [{ id: BOT, bot_type: null, bridge_platform: 'matrix' }], servers: [{ id: SERVER, owner: USER }], channels: [{ id: CHANNEL, server_id: SERVER }],
     server_roles: [{ id: 'everyone', server_id: SERVER, is_default: true, position: 0, permissions: 122646786 }],
-    bot_server_permissions: [{ bot_id: BOT, server_id: SERVER, is_active: true, read_messages: true, send_messages: true, installed_at: '2026-01-01T00:00:00Z' }],
+    bot_server_permissions: [{ bot_id: BOT, server_id: SERVER, is_active: true, read_messages: true, send_messages: true, attach_files: true, installed_at: '2026-01-01T00:00:00Z' }],
     bridge_channels: [{ bot_id: BOT, channel_id: CHANNEL, platform: 'matrix' }],
     messages: [{ id: MESSAGE, channel_id: CHANNEL, user_id: USER, bot_id: null, is_deleted: false, encrypted: false, content: [{ type: 'text', text: 'first' }, { type: 'file', url: 'https://evil.invalid/private' }, { ...native }], metadata: {}, created_at: '2026-11-01T00:00:00Z' }],
+    bot_audit_log: [],
   })
   mocks.from.mockImplementation(table => db.from(table))
   mocks.rpc.mockImplementation(async (fn, args) => {
-    if (fn === 'bot_interaction_ack') return { data: { id: '00000000-0000-0000-0000-00000000001a', channel_id: CHANNEL, thread_id: null, user_id: USER, command_name: 'file' }, error: null }
-    if (fn === 'bot_interaction_record') return { data: null, error: null }
     if (fn === 'bridge_channel_platform') return { data: platform, error: null }
+    if (fn === 'bridge_member_optout_ids') return { data: { user_ids: args.p_platform === 'matrix' ? optedOut : [] }, error: null }
     if (fn === 'matrix_bridge_room') return { data: room, error: null }
     if (fn === 'channel_messages_encrypted') return { data: encrypted, error: null }
-    if (fn === 'bridge_visible_message_ids') return { data: visible, error: null }
-    if (fn === 'drive_file_owned_by') return { data: driveOwner === 'other' ? args.p_profile !== USER : driveOwner, error: null }
     if (fn === 'get_instance_config') return { data: null, error: null }
     throw new Error('Unmocked RPC ' + fn)
   })
+  mocks.store.mockImplementation(async (body: NodeJS.ReadableStream) => {
+    let bytes = 0
+    for await (const chunk of body) bytes += (chunk as Buffer).length
+    return { path: STORED, url: `https://signed.test/${STORED}`, contentType: storedType, bytes }
+  })
   mocks.bucket.mockResolvedValue({ data: { public: false, file_size_limit: MAX_BRIDGE_FILE_BYTES, allowed_mime_types: null }, error: null })
-  mocks.upload.mockImplementation(async (path, bytes, options) => { objects.set(path, { bytes: Buffer.from(bytes), mime: options.contentType }); return { error: null } })
   mocks.signed.mockImplementation(async path => ({ data: { signedUrl: 'https://storage.harmony.test/storage/v1/object/sign/message_media/' + path + '?token=private' }, error: null }))
   fetcher.mockImplementation(async (url: string) => {
     const path = decodeURIComponent(new URL(url).pathname.split('/message_media/')[1] || '')
@@ -63,18 +79,18 @@ beforeEach(() => {
   })
   vi.stubGlobal('fetch', fetcher)
 })
-afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
-describe('Matrix bridge file transfer boundary', () => {
-  it('authenticates and rate limits before parsing raw uploads or fetching bytes', async () => {
+describe('Matrix bridge file access', () => {
+  it('authenticates and rate limits before reading the body or fetching bytes', async () => {
     expect((await supertest(app()).post(base + '/bridge-files').set('Content-Type', 'application/octet-stream').send(Buffer.from('x'))).status).toBe(401)
     expect((await supertest(app()).get(getPath)).status).toBe(401)
     expect((await get().set('X-Rate-Test', 'yes')).status).toBe(429)
     expect((await upload().set('X-Rate-Test', 'yes')).status).toBe(429)
-    expect(mocks.upload).not.toHaveBeenCalled(); expect(fetcher).not.toHaveBeenCalled()
+    expect(mocks.store).not.toHaveBeenCalled(); expect(fetcher).not.toHaveBeenCalled()
   })
-  it.each(['ordinary', 'discord', 'unpaired', 'read', 'send', 'room', 'encrypted', 'unknown-encryption'])('rejects %s access for both directions', async kind => {
-    if (kind === 'ordinary') { db.rows('bots')[0].bot_type = 'bot'; db.rows('bots')[0].bridge_platform = null; platform = null }
+  it.each(['ordinary', 'discord', 'unpaired', 'read', 'send', 'room', 'encrypted', 'unknown-encryption'])('refuses %s access in both directions', async kind => {
+    if (kind === 'ordinary') { db.rows('bots')[0].bridge_platform = null; platform = null }
     if (kind === 'discord') platform = 'discord'
     if (kind === 'unpaired') platform = null
     if (kind === 'read') db.rows('bot_server_permissions')[0].read_messages = false
@@ -84,170 +100,64 @@ describe('Matrix bridge file transfer boundary', () => {
     if (kind === 'unknown-encryption') encrypted = null
     expect([403, 503]).toContain((await upload()).status)
     expect([403, 503]).toContain((await get()).status)
-    expect(mocks.upload).not.toHaveBeenCalled(); expect(fetcher).not.toHaveBeenCalled()
+    expect(mocks.store).not.toHaveBeenCalled(); expect(fetcher).not.toHaveBeenCalled()
   })
-  it('returns canonical private file fields, content-addresses metadata, and round-trips through Matrix create', async () => {
-    const result = await upload()
-    expect(result.status).toBe(201)
-    const part = result.body
-    expect(part).toMatchObject({ type: 'file', fileName: 'hello world.txt', fileType: 'file', fileSize: 5, mimeType: 'text/plain' })
-    expect(part.path).toMatch(new RegExp(`^c/${CHANNEL}/bridge/${BOT}/[a-f0-9]{64}\\.txt$`))
-    expect(part.url).toContain('https://harmony.test/storage/v1/object/sign/message_media/')
-    const sent = await post([{ ...part, url: 'https://evil.invalid/never-follow', keyToDiscard: 'extra' }])
-    expect(sent.status).toBe(201)
-    expect(db.rows('messages').at(-1)!.content[0]).toEqual(part)
-    expect(fetcher.mock.calls.every(([url]) => new URL(url).hostname === 'storage.harmony.test')).toBe(true)
-  })
-  it.each([false, true])('uses canonical Matrix attachments for public interaction replies (encrypted=%s)', async blocked => {
-    const part = (await upload()).body
-    encrypted = blocked
-    const response = await supertest(app()).post('/api/v1/interactions/00000000-0000-0000-0000-00000000001a/callback')
-      .set('Authorization', 'Bearer test').send({ type: 4, data: { content: [part], metadata: { bridge_author: { platform: 'discord', id: 'forged' } } } })
-    expect(response.status).toBe(blocked ? 403 : 204)
-    const writes = db.writesTo('messages', 'insert')
-    expect(writes).toHaveLength(blocked ? 0 : 1)
-    if (!blocked) {
-      expect(writes[0].rows[0].content).toEqual([part])
-      expect(writes[0].rows[0].metadata).toEqual({ bot: true, created_via: 'bot_api', interaction: {
-        id: '00000000-0000-0000-0000-00000000001a', name: 'file', user_id: USER,
-      } })
-    }
-    expect(mocks.rpc).toHaveBeenCalledWith('bot_interaction_record', expect.objectContaining({ p_error: blocked ? 'failed' : null }))
-  })
-  it('fails closed when the durable attachment platform lookup is unavailable', async () => {
-    const part = (await upload()).body
-    db.rows('bots').splice(0)
-    expect((await post([part])).status).toBe(503)
-    expect(db.writesTo('messages', 'insert')).toHaveLength(0)
-  })
-  it('supports zero-byte ordinary files and audio/video as files, not inline media', async () => {
-    const empty = await upload(Buffer.alloc(0), 'empty.bin', 'application/octet-stream')
-    expect(empty.status).toBe(201); expect(empty.body.fileSize).toBe(0)
-    expect((await post([empty.body])).status).toBe(201)
-    for (const [name, type, bytes] of [['sound.ogg', 'audio/ogg', Buffer.from('OggSdata')], ['clip.mp4', 'video/mp4', fixture('gps.mp4')]] as const) {
-      const r = await upload(bytes, name, type)
-      expect(r.status).toBe(201); expect(r.body.fileType).toBe('file')
-    }
-  })
-  it('strips house photo metadata before storage, hashing, posting and native download', async () => {
-    const image = fixture('gps.png'), response = await upload(image, 'photo.png', 'image/png')
-    expect(response.status).toBe(201); expect(response.body.fileType).toBe('image')
-    const stored = objects.get(response.body.path)!.bytes
-    expect(stored.length).toBeLessThan(image.length); expect(stored.toString('latin1')).not.toContain('HarmonyCam')
-    expect(response.body.fileSize).toBe(stored.length)
-    expect((await post([response.body])).status).toBe(201)
-    objects.set(nativePath, { bytes: image, mime: 'image/png' }); db.rows('messages')[0].content[2].fileName = 'photo.png'
-    const downloaded = await get()
-    expect(downloaded.status).toBe(200); expect(downloaded.body).toEqual(stored)
-    expect(downloaded.headers['x-file-type']).toBe('image/png')
-  })
-  it.each([
-    ['x.svg', 'image/svg+xml', '<svg/>'], ['x.html', 'text/html', '<html/>'], ['x.js', 'application/javascript', 'alert(1)'],
-    ['x.bin', 'application/octet-stream', '<?xml version="1.0"?><svg/>'], ['x.bin', 'application/octet-stream', '<script>alert(1)</script>'],
-    ['x.png', 'image/png', '<html>fake</html>'], ['x.jpg', 'image/jpeg', 'not jpeg'], ['x.png', 'image/png', ''],
-    ['x.exe', 'application/octet-stream', 'MZexecutable'], ['x.txt', 'text/plain', '#!/bin/sh'],
-  ])('rejects active content or spoofed image %s / %s', async (name, type, body) => {
-    expect((await upload(Buffer.from(body), name, type)).status).toBe(415)
-    expect(mocks.upload).not.toHaveBeenCalled()
-  })
-  it('keeps raw parsing local, rejects JSON and compressed requests and enforces the hard size limit', async () => {
-    expect((await supertest(app()).post(base + '/bridge-files').set('Authorization', 'Bearer test').send({ data: 'base64' })).status).toBe(415)
-    expect((await upload().set('Content-Encoding', 'gzip')).status).toBe(415)
-    expect((await upload(Buffer.alloc(MAX_BRIDGE_FILE_BYTES + 1), 'large.bin', 'application/octet-stream')).status).toBe(413)
-    expect(mocks.upload).not.toHaveBeenCalled()
-  })
-  it('applies live private bucket size and wildcard MIME restrictions, including policy lookup failures', async () => {
-    mocks.bucket.mockResolvedValue({ data: { public: false, file_size_limit: 4, allowed_mime_types: ['text/*'] }, error: null })
-    expect((await upload()).status).toBe(413)
-    expect((await upload(Buffer.from('x'), 'file.bin', 'application/octet-stream')).status).toBe(415)
-    expect((await upload(Buffer.from('x'))).status).toBe(201)
-    mocks.bucket.mockResolvedValue({ data: { public: true }, error: null })
-    expect((await upload()).status).toBe(503)
-    mocks.bucket.mockResolvedValue({ data: null, error: { message: 'https://secret?token=hidden' } })
-    const r = await upload(); expect(r.status).toBe(503); expect(r.text).not.toContain('secret')
-  })
-  it('treats a live zero-byte limit as zero, while null uses the hard fallback', async () => {
-    mocks.bucket.mockResolvedValue({ data: { public: false, file_size_limit: 0, allowed_mime_types: null }, error: null })
-    expect((await upload()).status).toBe(413)
-    expect((await upload(Buffer.alloc(0), 'empty.bin', 'application/octet-stream')).status).toBe(201)
-    expect((await get()).status).toBe(413)
-    mocks.bucket.mockResolvedValue({ data: { public: false, file_size_limit: null, allowed_mime_types: null }, error: null })
-    expect((await upload()).status).toBe(201)
-  })
-  it.each(['application/json', 'text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.oasis.opendocument.spreadsheet', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.oasis.opendocument.presentation'])('supports inert document MIME %s when the bucket permits it', async type => {
-    const result = await upload(Buffer.from('ordinary data'), 'data.bin', type)
-    expect(result.status).toBe(201); expect(result.body.mimeType).toBe(type); expect(result.body.fileType).toBe('file')
-  })
-  it('checks plaintext again after raw body parsing, before any storage write', async () => {
-    const original = mocks.rpc.getMockImplementation()!
-    let checks = 0
-    mocks.rpc.mockImplementation((fn, args) => fn === 'channel_messages_encrypted' ? { data: ++checks > 1, error: null } : original(fn, args))
-    expect((await upload()).status).toBe(403)
-    expect(mocks.upload).not.toHaveBeenCalled()
-  })
-  it.each(['encryption', 'unpair', 'mime-policy'])('checks %s after canonical object download and before message insert', async change => {
-    const part = (await upload()).body
-    fetcher.mockImplementationOnce(async () => {
-      if (change === 'encryption') encrypted = true
-      if (change === 'unpair') platform = null
-      if (change === 'mime-policy') mocks.bucket.mockResolvedValue({ data: { public: false, file_size_limit: MAX_BRIDGE_FILE_BYTES, allowed_mime_types: ['application/json'] }, error: null })
-      return new Response('hello', { headers: { 'content-type': 'text/plain' } })
+})
+
+describe('POST /channels/:id/bridge-files', () => {
+  it('stores the body as POST /attachments does and answers the file part', async () => {
+    const res = await upload(PNG, encodeURIComponent('hello world.png'), 'image/png; charset=binary')
+    expect(res.status).toBe(201)
+    expect(res.body).toEqual({
+      type: 'file', path: STORED, url: `https://signed.test/${STORED}`,
+      fileType: 'image', fileName: 'hello world.png', fileSize: PNG.length, mimeType: 'image/png',
     })
-    expect([403, 415]).toContain((await post([part])).status)
-    expect(db.writesTo('messages', 'insert')).toHaveLength(0)
+    const [, opts] = mocks.store.mock.calls[0]
+    expect(opts).toMatchObject({ botId: BOT, channelId: CHANNEL, fileName: 'hello world.png', contentType: 'image/png', ceiling: 1000 })
+    expect(db.rows('bot_audit_log').map((r) => r.action_type)).toEqual(['file_uploaded'])
   })
-  it('rejects more than twenty canonical files or a declared combined size over 50 MiB before fetching', async () => {
+  it.each(['video/mp4', 'audio/ogg', 'application/pdf'])('answers %s as fileType file', async type => {
+    storedType = type
+    const res = await upload(Buffer.from('bytes'), 'clip.bin', type)
+    expect(res.status).toBe(201)
+    expect(res.body).toMatchObject({ fileType: 'file', mimeType: type })
+  })
+  it('names the file by its URI-encoded X-File-Name and refuses a missing, malformed or unsafe one', async () => {
+    expect((await upload(PNG, null)).status).toBe(400)
+    expect((await upload(PNG, '%E0%A4%A')).status).toBe(400)
+    expect((await upload(PNG, encodeURIComponent('../secret.png'))).status).toBe(415)
+    expect((await upload(PNG, encodeURIComponent('page.html'))).status).toBe(415)
+    expect(mocks.store).not.toHaveBeenCalled()
+  })
+  it('needs attach_files and fits the upload ceiling', async () => {
+    db.rows('bot_server_permissions')[0].attach_files = false
+    const denied = await upload()
+    expect(denied.status).toBe(403)
+    expect(denied.body.error).toBe('Missing permission: attach_files')
+    db.rows('bot_server_permissions')[0].attach_files = true
+    const big = await upload(Buffer.alloc(1001))
+    expect(big.status).toBe(413)
+    expect(big.body.max_bytes).toBe(1000)
+    expect(mocks.store).not.toHaveBeenCalled()
+  })
+  it('answers 413, 400 and 507 for the store\'s refusals', async () => {
+    mocks.store.mockRejectedValueOnce(new TooLargeError(2000))
+    expect((await upload()).status).toBe(413)
+    mocks.store.mockRejectedValueOnce(new EmptyFileError())
+    expect((await upload()).status).toBe(400)
+    mocks.store.mockRejectedValueOnce(new OverQuotaError(11))
+    expect((await upload()).status).toBe(507)
+    expect(db.rows('bot_audit_log')).toEqual([])
+  })
+  it('answers a part a message of the channel keeps with its path', async () => {
     const part = (await upload()).body
-    fetcher.mockClear()
-    expect((await post(Array.from({ length: 21 }, () => part))).status).toBe(413)
-    expect(fetcher).not.toHaveBeenCalled()
-    expect((await post([{ ...part, fileSize: MAX_BRIDGE_FILE_BYTES }, { ...part, fileSize: 1 }])).status).toBe(413)
-    expect(fetcher).not.toHaveBeenCalled()
-    expect(db.writesTo('messages', 'insert')).toHaveLength(0)
+    const sent = await supertest(app()).post(base + '/messages').set('Authorization', 'Bearer test').send({ content: [part] })
+    expect(sent.status).toBe(201)
+    expect(db.rows('messages').at(-1)!.content).toEqual([part])
   })
-  it('caps the next object read by the remaining actual-byte budget, not its claimed fileSize', async () => {
-    const large = Buffer.alloc(MAX_BRIDGE_FILE_BYTES / 2 + 1)
-    const first = (await upload(large, 'first.bin', 'application/octet-stream')).body
-    const second = (await upload(Buffer.alloc(0), 'second.bin', 'application/octet-stream')).body
-    objects.set(second.path, { bytes: large, mime: 'application/octet-stream' })
-    fetcher.mockClear()
-    expect((await post([first, second])).status).toBe(413)
-    expect(fetcher).toHaveBeenCalledTimes(2)
-    expect(db.writesTo('messages', 'insert')).toHaveLength(0)
-  })
-  it('detects stored byte tampering rather than trusting an uploaded namespace alone', async () => {
-    const part = (await upload()).body
-    objects.set(part.path, { bytes: Buffer.from('HELLO'), mime: 'text/plain' })
-    expect((await post([part])).status).toBe(400)
-    expect(db.writesTo('messages', 'insert')).toHaveLength(0)
-  })
-  it.each(['crossbot', 'crosschannel', 'traversal', 'absolute', 'metadata-name', 'metadata-size', 'metadata-type', 'encrypted'])('rejects Matrix create path/metadata forgery %s', async kind => {
-    const part = (await upload()).body
-    if (kind === 'crossbot') part.path = part.path.replace(BOT, OTHER_BOT)
-    if (kind === 'crosschannel') part.path = part.path.replace(CHANNEL, OTHER_CHANNEL)
-    if (kind === 'traversal') part.path = `c/${CHANNEL}/bridge/${BOT}/../secret.txt`
-    if (kind === 'absolute') part.path = 'https://evil.invalid/private'
-    if (kind === 'metadata-name') part.fileName = 'different.txt'
-    if (kind === 'metadata-size') part.fileSize++
-    if (kind === 'metadata-type') part.fileType = 'image'
-    if (kind === 'encrypted') part.key = { k: 'secret' }
-    fetcher.mockClear()
-    expect((await post([part])).status).toBe(400)
-    expect(db.writesTo('messages', 'insert')).toHaveLength(0)
-    if (['crossbot', 'crosschannel', 'traversal', 'absolute', 'encrypted'].includes(kind)) expect(fetcher).not.toHaveBeenCalled()
-  })
-  it('leaves ordinary and Discord path stripping unchanged, and never preserves paths on edits', async () => {
-    const part = (await upload()).body
-    db.rows('bots')[0].bridge_platform = null; platform = null
-    expect((await post([part])).status).toBe(201)
-    expect(db.rows('messages').at(-1)!.content[0]).not.toHaveProperty('path')
-    platform = 'discord'
-    expect((await post([part])).status).toBe(201)
-    expect(db.rows('messages').at(-1)!.content[0]).not.toHaveProperty('path')
-    platform = 'matrix'; db.rows('bots')[0].bridge_platform = 'matrix'; db.rows('messages')[0].bot_id = BOT
-    expect((await supertest(app()).patch('/api/v1/messages/' + MESSAGE).set('Authorization', 'Bearer test').send({ content: [part] })).status).toBe(200)
-    expect(db.rows('messages')[0].content[0]).not.toHaveProperty('path')
-  })
+})
+
+describe('GET /channels/:id/messages/:messageId/bridge-files/:index', () => {
   it('serves the raw content index with headers and fetches only a newly signed own-storage object', async () => {
     const result = await get(getPath + '?url=http://127.0.0.1/private&path=c/other/secret')
     expect(result.status).toBe(200); expect(result.body).toEqual(Buffer.from('hello'))
@@ -257,9 +167,9 @@ describe('Matrix bridge file transfer boundary', () => {
     expect((await get(getPath.replace('/2', '/1'))).status).toBe(422)
     expect((await get(getPath.replace('/2', '/01'))).status).toBe(400)
   })
-  it.each(['optout', 'deleted', 'other-channel', 'encrypted-message', 'encryption-metadata', 'encrypted-file', 'outside-path', 'traversal'])('blocks native %s before storage access', async kind => {
+  it.each(['optout', 'deleted', 'other-channel', 'encrypted-message', 'encryption-metadata', 'encrypted-file', 'outside-path', 'traversal'])('refuses native %s before storage access', async kind => {
     const message = db.rows('messages')[0]
-    if (kind === 'optout') visible = []
+    if (kind === 'optout') optedOut = [USER]
     if (kind === 'deleted') message.is_deleted = true
     if (kind === 'other-channel') message.channel_id = OTHER_CHANNEL
     if (kind === 'encrypted-message') message.encrypted = true
@@ -270,41 +180,77 @@ describe('Matrix bridge file transfer boundary', () => {
     expect([404, 422]).toContain((await get()).status)
     expect(fetcher).not.toHaveBeenCalled()
   })
+  it('answers 422 for a Drive file and never fetches it', async () => {
+    objects.set(drivePath, { bytes: Buffer.from('drive'), mime: 'text/plain' })
+    db.rows('messages')[0].content[2].path = drivePath
+    const result = await get()
+    expect(result.status).toBe(422)
+    expect(result.body).toEqual({ error: 'Drive attachments are not relayed' })
+    expect(fetcher).not.toHaveBeenCalled()
+  })
   it('enforces READ_MESSAGE_HISTORY floors', async () => {
     db.rows('channel_permission_overrides').push({ id: 'history', channel_id: CHANNEL, target_type: 'role', role_id: 'everyone', allow_permissions: 0, deny_permissions: 4194304 })
     db.rows('bot_server_permissions')[0].installed_at = '2026-12-01T00:00:00Z'
     expect((await get()).status).toBe(404); expect(fetcher).not.toHaveBeenCalled()
   })
-  it.each(['optout', 'unpair', 'encrypt', 'delete', 'edit'])('rechecks native %s after downloading and before emitting bytes', async kind => {
+  // Opt-outs and the platform are cached (memberConsent); the recheck reads them once expired.
+  it.each(['optout', 'unpair', 'encrypt', 'delete', 'edit', 'history'])('rechecks native %s after downloading and before emitting bytes', async kind => {
     fetcher.mockImplementationOnce(async () => {
-      if (kind === 'optout') visible = []
+      forgetBridgeConsent()
+      if (kind === 'optout') optedOut = [USER]
       if (kind === 'unpair') platform = null
       if (kind === 'encrypt') encrypted = true
       if (kind === 'delete') db.rows('messages')[0].is_deleted = true
       if (kind === 'edit') db.rows('messages')[0].content[2].path = `c/${CHANNEL}/${USER}/new.txt`
+      if (kind === 'history') {
+        db.rows('channel_permission_overrides').push({ id: 'history', channel_id: CHANNEL, target_type: 'role', role_id: 'everyone', allow_permissions: 0, deny_permissions: 4194304 })
+        db.rows('bot_server_permissions')[0].installed_at = '2026-12-01T00:00:00Z'
+      }
       return new Response('hello', { headers: { 'content-type': 'text/plain' } })
     })
     const result = await get()
     expect([403, 404, 409]).toContain(result.status)
     expect(result.body).not.toEqual(Buffer.from('hello'))
   })
-  it('checks native Drive live ownership before download and again before emit', async () => {
-    db.rows('messages')[0].content[2].path = drivePath
-    expect((await get()).status).toBe(200)
-    expect(mocks.rpc.mock.calls.filter(([fn]) => fn === 'drive_file_owned_by')).toEqual([
-      ['drive_file_owned_by', { p_path: drivePath, p_profile: USER }], ['drive_file_owned_by', { p_path: drivePath, p_profile: USER }],
-    ])
-    driveOwner = false; fetcher.mockClear()
-    expect((await get()).status).toBe(404); expect(fetcher).not.toHaveBeenCalled()
-    driveOwner = 'other'
-    expect((await get()).status).toBe(404); expect(fetcher).not.toHaveBeenCalled()
-    driveOwner = null
-    expect((await get()).status).toBe(503); expect(fetcher).not.toHaveBeenCalled()
+  it('downloads at most three files at once', async () => {
+    const waiting: Array<() => void> = []
+    const respond = () => new Response('hello', { headers: { 'content-type': 'text/plain', 'content-length': '5' } })
+    fetcher.mockImplementation(async () => {
+      await new Promise<void>(release => waiting.push(release))
+      return respond()
+    })
+    const api = app()
+    const statuses = Promise.all(Array.from({ length: 5 }, () =>
+      supertest(api).get(getPath).set('Authorization', 'Bearer test').then(r => r.status)))
+    await vi.waitFor(() => expect(waiting).toHaveLength(3))
+    await new Promise(settle => setTimeout(settle, 50))
+    expect(waiting).toHaveLength(3)
+    fetcher.mockImplementation(async () => respond())
+    for (const release of waiting.splice(0)) release()
+    expect(await statuses).toEqual([200, 200, 200, 200, 200])
+    expect(fetcher).toHaveBeenCalledTimes(5)
   })
-  it('does not emit Drive bytes after ownership is revoked in flight', async () => {
-    db.rows('messages')[0].content[2].path = drivePath
-    fetcher.mockImplementationOnce(async () => { driveOwner = false; return new Response('drive', { headers: { 'content-type': 'text/plain' } }) })
-    expect((await get()).status).toBe(404)
+  it('strips photo metadata from the downloaded bytes', async () => {
+    const image = fixture('gps.png')
+    objects.set(nativePath, { bytes: image, mime: 'image/png' }); db.rows('messages')[0].content[2].fileName = 'photo.png'
+    const downloaded = await get()
+    expect(downloaded.status).toBe(200); expect(downloaded.headers['x-file-type']).toBe('image/png')
+    expect(downloaded.body.length).toBeLessThan(image.length)
+    expect(Buffer.from(downloaded.body).toString('latin1')).not.toContain('HarmonyCam')
+  })
+  it('applies the private bucket size and MIME policy, read again after the download', async () => {
+    mocks.bucket.mockResolvedValue({ data: { public: false, file_size_limit: 0, allowed_mime_types: null }, error: null })
+    expect((await get()).status).toBe(413)
+    mocks.bucket.mockResolvedValue({ data: { public: false, file_size_limit: null, allowed_mime_types: ['image/*'] }, error: null })
+    expect((await get()).status).toBe(415)
+    mocks.bucket.mockResolvedValue({ data: { public: false, file_size_limit: MAX_BRIDGE_FILE_BYTES, allowed_mime_types: null }, error: null })
+    fetcher.mockImplementationOnce(async () => {
+      mocks.bucket.mockResolvedValue({ data: { public: false, file_size_limit: 0, allowed_mime_types: null }, error: null })
+      return new Response('hello', { headers: { 'content-type': 'text/plain' } })
+    })
+    expect((await get()).status).toBe(413)
+    mocks.bucket.mockResolvedValue({ data: { public: true }, error: null })
+    expect((await get()).status).toBe(503)
   })
   it('rejects oversized declared and streamed storage responses, with redirects disabled and no URL errors exposed', async () => {
     fetcher.mockResolvedValueOnce(new Response('x', { headers: { 'content-type': 'text/plain', 'content-length': String(MAX_BRIDGE_FILE_BYTES + 1) } }))
@@ -315,20 +261,12 @@ describe('Matrix bridge file transfer boundary', () => {
     fetcher.mockRejectedValueOnce(new Error('redirect to https://evil?token=secret'))
     const result = await get(); expect(result.status).toBe(503); expect(result.text).not.toContain('secret')
   })
-  it('applies a newly lowered bucket size policy after native bytes download', async () => {
-    fetcher.mockImplementationOnce(async () => {
-      mocks.bucket.mockResolvedValue({ data: { public: false, file_size_limit: 0, allowed_mime_types: null }, error: null })
-      return new Response('hello', { headers: { 'content-type': 'text/plain' } })
-    })
-    expect((await get()).status).toBe(413)
-  })
   it('sets the bounded download timeout and reports aborts without URL details', async () => {
     const timeout = vi.spyOn(AbortSignal, 'timeout')
     fetcher.mockRejectedValueOnce(new Error('AbortError https://secret?token=hidden'))
     const result = await get()
     expect(result.status).toBe(503); expect(result.text).not.toContain('hidden')
     expect(timeout).toHaveBeenCalledWith(15_000)
-    timeout.mockRestore()
   })
   it('refuses forged storage signing URLs and never fetches an external object', async () => {
     mocks.signed.mockResolvedValue({ data: { signedUrl: 'https://evil.invalid/storage/v1/object/sign/message_media/' + nativePath }, error: null })

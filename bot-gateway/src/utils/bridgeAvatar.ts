@@ -62,11 +62,28 @@ export async function nativeBridgeAvatar(avatar: string): Promise<{ data: string
   return null
 }
 
+// Distinct avatars one bridge bot keeps in the public avatars bucket (one per relayed person and look).
+export const MAX_BRIDGE_AVATARS = 5000
+
+export class BridgeAvatarQuotaError extends Error {}
+
+/**
+ * Stores a relayed person's avatar under bridges/<bot>/<sha256 of the stripped bytes>; the same
+ * image is one object. A new image past MAX_BRIDGE_AVATARS of the bot throws BridgeAvatarQuotaError.
+ */
 export async function storeBridgeAvatar(botId: string, image: { bytes: Buffer; extension: string }, contentType: string): Promise<string> {
   const bytes = Buffer.from(await stripMediaBytes(image.bytes))
   const hash = createHash('sha256').update(bytes).digest('hex')
-  const path = `bridges/${botId}/${hash}.${image.extension}`
+  const name = `${hash}.${image.extension}`
+  const path = `bridges/${botId}/${name}`
   const bucket = supabase.storage.from('avatars')
+  const { data: held, error: listError } = await bucket.list(`bridges/${botId}`, { limit: MAX_BRIDGE_AVATARS + 1, search: hash })
+  if (listError || !Array.isArray(held)) throw new Error('Bridge avatar storage unavailable')
+  if (!held.some(object => object.name === name)) {
+    const { data: all, error: countError } = await bucket.list(`bridges/${botId}`, { limit: MAX_BRIDGE_AVATARS + 1 })
+    if (countError || !Array.isArray(all)) throw new Error('Bridge avatar storage unavailable')
+    if (all.length >= MAX_BRIDGE_AVATARS) throw new BridgeAvatarQuotaError('Bridge avatar limit reached')
+  }
   const { error } = await bucket.upload(path, bytes, { contentType, upsert: true, cacheControl: '86400' })
   if (error) throw new Error('Bridge avatar storage unavailable')
   const { data } = bucket.getPublicUrl(path)

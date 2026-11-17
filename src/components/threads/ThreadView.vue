@@ -547,7 +547,7 @@ const displayParentMessage = computed(() => {
   return isThreadNoticeParent(parent) ? null : parent
 })
 
-// A starter written by a bridged Discord person, a webhook or a bot has no profile to show.
+// A starter written by a bridged person, a webhook or a bot has no profile to show.
 const parentForeignAuthor = computed(() => getForeignAuthor(displayParentMessage.value as Message | null | undefined))
 
 // Thread name (or generate from parent message in draft mode)

@@ -29,7 +29,7 @@ const isUuid = (str: string): boolean =>
 
 const bridgedKey = (actor: ActorInput): string => {
   const author = getBridgedAuthor(actor)
-  return author ? `${author.platform}:${author.id}` : ''
+  return author?.id ? `${author.platform}:${author.id}` : ''
 }
 const actorKey = (actor: ActorInput): string =>
   bridgedKey(actor) || actor.id || actor.bot_id || ''

@@ -40,7 +40,7 @@ const Display = defineComponent({ name: 'MessageDisplay', setup(_, { slots, expo
 } })
 const baseParent = { id: 'parent', channel_id: 'channel', user_id: null, bot_id: null, content: [{ type: 'text', text: 'starter' }], created_at: '2026-11-01T00:00:00Z' }
 const parents = [
-  { label: 'local Matrix', name: 'Matrix Sam', source: 'matrix', row: { ...baseParent, bot_id: 'relay-bot', metadata: { bridge_author: { platform: 'matrix', id: '@sam:hs', username: 'sam', display_name: 'Matrix Sam' } } } },
+  { label: 'local Matrix', name: 'Matrix Sam', source: 'matrix', row: { ...baseParent, bot_id: 'relay-bot', metadata: { matrix_user: { id: '@sam:hs', username: 'sam', display_name: 'Matrix Sam' } } } },
   { label: 'federated Matrix', name: 'Remote Sam', source: 'matrix', row: { ...baseParent, metadata: { bridge_source: 'matrix', remote_author: { kind: 'bridge', id: 'matrix:@sam:hs', name: 'Remote Sam', avatar_url: null } } } },
   { label: 'legacy Discord', name: 'Discord Sam', source: 'discord', row: { ...baseParent, bot_id: 'relay-bot', metadata: { discord_user: { id: '123', username: 'sam', display_name: 'Discord Sam' } } } },
 ]

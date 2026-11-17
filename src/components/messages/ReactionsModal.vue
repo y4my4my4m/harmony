@@ -71,7 +71,6 @@
               type="button"
               class="reactions-modal-user"
               data-testid="reactions-modal-user"
-              :disabled="user.kind === 'matrix'"
               @click="emit('select-user', user)"
             >
               <Avatar :src="user.avatarUrl" size="sm" class="reactions-modal-avatar" />

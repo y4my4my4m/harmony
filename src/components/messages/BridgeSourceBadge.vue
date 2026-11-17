@@ -8,6 +8,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BridgedSourceIcon from '@/components/messages/BridgedSourceIcon.vue'
 import { useVisualTheme } from '@/composables/useVisualTheme'
+import { bridgePlatformLabel } from '@/utils/messageAuthor'
 
 const props = defineProps<{
   source: string
@@ -15,14 +16,11 @@ const props = defineProps<{
 
 const { settings } = useVisualTheme()
 const { t } = useI18n()
-const accessibleLabel = computed(() => t('bridgeSource.from', { platform: props.source === 'matrix' ? 'Matrix' : props.source === 'discord' ? 'Discord' : props.source }))
+const accessibleLabel = computed(() => t('bridgeSource.from', { platform: bridgePlatformLabel(props.source) }))
 
 const useIcon = computed(() => settings.value.bridgeSourceBadge !== 'text')
 
-const label = computed(() => {
-  if (props.source === 'discord') return 'DISCORD'
-  return props.source.toUpperCase()
-})
+const label = computed(() => props.source.toUpperCase())
 </script>
 
 <style scoped>
@@ -38,12 +36,14 @@ const label = computed(() => {
   margin-left: 0.25rem;
 }
 
+/* Brand fill, white text: Discord #5865F2 is 4.6:1, Matrix #000000 is 21:1. */
 .bridge-source-badge.discord {
   background: #5865F2;
   color: #ffffff;
 }
+
 .bridge-source-badge.matrix {
-  background: var(--background-tertiary);
-  color: var(--text-primary);
+  background: #000000;
+  color: #ffffff;
 }
 </style>

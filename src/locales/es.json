@@ -1,24 +1,64 @@
 {
-  "bridgeSource": { "from": "Conectado desde {platform}" },
+  "bridgeSource": {
+    "from": "Conectado desde {platform}",
+    "profile": {
+      "joinedServer": "Se unió al servidor",
+      "memberSince": "En {platform} desde",
+      "status": "Estado",
+      "roles": "Rol | Roles",
+      "copyId": "Copiar ID",
+      "copied": "Copiado",
+      "open": "Abrir en {platform}"
+    }
+  },
   "matrixBridge": {
-    "navLabel": "Puente de Matrix", "title": "Puente de Matrix",
+    "title": "Puente de Matrix",
+    "pairsTitle": "Canales conectados",
     "description": "Elige cómo se envían los mensajes de Harmony a tus puentes de salas de Matrix existentes.",
     "requirements": "El modo individual utiliza miembros reales de Matrix para los autores de Harmony. Requiere un espacio de nombres de usuarios del servicio de aplicaciones y permiso para invitarlos a la sala de Matrix.",
     "history": "Los cambios de modo solo afectan a futuras entregas. Se conserva el historial existente.",
     "delivery": "Elegir el modo individual no confirma el registro ni la entrega. Comprueba el remitente en un mensaje entregado correctamente en Matrix.",
-    "loading": "Cargando puentes de Matrix…", "reload": "Recargar", "empty": "No hay puentes de Matrix configurados para este servidor.",
+    "loading": "Cargando puentes de Matrix…",
+    "reload": "Recargar",
+    "empty": "No hay puentes de Matrix configurados para este servidor.",
     "waitingRoom": "Esperando a que el puente conecte una sala de Matrix. Ya puedes guardar el modo.",
-    "senderMode": "Enviar mensajes de Harmony como", "ghost": "Usuarios individuales del puente (recomendado)", "relay": "Cuenta compartida del puente",
-    "saving": "Guardando modo…", "loadError": "No se pudieron cargar los ajustes del puente de Matrix. Recarga para volver a intentarlo.",
+    "senderMode": "Enviar mensajes de Harmony como",
+    "ghost": "Usuarios individuales del puente (recomendado)",
+    "relay": "Cuenta compartida del puente",
+    "saving": "Guardando modo…",
+    "loadError": "No se pudieron cargar los ajustes del puente de Matrix. Recarga para volver a intentarlo.",
     "saveError": "No se pudo confirmar el cambio de modo. Recarga para comprobar el ajuste actual.",
-    "externalIdentity": "Esta es una identidad externa de Matrix, no un perfil de Harmony. Las acciones de perfil de Harmony no están disponibles.",
-    "openMatrix": "Abrir en Matrix", "members": "Miembros de Matrix"
+    "privacy": {
+      "lead": "Quita aquí a un usuario de Matrix para borrar todo lo que el puente de este servidor trajo de él y dejar de traer sus mensajes.",
+      "idLabel": "ID de usuario de Matrix",
+      "idHelp": "El ID completo de Matrix, por ejemplo {'@'}sam:example.org.",
+      "idInvalid": "Un ID de usuario de Matrix tiene la forma {'@'}nombre:servidor.",
+      "removeConfirm": "¿Borrar todos los mensajes, archivos y reacciones que este puente trajo del usuario de Matrix {id} y dejar de traer los suyos? No se puede deshacer.",
+      "listTitle": "{count} usuario de Matrix excluido | {count} usuarios de Matrix excluidos",
+      "source": {
+        "self": "Se excluyó en Matrix"
+      },
+      "restoreLabel": "Volver a traer al usuario de Matrix {id}",
+      "alsoSelf": "También se excluyó en Matrix",
+      "purgeLead": "Quita todo lo que el puente de este servidor trajo de Matrix: mensajes, archivos y reacciones. Los mensajes escritos en Harmony se quedan.",
+      "purgeConfirm": "¿Borrar todos los mensajes, archivos y reacciones traídos de Matrix a este servidor? No se puede deshacer."
+    }
+  },
+  "bridges": {
+    "navLabel": "Puentes",
+    "title": "Puentes",
+    "intro": "Los puentes conectan canales de este servidor con canales y salas de otras plataformas de chat. Los mensajes enviados en un lado aparecen en el otro, con el nombre y la foto de quien los envía.",
+    "tabs": {
+      "discord": "Discord",
+      "matrix": "Matrix"
+    }
   },
   "bridgePrivacy": {
     "title": "Privacidad de los puentes",
     "description": "Impide que los puentes reenvíen tus futuros mensajes de este servidor a otras plataformas.",
     "scope": "Solo se aplica a los puentes de este servidor. No elimina copias remotas existentes ni cambia lo que otros bots pueden leer.",
-    "optOut": "No reenviar mis mensajes",
+    "optOut": "No reenviar mis mensajes a {platform}",
+    "none": "Ahora mismo ningún puente reenvía mensajes de este servidor.",
     "loading": "Cargando privacidad de los puentes",
     "saving": "Guardando…",
     "loadError": "No se pudo cargar tu ajuste de privacidad. Inténtalo de nuevo.",
@@ -1683,9 +1723,9 @@
       "compactMode": "Modo compacto",
       "compactModeDesc": "Muestra más mensajes con espaciado reducido.",
       "bridgeSourceBadge": "Indicador de origen del puente",
-      "bridgeSourceBadgeDesc": "Cómo muestran su origen los mensajes puenteados (p. ej. desde Discord) junto al nombre del autor.",
+      "bridgeSourceBadgeDesc": "Cómo muestran su origen junto a su nombre las personas de plataformas puenteadas como Discord y Matrix.",
       "bridgeSourceBadgeIcon": "Icono de la plataforma",
-      "bridgeSourceBadgeText": "Etiqueta de texto (DISCORD)",
+      "bridgeSourceBadgeText": "Etiqueta de texto (DISCORD, MATRIX)",
       "floatingVideo": "Reproductor de video flotante",
       "floatingVideoDesc": "Los videos en reproducción flotan en la esquina al desplazarse. Funciona con YouTube y videos nativos.",
       "videoPlayer": "Reproductor de vídeo",
@@ -3910,7 +3950,7 @@
       "bot": "Estándar",
       "botHint": "Se conecta con su token y actúa a través del gateway y la REST API.",
       "bridge": "Puente",
-      "bridgeHint": "Retransmite mensajes entre Harmony y otra plataforma. Para Discord, usa mejor Configuración del servidor → Puente de Discord: crea y gestiona su propio bot."
+      "bridgeHint": "Retransmite mensajes entre Harmony y otra plataforma. Para Discord, usa mejor Configuración del servidor → Puentes → Discord: crea y gestiona su propio bot."
     },
     "usernameErrors": {
       "tooShort": "Usa al menos 3 caracteres.",
@@ -5844,7 +5884,6 @@
     }
   },
   "discordBridge": {
-    "navLabel": "Puente de Discord",
     "title": "Puente de Discord",
     "intro": "Un puente conecta canales de este servidor con canales de un servidor de Discord. Los mensajes enviados en un lado aparecen en el otro, con el nombre y la foto de quien los envía.",
     "loading": "Cargando el puente de Discord…",
@@ -6395,7 +6434,7 @@
       "managed": "Este bot es el puente de Discord de {server}. Se configura y gestiona allí; aquí no hay nada que ajustar.",
       "aServer": "uno de tus servidores",
       "openSettings": "Abrir la configuración del puente",
-      "unmanaged": "Los puentes de Discord se configuran en los ajustes de un servidor: Configuración del servidor → Puente de Discord. Esa página crea y gestiona el bot del puente por ti, así que no tienes que crear uno aquí.",
+      "unmanaged": "Los puentes de Discord se configuran en los ajustes de un servidor: Configuración del servidor → Puentes → Discord. Esa página crea y gestiona el bot del puente por ti, así que no tienes que crear uno aquí.",
       "legacyTitle": "Configuración manual del puente antiguo (v1)",
       "legacyLead": "Solo para el programa antiguo harmony-discord-bridge, que lee un archivo de configuración.",
       "harmonyPermissions": "Añade este bot al servidor con Leer mensajes y Enviar mensajes (y Gestionar canales para /bridge clone-server).",
@@ -6405,7 +6444,7 @@
     },
     "adminSection": {
       "title": "Puente de Discord",
-      "lead": "Las comunidades conectan un servidor de Discord en Configuración del servidor → Puente de Discord. Ofréceles el bot de esta instancia, deja que traigan el suyo, o ambas cosas. Ejecutar el puente en un ordenador propio siempre es posible."
+      "lead": "Las comunidades conectan un servidor de Discord en Configuración del servidor → Puentes → Discord. Ofréceles el bot de esta instancia, deja que traigan el suyo, o ambas cosas. Ejecutar el puente en un ordenador propio siempre es posible."
     },
     "admin": {
       "title": "Dejar que las comunidades traigan su propio bot",
@@ -6479,7 +6518,7 @@
       "clearConfirm": "¿Quitar las credenciales del bot? Las comunidades vinculadas dejan de estar conectadas hasta que se configure un bot de nuevo. Sus puentes y pares de canales se conservan.",
       "cancel": "Cancelar",
       "enable": "Ofrecer este bot a las comunidades",
-      "enableHint": "Quienes administran servidores ven primero «Usar el bot de esta instancia» en Configuración del servidor → Puente de Discord.",
+      "enableHint": "Quienes administran servidores ven primero «Usar el bot de esta instancia» en Configuración del servidor → Puentes → Discord.",
       "enableNeedsConfig": "Guarda primero el Application ID, el client secret y el token del bot.",
       "presence": "Sincronización de presencia",
       "presenceHint": "Solicita el intent Presence de Discord para cada servidor vinculado, para que las comunidades puedan mostrar quién está en línea. Solo se envían los cambios de estado. Actívalo solo mientras el intent Presence esté activado en el Developer Portal; a partir de 100 servidores, Discord tiene que aprobarlo.",
@@ -6797,7 +6836,7 @@
       "clearSearch": "Borrar búsqueda",
       "found": "{count} miembro encontrado | {count} miembros encontrados",
       "group": "{title}, {count} miembro | {title}, {count} miembros",
-      "discord": "Miembro del puente de Discord",
+      "bridged": "Miembro del puente de {platform}",
       "instanceAdmin": "administrador de la instancia",
       "instanceMod": "moderador de la instancia",
       "searchHint": "Nombre o nombre de usuario",

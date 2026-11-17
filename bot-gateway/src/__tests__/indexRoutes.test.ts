@@ -79,6 +79,7 @@ state.db = new FakeDb({
 
 const mod = await import('../index.js')
 const { app, gateway, linkRefresher } = mod
+const { forgetBridgeConsent } = await import('../bridge/memberConsent.js')
 
 afterAll(async () => {
   mod.interactionPoller.stop()
@@ -116,16 +117,26 @@ describe('GET /status', () => {
 })
 
 describe('GET /bridged-users', () => {
-  it('rechecks Matrix bindings and returns no stale members after unpairing', async () => {
+  it('lists a Matrix registration only while its bot relays the channel to Matrix', async () => {
     ;(gateway as any).bridgedUsersByChannel.set(GENERAL, new Map([[BRIDGE_BOT, [{ id: '@sam:example.org', username: 'sam', displayName: 'Sam', avatarUrl: '', source: 'matrix' }]]]))
     const route = `/bridged-users/${GENERAL}`
-    expect((await supertest(app).get(route).set('Authorization', 'Bearer auth-member')).body.users[0].source).toBe('matrix')
-    state.matrixPlatform = null
-    const revoked = await supertest(app).get(route).set('Authorization', 'Bearer auth-member')
-    expect(revoked.body).toMatchObject({ users: [], has_bridge: false })
-    state.matrixPlatform = 'matrix'; state.matrixError = true
-    expect((await supertest(app).get(route).set('Authorization', 'Bearer auth-member')).status).toBe(503)
-    state.matrixError = false
+    const get = () => supertest(app).get(route).set('Authorization', 'Bearer auth-member')
+    try {
+      forgetBridgeConsent()
+      expect((await get()).body).toMatchObject({ has_bridge: true, users: [{ id: '@sam:example.org', source: 'matrix' }] })
+      state.matrixPlatform = null
+      forgetBridgeConsent()
+      // has_bridge reports the registration; the unbound registration lists no one.
+      expect((await get()).body).toMatchObject({ has_bridge: true, users: [] })
+      state.matrixPlatform = 'matrix'
+      state.matrixError = true
+      forgetBridgeConsent()
+      expect((await get()).status).toBe(503)
+    } finally {
+      state.matrixPlatform = 'matrix'
+      state.matrixError = false
+      forgetBridgeConsent()
+    }
   })
 
   it('serves a channel\'s Discord members only to a member who views the channel', async () => {
@@ -146,8 +157,8 @@ describe('GET /bridged-users', () => {
   it('leaves out a member who opted out or whom a manager removed, whatever the bridge registered', async () => {
     const KEPT = '400000000000000001'
     const REMOVED = '400000000000000002'
-    const byChannel = (gateway as any).bridgedUsersByChannel as Map<string, any[]>
-    byChannel.set(GENERAL, [KEPT, REMOVED].map((id) => ({ id, username: `u${id}`, displayName: `u${id}`, source: 'discord' })))
+    const byChannel = (gateway as any).bridgedUsersByChannel as Map<string, Map<string, any[]>>
+    byChannel.set(GENERAL, new Map([[BRIDGE_BOT, [KEPT, REMOVED].map((id) => ({ id, username: `u${id}`, displayName: `u${id}`, source: 'discord' }))]]))
     state.db.rows('bridge_remote_optouts').push(
       { server_id: SERVER_ID, platform: 'discord', remote_user_id: REMOVED, source: 'manager' },
       { server_id: 'another-server', platform: 'discord', remote_user_id: KEPT, source: 'self' },
@@ -162,6 +173,17 @@ describe('GET /bridged-users', () => {
       expect(server.body.users.map((u: { id: string }) => u.id)).toEqual([KEPT])
     } finally {
       state.db.tables.bridge_remote_optouts = []
+    }
+  })
+
+  it('answers 503 when the opt-out list cannot be read', async () => {
+    bridgeMembers(GENERAL, 'discord_member')
+    state.db.failures.bridge_remote_optouts = { message: 'connection reset' }
+    try {
+      expect((await supertest(app).get(`/bridged-users/${GENERAL}`).set('Authorization', 'Bearer auth-member')).status).toBe(503)
+      expect((await supertest(app).get(`/bridged-users/server/${SERVER_ID}`).set('Authorization', 'Bearer auth-member')).status).toBe(503)
+    } finally {
+      delete state.db.failures.bridge_remote_optouts
     }
   })
 })

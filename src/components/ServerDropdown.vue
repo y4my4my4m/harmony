@@ -33,7 +33,7 @@
           {{ $t('notificationSettings.menuEntry') }}
         </button>
       </li>
-      <li v-if="!isCopy" role="none">
+      <li v-if="showBridgePrivacy" role="none">
         <button type="button" role="menuitem" class="dropdown-item" data-testid="server-bridge-privacy" @click="openBridgePrivacy">
           {{ $t('bridgePrivacy.title') }}
         </button>
@@ -53,7 +53,7 @@
 </template>
   
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMenu } from '@/composables/useMenu';
 import { useServerPermissions } from '@/composables/useServerPermissions';
@@ -161,6 +161,11 @@ const openNotificationSettings = () => {
 };
 
 const bridgePrivacy = useBridgePrivacyStore();
+// A copy's bridges belong to its host instance.
+const showBridgePrivacy = computed(() => !isCopy.value && bridgePrivacy.hasBridge(props.serverId));
+watch(() => (props.isVisible && !isCopy.value ? props.serverId : undefined), (serverId) => {
+  if (serverId) void bridgePrivacy.prefetch(serverId);
+}, { immediate: true });
 const openBridgePrivacy = () => {
   if (props.serverId) void bridgePrivacy.open(props.serverId);
   closeDropdown();

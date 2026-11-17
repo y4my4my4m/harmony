@@ -317,14 +317,14 @@
                 <Avatar 
                   :src="getAuthorAvatarUrl(item.message).value"
                   size="sm" 
-                  :interactive="getBridgeSource(item.message) !== 'matrix'"
+                  :interactive="true"
                   @click="handleAuthorClick(item.message, $event)"
                 />
           </div>
           <div class="message-main">
             <div class="message-meta">
-              <button type="button" class="username" :disabled="getBridgeSource(item.message) === 'matrix'" :style="{color: getAuthorColor(item.message).value}" @click="handleAuthorClick(item.message, $event)">
-                <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !isBridgedAuthorMessage(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
+              <button type="button" class="username" :style="{color: getAuthorColor(item.message).value}" @click="handleAuthorClick(item.message, $event)">
+                <span class="username-text"><DisplayName v-if="getHarmonyProfileUserId(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
                 <FederatedUserBadge v-if="getHarmonyProfileUserId(item.message)" :user-id="getHarmonyProfileUserId(item.message)" />
                 <BridgeSourceBadge v-if="getBridgeSource(item.message)" :source="getBridgeSource(item.message)!" />
                 <span v-else-if="getWebhookAuthor(item.message)" class="bot-badge webhook-badge">{{ $t('webhooks.badge') }}</span>
@@ -670,7 +670,7 @@ import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, ReactionActor, ReactionGroup, StickerContent } from '@/types';
 import { hasCopyableText, hasSubstantiveMessageContent, messagePartsToPlainText, removeFilePartByUrl } from '@/utils/messageContentUtils';
-import { getBridgedAuthor, getBridgeSource, getForeignAuthor, getHarmonyProfileUserId, getRemoteAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage, messageAuthorKey } from '@/utils/messageAuthor';
+import { bridgedAuthorName, getBridgedAuthor, getBridgeSource, getForeignAuthor, getHarmonyProfileUserId, getRemoteAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage, messageAuthorKey } from '@/utils/messageAuthor';
 import { pollPartOf } from '@/utils/messagePoll';
 import { roleMenuPartOf } from '@/utils/roleMenu';
 import { remoteServerHost } from '@/utils/serverUtils';
@@ -711,7 +711,6 @@ import { markChannelRead, markConversationRead } from '@/services/readState';
 import { createReadMarkerQueue, type QueuedRead } from '@/utils/readMarkerQueue';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
-import { parseMatrixId } from '@/utils/matrixMentions';
 import BotProfileModal from '@/components/BotProfileModal.vue';
 import type { ServerBot } from '@/services/serverBotsService';
 import { BOT_NAME_COLOR } from '@/utils/botUtils';
@@ -751,12 +750,13 @@ import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue';
 import SystemEventBody from '@/components/messages/SystemEventBody.vue';
 import {
   findBridgedUserInCache,
-  resolveBridgedUserColor,
+  bridgedAuthorColor,
+  bridgedAuthorMember,
+  bridgedAuthorToChannelUser,
+  bridgedProfileTarget,
   bridgedUserToProfileUser,
-  discordMetadataToBridgedUser,
   fetchBridgedChannelUsers,
-  BRIDGED_DISCORD_USER_ID_PREFIX,
-  BRIDGED_MATRIX_USER_ID_PREFIX,
+  type BridgedChannelUser,
 } from '@/services/bridgedChannelUsersService';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
@@ -1463,7 +1463,7 @@ const interactionUserKnown = (message: Message): boolean => {
 const getAuthorDisplayName = (message: Message): ComputedRef<string> => {
   return computed(() => {
     const bridged = getBridgedAuthor(message);
-    if (bridged) return bridged.display_name || bridged.username || (bridged.platform === 'matrix' ? 'Matrix User' : 'Discord User');
+    if (bridged) return bridgedAuthorName(bridged);
     
     const webhook = getWebhookAuthor(message);
     if (webhook) return webhook.name;
@@ -1516,15 +1516,7 @@ const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
 const getAuthorColor = (message: Message): ComputedRef<string> => {
   return computed(() => {
     const bridged = getBridgedAuthor(message);
-    if (bridged) {
-      const cached = props.channelId && bridged.platform === 'discord'
-        ? findBridgedUserInCache(props.channelId, bridged.id)
-        : null;
-      const color = cached
-        ? resolveBridgedUserColor(cached)
-        : undefined;
-      return color || 'var(--text-primary)';
-    }
+    if (bridged) return bridgedAuthorColor(bridged.platform, bridged.id);
     
     if (isBotAuthorMessage(message)) {
       return BOT_NAME_COLOR;
@@ -4281,6 +4273,7 @@ const reactionUserResolvers: ReactionUserResolvers = {
   avatarUrl: (userId) => getUserAvatarUrl(userId).value,
   color: resolveChatUserColor,
   handle: (userId) => formatUserHandle(getUser(userId).value),
+  bridgedColor: bridgedAuthorColor,
   bot: (botId) => {
     const bot = botDataCache.value.get(botId);
     if (!bot) return null;
@@ -4326,14 +4319,8 @@ const closeReactionsModal = () => {
 const handleReactionUserSelect = async (user: ReactionUser) => {
   closeReactionsModal();
   await nextTick();
-  if (user.kind === 'matrix') return;
-  if (user.kind === 'discord' && user.discordUser) {
-    const meta = user.discordUser;
-    const cached = findBridgedUserInCache(props.channelId, meta.id);
-    selectedUser.value = bridgedUserToProfileUser(
-      cached ?? discordMetadataToBridgedUser({ ...meta, username: meta.username || meta.id }),
-    ) as User;
-    showProfileModal.value = true;
+  if (user.bridgedAuthor) {
+    openBridgedProfile(bridgedAuthorMember(user.bridgedAuthor));
     return;
   }
   if (user.kind === 'bot') {
@@ -4415,15 +4402,8 @@ const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
 const handleAuthorClick = (message: Message, event?: MouseEvent) => {
   event?.stopPropagation();
   const bridged = getBridgedAuthor(message);
-  // Matrix people have no Harmony profile; never open the relay bot as the person.
-  if (bridged?.platform === 'matrix') return;
-  if (bridged?.platform === 'discord') {
-    const meta = bridged;
-    const cached = props.channelId ? findBridgedUserInCache(props.channelId, meta.id) : null;
-    selectedUser.value = bridgedUserToProfileUser(
-      cached ?? discordMetadataToBridgedUser(meta),
-    ) as User;
-    showProfileModal.value = true;
+  if (bridged) {
+    openBridgedProfile(bridgedAuthorMember(bridged));
     return;
   }
   // A webhook's backing bot, and a bot of a copy's host, have no profile to show here.
@@ -4448,28 +4428,15 @@ const showUserProfile = async (userId: string | null | undefined, event?: MouseE
   event?.stopPropagation();
   if (!userId) return;
 
-  if (userId.startsWith(BRIDGED_MATRIX_USER_ID_PREFIX) || parseMatrixId(userId)) {
-    const matrix = parseMatrixId(userId.replace(/^matrix:/, ''));
-    if (!matrix) return;
-    const cached = findBridgedUserInCache(props.channelId, matrix.id, 'matrix');
-    selectedUser.value = bridgedUserToProfileUser(cached ?? {
-      id: matrix.id, username: matrix.username, displayName: matrix.username, avatarUrl: '', source: 'matrix',
-    });
-    showProfileModal.value = true;
-    return;
-  }
-  if (userId.startsWith(BRIDGED_DISCORD_USER_ID_PREFIX)) {
-    const discordId = userId.slice(BRIDGED_DISCORD_USER_ID_PREFIX.length)
-    let cached = findBridgedUserInCache(props.channelId, discordId)
-    if (!cached && props.channelId) {
-      const result = await fetchBridgedChannelUsers(props.channelId, { force: true })
-      cached = result.users.find(u => u.id === discordId) ?? null
+  const bridgedTarget = bridgedProfileTarget(userId);
+  if (bridgedTarget) {
+    let member = findBridgedUserInCache(props.channelId, bridgedTarget.id, bridgedTarget.platform);
+    if (!member && props.channelId) {
+      const result = await fetchBridgedChannelUsers(props.channelId, { force: true });
+      member = result.users.find(u => u.source === bridgedTarget.platform && u.id === bridgedTarget.id) ?? null;
     }
-    selectedUser.value = bridgedUserToProfileUser(
-      cached ?? discordMetadataToBridgedUser({ id: discordId, username: discordId }),
-    ) as User
-    showProfileModal.value = true
-    return
+    openBridgedProfile(member ?? bridgedAuthorToChannelUser(bridgedTarget));
+    return;
   }
 
   let user: any = null;
@@ -4485,6 +4452,11 @@ const showUserProfile = async (userId: string | null | undefined, event?: MouseE
   } else {
     debug.error("Failed to fetch user profile for ID:", userId);
   }
+};
+
+const openBridgedProfile = (member: BridgedChannelUser) => {
+  selectedUser.value = bridgedUserToProfileUser(member) as User;
+  showProfileModal.value = true;
 };
 
 const closeProfile = () => {
@@ -4808,12 +4780,6 @@ defineExpose({ editLastOwnMessage, scrollToStart });
   border-radius: 0.1875rem;
   vertical-align: middle;
   margin-left: 0.25rem;
-}
-
-/* Discord blurple - official brand color */
-.bot-badge.discord {
-  background: #5865F2;
-  color: #ffffff;
 }
 
 .instance-badge {

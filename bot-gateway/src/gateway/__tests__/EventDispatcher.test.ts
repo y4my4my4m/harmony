@@ -23,6 +23,7 @@ vi.mock('../../config/supabase.js', () => ({
 }))
 
 import { EventDispatcher, timestampMicros } from '../EventDispatcher.js'
+import { forgetBridgeConsent } from '../../bridge/memberConsent.js'
 
 let db: FakeDb
 let sent: Array<{ botIds: string[]; event: any }>
@@ -112,6 +113,7 @@ beforeEach(() => {
   })
   mocks.from.mockReset()
   mocks.from.mockImplementation((table: string) => db.from(table))
+  forgetBridgeConsent()
   dbClock = T0
   feedCalls = []
   feedFailure = null
@@ -119,7 +121,6 @@ beforeEach(() => {
   routes = []
   enqueued = []
   mocks.rpc.mockImplementation(async (fn: string, args: any) => {
-    if (['bridge_message_recipients', 'bridge_member_recipients', 'bridge_source_recipients'].includes(fn)) return { data: args.p_bot_ids, error: null }
     if (fn === 'channel_message_changes') return channelMessageChanges(args)
     if (fn === 'outgoing_webhook_routes') return { data: routes, error: null }
     if (fn === 'enqueue_outgoing_webhook_event') {
@@ -283,6 +284,24 @@ describe('author.nickname', () => {
       { id: BRIDGE_BOT, bot: true, nickname: null },
       { id: '80351110224678912', discord_user: true, nickname: null },
     ])
+    expect(nicknameQueries()).toBe(0)
+  })
+
+  it('names a Matrix-relayed message by its matrix_user, not the backing bot', async () => {
+    db.rows('bots').push({ id: BRIDGE_BOT, username: 'matrix-bridge', display_name: 'Matrix Bridge', avatar_url: null })
+    await dispatcher.handleMessageCreate({
+      new: {
+        ...message(GENERAL, 'from matrix'),
+        user_id: null,
+        bot_id: BRIDGE_BOT,
+        metadata: { matrix_user: { id: '@sam:example.org', username: 'sam', display_name: 'Sam' }, bridge_source: 'matrix' },
+      },
+    })
+
+    expect(authorOf('MESSAGE_CREATE')).toEqual([{
+      id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar: undefined,
+      nickname: null, bot: false, bridge_source: 'matrix', bridge_author: true,
+    }])
     expect(nicknameQueries()).toBe(0)
   })
 
@@ -879,121 +898,127 @@ describe('install changes reach the permission cache within the refresh bound', 
   })
 })
 
-describe('member bridge privacy at event delivery', () => {
-  it('rechecks every event even while channel/installation caches are warm', async () => {
-    const original = mocks.rpc.getMockImplementation()!
-    let optedOut = false
-    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
-      if (['bridge_message_recipients', 'bridge_member_recipients', 'bridge_source_recipients'].includes(fn)) {
-        return { data: optedOut ? args.p_bot_ids.filter((id: string) => id !== OPEN_BOT) : args.p_bot_ids, error: null }
-      }
-      return original(fn, args)
-    })
-    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'before') })
-    expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual([OPEN_BOT, SCOPED_BOT])
-    sent = []; optedOut = true
-    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'after') })
-    await (dispatcher as any).handleMessageUpdate({ new: message(BRIDGED, 'edited') })
-    await (dispatcher as any).handleMessageDelete({ old: message(BRIDGED, 'deleted') })
-    for (const type of ['MESSAGE_CREATE', 'MESSAGE_UPDATE', 'MESSAGE_DELETE']) expect(recipients(type, BRIDGED)).toEqual([SCOPED_BOT])
-  })
-  it('does not disclose a message when current privacy status is unavailable', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'offline' } })
-    await expect(dispatcher.handleMessageCreate({ new: message(BRIDGED, 'private') })).rejects.toThrow('Bridge privacy status unavailable')
-    expect(sent).toEqual([])
-  })
-  it('formats Matrix authors as people with explicit source, not the backing bot', async () => {
-    await dispatcher.handleMessageCreate({ new: {
-      ...message(GENERAL, 'hello'), user_id: null, bot_id: OPEN_BOT,
-      metadata: { bridge_author: { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam' } },
-    } })
-    expect(sent[0].event.d.author).toMatchObject({ id: '@sam:example.org', display_name: 'Sam', bot: false, bridge_source: 'matrix', bridge_author: true })
-  })
-})
-
-describe('interaction invoker privacy on source snapshots', () => {
-  const interaction = { id: 'invocation', name: 'weather', user_id: OWNER_ID }
-  const source = { user_id: null, bot_id: SCOPED_BOT, metadata: { interaction } }
-  const snapshot = { ...source, metadata: { interaction: { user_id: OWNER_ID } } }
-  let optedOut: boolean
+describe('member bridge opt-outs at event delivery', () => {
+  // SCOPED_BOT relays BRIDGED to Matrix; OPEN_BOT is an ordinary bot. OWNER_ID opted out of Matrix.
+  let optedOut: Record<string, string[]>
+  let optOutsFail: boolean
+  const consentLookups = () => mocks.rpc.mock.calls
+    .filter(([fn]) => fn === 'bridge_channel_platform' || fn === 'bridge_member_optout_ids')
 
   beforeEach(() => {
-    optedOut = false
+    db.rows('bots').push(
+      { id: OPEN_BOT, bot_type: null, bridge_platform: null },
+      { id: SCOPED_BOT, bot_type: null, bridge_platform: 'matrix' },
+    )
+    optedOut = { matrix: [OWNER_ID] }
+    optOutsFail = false
     const original = mocks.rpc.getMockImplementation()!
     mocks.rpc.mockImplementation(async (fn: string, args: any) => {
-      if (fn === 'bridge_source_recipients') {
-        const snapshot = args.p_source
-        const invoker = snapshot?.metadata?.interaction?.user_id
-        const allowed = snapshot && (snapshot.user_id === OWNER_ID
-          || (snapshot.bot_id && invoker === OWNER_ID && !optedOut))
-        return { data: args.p_bot_ids.filter((id: string) => id !== OPEN_BOT || allowed), error: null }
+      if (fn === 'bridge_channel_platform') {
+        return { data: args.p_bot_id === SCOPED_BOT && args.p_channel_id === BRIDGED ? 'matrix' : null, error: null }
+      }
+      if (fn === 'bridge_member_optout_ids') {
+        if (optOutsFail) return { data: null, error: { message: 'offline' } }
+        expect(args.p_server_id).toBe(SERVER_ID)
+        return { data: { user_ids: optedOut[args.p_platform] ?? [] }, error: null }
       }
       return original(fn, args)
     })
   })
 
-  it('rechecks an interaction invoker on soft and hard delete, including bot webhooks', async () => {
-    routes = [OPEN_BOT, SCOPED_BOT].map(bot_id => ({ bot_id, server_id: null, events: ['MESSAGE_DELETE'] }))
-    await (dispatcher as any).webhooks.refresh()
-    await (dispatcher as any).initializeChangeFeed()
-    optedOut = true
-    dbClock += 1000
-    db.rows('messages').push({ ...message(BRIDGED, 'soft'), ...source, is_deleted: true, updated_at: at(dbClock) })
-    await (dispatcher as any).pollMessageChanges()
-    await dispatcher.messageHardDeleted({ id: 'hard', channel_id: BRIDGED, thread_id: null, ...source })
-    expect(recipients('MESSAGE_DELETE', BRIDGED)).toEqual([SCOPED_BOT, SCOPED_BOT])
-    expect(enqueued).toHaveLength(2)
-    expect(enqueued.every(event => event.p_bot_ids.join() === SCOPED_BOT)).toBe(true)
-    expect(mocks.rpc).toHaveBeenCalledWith('bridge_source_recipients', {
-      p_bot_ids: [OPEN_BOT, SCOPED_BOT], p_channel_id: BRIDGED, p_source: snapshot,
-    })
-  })
-
-  it.each(['startup', 'add'])('retains the %s parent attribution for reaction removal after parent deletion and opt-out', async origin => {
-    const reaction = { id: 'r-source', message_id: 'callback', channel_id: BRIDGED, user_id: OWNER_ID,
-      source: { ...source, metadata: { interaction, unrelated: 'discard' } }, custom_emoji_content: '👍',
-      created_at: new Date(Date.now() + (origin === 'add' ? 1000 : -1000)).toISOString() }
-    db.rows('reactions').push(reaction)
+  it('withholds the create, edit and reaction of a member from the bridge of a platform the member opted out of', async () => {
     const d = dispatcher as any
-    if (origin === 'startup') await d.initializeKnownReactions()
-    else await d.pollReactions()
-    expect(d.reactionContext.get(reaction.id).source).toEqual(snapshot)
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'hello') })
+    await d.handleMessageUpdate({ new: message(BRIDGED, 'edited') })
+    await d.handleReactionEvent('MESSAGE_REACTION_ADD', {
+      id: 'r1', message_id: 'm', channel_id: BRIDGED, user_id: OWNER_ID, custom_emoji_content: '👍',
+    })
+    for (const type of ['MESSAGE_CREATE', 'MESSAGE_UPDATE', 'MESSAGE_REACTION_ADD']) {
+      expect(recipients(type, BRIDGED)).toEqual([OPEN_BOT])
+    }
+
+    forgetBridgeConsent()
     sent = []
-    db.rows('messages').splice(0)
+    optedOut = { discord: [OWNER_ID] }
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'again') })
+    expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual([OPEN_BOT, SCOPED_BOT])
+  })
+
+  it("withholds a bot's interaction reply whose invoker opted out", async () => {
+    await dispatcher.handleMessageCreate({
+      new: {
+        ...message(BRIDGED, 'reply'), user_id: null, bot_id: OPEN_BOT,
+        metadata: { interaction: { id: 'i1', name: 'weather', user_id: OWNER_ID } },
+      },
+    })
+    expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual([OPEN_BOT])
+  })
+
+  it('sends deletes and reaction removals to every reader, without a consent lookup', async () => {
+    const d = dispatcher as any
+    await d.initializeChangeFeed()
+    dbClock += 1000
+    db.rows('messages').push({ ...message(BRIDGED, 'soft'), is_deleted: true, updated_at: at(dbClock) })
+    await d.pollMessageChanges()
+    await dispatcher.messageHardDeleted({ id: 'hard', channel_id: BRIDGED, thread_id: null, metadata: {} })
+    db.rows('reactions').push({
+      id: 'r-gone', message_id: 'm', channel_id: BRIDGED, user_id: OWNER_ID, bot_id: null, emoji_id: null,
+      custom_emoji_content: '👍', metadata: {}, created_at: new Date(Date.now() - 1000).toISOString(),
+    })
+    await d.initializeKnownReactions()
     db.rows('reactions').splice(0)
-    optedOut = true
     await d.pollReactions()
-    expect(recipients('MESSAGE_REACTION_REMOVE', BRIDGED)).toEqual([SCOPED_BOT])
-    expect(sent[0].event.d).not.toHaveProperty('source')
-    expect(mocks.rpc).toHaveBeenLastCalledWith('bridge_source_recipients', {
-      p_bot_ids: [OPEN_BOT, SCOPED_BOT], p_channel_id: BRIDGED, p_source: snapshot,
-    })
+
+    expect(sent.filter((s) => s.event.t === 'MESSAGE_DELETE').map((s) => [s.event.d.id, s.botIds])).toEqual([
+      [`${BRIDGED.slice(-2)}-soft`, [OPEN_BOT, SCOPED_BOT]],
+      ['hard', [OPEN_BOT, SCOPED_BOT]],
+    ])
+    expect(recipients('MESSAGE_REACTION_REMOVE', BRIDGED)).toEqual([OPEN_BOT, SCOPED_BOT])
+    expect(consentLookups()).toEqual([])
   })
 
-  it('checks the parent invoker even when the reactor has consent', async () => {
-    optedOut = true
-    await (dispatcher as any).handleReactionEvent('MESSAGE_REACTION_ADD', {
-      id: 'r-private', message_id: 'callback', channel_id: BRIDGED, user_id: OWNER_ID, source,
+  it('reads reactions without their parent message', async () => {
+    const selects: Array<{ mock: { calls: unknown[][] } }> = []
+    mocks.from.mockImplementation((table: string) => {
+      const query = db.from(table)
+      if (table === 'reactions') selects.push(vi.spyOn(query, 'select'))
+      return query
     })
-    expect(recipients('MESSAGE_REACTION_ADD', BRIDGED)).toEqual([SCOPED_BOT])
+    db.rows('reactions').push({
+      id: 'r1', message_id: 'm', channel_id: BRIDGED, user_id: OWNER_ID, bot_id: null, emoji_id: null,
+      custom_emoji_content: '👍', metadata: {}, created_at: new Date(Date.now() + 1000).toISOString(),
+    })
+    const d = dispatcher as any
+    await d.initializeKnownReactions()
+    await d.pollReactions()
+
+    const columns = selects.flatMap((spy) => spy.mock.calls.map((call) => String(call[0])))
+    expect(columns.length).toBeGreaterThan(0)
+    for (const list of columns) expect(list).not.toMatch(/messages|source/)
   })
 
-  it.each([null, {}, { user_id: null, bot_id: SCOPED_BOT, metadata: { interaction: null } }])('does not treat an unavailable/malformed source as an anonymous bot reply %j', async snapshot => {
-    await (dispatcher as any).handleReactionEvent('MESSAGE_REACTION_REMOVE', {
-      id: 'r-unknown', message_id: 'callback', channel_id: BRIDGED, user_id: OWNER_ID, source: snapshot,
-    })
-    expect(recipients('MESSAGE_REACTION_REMOVE', BRIDGED)).toEqual([SCOPED_BOT])
+  it('withholds from the bridge only when the opt-outs cannot be read', async () => {
+    optOutsFail = true
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'hello') })
+    expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual([OPEN_BOT])
   })
 
-  it.each([{ data: null, error: { message: 'offline' } }, { data: true, error: null }])('does not emit a delete or reaction when source privacy is unavailable %j', async answer => {
-    const original = mocks.rpc.getMockImplementation()!
-    mocks.rpc.mockImplementation((fn, args) => fn === 'bridge_source_recipients' ? answer : original(fn, args))
-    await expect(dispatcher.messageHardDeleted({ id: 'failed-delete', channel_id: BRIDGED, thread_id: null, ...source })).rejects.toThrow('Bridge privacy status unavailable')
-    await expect((dispatcher as any).handleReactionEvent('MESSAGE_REACTION_ADD', {
-      id: 'r-failed', message_id: 'callback', channel_id: BRIDGED, user_id: OWNER_ID, source,
-    })).rejects.toThrow('Bridge privacy status unavailable')
-    expect(sent).toEqual([])
-    expect(enqueued).toEqual([])
+  it('applies an opt-out to events once the 5 s opt-out cache expires', async () => {
+    let clock = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => clock)
+    optedOut = {}
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'before') })
+    optedOut = { matrix: [OWNER_ID] }
+    clock += 4_000
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'cached') })
+    clock += 1_001
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'after') })
+
+    expect(sent.map((s) => [s.event.d.id, s.botIds])).toEqual([
+      [`${BRIDGED.slice(-2)}-before`, [OPEN_BOT, SCOPED_BOT]],
+      [`${BRIDGED.slice(-2)}-cached`, [OPEN_BOT, SCOPED_BOT]],
+      [`${BRIDGED.slice(-2)}-after`, [OPEN_BOT]],
+    ])
   })
 })
 
@@ -1008,7 +1033,6 @@ describe('mention_everyone', () => {
     granted = true
     asked = []
     mocks.rpc.mockImplementation(async (fn: string, args: any) => {
-      if (fn === 'bridge_message_recipients' || fn === 'bridge_member_recipients') return { data: args.p_bot_ids, error: null }
       asked.push([fn, args])
       if (fn === 'has_permission' || fn === 'check_bot_permission') return { data: granted, error: null }
       throw new Error(`test called unmocked rpc: ${fn}`)
@@ -1093,7 +1117,6 @@ describe('outgoing webhooks', () => {
     routes = [{ bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_CREATE'] }]
     await (dispatcher as any).webhooks.refresh()
     mocks.rpc.mockImplementation(async (fn: string, args: any) => {
-      if (fn === 'bridge_message_recipients' || fn === 'bridge_member_recipients') return { data: args.p_bot_ids, error: null }
       if (fn === 'outgoing_webhook_routes') return { data: null, error: { message: 'down' } }
       if (fn === 'enqueue_outgoing_webhook_event') { enqueued.push(args); return { data: 1, error: null } }
       throw new Error(`test called unmocked rpc: ${fn}`)

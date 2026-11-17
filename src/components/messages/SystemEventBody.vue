@@ -43,7 +43,7 @@
           :style="{ color: userColor(actor.id) }"
           @click="emit('showUserProfile', actor.id)"
         ><DisplayName :user-id="actor.id" /></button>
-        <span v-else class="system-user-name">{{ actor.name }}</span>
+        <span v-else class="system-user-name">{{ actor.name }}<BridgeSourceBadge v-if="actor.source" :source="actor.source" /></span>
         <span v-if="staffInstance" class="system-staff" data-testid="system-staff">{{ ' ' + t('hostStaff.systemActor', { instance: staffInstance }) }}</span>
       </template>
       <template #members>
@@ -139,7 +139,7 @@
 //   member_join, member_leave        subject_id
 //   member_kick, member_ban          subject_id, actor_id, reason, staff (the actor is instance
 //                                    staff of the server's host, 20261027250001)
-//   thread_created                   actor_id | actor_bot_id (+ discord_user) | actor_name,
+//   thread_created                   actor_id | actor_bot_id (+ discord_user | matrix_user) | actor_name,
 //                                    thread_id, thread_name
 //   group_created                    actor_id, event 'created' (participant_count) | 'members_added' (user_ids)
 //   call_started, call_ended         actor_id, call_type, participants, duration_seconds
@@ -158,8 +158,9 @@ import { useProfileStore } from '@/stores/useProfile'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useT } from '@/composables/useT'
-import type { Message } from '@/types/chat'
-import { getBridgedAuthor } from '@/utils/messageAuthor'
+import type { BridgePlatform, Message } from '@/types/chat'
+import { bridgedAuthorName, getBridgedAuthor } from '@/utils/messageAuthor'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 
 const props = defineProps<{
   message: Message
@@ -193,6 +194,7 @@ const profileIdOf = (value: unknown): string | null =>
 interface Person {
   id: string | null
   name: string
+  source?: BridgePlatform
 }
 
 const subject = computed<Person>(() => ({
@@ -200,13 +202,12 @@ const subject = computed<Person>(() => ({
   name: t('systemEvents.someone'),
 }))
 
-// A Discord member relayed by a bridge, a bot, or a name carried from another instance.
+// A person relayed by a bridge, a bot, or a name carried from another instance.
 const actor = computed<Person>(() => {
   const id = profileIdOf(meta.value.actor_id)
   if (id) return { id, name: '' }
   const bridged = getBridgedAuthor(props.message)
-  const bridgedName = bridged?.display_name || bridged?.username
-  if (bridgedName) return { id: null, name: bridgedName }
+  if (bridged) return { id: null, name: bridgedAuthorName(bridged), source: bridged.platform }
   const botId = profileIdOf(meta.value.actor_bot_id)
   if (botId) return { id: null, name: props.botName(botId) }
   if (typeof meta.value.actor_name === 'string' && meta.value.actor_name) {

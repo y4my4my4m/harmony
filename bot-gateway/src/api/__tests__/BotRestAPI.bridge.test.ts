@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import express from 'express'
 import supertest from 'supertest'
-import { FakeDb, type Row } from '../../__tests__/fakeSupabase.js'
+import { FakeDb, FakeQuery, type FakeResult, type Row } from '../../__tests__/fakeSupabase.js'
 
 const BOT_ID = '00000000-0000-0000-0000-0000000000b0'
 const SERVER_ID = '00000000-0000-0000-0000-00000000005a'
@@ -44,8 +44,12 @@ vi.mock('../../auth/BotAuthMiddleware.js', () => ({
 }))
 
 import { BotRestAPI } from '../BotRestAPI.js'
+import { forgetBridgeConsent } from '../../bridge/memberConsent.js'
 
 let db: FakeDb
+// bridge_channel_platform and bridge_member_optout_ids answers.
+let platform: string | null
+let optedOut: Record<string, string[]>
 
 function seed({ botType = 'bridge', v2 = true, v1 = false, installedBy = OWNER_ID }: { botType?: string; v2?: boolean; v1?: boolean; installedBy?: string } = {}) {
   const tables: Record<string, Row[]> = {
@@ -90,6 +94,29 @@ function app() {
 
 const metadataOf = (id: string) => db.rows('messages').find((m) => m.id === id)?.metadata
 
+/** PostgREST answers only the selected columns of a single row; FakeDb answers whole rows. */
+class ProjectedQuery extends FakeQuery {
+  private columns: string[] | null = null
+
+  select(list?: string, options?: unknown): this {
+    this.columns = list && !list.includes('*') && !list.includes('(') ? list.split(',').map((c) => c.trim()) : null
+    return super.select(list, options)
+  }
+
+  async single(): Promise<FakeResult> {
+    return this.project(await super.single())
+  }
+
+  async maybeSingle(): Promise<FakeResult> {
+    return this.project(await super.maybeSingle())
+  }
+
+  private project(result: FakeResult): FakeResult {
+    if (!this.columns || !result.data) return result
+    return { ...result, data: Object.fromEntries(this.columns.map((c) => [c, result.data[c]])) }
+  }
+}
+
 // bridge_message_by_discord_id over the fake table.
 const messageByDiscordId = (args: { p_channel_id: string; p_discord_message_id: string }) =>
   db.rows('messages').find((m) => m.channel_id === args.p_channel_id
@@ -98,11 +125,15 @@ const messageByDiscordId = (args: { p_channel_id: string; p_discord_message_id: 
 beforeEach(() => {
   mocks.rpc.mockReset()
   mocks.from.mockReset()
+  forgetBridgeConsent()
+  platform = 'discord'
+  optedOut = {}
   mocks.policy.mockReset()
   mocks.policy.mockImplementation(async (parts: unknown[]) => ({ parts, deferred: false }))
   mocks.enqueue.mockReset()
   mocks.rpc.mockImplementation(async (fn: string, args: any) => {
-    if (fn === 'bridge_visible_message_ids') return { data: args.p_message_ids, error: null }
+    if (fn === 'bridge_channel_platform') return { data: platform, error: null }
+    if (fn === 'bridge_member_optout_ids') return { data: { user_ids: optedOut[args.p_platform] ?? [] }, error: null }
     if (fn === 'update_message_content_silent') return { data: true, error: null }
     if (fn === 'bridge_message_by_discord_id') return { data: messageByDiscordId(args), error: null }
     throw new Error(`test called unmocked rpc: ${fn}`)
@@ -178,14 +209,19 @@ describe('PATCH /messages/:id/metadata on a Harmony-origin message', () => {
     expect(metadataOf(HARMONY_MESSAGE)).toEqual({ source: 'harmony' })
   })
 
-  it('does not disclose private metadata through a mapping write after member opt-out', async () => {
+  it('answers 404 and writes nothing for a message whose author opted out of Discord', async () => {
     seed()
     db.rows('messages')[0].metadata.private_note = 'private member data'
-    mocks.rpc.mockResolvedValue({ data: [], error: null })
+    optedOut = { discord: [OWNER_ID] }
+    mocks.from.mockImplementation((table: string) => (table === 'messages' ? new ProjectedQuery(db, table) : db.from(table)))
     const res = await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`).send({ metadata: MAPPING })
     expect(res.status).toBe(404)
     expect(JSON.stringify(res.body)).not.toContain('private member data')
     expect(db.writesTo('messages', 'update')).toHaveLength(0)
+
+    optedOut = { matrix: [OWNER_ID] }
+    forgetBridgeConsent()
+    expect((await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`).send({ metadata: MAPPING })).status).toBe(200)
   })
 
   it('refuses a channel the bridge does not pair', async () => {
@@ -417,13 +453,15 @@ describe('relayed authors and server-only content', () => {
     expect((await send()).body.metadata).not.toHaveProperty('discord_user')
   })
 
-  it('never lets cached Discord authorization override the durable Matrix platform', async () => {
-    seed()
-    const api = app()
-    const send = () => supertest(api).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: 'hi', metadata: AUTHOR })
-    expect((await send()).body.metadata.discord_user).toEqual(AUTHOR.discord_user)
+  it('never takes a bot with a bridge_platform for a Discord bridge, whatever its pairings', async () => {
+    seed({ v1: true })
     db.rows('bots')[0].bridge_platform = 'matrix'
-    expect((await send()).body.metadata).not.toHaveProperty('discord_user')
+    const sent = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: 'hi', metadata: AUTHOR })
+    expect(sent.status).toBe(201)
+    expect(inserted().metadata).toEqual({ bot: true, created_via: 'bot_api' })
+    const mapped = await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`)
+      .send({ metadata: { discord_message_id: '1300000000000000001' } })
+    expect(mapped.status).toBe(403)
   })
 
   it('drops it in a channel the bridge does not pair, and from a bot that is no bridge bot', async () => {

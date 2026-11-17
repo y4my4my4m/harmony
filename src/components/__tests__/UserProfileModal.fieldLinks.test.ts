@@ -7,7 +7,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
-const { store, relationships, profileRow } = vi.hoisted(() => ({
+const { store, relationships, profileRow, openLink } = vi.hoisted(() => ({
+  openLink: vi.fn(),
   store: {
     blockedUsers: new Set<string>(),
     mutedUsers: new Set<string>(),
@@ -50,6 +51,7 @@ vi.mock('@/services/RoleService', () => ({
   Permission: {},
 }))
 vi.mock('@/services/activityPubService', () => ({ activityPubService: {} }))
+vi.mock('@/services/outsideLinks', () => ({ openLink }))
 vi.mock('@/composables/useLayoutState', async () => {
   const { ref } = await import('vue')
   return { useLayoutState: () => ({ closeMobileSidebars: vi.fn(), isMobile: ref(false) }) }
@@ -103,6 +105,7 @@ vi.mock('@/components/activitypub/MovedAccountNotice.vue', () => stub('MovedAcco
 
 import { supabase } from '@/supabase'
 import UserProfileModal from '../UserProfileModal.vue'
+import { bridgedUserToProfileUser, type BridgedChannelUser } from '@/services/bridgedChannelUsersService'
 
 const REMOTE = {
   id: 'remote',
@@ -148,44 +151,6 @@ afterEach(() => {
 })
 
 describe('UserProfileModal profile field links', () => {
-  it('renders Matrix identities in the shared card without native actions or profile requests', async () => {
-    const wrapper = mount(UserProfileModal, {
-      props: { show: true, user: { id: 'matrix:@sam:example.org', matrix_id: '@sam:example.org', bridge_source: 'matrix', username: 'sam', display_name: 'Sam' } as any },
-      global: { directives: { 'click-outside': {} } },
-    })
-    await flushPromises()
-    expect(wrapper.text()).toContain('@sam:example.org')
-    expect(wrapper.findComponent({ name: 'BaseModal' }).exists()).toBe(true)
-    expect(wrapper.getComponent({ name: 'BridgeSourceBadge' }).attributes('source')).toBe('matrix')
-    expect(wrapper.get('.display-name').text()).toBe('Sam')
-    expect(wrapper.get('.display-name').attributes('style')).toContain('var(--text-primary)')
-    expect(wrapper.get('.profile-actions a').attributes()).toMatchObject({ href: 'https://matrix.to/#/%40sam%3Aexample.org', target: '_blank', rel: 'noopener noreferrer' })
-    expect(wrapper.find('[data-testid="profile-modal-follow-btn"]').exists()).toBe(false)
-    expect(wrapper.find('.banner-actions .action-button').exists()).toBe(false)
-    expect(wrapper.find('.activities-section').exists()).toBe(false)
-    expect(supabase.from).not.toHaveBeenCalled()
-    expect(relationships).not.toHaveBeenCalled()
-    wrapper.unmount()
-  })
-  it('does not make unsafe Matrix identities into external links or HTML', async () => {
-    const wrapper = open({ id: 'matrix:javascript:alert(1)', bridge_source: 'matrix', matrix_id: 'javascript:alert(1)', display_name: '<script>Sam</script>' })
-    await flushPromises()
-    expect(wrapper.get('.display-name').text()).toBe('<script>Sam</script>')
-    expect(wrapper.find('.display-name script').exists()).toBe(false)
-    expect(wrapper.find('.profile-actions a').exists()).toBe(false)
-    expect(supabase.from).not.toHaveBeenCalled()
-    wrapper.unmount()
-  })
-  it('keeps the existing Discord card and its copy-ID action', async () => {
-    const wrapper = open({ id: 'discord:123', discord_id: '123', bridge_source: 'discord', username: 'sam', display_name: 'Discord Sam' })
-    await flushPromises()
-    expect(wrapper.getComponent({ name: 'BridgeSourceBadge' }).attributes('source')).toBe('discord')
-    expect(wrapper.get('.display-name').text()).toBe('Discord Sam')
-    expect(wrapper.get('.profile-actions').text()).toContain('Copy Discord ID')
-    expect(wrapper.find('[data-testid="profile-modal-follow-btn"]').exists()).toBe(false)
-    expect(supabase.from).not.toHaveBeenCalled()
-    wrapper.unmount()
-  })
   it('marks a label and a deceptive URL as masked, not the URL itself', async () => {
     const wrapper = open()
     await flushPromises()
@@ -193,5 +158,76 @@ describe('UserProfileModal profile field links', () => {
     expect(links.map((a) => a.text())).toEqual(['https://github.com/ann', 'my blog', 'https://ann.example'])
     expect(links.map((a) => a.classes('masked-link'))).toEqual([true, true, false])
     expect(links.every((a) => a.attributes('target') === '_blank')).toBe(true)
+  })
+})
+
+describe('UserProfileModal bridged person', () => {
+  const people: Record<'discord' | 'matrix', { member: BridgedChannelUser; handle: string; url: string }> = {
+    discord: {
+      member: { source: 'discord', id: '123456789', username: 'sam', displayName: 'Sam', avatarUrl: '' },
+      handle: '@sam',
+      url: 'https://discord.com/users/123456789',
+    },
+    matrix: {
+      member: { source: 'matrix', id: '@sam:example.org', username: 'sam', displayName: 'Sam', avatarUrl: '' },
+      handle: '@sam:example.org',
+      url: 'https://matrix.to/#/%40sam%3Aexample.org',
+    },
+  }
+
+  it.each(['discord', 'matrix'] as const)('shows a %s person with one card and one action set', async platform => {
+    const { member, handle, url } = people[platform]
+    const wrapper = open(bridgedUserToProfileUser(member) as never)
+    await flushPromises()
+    expect(wrapper.get('.display-name').text()).toBe('Sam')
+    expect(wrapper.get('.display-name').attributes('style')).toContain('var(--text-primary)')
+    expect(wrapper.get('[data-testid="profile-modal-handle"]').text()).toBe(handle)
+    expect(wrapper.getComponent({ name: 'BridgeSourceBadge' }).attributes('source')).toBe(platform)
+    expect(wrapper.find('.status-indicator').exists()).toBe(false)
+    expect(wrapper.find('.user-stats').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="profile-bridged-copy-id"]').text()).toContain('bridgeSource.profile.copyId')
+    expect(wrapper.find('[data-testid="profile-modal-follow-btn"]').exists()).toBe(false)
+    expect(wrapper.find('.banner-actions .action-button').exists()).toBe(false)
+    expect(wrapper.find('.activities-section').exists()).toBe(false)
+    expect(wrapper.find('.profile-actions a').exists()).toBe(false)
+    await wrapper.get('[data-testid="profile-bridged-open"]').trigger('click')
+    expect(openLink).toHaveBeenCalledWith(url, expect.anything())
+    expect(supabase.from).not.toHaveBeenCalled()
+    expect(relationships).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it.each(['discord', 'matrix'] as const)('copies the %s id', async platform => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const wrapper = open(bridgedUserToProfileUser(people[platform].member) as never)
+    await flushPromises()
+    await wrapper.get('[data-testid="profile-bridged-copy-id"]').trigger('click')
+    await flushPromises()
+    expect(writeText).toHaveBeenCalledWith(people[platform].member.id)
+    expect(wrapper.get('[data-testid="profile-bridged-copy-id"]').text()).toContain('bridgeSource.profile.copied')
+    wrapper.unmount()
+  })
+
+  it('lists the stats a bridge reports and omits the rest', async () => {
+    const wrapper = open(bridgedUserToProfileUser({
+      ...people.discord.member, presenceStatus: 'online', joinedAt: '2024-01-02T00:00:00Z',
+      roles: [{ id: 'r1', name: 'Mod', color: '#ff0000', position: 1 }], accentColor: null,
+    }) as never)
+    await flushPromises()
+    const labels = wrapper.findAll('.user-stats .stat-label').map(label => label.text())
+    expect(labels).toEqual(['bridgeSource.profile.joinedServer', 'bridgeSource.profile.status', 'bridgeSource.profile.roles'])
+    expect(wrapper.find('.status-indicator').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('offers no outside link for an id that names no account', async () => {
+    const wrapper = open({ id: 'matrix:javascript:alert(1)', bridge_source: 'matrix', bridge_id: 'javascript:alert(1)', display_name: '<script>Sam</script>' })
+    await flushPromises()
+    expect(wrapper.get('.display-name').text()).toBe('<script>Sam</script>')
+    expect(wrapper.find('.display-name script').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="profile-bridged-open"]').exists()).toBe(false)
+    expect(supabase.from).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 })

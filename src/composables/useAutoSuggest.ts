@@ -549,19 +549,19 @@ export function useAutoSuggest(
         const displayName = normalizeSearchText(bridgedUser.displayName || '');
         const usernameStr = normalizeSearchText(bridgedUser.username || '');
         
-        if (displayName.includes(query) || usernameStr.includes(query) || bridgedUser.id.toLowerCase().includes(query)) {
+        if (displayName.includes(query) || usernameStr.includes(query)) {
           const matrix = bridgedUser.source === 'matrix' ? parseMatrixId(bridgedUser.id) : null;
+          // Discord `@d!ID:username`; Matrix `<@matrix:URI-encoded MXID>`.
           const mentionText = bridgedUser.source === 'matrix' ? matrixMentionToken(bridgedUser.id) : `@d!${bridgedUser.id}:${bridgedUser.username}`;
           if (!mentionText) continue;
-          const displayText = matrix?.id || `@${bridgedUser.username}`;
           
           suggestions.push({
             id: bridgedKey,
             display_name: bridgedUser.displayName,
             username: bridgedUser.username,
             avatar: bridgedUser.avatarUrl,
-            display_text: displayText, // @username
-            mention_text: mentionText, // @d!ID:username
+            display_text: `@${bridgedUser.username}`,
+            mention_text: mentionText,
             isBridged: true,
             bridgeSource: bridgedUser.source || 'discord',
             user: {

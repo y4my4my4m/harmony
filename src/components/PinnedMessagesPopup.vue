@@ -126,7 +126,8 @@ import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import type { Message } from '@/types'
 import { isUndecrypted } from '@/utils/channelEncryption'
-import { getBridgeSource, getForeignAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage } from '@/utils/messageAuthor'
+import { getBridgedAuthor, getBridgeSource, getForeignAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage } from '@/utils/messageAuthor'
+import { bridgedAuthorColor } from '@/services/bridgedChannelUsersService'
 import { ensureBot, getCachedBot } from '@/composables/useMessageAuthorPresentation'
 import { BOT_NAME_COLOR } from '@/utils/botUtils'
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
@@ -233,7 +234,7 @@ const getUserAvatar = (userId?: string) => {
 }
 
 // Bridged people and webhooks have no profile: their message carries the name shown in chat
-// (metadata.discord_user, metadata.webhook), as useMessageAuthorPresentation reads it. A bot's
+// (metadata.discord_user, metadata.matrix_user, metadata.webhook), as useMessageAuthorPresentation reads it. A bot's
 // row carries neither, and the pins query joins no bot: its name comes from the bot cache.
 const isPlainBotPin = (message: Message) =>
   !!message.bot_id && !isBridgedAuthorMessage(message) && !getWebhookAuthor(message)
@@ -258,7 +259,10 @@ const getAuthorAvatar = (message: Message) => {
 }
 
 const getAuthorColor = (message: Message) => {
-  if (isBridgedAuthorMessage(message)) return '#5865F2'
+  if (isBridgedAuthorMessage(message)) {
+    const bridged = getBridgedAuthor(message)
+    return bridgedAuthorColor(bridged?.platform, bridged?.id)
+  }
   if (isBotAuthorMessage(message)) return BOT_NAME_COLOR
   return getUserColorValue(message.user_id)
 }

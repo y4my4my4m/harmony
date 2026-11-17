@@ -16,8 +16,9 @@ import { useMessageAuthorPresentation } from '../useMessageAuthorPresentation'
 describe('shared author presentation for replies, search and Today', () => {
   it.each(['matrix', 'discord'] as const)('shows a %s person rather than the relay bot or native profile', platform => {
     calls.profile.mockClear(); calls.bot.mockClear()
+    const person = { id: platform === 'matrix' ? '@sam:example.org' : '42', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/sam.png' }
     const message = ref({ id: 'm', bot_id: 'relay', user_id: 'not-a-person', created_at: new Date(), content: [], metadata: {
-      bridge_author: { platform, id: 'remote-id', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/sam.png' },
+      [`${platform}_user`]: person,
     } } as Message)
     let presentation!: ReturnType<typeof useMessageAuthorPresentation>
     const wrapper = mount(defineComponent({ setup() { presentation = useMessageAuthorPresentation(message); return presentation }, template: '<span>{{ displayName }} {{ avatarUrl }} {{ bridgeSource }}</span>' }))
@@ -25,6 +26,7 @@ describe('shared author presentation for replies, search and Today', () => {
     expect(presentation.avatarUrl.value).toBe('https://cdn.test/sam.png')
     expect(presentation.bridgeSource.value).toBe(platform)
     expect(presentation.profileUserId.value).toBe('')
+    expect(presentation.usernameColor.value).toBe('var(--text-primary)')
     expect(calls.profile).not.toHaveBeenCalled()
     expect(calls.bot).not.toHaveBeenCalled()
     wrapper.unmount()

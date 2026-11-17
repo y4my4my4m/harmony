@@ -25,9 +25,17 @@ vi.mock('@/services/instanceConfig', () => ({
   refreshStoredInstance: async () => null,
 }))
 vi.mock('@/services/bridgedChannelUsersService', async original => ({ ...await original<typeof import('@/services/bridgedChannelUsersService')>(), fetchBridgedChannelUsers: fetchUsers }))
-vi.mock('@/supabase', () => ({ supabase: { from: () => {
-  const q: any = { select: () => q, eq: () => q, then: (resolve: any) => resolve({ data: [{ bot: { bot_type: 'bridge' } }], error: null }) }; return q
-} } }))
+// Every query answers one installed bridge bot.
+vi.mock('@/supabase', () => {
+  const builder: any = new Proxy(() => builder, {
+    get: (_target, prop) =>
+      prop === 'then'
+        ? (resolve: (value: unknown) => void) => resolve({ data: [{ bot: { bot_type: 'bridge' } }], error: null })
+        : builder,
+    apply: () => builder,
+  })
+  return { supabase: builder }
+})
 import { useAutoSuggest } from '../useAutoSuggest'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 const member = (id = '@sam:example.org') => ({ id, source: 'matrix', username: 'sam', displayName: 'Matrix Sam', avatarUrl: '' })
@@ -43,14 +51,16 @@ function open() {
   } }))
   auto.handleInput(text.value, text.value.length)
 }
-describe('Matrix member mention picker', () => {
-  it('offers native, Discord and full-MXID Matrix identities without conflating same usernames', async () => {
+describe('bridged member mention picker', () => {
+  it('offers native, Discord and Matrix people alike without conflating same usernames', async () => {
     fetchUsers.mockResolvedValue({ users: [member(), member('@sam:other.org'), { ...member('123'), source: 'discord' }] })
     open(); await flushPromises()
     const items = auto.suggestions.value
     expect(items.map(item => item.id)).toEqual(expect.arrayContaining(['native-uuid', 'matrix:@sam:example.org', 'matrix:@sam:other.org', 'discord:123']))
     const matrix = items.find(item => item.id === 'matrix:@sam:example.org')!
-    expect(matrix).toMatchObject({ display_text: '@sam:example.org', mention_text: '<@matrix:%40sam%3Aexample.org>', isBridged: true, bridgeSource: 'matrix', user: { id: '@sam:example.org', domain: 'example.org', isLocal: false } })
+    expect(matrix).toMatchObject({ display_name: 'Matrix Sam', username: 'sam', display_text: '@sam', mention_text: '<@matrix:%40sam%3Aexample.org>', isBridged: true, bridgeSource: 'matrix', user: { id: '@sam:example.org', domain: 'example.org', isLocal: false } })
+    const discord = items.find(item => item.id === 'discord:123')!
+    expect(discord).toMatchObject({ display_name: 'Matrix Sam', username: 'sam', display_text: '@sam', isBridged: true, bridgeSource: 'discord' })
     auto.selectSuggestion(matrix)
     expect(text.value).toBe('<@matrix:%40sam%3Aexample.org> ')
   })

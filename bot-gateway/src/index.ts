@@ -217,13 +217,16 @@ async function canViewChannel(profileId: string, serverId: string, channelId: st
   return !error && data === true
 }
 
-/** Discord ids left out of a server's bridges (bridge_remote_optouts); null on a failed lookup. */
+/**
+ * Remote ids left out of a server's bridges (bridge_remote_optouts): Discord snowflakes and
+ * Matrix user ids, which cannot collide ('@' leads every MXID). Null on a failed lookup.
+ */
 async function bridgeOptOutIds(serverId: string): Promise<Set<string> | null> {
   const { data, error } = await supabase
     .from('bridge_remote_optouts')
     .select('remote_user_id')
     .eq('server_id', serverId)
-    .eq('platform', DISCORD_PLATFORM)
+    .in('platform', [DISCORD_PLATFORM, 'matrix'])
   if (error || !Array.isArray(data)) {
     console.error(`bridged-users: bridge_remote_optouts lookup for ${serverId} failed:`, error?.message)
     return null

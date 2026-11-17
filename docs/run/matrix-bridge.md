@@ -11,7 +11,7 @@ This is a **plaintext bridge**, not an encrypted participant. Text, mentions, im
 
 ## Initial operator setup
 
-The bridge runs as the separate [harmony-matrix-bridge](https://github.com/y4my4my4m/harmony-matrix-bridge) service; its runtime is not bundled with Harmony. A Harmony manager installs a dedicated scoped read/send bot and registers its channel bindings with `configure_matrix_bridge`. A Matrix homeserver operator installs the generated application-service registration, including the exclusive ghost-user namespace. The bridge account must be in each Matrix room and able to invite users for ghost mode.
+The bridge runs as the separate [harmony-matrix-bridge](https://github.com/y4my4my4m/harmony-matrix-bridge) service; its runtime is not bundled with Harmony. The bot's owner, who manages the server, installs a dedicated scoped read/send bot and registers its channel bindings with `configure_matrix_bridge`. A Matrix homeserver operator installs the generated application-service registration, including the exclusive ghost-user namespace. The bridge account must be in each Matrix room and able to invite users for ghost mode.
 
 The service's configuration holds the initial one-to-one room/channel pairs, directions and explicit user allowlists. These remain additional restrictions: member opt-out does not grant access to an unallowlisted account. Existing configurations without a sender mode retain shared-relay behavior; the example configuration explicitly selects ghosts for new installations.
 
@@ -19,7 +19,7 @@ The standalone service's [README](https://github.com/y4my4my4m/harmony-matrix-br
 
 ## Choose how Harmony authors appear in Matrix
 
-With **Manage Server**, open **Server settings → Matrix Bridge**. Each registered pair has its own sender-mode choice:
+With **Manage Server**, open **Server settings** → **Bridges** → **Matrix**. Each registered pair has its own sender-mode choice:
 
 | Choice | Effect |
 |---|---|
@@ -76,7 +76,7 @@ Encrypted rooms remain blocked. An encrypted attachment descriptor in a plaintex
 
 ## Member privacy
 
-Each Harmony member can open **Server menu → Bridge privacy → Do not forward my messages — Matrix**. Discord has its own independent switch. These preferences are per-member, per-server, and per-platform, not per bridge bot; the administrator's sender-mode choice does not override them. Existing opt-outs remain enabled for both platforms after upgrading. Older Harmony clients still change both platforms together.
+Each Harmony member can open **Server menu → Bridge privacy → Do not forward my messages — Matrix**. Discord has its own independent switch. These preferences are per-member, per-server, and per-platform, not per bridge bot; the administrator's sender-mode choice does not override them. The switch is shown only for a platform the server bridges. A preference outlives leaving and rejoining the server.
 
 Opt-out blocks future bridged message/file delivery and fresh ghost profile exposure. The running worker removes tracked ghost memberships when it sees that the member is no longer eligible. It rechecks consent before queued delivery and profile operations rather than trusting the original message or a cached member list.
 

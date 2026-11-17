@@ -25,9 +25,36 @@ export async function matrixRoomBinding(botId: string, channelId: string, initia
   return { room_id: data.room_id, sender_mode: data.sender_mode }
 }
 
-/** Only currently consenting, channel-visible local members are returned by the service RPC. */
-export async function matrixBridgeMembers(botId: string, channelId: string): Promise<MatrixBridgeMember[]> {
-  const { data, error } = await supabase.rpc('matrix_bridge_channel_members', { p_bot_id: botId, p_channel_id: channelId })
+// matrix_bridge_channel_members answers pages in member id order.
+const MEMBER_PAGE = 1000
+// Members listed for one channel; a larger channel lists its first MAX_BRIDGE_MEMBERS by id.
+export const MAX_BRIDGE_MEMBERS = 10_000
+
+/**
+ * Accepted members who can view the channel and did not opt out of Matrix
+ * (matrix_bridge_channel_members), read page by page. `until` stops at the first match.
+ */
+export async function matrixBridgeMembers(
+  botId: string,
+  channelId: string,
+  until?: (member: MatrixBridgeMember) => boolean,
+): Promise<MatrixBridgeMember[]> {
+  const members: MatrixBridgeMember[] = []
+  let after: string | null = null
+  while (members.length < MAX_BRIDGE_MEMBERS) {
+    const page = await memberPage(botId, channelId, after)
+    members.push(...page)
+    if (until && page.some(until)) break
+    if (page.length < MEMBER_PAGE) break
+    after = page[page.length - 1].id
+  }
+  return members
+}
+
+async function memberPage(botId: string, channelId: string, after: string | null): Promise<MatrixBridgeMember[]> {
+  const { data, error } = await supabase.rpc('matrix_bridge_channel_members', {
+    p_bot_id: botId, p_channel_id: channelId, p_limit: MEMBER_PAGE, p_after: after,
+  })
   if (error || !Array.isArray(data) || data.some(row => !row || !UUID.test(row.id)
     || typeof row.username !== 'string' || !row.username.trim() || row.username.length > 100
     || (row.display_name != null && (typeof row.display_name !== 'string' || row.display_name.length > 100))

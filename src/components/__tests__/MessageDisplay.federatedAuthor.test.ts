@@ -1,7 +1,7 @@
 /**
  * The author line of a chat message from a user on another instance carries the
- * federated globe, named after that instance. Local users, bots and Discord-bridged
- * authors do not; a bridged author keeps the Discord badge.
+ * federated globe, named after that instance. Local users, bots and bridged authors
+ * do not; a bridged author keeps its platform badge.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -145,6 +145,7 @@ vi.mock('@tanstack/vue-virtual', async () => {
 })
 
 import MessageDisplay from '../MessageDisplay.vue'
+import { toReactionUser } from '@/utils/reactionUsers'
 
 const at = (minutes: number) => new Date(Date.UTC(2026, 9, 23, 9, minutes))
 
@@ -199,26 +200,72 @@ describe('MessageDisplay federated author', () => {
     expect(wrapper!.get('#message-bridged .username').findComponent({ name: 'BridgeSourceBadge' }).exists()).toBe(true)
   })
 
-  it('shows Matrix authors and badges without opening the relay bot profile or grouping distinct people', async () => {
-    const via = (id: string, name: string) => ({ user_id: undefined, bot_id: 'bot-1', metadata: {
-      bridge_author: { platform: 'matrix' as const, id, username: id, display_name: name, avatar_url: 'https://cdn.test/sam.png' },
-    } })
-    await mountList([message('matrix-one', 0, via('@sam:example.org', 'Sam')), message('matrix-two', 1, via('@lee:example.org', 'Lee'))])
-    for (const [id, name] of [['matrix-one', 'Sam'], ['matrix-two', 'Lee']]) {
+  const people = {
+    discord: { key: 'discord_user', sam: '1001', lee: '1002' },
+    matrix: { key: 'matrix_user', sam: '@sam:example.org', lee: '@lee:example.org' },
+  } as const
+  const via = (platform: 'discord' | 'matrix', who: 'sam' | 'lee', name: string) => ({ user_id: undefined, bot_id: 'bot-1', metadata: {
+    [people[platform].key]: { id: people[platform][who], username: who, display_name: name, avatar_url: `https://cdn.test/${who}.png` },
+  } })
+
+  it.each(['discord', 'matrix'] as const)('shows %s authors with the badge, colour and header of a bridged person', async platform => {
+    await mountList([message('one', 0, via(platform, 'sam', 'Sam')), message('two', 1, via(platform, 'lee', 'Lee'))])
+    for (const [id, name, who] of [['one', 'Sam', 'sam'], ['two', 'Lee', 'lee']]) {
       const author = wrapper!.get(`#message-${id} .username`)
       expect(author.text()).toContain(name)
-      expect(author.attributes('disabled')).toBeDefined()
-      expect(author.findComponent({ name: 'BridgeSourceBadge' }).props('source')).toBe('matrix')
+      expect(author.attributes('disabled')).toBeUndefined()
+      expect(author.attributes('style')).toContain('var(--text-primary)')
+      expect(author.findComponent({ name: 'BridgeSourceBadge' }).props('source')).toBe(platform)
       expect(globeIn(id).exists()).toBe(false)
-      expect(wrapper!.get(`#message-${id}`).findComponent({ name: 'Avatar' }).props('src')).toBe('https://cdn.test/sam.png')
+      const avatar = wrapper!.get(`#message-${id}`).findComponent({ name: 'Avatar' })
+      expect(avatar.props('src')).toBe(`https://cdn.test/${who}.png`)
+      expect(avatar.props('interactive')).toBe(true)
     }
-    await wrapper!.get('#message-matrix-one .username').trigger('click')
+  })
+
+  it.each(['discord', 'matrix'] as const)('opens the profile card of a %s author from the name and the avatar', async platform => {
+    await mountList([message('one', 0, via(platform, 'sam', 'Sam'))])
+    await wrapper!.get('#message-one .username').trigger('click')
+    const card = wrapper!.getComponent({ name: 'UserProfileModal' })
+    expect(card.props('show')).toBe(true)
+    expect(card.props('user')).toMatchObject({
+      id: `${platform}:${people[platform].sam}`, bridge_source: platform, bridge_id: people[platform].sam,
+      username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/sam.png',
+    })
     expect(wrapper!.findComponent({ name: 'BotProfileModal' }).exists()).toBe(false)
+    card.vm.$emit('close')
+    await flushPromises()
+    wrapper!.get('#message-one').findComponent({ name: 'Avatar' }).vm.$emit('click', new MouseEvent('click'))
+    await flushPromises()
+    expect(wrapper!.getComponent({ name: 'UserProfileModal' }).props('user')).toMatchObject({ bridge_source: platform })
+  })
+
+  it.each(['discord', 'matrix'] as const)('opens the profile card of a %s reactor picked in the reactions list', async platform => {
+    const posted = message('one', 0)
+    await mountList([posted])
+    await wrapper!.get('#message-one').trigger('contextmenu')
+    wrapper!.findComponent({ name: 'MessageContextMenu' }).vm.$emit('view-reactions', posted)
+    await flushPromises()
+    const actor = { reaction_id: 'r1', bot_id: 'bot-1', metadata: via(platform, 'sam', 'Sam').metadata }
+    wrapper!.getComponent({ name: 'ReactionsModal' }).vm.$emit('select-user', toReactionUser(actor, { displayName: () => '', avatarUrl: () => '', color: () => '' }))
+    await flushPromises()
+    const card = wrapper!.getComponent({ name: 'UserProfileModal' })
+    expect(card.props('show')).toBe(true)
+    expect(card.props('user')).toMatchObject({ id: `${platform}:${people[platform].sam}`, bridge_source: platform, display_name: 'Sam' })
+  })
+
+  it('opens the card of a Matrix person a mention names', async () => {
+    await mountList([message('one', 0)])
+    wrapper!.findComponent({ name: 'UnifiedMessageContent' }).vm.$emit('show-user-profile', 'matrix:@sam:example.org', new MouseEvent('click'))
+    await flushPromises()
+    expect(wrapper!.getComponent({ name: 'UserProfileModal' }).props('user')).toMatchObject({
+      id: 'matrix:@sam:example.org', bridge_source: 'matrix', bridge_id: '@sam:example.org', username: 'sam',
+    })
   })
 
   it('reports a Matrix message with its shown author, not a fabricated Harmony profile', async () => {
     const posted = message('report-matrix', 0, { user_id: undefined, bot_id: 'bot-1', metadata: {
-      bridge_author: { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam' },
+      matrix_user: { id: '@sam:example.org', username: 'sam', display_name: 'Sam' },
     } })
     await mountList([posted])
     await wrapper!.get('#message-report-matrix').trigger('contextmenu')
@@ -229,18 +276,17 @@ describe('MessageDisplay federated author', () => {
     expect(report.props('targetUser')).toMatchObject({ username: 'sam', display_name: 'Sam' })
   })
 
-  it('renders a remote Matrix bridge author without Harmony profile interactions', async () => {
-    await mountList([message('remote-matrix', 0, { user_id: null as never, bot_id: null as never, metadata: {
-      remote_author: { kind: 'bridge', id: 'matrix:@sam:example.org', name: 'Sam (Matrix)', avatar_url: 'https://cdn.test/m.png' }, bridge_source: 'matrix',
+  it.each(['discord', 'matrix'] as const)('renders a %s person in a copy of a remote server without a profile', async platform => {
+    await mountList([message('remote', 0, { user_id: null as never, bot_id: null as never, metadata: {
+      remote_author: { kind: 'bridge', id: `${platform}:sam`, name: 'Sam', avatar_url: 'https://cdn.test/m.png' }, bridge_source: platform,
     } })])
-    const author = wrapper!.get('#message-remote-matrix .username')
-    expect(author.text()).toContain('Sam (Matrix)')
-    expect(author.attributes('disabled')).toBeDefined()
-    expect(author.findComponent({ name: 'BridgeSourceBadge' }).props('source')).toBe('matrix')
-    expect(globeIn('remote-matrix').exists()).toBe(false)
-    expect(wrapper!.get('#message-remote-matrix').findComponent({ name: 'Avatar' }).props('interactive')).toBe(false)
+    const author = wrapper!.get('#message-remote .username')
+    expect(author.text()).toContain('Sam')
+    expect(author.findComponent({ name: 'BridgeSourceBadge' }).props('source')).toBe(platform)
+    expect(globeIn('remote').exists()).toBe(false)
     await author.trigger('click')
     expect(wrapper!.findComponent({ name: 'BotProfileModal' }).exists()).toBe(false)
+    expect(wrapper!.getComponent({ name: 'UserProfileModal' }).props('show')).toBe(false)
   })
 
   it('shows the globe in a direct message too', async () => {

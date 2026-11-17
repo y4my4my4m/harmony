@@ -41,11 +41,19 @@ describe('Matrix mention identity and source token', () => {
     expect(parts).toEqual([{ type: 'text', text: 'hello ' }, { ...mention, displayName: 'sam' }])
     expect(await parseContentToMessageParts('<@matrix:%ZZ>')).toEqual([{ type: 'text', text: '<@matrix:%ZZ>' }])
   })
-  it.each(['<@matrix:@sam:hs>', '<@matrix:%40sam%3Ahs:extra>', '<@matrix:%40sam%3Ahs extra>', '<@matrix:%40sam%3Ahs'])('keeps malformed or truncated Matrix token %j as text, never native mentions', async value => {
+  it.each(['<@matrix:@sam:hs>', '<@matrix:%40sam%3Ahs:extra>'])('keeps a malformed Matrix token %j as text, never a native mention', async value => {
     from.mockClear()
     expect(await resolveMentionsUserData(value)).toEqual({})
     expect(from).not.toHaveBeenCalled()
     expect(await parseContentToMessageParts(value)).toEqual([{ type: 'text', text: value }])
+  })
+  it.each(['<@matrix:%40sam%3Ahs hello #plans', '<@matrix:%40sam%3Ahs<b> #plans'])('does not let an unterminated token %j swallow the rest of its segment', async value => {
+    const chain: any = { select: () => chain, in: () => chain, eq: () => chain, or: () => chain, then: (resolve: any) => resolve({ data: [], error: null }) }
+    from.mockReturnValue(chain)
+    const parts = await parseContentToMessageParts(value, await resolveMentionsUserData(value))
+    expect(parts.filter(part => part.type === 'mention' && (part as MentionContent).bridgeSource === 'matrix')).toEqual([])
+    expect(parts.some(part => part.type === 'hashtag')).toBe(true)
+    from.mockReset()
   })
   it('preserves Discord compact mentions and does not consume tokens inside code, URLs or masked labels', async () => {
     const discord = await parseContentToMessageParts('@d!123:sam')
@@ -66,11 +74,12 @@ describe('Matrix mention identity and source token', () => {
     const parts = await parseContentToMessageParts('\\\\' + token)
     expect(parts.filter(part => part.type === 'mention')).toEqual([{ ...mention, displayName: 'sam' }])
   })
-  it('round-trips edits while displaying the full MXID in previews', () => {
+  it('round-trips edits as the token and shows @name in previews', () => {
     expect(messagePartsToRawText([mention])).toBe(token)
     expect(messagePartsToMarkdown([mention])).toBe(token)
     expect(convertMessagePartsToText([mention])).toBe(token)
-    expect(messagePartsToPlainText([mention])).toBe(id)
+    expect(messagePartsToPlainText([mention])).toBe('@sam')
+    expect(messagePartsToPlainText([{ ...mention, displayName: 'Sam Smith' }])).toBe('@Sam Smith')
     expect(stripLeadingSelfMention([mention], 'sam')).toEqual([mention])
   })
   it('never generates Harmony/ActivityPub notification targets for Matrix mentions', () => {

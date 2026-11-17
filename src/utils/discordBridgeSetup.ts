@@ -1,6 +1,6 @@
 /**
  * Discord bridge v2: row shapes, status/snapshot parsing, setup-step derivation and
- * the copy-paste commands shown in Server Settings → Discord Bridge.
+ * the copy-paste commands shown in Server Settings → Bridges → Discord.
  */
 import { getInstanceDomain, getStoredInstance } from '@/services/instanceConfig'
 import { runtimeConfig } from '@/services/runtimeConfig'

@@ -205,7 +205,7 @@ test('a Discord member opts out and erases; a manager removes another and clears
   const list = page.locator('[data-testid="message-list"]')
   await expect(list.getByText('Dana two')).toBeVisible({ timeout: 45000 })
   await expect(list.getByText('Eve two')).toBeVisible()
-  const discordMember = (name: string) => page.locator('.user-sidebar .user-item.bridged-discord-user').filter({ hasText: name })
+  const discordMember = (name: string) => page.locator('.user-sidebar .user-item.bridged-user').filter({ hasText: name })
   await expect(discordMember('Dana')).toBeVisible({ timeout: 20000 })
   await expect(discordMember('Eve')).toBeVisible()
 

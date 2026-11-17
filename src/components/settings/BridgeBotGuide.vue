@@ -58,7 +58,7 @@ const owner = ref<BridgeOwnerServer | null>(null)
 const inviteUrl = computed(() => buildDiscordInviteUrl(applicationId.value))
 
 function settingsLink(serverId: string) {
-  return { name: 'ServerSettings', params: { serverId }, query: { section: 'discord-bridge' } }
+  return { name: 'ServerSettings', params: { serverId }, query: { section: 'bridges', tab: 'discord' } }
 }
 
 watch(

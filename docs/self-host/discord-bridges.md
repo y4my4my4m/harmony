@@ -20,7 +20,7 @@ flowchart LR
   app["Harmony app: Server settings, Discord Bridge"] --> db
 ```
 
-Communities choose between three modes in **Server settings** → **Discord Bridge**. Each needs something different from you:
+Communities choose between three modes in **Server settings** → **Bridges** → **Discord**. Each needs something different from you:
 
 | Mode | Who runs the bridge | Discord bot | What you provide |
 |---|---|---|---|
@@ -96,7 +96,7 @@ The steps are also on the admin page, under **Set up the bot in the Discord Deve
 
 The secrets go to Vault and are never shown again; the fields then read **Stored**, and leaving a field empty keeps the stored value. **Remove bot** deletes the credentials and turns the bot off: linked communities stop bridging until a bot is set up again, and their bridges and pairs stay.
 
-Server owners then see **Use *instance*'s bot** first, marked **Recommended**, in **Server settings** → **Discord Bridge**.
+Server owners then see **Use *instance*'s bot** first, marked **Recommended**, in **Server settings** → **Bridges** → **Discord**.
 
 | Setting | Default | Effect |
 |---|---|---|

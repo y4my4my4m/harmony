@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/supabase', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { access_token: 'token' } } }) } } }))
 vi.mock('@/services/instanceConfig', () => ({ apiUrl: (path: string) => path }))
-import { fetchBridgedChannelUsers, fetchBridgedServerUsers, clearBridgedUsersCache, findBridgedUserInCache, bridgedUserKey, bridgedUserToProfileUser, isBridgedMatrixProfileUser, isBridgedDiscordProfileUser } from '../bridgedChannelUsersService'
+import { fetchBridgedChannelUsers, fetchBridgedServerUsers, clearBridgedUsersCache, findBridgedUserInCache, bridgedUserKey, bridgedUserToProfileUser, isBridgedMatrixProfileUser, isBridgedDiscordProfileUser, bridgedAuthorColor, bridgedAuthorMember, bridgedProfileTarget, bridgedProfilePlatform } from '../bridgedChannelUsersService'
 const request = vi.fn()
 const matrix = { source: 'matrix' as const, id: '@sam:example.org', username: 'sam', displayName: 'Sam', avatarUrl: '' }
 function respond(users: unknown[]) { request.mockResolvedValueOnce({ ok: true, json: async () => ({ has_bridge: true, users }) }) }
@@ -30,13 +30,39 @@ describe('platform-qualified bridged member cache', () => {
       { id: '123', username: 'legacy', source: 'discord', displayName: 'legacy', avatarUrl: '' }, matrix,
     ])
   })
-  it('adapts external Matrix identities without manufacturing a native profile or Discord id', () => {
-    const user = bridgedUserToProfileUser(matrix)
-    expect(user).toMatchObject({ id: 'matrix:@sam:example.org', matrix_id: matrix.id, bridge_source: 'matrix', is_local: false })
-    expect(user.discord_id).toBeUndefined()
-    expect(isBridgedMatrixProfileUser(user)).toBe(true)
-    expect(isBridgedDiscordProfileUser(user)).toBe(false)
-    expect(isBridgedMatrixProfileUser({ id: matrix.id })).toBe(true)
-    expect(isBridgedMatrixProfileUser({ id: 'native-uuid' })).toBe(false)
+  it.each([
+    [{ ...matrix }, 'matrix:@sam:example.org'],
+    [{ ...matrix, source: 'discord' as const, id: '42' }, 'discord:42'],
+  ])('adapts a bridged member into a profile card user the same way per platform', (member, id) => {
+    const user = bridgedUserToProfileUser(member)
+    expect(user).toMatchObject({ id, bridge_id: member.id, bridge_source: member.source, is_local: false, bridge_presence: false })
+    expect(bridgedProfilePlatform(user)).toBe(member.source)
+    expect(isBridgedMatrixProfileUser(user)).toBe(member.source === 'matrix')
+    expect(isBridgedDiscordProfileUser(user)).toBe(member.source === 'discord')
+    expect(bridgedUserToProfileUser({ ...member, presenceStatus: 'away' }).bridge_presence).toBe(true)
+  })
+
+  it('names the bridged person of a profile id', () => {
+    expect(bridgedProfileTarget('discord:42')).toEqual({ platform: 'discord', id: '42', username: '42' })
+    expect(bridgedProfileTarget('matrix:@sam:example.org')).toEqual({ platform: 'matrix', id: '@sam:example.org', username: 'sam' })
+    expect(bridgedProfileTarget('@sam:example.org')).toEqual({ platform: 'matrix', id: '@sam:example.org', username: 'sam' })
+    expect(bridgedProfileTarget('discord:')).toBeNull()
+    expect(bridgedProfileTarget('matrix:javascript:alert(1)')).toBeNull()
+    expect(bridgedProfileTarget('00000000-0000-4000-8000-000000000001')).toBeNull()
+    expect(bridgedProfilePlatform({ id: '00000000-0000-4000-8000-000000000001' })).toBeNull()
+  })
+
+  it('colours a bridged author by the cached role colour, else the default, for both platforms', async () => {
+    const roles = [{ id: 'r', name: 'Mod', color: '#ff0000', position: 1 }]
+    respond([{ ...matrix, roles }, { ...matrix, source: 'discord', id: '42', roles }])
+    await fetchBridgedChannelUsers('channel')
+    expect(bridgedAuthorColor('matrix', matrix.id)).toBe('#ff0000')
+    expect(bridgedAuthorColor('discord', '42')).toBe('#ff0000')
+    expect(bridgedAuthorColor('matrix', '@lee:example.org')).toBe('var(--text-primary)')
+    expect(bridgedAuthorColor('discord', '43')).toBe('var(--text-primary)')
+    expect(bridgedAuthorColor(null, null)).toBe('var(--text-primary)')
+    expect(bridgedAuthorMember({ platform: 'matrix', id: matrix.id, username: 'sam' }).roles).toEqual(roles)
+    expect(bridgedAuthorMember({ platform: 'matrix', id: '@lee:example.org', username: '', display_name: 'Lee' }))
+      .toEqual({ id: '@lee:example.org', username: 'lee', displayName: 'Lee', avatarUrl: '', source: 'matrix' })
   })
 })

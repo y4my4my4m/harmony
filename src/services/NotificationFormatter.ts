@@ -5,7 +5,7 @@
  * Designed to be easily internationalized by replacing message templates.
  */
 
-import { isMatrixMention } from '@/utils/matrixMentions'
+import { bridgedMentionPlainText } from '@/utils/bridgedMentions'
 import { maskSpoilers } from '@/utils/spoiler'
 import { pollPreview } from '@/utils/messagePoll'
 import type { Notification } from '@/types'
@@ -16,7 +16,7 @@ import { moveNoticeText } from '@/utils/moveNotice'
 import { i18n } from '@/i18n'
 import { getInstanceDomain } from '@/services/instanceConfig'
 import { urlPartPlainText } from '@/utils/maskedLinks'
-import { getBridgedAuthor } from '@/utils/messageAuthor'
+import { bridgedAuthorHandle, bridgedAuthorName, getBridgedAuthor } from '@/utils/messageAuthor'
 
 export interface NotificationMessage {
   title: string
@@ -38,11 +38,16 @@ function getActorFromData(data: Record<string, any>) {
   )
 }
 
+/** A relayed author the payload carries metadata for: the message's, the actor's, or the payload's own. */
+function bridgedNotificationAuthor(data: Record<string, any>) {
+  return getBridgedAuthor(data.message) || getBridgedAuthor(getActorFromData(data)) || getBridgedAuthor(data)
+}
+
 function getActorDisplayName(data: Record<string, any>): string {
   const actor = getActorFromData(data)
-  const bridged = getBridgedAuthor(data.message) || getBridgedAuthor(actor) || getBridgedAuthor(data)
+  const bridged = bridgedNotificationAuthor(data)
+  if (bridged) return bridgedAuthorName(bridged)
   return (
-    bridged?.display_name || bridged?.username ||
     actor?.display_name ||
     actor?.username ||
     data.sender_display_name ||
@@ -70,7 +75,7 @@ function extractContentText(content: any): string | null {
     const text = content
       .map((part: any) => {
         if (part.type === 'text') return part.text
-        if (part.type === 'mention') return isMatrixMention(part) ? part.userId : `@${part.username || ''}`
+        if (part.type === 'mention') return bridgedMentionPlainText(part) ?? `@${part.username || ''}`
         if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji || ''}:`
         if (part.type === 'hashtag') return `#${part.name || ''}`
         if (part.type === 'url') return part.url ? urlPartPlainText(part) : ''
@@ -675,18 +680,17 @@ export class NotificationFormatter {
     return ''
   }
 
+  /** Relayed author of the notification, when the payload carries its metadata. */
+  static getBridgeAuthor(notification: Notification) {
+    return bridgedNotificationAuthor(notification.data || {})
+  }
+
   /**
    * Web handle from notification payload (set by DB via notification_actor_json).
    */
-  static getBridgeAuthor(notification: Notification) {
-    const data = notification.data || {}
-    return getBridgedAuthor(data.message) || getBridgedAuthor(getActorFromData(data)) || getBridgedAuthor({ metadata: data.metadata })
-  }
-
   static getActorHandle(notification: Notification): string | null {
     const bridged = this.getBridgeAuthor(notification)
-    if (bridged?.platform === 'matrix') return bridged.id
-    if (bridged) return bridged.username.startsWith('@') ? bridged.username : `@${bridged.username}`
+    if (bridged) return bridgedAuthorHandle(bridged) || null
     const actor = getActorFromData(notification.data || {})
     if (!actor?.handle) return null
     const h = String(actor.handle)
@@ -744,7 +748,7 @@ export class NotificationFormatter {
    */
   static getUsername(notification: Notification): string {
     const bridged = this.getBridgeAuthor(notification)
-    if (bridged) return bridged.display_name || bridged.username
+    if (bridged) return bridgedAuthorName(bridged)
     const data = notification.data
     
     // For ActivityPub notifications, prioritize the handle (includes domain)

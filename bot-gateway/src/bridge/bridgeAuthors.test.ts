@@ -1,30 +1,49 @@
 import { describe, expect, it } from 'vitest'
-import { bridgeAuthor, bridgedMessageAuthor } from './bridgeAuthors.js'
+import { bridgedMessageAuthor, matrixAuthor } from './bridgeAuthors.js'
 
-const matrix = { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://example.org/sam.png' }
+const matrix = { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/s.png' }
 
-describe('bridge authors', () => {
-  it('keeps only bounded author fields for the registered platform', () => {
-    expect(bridgeAuthor({ ...matrix, token: 'not metadata', display_name: 'x'.repeat(101) }, 'matrix')).toEqual({ ...matrix, display_name: 'x'.repeat(100) })
+describe('matrixAuthor', () => {
+  it('keeps the author fields and nothing else', () => {
+    expect(matrixAuthor({ ...matrix, token: 'not metadata', display_name: 'x'.repeat(101) }))
+      .toEqual({ id: '@sam:example.org', username: 'sam', display_name: 'x'.repeat(100), avatar_url: 'https://cdn.test/s.png' })
   })
-  it.each([null, [], {}, { ...matrix, id: 'native-uuid' }, { ...matrix, username: '' }, { ...matrix, username: 'x'.repeat(101) }, { ...matrix, platform: 'discord' }])('rejects invalid Matrix identity %j', value => {
-    expect(bridgeAuthor(value, 'matrix')).toBeNull()
+
+  it.each([
+    ['another platform', { ...matrix, platform: 'discord', id: '42' }],
+    ['no platform', { id: '@sam:example.org', username: 'sam' }],
+    ['an id that is not an MXID', { ...matrix, id: 'sam' }],
+    ['an MXID over 255 characters', { ...matrix, id: `@${'a'.repeat(250)}:example.org` }],
+    ['an empty username', { ...matrix, username: '  ' }],
+    ['a username over 100 characters', { ...matrix, username: 'u'.repeat(101) }],
+  ])('refuses %s', (_name, value) => {
+    expect(matrixAuthor(value)).toBeNull()
   })
-  it('rejects a mismatched registration or invalid Discord snowflake', () => {
-    expect(bridgeAuthor(matrix, 'discord')).toBeNull()
-    expect(bridgeAuthor({ ...matrix, platform: 'discord' }, 'discord')).toBeNull()
-    expect(bridgeAuthor({ ...matrix, platform: 'discord', id: '123' }, 'discord')?.id).toBe('123')
+
+  it('drops an avatar that is not https', () => {
+    expect(matrixAuthor({ ...matrix, avatar_url: 'http://cdn.test/s.png' })).not.toHaveProperty('avatar_url')
+    expect(matrixAuthor({ ...matrix, avatar_url: 'https://user:pw@cdn.test/s.png' })).not.toHaveProperty('avatar_url')
+    expect(matrixAuthor({ ...matrix, avatar_url: 'not a url' })).not.toHaveProperty('avatar_url')
   })
-  it.each(['javascript:alert(1)', 'data:image/svg+xml,x', 'https://secret:password@example.org/a', 'mxc://example.org/a', 'not a URL'])('drops unsafe optional avatar %s', avatar_url => {
-    expect(bridgeAuthor({ ...matrix, avatar_url }, 'matrix')).not.toHaveProperty('avatar_url')
+})
+
+describe('bridgedMessageAuthor', () => {
+  it('names a Matrix-relayed message by its matrix_user', () => {
+    const message = { bot_id: 'b', metadata: { matrix_user: { id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/s.png' } } }
+    expect(bridgedMessageAuthor(message)).toEqual({
+      id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar: 'https://cdn.test/s.png',
+      nickname: null, bot: false, bridge_source: 'matrix', bridge_author: true,
+    })
   })
-  it('formats a generic author without looking up or posing as a Harmony profile', () => {
-    expect(bridgedMessageAuthor({ bot_id: 'bridge', metadata: { bridge_author: matrix } })).toMatchObject({ id: matrix.id, display_name: 'Sam', bridge_source: 'matrix', bridge_author: true, bot: false })
-    expect(bridgedMessageAuthor({ metadata: { bridge_author: matrix } })).toBeNull()
+
+  it('names a Discord-relayed message by its discord_user', () => {
+    const message = { bot_id: 'b', metadata: { discord_user: { id: '42', username: 'gus', display_name: 'Gus', avatar_url: 'https://cdn.discordapp.com/a.png' } } }
+    expect(bridgedMessageAuthor(message)).toMatchObject({ id: '42', username: 'gus', discord_user: true, bot: false })
   })
-  it('preserves legacy Discord flags and prefers the generic identity when both exist', () => {
-    const discord = { id: '123', username: 'alice' }
-    expect(bridgedMessageAuthor({ bot_id: 'bridge', metadata: { discord_user: discord } })).toMatchObject({ ...discord, discord_user: true, bot: false })
-    expect(bridgedMessageAuthor({ bot_id: 'bridge', metadata: { discord_user: discord, bridge_author: matrix } })?.id).toBe(matrix.id)
+
+  it('answers null for a member message and for a bot message without a relayed author', () => {
+    expect(bridgedMessageAuthor({ user_id: 'u', metadata: { matrix_user: { id: '@sam:example.org' } } })).toBeNull()
+    expect(bridgedMessageAuthor({ bot_id: 'b', metadata: {} })).toBeNull()
+    expect(bridgedMessageAuthor({ bot_id: 'b', metadata: { bridge_author: matrix } })).toBeNull()
   })
 })

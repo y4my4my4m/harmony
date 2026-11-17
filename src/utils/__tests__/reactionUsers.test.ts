@@ -24,7 +24,7 @@ describe('reactionUsers', () => {
     ], resolvers)
 
     expect(users[0]).toMatchObject({ kind: 'user', id: 'u1', displayName: 'name:u1', handle: '@u1', userColor: '#123456', isBridged: false })
-    expect(users[1]).toMatchObject({ kind: 'discord', id: '42', displayName: 'dd', handle: '@dd', userColor: BOT_NAME_COLOR, isBridged: true, bridgeSource: 'discord' })
+    expect(users[1]).toMatchObject({ kind: 'discord', id: '42', displayName: 'dd', handle: '@dd', userColor: 'var(--text-primary)', isBridged: true, bridgeSource: 'discord' })
     expect(users[2]).toMatchObject({ kind: 'bot', id: 'b1', displayName: 'Live Bot', userColor: BOT_NAME_COLOR })
     expect(new Set(users.map(u => u.key)).size).toBe(3)
   })
@@ -38,21 +38,26 @@ describe('reactionUsers', () => {
     ])).toEqual(['u1'])
   })
 
-  it('keeps generic bridge actors separate across platforms and out of profile lookups', () => {
-    const actors = (['matrix', 'discord'] as const).map(platform => ({ reaction_id: platform, user_id: 'relay',
-      metadata: { bridge_author: { platform, id: 'same-id', username: '@sam:example.org', display_name: 'Sam' } } }))
+  it('maps Discord and Matrix reactors alike, keyed apart per platform', () => {
+    const actors = [
+      { reaction_id: 'd', bot_id: 'relay', metadata: { discord_user: { id: '42', username: 'sam', display_name: 'Sam' } } },
+      { reaction_id: 'm', bot_id: 'relay', metadata: { matrix_user: { id: '@sam:example.org', username: 'sam', display_name: 'Sam' } } },
+    ]
     expect(reactionProfileIds(actors)).toEqual([])
-    const users = toReactionUsers(actors, resolvers)
-    expect(users.map(user => user.key)).toEqual(['matrix:same-id', 'discord:same-id'])
-    expect(users[0]).toMatchObject({ kind: 'matrix', displayName: 'Sam', handle: 'same-id', bridgeSource: 'matrix' })
-    expect(users[1].discordUser?.username).toBe('@sam:example.org')
+    const bridgedColor = (platform: string, id: string) => `${platform}-${id}`
+    const users = toReactionUsers(actors, { ...resolvers, bridgedColor })
+    expect(users.map(user => user.key)).toEqual(['discord:42', 'matrix:@sam:example.org'])
+    expect(users[0]).toMatchObject({ kind: 'discord', displayName: 'Sam', handle: '@sam', userColor: 'discord-42', bridgeSource: 'discord' })
+    expect(users[1]).toMatchObject({ kind: 'matrix', displayName: 'Sam', handle: '@sam:example.org', userColor: 'matrix-@sam:example.org', bridgeSource: 'matrix' })
+    expect(users[1].bridgedAuthor).toMatchObject({ platform: 'matrix', id: '@sam:example.org' })
   })
 
-  it('uses the full Matrix ID rather than a short localpart as the handle', () => {
-    const users = toReactionUsers([{ reaction_id: 'matrix', bot_id: 'relay', metadata: {
-      bridge_author: { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam' },
-    } }], resolvers)
-    expect(users[0].handle).toBe('@sam:example.org')
+  it('keys a Discord reactor without an id by its reaction', () => {
+    const users = toReactionUsers([
+      { reaction_id: 'r1', bot_id: 'relay', metadata: { discord_user: { username: 'a' } as never } },
+      { reaction_id: 'r2', bot_id: 'relay', metadata: { discord_user: { username: 'b' } as never } },
+    ], resolvers)
+    expect(users.map(user => user.key)).toEqual(['reaction:r1', 'reaction:r2'])
   })
 
   it('formats local and remote handles', () => {

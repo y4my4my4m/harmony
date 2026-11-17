@@ -1,3 +1,4 @@
+/** MatrixBridgeSettings.vue: Server settings → Bridges → Matrix. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import en from '@/locales/en.json'
@@ -15,11 +16,14 @@ const pair = { bot_id: 'bot', channel_id: 'channel', channel_name: 'general', ro
 let wrapper: VueWrapper
 beforeEach(() => { rpc.mockReset(); useProfileStore().profileId = 'member' })
 afterEach(() => wrapper?.unmount())
+const PrivacyPanel = { name: 'BridgePrivacyPanel', props: ['serverId', 'platform'], template: '<div class="privacy-stub" />' }
+const mountSettings = () => mount(MatrixBridgeSettings, { props: { serverId: 'server' }, global: { stubs: { BridgePrivacyPanel: PrivacyPanel } } })
 async function open(rows: unknown = [pair]) {
   rpc.mockResolvedValueOnce({ data: rows, error: null })
-  wrapper = mount(MatrixBridgeSettings, { props: { serverId: 'server' } })
+  wrapper = mountSettings()
   await flushPromises()
 }
+const reload = () => wrapper.get('[data-testid="matrix-bridge-reload"]').trigger('click')
 function deferred() { let resolve!: (value: unknown) => void; const promise = new Promise(r => { resolve = r }); return { promise, resolve } }
 
 describe('configured Matrix bridge sender settings', () => {
@@ -36,7 +40,7 @@ describe('configured Matrix bridge sender settings', () => {
     expect(wrapper.get('select').attributes('aria-describedby')).toBeTruthy()
     expect(wrapper.findAll('option').map(option => option.text())).toEqual(['Individual bridged users (recommended)', 'Shared bridge account'])
     rpc.mockResolvedValueOnce({ data: [], error: null })
-    await wrapper.get('button').trigger('click'); await flushPromises()
+    await reload(); await flushPromises()
     expect(wrapper.find('select').exists()).toBe(false)
     expect(wrapper.text()).toContain('No configured Matrix bridges')
   })
@@ -74,13 +78,13 @@ describe('configured Matrix bridge sender settings', () => {
     expect(wrapper.get('fieldset').attributes('disabled')).toBeDefined()
     expect((wrapper.get('select').element as HTMLSelectElement).value).toBe('relay')
     rpc.mockResolvedValueOnce({ data: [{ ...pair, sender_mode: 'ghost' }], error: null })
-    await wrapper.get('button').trigger('click'); await flushPromises()
+    await reload(); await flushPromises()
     expect((wrapper.get('select').element as HTMLSelectElement).value).toBe('ghost')
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
   it('ignores late load responses after a server switch', async () => {
     const pending = deferred(); rpc.mockReturnValueOnce(pending.promise)
-    wrapper = mount(MatrixBridgeSettings, { props: { serverId: 'server' } })
+    wrapper = mountSettings()
     rpc.mockResolvedValueOnce({ data: [{ ...pair, room_id: '!new:hs' }], error: null })
     await wrapper.setProps({ serverId: 'new-server' }); await flushPromises()
     pending.resolve({ data: [pair], error: null }); await flushPromises()
@@ -97,5 +101,14 @@ describe('configured Matrix bridge sender settings', () => {
     expect(wrapper.find('select').exists()).toBe(false)
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('No configured Matrix bridges')
+  })
+  it('sits under the Bridges heading and offers the Matrix manager privacy panel while a pair exists', async () => {
+    await open()
+    expect(wrapper.get('[data-testid="matrix-bridge"] h3').text()).toBe('Matrix bridge')
+    expect(wrapper.find('h2').exists()).toBe(false)
+    expect(wrapper.getComponent(PrivacyPanel).props()).toEqual({ serverId: 'server', platform: 'matrix' })
+    rpc.mockResolvedValueOnce({ data: [], error: null })
+    await reload(); await flushPromises()
+    expect(wrapper.findComponent(PrivacyPanel).exists()).toBe(false)
   })
 })

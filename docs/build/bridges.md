@@ -17,7 +17,7 @@ A bridge to another platform can run as an ordinary bot, with the [gateway](/bui
 
 ## How a bridge is set up
 
-A server has at most one Discord bridge. Setting it up under **Server settings** → **Discord Bridge** creates the bridge record and a bot of type Bridge for it, installed in the server with Read messages, Send messages, Manage channels and Manage roles. The bridge program authenticates with that bot's token. How it gets the token depends on where it runs:
+A server has at most one Discord bridge. Setting it up under **Server settings** → **Bridges** → **Discord** creates the bridge record and a bot of type Bridge for it, installed in the server with Read messages, Send messages, Manage channels and Manage roles. The bridge program authenticates with that bot's token. How it gets the token depends on where it runs:
 
 | Mode | In the app | Who runs the program | How the program gets the Harmony token |
 |---|---|---|---|
@@ -54,7 +54,7 @@ The bridge-bot routes answer `403` `Bot is not a Discord bridge` when the token'
 
 ### POST /redeem
 
-Trades a setup code for the bridge bot's Harmony token. Server owners get the code under **Server settings** → **Discord Bridge** → **Run it myself** → **Get a setup code**.
+Trades a setup code for the bridge bot's Harmony token. Server owners get the code under **Server settings** → **Bridges** → **Discord** → **Run it myself** → **Get a setup code**.
 
 ```json
 { "code": "HB-7KQM-2XRT-9PLD" }
@@ -266,7 +266,7 @@ For the instance's bridge host. Same header. Returns the instance's own Discord 
 
 ### Discord authorize and callback
 
-`GET /bridge/v2/discord/authorize?state=…` and `GET /bridge/v2/discord/callback` run the browser flow behind **Use *name*'s bot**: the app sends the server owner to `authorize`, which redirects to Discord's consent screen; Discord redirects back to `callback`, which links the Discord server to the bridge and returns the browser to the server's **Discord Bridge** settings with `linked=1` or a `link_error` (`state_invalid`, `guild_linked_elsewhere`, `discord_denied`, `exchange_failed`, `limit_reached`). Bridge programs do not call these routes. The operator registers `https://<instance>/bot-gateway/bridge/v2/discord/callback` as the Discord application's redirect URI.
+`GET /bridge/v2/discord/authorize?state=…` and `GET /bridge/v2/discord/callback` run the browser flow behind **Use *name*'s bot**: the app sends the server owner to `authorize`, which redirects to Discord's consent screen; Discord redirects back to `callback`, which links the Discord server to the bridge and returns the browser to the server's **Bridges** settings, **Discord** tab, with `linked=1` or a `link_error` (`state_invalid`, `guild_linked_elsewhere`, `discord_denied`, `exchange_failed`, `limit_reached`). Bridge programs do not call these routes. The operator registers `https://<instance>/bot-gateway/bridge/v2/discord/callback` as the Discord application's redirect URI.
 
 ## Generalized authors and member privacy
 
@@ -287,13 +287,13 @@ A registered bridge can post an external author separately from the message body
 }
 ```
 
-`platform` is `matrix` or `discord`; `id` is the stable platform identity, not a Harmony profile UUID. `username` is required (100 characters maximum); optional `display_name` is bounded to 100 characters and `avatar_url` to 2048. The gateway checks the registered platform for this bot/channel, validates the author, discards unknown author fields, and derives `bridge_source` itself. A missing binding answers `403`; an invalid or cross-platform author answers `400`. Author updates and generic reaction authors have the same checks. Ordinary client writes cannot supply these server-reserved identities. The app renders Matrix authors with a Matrix badge, without opening a fictitious Harmony profile.
+`platform` is `matrix`, from a bot whose channel is bound to Matrix (`bridge_channel_platform` answers `matrix`). The gateway stores the author as `metadata.matrix_user` with `metadata.bridge_source: "matrix"`; `bridge_author` itself is never stored. `id` is the MXID (`@user:server`, at most 255 characters), not a Harmony profile UUID. `username` is required (1 to 100 characters, not blank); optional `display_name` is at most 100 characters and `avatar_url` an `https://` URL of at most 2048. `matrix_user` holds no other key and never sits beside `discord_user` or `interaction`. A missing binding answers `403`; an invalid author answers `400`. Reactions carry `matrix_user` the same way. A Discord bridge sends `discord_user`, as before; `bridge_author` with `platform: "discord"` is refused. Ordinary client writes cannot supply these server-reserved identities. The app renders Matrix authors with a Matrix badge, without opening a fictitious Harmony profile.
 
-Existing `discord_user` metadata, old messages and Discord v2/legacy registration remain supported. Generic Discord authors also expose the legacy Discord author flag to gateway consumers.
+Existing `discord_user` metadata, old messages and Discord v2/legacy registration remain supported.
 
 ### Register the experimental Matrix relay
 
-A server manager calls the authenticated Supabase RPC:
+The bot's owner, who also manages the server, calls the authenticated Supabase RPC:
 
 ```js
 await supabase.rpc('configure_matrix_bridge', {
@@ -303,18 +303,18 @@ await supabase.rpc('configure_matrix_bridge', {
 })
 ```
 
-The dedicated bot must already have an active **scoped** read/send installation. Every channel must be a text channel in this server and in that installation's explicit channel allowlist. The RPC replaces this server's Matrix bindings, marks the bot's platform, and refuses to convert a Discord bridge. An empty array unpairs the server's channels; it does not turn the bot back into a legacy Discord bridge. The bot itself must not have Manage Server.
+The dedicated bot must be active and already have an active **scoped** read/send installation. Every channel must be a text channel in this server and in that installation's explicit channel allowlist. The RPC replaces this bot's bindings in this server, keeping the room and mode of a channel it keeps, and sets `bots.bridge_platform` to `matrix`; it never changes the bot's type. The bot of a Discord bridge (a `discord_bridges` row, or a bridge-type bot a v1 pairing trusts) is refused. `unconfigure_matrix_bridge(p_bot_id, p_server_id)`, for the bot's owner or a manager of the server, removes the bot's bindings in the server; a bot left with no binding anywhere is an ordinary bot again. The bot itself must not have Manage Server.
 
 ### Matrix sender modes and mentions
 
 The running Matrix application service binds each configured channel through `PUT /channels/{channel.id}/bridge-room`, supplying its room ID and initial sender mode. The first binding wins; reassigning a room requires explicitly unpairing it first. Reconfiguring a retained channel does not reset the administrator's mode choice.
 
-Under **Server settings → Matrix Bridge**, managers choose a mode for each bot/channel pair:
+Under **Server settings** → **Bridges** → **Matrix**, managers choose a mode for each bot/channel pair:
 
 - **Individual bridged users**: stable application-service ghost accounts join the Matrix room with Harmony names/avatars. Messages have no author prefix, and Matrix clients can autocomplete those joined users.
 - **Shared bridge account**: one Matrix sender with explicit Harmony attribution; no new ghosts. Existing configurations default to this mode; the example configuration explicitly recommends ghosts for new installations.
 
-The authenticated manager RPCs are `get_server_matrix_bridges(p_server_id)` and `set_matrix_bridge_sender_mode(p_bot_id, p_channel_id, p_sender_mode)`. This settings panel manages already-registered bridges; homeserver/application-service installation and initial channel pairing remain operator setup, not Discord OAuth or hosted-bot provisioning.
+The authenticated manager RPCs are `get_server_matrix_bridges(p_server_id)`, a JSON array of the server's bindings (`bot_id`, `bot_username`, `bot_display_name`, `channel_id`, `channel_name`, `room_id`, `sender_mode`, `sender_mode_set_by_manager`, `active`), and `set_matrix_bridge_sender_mode(p_bot_id, p_channel_id, p_sender_mode)`, which answers the updated binding. This settings panel manages already-registered bridges; homeserver/application-service installation and initial channel pairing remain operator setup, not Discord OAuth or hosted-bot provisioning.
 
 Ghost mode requires the generated exclusive user namespace to be installed on the Matrix homeserver and sufficient room invite permissions. The worker never silently falls back to attribution. It synchronizes only explicitly allowlisted, accepted native members who can view the channel and have not opted out; it leaves tracked ghosts when they become ineligible or the pair returns to relay mode. Matrix accounts and historical events are not erased. Nicknames are room-specific, not global profile changes. Avatars are mirrored as bounded raster bytes from Harmony's own storage, never fetched from arbitrary profile URLs.
 
@@ -330,13 +330,11 @@ See the [Matrix bridge operator/member guide](/run/matrix-bridge).
 
 ### Member opt-out
 
-Each accepted member can open **Server menu → Bridge privacy** to independently stop Discord or Matrix bridges from relaying their messages from that server. The authenticated RPCs are `get_server_bridge_privacy(p_server_id)`, returning `{ "discord": boolean, "matrix": boolean }` opt-out flags, and `set_server_bridge_platform_opt_out(p_server_id, p_platform, p_opt_out)`, returning the saved boolean. Neither accepts another member's ID. Managers cannot use these calls to change somebody else's preference. Preferences apply to every bridge of the selected platform in that server, not individual bots or channels. Existing opt-outs are preserved on both platforms; otherwise bridging defaults to allowed.
+Each accepted member can open **Server menu → Bridge privacy** to independently stop Discord or Matrix bridges from relaying their messages from that server. The authenticated RPCs are `bridge_member_privacy(p_server_id)`, returning `{ "discord": { "bridged": boolean, "opted_out": boolean }, "matrix": { … } }`, and `set_bridge_member_optout(p_server_id, p_platform, p_opted_out)`, returning the same shape. `bridged` says whether the server has a bridge of that platform (a Discord bridge or v1 pairing; a Matrix binding in one of its channels). Opting out needs accepted membership; opting back in does not. Neither call accepts another member's ID, and managers cannot change somebody else's preference. Preferences apply to every bridge of the platform in that server, not individual bots or channels, and are kept in `bridge_member_optouts`: they survive leaving, a kick, a ban and rejoining, and go with the server or the account. Bridging defaults to allowed.
 
-Older clients can still call `get_server_bridge_opt_out(p_server_id)` and `set_server_bridge_opt_out(p_server_id, p_opt_out)`. The getter conservatively reports true if either platform is opted out; the setter changes both platforms together. Deploy migration `20261111100004_bridge_platform_privacy.sql` before the updated client.
+The service role reads `bridge_member_optout_ids(p_server_id, p_platform)` (`{ "user_ids": [...] }`) and `bridge_member_relay_allowed(p_bot_id, p_channel_id, p_user_id)`, false when the bot's platform in the channel is one the member opted out of. The database withholds nothing itself. For bridge bots, the gateway withholds message creates, updates and reaction adds of an opted-out member, using the current preference. Public slash-command bot replies and follow-ups also inherit the invoking member's consent from server-owned `metadata.interaction.user_id`; a null message `user_id` does not bypass opt-out. Ordinary bots and independent server webhooks are not covered: this is a bridge preference, not a way to hide messages from every integration. Privacy lookups fail closed. The Matrix worker additionally rechecks consent before each queued Harmony-to-Matrix send, including retries, and before exposing fresh ghost profiles or membership.
 
-For bridge bots, the gateway filters message history, individual/Discord-ID lookups, message events and native-member reaction events using the current preference. Public slash-command bot replies and follow-ups also inherit the invoking member's consent from server-owned `metadata.interaction.user_id`; a null message `user_id` does not bypass opt-out. Ordinary bots and independent server webhooks are not covered: this is a bridge preference, not a way to hide messages from every integration. Privacy lookups fail closed. The Matrix worker additionally rechecks consent before each queued Harmony-to-Matrix send, including retries, and before exposing fresh ghost profiles or membership.
-
-Opt-out does **not** erase remote copies or guarantee remote cleanup. It also stops subsequent delete/update/reaction events by that member reaching bridge bots. External bridge programs may already hold previously disclosed payloads; they must recheck the consent endpoint before draining their own queues. A remote check and send are not atomic, so an already in-flight send can still finish.
+Opt-out does **not** erase remote copies or guarantee remote cleanup. Deletes and reaction removals still reach every bridge bot, so a bridge can remove what it relayed before. External bridge programs may already hold previously disclosed payloads; they must recheck the consent endpoint before draining their own queues. A remote check and send are not atomic, so an already in-flight send can still finish.
 
 ## Relayed authors
 

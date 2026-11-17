@@ -120,7 +120,7 @@ SELECT is(public.bridge_privacy_optout_ids('55555555-0000-0000-0000-000000000005
           '["2810000000000009001"]'::jsonb, 'the list holds the id');
 SELECT isnt(public.bridge_privacy_optout_ids('55555555-0000-0000-0000-000000000005', 'discord') ->> 'version',
             (SELECT v0 FROM v281), 'the version changed');
-SELECT throws_ok($q$SELECT public.bridge_privacy_set_optout('55555555-0000-0000-0000-000000000005', 'matrix', '@a:b', true)$q$,
+SELECT throws_ok($q$SELECT public.bridge_privacy_set_optout('55555555-0000-0000-0000-000000000005', 'slack', '@a:b', true)$q$,
                  '0A000', 'unsupported_platform', 'a platform without an author key is refused');
 SELECT throws_ok($q$SELECT public.bridge_privacy_set_optout('55555555-0000-0000-0000-000000000005', 'discord', 'dana', true)$q$,
                  '22023', 'invalid_remote_user', 'a Discord id is digits');

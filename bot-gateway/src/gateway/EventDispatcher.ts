@@ -5,7 +5,7 @@ import { OutgoingWebhookRoutes, OUTGOING_WEBHOOK_REFRESH_MS } from './outgoingWe
 import { withSignedMessageMedia } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
 import { bridgedMessageAuthor } from '../bridge/bridgeAuthors.js'
-import { type MessagePrivacySource, memberRecipients, messagePrivacySource, messageRecipients, sourceRecipients } from '../bridge/memberConsent.js'
+import { consentSubject, consentingReaders } from '../bridge/memberConsent.js'
 import { absoluteEmojiUrl, isAnimatedEmojiUrl, isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import {
   type EveryoneLayer,
@@ -28,10 +28,9 @@ interface ReactionRow {
   emoji_id?: string | null
   custom_emoji_content?: string | null
   metadata?: Record<string, unknown> | null
-  source?: MessagePrivacySource | null
 }
 
-const REACTION_COLUMNS = 'id, message_id, channel_id, user_id, bot_id, emoji_id, custom_emoji_content, metadata, created_at, source:messages!reactions_message_id_fkey(user_id,bot_id,metadata)'
+const REACTION_COLUMNS = 'id, message_id, channel_id, user_id, bot_id, emoji_id, custom_emoji_content, metadata, created_at'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // role_mention roleId of @here (db_schema/migrations/20261011600001_here_mention.sql).
 const HERE_ROLE_ID = 'here'
@@ -55,7 +54,6 @@ function reactionRow(r: ReactionRow): ReactionRow {
     emoji_id: r.emoji_id ?? null,
     custom_emoji_content: r.custom_emoji_content ?? null,
     metadata: r.metadata ?? null,
-    source: messagePrivacySource(r.source),
   }
 }
 
@@ -506,8 +504,11 @@ export class EventDispatcher {
     const serverId = await this.resolveServerId(channelId)
     if (!channelId || !serverId) return
 
-    const reactorReaders = await memberRecipients(await this.resolveReaders(serverId, channelId), channelId, reaction.user_id ?? null)
-    const botIds = await sourceRecipients(reactorReaders, channelId, reaction.source)
+    // A removal reaches every reader: a bridge that relayed the reaction removes its copy.
+    const readers = await this.resolveReaders(serverId, channelId)
+    const botIds = type === 'MESSAGE_REACTION_ADD'
+      ? await consentingReaders(readers, serverId, channelId, reaction.user_id ?? null)
+      : readers
     if (botIds.length === 0 && !this.webhooks.wants(type, serverId, botIds)) return
 
     // { id, name, url, animated }. A custom emoji has its emojis row's id, name and absolute url.
@@ -757,8 +758,7 @@ export class EventDispatcher {
         if (this.deletedIds.get(row.id)) return
         this.deletedIds.set(row.id, true)
         await this.handleMessageDelete({
-          old: { id: row.id, channel_id: row.channel_id, thread_id: row.thread_id ?? null,
-            user_id: row.user_id, bot_id: row.bot_id, metadata: row.metadata },
+          old: { id: row.id, channel_id: row.channel_id, thread_id: row.thread_id ?? null, metadata: row.metadata },
         })
       } else {
         await this.handleMessageUpdate({ new: row, old: { id: row.id } })
@@ -783,7 +783,7 @@ export class EventDispatcher {
    * MESSAGE_DELETE for a row removed through the bot REST API. A hard-deleted row leaves nothing
    * in the change feed, so the caller passes what it read before the delete.
    */
-  async messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown; user_id?: string | null; bot_id?: string | null }) {
+  async messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown }) {
     if (this.deletedIds.get(message.id)) return
     this.deletedIds.set(message.id, true)
     await this.handleMessageDelete({ old: message })
@@ -860,7 +860,7 @@ export class EventDispatcher {
       return
     }
     
-    const botIds = await messageRecipients(await this.resolveReaders(serverId, message.channel_id), message.id)
+    const botIds = await consentingReaders(await this.resolveReaders(serverId, message.channel_id), serverId, message.channel_id, consentSubject(message))
     
     console.log(`Found ${botIds.length} bots that can read channel ${message.channel_id} in server ${serverId}`);
     
@@ -886,7 +886,8 @@ export class EventDispatcher {
     const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) return
     
-    const botIds = await messageRecipients(await this.resolveReaders(serverId, message.channel_id, message.created_at), message.id)
+    const botIds = await consentingReaders(
+      await this.resolveReaders(serverId, message.channel_id, message.created_at), serverId, message.channel_id, consentSubject(message))
     if (botIds.length === 0 && !this.webhooks.wants('MESSAGE_UPDATE', serverId, botIds)) return
     
     await this.dispatch('MESSAGE_UPDATE', serverId, message.channel_id, botIds, await this.formatMessage(message, serverId))

@@ -37,6 +37,7 @@ import {
   sessionRevocationReason,
 } from '../WebSocketGateway.js'
 import { FakeDb } from '../../__tests__/fakeSupabase.js'
+import { forgetBridgeConsent } from '../../bridge/memberConsent.js'
 
 const VALID_VERIFICATION = {
   valid: true,
@@ -125,6 +126,7 @@ async function identify(token?: string) {
 
 beforeEach(async () => {
   mocks.rpc.mockReset()
+  forgetBridgeConsent()
   tableCalls.length = 0
   mocks.config.websocket.heartbeatInterval = 30_000
   mocks.config.websocket.maxConnectionsPerBot = 5
@@ -917,12 +919,14 @@ describe('bridge data registration (op 6)', () => {
   const registerMatrix = (connection = conn, members = [MATRIX_MEMBER]) =>
     (gateway as any).handleBridgeDataRegistration(connection, { platform: 'matrix', channels: [{ harmonyChannelId: GENERAL, members }] })
 
-  it('accepts bounded Matrix identities only from a currently registered Matrix pair', async () => {
+  it('lists Matrix identities only while bridge_channel_platform answers matrix, read through its 10 s cache', async () => {
     seed({}, 'matrix'); mocks.rpc.mockResolvedValue({ data: 'matrix', error: null })
     await registerMatrix()
     expect(gateway.getBridgedUsers(GENERAL)).toEqual([MATRIX_MEMBER])
     expect(await gateway.getAuthorizedBridgedUsers([GENERAL])).toEqual([MATRIX_MEMBER])
     mocks.rpc.mockResolvedValue({ data: null, error: null })
+    expect(await gateway.getAuthorizedBridgedUsers([GENERAL])).toEqual([MATRIX_MEMBER])
+    forgetBridgeConsent()
     expect(await gateway.getAuthorizedBridgedUsers([GENERAL])).toEqual([])
   })
 
@@ -973,6 +977,7 @@ describe('bridge data registration (op 6)', () => {
   it('fails a frontend read closed when the Matrix registration lookup fails', async () => {
     seed({}, 'matrix'); mocks.rpc.mockResolvedValue({ data: 'matrix', error: null }); await registerMatrix()
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'offline' } })
+    forgetBridgeConsent()
     await expect(gateway.getAuthorizedBridgedUsers([GENERAL])).rejects.toThrow('Bridge registration unavailable')
   })
 

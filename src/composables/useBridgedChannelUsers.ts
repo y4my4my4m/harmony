@@ -9,7 +9,8 @@ const PRESENCE_POLL_MS = 60_000
 /**
  * Ephemeral bridged (Discord / Matrix) members for a Harmony channel.
  * Shares cache with mention autocomplete - one fetch per channel per TTL.
- * Polls periodically while mounted so Discord presence stays reasonably fresh.
+ * Polls while mounted and a member reports presence, so presence stays reasonably fresh.
+ * The previous channel's list stays until the next one arrives.
  */
 export function useBridgedChannelUsers(channelId: MaybeRefOrGetter<string | null | undefined>) {
   const users = ref<BridgedChannelUser[]>([])
@@ -51,16 +52,16 @@ export function useBridgedChannelUsers(channelId: MaybeRefOrGetter<string | null
     async (id) => {
       const request = ++revision
       stopPolling()
-      users.value = []
-      hasBridge.value = false
-      loading.value = false
       if (!id) {
+        users.value = []
+        hasBridge.value = false
+        loading.value = false
         loaded.value = true
         return
       }
 
       await load(id)
-      if (request !== revision) return
+      if (request !== revision || !users.value.some(user => user.presenceStatus !== undefined)) return
       pollTimer = setInterval(() => {
         void load(id, { background: true })
       }, PRESENCE_POLL_MS)

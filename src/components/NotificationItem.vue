@@ -90,7 +90,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { isMatrixMention } from '@/utils/matrixMentions'
+import { bridgedMentionPlainText } from '@/utils/bridgedMentions'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
@@ -182,7 +182,7 @@ function partsText(content: any): string | null {
   const text = content
     .map((part: any) => {
       if (part.type === 'text') return part.text
-      if (part.type === 'mention') return isMatrixMention(part) ? part.userId : `@${part.username}${part.domain ? '@' + part.domain : ''}`
+      if (part.type === 'mention') return bridgedMentionPlainText(part) ?? `@${part.username}${part.domain ? '@' + part.domain : ''}`
       if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
       if (part.type === 'hashtag') return `#${part.name}`
       if (part.type === 'url') return part.url ? urlPartPlainText(part) : ''

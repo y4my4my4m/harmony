@@ -1,20 +1,38 @@
+/**
+ * Bridged members in the member list: Discord and Matrix rows share one layout, one badge
+ * and one grouping rule, in the whole list and in the windowed list of a large server.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { shallowMount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-vi.mock('vue-i18n', async original => ({ ...await original<typeof import('vue-i18n')>(), useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }) }))
+
+const state = vi.hoisted(() => ({ windowed: false }))
+
+vi.mock('vue-i18n', async original => ({ ...await original<typeof import('vue-i18n')>(), useI18n: () => ({ t: (key: string, values?: Record<string, unknown>) => values?.platform ? `${key}:${values.platform}` : key, locale: { value: 'en' } }) }))
 vi.mock('vue-router', async original => ({ ...await original<typeof import('vue-router')>(), useRouter: () => ({ push: vi.fn() }), useRoute: () => ({ path: '/channels/server/channel', params: {} }) }))
 vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => ({ currentServerId: 'server', currentChannelId: 'channel', currentServer: { id: 'server', name: 'Club' } }) }))
 vi.mock('@/composables/useBridgedChannelUsers', async () => {
   const { ref } = await import('vue')
   return { useBridgedChannelUsers: () => ({ hasBridge: ref(true), users: ref([
     { id: '@sam:example.org', username: 'sam', displayName: 'Matrix Sam', avatarUrl: '', source: 'matrix' },
-    { id: '123', username: 'sam', displayName: 'Discord Sam', avatarUrl: '', source: 'discord', presenceStatus: 'online' },
+    { id: '123', username: 'gus', displayName: 'Discord Gus', avatarUrl: '', source: 'discord', presenceStatus: 'online' },
+    { id: '456', username: 'dee', displayName: 'Discord Dee', avatarUrl: '', source: 'discord' },
   ]) }) }
 })
 vi.mock('@/composables/useServerBots', async () => { const { ref } = await import('vue'); return { useServerBots: () => ({ bots: ref([]) }) } })
 vi.mock('@/composables/useUserData', async original => {
   const actual = await original<typeof import('@/composables/useUserData')>(), { ref } = await import('vue')
   return { ...actual, useUserData: () => ({ ...actual.useUserData(), getUsersInContext: () => ref([{ id: 'native', username: 'native' }]) }) }
+})
+vi.mock('@/services/memberDirectory', async () => {
+  const { reactive } = await import('vue')
+  const directory = reactive({
+    get mode() { return state.windowed ? 'windowed' : 'complete' },
+    serverId: 'server', total: 1, query: '', listed: 0, answered: false,
+    open: vi.fn(), close: vi.fn(), attach: vi.fn(), detach: vi.fn(), search: vi.fn(), showRanges: vi.fn(),
+    slots: () => [{ type: 'header', groupKey: 'offline', count: 1 }, { type: 'member', groupKey: 'offline', index: 0, member: { id: 'native', username: 'native', display_name: 'Native' } }],
+  })
+  return { memberDirectory: directory }
 })
 vi.mock('@tanstack/vue-virtual', async () => {
   const { computed } = await import('vue')
@@ -24,29 +42,53 @@ vi.mock('@tanstack/vue-virtual', async () => {
   })) }
 })
 import UserSidebar from '../UserSidebar.vue'
+
 let wrapper: VueWrapper
-beforeEach(async () => {
-  setActivePinia(createPinia())
+async function mountSidebar(windowed: boolean) {
+  state.windowed = windowed
   wrapper = shallowMount(UserSidebar, { global: { mocks: { $t: (key: string) => key }, stubs: { 'i18n-t': true } } })
   await flushPromises()
-})
+}
+const row = (name: string) => wrapper.findAll('.bridged-user').find(item => item.text().includes(name))!
+const groupOf = (name: string) => {
+  const rows = wrapper.findAll('[data-member-index], .group-header')
+  let group = ''
+  for (const item of rows) {
+    if (item.classes('group-header')) group = item.text()
+    if (item.text().includes(name) && item.classes('bridged-user')) return group
+  }
+  return null
+}
+
+beforeEach(() => { setActivePinia(createPinia()) })
 afterEach(() => wrapper?.unmount())
-describe('Matrix channel members', () => {
-  it('shows an external MXID and neutral presence, opening the shared profile card', async () => {
-    const row = wrapper.get('[title="@sam:example.org"]')
-    expect(row.text()).toContain('Matrix Sam')
-    expect(row.text()).toContain('@sam:example.org')
-    expect(row.classes()).not.toContain('offline-user')
-    expect(row.getComponent({ name: 'Avatar' }).props('status')).toBeUndefined()
-    await row.trigger('click')
+
+describe.each([false, true])('bridged members (windowed: %s)', windowed => {
+  beforeEach(() => mountSidebar(windowed))
+
+  it('lists Discord and Matrix members with the same row and badge', () => {
+    for (const [name, source, handle] of [['Matrix Sam', 'matrix', '@sam:example.org'], ['Discord Gus', 'discord', '@gus']]) {
+      const item = row(name)
+      expect(item.exists(), name).toBe(true)
+      expect(item.getComponent({ name: 'BridgeSourceBadge' }).props('source')).toBe(source)
+      expect(item.find('.user-domain').text()).toBe(handle)
+      expect(item.attributes('title')).toBe(`${source === 'matrix' ? 'Matrix' : 'Discord'}: @${handle === '@gus' ? 'gus' : 'sam'}`)
+      expect(item.find('.sr-only').text()).toContain(`chatNav.members.bridged:${source === 'matrix' ? 'Matrix' : 'Discord'}`)
+    }
+    expect(wrapper.find('svg.discord-bridge-icon').exists()).toBe(false)
+  })
+
+  it('groups a Matrix member like a Discord member without presence', () => {
+    expect(groupOf('Matrix Sam')).toBe(groupOf('Discord Dee'))
+    expect(groupOf('Discord Gus')).not.toBe(groupOf('Discord Dee'))
+    expect(row('Matrix Sam').classes()).toEqual(row('Discord Dee').classes())
+  })
+
+  it('opens the profile card of either platform', async () => {
+    await row('Matrix Sam').trigger('click')
     expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('user')).toMatchObject({ bridge_source: 'matrix', id: 'matrix:@sam:example.org' })
     expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('show')).toBe(true)
-  })
-  it('still opens the legacy Discord card and supports searching a Matrix homeserver', async () => {
-    await wrapper.get('[title="Discord: @sam"]').trigger('click')
-    expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('user')).toMatchObject({ id: 'discord:123', bridge_source: 'discord' })
-    await wrapper.get('[data-testid="member-search"]').setValue('example.org')
-    expect(wrapper.find('[title="@sam:example.org"]').exists()).toBe(true)
-    expect(wrapper.find('[title="Discord: @sam"]').exists()).toBe(false)
+    await row('Discord Gus').trigger('click')
+    expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('user')).toMatchObject({ bridge_source: 'discord', id: 'discord:123' })
   })
 })

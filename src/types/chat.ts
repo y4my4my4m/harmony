@@ -151,12 +151,14 @@ export interface User {
   // Server activity fields shown in profile cards.
   message_count?: number;
   voice_time?: number;
-  /** Ephemeral external bridge identity (not a Harmony profile row). */
-  bridge_source?: 'discord' | 'matrix';
-  matrix_id?: string;
-  discord_id?: string;
-  discord_joined_at?: string | null;
-  discord_custom_status?: { text: string; emoji: string | null } | null;
+  /** Ephemeral bridged person (not a Harmony profile row); id is `<bridge_source>:<bridge_id>`. */
+  bridge_source?: BridgePlatform;
+  /** Discord snowflake or Matrix MXID. */
+  bridge_id?: string;
+  bridge_joined_at?: string | null;
+  bridge_custom_status?: { text: string; emoji: string | null } | null;
+  /** The bridge reports this person's presence; `status` is meaningful only then. */
+  bridge_presence?: boolean;
   accent_color?: string | null;
 }
 
@@ -635,10 +637,22 @@ export interface MessageInteraction {
 
 export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | StickerContent | SystemContent | PollContent | RoleMenuContent;
 
+export type BridgePlatform = 'discord' | 'matrix';
+
+/** A relayed person, read from metadata.discord_user or metadata.matrix_user (utils/messageAuthor.ts). */
 export interface BridgeAuthor {
-  platform: 'matrix' | 'discord';
+  platform: BridgePlatform;
+  /** Discord snowflake or Matrix MXID. */
   id: string;
   username: string;
+  display_name?: string;
+  avatar_url?: string;
+}
+
+/** Stored shape of metadata.discord_user and metadata.matrix_user. */
+export interface BridgedPersonMetadata {
+  id: string;
+  username?: string;
   display_name?: string;
   avatar_url?: string;
 }
@@ -653,18 +667,13 @@ export interface Reaction {
   emoji: Emoji; // doesn't exist in the database, we're transforming it
   reactions: Reaction[]; // doesn't exist in the database, we're transforming it
   /**
-   * Per-reaction metadata. Bridged Discord reactions carry the originating
-   * Discord user here so the UI renders the bridge source instead of doing a
-   * Harmony profile lookup.
+   * Per-reaction metadata. Bridged reactions carry the originating person
+   * (discord_user or matrix_user) so the UI renders the bridge source instead
+   * of doing a Harmony profile lookup.
    */
   metadata?: {
-    bridge_author?: BridgeAuthor;
-    discord_user?: {
-      id: string;
-      username?: string;
-      display_name?: string;
-      avatar_url?: string;
-    };
+    discord_user?: BridgedPersonMetadata;
+    matrix_user?: BridgedPersonMetadata;
     [key: string]: unknown;
   };
 }
@@ -743,7 +752,7 @@ export interface Message {
     embeds?: Record<string, EmbedPayload>;
     webhook?: MessageWebhookAuthor;
     remote_author?: MessageRemoteAuthor;
-    bridge_author?: BridgeAuthor;
+    matrix_user?: BridgedPersonMetadata;
     interaction?: MessageInteraction;
   }; // for federated messages and other metadata
   sending?: boolean; // local state: true while message is being sent to server

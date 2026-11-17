@@ -26,17 +26,36 @@ function row(emojiName: string) {
 }
 
 describe('NotificationItem reaction emoji', () => {
-  it('names and badges a Matrix reactor without resolving the relay as a person', () => {
+  it.each([
+    ['discord', { discord_user: { id: '42', username: 'sam', display_name: 'Sam' } }],
+    ['matrix', { matrix_user: { id: '@sam:example.org', username: 'sam', display_name: 'Sam' } }],
+  ])('names and badges a %s person the same way, never the relay bot', (platform, metadata) => {
     const wrapper = mount(NotificationItem, {
       global: { plugins: [i18n], stubs: { BridgeSourceBadge: { props: ['source'], template: '<span data-testid="source">{{ source }}</span>' } } },
-      props: { now: new Date(), notification: { id: 'matrix', type: 'reaction', is_read: false, created_at: new Date().toISOString(), data: {
-        reactor: { id: 'relay', display_name: 'Relay Bot', metadata: { bridge_author: { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam' } } },
+      props: { now: new Date(), notification: { id: platform, type: 'reaction', is_read: false, created_at: new Date().toISOString(), data: {
+        reactor: { id: 'relay', display_name: 'Relay Bot', metadata },
         reaction: { emoji_name: '🔥' },
       } } as any },
     })
     expect(wrapper.get('.actor').text()).toBe('Sam')
-    expect(wrapper.get('[data-testid="source"]').text()).toBe('matrix')
+    expect(wrapper.get('[data-testid="source"]').text()).toBe(platform)
     expect(wrapper.text()).not.toContain('Relay Bot')
+    wrapper.unmount()
+  })
+
+  it('writes Discord and Matrix mentions in the preview as @name', () => {
+    const wrapper = mount(NotificationItem, {
+      global: { plugins: [i18n] },
+      props: { now: new Date(), notification: { id: 'mention', type: 'mention', is_read: false, created_at: new Date().toISOString(), data: {
+        sender: { display_name: 'Ana' },
+        message: { content: [
+          { type: 'text', text: 'hi' },
+          { type: 'mention', userId: '@sam:example.org', username: 'sam', domain: 'example.org', isLocal: false, isBridged: true, bridgeSource: 'matrix' },
+          { type: 'mention', userId: '42', username: 'gus', domain: 'discord.com', isLocal: false, isBridged: true, bridgeSource: 'discord' },
+        ] },
+      } } as any },
+    })
+    expect(wrapper.get('.preview').text()).toBe('hi @sam @gus')
     wrapper.unmount()
   })
 

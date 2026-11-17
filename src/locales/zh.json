@@ -1,27 +1,67 @@
 {
-  "bridgeSource": { "from": "通过 {platform} 桥接" },
+  "bridgeSource": {
+    "from": "通过 {platform} 桥接",
+    "profile": {
+      "joinedServer": "加入服务器",
+      "memberSince": "{platform} 注册时间",
+      "status": "状态",
+      "roles": "角色 | 角色",
+      "copyId": "复制 ID",
+      "copied": "已复制",
+      "open": "在 {platform} 中打开"
+    }
+  },
   "matrixBridge": {
-    "navLabel": "Matrix 桥接", "title": "Matrix 桥接",
+    "title": "Matrix 桥接",
+    "pairsTitle": "已配对的频道",
     "description": "选择向现有 Matrix 房间桥接发送 Harmony 消息的方式。",
     "requirements": "独立模式为 Harmony 作者使用真实的 Matrix 成员。需要应用服务用户命名空间，以及将这些用户邀请到 Matrix 房间的权限。",
     "history": "模式更改仅影响今后的消息投递。现有历史记录将保留。",
     "delivery": "选择独立模式不代表注册或投递已完成。请在 Matrix 中成功投递的消息上确认发送者身份。",
-    "loading": "正在加载 Matrix 桥接…", "reload": "重新加载", "empty": "此服务器尚未配置 Matrix 桥接。",
+    "loading": "正在加载 Matrix 桥接…",
+    "reload": "重新加载",
+    "empty": "此服务器尚未配置 Matrix 桥接。",
     "waitingRoom": "正在等待桥接连接 Matrix 房间。现在即可保存模式选择。",
-    "senderMode": "Harmony 消息发送身份", "ghost": "独立桥接用户（推荐）", "relay": "共享桥接账户",
-    "saving": "正在保存模式…", "loadError": "无法加载 Matrix 桥接设置。请重新加载以重试。",
+    "senderMode": "Harmony 消息发送身份",
+    "ghost": "独立桥接用户（推荐）",
+    "relay": "共享桥接账户",
+    "saving": "正在保存模式…",
+    "loadError": "无法加载 Matrix 桥接设置。请重新加载以重试。",
     "saveError": "无法确认模式更改。请重新加载以查看当前设置。",
-    "externalIdentity": "这是外部 Matrix 身份，并非 Harmony 个人资料。无法使用 Harmony 个人资料操作。",
-    "openMatrix": "在 Matrix 中打开", "members": "Matrix 成员"
+    "privacy": {
+      "lead": "在此处移除 Matrix 用户后，此服务器的桥接从该用户带来的所有内容都会被删除，且不再带入其消息。",
+      "idLabel": "Matrix 用户 ID",
+      "idHelp": "完整的 Matrix ID，例如 {'@'}sam:example.org。",
+      "idInvalid": "Matrix 用户 ID 的格式为 {'@'}名称:服务器。",
+      "removeConfirm": "删除此桥接从 Matrix 用户 {id} 带来的所有消息、文件和回应，并不再带入其消息？此操作无法撤销。",
+      "listTitle": "已排除 {count} 位 Matrix 用户 | 已排除 {count} 位 Matrix 用户",
+      "source": {
+        "self": "本人在 Matrix 上退出"
+      },
+      "restoreLabel": "重新桥接 Matrix 用户 {id}",
+      "alsoSelf": "本人也在 Matrix 上退出",
+      "purgeLead": "移除此服务器的桥接从 Matrix 带来的一切：消息、文件和回应。在 Harmony 上写的消息会保留。",
+      "purgeConfirm": "删除从 Matrix 带入此服务器的所有消息、文件和回应？此操作无法撤销。"
+    }
+  },
+  "bridges": {
+    "navLabel": "桥接",
+    "title": "桥接",
+    "intro": "桥接会把此服务器的频道与其他聊天平台上的频道和房间连接起来。任意一边发送的消息都会带着发送者的名字和头像出现在另一边。",
+    "tabs": {
+      "discord": "Discord",
+      "matrix": "Matrix"
+    }
   },
   "bridgePrivacy": {
     "title": "桥接隐私",
-    "description": "禁止桥接将你今后在此服务器发送的消息转发到其他平台。",
+    "description": "禁止桥接将您今后在此服务器发送的消息转发到其他平台。",
     "scope": "此设置仅适用于此服务器的桥接，不会删除已转发的副本，也不会改变其他机器人能读取的内容。",
-    "optOut": "不转发我的消息",
+    "optOut": "不将我的消息转发到 {platform}",
+    "none": "目前没有桥接转发此服务器的消息。",
     "loading": "正在加载桥接隐私设置",
     "saving": "正在保存…",
-    "loadError": "无法加载你的隐私设置，请重试。",
+    "loadError": "无法加载您的隐私设置，请重试。",
     "saveError": "无法确认更改，请重新加载以查看当前设置。",
     "retry": "重试"
   },
@@ -1683,9 +1723,9 @@
       "compactMode": "紧凑模式",
       "compactModeDesc": "通过减少间距一次显示更多消息。",
       "bridgeSourceBadge": "桥接来源标识",
-      "bridgeSourceBadgeDesc": "桥接消息（例如来自 Discord）如何在作者名称旁显示其来源。",
+      "bridgeSourceBadgeDesc": "来自 Discord、Matrix 等桥接平台的用户如何在名称旁显示其来源。",
       "bridgeSourceBadgeIcon": "平台图标",
-      "bridgeSourceBadgeText": "文字标签（DISCORD）",
+      "bridgeSourceBadgeText": "文字标签（DISCORD、MATRIX）",
       "floatingVideo": "浮动视频播放器",
       "floatingVideoDesc": "滚动时播放的视频会浮动到角落。适用于 YouTube 和原生视频。",
       "videoPlayer": "视频播放器",
@@ -3910,7 +3950,7 @@
       "bot": "标准",
       "botHint": "使用其令牌连接，并通过网关和 REST API 执行操作。",
       "bridge": "桥接",
-      "bridgeHint": "在 Harmony 与其他平台之间转发消息。如需桥接 Discord，请改用服务器设置 → Discord 桥接：它会创建并管理自己的机器人。"
+      "bridgeHint": "在 Harmony 与其他平台之间转发消息。如需桥接 Discord，请改用服务器设置 → 桥接 → Discord：它会创建并管理自己的机器人。"
     },
     "usernameErrors": {
       "tooShort": "至少使用 3 个字符。",
@@ -5844,7 +5884,6 @@
     }
   },
   "discordBridge": {
-    "navLabel": "Discord 桥接",
     "title": "Discord 桥接",
     "intro": "桥接会把此服务器的频道与某个 Discord 服务器的频道连接起来。任意一边发送的消息都会带着发送者的名字和头像出现在另一边。",
     "loading": "正在加载 Discord 桥接…",
@@ -6395,7 +6434,7 @@
       "managed": "这个机器人是 {server} 的 Discord 桥接。它在那里设置和管理，这里无需任何配置。",
       "aServer": "您的某个服务器",
       "openSettings": "打开桥接设置",
-      "unmanaged": "Discord 桥接在服务器设置中进行设置：服务器设置 → Discord 桥接。该页面会替您创建并管理桥接的机器人，因此无需在这里创建。",
+      "unmanaged": "Discord 桥接在服务器设置中进行设置：服务器设置 → 桥接 → Discord。该页面会替您创建并管理桥接的机器人，因此无需在这里创建。",
       "legacyTitle": "旧版桥接（v1）手动设置",
       "legacyLead": "仅适用于读取配置文件的旧版 harmony-discord-bridge 程序。",
       "harmonyPermissions": "以“读取消息”和“发送消息”权限将此机器人添加到服务器（/bridge clone-server 还需要“管理频道”）。",
@@ -6405,7 +6444,7 @@
     },
     "adminSection": {
       "title": "Discord 桥接",
-      "lead": "社区在 服务器设置 → Discord 桥接 中连接 Discord 服务器。您可以向他们提供此实例的机器人，也可以让他们带来自己的机器人，或两者兼有。社区始终可以在自己的电脑上运行桥接。"
+      "lead": "社区在 服务器设置 → 桥接 → Discord 中连接 Discord 服务器。您可以向他们提供此实例的机器人，也可以让他们带来自己的机器人，或两者兼有。社区始终可以在自己的电脑上运行桥接。"
     },
     "admin": {
       "title": "允许社区使用自己的机器人",
@@ -6479,7 +6518,7 @@
       "clearConfirm": "要移除机器人的凭据吗？在重新设置机器人之前，已关联的社区将停止桥接。他们的桥接和频道配对会保留。",
       "cancel": "取消",
       "enable": "向社区提供此机器人",
-      "enableHint": "服务器管理员会在 服务器设置 → Discord 桥接 中首先看到“使用此实例的机器人”。",
+      "enableHint": "服务器管理员会在 服务器设置 → 桥接 → Discord 中首先看到“使用此实例的机器人”。",
       "enableNeedsConfig": "请先保存 Application ID、客户端密钥和机器人令牌。",
       "presence": "在线状态同步",
       "presenceHint": "为每个已关联的服务器请求 Discord 的 Presence 意图，让社区可以显示谁在线。只发送状态的变化。仅在 Developer Portal 中开启了 Presence 意图时才开启；超过 100 个服务器后，需要 Discord 批准。",
@@ -6797,7 +6836,7 @@
       "clearSearch": "清除搜索",
       "found": "找到 {count} 名成员",
       "group": "{title}，{count} 人",
-      "discord": "Discord 桥接成员",
+      "bridged": "{platform} 桥接成员",
       "instanceAdmin": "实例管理员",
       "instanceMod": "实例版主",
       "searchHint": "名称或用户名",

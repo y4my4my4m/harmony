@@ -1,6 +1,7 @@
 import { unescapeMarkup } from '@/utils/markupEscapes';
 import type { MessagePart, MentionContent } from '@/types';
 import { isMatrixMention, matrixMentionToken } from '@/utils/matrixMentions';
+import { bridgedMentionPlainText } from '@/utils/bridgedMentions';
 import { discordEmojiPartText } from '@/utils/discordEmoji';
 import { urlPartPlainText, urlPartSource } from '@/utils/maskedLinks';
 import { withoutStickerFallbacks } from '@/utils/stickerParts';
@@ -220,8 +221,7 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
         return part.emoji?.name ? `:${part.emoji.name}:` : '';
       
       case 'mention':
-        if (isMatrixMention(part)) return part.userId;
-        return (part as any).mention || (part.username ? `@${part.username}` : '');
+        return bridgedMentionPlainText(part) ?? ((part as any).mention || (part.username ? `@${part.username}` : ''));
 
       case 'role_mention':
         return part.roleName ? `@${part.roleName}` : '';

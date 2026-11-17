@@ -1,6 +1,5 @@
-import { createHash } from 'node:crypto'
 import { supabase } from '../config/supabase.js'
-import { BOT_MEDIA_URL_TTL_SECONDS, MESSAGE_MEDIA_BUCKET, isRoomMediaPath, publicStorageUrl } from './messageMedia.js'
+import { MESSAGE_MEDIA_BUCKET, isRoomMediaPath } from './messageMedia.js'
 import { stripMediaBytes } from './stripMetadata.js'
 import { isAnimatedPng } from './mirrorExternalMedia.js'
 
@@ -94,13 +93,6 @@ export function isDriveFilePath(path: unknown): path is string {
 export function isEncryptedDescriptor(part: any): boolean {
   return !!part && typeof part === 'object' && ENCRYPTION_KEYS.some(key => Object.prototype.hasOwnProperty.call(part, key))
 }
-function ownUploadPath(path: unknown, botId: string, channelId: string): path is string {
-  return UUID.test(botId) && safePath(path, channelId) && path.startsWith(`c/${channelId.toLowerCase()}/bridge/${botId}/`)
-    && /^[a-f0-9]{64}\.[a-z0-9]{1,8}$/.test(path.split('/').at(-1)!) && path.split('/').length === 5
-}
-function address(bytes: Buffer, meta: Omit<BridgeFilePart, 'path' | 'url'>): string {
-  return createHash('sha256').update(JSON.stringify([meta.fileName, meta.mimeType, meta.fileType, meta.fileSize])).update('\0').update(bytes).digest('hex')
-}
 async function signed(path: string, ttl: number): Promise<string> {
   try {
     const { data, error } = await supabase.storage.from(MESSAGE_MEDIA_BUCKET).createSignedUrl(path, ttl)
@@ -147,56 +139,10 @@ async function storedBytes(path: string, max: number): Promise<{ bytes: Buffer; 
     throw new BridgeFileError(503, 'Private attachment bytes unavailable')
   }
 }
-export async function storeBridgeFile(bytes: Buffer, name: string, declaredType: unknown, botId: string, channelId: string): Promise<BridgeFilePart> {
-  if (!UUID.test(botId) || !UUID.test(channelId)) throw new BridgeFileError(400, 'Invalid attachment scope')
-  let mimeType = mime(declaredType)
-  const file = fileName(name), policy = await limits()
-  allowed(policy, mimeType, bytes.length)
-  validateBytes(bytes, mimeType)
-  if (mimeType === 'image/png' && isAnimatedPng(bytes)) mimeType = 'image/apng'
-  const clean = Buffer.from(await stripMediaBytes(bytes))
-  allowed(policy, mimeType, clean.length)
-  validateBytes(clean, mimeType)
-  const meta = { type: 'file' as const, fileName: file, mimeType, fileType: mimeType.startsWith('image/') ? 'image' as const : 'file' as const, fileSize: clean.length }
-  const extension = IMAGE_EXT[mimeType] ?? (/\.([a-z0-9]{1,8})$/i.exec(file)?.[1].toLowerCase() || 'bin')
-  const path = `c/${channelId.toLowerCase()}/bridge/${botId}/${address(clean, meta)}.${extension}`
-  try {
-    const { error } = await supabase.storage.from(MESSAGE_MEDIA_BUCKET).upload(path, clean, { contentType: mimeType, upsert: true, cacheControl: '31536000', metadata: { bridgeFile: meta } })
-    if (error) throw new Error()
-  } catch { throw new BridgeFileError(503, 'Private attachment storage unavailable') }
-  return { ...meta, path, url: publicStorageUrl(await signed(path, BOT_MEDIA_URL_TTL_SECONDS)) }
-}
-/** Only Matrix create accepts paths, and only exact canonical uploads in this bot/channel. */
-export async function canonicalBridgeFileParts(parts: any[], botId: string, channelId: string): Promise<any[]> {
-  const uploads = parts.filter(part => part && typeof part === 'object' && 'path' in part)
-  if (uploads.length > 20) throw new BridgeFileError(413, 'At most twenty uploaded attachments are allowed per message')
-  let declared = 0
-  for (const part of uploads) {
-    if (!Number.isSafeInteger(part.fileSize) || part.fileSize < 0) throw new BridgeFileError(400, 'Invalid attachment size')
-    declared += part.fileSize
-    if (declared > MAX_BRIDGE_FILE_BYTES) throw new BridgeFileError(413, 'Attachments exceed the combined message size limit')
-  }
-  let total = 0
-  const out: any[] = []
-  for (const part of parts) {
-    if (!part || typeof part !== 'object' || !Object.prototype.hasOwnProperty.call(part, 'path')) { out.push(part); continue }
-    if (part.type !== 'file' || isEncryptedDescriptor(part) || !ownUploadPath(part.path, botId, channelId)) throw new BridgeFileError(400, 'Invalid Matrix attachment path or descriptor')
-    const policy = await limits(), stored = await storedBytes(part.path, Math.min(policy.max, MAX_BRIDGE_FILE_BYTES - total))
-    total += stored.bytes.length
-    const mimeType = mime(part.mimeType), name = fileName(part.fileName)
-    allowed(await limits(), mimeType, stored.bytes.length)
-    validateBytes(stored.bytes, mimeType)
-    const meta = { type: 'file' as const, fileName: name, mimeType, fileType: mimeType.startsWith('image/') ? 'image' as const : 'file' as const, fileSize: stored.bytes.length }
-    if (part.fileSize !== meta.fileSize || part.fileType !== meta.fileType || stored.mimeType !== mimeType
-      || !part.path.split('/').at(-1)!.startsWith(address(stored.bytes, meta) + '.')) throw new BridgeFileError(400, 'Attachment metadata does not match its uploaded object')
-    out.push({ ...meta, path: part.path, url: publicStorageUrl(await signed(part.path, BOT_MEDIA_URL_TTL_SECONDS)) })
-  }
-  return out
-}
-/** Drive paths require the caller's fresh drive_file_owned_by check; never fetch part.url. */
-export async function downloadBridgeFile(part: any, channelId: string, driveOwned = false): Promise<{ bytes: Buffer; fileName: string; mimeType: string }> {
+/** Reads a room-media part of `channelId` from storage; part.url is never fetched. */
+export async function downloadBridgeFile(part: any, channelId: string): Promise<{ bytes: Buffer; fileName: string; mimeType: string }> {
   if (part?.type !== 'file' || isEncryptedDescriptor(part)) throw new BridgeFileError(422, 'Encrypted or unsupported attachment descriptor')
-  if (!safePath(part.path, channelId) && !(driveOwned && isDriveFilePath(part.path))) throw new BridgeFileError(422, 'Attachment is not stored in this channel private media namespace')
+  if (!safePath(part.path, channelId)) throw new BridgeFileError(422, 'Attachment is not stored in this channel private media namespace')
   const policy = await limits(), stored = await storedBytes(part.path, policy.max)
   const name = fileName(part.fileName || 'attachment')
   const currentPolicy = await limits()

@@ -55,7 +55,7 @@ const COMBINED_MENTION_HASHTAG_REGEX = new RegExp(
   '|(@d!(\\d+):([a-zA-Z0-9_.-]+))' +
   `|(${HANDLE_PATTERN})` +
   '|(?<![&\\w])#([\\p{L}\\p{N}_-]+)' +
-  '|(<@matrix:([^<>]*)(?:>|(?=<)|$))',
+  '|(<@matrix:([^<>\\s]*)>)',
   'gu',
 );
 // Mirrors the inline-code rule of chatMessageTextRenderer.
@@ -108,7 +108,7 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
   // Handles inside URLs and inline code are not resolved.
   const skipRanges = opaqueRanges(content);
   // Encoded Matrix tokens never resolve a local account named "matrix".
-  for (const token of content.matchAll(/<@matrix:[^<>]*(?:>|(?=<)|$)/g)) {
+  for (const token of content.matchAll(/<@matrix:[^<>\s]*>/g)) {
     skipRanges.push({ start: token.index!, end: token.index! + token[0].length });
   }
   const isOpaque = (pos: number): boolean =>
@@ -492,6 +492,7 @@ async function parseContentSegment(
   //   @d!ID:username    Discord bridged user
   //   @username[@domain] user mention
   //   #hashtag
+  //   <@matrix:MXID>    Matrix bridged user, MXID URI-encoded; the closing '>' is required
   // Stateful 'g' regex hoisted to module scope; lastIndex reset per call.
   COMBINED_MENTION_HASHTAG_REGEX.lastIndex = 0;
   const parts: MessagePart[] = [];

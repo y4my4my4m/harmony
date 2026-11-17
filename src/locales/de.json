@@ -1,25 +1,64 @@
 {
-  "bridgeSource": { "from": "Über {platform} verbunden" },
+  "bridgeSource": {
+    "from": "Über {platform} verbunden",
+    "profile": {
+      "joinedServer": "Server beigetreten",
+      "memberSince": "Auf {platform} seit",
+      "status": "Status",
+      "roles": "Rolle | Rollen",
+      "copyId": "ID kopieren",
+      "copied": "Kopiert",
+      "open": "Auf {platform} öffnen"
+    }
+  },
   "matrixBridge": {
-    "navLabel": "Matrix-Brücke", "title": "Matrix-Brücke",
-    "description": "Wähle, wie Harmony-Nachrichten an bestehende Matrix-Raumbrücken gesendet werden.",
+    "title": "Matrix-Bridge",
+    "pairsTitle": "Verbundene Kanäle",
+    "description": "Wähle, wie Harmony-Nachrichten an bestehende Matrix-Bridges gesendet werden.",
     "requirements": "Der Einzelmodus verwendet echte Matrix-Mitglieder für Harmony-Autoren. Er benötigt einen Benutzer-Namensraum des Application Service und die Berechtigung, sie in den Matrix-Raum einzuladen.",
     "history": "Modusänderungen gelten nur für zukünftige Zustellungen. Der bisherige Verlauf bleibt erhalten.",
     "delivery": "Die Auswahl bestätigt weder Registrierung noch Zustellung. Prüfe den Absender einer erfolgreich zugestellten Nachricht in Matrix.",
-    "loading": "Matrix-Brücken werden geladen…", "reload": "Neu laden",
-    "empty": "Für diesen Server sind keine Matrix-Brücken konfiguriert.",
+    "loading": "Matrix-Bridges werden geladen…",
+    "reload": "Neu laden",
+    "empty": "Für diesen Server sind keine Matrix-Bridges eingerichtet.",
     "waitingRoom": "Warte auf die Verbindung mit einem Matrix-Raum. Die Moduswahl kann schon gespeichert werden.",
-    "senderMode": "Harmony-Nachrichten senden als", "ghost": "Einzelne überbrückte Benutzer (empfohlen)", "relay": "Gemeinsames Brückenkonto",
-    "saving": "Modus wird gespeichert…", "loadError": "Matrix-Brückeneinstellungen konnten nicht geladen werden. Bitte neu laden.",
+    "senderMode": "Harmony-Nachrichten senden als",
+    "ghost": "Einzelne überbrückte Benutzer (empfohlen)",
+    "relay": "Gemeinsames Bridge-Konto",
+    "saving": "Modus wird gespeichert…",
+    "loadError": "Die Einstellungen der Matrix-Bridge konnten nicht geladen werden. Bitte neu laden.",
     "saveError": "Die Modusänderung konnte nicht bestätigt werden. Lade neu, um die aktuelle Einstellung zu prüfen.",
-    "externalIdentity": "Dies ist eine externe Matrix-Identität, kein Harmony-Profil. Harmony-Profilaktionen sind nicht verfügbar.",
-    "openMatrix": "In Matrix öffnen", "members": "Matrix-Mitglieder"
+    "privacy": {
+      "lead": "Entferne hier eine Matrix-Person, um alles zu löschen, was die Bridge dieses Servers von ihr gebracht hat, und keine weiteren Nachrichten von ihr zu bringen.",
+      "idLabel": "Matrix-Benutzer-ID",
+      "idHelp": "Die vollständige Matrix-ID, etwa {'@'}sam:example.org.",
+      "idInvalid": "Eine Matrix-Benutzer-ID hat die Form {'@'}name:server.",
+      "removeConfirm": "Alle Nachrichten, Dateien und Reaktionen löschen, die diese Bridge von der Matrix-Person {id} gebracht hat, und keine weiteren bringen? Das lässt sich nicht rückgängig machen.",
+      "listTitle": "{count} Matrix-Person ausgeschlossen | {count} Matrix-Personen ausgeschlossen",
+      "source": {
+        "self": "Auf Matrix abgemeldet"
+      },
+      "restoreLabel": "Matrix-Person {id} wieder überbrücken",
+      "alsoSelf": "Auch auf Matrix abgemeldet",
+      "purgeLead": "Entferne alles, was die Bridge dieses Servers von Matrix gebracht hat: Nachrichten, Dateien und Reaktionen. Auf Harmony geschriebene Nachrichten bleiben.",
+      "purgeConfirm": "Alle Nachrichten, Dateien und Reaktionen löschen, die von Matrix auf diesen Server gebracht wurden? Das lässt sich nicht rückgängig machen."
+    }
+  },
+  "bridges": {
+    "navLabel": "Bridges",
+    "title": "Bridges",
+    "intro": "Bridges verbinden Kanäle dieses Servers mit Kanälen und Räumen auf anderen Chat-Plattformen. Nachrichten von einer Seite erscheinen auf der anderen, mit Name und Bild der jeweiligen Person.",
+    "tabs": {
+      "discord": "Discord",
+      "matrix": "Matrix"
+    }
   },
   "bridgePrivacy": {
     "title": "Bridge-Datenschutz",
     "description": "Verhindere, dass Bridges deine zukünftigen Nachrichten aus diesem Server an andere Plattformen weiterleiten.",
     "scope": "Dies gilt nur für Bridges in diesem Server. Bereits vorhandene Kopien auf anderen Plattformen werden nicht entfernt und die Leserechte anderer Bots bleiben unverändert.",
-    "optOut": "Meine Nachrichten nicht weiterleiten",
+    "optOut": "Meine Nachrichten nicht an {platform} weiterleiten",
+    "none": "Derzeit leitet keine Bridge Nachrichten aus diesem Server weiter.",
     "loading": "Bridge-Datenschutz wird geladen",
     "saving": "Wird gespeichert…",
     "loadError": "Deine Bridge-Datenschutzeinstellung konnte nicht geladen werden. Versuche es erneut.",
@@ -1684,9 +1723,9 @@
       "compactMode": "Kompaktmodus",
       "compactModeDesc": "Mehr Nachrichten auf einmal mit reduziertem Abstand anzeigen.",
       "bridgeSourceBadge": "Bridge-Quellenanzeige",
-      "bridgeSourceBadgeDesc": "Wie gebridgte Nachrichten (z. B. von Discord) ihre Quelle neben dem Autorennamen anzeigen.",
+      "bridgeSourceBadgeDesc": "Wie Personen von gebridgten Plattformen wie Discord und Matrix ihre Quelle neben ihrem Namen anzeigen.",
       "bridgeSourceBadgeIcon": "Plattform-Symbol",
-      "bridgeSourceBadgeText": "Textlabel (DISCORD)",
+      "bridgeSourceBadgeText": "Textlabel (DISCORD, MATRIX)",
       "floatingVideo": "Schwebendes Video-Player",
       "floatingVideoDesc": "Abgespielte Videos schweben in die Ecke, wenn wegscrollt wird. Funktioniert mit YouTube und nativen Videos.",
       "videoPlayer": "Videoplayer",
@@ -3911,7 +3950,7 @@
       "bot": "Standard",
       "botHint": "Verbindet sich mit seinem Token und agiert über das Gateway und die REST-API.",
       "bridge": "Bridge",
-      "bridgeHint": "Überträgt Nachrichten zwischen Harmony und einer anderen Plattform. Für Discord nutze stattdessen Servereinstellungen → Discord-Bridge: Dort wird ein eigener Bot erstellt und verwaltet."
+      "bridgeHint": "Überträgt Nachrichten zwischen Harmony und einer anderen Plattform. Für Discord nutze stattdessen Servereinstellungen → Bridges → Discord: Dort wird ein eigener Bot erstellt und verwaltet."
     },
     "usernameErrors": {
       "tooShort": "Verwende mindestens 3 Zeichen.",
@@ -5845,7 +5884,6 @@
     }
   },
   "discordBridge": {
-    "navLabel": "Discord-Bridge",
     "title": "Discord-Bridge",
     "intro": "Eine Bridge verbindet Kanäle auf diesem Server mit Kanälen auf einem Discord-Server. Nachrichten von einer Seite erscheinen auf der anderen, mit Name und Bild der jeweiligen Person.",
     "loading": "Discord-Bridge wird geladen…",
@@ -6396,7 +6434,7 @@
       "managed": "Dieser Bot ist die Discord-Bridge von {server}. Er wird dort eingerichtet und verwaltet; hier gibt es nichts einzustellen.",
       "aServer": "einem deiner Server",
       "openSettings": "Bridge-Einstellungen öffnen",
-      "unmanaged": "Discord-Bridges werden in den Einstellungen eines Servers eingerichtet: Servereinstellungen → Discord-Bridge. Diese Seite erstellt und verwaltet den Bot der Bridge für dich, du musst hier also keinen anlegen.",
+      "unmanaged": "Discord-Bridges werden in den Einstellungen eines Servers eingerichtet: Servereinstellungen → Bridges → Discord. Diese Seite erstellt und verwaltet den Bot der Bridge für dich, du musst hier also keinen anlegen.",
       "legacyTitle": "Manuelle Einrichtung der alten Bridge (v1)",
       "legacyLead": "Nur für das alte Programm harmony-discord-bridge, das eine Konfigurationsdatei liest.",
       "harmonyPermissions": "Füge diesen Bot dem Server mit Nachrichten lesen und Nachrichten senden hinzu (und Kanäle verwalten für /bridge clone-server).",
@@ -6406,7 +6444,7 @@
     },
     "adminSection": {
       "title": "Discord-Bridge",
-      "lead": "Communities verbinden einen Discord-Server unter Servereinstellungen → Discord-Bridge. Biete ihnen den Bot dieser Instanz an, lass sie einen eigenen mitbringen, oder beides. Die Bridge auf einem eigenen Computer zu betreiben, geht immer."
+      "lead": "Communities verbinden einen Discord-Server unter Servereinstellungen → Bridges → Discord. Biete ihnen den Bot dieser Instanz an, lass sie einen eigenen mitbringen, oder beides. Die Bridge auf einem eigenen Computer zu betreiben, geht immer."
     },
     "admin": {
       "title": "Communities ihren eigenen Bot mitbringen lassen",
@@ -6480,7 +6518,7 @@
       "clearConfirm": "Die Zugangsdaten des Bots entfernen? Verknüpfte Communitys werden nicht mehr verbunden, bis wieder ein Bot eingerichtet ist. Ihre Bridges und Kanalpaare bleiben.",
       "cancel": "Abbrechen",
       "enable": "Diesen Bot den Communitys anbieten",
-      "enableHint": "Server-Admins sehen „Den Bot dieser Instanz verwenden“ als Erstes unter Servereinstellungen → Discord-Bridge.",
+      "enableHint": "Server-Admins sehen „Den Bot dieser Instanz verwenden“ als Erstes unter Servereinstellungen → Bridges → Discord.",
       "enableNeedsConfig": "Speichere zuerst Application ID, Client Secret und Bot-Token.",
       "presence": "Status-Synchronisierung",
       "presenceHint": "Fordert Discords Presence-Intent für jeden verknüpften Server an, damit Communitys zeigen können, wer online ist. Es werden nur Statusänderungen gesendet. Schalte es nur ein, solange der Presence-Intent im Developer Portal an ist; ab 100 Servern muss Discord ihn genehmigen.",
@@ -6798,7 +6836,7 @@
       "clearSearch": "Suche leeren",
       "found": "{count} Mitglied gefunden | {count} Mitglieder gefunden",
       "group": "{title}, {count} Mitglied | {title}, {count} Mitglieder",
-      "discord": "Mitglied über die Discord-Brücke",
+      "bridged": "Mitglied über die {platform}-Bridge",
       "instanceAdmin": "Instanz-Admin",
       "instanceMod": "Instanz-Moderator",
       "searchHint": "Name oder Benutzername",

@@ -63,28 +63,22 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   **Config** shows how many files are waiting, too large or failed, and the size stored. One server stores up to
   5120 MB of them (**Stored Discord files per server (MB)** under **Discord history import**, `0`
   for no limit); past it, further files keep their Discord links until the limit is raised.
-- **Matrix attachment API support:** authenticated byte endpoints let the separately deployed
-  [Matrix bridge](https://github.com/y4my4my4m/harmony-matrix-bridge) copy attachments into
-  destination-owned storage, including captions, file-only messages and multiple Harmony files.
-  Bounded transfers respect current consent, plaintext state and private storage policy;
-  unsupported/failed copies show a notice. Matrix replies to individual file events retain
-  native parent context. Audio/video are files without transcoding; encrypted rooms/media
-  remain blocked and tracked as follow-up work.
-- **Matrix-to-Harmony reply integration:** the bridge can supply native Harmony reply
-  context for known, readable parents; unknown/private parents retain the new text alone.
-  The separate service removes legacy quoted fallbacks; edits and Matrix threads remain unsupported.
-- **Experimental Matrix integration** with the standalone application service above;
-  its runtime is not bundled with Harmony. Includes a permission-checked bot API endpoint
-  for channel encryption state. Matrix authors now appear under their room name/avatar with a
-  Matrix badge in Harmony, using generalized, permission-checked bridge metadata.
-  Members can opt out through the server's Bridge privacy menu; gateway events and
-  history respect it, including public slash-command bot replies; queued Matrix sends
-  recheck it. Existing Discord author
-  metadata remains supported. Optional Matrix ghost users now mirror eligible
-  Harmony names/avatars into real room members; managers choose ghosts or a shared
-  attributed relay under Server settings → Matrix Bridge. Member synchronization
-  enables native mention pickers and explicit mention translation in both directions.
-  Full in-client installation/pairing and encrypted participant support remain future work.
+- **Matrix bridge.** Harmony works with the [Matrix bridge](https://github.com/y4my4my4m/harmony-matrix-bridge),
+  an application service an instance operator runs beside a Matrix homeserver. Messages, replies,
+  images and files cross both ways between a paired channel and Matrix room, in channels without
+  end-to-end encryption. Matrix people show as Discord people do: their name and avatar, with a
+  Matrix icon or a `MATRIX` label (**Bridge source indicator** in **Appearance**), in messages,
+  mentions, the member list, reactions, notifications and their profile card. Harmony members appear
+  in Matrix as their own Matrix users or through one shared bridge account, chosen per channel in
+  **Server settings** → **Bridges** → **Matrix**. Server managers remove a Matrix person from the
+  bridge and erase what it relayed there, as for Discord people. (#197, ZaneH)
+- **One Bridges page.** **Server settings** → **Bridges** holds the Discord and Matrix bridges on two
+  tabs. Links to the former **Discord Bridge** page open the Discord tab.
+- **Keep your messages off a bridge.** **Bridge privacy** in a server's menu stops its Discord or
+  Matrix bridge, each on its own, from relaying your messages, edits, reactions and the bots' public
+  answers to your slash commands. Deleting a message still reaches the bridge, so a copy relayed
+  before is removed too. The entry shows only in servers with a bridge, and the choice lasts when you
+  leave and rejoin. (#197, ZaneH)
 - **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
   the `/` list in server channels and threads, fill in typed options (text, numbers, true or false,
   choices, members, channels, roles) and the bot receives `INTERACTION_CREATE`. It answers within
