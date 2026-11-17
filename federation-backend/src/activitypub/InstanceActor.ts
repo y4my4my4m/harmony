@@ -20,6 +20,7 @@ import { logger } from '../utils/logger.js';
 import { SignatureService } from './SignatureService.js';
 import { HARMONY_NS } from './harmonyContext.js';
 import { directoryUrl, HARMONY_DIRECTORY } from './serverDirectory.js';
+import { instanceName } from '../utils/instanceName.js';
 
 export const INSTANCE_ACTOR_USERNAME = 'instance.actor';
 
@@ -111,7 +112,8 @@ export async function signAsInstanceActor(
   return SignatureService.signWithKey(targetUrl, method, body, instanceActorKeyId(), privateKey);
 }
 
-export function instanceActorDocument(publicKeyPem: string): Record<string, unknown> {
+/** `name` is the instance's name as NodeInfo states it (utils/instanceName.ts). */
+export function instanceActorDocument(publicKeyPem: string, name: string = config.INSTANCE_NAME): Record<string, unknown> {
   const id = instanceActorUrl();
   const base = `https://${config.INSTANCE_DOMAIN}`;
   return {
@@ -123,7 +125,7 @@ export function instanceActorDocument(publicKeyPem: string): Record<string, unkn
     id,
     type: 'Application',
     preferredUsername: INSTANCE_ACTOR_USERNAME,
-    name: config.INSTANCE_NAME,
+    name,
     summary: `Instance actor of ${config.INSTANCE_DOMAIN}`,
     url: `${base}/`,
     inbox: `${id}/inbox`,
@@ -147,10 +149,10 @@ const router = Router();
 router.get(
   `/users/${INSTANCE_ACTOR_USERNAME}`,
   asyncHandler(async (_req: Request, res: Response) => {
-    const { publicKey } = await getInstanceActorKeys();
+    const [{ publicKey }, name] = await Promise.all([getInstanceActorKeys(), instanceName(getSupabaseClient())]);
     res.setHeader('Content-Type', 'application/activity+json');
     res.setHeader('Cache-Control', 'public, max-age=300');
-    res.json(instanceActorDocument(publicKey));
+    res.json(instanceActorDocument(publicKey, name));
   }),
 );
 

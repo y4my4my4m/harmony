@@ -9,6 +9,7 @@ import { isPublicView, loadGroupAccess, loadHistoryCutoffs, readableChannelIds, 
 import { PRIVATE_CACHE, PUBLIC_VISIBILITIES, canReadConversation, canReadPost } from './postAccess.js';
 import { inviteCodeFromUrl, loadInvitePreview } from '../services/invitePreview.js';
 import { renderInviteOEmbed } from '../services/invitePageRenderer.js';
+import { cachedInstanceName } from '../utils/instanceName.js';
 import { isBoostPost } from '../utils/boostPost.js';
 import { quoteAuthorizationObject } from './quoteAuthorization.js';
 import { threadContextUrl } from './converters/toActivityPub.js';
@@ -353,7 +354,7 @@ router.get(
 
     const inviteCode = inviteCodeFromUrl(url);
     if (inviteCode) {
-      const invite = await loadInvitePreview(inviteCode);
+      const [invite, name] = await Promise.all([loadInvitePreview(inviteCode), cachedInstanceName(getSupabaseClient())]);
       if (invite.status === 'unavailable') {
         res.setHeader('Retry-After', '30');
         res.setHeader('Cache-Control', 'no-store');
@@ -364,7 +365,7 @@ router.get(
       }
       res.setHeader('Content-Type', 'application/json+oembed');
       res.setHeader('Cache-Control', 'public, max-age=300');
-      return res.json(renderInviteOEmbed(invite.preview));
+      return res.json(renderInviteOEmbed(invite.preview, name));
     }
 
     const postIdMatch = url.match(/\/posts\/([0-9a-f-]+)/);
@@ -373,24 +374,27 @@ router.get(
     }
 
     const supabase = getSupabaseClient();
-    const { data: post } = await supabase
-      .from('posts')
-      .select(`
-        *,
-        author:profiles!posts_author_id_fkey (
-          id, username, display_name, avatar_url, domain, is_local
-        )
-      `)
-      .eq('id', postIdMatch[1])
-      .eq('is_deleted', false)
-      .in('visibility', ['public', 'unlisted'])
-      .maybeSingle();
+    const [{ data: post }, name] = await Promise.all([
+      supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey (
+            id, username, display_name, avatar_url, domain, is_local
+          )
+        `)
+        .eq('id', postIdMatch[1])
+        .eq('is_deleted', false)
+        .in('visibility', ['public', 'unlisted'])
+        .maybeSingle(),
+      cachedInstanceName(supabase),
+    ]);
 
     if (!post || !post.author) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    const oembed = renderOEmbed(post, post.author);
+    const oembed = renderOEmbed(post, post.author, name);
     res.setHeader('Content-Type', 'application/json+oembed');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     return res.json(oembed);

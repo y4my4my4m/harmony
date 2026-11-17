@@ -240,6 +240,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and Discord's "pinned a message" line is removed (bridge 2.8.0).
 
 ### Fixed
+- **Self-hosted instances no longer all go by "Harmony".** The installer offered Harmony, the
+  software's name, as the instance name, so other servers listed every instance that kept it under
+  that one name, in invite cards and server lists alike. The installer now offers the instance's
+  domain (`chat.example.org`), and asks you to confirm Harmony if you type it. Unattended installs
+  take `--name` or `HARMONY_INSTANCE_NAME`, else the domain. The instance actor now carries the
+  name set in the admin panel, as NodeInfo already did.
+- **Renaming the instance reaches its link previews.** A name set in **Admin** → **Config** →
+  **Branding** did not reach the server invite page, the invite badge and card widgets, the Drive
+  link page or the post and invite oEmbed, which kept the name from the instance's configuration
+  file in their titles, "Open in …" buttons and site name. `/instance-info`, which the desktop and
+  mobile apps read when adding an instance, and `/health` kept it too. All of them now use the
+  admin panel's name, within 30 seconds of a change.
 - **A deleted direct message leaves the conversation list.** The preview under a conversation in
   the DM list showed "[deleted]" after a reload once its last message was deleted, and the deleted
   text itself when the message was deleted on another instance, by the other person, or on another
@@ -510,6 +522,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   bridge to the app as Harmony's own page; the bridge now answers Harmony's page only.
 
 ### Notes for self-hosters
+- An instance still named Harmony from an earlier install is named after its domain by
+  `harmony update`, which prints one line. A name set in the admin panel stays. To keep Harmony on
+  purpose, set it again in **Admin** → **Config** → **Branding**, or answer Harmony to `harmony config`.
 - Discord history import is off after the upgrade. To let communities import through bridges they
   run themselves, or through every bridge including the instance's Discord bot, turn it on under
   **Admin** → **Config** → **Discord bridge** → **Discord history import**, and read the notes shown

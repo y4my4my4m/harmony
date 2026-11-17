@@ -277,7 +277,7 @@ describe('harmony update and log collection', () => {
   afterEach(() => rmSync(root, { recursive: true, force: true }))
 
   const update = (env: string, extra: Record<string, string> = {}) => {
-    writeFileSync(envFile, `DOMAIN=chat.test\nADMIN_EMAIL=admin@chat.test\nCADDY_TLS=internal\nENABLE_VOICE=true\nREGISTRATION=open\n${env}`)
+    writeFileSync(envFile, `DOMAIN=chat.test\nINSTANCE_NAME=Chat Test\nADMIN_EMAIL=admin@chat.test\nCADDY_TLS=internal\nENABLE_VOICE=true\nREGISTRATION=open\n${env}`)
     const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
     return spawnSync('bash', [join(root, 'self-host', 'update.sh'), '--code-updated', head], {
       cwd: root,

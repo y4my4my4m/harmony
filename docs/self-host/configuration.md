@@ -54,7 +54,7 @@ Some settings exist both as a variable and in the database:
 
 | Setting | Variable | Database | Which applies |
 |---|---|---|---|
-| Instance name | `INSTANCE_NAME` | `instance_config.instance_name` | `bootstrap.sh` copies the variable into a new database; afterwards the admin panel's name applies. The web app shows the variable until the instance settings load. The federation backend reports the variable in `/health` and `/instance-info`, and uses it in NodeInfo only when the database has no name |
+| Instance name | `INSTANCE_NAME` | `instance_config.instance_name` | `bootstrap.sh` copies the variable into a new database; afterwards the admin panel's name applies. The web app shows the variable until the instance settings load. The federation backend reports the variable in `/health` and `/instance-info`, and uses it in NodeInfo and on the instance actor only when the database name is blank, the domain when both are. `harmony update` names an instance still called Harmony by an earlier installer after its domain, in both places, unless `INSTANCE_NAME_CHOSEN=true` marks Harmony as chosen |
 | Domain | `DOMAIN` | `instance_config.domain` | Both must be the same. `bootstrap.sh` sets the database value on a new database; `harmony doctor` fails when they differ |
 | OAuth buttons | `ENABLED_OAUTH_PROVIDERS` | `instance_config.oauth_providers` | The database list when it names at least one provider, else the variable. See [OAuth sign-in](/self-host/oauth) |
 | Credentials of Google, GitHub, Twitch and Discord | `<PROVIDER>_ENABLED`, `<PROVIDER>_CLIENT_ID`, `<PROVIDER>_SECRET` in `supabase/.env` | `auth_provider_credentials` (secret in Vault) | The database, per provider, once **Authentication** saved one: the federation server renders it into the auth service's `--config-dir`. See [OAuth sign-in](/self-host/oauth#set-it-up-in-the-admin-panel) |
@@ -268,7 +268,7 @@ docker compose up -d
 | Variable | Answer |
 |---|---|
 | `HARMONY_DOMAIN` | Public domain |
-| `HARMONY_INSTANCE_NAME` | Display name |
+| `HARMONY_INSTANCE_NAME` | Name the app and other servers show; default the domain |
 | `HARMONY_ADMIN_EMAIL` | Let's Encrypt contact and Web Push (VAPID) contact |
 | `HARMONY_TLS` | `acme` (Let's Encrypt) or `internal` (Caddy's local CA) |
 | `HARMONY_DB_DOMAIN` | API name; default the configured one, else `db.DOMAIN` |
@@ -381,7 +381,8 @@ by hand; see [OAuth sign-in](/self-host/oauth).
 | `DOMAIN` | required | Public domain of the app. Caddy serves it; the web container receives it as `DOMAIN` and as `APP_URL` (`https://DOMAIN`) |
 | `DB_DOMAIN` | `db.DOMAIN` | Host of the Supabase API (Kong) behind Caddy. The web container receives `https://DB_DOMAIN` as `SUPABASE_URL` |
 | `LIVEKIT_DOMAIN` | `live.DOMAIN` | Host of LiveKit signalling; Caddy defines it only with `ENABLE_VOICE=true` |
-| `INSTANCE_NAME` | `Harmony` | Display name passed to the web container. `configure.sh` copies it to `federation.env` and uses it as the email sender name |
+| `INSTANCE_NAME` | `DOMAIN` | Name passed to the web container. `configure.sh` copies it to `federation.env` and uses it as the email sender name |
+| `INSTANCE_NAME_CHOSEN` | unset | `true` when `INSTANCE_NAME` is Harmony by choice; `configure.sh` writes it with that answer and removes it otherwise. Without it, `harmony update` and `harmony config` replace Harmony with the domain |
 | `ADMIN_EMAIL` | none | `configure.sh` writes it to `VAPID_SUBJECT`, and to `CADDY_TLS` with public TLS. The `harmony admin` commands offer it as the default address |
 | `CADDY_TLS` | `internal` | An email address: Let's Encrypt certificates with that contact. `internal`: Caddy's local CA, for LAN installs |
 | `CADDY_TRUSTED_PROXIES` | empty | A proxy with a public address in front of Caddy, space-separated CIDRs. Proxies on private addresses and Cloudflare's edges are built in. See [the client address](/self-host/signup-limits#client-address) |
@@ -567,7 +568,7 @@ process and names the variable.
 | `CORS_ORIGIN` | `http://localhost:5173` | Comma-separated browser origins allowed to call the backend. The origins of the desktop and Android apps are always allowed |
 | `TRUST_PROXY` | `loopback, uniquelocal` | Express `trust proxy`: peers trusted to name the client in `X-Real-IP`, on which rate limits key |
 | `LOG_LEVEL` | `info` | `error`, `warn`, `info` or `debug` |
-| `INSTANCE_NAME` | `Harmony` | Name in `/health` and `/instance-info`, and in NodeInfo when the database has none |
+| `INSTANCE_NAME` | `Harmony` | Name in `/health` and `/instance-info`, and in NodeInfo and on the instance actor when the database name is blank; the domain when this is blank too |
 | `INSTANCE_DESCRIPTION` | `A federated social platform` | NodeInfo description when the database has none |
 | `PUBLIC_SUPABASE_URL` | `SUPABASE_URL` | Public Supabase URL: storage URLs sent to other instances and the `supabaseUrl` in `/instance-info`. Set it whenever `SUPABASE_URL` is an internal address. Base of the redirect URI written for the sign-in providers of the admin panel |
 | `HARMONY_AUTH_CONFIG_DIR` | unset; `/var/lib/harmony-auth` in the self-host stack | Directory the federation server (`FEDERATION_MODE` server or unified) writes the sign-in provider credentials of **Authentication** into, as `50-harmony-oauth.env`, mode `0600`; the auth service reads it as `--config-dir`. Unset: the admin panel cannot set credentials |

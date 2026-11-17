@@ -6,6 +6,7 @@ import { redis } from '../services/RedisService.js';
 import { bullmqManager } from '../queue/BullMQManager.js';
 import { requireAuth } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { cachedInstanceName } from '../utils/instanceName.js';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.get('/', async (_req: Request, res: Response) => {
       return sendError(res, error.message, 503, { status: 'unhealthy', database: 'disconnected' });
     }
 
-    const redisHealth = await redis.healthCheck();
+    const [redisHealth, name] = await Promise.all([redis.healthCheck(), cachedInstanceName(supabase)]);
 
     let queueStats: Record<string, any> | undefined;
     try {
@@ -36,7 +37,7 @@ router.get('/', async (_req: Request, res: Response) => {
       version: config.VERSION,
       environment: config.NODE_ENV,
       instance: {
-        name: config.INSTANCE_NAME,
+        name,
         domain: config.INSTANCE_DOMAIN,
       },
       database: 'connected',

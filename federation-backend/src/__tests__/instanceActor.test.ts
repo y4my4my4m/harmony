@@ -22,6 +22,7 @@ const keys = crypto.generateKeyPairSync('rsa', {
   privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
 })
 const profileLookups: string[] = []
+let storedName: unknown = null
 
 vi.mock('../config/supabase.js', () => ({
   getSupabaseClient: () => ({
@@ -31,7 +32,8 @@ vi.mock('../config/supabase.js', () => ({
         eq: () => c,
         ilike: (_col: string, v: string) => { profileLookups.push(v); return c },
         maybeSingle: () => Promise.resolve({
-          data: table === 'instance_actor_keys' ? { public_key: keys.publicKey, private_key: keys.privateKey } : null,
+          data: table === 'instance_actor_keys' ? { public_key: keys.publicKey, private_key: keys.privateKey }
+            : table === 'instance_config' && storedName !== null ? { config_value: storedName } : null,
           error: null,
         }),
       }
@@ -53,6 +55,7 @@ function app() {
 
 beforeEach(() => {
   profileLookups.length = 0
+  storedName = null
   __resetInstanceActorKeyCache()
 })
 
@@ -82,6 +85,13 @@ describe('instance actor', () => {
     expect(actor.streams).toEqual(['https://harmony.test/servers/directory'])
     expect(actor['harmony:directory']).toBe('https://harmony.test/servers/directory')
     expect(actor['@context'][2]).toEqual({ harmony: 'https://mony.lol/ns#', 'harmony:directory': { '@type': '@id' } })
+  })
+
+  it('is named as NodeInfo names the instance: the stored name, else INSTANCE_NAME', async () => {
+    storedName = 'Example Chat'
+    expect(JSON.parse((await supertest(app()).get('/users/instance.actor')).text).name).toBe('Example Chat')
+    storedName = ''
+    expect(JSON.parse((await supertest(app()).get('/users/instance.actor')).text).name).toBe('Harmony Test')
   })
 
   it('has an empty outbox', async () => {

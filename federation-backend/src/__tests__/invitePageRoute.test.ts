@@ -34,12 +34,24 @@ const rpc = vi.fn(async (name: string, args: { p_code: string }) => {
   return answer
 })
 
+// instance_config.instance_name as PostgREST answers it; undefined is no row, an Error a failed read.
+const stored = vi.hoisted(() => ({ name: 'Example Chat' as unknown }))
+function instanceConfig(table: string) {
+  if (table !== 'instance_config') throw new Error(`unexpected table ${table}`)
+  const read = async () => stored.name instanceof Error
+    ? { data: null, error: { message: stored.name.message } }
+    : { data: stored.name === undefined ? null : { config_value: stored.name }, error: null }
+  const chain: any = { select: () => chain, eq: () => chain, maybeSingle: read }
+  return chain
+}
+
 vi.mock('../config/supabase.js', () => ({
-  getSupabaseClient: () => ({ rpc: (n: string, a: any) => rpc(n, a), from: vi.fn() }),
+  getSupabaseClient: () => ({ rpc: (n: string, a: any) => rpc(n, a), from: instanceConfig }),
   getSupabaseClientWithAuth: vi.fn(),
 }))
 
 const { cache } = await import('../utils/cache.js')
+const { clearInstanceNameCache } = await import('../utils/instanceName.js')
 const { default: invitePageRouter } = await import('../routes/invitePage.js')
 const { default: outboxRouter } = await import('../activitypub/OutboxHandler.js')
 
@@ -54,6 +66,8 @@ const get = (path: string, ua = 'Mozilla/5.0 (compatible; Discordbot/2.0; +https
 
 beforeEach(() => {
   cache.flush()
+  clearInstanceNameCache()
+  stored.name = 'Example Chat'
   rpc.mockClear()
   for (const key of Object.keys(answers)) delete answers[key]
   answers.ABCD1234 = { data: VALID, error: null }
@@ -73,6 +87,31 @@ describe('GET /invite/:code', () => {
     expect(res.text).toContain('<meta property="og:description" content="1,234 members · 56 online — Hang out.">')
     expect(res.text).not.toMatch(/<script\b/i)
     expect(rpc.mock.calls).toEqual([['get_invite_preview', { p_code: 'ABCD1234' }]])
+  })
+
+  it('names the instance as the admin panel stores it', async () => {
+    const res = await get('/invite/ABCD1234')
+    expect(res.text).toContain('<title>Secret Lounge - Example Chat</title>')
+    expect(res.text).toContain('<meta property="og:site_name" content="Example Chat">')
+    expect(res.text).toContain('>Open in Example Chat</a>')
+    expect(res.text).not.toContain('Harmony')
+  })
+
+  it('names the instance INSTANCE_NAME without a stored name, or when reading it fails', async () => {
+    for (const name of [undefined, '  ', new Error('down')]) {
+      clearInstanceNameCache()
+      stored.name = name
+      const res = await get('/invite/ABCD1234')
+      expect(res.status).toBe(200)
+      expect(res.text).toContain('<title>Secret Lounge - Harmony</title>')
+    }
+  })
+
+  it('names the stored instance on a dead or unavailable invite too', async () => {
+    answers.DEADCODE = { data: { ...VALID, status: 'revoked' }, error: null }
+    expect((await get('/invite/DEADCODE')).text).toContain('<title>Invite invalid or expired - Example Chat</title>')
+    answers.ABCD1234 = { data: null, error: { message: 'down' } }
+    expect((await get('/invite/ABCD1234')).text).toContain('<title>Server invite - Example Chat</title>')
   })
 
   it('accepts a trailing slash', async () => {
@@ -151,7 +190,7 @@ describe('GET /oembed for an invite', () => {
       title: 'Secret Lounge',
       author_name: "You've been invited to join a server",
       author_url: 'https://harmony.test/invite/ABCD1234',
-      provider_name: 'Harmony',
+      provider_name: 'Example Chat',
       provider_url: 'https://harmony.test',
     })
   })

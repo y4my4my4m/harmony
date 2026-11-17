@@ -289,7 +289,15 @@ describe('postPageRenderer plain-text names', () => {
     expect(html).toContain('<meta property="og:title" content="y4my4m (@alice@harmony.test)">');
     expect(html).toContain('<title>y4my4m: &quot;hi&quot; - Harmony</title>');
     const { renderOEmbed } = await import('../activitypub/postPageRenderer.js');
-    expect((renderOEmbed(basePost([]), author) as { author_name: string }).author_name).toBe('y4my4m (@alice@harmony.test)');
+    expect((renderOEmbed(basePost([]), author, 'Harmony') as { author_name: string }).author_name).toBe('y4my4m (@alice@harmony.test)');
+  });
+
+  it('names the instance in the oEmbed provider_name', async () => {
+    const { renderOEmbed } = await import('../activitypub/postPageRenderer.js');
+    expect(renderOEmbed(basePost([]), baseAuthor, 'Example Chat')).toMatchObject({
+      provider_name: 'Example Chat',
+      provider_url: 'https://harmony.test',
+    });
   });
 
   it('falls back to the username when the name is emoji only', () => {

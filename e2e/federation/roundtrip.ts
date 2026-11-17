@@ -58,6 +58,8 @@
 // (cases/discovery.ts).
 // An invite link to a server on another Harmony instance is stored as that server's card, read
 // from the host's invite answer (cases/remoteInviteCard.ts).
+// NodeInfo nodeName, the instance actor's name, the invite, Drive link and post pages and
+// /instance-info carry the stored instance name (cases/instanceName.ts).
 // The instance's federation switches refuse, drop and close against the peer
 // (cases/federationSwitches.ts).
 // A sticker leaves as a rawContent part beside its image and a described Document, arrives on a
@@ -133,6 +135,7 @@ import { caseGroupRelay } from './cases/groupRelay.ts'
 import { caseThreadRoutes } from './cases/threadRoutes.ts'
 import { caseEmptyThread } from './cases/emptyThread.ts'
 import { caseApConformance } from './cases/apConformance.ts'
+import { caseInstanceName } from './cases/instanceName.ts'
 import { caseApInbound } from './cases/apInbound.ts'
 import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
 import { caseAccountMoveImport } from './cases/accountMoveImport.ts'
@@ -2997,6 +3000,7 @@ async function main() {
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, get, assert, eq,
       ids: { alice: ALICE, carol: CAROL, remote: REMOTE, pubServer: PUB_SERVER },
     })
+    await caseInstanceName({ db, localUrl, backendRoot: BACKEND_ROOT, get, assert, eq, ids: { alice: ALICE, pubServer: PUB_SERVER } })
     await caseApInbound({ db, peer, localUrl, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq, ids: { alice: ALICE, remote: REMOTE } })
     await caseRemoteInteractions({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, env, post, get, signedHeaders,

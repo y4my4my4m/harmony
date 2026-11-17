@@ -28,6 +28,7 @@ const rpc = vi.fn(async (name: string, args: { p_since: string }) => {
   return { data: lastActiveDaysAgo.filter((d) => NOW - d * DAY >= since).length, error: null }
 })
 const counts: Record<string, number> = { profiles: 9, posts: 1234 }
+let configRows: { config_key: string; config_value: unknown }[] = []
 // Filters each table was counted with, as `<method>:<column>:<value>`.
 const filters: Record<string, string[]> = {}
 
@@ -43,7 +44,7 @@ vi.mock('../config/supabase.js', () => ({
         not: (c: string, op: string, v: unknown) => (seen.push(`not.${op}:${c}:${v}`), q),
         is: (c: string, v: unknown) => (seen.push(`is:${c}:${v}`), q),
         then: (resolve: any) =>
-          resolve(table === 'instance_config' ? { data: [], error: null } : { count: counts[table], data: null, error: null }),
+          resolve(table === 'instance_config' ? { data: configRows, error: null } : { count: counts[table], data: null, error: null }),
       }
       return q
     },
@@ -64,6 +65,7 @@ beforeEach(() => {
   rpc.mockClear()
   rpcError = null
   lastActiveDaysAgo = [1, 12, 29, 45, 120, 179, 200, 400]
+  configRows = []
   __resetNodeInfoUsageCache()
 })
 
@@ -117,6 +119,18 @@ describe('NodeInfo usage', () => {
   it.each(['2.0', '2.1'])('%s names the server directory in metadata', async (version) => {
     const res = await supertest(app()).get(`/nodeinfo/${version}`)
     expect(res.body.metadata.serverDirectory).toBe('https://harmony.test/servers/directory')
+  })
+
+  it.each(['2.0', '2.1'])('%s names the instance as the admin panel does', async (version) => {
+    configRows = [{ config_key: 'instance_name', config_value: '  Example Chat ' }]
+    expect((await supertest(app()).get(`/nodeinfo/${version}`)).body.metadata.nodeName).toBe('Example Chat')
+  })
+
+  it('names it INSTANCE_NAME when the stored name is blank or absent', async () => {
+    configRows = [{ config_key: 'instance_name', config_value: '   ' }]
+    expect((await supertest(app()).get('/nodeinfo/2.1')).body.metadata.nodeName).toBe('Harmony Test')
+    configRows = []
+    expect((await supertest(app()).get('/nodeinfo/2.0')).body.metadata.nodeName).toBe('Harmony Test')
   })
 
   it('computes the usage once per 10 minutes', async () => {

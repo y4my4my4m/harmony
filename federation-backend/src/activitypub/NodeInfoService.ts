@@ -4,6 +4,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { directoryUrl } from './serverDirectory.js';
+import { resolveInstanceName } from '../utils/instanceName.js';
 
 const router = Router();
 
@@ -109,7 +110,7 @@ async function getInstanceConfig(supabase: any) {
   });
 
   return {
-    name: cfg.instance_name || config.INSTANCE_NAME,
+    name: resolveInstanceName(cfg.instance_name),
     description: cfg.instance_description || config.INSTANCE_DESCRIPTION,
     openRegistrations: cfg.open_registration !== 'false' && cfg.open_registration !== false,
     icon: cfg.instance_icon || undefined,
