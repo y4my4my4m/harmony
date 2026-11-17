@@ -332,11 +332,20 @@ export async function fetchImports(bridgeId: string): Promise<ImportJob[]> {
   return (data as ImportJob[] | null) ?? []
 }
 
-/** harmonyChannelIds null queues every importable pair; an empty list queues nothing. */
-export async function startImports(bridgeId: string, harmonyChannelIds: string[] | null): Promise<ImportJob[]> {
+/**
+ * harmonyChannelIds null queues every importable pair; an empty list queues nothing.
+ * includePrivate records consent for Discord channels hidden from @everyone; without it the
+ * bridge refuses those with discord_approval_required.
+ */
+export async function startImports(
+  bridgeId: string,
+  harmonyChannelIds: string[] | null,
+  includePrivate = false,
+): Promise<ImportJob[]> {
   const { data, error } = await supabase.rpc('discord_bridge_import_start', {
     p_bridge_id: bridgeId,
     p_harmony_channel_ids: harmonyChannelIds,
+    p_include_private: includePrivate,
   })
   raise(error)
   return (data as ImportJob[] | null) ?? []
@@ -370,7 +379,15 @@ export async function fetchBridgeAttachmentMode(): Promise<'link' | 'refresh' | 
   return value === 'link' || value === 'refresh' || value === 'mirror' ? value : null
 }
 
-export type HistoryImportMode = 'off' | 'self_run'
+/** off; self_run: bridges of mode self; all: every bridge, the instance bot included. */
+export type HistoryImportMode = 'off' | 'self_run' | 'all'
+
+export const HISTORY_IMPORT_MODES: readonly HistoryImportMode[] = ['off', 'self_run', 'all']
+
+/** A stored bridge_history_import value; anything unknown is 'off', as discord_bridge_import_block reads it. */
+export function historyImportModeOf(value: unknown): HistoryImportMode {
+  return value === 'self_run' || value === 'all' ? value : 'off'
+}
 
 /**
  * bridge_history_import, a public instance_config key. 'off' when unset or unreadable: the
@@ -386,7 +403,7 @@ export async function fetchHistoryImportMode(): Promise<HistoryImportMode> {
     debug.error('bridge_history_import read failed:', error)
     return 'off'
   }
-  return (data as { config_value?: unknown } | null)?.config_value === 'self_run' ? 'self_run' : 'off'
+  return historyImportModeOf((data as { config_value?: unknown } | null)?.config_value)
 }
 
 // ---------------------------------------------------------------------------
@@ -539,7 +556,7 @@ export async function fetchImportAdminConfig(): Promise<ImportAdminConfig> {
     return raw != null && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback
   }
   return {
-    mode: rows.find((r) => r.config_key === IMPORT_MODE_KEY)?.config_value === 'self_run' ? 'self_run' : 'off',
+    mode: historyImportModeOf(rows.find((r) => r.config_key === IMPORT_MODE_KEY)?.config_value),
     maxRunning: count(IMPORT_MAX_RUNNING_KEY, DEFAULT_IMPORT_MAX_RUNNING),
     messagesPerMinute: count(IMPORT_RATE_KEY, DEFAULT_IMPORT_RATE),
     mirrorServerLimitMb: count(MIRROR_SERVER_LIMIT_KEY, DEFAULT_MIRROR_SERVER_LIMIT_MB),

@@ -85,11 +85,22 @@
           <input v-model="consent" type="checkbox" data-testid="import-consent-check" />
           <span>{{ t('discordBridge.import.consent.confirm') }}</span>
         </label>
+        <div v-if="pendingPrivateNames.length" class="import-private" data-testid="import-private">
+          <p class="import-private-title">
+            <Icon name="lock" :size="14" aria-hidden="true" />
+            <span>{{ t('discordBridge.import.consent.privateTitle', { channels: pendingPrivateNames.join(', ') }, pendingPrivateNames.length) }}</span>
+          </p>
+          <p class="import-private-lead">{{ t('discordBridge.import.consent.privateLead') }}</p>
+          <label class="import-consent-check">
+            <input v-model="includePrivate" type="checkbox" data-testid="import-private-check" />
+            <span>{{ t('discordBridge.import.consent.privateConfirm', pendingPrivateNames.length) }}</span>
+          </label>
+        </div>
         <div class="db-actions">
           <button
             type="button"
             class="btn btn-primary btn-sm"
-            :disabled="busy || !consent"
+            :disabled="busy || !consent || pendingStartIds.length === 0"
             :data-testid="pending.again ? 'import-all-again-yes' : 'import-consent-start'"
             @click="confirmImport"
           >
@@ -100,7 +111,9 @@
           </button>
         </div>
       </div>
-      <p v-if="availability === 'needs_update'" class="db-muted" data-testid="import-update-bridge">{{ t('discordBridge.import.needsUpdate') }}</p>
+      <p v-if="availability === 'needs_update'" class="db-muted" data-testid="import-update-bridge">
+        {{ t(bridge.mode === 'self' ? 'discordBridge.import.needsUpdate' : 'discordBridge.import.needsUpdateHosted') }}
+      </p>
       <p v-else-if="availability !== 'ok'" class="db-muted" data-testid="import-unavailable" :data-reason="availability">
         {{ t(`discordBridge.import.unavailable.${availability}`) }}
       </p>
@@ -116,7 +129,13 @@
             </span>
             <span class="pair-channel">
               <span class="pair-platform">{{ t('discordBridge.pairs.discord') }}</span>
-              <span class="pair-name">#{{ row.discordName }}</span>
+              <span class="pair-name">
+                #{{ row.discordName }}
+                <span v-if="row.private" class="pair-private" :title="t('discordBridge.pairs.private')" data-testid="pair-private">
+                  <Icon name="lock" :size="12" aria-hidden="true" />
+                  <span class="sr-only">{{ t('discordBridge.pairs.private') }}</span>
+                </span>
+              </span>
             </span>
           </div>
           <div class="pair-meta">
@@ -285,7 +304,7 @@ const props = defineProps<{
   encryptedChannelIds?: string[]
   /** bridge_attachment_mode; null when the caller cannot read it. */
   attachmentMode?: string | null
-  /** bridge_history_import: 'self_run' lets a self-run bridge import; anything else is off. */
+  /** bridge_history_import: 'self_run' admits self-run bridges, 'all' every bridge; anything else is off. */
   importMode?: string | null
 }>()
 
@@ -381,11 +400,36 @@ const importAgainIds = computed(() => {
 // Every start goes through the consent dialog: `again` adds the question of a second run.
 const pending = ref<{ ids: string[]; again: boolean } | null>(null)
 const consent = ref(false)
+// Second consent, for Discord channels hidden from @everyone. Unticked, those are left out.
+const includePrivate = ref(false)
 const consentDialog = ref<HTMLElement | null>(null)
+
+/** Harmony channels whose Discord side @everyone cannot read, as the bridge (2.8.0) reports it. */
+const privateHarmonyIds = computed(() => {
+  const ids = new Set<string>()
+  for (const pair of props.pairs) {
+    const discord = discordChannels.value.find((c) => c.id === pair.discord_channel_id)
+    if (discord?.everyoneCanView === false) ids.add(pair.harmony_channel_id)
+  }
+  return ids
+})
+const pendingPrivateNames = computed(() =>
+  (pending.value?.ids ?? [])
+    .filter((id) => privateHarmonyIds.value.has(id))
+    .map((id) => {
+      const pair = props.pairs.find((p) => p.harmony_channel_id === id)
+      const discord = discordChannels.value.find((c) => c.id === pair?.discord_channel_id)
+      return `#${discord?.name ?? pair?.discord_channel_name ?? pair?.discord_channel_id ?? id}`
+    }),
+)
+const pendingStartIds = computed(() =>
+  (pending.value?.ids ?? []).filter((id) => includePrivate.value || !privateHarmonyIds.value.has(id)),
+)
 
 async function askImport(ids: string[], again: boolean) {
   if (ids.length === 0) return
   consent.value = false
+  includePrivate.value = false
   pending.value = { ids, again }
   await nextTick()
   consentDialog.value?.scrollIntoView?.({ block: 'nearest' })
@@ -393,10 +437,11 @@ async function askImport(ids: string[], again: boolean) {
 }
 
 async function confirmImport() {
-  const ids = pending.value?.ids ?? []
+  const ids = pendingStartIds.value
   if (!consent.value || ids.length === 0) return
+  const withPrivate = includePrivate.value && pendingPrivateNames.value.length > 0
   pending.value = null
-  await startImport(ids)
+  await startImport(ids, withPrivate)
 }
 
 const pairRows = computed(() =>
@@ -410,6 +455,7 @@ const pairRows = computed(() =>
       block: importBlock(pair, channelFor(pair)),
       harmonyName: harmony?.name ?? pair.harmony_channel_id,
       discordName: discord?.name ?? pair.discord_channel_name ?? pair.discord_channel_id,
+      private: discord?.everyoneCanView === false,
       issues: discord ? discordChannelIssues(discord, pair.direction) : [],
     }
   }),
@@ -458,10 +504,10 @@ async function remove(pair: BridgePairRow) {
   }
 }
 
-async function startImport(harmonyChannelIds: string[] | null) {
+async function startImport(harmonyChannelIds: string[] | null, includePrivateChannels = false) {
   busy.value = true
   try {
-    await startImports(props.bridge.id, harmonyChannelIds)
+    await startImports(props.bridge.id, harmonyChannelIds, includePrivateChannels)
   } catch (error) {
     debug.error('discord_bridge_import_start failed:', error)
     toast.error(t(bridgeErrorKey(error, 'discordBridge.errors.import')))
@@ -623,6 +669,48 @@ async function pairMatches() {
 .import-consent-check input {
   margin-top: 3px;
   flex-shrink: 0;
+}
+
+.import-private {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--warning);
+  background: var(--background-primary);
+}
+
+.import-private-title {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.import-private-title :deep(.icon-wrap) {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.import-private-lead {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.import-private .import-consent-check {
+  margin-bottom: 0;
+}
+
+.pair-private {
+  display: inline-flex;
+  vertical-align: -1px;
+  margin-left: 4px;
+  color: var(--text-secondary);
 }
 
 .match-box {

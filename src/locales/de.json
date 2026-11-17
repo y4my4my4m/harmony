@@ -6066,6 +6066,7 @@
       "listLabel": "Verbundene Kanäle",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "Privat auf Discord",
       "ok": "Funktioniert",
       "discordGone": "Discord-Kanal nicht gefunden",
       "discordGoneFix": "Der Bot findet diesen Discord-Kanal nicht mehr: Er wurde gelöscht oder der Bot hat keinen Zugriff mehr. Entferne das Paar oder gib dem Bot wieder Zugriff.",
@@ -6503,7 +6504,7 @@
         "channel_encrypted": "der Kanal ist jetzt verschlüsselt",
         "import_disabled": "der Verlaufsimport wurde ausgeschaltet",
         "pair_not_importable": "das Paar bringt keine Discord-Nachrichten mehr nach Harmony",
-        "discord_approval_required": "der Discord-Kanal ist privat: starte den Import auf Discord mit /bridge import-history",
+        "discord_approval_required": "der Discord-Kanal ist privat: starte den Import erneut mit privaten Kanälen oder führe einmal /bridge import-history scope:All bridged channels auf Discord aus",
         "discord_channel_unsupported": "der Discord-Kanal ist kein Textkanal",
         "discord_access_lost": "die Bridge kann den Discord-Kanal nicht mehr lesen",
         "bridge_stalled": "die Bridge kam nicht mehr voran",
@@ -6515,6 +6516,7 @@
         "encrypted": "Verschlüsselte Kanäle können keinen Verlauf importieren"
       },
       "needsUpdate": "Aktualisiere die Bridge auf 2.6.0 oder neuer, um den Verlauf zu importieren",
+      "needsUpdateHosted": "Der Bridge-Dienst dieser Instanz braucht Version 2.8.0 oder neuer, um den Verlauf zu importieren. Ein Administrator der Instanz aktualisiert ihn.",
       "mirrorNote": "Importierte Dateien werden in den Speicher dieser Instanz kopiert.",
       "consent": {
         "title": "Verlauf von {count} Kanal importieren? | Verlauf von {count} Kanälen importieren?",
@@ -6522,11 +6524,14 @@
         "skips": "Nachrichten von Personen, die den Discord-Server verlassen haben, werden übersprungen. Jede Person auf Discord kann ihre Nachrichten mit /bridge-privacy ausschließen oder löschen.",
         "notice": "Die Bridge heftet in jedem Discord-Kanal einen Hinweis an, wenn dessen Import beginnt.",
         "confirm": "Ich verwalte diesen Discord-Server oder handle mit Zustimmung seiner Verwalter.",
+        "privateTitle": "Privat auf Discord: {channels} | Privat auf Discord: {channels}",
+        "privateLead": "{'@'}everyone kann ihren Verlauf auf Discord nicht lesen. Ohne dein Einverständnis werden sie ausgelassen.",
+        "privateConfirm": "Diesen privaten Kanal einschließen: Ich kann ihn auf Discord lesen, oder seine Verwalter sind einverstanden. | Diese privaten Kanäle einschließen: Ich kann sie auf Discord lesen, oder ihre Verwalter sind einverstanden.",
         "start": "Import starten"
       },
       "unavailable": {
         "instance_off": "Der Verlaufsimport ist auf dieser Instanz ausgeschaltet.",
-        "bridge_mode": "Der Verlaufsimport ist nur für eine Bridge verfügbar, die du selbst mit deiner eigenen Discord-Anwendung betreibst."
+        "bridge_mode": "Der Verlaufsimport ist auf dieser Instanz nur für Bridges verfügbar, die der Besitzer des Servers mit seiner eigenen Discord-Anwendung betreibt."
       },
       "authorsSkipped": "{count} übersprungen (Autor ausgetreten oder abgemeldet) | {count} übersprungen (Autoren ausgetreten oder abgemeldet)",
       "automodSkipped": "{count} von AutoMod blockiert | {count} von AutoMod blockiert"
@@ -6560,17 +6565,30 @@
     },
     "importAdmin": {
       "title": "Discord-Verlaufsimport",
-      "lead": "Erlaubt einem Server, die älteren Nachrichten seiner Discord-Kanäle nach Harmony zu kopieren, über eine Bridge, die sein Besitzer mit einer eigenen Discord-Anwendung betreibt. Nie über den Discord-Bot dieser Instanz oder einen Bot, den diese Instanz betreibt.",
+      "lead": "Erlaubt einem Server, die älteren Nachrichten seiner Discord-Kanäle über seine Bridge nach Harmony zu kopieren. Wähle, welche Bridges das dürfen.",
       "loadFailed": "Die Einstellungen für den Verlaufsimport konnten nicht geladen werden.",
       "mode": "Verlaufsimport",
-      "modeOff": "Aus",
-      "modeSelfRun": "Selbst betriebene Bridges",
-      "modeHint": "Aus lehnt jeden Import ab, auch bereits laufende.",
-      "warningTitle": "Bevor du das einschaltest",
+      "modes": {
+        "off": {
+          "label": "Aus",
+          "hint": "Kein Server importiert. Laufende Importe werden beendet."
+        },
+        "self_run": {
+          "label": "Selbst betriebene Bridges",
+          "hint": "Bridges, die der Besitzer eines Servers mit seiner eigenen Discord-Anwendung betreibt."
+        },
+        "all": {
+          "label": "Alle Bridges",
+          "hint": "Auch der Discord-Bot dieser Instanz und die hier gehosteten Bridges mit eigenem Bot."
+        }
+      },
+      "modeHint": "Wird gespeichert, sobald du wählst.",
+      "warningTitle": "Solange der Import eingeschaltet ist",
       "warningAuthors": "Die Verfasser dieser Nachrichten haben um die Kopie nicht gebeten. Autoren, die den Discord-Server verlassen haben, werden übersprungen, und Mitglieder schließen ihre Nachrichten mit /bridge-privacy aus oder löschen sie.",
       "warningRequests": "Löschanfragen für Inhalte auf dieser Instanz gehen an dich. Server-Verwalter entfernen eine Discord-Person unter Servereinstellungen, Discord-Bridge; „Alle Discord-Nachrichten entfernen“ unten leert jeden Server.",
       "warningQuiet": "Importierte Nachrichten senden keine Benachrichtigungen, gelten als gelesen und werden nicht föderiert. Sie durchlaufen die Wort-, Einladungs- und Link-Regeln von AutoMod, wenn Bots auf dem Server nicht ausgenommen sind.",
       "warningStorage": "Mit „Mirror to storage“ werden importierte Dateien in den Speicher dieser Instanz kopiert, bis zum Limit pro Server unten.",
+      "warningInstanceBot": "Importe über den Discord-Bot dieser Instanz lesen Discord mit deiner Discord-Anwendung: Nach den Entwicklerbedingungen von Discord bist du als ihr Besitzer dafür verantwortlich.",
       "maxRunning": "Gleichzeitig laufende Importe",
       "maxRunningHint": "Auf der gesamten Instanz. Weitere warten. 0 bedeutet kein Limit.",
       "messagesPerMinute": "Nachrichten pro Minute, je Import",

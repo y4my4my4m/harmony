@@ -5,30 +5,46 @@
 
     <p v-if="loadError" class="error" role="alert">{{ t('discordBridge.importAdmin.loadFailed') }}</p>
 
-    <div class="field">
-      <label :for="`${uid}-mode`" class="title">{{ t('discordBridge.importAdmin.mode') }}</label>
-      <select
-        :id="`${uid}-mode`"
-        :value="mode"
-        class="cyber-input mode-input"
-        :disabled="!loaded || switching || purging"
-        :aria-describedby="`${uid}-mode-hint`"
-        data-testid="import-mode"
-        @change="setMode(($event.target as HTMLSelectElement).value as HistoryImportMode)"
-      >
-        <option value="off">{{ t('discordBridge.importAdmin.modeOff') }}</option>
-        <option value="self_run">{{ t('discordBridge.importAdmin.modeSelfRun') }}</option>
-      </select>
+    <fieldset
+      class="mode-field"
+      :disabled="!loaded || purging"
+      :aria-busy="switching"
+      :aria-describedby="`${uid}-mode-hint`"
+      data-testid="import-mode"
+    >
+      <legend class="title">{{ t('discordBridge.importAdmin.mode') }}</legend>
+      <div class="mode-choices">
+        <label
+          v-for="choice in HISTORY_IMPORT_MODES"
+          :key="choice"
+          :class="['mode-choice', { selected: mode === choice }]"
+          :data-testid="`import-mode-${choice}`"
+        >
+          <input
+            type="radio"
+            class="mode-radio"
+            :name="`${uid}-mode`"
+            :value="choice"
+            :checked="mode === choice"
+            @change="setMode(choice)"
+          />
+          <span class="mode-text">
+            <span class="mode-name">{{ t(`discordBridge.importAdmin.modes.${choice}.label`) }}</span>
+            <span class="mode-desc">{{ t(`discordBridge.importAdmin.modes.${choice}.hint`) }}</span>
+          </span>
+        </label>
+      </div>
       <span :id="`${uid}-mode-hint`" class="hint">{{ t('discordBridge.importAdmin.modeHint') }}</span>
-    </div>
+    </fieldset>
 
-    <div v-if="mode === 'self_run'" class="warning" role="note" data-testid="import-warning">
+    <div v-if="mode !== 'off'" class="warning" role="note" data-testid="import-warning">
       <p>{{ t('discordBridge.importAdmin.warningTitle') }}</p>
       <ul>
         <li>{{ t('discordBridge.importAdmin.warningAuthors') }}</li>
         <li>{{ t('discordBridge.importAdmin.warningRequests') }}</li>
         <li>{{ t('discordBridge.importAdmin.warningQuiet') }}</li>
         <li>{{ t('discordBridge.importAdmin.warningStorage') }}</li>
+        <li v-if="mode === 'all'" data-testid="import-warning-instance-bot">{{ t('discordBridge.importAdmin.warningInstanceBot') }}</li>
       </ul>
     </div>
 
@@ -93,6 +109,7 @@ import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { formatBytes } from '@/utils/uploadValidation'
 import {
+  HISTORY_IMPORT_MODES,
   IMPORT_MAX_RUNNING_KEY,
   IMPORT_MODE_KEY,
   IMPORT_RATE_KEY,
@@ -145,21 +162,35 @@ const totalsText = computed(() => {
   return parts.join(' · ')
 })
 
-/** Saved on change; the select returns to its previous value when the save fails. */
-async function setMode(next: HistoryImportMode) {
-  const previous = mode.value
+/**
+ * Saved on change. Saves run one after another in the order chosen, so arrowing through the
+ * choices leaves the last one stored; when the last save fails, the choice returns to the
+ * value last stored. The choices stay enabled meanwhile: a keyboard user keeps focus.
+ */
+let modeSaves: Promise<void> = Promise.resolve()
+let modeSeq = 0
+let storedMode: HistoryImportMode = 'off'
+
+function setMode(next: HistoryImportMode) {
+  if (next === mode.value) return
   mode.value = next
+  const seq = ++modeSeq
   switching.value = true
-  try {
-    await saveBridgeInstanceConfig(IMPORT_MODE_KEY, next)
-    toast.success(t('discordBridge.importAdmin.saved'))
-  } catch (error) {
-    mode.value = previous
-    debug.error('Saving the history import switch failed:', error)
-    toast.error(t('discordBridge.importAdmin.saveFailed'))
-  } finally {
-    switching.value = false
-  }
+  modeSaves = modeSaves.then(async () => {
+    try {
+      await saveBridgeInstanceConfig(IMPORT_MODE_KEY, next)
+      storedMode = next
+      if (seq === modeSeq) toast.success(t('discordBridge.importAdmin.saved'))
+    } catch (error) {
+      debug.error('Saving the history import switch failed:', error)
+      if (seq === modeSeq) {
+        mode.value = storedMode
+        toast.error(t('discordBridge.importAdmin.saveFailed'))
+      }
+    } finally {
+      if (seq === modeSeq) switching.value = false
+    }
+  })
 }
 
 async function saveLimits() {
@@ -196,7 +227,7 @@ async function purge() {
     // Each purge batch turns history import off (bridge_privacy_purge_instance) as it commits.
     const run = await purgeInstanceBridgedMessages((total) => {
       purged.value = total
-      mode.value = 'off'
+      mode.value = storedMode = 'off'
     })
     if (run.more) toast.warning(t('discordBridge.privacy.purgedSome', { count: run.total }, run.total))
     else toast.success(t('discordBridge.privacy.purged', { count: run.total }, run.total))
@@ -213,7 +244,7 @@ async function purge() {
 onMounted(async () => {
   try {
     const config = await fetchImportAdminConfig()
-    mode.value = config.mode
+    mode.value = storedMode = config.mode
     for (const field of fields) draft[field.key] = saved[field.key] = config[field.key]
     loaded.value = true
   } catch (error) {
@@ -263,8 +294,89 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
-.mode-input {
-  max-width: 320px;
+.mode-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 12px 0;
+  padding: 0;
+  border: 0;
+}
+
+.mode-field legend {
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.mode-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mode-choice {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--background-quaternary);
+  background: var(--background-primary);
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.mode-choice:hover {
+  border-color: color-mix(in srgb, var(--harmony-primary) 45%, var(--background-quaternary));
+}
+
+.mode-choice.selected {
+  border-color: var(--harmony-primary);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, var(--background-primary));
+}
+
+.mode-choice:has(.mode-radio:focus-visible) {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
+.mode-field:disabled .mode-choice {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.mode-radio {
+  margin: 3px 0 0;
+  flex-shrink: 0;
+  accent-color: var(--harmony-primary);
+}
+
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mode-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mode-desc {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .mode-choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .limit-input {

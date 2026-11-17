@@ -6066,6 +6066,7 @@
       "listLabel": "ペアのチャンネル",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "Discord で非公開",
       "ok": "正常",
       "discordGone": "Discord チャンネルが見つかりません",
       "discordGoneFix": "ボットがこの Discord チャンネルを見つけられなくなりました。削除されたか、ボットがアクセスを失っています。ペアを削除するか、ボットに再びアクセスを与えてください。",
@@ -6503,7 +6504,7 @@
         "channel_encrypted": "チャンネルが暗号化されました",
         "import_disabled": "履歴のインポートがオフになりました",
         "pair_not_importable": "このペアは Discord のメッセージを Harmony に取り込まなくなりました",
-        "discord_approval_required": "Discord チャンネルが非公開です。Discord で /bridge import-history を使ってインポートを開始してください",
+        "discord_approval_required": "Discord チャンネルが非公開です。非公開チャンネルを含めて開始し直すか、Discord で /bridge import-history scope:All bridged channels を一度実行してください",
         "discord_channel_unsupported": "Discord チャンネルがテキストチャンネルではありません",
         "discord_access_lost": "ブリッジが Discord チャンネルを読めなくなりました",
         "bridge_stalled": "ブリッジの処理が進まなくなりました",
@@ -6515,6 +6516,7 @@
         "encrypted": "暗号化されたチャンネルは履歴をインポートできません"
       },
       "needsUpdate": "履歴をインポートするには、ブリッジを 2.6.0 以降に更新してください",
+      "needsUpdateHosted": "履歴をインポートするには、このインスタンスのブリッジサービスが 2.8.0 以降である必要があります。インスタンスの管理者が更新します。",
       "mirrorNote": "インポートしたファイルは、このインスタンスのストレージにコピーされます。",
       "consent": {
         "title": "{count} 個のチャンネルの履歴をインポートしますか? | {count} 個のチャンネルの履歴をインポートしますか?",
@@ -6522,11 +6524,14 @@
         "skips": "Discord サーバーを退出した人のメッセージはスキップされます。Discord では誰でも /bridge-privacy で自分のメッセージを対象外にしたり、消去したりできます。",
         "notice": "インポートを開始すると、ブリッジが各 Discord チャンネルにお知らせをピン留めします。",
         "confirm": "私はこの Discord サーバーを管理している、または管理者の同意を得ています。",
+        "privateTitle": "Discord で非公開: {channels} | Discord で非公開: {channels}",
+        "privateLead": "Discord では {'@'}everyone がこれらの履歴を読めません。含めない場合は除外されます。",
+        "privateConfirm": "この非公開チャンネルを含める: 私は Discord でこれを読めるか、管理者の同意を得ています。 | これらの非公開チャンネルを含める: 私は Discord でこれらを読めるか、管理者の同意を得ています。",
         "start": "インポートを開始"
       },
       "unavailable": {
         "instance_off": "このインスタンスでは履歴のインポートがオフになっています。",
-        "bridge_mode": "履歴のインポートは、自分の Discord アプリケーションで自分で実行するブリッジでのみ利用できます。"
+        "bridge_mode": "このインスタンスの履歴のインポートは、サーバーの所有者が自分の Discord アプリケーションで実行するブリッジでのみ利用できます。"
       },
       "authorsSkipped": "{count} 件をスキップ (投稿者が退出または対象外) | {count} 件をスキップ (投稿者が退出または対象外)",
       "automodSkipped": "{count} 件を AutoMod がブロック | {count} 件を AutoMod がブロック"
@@ -6560,17 +6565,30 @@
     },
     "importAdmin": {
       "title": "Discord の履歴インポート",
-      "lead": "サーバーが、所有者が自分の Discord アプリケーションで実行するブリッジを通じて、Discord チャンネルの過去のメッセージを Harmony にコピーできるようにします。このインスタンスの Discord ボットや、このインスタンスが実行するボットでは利用できません。",
+      "lead": "サーバーが、ブリッジを通じて Discord チャンネルの過去のメッセージを Harmony にコピーできるようにします。どのブリッジに許可するかを選んでください。",
       "loadFailed": "履歴インポートの設定を読み込めませんでした。",
       "mode": "履歴のインポート",
-      "modeOff": "オフ",
-      "modeSelfRun": "自分で実行するブリッジ",
-      "modeHint": "オフにすると、実行中のものを含めすべてのインポートを拒否します。",
-      "warningTitle": "オンにする前に",
+      "modes": {
+        "off": {
+          "label": "オフ",
+          "hint": "どのサーバーもインポートできません。実行中のインポートは停止します。"
+        },
+        "self_run": {
+          "label": "自分で実行するブリッジ",
+          "hint": "サーバーの所有者が自分の Discord アプリケーションで実行するブリッジ。"
+        },
+        "all": {
+          "label": "すべてのブリッジ",
+          "hint": "このインスタンスの Discord ボットと、ここでホストされている独自ボットのブリッジも含みます。"
+        }
+      },
+      "modeHint": "選ぶとすぐに保存されます。",
+      "warningTitle": "インポートがオンの間",
       "warningAuthors": "これらのメッセージの投稿者はコピーを求めていません。Discord サーバーを退出した投稿者はスキップされ、メンバーは /bridge-privacy で自分のメッセージを対象外にしたり消去したりできます。",
       "warningRequests": "このインスタンス上のコンテンツの削除依頼はあなたに届きます。サーバー管理者は「サーバー設定」の「Discord ブリッジ」で Discord ユーザーを削除できます。下の「Discord のメッセージをすべて削除」はすべてのサーバーを対象にします。",
       "warningQuiet": "インポートされたメッセージは通知を送らず、既読として扱われ、連合されません。サーバーでボットが除外されていない場合、AutoMod の単語、招待、リンクのルールが適用されます。",
       "warningStorage": "「Mirror to storage」では、インポートしたファイルが下記のサーバーごとの上限まで、このインスタンスのストレージにコピーされます。",
+      "warningInstanceBot": "このインスタンスの Discord ボットによるインポートは、あなたの Discord アプリケーションで Discord を読み取ります。Discord の開発者規約により、所有者であるあなたがその責任を負います。",
       "maxRunning": "同時に実行するインポート数",
       "maxRunningHint": "インスタンス全体での数です。それ以外は順番を待ちます。0 は無制限です。",
       "messagesPerMinute": "インポート 1 件あたりの毎分のメッセージ数",

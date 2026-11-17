@@ -6066,6 +6066,7 @@
       "listLabel": "Canaux reliés",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "Privé sur Discord",
       "ok": "Fonctionne",
       "discordGone": "Salon Discord introuvable",
       "discordGoneFix": "Le bot ne trouve plus ce salon Discord : il a été supprimé ou le bot n'y a plus accès. Supprimez la paire ou redonnez l'accès au bot.",
@@ -6503,7 +6504,7 @@
         "channel_encrypted": "le salon est désormais chiffré",
         "import_disabled": "l'importation de l'historique a été désactivée",
         "pair_not_importable": "la paire n'apporte plus les messages Discord vers Harmony",
-        "discord_approval_required": "le salon Discord est privé : lancez son importation sur Discord avec /bridge import-history",
+        "discord_approval_required": "le salon Discord est privé : relancez-le en incluant les salons privés, ou exécutez une fois /bridge import-history scope:All bridged channels sur Discord",
         "discord_channel_unsupported": "le salon Discord n'est pas un salon textuel",
         "discord_access_lost": "la passerelle ne peut plus lire le salon Discord",
         "bridge_stalled": "la passerelle n'avançait plus",
@@ -6515,6 +6516,7 @@
         "encrypted": "Les salons chiffrés ne peuvent pas importer d'historique"
       },
       "needsUpdate": "Mets le pont à jour vers la version 2.6.0 ou plus récente pour importer l'historique",
+      "needsUpdateHosted": "Le service de ponts de cette instance doit être en version 2.8.0 ou ultérieure pour importer l'historique. Un administrateur de l'instance le met à jour.",
       "mirrorNote": "Les fichiers importés sont copiés dans le stockage de cette instance.",
       "consent": {
         "title": "Importer l'historique de {count} salon ? | Importer l'historique de {count} salons ?",
@@ -6522,11 +6524,14 @@
         "skips": "Les messages des personnes qui ont quitté le serveur Discord sont ignorés. Toute personne sur Discord peut exclure les siens, ou les effacer, avec /bridge-privacy.",
         "notice": "La passerelle épingle un avis dans chaque salon Discord au début de son importation.",
         "confirm": "Je gère ce serveur Discord, ou j'agis avec l'accord de ses gestionnaires.",
+        "privateTitle": "Privé sur Discord : {channels} | Privés sur Discord : {channels}",
+        "privateLead": "{'@'}everyone ne peut pas lire leur historique sur Discord. Sans votre accord, ils sont laissés de côté.",
+        "privateConfirm": "Inclure ce salon privé : je peux le lire sur Discord, ou ses gestionnaires sont d'accord. | Inclure ces salons privés : je peux les lire sur Discord, ou leurs gestionnaires sont d'accord.",
         "start": "Démarrer l'importation"
       },
       "unavailable": {
         "instance_off": "L'importation de l'historique est désactivée sur cette instance.",
-        "bridge_mode": "L'importation de l'historique est réservée à une passerelle que vous exécutez vous-même, avec votre propre application Discord."
+        "bridge_mode": "Sur cette instance, l'importation de l'historique est réservée aux ponts que le propriétaire du serveur exécute avec sa propre application Discord."
       },
       "authorsSkipped": "{count} ignoré (auteur parti ou exclu) | {count} ignorés (auteurs partis ou exclus)",
       "automodSkipped": "{count} bloqué par AutoMod | {count} bloqués par AutoMod"
@@ -6560,17 +6565,30 @@
     },
     "importAdmin": {
       "title": "Importation de l'historique Discord",
-      "lead": "Permet à un serveur de copier les anciens messages de ses salons Discord vers Harmony, par une passerelle que son propriétaire exécute avec sa propre application Discord. Jamais par le bot Discord de cette instance ni par un bot que cette instance exécute.",
+      "lead": "Permet à un serveur de copier dans Harmony les anciens messages de ses salons Discord par son pont. Choisissez quels ponts le peuvent.",
       "loadFailed": "Impossible de charger les paramètres d'importation de l'historique.",
       "mode": "Importation de l'historique",
-      "modeOff": "Désactivée",
-      "modeSelfRun": "Passerelles auto-hébergées",
-      "modeHint": "Désactivée refuse toute importation, y compris celles en cours.",
-      "warningTitle": "Avant d'activer",
+      "modes": {
+        "off": {
+          "label": "Désactivé",
+          "hint": "Aucun serveur n'importe. Les importations en cours s'arrêtent."
+        },
+        "self_run": {
+          "label": "Ponts auto-hébergés",
+          "hint": "Les ponts que le propriétaire d'un serveur exécute avec sa propre application Discord."
+        },
+        "all": {
+          "label": "Tous les ponts",
+          "hint": "Aussi le bot Discord de cette instance et les ponts à bot propre hébergés ici."
+        }
+      },
+      "modeHint": "Enregistré dès que vous choisissez.",
+      "warningTitle": "Tant que l'importation est activée",
       "warningAuthors": "Les auteurs de ces messages n'ont pas demandé la copie. Les auteurs qui ont quitté le serveur Discord sont ignorés, et les membres excluent ou effacent leurs messages avec /bridge-privacy.",
       "warningRequests": "Les demandes de suppression de contenu sur cette instance vous reviennent. Les gestionnaires d'un serveur retirent un utilisateur Discord dans Paramètres du serveur, Passerelle Discord ; Retirer tous les messages Discord, ci-dessous, vide tous les serveurs.",
       "warningQuiet": "Les messages importés n'envoient aucune notification, comptent comme lus et ne sont pas fédérés. Ils passent par les règles de mots, d'invitations et de liens d'AutoMod du serveur lorsque ses bots ne sont pas exemptés.",
       "warningStorage": "Avec « Mirror to storage », les fichiers importés sont copiés dans le stockage de cette instance, jusqu'à la limite par serveur ci-dessous.",
+      "warningInstanceBot": "Les importations par le bot Discord de cette instance lisent Discord avec votre application Discord : selon les conditions développeur de Discord, vous en êtes responsable en tant que propriétaire.",
       "maxRunning": "Importations simultanées",
       "maxRunningHint": "Sur toute l'instance. Les autres attendent leur tour. 0 signifie aucune limite.",
       "messagesPerMinute": "Messages par minute, par importation",

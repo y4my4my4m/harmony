@@ -127,7 +127,7 @@ Returns the bridge's configuration. The gateway also pushes this object as [`BRI
 | `base_url` | string or `null` | The instance's public URL. |
 | `pairs` | array | Paired channels; see below. |
 | `harmony_channels` | array | Every channel of the server the bridge bot can see, categories excluded, ordered by position, then name. |
-| `history_import` | object | `{ "enabled": boolean, "reason": null \| "instance_off" \| "bridge_mode" }`. Whether this bridge may [import history](#history-import): the instance switch is on and the bridge's `mode` is `self`. Absent on a gateway before 1.9.7: treat as disabled. |
+| `history_import` | object | `{ "enabled": boolean, "reason": null \| "instance_off" \| "bridge_mode" }`. Whether this bridge may [import history](#history-import): the instance switch is `self_run` and the bridge's `mode` is `self`, or the switch is `all`. Absent on a gateway before 1.9.7: treat as disabled. |
 | `privacy_version` | string | Opaque. Changes whenever the server's [opt-out list](#privacy) changes; fetch the list again when it differs. |
 
 | Pair field | Description |
@@ -173,7 +173,8 @@ The bridge's heartbeat and its view of Discord. The app's bridge page reads it t
           "position": 0,
           "can_view": true,
           "can_send": true,
-          "can_manage_webhooks": true
+          "can_manage_webhooks": true,
+          "everyone_can_view": true
         }
       ]
     }
@@ -181,6 +182,8 @@ The bridge's heartbeat and its view of Discord. The app's bridge page reads it t
   "problems": [{ "code": "cannot_send", "params": { "discord_channel_id": "80351110224678914" } }]
 }
 ```
+
+`everyone_can_view` (bridge 2.8.0) is whether `@everyone` has View Channel and Read Message History in the channel. The app marks a pair whose channel reports `false` as private on Discord and asks a second consent before importing it; the gateway keeps the field only when it is a boolean. Omit it when the `@everyone` role is unknown.
 
 The gateway keeps only these fields. Strings are cut (names to 100 characters, `icon` and `avatar` to 512, `version` to 64); IDs must be 1 to 20 digits, and a guild or channel without a valid `id` is dropped. At most 100 guilds, 500 channels per guild and 50 problems are kept. A problem `code` matches `^[a-z][a-z0-9_]{0,63}$`; it keeps up to 10 `params` whose keys match `^[a-z][a-z0-9_]{0,31}$`, with string values cut to 200 characters, numbers and booleans.
 
@@ -340,7 +343,7 @@ A bridge copies Discord messages as they arrive. History import copies a paired 
 
 All routes are under `/bridge/v2/imports`, take `Authorization: Bot <bridge bot token>`, and answer `404` `{ "code": "import_not_found" }` for a job that is not this bridge's, or an `id` that is not a UUID.
 
-Import runs only for a bridge of `mode` `self` on an instance whose admin turned it on. Otherwise every route answers `403` `{ "code": "import_disabled", "reason": "instance_off" | "bridge_mode" }`. Read `history_import` in the [config](#get-config) and call these routes only while it is enabled: no polling, no command, for a bridge that may not import. The gateway names the feature `bridge_history_import` in its [capabilities](/build/gateway#ready).
+The instance admin's switch, `bridge_history_import`, decides which bridges import: `off` (the default) none, `self_run` bridges of `mode` `self`, `all` every bridge, `hosted` and `instance` included (1.9.8). A bridge outside it gets `403` `{ "code": "import_disabled", "reason": "instance_off" | "bridge_mode" }` on every route; `bridge_mode` arises only under `self_run`. In host mode, bridge 2.8.0 runs one import at a time across the instance bot's bridges, which share one Discord login, and one at a time per own-bot bridge. Read `history_import` in the [config](#get-config) and call these routes only while it is enabled: no polling, no command, for a bridge that may not import. The gateway names the feature `bridge_history_import` in its [capabilities](/build/gateway#ready).
 
 A `429` carries `Retry-After` in seconds, repeated as `retry_after` in the body. It is a wait, not a failure: keep the job in its state and try again after it.
 
@@ -361,9 +364,12 @@ States: `queued`, `running`, `paused`, `done`, `failed`, `cancelled`. Phases: `m
   "imported_count": 1200, "skipped_count": 3, "pins_skipped": 0,
   "authors_skipped": 14, "automod_skipped": 0,
   "error": null, "requested_via": "harmony", "requested_by_remote": null,
+  "private_approved": false,
   "created_at": "…", "updated_at": "…", "finished_at": null
 }
 ```
+
+A job started in the app (`requested_via` `harmony`) covers a Discord channel whose history `@everyone` cannot read only when `private_approved` is `true`: the person who started it ticked the app's second consent for private channels (1.9.8). Without it, fail the job with `error` `discord_approval_required`; a Discord member who can read the channel starts it with the Discord command instead (`requested_via` `discord`, `private_approved` always `false`). An older gateway omits the field: read it as `false`.
 
 | Route | Body | Answer |
 |---|---|---|

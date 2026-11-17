@@ -387,8 +387,8 @@ discord_bridge_hosting_limit		integer	definer	public, pg_temp		client
 discord_bridge_import_block	p_bridge_id uuid	text	definer	public, pg_temp	service_role	client
 discord_bridge_import_cancel	p_bridge_id uuid, p_import_id uuid	SETOF discord_bridge_imports	definer	public, pg_temp	authenticated	client
 discord_bridge_import_cancel_internal	p_bridge_id uuid, p_import_id uuid	SETOF discord_bridge_imports	definer	public, pg_temp	service_role	client
-discord_bridge_import_start	p_bridge_id uuid, p_harmony_channel_ids uuid[]	SETOF discord_bridge_imports	definer	public, pg_temp	authenticated	client
-discord_bridge_import_start_internal	p_bridge_id uuid, p_discord_channel_ids text[], p_via text, p_requested_by uuid, p_requested_by_remote jsonb	SETOF discord_bridge_imports	definer	public, pg_temp	service_role	client
+discord_bridge_import_start	p_bridge_id uuid, p_harmony_channel_ids uuid[], p_include_private boolean	SETOF discord_bridge_imports	definer	public, pg_temp	authenticated	client
+discord_bridge_import_start_internal	p_bridge_id uuid, p_discord_channel_ids text[], p_via text, p_requested_by uuid, p_requested_by_remote jsonb, p_private_approved boolean	SETOF discord_bridge_imports	definer	public, pg_temp	service_role	client
 discord_bridge_import_update	p_bridge_id uuid, p_import_id uuid, p_patch jsonb	discord_bridge_imports	definer	public, pg_temp	service_role	client
 discord_bridge_instance_bot_clear		void	definer	public, pg_temp	authenticated	client
 discord_bridge_instance_bot_configured		boolean	definer	public, pg_temp		unreferenced

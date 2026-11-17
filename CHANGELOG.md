@@ -201,6 +201,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Platform names are reserved.** New accounts and renames cannot take the names of 35 large
   services and platforms, such as `discord`, `google`, `openai` and `twitch`. Accounts that already
   hold one keep it.
+- **Discord history import through every bridge.** **Admin** → **Config** → **Discord bridge** →
+  **Discord history import** has a third choice, **All bridges**: besides bridges their server's
+  owner runs, the instance's Discord bot and the own-bot bridges the instance hosts can import. The
+  three choices are cards with a line each instead of a drop-down. Needs the bridge host 2.8.0.
+- **Import private Discord channels from Harmony.** A pair whose Discord channel `@everyone` cannot
+  read shows a lock. **Import all** and **Import history** name those channels and ask a second
+  time before including them; left unticked, they are left out and the others start. On Discord,
+  `/bridge import-history scope:all` still starts every channel the member can read in one command.
+  The notice the bridge pins in each imported Discord channel no longer sends a push notification,
+  and Discord's "pinned a message" line is removed (bridge 2.8.0).
 
 ### Fixed
 - **A server invite's Markdown badge works in chat.** Pasting the badge from **Add to your
@@ -468,8 +478,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Notes for self-hosters
 - Discord history import is off after the upgrade. To let communities import through bridges they
-  run themselves, turn it on under **Admin** → **Config** → **Discord bridge** → **Discord history
-  import**, and read the notes shown there first. The same section holds the import limits.
+  run themselves, or through every bridge including the instance's Discord bot, turn it on under
+  **Admin** → **Config** → **Discord bridge** → **Discord history import**, and read the notes shown
+  there first. The same section holds the import limits. Imports through the instance bot and
+  hosted own-bot bridges need the bridge host 2.8.0 (`harmony update`).
 - Supabase Studio is off unless you choose it. An install that never chose has it removed by
   `harmony update`, which prints one line; `harmony studio on` brings it back.
 - Sign-up limits and the auth service's per-address limits read the client's address from

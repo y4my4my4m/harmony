@@ -71,7 +71,7 @@ export interface BridgeConfig {
   base_url: string | null
   pairs: BridgePair[]
   harmony_channels: HarmonyChannel[]
-  // discord_bridge_import_block(): import runs only for a self-run bridge with the instance switch on.
+  // discord_bridge_import_block(): the instance switch, and under self_run the bridge's mode.
   history_import: HistoryImportState
   // Changes with every opt-out and opt-in of the server (bridge_privacy_optout_ids().version).
   privacy_version: string | null
@@ -302,6 +302,8 @@ export function sanitizeStatusReport(body: unknown): StatusReport | null {
           can_view: c.can_view === true,
           can_send: c.can_send === true,
           can_manage_webhooks: c.can_manage_webhooks === true,
+          // Bridge 2.8.0: @everyone can view the channel and read its history. Absent from older bridges.
+          ...(typeof c.everyone_can_view === 'boolean' ? { everyone_can_view: c.everyone_can_view } : {}),
         })),
     }))
 

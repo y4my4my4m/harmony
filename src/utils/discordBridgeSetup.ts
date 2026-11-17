@@ -298,6 +298,8 @@ export interface SnapshotChannel {
   canView: boolean
   canSend: boolean
   canManageWebhooks: boolean
+  /** @everyone can view the channel and read its history; null from a bridge before 2.8.0. */
+  everyoneCanView: boolean | null
 }
 
 export interface SnapshotGuild {
@@ -374,6 +376,7 @@ export function parseSnapshotGuilds(raw: unknown): SnapshotGuild[] {
               canView: channel.can_view === true,
               canSend: channel.can_send === true,
               canManageWebhooks: channel.can_manage_webhooks === true,
+              everyoneCanView: typeof channel.everyone_can_view === 'boolean' ? channel.everyone_can_view : null,
             }
           })
           .filter((c): c is SnapshotChannel => c !== null),

@@ -6066,6 +6066,7 @@
       "listLabel": "연결된 채널",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "Discord에서 비공개",
       "ok": "정상 작동",
       "discordGone": "Discord 채널을 찾을 수 없음",
       "discordGoneFix": "봇이 이 Discord 채널을 더 이상 찾지 못합니다. 채널이 삭제되었거나 봇이 접근 권한을 잃었습니다. 연결을 삭제하거나 봇에게 다시 접근 권한을 주세요.",
@@ -6503,7 +6504,7 @@
         "channel_encrypted": "채널이 암호화되었습니다",
         "import_disabled": "기록 가져오기가 꺼졌습니다",
         "pair_not_importable": "이 쌍은 더 이상 Discord 메시지를 Harmony로 가져오지 않습니다",
-        "discord_approval_required": "Discord 채널이 비공개입니다. Discord에서 /bridge import-history로 가져오기를 시작하세요",
+        "discord_approval_required": "Discord 채널이 비공개입니다. 비공개 채널을 포함해 다시 시작하거나, Discord에서 /bridge import-history scope:All bridged channels를 한 번 실행하세요",
         "discord_channel_unsupported": "Discord 채널이 텍스트 채널이 아닙니다",
         "discord_access_lost": "브리지가 더 이상 Discord 채널을 읽을 수 없습니다",
         "bridge_stalled": "브리지가 더 이상 진행되지 않았습니다",
@@ -6515,6 +6516,7 @@
         "encrypted": "암호화된 채널은 기록을 가져올 수 없습니다"
       },
       "needsUpdate": "기록을 가져오려면 브리지를 2.6.0 이상으로 업데이트하세요",
+      "needsUpdateHosted": "기록을 가져오려면 이 인스턴스의 브리지 서비스가 2.8.0 이상이어야 합니다. 인스턴스 관리자가 업데이트합니다.",
       "mirrorNote": "가져온 파일은 이 인스턴스의 저장소에 복사됩니다.",
       "consent": {
         "title": "채널 {count}개의 기록을 가져올까요? | 채널 {count}개의 기록을 가져올까요?",
@@ -6522,11 +6524,14 @@
         "skips": "Discord 서버를 떠난 사람의 메시지는 건너뜁니다. Discord에서는 누구나 /bridge-privacy로 자신의 메시지를 제외하거나 지울 수 있습니다.",
         "notice": "가져오기가 시작되면 브리지가 각 Discord 채널에 안내를 고정합니다.",
         "confirm": "이 Discord 서버를 관리하거나, 관리자의 동의를 받았습니다.",
+        "privateTitle": "Discord에서 비공개: {channels} | Discord에서 비공개: {channels}",
+        "privateLead": "Discord에서 {'@'}everyone은(는) 이 채널들의 기록을 읽을 수 없습니다. 포함하지 않으면 제외됩니다.",
+        "privateConfirm": "이 비공개 채널 포함: 나는 Discord에서 이 채널을 읽을 수 있거나 관리자의 동의를 받았습니다. | 이 비공개 채널들 포함: 나는 Discord에서 이 채널들을 읽을 수 있거나 관리자의 동의를 받았습니다.",
         "start": "가져오기 시작"
       },
       "unavailable": {
         "instance_off": "이 인스턴스에서는 기록 가져오기가 꺼져 있습니다.",
-        "bridge_mode": "기록 가져오기는 자신의 Discord 애플리케이션으로 직접 실행하는 브리지에서만 사용할 수 있습니다."
+        "bridge_mode": "이 인스턴스에서 기록 가져오기는 서버 소유자가 자신의 Discord 애플리케이션으로 실행하는 브리지에서만 가능합니다."
       },
       "authorsSkipped": "{count}개 건너뜀(작성자가 떠났거나 제외함) | {count}개 건너뜀(작성자가 떠났거나 제외함)",
       "automodSkipped": "{count}개를 AutoMod가 차단함 | {count}개를 AutoMod가 차단함"
@@ -6560,17 +6565,30 @@
     },
     "importAdmin": {
       "title": "Discord 기록 가져오기",
-      "lead": "서버가 소유자의 Discord 애플리케이션으로 직접 실행하는 브리지를 통해 Discord 채널의 이전 메시지를 Harmony로 복사할 수 있게 합니다. 이 인스턴스의 Discord 봇이나 이 인스턴스가 실행하는 봇으로는 사용할 수 없습니다.",
+      "lead": "서버가 브리지를 통해 Discord 채널의 이전 메시지를 Harmony로 복사할 수 있게 합니다. 어떤 브리지에 허용할지 선택하세요.",
       "loadFailed": "기록 가져오기 설정을 불러오지 못했습니다.",
       "mode": "기록 가져오기",
-      "modeOff": "끔",
-      "modeSelfRun": "직접 실행하는 브리지",
-      "modeHint": "끄면 진행 중인 것을 포함해 모든 가져오기를 거부합니다.",
-      "warningTitle": "켜기 전에",
+      "modes": {
+        "off": {
+          "label": "끄기",
+          "hint": "어떤 서버도 가져오지 않습니다. 진행 중인 가져오기는 중단됩니다."
+        },
+        "self_run": {
+          "label": "직접 실행하는 브리지",
+          "hint": "서버 소유자가 자신의 Discord 애플리케이션으로 실행하는 브리지."
+        },
+        "all": {
+          "label": "모든 브리지",
+          "hint": "이 인스턴스의 Discord 봇과 여기에서 호스팅되는 자체 봇 브리지도 포함합니다."
+        }
+      },
+      "modeHint": "선택하는 즉시 저장됩니다.",
+      "warningTitle": "가져오기가 켜져 있는 동안",
       "warningAuthors": "이 메시지를 쓴 사람들은 복사를 요청하지 않았습니다. Discord 서버를 떠난 작성자는 건너뛰며, 멤버는 /bridge-privacy로 자신의 메시지를 제외하거나 지울 수 있습니다.",
       "warningRequests": "이 인스턴스에 있는 콘텐츠의 삭제 요청은 관리자인 당신에게 옵니다. 서버 관리자는 서버 설정의 Discord 브리지에서 Discord 사용자를 제거할 수 있고, 아래의 Discord 메시지 모두 제거는 모든 서버를 비웁니다.",
       "warningQuiet": "가져온 메시지는 알림을 보내지 않고 읽은 것으로 처리되며 연합되지 않습니다. 서버에서 봇이 예외가 아니면 AutoMod의 단어, 초대, 링크 규칙이 적용됩니다.",
       "warningStorage": "Mirror to storage을 사용하면 가져온 파일이 아래의 서버별 한도까지 이 인스턴스의 저장소에 복사됩니다.",
+      "warningInstanceBot": "이 인스턴스의 Discord 봇을 통한 가져오기는 당신의 Discord 애플리케이션으로 Discord를 읽습니다. Discord 개발자 약관에 따라 소유자인 당신이 책임을 집니다.",
       "maxRunning": "동시에 실행되는 가져오기",
       "maxRunningHint": "인스턴스 전체 기준입니다. 나머지는 차례를 기다립니다. 0은 제한 없음입니다.",
       "messagesPerMinute": "가져오기당 분당 메시지 수",

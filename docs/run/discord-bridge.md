@@ -223,9 +223,8 @@ A bridge copies messages as they arrive. **Import history** copies what was said
 
 Import is available when all of these hold; otherwise the bridge page says which one does not:
 
-- The bridge is one you **run yourself**, with your own Discord application. A bridge on **the instance's bot**, or your own bot run on the instance, never imports.
-- The instance's admin has turned history import on. It is off on a new instance; see [History import](/self-host/discord-bridges#history-import).
-- The bridge is 2.6.0 or later (the **Bridge version** on the bridge page).
+- The instance's admin has turned history import on. It is off on a new instance; see [History import](/self-host/discord-bridges#history-import). The admin allows either **Self-run bridges**, the ones a server's owner runs with their own Discord application, or **All bridges**, which adds **the instance's bot** and your own bot run on the instance.
+- The bridge is 2.6.0 or later (the **Bridge version** on the bridge page). On the instance's bot or a bot the instance runs for you, the instance's bridge service needs 2.8.0.
 
 Members with Manage Server start it in **Server settings** → **Discord Bridge**, under **Paired channels**:
 
@@ -236,7 +235,7 @@ Each start asks you to confirm what is copied and that you manage the Discord se
 
 In Discord, a member with the Administrator permission runs `/bridge import-history` in the Discord channel and confirms. Its `scope` option `all` imports every paired channel the member can see, and `action` is `start`, `status` (progress, which can be run again at any time) or `cancel`. The member who started an import is recorded with it.
 
-A Discord channel that `@everyone` cannot see is imported only when it is started from Discord, by someone who can see that channel. Started from Harmony, it stops with **the Discord channel is private**.
+A Discord channel whose history `@everyone` cannot read is **private on Discord**; the pair shows a lock (bridge 2.8.0 or later). Starting an import from Harmony that includes one asks a second time, naming the private channels: tick **Include these private channels** if you can read them on Discord or their managers agreed. Left unticked, they are left out and the others start. Started from Discord, `/bridge import-history` covers the private channels the person running it can read, and `scope:all` does them all in one command. An import from Harmony of a private channel without that consent, or with a bridge before 2.8.0, stops with **the Discord channel is private**.
 
 Only pairs that bring Discord messages to Harmony can import: the direction is **Both ways** or **Discord → Harmony only**, and the Harmony channel is not end-to-end encrypted. Other pairs say why, without a button.
 
@@ -244,7 +243,7 @@ Only pairs that bring Discord messages to Harmony can import: the direction is *
 
 - Messages from people who are no longer members of the Discord server are skipped: they left, were banned, or deleted their account, and cannot say no.
 - Messages from members who opted out with `/bridge-privacy` are skipped; see [Bridge privacy](#bridge-privacy).
-- When a channel's import starts, the bridge pins a notice in that Discord channel saying that older messages are being copied to Harmony and how to opt out.
+- When a channel's import starts, the bridge pins a notice in that Discord channel saying that older messages are being copied to Harmony and how to opt out. From bridge 2.8.0 the notice is sent without a push notification, and Discord's "pinned a message" line is removed.
 
 A pair's progress line says how many messages were skipped for their author.
 
@@ -368,7 +367,7 @@ The bridge registers these commands in the bridged Discord server. `/bridge` is 
 | `/bridge clone-server` | Create a Harmony channel for every Discord channel and pair them; never overwrites; `dry_run`, `include_voice` and `clone_roles` options |
 | `/bridge sync-order` | Copy Discord's channel and category order to Harmony |
 | `/bridge sync-perms` | Copy Discord roles and the permissions of every paired channel to Harmony |
-| `/bridge import-history` | Import the channel's past Discord messages into its Harmony channel, after a confirmation; Administrator only; a bridge you run yourself only; options `action` (`start`, `status` or `cancel`) and `scope` (`channel`, the default, or `all`) (bridge 2.6.0 or later); see [Import history](#import-history) |
+| `/bridge import-history` | Import the channel's past Discord messages into its Harmony channel, after a confirmation; Administrator only; on bridges the instance's admin allows to import; options `action` (`start`, `status` or `cancel`) and `scope` (`channel`, the default, or `all`) (bridge 2.6.0 or later); see [Import history](#import-history) |
 | `/bridge-privacy` | For every member: `opt-out`, `opt-in`, `status`, `erase` for their own messages (bridge 2.6.0 or later); see [Bridge privacy](#bridge-privacy) |
 | `/bridge sync-emojis`, `/bridge sync-stickers`, `/bridge sync-sounds` | Copy the Discord server's emoji, stickers or soundboard to Harmony and keep them up to date; `mode` `merge` (the default: adds and updates), `mirror` (also removes what the bridge copied from a Discord item deleted since, after a confirmation) or `add`, and `dry_run` (bridge 2.6.0 or later) |
 | `/bridge import-emojis` | Copy the Discord server's custom emoji into the Harmony server under the same names; a rerun adds only new ones (Harmony 1.6.25 or later). With bridge 2.6.0 it is `sync-emojis` in `add` mode |

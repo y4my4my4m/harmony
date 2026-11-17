@@ -6066,6 +6066,7 @@
       "listLabel": "Canales conectados",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "Privado en Discord",
       "ok": "Funciona",
       "discordGone": "Canal de Discord no encontrado",
       "discordGoneFix": "El bot ya no encuentra este canal de Discord: se ha borrado o el bot ha perdido el acceso. Elimina el par o vuelve a dar acceso al bot.",
@@ -6503,7 +6504,7 @@
         "channel_encrypted": "el canal ahora está cifrado",
         "import_disabled": "se desactivó la importación de historial",
         "pair_not_importable": "el par ya no trae mensajes de Discord a Harmony",
-        "discord_approval_required": "el canal de Discord es privado: inicia su importación en Discord con /bridge import-history",
+        "discord_approval_required": "el canal de Discord es privado: vuelve a iniciarlo incluyendo los canales privados, o ejecuta una vez /bridge import-history scope:All bridged channels en Discord",
         "discord_channel_unsupported": "el canal de Discord no es un canal de texto",
         "discord_access_lost": "el puente ya no puede leer el canal de Discord",
         "bridge_stalled": "el puente dejó de avanzar",
@@ -6515,6 +6516,7 @@
         "encrypted": "Los canales cifrados no pueden importar historial"
       },
       "needsUpdate": "Actualiza el puente a la versión 2.6.0 o posterior para importar historial",
+      "needsUpdateHosted": "El servicio de puentes de esta instancia necesita la versión 2.8.0 o posterior para importar el historial. Un administrador de la instancia lo actualiza.",
       "mirrorNote": "Los archivos importados se copian en el almacenamiento de esta instancia.",
       "consent": {
         "title": "¿Importar el historial de {count} canal? | ¿Importar el historial de {count} canales?",
@@ -6522,11 +6524,14 @@
         "skips": "Se omiten los mensajes de quienes salieron del servidor de Discord. Cualquier persona en Discord puede excluir los suyos, o borrarlos, con /bridge-privacy.",
         "notice": "El puente fija un aviso en cada canal de Discord cuando empieza su importación.",
         "confirm": "Administro este servidor de Discord o actúo con el acuerdo de sus administradores.",
+        "privateTitle": "Privado en Discord: {channels} | Privados en Discord: {channels}",
+        "privateLead": "{'@'}everyone no puede leer su historial en Discord. Si no los incluyes, se omiten.",
+        "privateConfirm": "Incluir este canal privado: puedo leerlo en Discord, o sus administradores están de acuerdo. | Incluir estos canales privados: puedo leerlos en Discord, o sus administradores están de acuerdo.",
         "start": "Iniciar importación"
       },
       "unavailable": {
         "instance_off": "La importación de historial está desactivada en esta instancia.",
-        "bridge_mode": "La importación de historial solo está disponible para un puente que ejecutas tú, con tu propia aplicación de Discord."
+        "bridge_mode": "En esta instancia, la importación del historial solo está disponible para puentes que el propietario del servidor ejecuta con su propia aplicación de Discord."
       },
       "authorsSkipped": "{count} omitido (el autor salió o se excluyó) | {count} omitidos (los autores salieron o se excluyeron)",
       "automodSkipped": "{count} bloqueado por AutoMod | {count} bloqueados por AutoMod"
@@ -6560,17 +6565,30 @@
     },
     "importAdmin": {
       "title": "Importación de historial de Discord",
-      "lead": "Permite que un servidor copie los mensajes antiguos de sus canales de Discord a Harmony, mediante un puente que su propietario ejecuta con su propia aplicación de Discord. Nunca mediante el bot de Discord de esta instancia ni un bot que esta instancia ejecute.",
+      "lead": "Permite que un servidor copie a Harmony los mensajes antiguos de sus canales de Discord a través de su puente. Elige qué puentes pueden hacerlo.",
       "loadFailed": "No se pudieron cargar los ajustes de importación de historial.",
       "mode": "Importación de historial",
-      "modeOff": "Desactivada",
-      "modeSelfRun": "Puentes autogestionados",
-      "modeHint": "Desactivada rechaza toda importación, también las que ya están en curso.",
-      "warningTitle": "Antes de activarlo",
+      "modes": {
+        "off": {
+          "label": "Desactivado",
+          "hint": "Ningún servidor importa. Las importaciones en curso se detienen."
+        },
+        "self_run": {
+          "label": "Puentes propios",
+          "hint": "Puentes que el propietario de un servidor ejecuta con su propia aplicación de Discord."
+        },
+        "all": {
+          "label": "Todos los puentes",
+          "hint": "También el bot de Discord de esta instancia y los puentes con bot propio alojados aquí."
+        }
+      },
+      "modeHint": "Se guarda en cuanto eliges.",
+      "warningTitle": "Mientras la importación esté activada",
       "warningAuthors": "Quienes escribieron esos mensajes no pidieron la copia. Se omiten los autores que salieron del servidor de Discord, y los miembros excluyen o borran sus mensajes con /bridge-privacy.",
       "warningRequests": "Las solicitudes de borrado del contenido de esta instancia te llegan a ti. Los administradores de un servidor quitan a un usuario de Discord en Configuración del servidor, Puente de Discord; Quitar todos los mensajes de Discord, abajo, vacía todos los servidores.",
       "warningQuiet": "Los mensajes importados no envían notificaciones, cuentan como leídos y no se federan. Pasan por las reglas de palabras, invitaciones y enlaces de AutoMod del servidor cuando sus bots no están exentos.",
       "warningStorage": "Con «Mirror to storage», los archivos importados se copian al almacenamiento de esta instancia, hasta el límite por servidor de abajo.",
+      "warningInstanceBot": "Las importaciones a través del bot de Discord de esta instancia leen Discord con tu aplicación de Discord: según los términos para desarrolladores de Discord, tú, su propietario, respondes por ellas.",
       "maxRunning": "Importaciones simultáneas",
       "maxRunningHint": "En toda la instancia. Las demás esperan su turno. 0 es sin límite.",
       "messagesPerMinute": "Mensajes por minuto, por importación",

@@ -6066,6 +6066,7 @@
       "listLabel": "已配对的频道",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "在 Discord 上私密",
       "ok": "正常",
       "discordGone": "找不到 Discord 频道",
       "discordGoneFix": "机器人找不到这个 Discord 频道了：它已被删除，或者机器人失去了访问权限。请移除该配对，或重新授予机器人访问权限。",
@@ -6503,7 +6504,7 @@
         "channel_encrypted": "该频道现已加密",
         "import_disabled": "历史记录导入已关闭",
         "pair_not_importable": "该配对不再把 Discord 消息带到 Harmony",
-        "discord_approval_required": "该 Discord 频道是私密的：请在 Discord 上用 /bridge import-history 开始导入",
+        "discord_approval_required": "该 Discord 频道是私密的：请包含私密频道后重新开始，或在 Discord 上运行一次 /bridge import-history scope:All bridged channels",
         "discord_channel_unsupported": "该 Discord 频道不是文字频道",
         "discord_access_lost": "桥接已无法读取该 Discord 频道",
         "bridge_stalled": "桥接停止了进展",
@@ -6515,6 +6516,7 @@
         "encrypted": "加密频道无法导入历史记录"
       },
       "needsUpdate": "请将桥接更新到 2.6.0 或更高版本以导入历史记录",
+      "needsUpdateHosted": "此实例的桥接服务需要 2.8.0 或更高版本才能导入历史。由实例管理员更新。",
       "mirrorNote": "导入的文件会复制到此实例的存储中。",
       "consent": {
         "title": "导入 {count} 个频道的历史记录？ | 导入 {count} 个频道的历史记录？",
@@ -6522,11 +6524,14 @@
         "skips": "已离开 Discord 服务器的人的消息会被跳过。Discord 上的任何人都可以用 /bridge-privacy 排除或抹除自己的消息。",
         "notice": "导入开始时，桥接会在每个 Discord 频道中置顶一条通知。",
         "confirm": "我管理此 Discord 服务器，或已获得其管理者的同意。",
+        "privateTitle": "在 Discord 上私密：{channels} | 在 Discord 上私密：{channels}",
+        "privateLead": "在 Discord 上 {'@'}everyone 无法读取这些频道的历史。除非你包含它们，否则会被跳过。",
+        "privateConfirm": "包含此私密频道：我可以在 Discord 上阅读它，或其管理员已同意。 | 包含这些私密频道：我可以在 Discord 上阅读它们，或其管理员已同意。",
         "start": "开始导入"
       },
       "unavailable": {
         "instance_off": "此实例已关闭历史记录导入。",
-        "bridge_mode": "历史记录导入仅适用于你使用自己的 Discord 应用自行运行的桥接。"
+        "bridge_mode": "在此实例上，历史导入仅适用于服务器所有者使用自己的 Discord 应用运行的桥接。"
       },
       "authorsSkipped": "已跳过 {count} 条（作者已离开或已退出） | 已跳过 {count} 条（作者已离开或已退出）",
       "automodSkipped": "AutoMod 拦截了 {count} 条 | AutoMod 拦截了 {count} 条"
@@ -6560,17 +6565,30 @@
     },
     "importAdmin": {
       "title": "Discord 历史记录导入",
-      "lead": "允许服务器通过其所有者使用自己的 Discord 应用运行的桥接，把 Discord 频道中较早的消息复制到 Harmony。绝不通过此实例的 Discord 机器人或此实例运行的机器人。",
+      "lead": "允许服务器通过其桥接将 Discord 频道的旧消息复制到 Harmony。选择允许哪些桥接这样做。",
       "loadFailed": "无法加载历史记录导入设置。",
       "mode": "历史记录导入",
-      "modeOff": "关闭",
-      "modeSelfRun": "自行运行的桥接",
-      "modeHint": "关闭后会拒绝所有导入，包括正在进行的导入。",
-      "warningTitle": "开启之前",
+      "modes": {
+        "off": {
+          "label": "关闭",
+          "hint": "没有服务器可以导入。正在进行的导入会停止。"
+        },
+        "self_run": {
+          "label": "自行运行的桥接",
+          "hint": "服务器所有者使用自己的 Discord 应用运行的桥接。"
+        },
+        "all": {
+          "label": "所有桥接",
+          "hint": "也包括此实例的 Discord 机器人和此处托管的自有机器人桥接。"
+        }
+      },
+      "modeHint": "选择后立即保存。",
+      "warningTitle": "导入开启期间",
       "warningAuthors": "这些消息的作者并未要求复制。已离开 Discord 服务器的作者会被跳过，成员可用 /bridge-privacy 排除或抹除自己的消息。",
       "warningRequests": "针对此实例上内容的删除请求由你处理。服务器管理者可在“服务器设置”的“Discord 桥接”中移除 Discord 用户；下方的“移除所有 Discord 消息”会清空所有服务器。",
       "warningQuiet": "导入的消息不发送通知，计为已读，也不会联邦。当服务器未豁免机器人时，它们会经过 AutoMod 的词语、邀请和链接规则。",
       "warningStorage": "使用“Mirror to storage”时，导入的文件会复制到此实例的存储中，直至下方的每服务器上限。",
+      "warningInstanceBot": "通过此实例的 Discord 机器人进行的导入会使用你的 Discord 应用读取 Discord：根据 Discord 的开发者条款，你作为其所有者对此负责。",
       "maxRunning": "同时运行的导入数",
       "maxRunningHint": "整个实例范围内。其余的排队等待。0 表示不限制。",
       "messagesPerMinute": "每个导入每分钟的消息数",

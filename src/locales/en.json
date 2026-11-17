@@ -6062,6 +6062,7 @@
       "listLabel": "Paired channels",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "Private on Discord",
       "ok": "Working",
       "discordGone": "Discord channel not found",
       "discordGoneFix": "The bot can no longer find this Discord channel: it was deleted, or the bot lost access to it. Remove the pair, or give the bot access again.",
@@ -6499,7 +6500,7 @@
         "channel_encrypted": "the channel is now encrypted",
         "import_disabled": "history import was turned off",
         "pair_not_importable": "the pair no longer brings Discord messages to Harmony",
-        "discord_approval_required": "the Discord channel is private: start its import on Discord with /bridge import-history",
+        "discord_approval_required": "the Discord channel is private: start it again with private channels included, or run /bridge import-history scope:All bridged channels once on Discord",
         "discord_channel_unsupported": "the Discord channel is not a text channel",
         "discord_access_lost": "the bridge can no longer read the Discord channel",
         "bridge_stalled": "the bridge stopped making progress",
@@ -6511,6 +6512,7 @@
         "encrypted": "Encrypted channels can't import history"
       },
       "needsUpdate": "Update the bridge to 2.6.0 or later to import history",
+      "needsUpdateHosted": "This instance's bridge service needs version 2.8.0 or later to import history. An instance admin updates it.",
       "mirrorNote": "Imported files are copied into this instance's storage.",
       "consent": {
         "title": "Import the history of {count} channel? | Import the history of {count} channels?",
@@ -6518,11 +6520,14 @@
         "skips": "Messages from people who left the Discord server are skipped. Anyone on Discord keeps theirs out, or erases them, with /bridge-privacy.",
         "notice": "The bridge pins a notice in each Discord channel when its import starts.",
         "confirm": "I manage this Discord server, or act with its managers' agreement.",
+        "privateTitle": "Private on Discord: {channels} | Private on Discord: {channels}",
+        "privateLead": "{'@'}everyone cannot read their history on Discord. Unless you include them, they are left out.",
+        "privateConfirm": "Include this private channel: I can read it on Discord, or its managers agreed. | Include these private channels: I can read them on Discord, or their managers agreed.",
         "start": "Start import"
       },
       "unavailable": {
         "instance_off": "History import is turned off on this instance.",
-        "bridge_mode": "History import is only for a bridge you run yourself, with your own Discord application."
+        "bridge_mode": "History import on this instance is only for bridges their server's owner runs with their own Discord application."
       },
       "authorsSkipped": "{count} skipped (author left or opted out) | {count} skipped (authors left or opted out)",
       "automodSkipped": "{count} blocked by AutoMod | {count} blocked by AutoMod"
@@ -6556,17 +6561,30 @@
     },
     "importAdmin": {
       "title": "Discord history import",
-      "lead": "Lets a server copy the older messages of its Discord channels into Harmony, through a bridge its owner runs with their own Discord application. Never through this instance's Discord bot or a bot this instance runs.",
+      "lead": "Lets a server copy the older messages of its Discord channels into Harmony through its bridge. Choose which bridges may do it.",
       "loadFailed": "Couldn't load the history import settings.",
       "mode": "History import",
-      "modeOff": "Off",
-      "modeSelfRun": "Self-run bridges",
-      "modeHint": "Off refuses every import, including ones already running.",
-      "warningTitle": "Before you turn this on",
+      "modes": {
+        "off": {
+          "label": "Off",
+          "hint": "No server imports. Imports already running stop."
+        },
+        "self_run": {
+          "label": "Self-run bridges",
+          "hint": "Bridges a server's owner runs with their own Discord application."
+        },
+        "all": {
+          "label": "All bridges",
+          "hint": "Also this instance's Discord bot and the own-bot bridges hosted here."
+        }
+      },
+      "modeHint": "Saved as soon as you choose.",
+      "warningTitle": "While import is on",
       "warningAuthors": "The people who wrote those messages did not ask for the copy. Authors who left the Discord server are skipped, and members opt out or erase their messages with /bridge-privacy.",
       "warningRequests": "Deletion requests for content on this instance come to you. Server managers remove a Discord user under Server settings, Discord Bridge; Remove all Discord messages below clears every server.",
       "warningQuiet": "Imported messages send no notifications, count as read and are not federated. They pass the server's AutoMod word, invite and link rules when its bots are not exempt.",
       "warningStorage": "With Mirror to storage, imported files are copied to this instance's storage, up to the limit per server below.",
+      "warningInstanceBot": "Imports through this instance's Discord bot read Discord with your Discord application: Discord's developer terms hold you, its owner, responsible for them.",
       "maxRunning": "Imports running at once",
       "maxRunningHint": "Across the whole instance. Others wait their turn. 0 is no limit.",
       "messagesPerMinute": "Messages per minute, per import",
