@@ -3281,8 +3281,13 @@
       "voiceCall": "Llamada de voz",
       "videoCall": "Videollamada",
       "groupCreated": "Grupo creado",
-      "membersAdded": "Miembros añadidos"
-    }
+      "membersAdded": "Miembros añadidos",
+      "activity": "Actividad"
+    },
+    "activityStarted": "{actor} inició {app}.",
+    "activityEnded": "{actor} inició {app}: {players} jugadores, {duration}.",
+    "activityEndedAlone": "{actor} inició {app}: {duration}.",
+    "activityFallback": "una actividad"
   },
   "time": {
     "now": "ahora",
@@ -8851,5 +8856,80 @@
     "cleared": "Los nuevos miembros ya no reciben un rol.",
     "tooHigh": "Solo puedes elegir un rol por debajo de tu rol más alto.",
     "saveFailed": "No se pudo guardar el rol para nuevos miembros."
+  },
+  "playTogether": {
+    "button": "Jugar juntos",
+    "launcherTitle": "Jugar juntos",
+    "launcherSubtitle": "Inicia una actividad a la que todos aquí pueden unirse",
+    "loadingApps": "Cargando actividades…",
+    "noApps": "Esta instancia no tiene actividades activadas.",
+    "sandboxNote": "Las actividades se ejecutan aisladas: no ven tu cuenta, tus mensajes ni nada fuera del juego.",
+    "players": "{min}–{max} jugadores",
+    "playing": "{n} jugando | {n} jugando",
+    "join": "Unirse",
+    "open": "Abrir",
+    "leave": "Salir",
+    "close": "Cerrar",
+    "expand": "Ampliar",
+    "collapse": "Reducir",
+    "resize": "Cambiar el tamaño de la actividad",
+    "endForEveryone": "Terminar para todos",
+    "hostName": "{name} (anfitrión)",
+    "return": "Volver",
+    "retry": "Reintentar",
+    "loading": "Cargando {name}…",
+    "loadFailed": "{name} no se cargó.",
+    "reconnecting": "Reconectando…",
+    "escaped": "{name} intentó salir de su entorno aislado y se detuvo.",
+    "youArePlaying": "Estás jugando",
+    "joinTheCall": "Únete a la llamada para jugar",
+    "alreadyRunning": "{name} ya está en marcha aquí, así que te uniste.",
+    "openedElsewhere": "Esta actividad está abierta ahora en otra ventana.",
+    "bannerOne": "{name} está jugando a {app}",
+    "bannerMany": "{name} y {n} persona más están jugando a {app} | {name} y {n} personas más están jugando a {app}",
+    "bannerEmpty": "{app} está en marcha aquí",
+    "status": {
+      "connecting": "Conectando…",
+      "reconnecting": "Reconectando…",
+      "ended": "Terminada"
+    },
+    "errors": {
+      "ACTIVITY_APP_UNAVAILABLE": "Esta actividad no está disponible en esta instancia.",
+      "ACTIVITY_CONTEXT_UNSUPPORTED": "Esta actividad no puede ejecutarse aquí.",
+      "ACTIVITY_RATE_LIMITED": "Has iniciado muchas actividades. Inténtalo de nuevo en unos minutos.",
+      "NOT_FOUND": "No puedes jugar aquí.",
+      "DM_BLOCKED": "No puedes jugar con esta persona.",
+      "SERVER_NOT_LOCAL": "Las actividades solo funcionan en servidores alojados en esta instancia.",
+      "CHANNEL_TYPE": "Las actividades funcionan en canales de texto y de voz.",
+      "NOT_IN_CALL": "Únete a la llamada para jugar.",
+      "CANNOT_SEND": "No puedes enviar mensajes en este canal.",
+      "NOT_LOCAL_ACCOUNT": "Solo las cuentas de esta instancia pueden jugar aquí.",
+      "ENDED": "Esa actividad ha terminado.",
+      "FULL": "Esta actividad está llena.",
+      "UNSUPPORTED_VERSION": "Actualiza Harmony para jugar a esta actividad.",
+      "UNKNOWN": "Algo salió mal con la actividad."
+    },
+    "admin": {
+      "tab": "Actividades",
+      "title": "Jugar juntos",
+      "intro": "Actividades que los miembros pueden iniciar en MD, MD de grupo, canales de texto y llamadas. Desactivar una termina sus sesiones en curso.",
+      "none": "No hay actividades instaladas.",
+      "toggle": "Ofrecer {name}",
+      "enabled": "Actividad activada",
+      "disabled": "Actividad desactivada",
+      "context": {
+        "direct": "MD",
+        "group": "MD de grupo",
+        "channel": "Canales de texto",
+        "voice": "Canales de voz"
+      },
+      "safetyTitle": "Cómo se aíslan las actividades",
+      "safety": {
+        "sandbox": "Cada actividad se ejecuta en un marco aislado con su propio origen opaco: no puede leer la sesión de la cuenta, su almacenamiento, sus mensajes ni la página que la rodea.",
+        "network": "Su política de contenido rechaza solicitudes de red, ventanas emergentes, formularios y marcos, y solo carga archivos de su propia carpeta; un marco que navega a otra página se detiene.",
+        "relay": "Los jugadores se comunican a través del relé de esta instancia, que verifica a cada miembro, limita el tamaño y la frecuencia de los mensajes y no guarda datos del juego tras la sesión.",
+        "members": "Solo los miembros de la conversación o del canal pueden unirse; quien la abandone, salga de la llamada o cierre sesión sale del juego en menos de 30 segundos."
+      }
+    }
   }
 }

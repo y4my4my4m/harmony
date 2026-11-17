@@ -3300,8 +3300,13 @@
       "voiceCall": "Sprachanruf",
       "videoCall": "Videoanruf",
       "groupCreated": "Gruppe erstellt",
-      "membersAdded": "Mitglieder hinzugefügt"
-    }
+      "membersAdded": "Mitglieder hinzugefügt",
+      "activity": "Aktivität"
+    },
+    "activityStarted": "{actor} hat {app} gestartet.",
+    "activityEnded": "{actor} hat {app} gestartet: {players} Spieler, {duration}.",
+    "activityEndedAlone": "{actor} hat {app} gestartet: {duration}.",
+    "activityFallback": "eine Aktivität"
   },
   "time": {
     "now": "jetzt",
@@ -8851,5 +8856,80 @@
     "cleared": "Neue Mitglieder bekommen keine Rolle mehr.",
     "tooHigh": "Du kannst nur eine Rolle unter deiner höchsten Rolle wählen.",
     "saveFailed": "Die Rolle für neue Mitglieder konnte nicht gespeichert werden."
+  },
+  "playTogether": {
+    "button": "Zusammen spielen",
+    "launcherTitle": "Zusammen spielen",
+    "launcherSubtitle": "Starte eine Aktivität, der hier alle beitreten können",
+    "loadingApps": "Aktivitäten werden geladen…",
+    "noApps": "Auf dieser Instanz sind keine Aktivitäten eingeschaltet.",
+    "sandboxNote": "Aktivitäten laufen abgeschottet: Sie sehen weder dein Konto noch deine Nachrichten noch irgendetwas außerhalb des Spiels.",
+    "players": "{min}–{max} Spieler",
+    "playing": "{n} spielt | {n} spielen",
+    "join": "Beitreten",
+    "open": "Öffnen",
+    "leave": "Verlassen",
+    "close": "Schließen",
+    "expand": "Vergrößern",
+    "collapse": "Verkleinern",
+    "resize": "Größe der Aktivität ändern",
+    "endForEveryone": "Für alle beenden",
+    "hostName": "{name} (Host)",
+    "return": "Zurück",
+    "retry": "Erneut versuchen",
+    "loading": "{name} wird geladen…",
+    "loadFailed": "{name} wurde nicht geladen.",
+    "reconnecting": "Verbindung wird wiederhergestellt…",
+    "escaped": "{name} hat versucht, die Sandbox zu verlassen, und wurde gestoppt.",
+    "youArePlaying": "Du spielst",
+    "joinTheCall": "Tritt dem Anruf bei, um zu spielen",
+    "alreadyRunning": "{name} läuft hier bereits, du bist beigetreten.",
+    "openedElsewhere": "Diese Aktivität ist jetzt in einem anderen Fenster geöffnet.",
+    "bannerOne": "{name} spielt {app}",
+    "bannerMany": "{name} und {n} weitere Person spielen {app} | {name} und {n} weitere Personen spielen {app}",
+    "bannerEmpty": "{app} läuft hier",
+    "status": {
+      "connecting": "Verbinde…",
+      "reconnecting": "Verbindung wird wiederhergestellt…",
+      "ended": "Beendet"
+    },
+    "errors": {
+      "ACTIVITY_APP_UNAVAILABLE": "Diese Aktivität ist auf dieser Instanz nicht verfügbar.",
+      "ACTIVITY_CONTEXT_UNSUPPORTED": "Diese Aktivität kann hier nicht laufen.",
+      "ACTIVITY_RATE_LIMITED": "Du hast viele Aktivitäten gestartet. Versuche es in ein paar Minuten erneut.",
+      "NOT_FOUND": "Du kannst hier nicht spielen.",
+      "DM_BLOCKED": "Du kannst mit dieser Person nicht spielen.",
+      "SERVER_NOT_LOCAL": "Aktivitäten laufen nur auf Servern, die diese Instanz hostet.",
+      "CHANNEL_TYPE": "Aktivitäten laufen in Text- und Sprachkanälen.",
+      "NOT_IN_CALL": "Tritt dem Anruf bei, um zu spielen.",
+      "CANNOT_SEND": "Du kannst in diesem Kanal keine Nachrichten senden.",
+      "NOT_LOCAL_ACCOUNT": "Nur Konten dieser Instanz können hier spielen.",
+      "ENDED": "Diese Aktivität ist beendet.",
+      "FULL": "Diese Aktivität ist voll.",
+      "UNSUPPORTED_VERSION": "Aktualisiere Harmony, um diese Aktivität zu spielen.",
+      "UNKNOWN": "Bei der Aktivität ist etwas schiefgelaufen."
+    },
+    "admin": {
+      "tab": "Aktivitäten",
+      "title": "Zusammen spielen",
+      "intro": "Aktivitäten, die Mitglieder in Direktnachrichten, Gruppen, Textkanälen und Anrufen starten können. Abschalten beendet laufende Sitzungen.",
+      "none": "Keine Aktivitäten installiert.",
+      "toggle": "{name} anbieten",
+      "enabled": "Aktivität eingeschaltet",
+      "disabled": "Aktivität ausgeschaltet",
+      "context": {
+        "direct": "Direktnachrichten",
+        "group": "Gruppennachrichten",
+        "channel": "Textkanäle",
+        "voice": "Sprachkanäle"
+      },
+      "safetyTitle": "So sind Aktivitäten abgeschottet",
+      "safety": {
+        "sandbox": "Jede Aktivität läuft in einem abgeschotteten Rahmen mit eigenem opaken Ursprung: Sie kann weder die Sitzung des Kontos noch dessen Speicher, Nachrichten oder die umgebende Seite lesen.",
+        "network": "Ihre Inhaltsrichtlinie verweigert Netzwerkanfragen, Pop-ups, Formulare und Frames und lädt nur Dateien aus ihrem eigenen Ordner; ein Frame, der wegnavigiert, wird gestoppt.",
+        "relay": "Spieler kommunizieren über das Relay dieser Instanz, das jedes Mitglied prüft, Größe und Rate der Nachrichten begrenzt und nach einer Sitzung keine Spieldaten behält.",
+        "members": "Nur Mitglieder der Unterhaltung oder des Kanals können beitreten; wer sie verlässt, den Anruf verlässt oder sich abmeldet, fliegt innerhalb von 30 Sekunden aus dem Spiel."
+      }
+    }
   }
 }

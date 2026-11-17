@@ -2,9 +2,10 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import { backgrounds } from './vite-plugin-backgrounds'
+import { activities } from './vite-plugin-activities'
 
 export default defineConfig({
-  plugins: [vue() as any, backgrounds() as any],
+  plugins: [vue() as any, backgrounds() as any, activities() as any],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -19,7 +20,7 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'tests/**/*.test.ts', 'activities/**/*.test.ts'],
     exclude: ['node_modules', 'dist', 'federation-backend', 'tests/db/**', 'tests/integration/**'],
     setupFiles: ['./tests/setup.ts'],
     globals: true,

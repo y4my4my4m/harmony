@@ -14,6 +14,9 @@ export function systemEventPreviewKey(metadata: unknown): string | null {
       // participants lists everyone who joined, the caller included.
       if (!Array.isArray(meta.participants) || meta.participants.length < 2) return 'dm.missedCall'
       return video ? 'systemEvents.preview.videoCall' : 'systemEvents.preview.voiceCall'
+    case 'activity_started':
+    case 'activity_ended':
+      return 'systemEvents.preview.activity'
     case 'group_created':
       return meta.event === 'members_added' ? 'systemEvents.preview.membersAdded' : 'systemEvents.preview.groupCreated'
     default:

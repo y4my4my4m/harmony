@@ -3300,8 +3300,13 @@
       "voiceCall": "Appel vocal",
       "videoCall": "Appel vidéo",
       "groupCreated": "Groupe créé",
-      "membersAdded": "Membres ajoutés"
-    }
+      "membersAdded": "Membres ajoutés",
+      "activity": "Activité"
+    },
+    "activityStarted": "{actor} a lancé {app}.",
+    "activityEnded": "{actor} a lancé {app} : {players} joueurs, {duration}.",
+    "activityEndedAlone": "{actor} a lancé {app} : {duration}.",
+    "activityFallback": "une activité"
   },
   "time": {
     "now": "maintenant",
@@ -8851,5 +8856,80 @@
     "cleared": "Les nouveaux membres ne reçoivent plus de rôle.",
     "tooHigh": "Tu ne peux choisir qu’un rôle sous ton rôle le plus élevé.",
     "saveFailed": "Impossible d’enregistrer le rôle des nouveaux membres."
+  },
+  "playTogether": {
+    "button": "Jouer ensemble",
+    "launcherTitle": "Jouer ensemble",
+    "launcherSubtitle": "Lancez une activité que tout le monde ici peut rejoindre",
+    "loadingApps": "Chargement des activités…",
+    "noApps": "Aucune activité n’est activée sur cette instance.",
+    "sandboxNote": "Les activités sont isolées : elles ne voient ni votre compte, ni vos messages, ni rien en dehors du jeu.",
+    "players": "{min} à {max} joueurs",
+    "playing": "{n} joue | {n} jouent",
+    "join": "Rejoindre",
+    "open": "Ouvrir",
+    "leave": "Quitter",
+    "close": "Fermer",
+    "expand": "Agrandir",
+    "collapse": "Réduire",
+    "resize": "Redimensionner l’activité",
+    "endForEveryone": "Terminer pour tout le monde",
+    "hostName": "{name} (hôte)",
+    "return": "Revenir",
+    "retry": "Réessayer",
+    "loading": "Chargement de {name}…",
+    "loadFailed": "{name} ne s’est pas chargé.",
+    "reconnecting": "Reconnexion…",
+    "escaped": "{name} a tenté de sortir de son bac à sable et a été arrêté.",
+    "youArePlaying": "Vous jouez",
+    "joinTheCall": "Rejoignez l’appel pour jouer",
+    "alreadyRunning": "{name} est déjà en cours ici : vous l’avez rejoint.",
+    "openedElsewhere": "Cette activité est maintenant ouverte dans une autre fenêtre.",
+    "bannerOne": "{name} joue à {app}",
+    "bannerMany": "{name} et {n} autre personne jouent à {app} | {name} et {n} autres personnes jouent à {app}",
+    "bannerEmpty": "{app} est en cours ici",
+    "status": {
+      "connecting": "Connexion…",
+      "reconnecting": "Reconnexion…",
+      "ended": "Terminée"
+    },
+    "errors": {
+      "ACTIVITY_APP_UNAVAILABLE": "Cette activité n’est pas disponible sur cette instance.",
+      "ACTIVITY_CONTEXT_UNSUPPORTED": "Cette activité ne peut pas s’exécuter ici.",
+      "ACTIVITY_RATE_LIMITED": "Vous avez lancé beaucoup d’activités. Réessayez dans quelques minutes.",
+      "NOT_FOUND": "Vous ne pouvez pas jouer ici.",
+      "DM_BLOCKED": "Vous ne pouvez pas jouer avec cette personne.",
+      "SERVER_NOT_LOCAL": "Les activités ne fonctionnent que sur les serveurs hébergés par cette instance.",
+      "CHANNEL_TYPE": "Les activités fonctionnent dans les salons textuels et vocaux.",
+      "NOT_IN_CALL": "Rejoignez l’appel pour jouer.",
+      "CANNOT_SEND": "Vous ne pouvez pas envoyer de messages dans ce salon.",
+      "NOT_LOCAL_ACCOUNT": "Seuls les comptes de cette instance peuvent jouer ici.",
+      "ENDED": "Cette activité est terminée.",
+      "FULL": "Cette activité est complète.",
+      "UNSUPPORTED_VERSION": "Mettez Harmony à jour pour jouer à cette activité.",
+      "UNKNOWN": "Un problème est survenu avec l’activité."
+    },
+    "admin": {
+      "tab": "Activités",
+      "title": "Jouer ensemble",
+      "intro": "Les activités que les membres peuvent lancer en MP, MP de groupe, salons textuels et appels. En désactiver une termine ses sessions en cours.",
+      "none": "Aucune activité n’est installée.",
+      "toggle": "Proposer {name}",
+      "enabled": "Activité activée",
+      "disabled": "Activité désactivée",
+      "context": {
+        "direct": "MP",
+        "group": "MP de groupe",
+        "channel": "Salons textuels",
+        "voice": "Salons vocaux"
+      },
+      "safetyTitle": "Comment les activités sont isolées",
+      "safety": {
+        "sandbox": "Chaque activité s’exécute dans un cadre isolé avec sa propre origine opaque : elle ne peut lire ni la session du compte, ni son stockage, ni ses messages, ni la page qui l’entoure.",
+        "network": "Sa politique de contenu refuse les requêtes réseau, fenêtres surgissantes, formulaires et cadres, et ne charge que les fichiers de son propre dossier ; un cadre qui navigue ailleurs est arrêté.",
+        "relay": "Les joueurs communiquent par le relais de cette instance, qui vérifie chaque membre, limite la taille et le débit des messages et ne garde aucune donnée de jeu après une session.",
+        "members": "Seuls les membres de la conversation ou du salon peuvent rejoindre ; quiconque la quitte, quitte l’appel ou se déconnecte quitte la partie en moins de 30 secondes."
+      }
+    }
   }
 }

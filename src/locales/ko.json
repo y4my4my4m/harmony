@@ -3300,8 +3300,13 @@
       "voiceCall": "음성 통화",
       "videoCall": "영상 통화",
       "groupCreated": "그룹 생성됨",
-      "membersAdded": "멤버 추가됨"
-    }
+      "membersAdded": "멤버 추가됨",
+      "activity": "활동"
+    },
+    "activityStarted": "{actor}님이 {app}을(를) 시작했습니다.",
+    "activityEnded": "{actor}님이 {app}을(를) 시작했습니다: {players}명, {duration}.",
+    "activityEndedAlone": "{actor}님이 {app}을(를) 시작했습니다: {duration}.",
+    "activityFallback": "활동"
   },
   "time": {
     "now": "지금",
@@ -8851,5 +8856,80 @@
     "cleared": "새 멤버는 더 이상 역할을 받지 않습니다.",
     "tooHigh": "내 최상위 역할보다 낮은 역할만 고를 수 있습니다.",
     "saveFailed": "새 멤버 역할을 저장하지 못했습니다."
+  },
+  "playTogether": {
+    "button": "함께 플레이",
+    "launcherTitle": "함께 플레이",
+    "launcherSubtitle": "여기 있는 모두가 참여할 수 있는 활동을 시작하세요",
+    "loadingApps": "활동 불러오는 중…",
+    "noApps": "이 인스턴스에서 켜진 활동이 없습니다.",
+    "sandboxNote": "활동은 격리된 환경에서 실행되며 계정, 메시지 등 게임 밖의 정보를 볼 수 없습니다.",
+    "players": "{min}–{max}명",
+    "playing": "{n}명 플레이 중",
+    "join": "참여",
+    "open": "열기",
+    "leave": "나가기",
+    "close": "닫기",
+    "expand": "확대",
+    "collapse": "축소",
+    "resize": "활동 크기 조정",
+    "endForEveryone": "모두에게 종료",
+    "hostName": "{name}(호스트)",
+    "return": "돌아가기",
+    "retry": "다시 시도",
+    "loading": "{name} 불러오는 중…",
+    "loadFailed": "{name}을(를) 불러오지 못했습니다.",
+    "reconnecting": "다시 연결하는 중…",
+    "escaped": "{name}이(가) 샌드박스를 벗어나려 해서 중지되었습니다.",
+    "youArePlaying": "플레이 중",
+    "joinTheCall": "통화에 참여해 플레이하세요",
+    "alreadyRunning": "여기서 이미 {name}이(가) 실행 중이라 참여했습니다.",
+    "openedElsewhere": "이 활동은 이제 다른 창에서 열려 있습니다.",
+    "bannerOne": "{name}님이 {app} 플레이 중",
+    "bannerMany": "{name}님 외 {n}명이 {app} 플레이 중",
+    "bannerEmpty": "여기서 {app} 실행 중",
+    "status": {
+      "connecting": "연결하는 중…",
+      "reconnecting": "다시 연결하는 중…",
+      "ended": "종료됨"
+    },
+    "errors": {
+      "ACTIVITY_APP_UNAVAILABLE": "이 활동은 이 인스턴스에서 사용할 수 없습니다.",
+      "ACTIVITY_CONTEXT_UNSUPPORTED": "이 활동은 여기서 실행할 수 없습니다.",
+      "ACTIVITY_RATE_LIMITED": "활동을 너무 많이 시작했습니다. 몇 분 후 다시 시도하세요.",
+      "NOT_FOUND": "여기서는 플레이할 수 없습니다.",
+      "DM_BLOCKED": "이 사용자와는 플레이할 수 없습니다.",
+      "SERVER_NOT_LOCAL": "활동은 이 인스턴스가 호스팅하는 서버에서만 실행됩니다.",
+      "CHANNEL_TYPE": "활동은 텍스트 및 음성 채널에서 실행됩니다.",
+      "NOT_IN_CALL": "통화에 참여해 플레이하세요.",
+      "CANNOT_SEND": "이 채널에서 메시지를 보낼 수 없습니다.",
+      "NOT_LOCAL_ACCOUNT": "이 인스턴스의 계정만 여기서 플레이할 수 있습니다.",
+      "ENDED": "해당 활동이 종료되었습니다.",
+      "FULL": "이 활동은 인원이 가득 찼습니다.",
+      "UNSUPPORTED_VERSION": "이 활동을 플레이하려면 Harmony를 업데이트하세요.",
+      "UNKNOWN": "활동에 문제가 발생했습니다."
+    },
+    "admin": {
+      "tab": "활동",
+      "title": "함께 플레이",
+      "intro": "멤버가 DM, 그룹 DM, 텍스트 채널, 통화에서 시작할 수 있는 활동입니다. 끄면 진행 중인 세션이 종료됩니다.",
+      "none": "설치된 활동이 없습니다.",
+      "toggle": "{name} 제공",
+      "enabled": "활동을 켰습니다",
+      "disabled": "활동을 껐습니다",
+      "context": {
+        "direct": "DM",
+        "group": "그룹 DM",
+        "channel": "텍스트 채널",
+        "voice": "음성 채널"
+      },
+      "safetyTitle": "활동 격리 방식",
+      "safety": {
+        "sandbox": "각 활동은 고유한 불투명 출처를 가진 샌드박스 프레임에서 실행되며, 계정의 세션, 저장소, 메시지, 주변 페이지를 읽을 수 없습니다.",
+        "network": "콘텐츠 정책이 네트워크 요청, 팝업, 양식, 프레임을 거부하며 자체 폴더의 파일만 불러옵니다. 다른 페이지로 이동한 프레임은 중지됩니다.",
+        "relay": "플레이어는 이 인스턴스의 릴레이를 통해 통신합니다. 릴레이는 모든 멤버를 확인하고 메시지 크기와 빈도를 제한하며, 세션 후 게임 데이터를 보관하지 않습니다.",
+        "members": "대화나 채널의 멤버만 참여할 수 있으며, 나가거나 통화를 떠나거나 로그아웃하면 30초 안에 게임에서 제외됩니다."
+      }
+    }
   }
 }

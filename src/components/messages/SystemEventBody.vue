@@ -8,6 +8,7 @@
     </div>
   </template>
   <Icon v-else-if="type === 'group_created'" name="users" :size="16" class="system-icon" />
+  <Icon v-else-if="isActivity" name="gamepad" :size="16" class="system-icon activity-icon" />
   <Icon v-else-if="type === 'member_join'" name="arrow-right" :size="16" class="system-icon join" />
   <Icon v-else-if="type === 'member_leave'" name="arrow-left" :size="16" class="system-icon leave" />
   <Icon v-else-if="type === 'member_kick'" name="user-x" :size="16" class="system-icon leave" />
@@ -67,10 +68,16 @@
         <button type="button" class="system-threads-link" @click="emit('showAllThreads')">{{ t('systemEvents.allThreads') }}</button>
       </template>
       <template #duration><span class="call-duration">{{ callDuration }}</span></template>
+      <template #app><span class="system-activity-name">{{ activityName }}</span></template>
+      <template #players>{{ activityPlayers }}</template>
       <template #count>{{ participantCount }}</template>
     </i18n-t>
     <span v-if="reason" class="system-reason">{{ t('systemEvents.reason', { reason }) }}</span>
     <span v-if="missedCall && !missedByMe" class="call-missed">{{ t('systemEvents.noAnswer') }}</span>
+    <ActivitySystemCard
+      v-if="type === 'activity_started' && activitySessionId"
+      :session-id="activitySessionId"
+    />
     <CallJoinButton
       v-if="type === 'call_started'"
       :message-id="message.id"
@@ -136,6 +143,8 @@
 //                                    thread_id, thread_name
 //   group_created                    actor_id, event 'created' (participant_count) | 'members_added' (user_ids)
 //   call_started, call_ended         actor_id, call_type, participants, duration_seconds
+//   activity_started, activity_ended actor_id, app_id, app_name, session_id; ended adds
+//                                    duration_seconds, players, player_count (20261117500001)
 //   channel_(voice_)encryption_*     actor_id
 //   automod_alert                    automod
 import { computed } from 'vue'
@@ -143,6 +152,8 @@ import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import CallJoinButton from '@/components/messages/CallJoinButton.vue'
+import ActivitySystemCard from '@/components/playTogether/ActivitySystemCard.vue'
+import { usePlayTogetherStore } from '@/stores/playTogether'
 import { useProfileStore } from '@/stores/useProfile'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
@@ -222,6 +233,15 @@ const reason = computed(() =>
     : '')
 
 const isCall = computed(() => type.value === 'call_started' || type.value === 'call_ended')
+const isActivity = computed(() => type.value === 'activity_started' || type.value === 'activity_ended')
+const activitySessionId = computed(() => (typeof meta.value.session_id === 'string' ? meta.value.session_id : ''))
+const activityName = computed(() => {
+  const id = typeof meta.value.app_id === 'string' ? meta.value.app_id : ''
+  const app = id ? usePlayTogetherStore().appById(id) : undefined
+  if (app) return usePlayTogetherStore().appLabel(app).name
+  return typeof meta.value.app_name === 'string' && meta.value.app_name ? meta.value.app_name : t('systemEvents.activityFallback')
+})
+const activityPlayers = computed(() => Math.max(0, Number(meta.value.player_count) || 0))
 const callType = computed(() => (meta.value.call_type === 'video' ? 'video' : 'voice'))
 // Nobody answered: the callee reads it as missed, the caller as no answer (Discord).
 const missedCall = computed(() =>
@@ -269,6 +289,12 @@ const sentence = computed<{ key: string; plural?: number } | null>(() => {
       if (meta.value.event === 'members_added' && members.value.length > 0) return { key: 'systemEvents.membersAdded' }
       if (participantCount.value > 0) return { key: 'systemEvents.groupCreatedWith', plural: participantCount.value }
       return { key: 'systemEvents.groupCreated' }
+    case 'activity_started':
+      return { key: 'systemEvents.activityStarted' }
+    case 'activity_ended':
+      return activityPlayers.value > 1
+        ? { key: 'systemEvents.activityEnded' }
+        : { key: 'systemEvents.activityEndedAlone' }
     case 'call_started':
       return { key: `systemEvents.callStarted.${callType.value}` }
     case 'call_ended':

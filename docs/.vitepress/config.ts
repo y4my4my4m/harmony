@@ -28,6 +28,7 @@ const sidebar: DefaultTheme.Sidebar = {
         { text: 'Stickers', link: '/use/stickers' },
         { text: 'Drive', link: '/use/drive' },
         { text: 'Voice and video', link: '/use/voice-video' },
+        { text: 'Play together', link: '/use/play-together' },
         { text: 'Notifications and apps', link: '/use/notifications-apps' },
         { text: 'iPhone and iPad', link: '/use/ios' },
         { text: 'Social', link: '/use/social' },
@@ -79,6 +80,7 @@ const sidebar: DefaultTheme.Sidebar = {
         { text: 'Voice and video', link: '/self-host/voice' },
         { text: 'Push notifications', link: '/self-host/push' },
         { text: 'Discord bridges', link: '/self-host/discord-bridges' },
+        { text: 'Activities', link: '/self-host/activities' },
         { text: 'Stickers', link: '/self-host/stickers' },
         { text: 'Sign-up limits', link: '/self-host/signup-limits' },
       ],
@@ -100,6 +102,7 @@ const sidebar: DefaultTheme.Sidebar = {
         { text: 'Overview', link: '/build/' },
         { text: 'Bot quickstart', link: '/build/bot-quickstart' },
         { text: 'Slash commands', link: '/build/commands' },
+        { text: 'Activities SDK', link: '/build/activities' },
       ],
     },
     {

@@ -3356,8 +3356,13 @@
       "voiceCall": "Voice call",
       "videoCall": "Video call",
       "groupCreated": "Group created",
-      "membersAdded": "Members added"
-    }
+      "membersAdded": "Members added",
+      "activity": "Activity"
+    },
+    "activityStarted": "{actor} started {app}.",
+    "activityEnded": "{actor} started {app}: {players} players, {duration}.",
+    "activityEndedAlone": "{actor} started {app}: {duration}.",
+    "activityFallback": "an activity"
   },
   "time": {
     "now": "now",
@@ -8847,5 +8852,80 @@
     "cleared": "New members no longer get a role.",
     "tooHigh": "You can only choose a role below your highest role.",
     "saveFailed": "Couldn’t save the role for new members."
+  },
+  "playTogether": {
+    "button": "Play together",
+    "launcherTitle": "Play together",
+    "launcherSubtitle": "Start an activity everyone here can join",
+    "loadingApps": "Loading activities…",
+    "noApps": "No activities are turned on for this instance.",
+    "sandboxNote": "Activities run sandboxed: they can’t see your account, your messages or anything outside the game.",
+    "players": "{min}–{max} players",
+    "playing": "{n} playing | {n} playing",
+    "join": "Join",
+    "open": "Open",
+    "leave": "Leave",
+    "close": "Close",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "resize": "Resize the activity",
+    "endForEveryone": "End for everyone",
+    "hostName": "{name} (host)",
+    "return": "Return",
+    "retry": "Retry",
+    "loading": "Loading {name}…",
+    "loadFailed": "{name} didn’t load.",
+    "reconnecting": "Reconnecting…",
+    "escaped": "{name} tried to leave its sandbox and was stopped.",
+    "youArePlaying": "You’re playing",
+    "joinTheCall": "Join the call to play",
+    "alreadyRunning": "{name} is already running here, so you joined it.",
+    "openedElsewhere": "This activity is now open in another window.",
+    "bannerOne": "{name} is playing {app}",
+    "bannerMany": "{name} and {n} other are playing {app} | {name} and {n} others are playing {app}",
+    "bannerEmpty": "{app} is running here",
+    "status": {
+      "connecting": "Connecting…",
+      "reconnecting": "Reconnecting…",
+      "ended": "Ended"
+    },
+    "errors": {
+      "ACTIVITY_APP_UNAVAILABLE": "This activity isn’t available on this instance.",
+      "ACTIVITY_CONTEXT_UNSUPPORTED": "This activity can’t run here.",
+      "ACTIVITY_RATE_LIMITED": "You’ve started a lot of activities. Try again in a few minutes.",
+      "NOT_FOUND": "You can’t play here.",
+      "DM_BLOCKED": "You can’t play with this person.",
+      "SERVER_NOT_LOCAL": "Activities run only on servers this instance hosts.",
+      "CHANNEL_TYPE": "Activities run in text and voice channels.",
+      "NOT_IN_CALL": "Join the call to play.",
+      "CANNOT_SEND": "You can’t send messages in this channel.",
+      "NOT_LOCAL_ACCOUNT": "Only accounts of this instance can play here.",
+      "ENDED": "That activity has ended.",
+      "FULL": "This activity is full.",
+      "UNSUPPORTED_VERSION": "Update Harmony to play this activity.",
+      "UNKNOWN": "Something went wrong with the activity."
+    },
+    "admin": {
+      "tab": "Activities",
+      "title": "Play together",
+      "intro": "Activities members can start in DMs, group DMs, text channels and calls. Turning one off ends its running sessions.",
+      "none": "No activities are installed.",
+      "toggle": "Offer {name}",
+      "enabled": "Activity turned on",
+      "disabled": "Activity turned off",
+      "context": {
+        "direct": "DMs",
+        "group": "Group DMs",
+        "channel": "Text channels",
+        "voice": "Voice channels"
+      },
+      "safetyTitle": "How activities are isolated",
+      "safety": {
+        "sandbox": "Each activity runs in a sandboxed frame with its own opaque origin: it cannot read the account’s session, storage, messages or the page around it.",
+        "network": "Its content policy refuses network requests, popups, forms and frames, and loads files only from its own folder; a frame that navigates away is stopped.",
+        "relay": "Players talk through this instance’s relay, which checks every member, caps message sizes and rates, and keeps no game data after a session.",
+        "members": "Only members of the conversation or channel can join; anyone who leaves it, leaves the call or signs out is removed from the game within 30 seconds."
+      }
+    }
   }
 }

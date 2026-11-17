@@ -3300,8 +3300,13 @@
       "voiceCall": "语音通话",
       "videoCall": "视频通话",
       "groupCreated": "已创建群组",
-      "membersAdded": "已添加成员"
-    }
+      "membersAdded": "已添加成员",
+      "activity": "活动"
+    },
+    "activityStarted": "{actor} 开启了 {app}。",
+    "activityEnded": "{actor} 开启了 {app}：{players} 名玩家，{duration}。",
+    "activityEndedAlone": "{actor} 开启了 {app}：{duration}。",
+    "activityFallback": "一个活动"
   },
   "time": {
     "now": "现在",
@@ -8851,5 +8856,80 @@
     "cleared": "新成员将不再获得角色。",
     "tooHigh": "只能选择低于你最高角色的角色。",
     "saveFailed": "无法保存新成员角色。"
+  },
+  "playTogether": {
+    "button": "一起玩",
+    "launcherTitle": "一起玩",
+    "launcherSubtitle": "开始一个这里所有人都能加入的活动",
+    "loadingApps": "正在加载活动…",
+    "noApps": "此实例尚未开启任何活动。",
+    "sandboxNote": "活动在沙盒中运行：无法查看你的账户、消息或游戏之外的任何内容。",
+    "players": "{min}–{max} 名玩家",
+    "playing": "{n} 人在玩",
+    "join": "加入",
+    "open": "打开",
+    "leave": "离开",
+    "close": "关闭",
+    "expand": "展开",
+    "collapse": "收起",
+    "resize": "调整活动大小",
+    "endForEveryone": "为所有人结束",
+    "hostName": "{name}（主持人）",
+    "return": "返回",
+    "retry": "重试",
+    "loading": "正在加载 {name}…",
+    "loadFailed": "{name} 加载失败。",
+    "reconnecting": "正在重新连接…",
+    "escaped": "{name} 试图离开沙盒，已被停止。",
+    "youArePlaying": "你正在玩",
+    "joinTheCall": "加入通话即可游玩",
+    "alreadyRunning": "{name} 已在此运行，你已加入。",
+    "openedElsewhere": "此活动已在另一个窗口中打开。",
+    "bannerOne": "{name} 正在玩 {app}",
+    "bannerMany": "{name} 和另外 {n} 人正在玩 {app}",
+    "bannerEmpty": "{app} 正在此运行",
+    "status": {
+      "connecting": "正在连接…",
+      "reconnecting": "正在重新连接…",
+      "ended": "已结束"
+    },
+    "errors": {
+      "ACTIVITY_APP_UNAVAILABLE": "此活动在本实例上不可用。",
+      "ACTIVITY_CONTEXT_UNSUPPORTED": "此活动无法在此运行。",
+      "ACTIVITY_RATE_LIMITED": "你开启的活动太多了，请几分钟后再试。",
+      "NOT_FOUND": "你无法在此游玩。",
+      "DM_BLOCKED": "你无法与此人一起游玩。",
+      "SERVER_NOT_LOCAL": "活动只能在本实例托管的服务器上运行。",
+      "CHANNEL_TYPE": "活动可在文字频道和语音频道中运行。",
+      "NOT_IN_CALL": "加入通话即可游玩。",
+      "CANNOT_SEND": "你无法在此频道发送消息。",
+      "NOT_LOCAL_ACCOUNT": "只有本实例的账户可以在此游玩。",
+      "ENDED": "该活动已结束。",
+      "FULL": "此活动人数已满。",
+      "UNSUPPORTED_VERSION": "请更新 Harmony 以游玩此活动。",
+      "UNKNOWN": "活动出现问题。"
+    },
+    "admin": {
+      "tab": "活动",
+      "title": "一起玩",
+      "intro": "成员可在私信、群组私信、文字频道和通话中开启的活动。关闭某个活动会结束其正在进行的会话。",
+      "none": "未安装任何活动。",
+      "toggle": "提供 {name}",
+      "enabled": "已开启活动",
+      "disabled": "已关闭活动",
+      "context": {
+        "direct": "私信",
+        "group": "群组私信",
+        "channel": "文字频道",
+        "voice": "语音频道"
+      },
+      "safetyTitle": "活动如何隔离",
+      "safety": {
+        "sandbox": "每个活动都在拥有独立不透明源的沙盒框架中运行：无法读取账户的会话、存储、消息或周围的页面。",
+        "network": "其内容策略拒绝网络请求、弹窗、表单和框架，只能加载自身文件夹中的文件；跳转到其他页面的框架会被停止。",
+        "relay": "玩家通过本实例的中继通信，中继会验证每位成员、限制消息大小和频率，并且在会话结束后不保留任何游戏数据。",
+        "members": "只有对话或频道的成员可以加入；离开对话、离开通话或退出登录的人会在 30 秒内被移出游戏。"
+      }
+    }
   }
 }

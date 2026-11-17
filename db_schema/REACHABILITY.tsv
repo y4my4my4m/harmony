@@ -9,6 +9,12 @@
 accept_pending_follows_on_unlock	definer	trigger	service_role	trigger	trigger public.profiles AFTER UPDATE (accept_pending_follows_on_unlock_trigger)
 accept_server_rules	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
 account_move_refusal	invoker	text	service_role	client	called by begin_account_move, record_remote_account_move
+activity_context_kind	definer	text	service_role	client	called by activity_join_refusal, start_activity_session
+activity_join_refusal	definer	text	service_role	client	called by activity_session_admit, get_activity_session, get_activity_sessions, +1
+activity_session_admit	definer	jsonb	service_role	client	rpc in federation-backend/src/activities/relayDeps.ts
+activity_session_finish	definer	boolean	service_role	client	rpc in federation-backend/src/activities/relayDeps.ts
+activity_session_json	definer	jsonb	service_role	client	called by activity_session_admit, get_activity_session, get_activity_sessions, +1
+activity_session_sync	definer	boolean	service_role	client	rpc in federation-backend/src/activities/relayDeps.ts
 add_bot_to_server	definer	uuid	authenticated+service_role	client	rpc in src/components/settings/ServerBotsSettings.vue, src/services/botProfileService.ts
 add_existing_posts_to_new_follower_timeline	definer	trigger	service_role	trigger	trigger public.follows AFTER INSERT/UPDATE (add_posts_to_new_follower_timeline)
 add_post_emoji_reaction	definer	uuid	anon+authenticated+service_role	client	rpc in src/components/activitypub/MonyPost.vue, src/services/core/CorePostService.ts
@@ -415,7 +421,7 @@ discord_bridges_retire_bot	definer	trigger	-	trigger	trigger public.discord_brid
 discord_bridges_touch	invoker	trigger	-	trigger	trigger public.discord_bridges BEFORE UPDATE (discord_bridges_touch)
 dismiss_server_automod_prompt	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 dm_block_between	definer	boolean	service_role	client, trigger	called by dm_conversation_blocked, dm_recipients_allowing, dm_start_guard
-dm_conversation_blocked	definer	boolean	service_role	client, trigger	called by guard_dm_block, start_dm_call_message
+dm_conversation_blocked	definer	boolean	service_role	client, trigger	called by activity_join_refusal, guard_dm_block, start_dm_call_message
 dm_policy_allows	definer	boolean	service_role	client	called by dm_recipients_allowing, dm_start_guard
 dm_recipients_allowing	definer	uuid[]	service_role	client	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 dm_relation	definer	text	service_role	client	called by dm_recipients_allowing, dm_start_guard
@@ -547,6 +553,8 @@ generate_discord_bridge_pairing_code	invoker	text	anon+authenticated+service_rol
 generate_livekit_token	definer	jsonb	service_role	service key	nothing references it
 generate_mfa_recovery_codes	definer	text[]	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts
 generate_unique_server_slug	definer	text	service_role	trigger	called by assign_server_slug
+get_activity_session	definer	jsonb	authenticated+service_role	client	rpc in src/services/playTogether/sessions.ts
+get_activity_sessions	definer	jsonb	authenticated+service_role	client	rpc in src/services/playTogether/sessions.ts
 get_activitypub_conversation_context	invoker	TABLE(ancestors jsonb, descendants jsonb)	anon+authenticated+service_role	client	rpc in src/services/ConversationService.ts
 get_activitypub_conversation_root	invoker	TABLE(root_id uuid)	anon+authenticated+service_role	client	rpc in src/services/ConversationService.ts
 get_activitypub_conversation_thread	invoker	TABLE(id uuid, content jsonb, author_id uuid, created_at timestamp with time zone, in_reply_to uuid, conversation_root_id uuid)	anon+authenticated+service_role	client	rpc in src/services/ConversationService.ts
@@ -782,7 +790,7 @@ list_server_webhooks	definer	jsonb	authenticated+service_role	http authenticated
 list_soundboard_library	definer	TABLE(id uuid, server_id uuid, server_name text, server_icon text, name text, emoji text, emoji_id uuid, emoji_name text, emoji_url text, volume numeric, duration_ms integer, storage_path text, created_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/soundboard/sounds.ts
 lock_managed_channel_webhook	invoker	channel_webhooks	service_role	client	called by delete_channel_webhook, regenerate_channel_webhook_token, update_channel_webhook
 lock_managed_outgoing_webhook	definer	outgoing_webhooks	service_role	client	called by delete_outgoing_webhook, list_outgoing_webhook_deliveries, rotate_outgoing_webhook_secret, +2
-log_admin_action	definer	uuid	service_role	client	called by admin_delete_accounts, admin_delete_outgoing_webhook, admin_drive_remove_file, +37
+log_admin_action	definer	uuid	service_role	client	called by admin_delete_accounts, admin_delete_outgoing_webhook, admin_drive_remove_file, +38
 log_key_generation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_key_pairs AFTER INSERT (audit_key_generation)
 lookup_discord_bridge_pairing_public	definer	TABLE(server_id uuid)	anon+authenticated+service_role	client	rpc in bot-gateway/src/index.ts
 lookup_invite_by_code	definer	TABLE(id uuid, code text, server_id uuid, created_by uuid, uses integer, max_uses integer, used boolean, temporary boolean, expires_at timestamp with time zone, created_at timestamp with time zone, server_name text, server_icon text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
@@ -896,6 +904,7 @@ queue_push_dismissal_on_delete	definer	trigger	service_role	trigger	trigger publ
 queue_push_dismissal_on_read	definer	trigger	service_role	trigger	trigger public.notifications AFTER UPDATE STATEMENT (trg_queue_push_dismissal_on_read)
 reaction_content_well_formed	invoker	boolean	-	trigger	called by check_reaction_emoji
 reaction_external_emoji_allowed	definer	boolean	-	trigger	called by check_reaction_emoji, enforce_reaction_external_emoji
+reap_activity_sessions	definer	integer	service_role	client	rpc in federation-backend/src/activities/relayDeps.ts
 recompute_supporter_tier	definer	uuid	authenticated+service_role	client	rpc in federation-backend/src/routes/webhooks/donations.ts, src/services/FundingService.ts
 record_ai_emoji_generation	definer	trigger	service_role	trigger	trigger public.emojis AFTER INSERT (record_ai_emoji_generation)
 record_emoji_usage	invoker	void	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts
@@ -1038,6 +1047,7 @@ server_template_ref	invoker	text	service_role	client	called by server_template_c
 server_template_text	invoker	text	service_role	client	called by server_template_canonical
 session_meets_aal	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages SELECT on messages_session_aal, realtime.messages ALL on realtime_messages_session_aal, storage.objects ALL on storage_objects_session_aal
 session_step_up_fresh	invoker	boolean	service_role	client	called by begin_account_move, delete_my_account, generate_mfa_recovery_codes
+set_activity_app_enabled	definer	boolean	authenticated+service_role	client	rpc in src/services/playTogether/catalog.ts
 set_bot_allowed_channels	definer	uuid[]	authenticated+service_role	client	rpc in src/components/settings/ServerBotsSettings.vue
 set_category_permissions	definer	jsonb	authenticated+service_role	client	rpc in src/services/categoryPermissions.ts
 set_channel_encryption	definer	jsonb	authenticated+service_role	client	rpc in src/services/ChannelEncryptionService.ts
@@ -1097,6 +1107,7 @@ staff_set_server_suspended	definer	jsonb	authenticated+service_role	client	rpc i
 staff_signup_daily	definer	TABLE(day date, signups integer, suspended integer, email_domains integer, top_domain_count integer, peak_hour_count integer, refused integer, would_refuse integer)	authenticated+service_role	client	rpc in src/services/SignupReviewService.ts
 staff_signup_groups	definer	TABLE(kind text, key text, label text, size integer, suspended integer, prior_count integer, first_at timestamp with time zone, last_at timestamp with time zone, member_ids uuid[], mail_hosts text[])	authenticated+service_role	client	rpc in src/services/SignupReviewService.ts
 stamp_post_federate_image_cap	definer	trigger	service_role	trigger	trigger public.posts BEFORE INSERT/UPDATE (posts_federate_image_cap)
+start_activity_session	definer	jsonb	authenticated+service_role	client	rpc in src/services/playTogether/sessions.ts
 start_dm_call_message	definer	uuid	authenticated+service_role	client	rpc in src/services/DMCallSignaling.ts
 start_following_import	definer	jsonb	authenticated+service_role	client	rpc in src/services/AccountMigrationService.ts
 sticker_check_text	invoker	void	service_role	client	called by bridge_import_server_sticker, create_sticker, update_sticker

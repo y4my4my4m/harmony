@@ -8,6 +8,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Play together.** The gamepad button in a DM, a group, a text channel or a call starts a
+  multiplayer activity everyone there can join from the notice it posts; nobody needs to be in a
+  call. In a call the activity takes the stage like a shared screen. The panel docks above the
+  messages at a height you drag, expands over them, and keeps running behind a corner card when you
+  open another conversation. The first activity is **DrawinPhone**: write a prompt, draw the next
+  one, describe the drawing after that, then replay every chain together with reactions and
+  favourites. Activities run sandboxed with no access to your account or your messages, and talk
+  through a relay in the federation backend; instance admins turn each on or off in **Admin** →
+  **Activities**. Developers: see the Activities SDK in the docs.
 - **Roles members pick themselves.** In the role editor, **Members can pick this role** (with a group
   and a short description) lists a role in **Pick roles**, in the server menu and on your own profile
   card, where members take it and drop it with a tap. `/rolemenu` posts a role menu card in a channel

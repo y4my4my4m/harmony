@@ -122,6 +122,17 @@
         <Icon :name="isInVideoCall ? 'video-off' : 'video'" :size="16" />
       </button>
       
+      <button
+        v-if="!isMobile && playAvailable"
+        class="action-btn play-btn"
+        :title="t('playTogether.button')"
+        :aria-label="t('playTogether.button')"
+        data-testid="play-together-button"
+        @click="openPlayTogether"
+      >
+        <Icon name="gamepad" :size="18" />
+      </button>
+
       <button 
         class="action-btn search-btn"
         @click="handleSearchClick"
@@ -147,6 +158,16 @@
         <div v-if="showOptionsMenu" class="actions-menu" v-click-outside="closeActionsMenu" ref="optionsMenuRef">
           <!-- On mobile the header only shows the call and overflow buttons;
                the remaining actions live here instead. -->
+          <button
+            v-if="isMobile && playAvailable"
+            class="action-item"
+            data-testid="play-together-menu-item"
+            @click="closeActionsMenu(); openPlayTogether()"
+          >
+            <Icon name="gamepad" :size="16" />
+            <span>{{ t('playTogether.button') }}</span>
+          </button>
+
           <button
             v-if="isMobile"
             class="action-item"
@@ -309,6 +330,7 @@ import { debug } from '@/utils/debug'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { dmConversationIdFromChannel, useCallSwitch } from '@/composables/useCallSwitch'
 import { useDMCallJoin } from '@/composables/useDMCallJoin'
+import { usePlayTogetherStore } from '@/stores/playTogether'
 
 const { t } = useT()
 const { leftDrawerToggle } = useAppDrawers()
@@ -375,6 +397,14 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+const playTogether = usePlayTogetherStore()
+const playContext = computed(() => (props.conversation.type === 'group' ? 'group' : 'direct') as 'group' | 'direct')
+const playAvailable = computed(() => playTogether.appsFor(playContext.value).length > 0)
+function openPlayTogether(): void {
+  playTogether.openLauncher({ kind: 'conversation', id: props.conversation.id }, props.conversation.type)
+}
+onMounted(() => { void playTogether.loadApps() })
 
 const emit = defineEmits<{
   'toggle-left-sidebar': []
