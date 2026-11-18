@@ -56,7 +56,10 @@ const processor = vi.hoisted(() => ({
     return doc ? { doc, finalUrl: url } : null
   }),
 }))
-vi.mock('../activitypub/ActivityProcessor.js', () => ({ ActivityProcessor: processor }))
+vi.mock('../activitypub/ActivityProcessor.js', async (importOriginal) => {
+  const { determineVisibility } = await importOriginal<typeof import('../activitypub/ActivityProcessor.js')>()
+  return { ActivityProcessor: processor, determineVisibility }
+})
 
 type Row = Record<string, any>
 let tables: Record<string, Row[]> = {}
@@ -165,6 +168,50 @@ beforeEach(() => {
 })
 
 describe('outbox import', () => {
+  it('imports a NeoDB bare Note with a compact public audience and a catalog tag', async () => {
+    const actor = 'https://neodb.test/@reader@neodb.test/'
+    const outbox = `${actor}outbox/`
+    const post = {
+      id: `${actor}posts/1/`,
+      type: 'Note',
+      attributedTo: actor,
+      content: '<p>finished watching <a href="https://neodb.test/movie/example">Example Movie</a> 🌕🌕🌕🌕🌑</p>',
+      to: 'as:Public',
+      tag: { type: 'Movie', href: 'https://neodb.test/movie/example', name: 'Example Movie' },
+    }
+    served.set(outbox, { type: 'OrderedCollection', totalItems: 1, orderedItems: [post] })
+
+    const result = await fetchRecentPostsInBackground(AUTHOR_ID, outbox, supabase)
+
+    expect(result.hasMore).toBe(false)
+    expect(tables.posts).toHaveLength(1)
+    expect(tables.posts[0]).toMatchObject({ ap_id: post.id, visibility: 'public', ap_type: 'Note' })
+    expect(tables.posts[0].content).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'url', label: 'Example Movie', url: post.tag.href }),
+    ]))
+  })
+
+  it.each([
+    ['as:Public', undefined, 'public'],
+    [undefined, 'as:Public', 'unlisted'],
+    ['Public', undefined, 'public'],
+    [['https://www.w3.org/ns/activitystreams#Public'], [`${ACTOR}/followers`], 'public'],
+    [[`${ACTOR}/followers`], ['https://www.w3.org/ns/activitystreams#Public'], 'unlisted'],
+    [`${ACTOR}/followers/`, undefined, 'followers'],
+    [[`${ACTOR}/followers`], [], 'followers'],
+    ['https://remote.test/users/bob', undefined, 'direct'],
+    [['https://remote.test/users/bob'], [], 'direct'],
+    [undefined, undefined, 'unlisted'],
+    [[null, 'as:Public'], [null], 'public'],
+  ])('preserves audience visibility for to=%j cc=%j', async (to, cc, visibility) => {
+    serveOutbox([{ ...note(1), to, cc }])
+
+    await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase)
+
+    expect(tables.posts).toHaveLength(1)
+    expect(tables.posts[0].visibility).toBe(visibility)
+  })
+
   it('imports every item of 20-item pages, page after page', async () => {
     serveOutbox(Array.from({ length: 45 }, (_, i) => create(i + 1)))
 
