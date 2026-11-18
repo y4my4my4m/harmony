@@ -307,6 +307,7 @@ import { sendKeyForThread, takeSendTurn } from '@/stores/shared/sendOrder'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useOpenThreadGone } from '@/composables/useOpenThreadGone'
 import { useThreadDraft } from '@/composables/useThreadDraft'
+import { useThreadMessageDecryption } from '@/composables/useThreadMessageDecryption'
 
 // Props
 interface Props {
@@ -383,6 +384,7 @@ const { checkMissing: checkThreadMissing } = useOpenThreadGone(thread, (how) => 
 // Thread replies name the thread's channel; so do their attachments.
 const threadMediaRoom = computed(() => mediaRoom({ channelId: thread.value?.channel_id }))
 const messages = ref<Message[]>([])
+useThreadMessageDecryption(messages, () => thread.value?.id)
 const loading = ref(true)
 const loadingMore = ref(false)
 const hasMore = ref(false)
@@ -1030,6 +1032,9 @@ const setupRealtimeSubscription = () => {
         const updatedMessage: Message = {
           ...messages.value[index],
           content: payloadNew.content,
+          encrypted: payloadNew.encrypted || false,
+          decrypted: false,
+          encryption_metadata: payloadNew.encryption_metadata || null,
           updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
           metadata: payloadNew.metadata || null,
           is_pinned: pinsStore.pending[payloadNew.id]?.pinned ?? payloadNew.is_pinned,
