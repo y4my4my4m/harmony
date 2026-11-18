@@ -8,6 +8,45 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Sign in with Discord.** **Continue with Discord** joins Google, Twitch and GitHub on the sign-in
+  and registration pages. A first sign-in starts the profile with the Discord display name, avatar
+  and username. Three or more sign-in buttons sit two to a row under the provider's name, so the
+  password form stays in view on a phone.
+- **Sign-in providers set up in the admin panel.** **Admin** → **Config** → **Authentication** takes
+  the client ID and secret of Google, Twitch, GitHub and Discord, shows the callback URL to register,
+  and says when the sign-in service has them; the federation server hands them to it within about
+  15 seconds, with no restart and no `supabase/.env` edit. The secret is write-only and kept in
+  Supabase Vault. Self-host: `harmony update` sets this up. Instances that keep their credentials in
+  `supabase/.env` work as before, and a self-host install that keeps providers apart from existing
+  accounts keeps Discord apart too.
+- **Play together.** The gamepad button in a DM, a group, a text channel or a call starts a
+  multiplayer activity everyone there can join from the notice it posts; nobody needs to be in a
+  call. In a call the activity takes the stage like a shared screen. The panel docks above the
+  messages at a height you drag, expands over them, and keeps running behind a corner card when you
+  open another conversation. The first activity is **DrawinPhone**: write a prompt, draw the next
+  one, describe the drawing after that, then replay every chain together with reactions and
+  favourites. Activities run sandboxed with no access to your account or your messages, and talk
+  through a relay in the federation backend; instance admins turn each on or off in **Admin** →
+  **Activities**. Developers: see the Activities SDK in the docs.
+- **Install activities.** **Admin** → **Activities** → **Install an activity** takes an activity
+  package (a `.zip`, uploaded or from an `https://` address), shows what it is and its SHA-256
+  before installing, installs it switched off, and later checks its address for updates or removes
+  it. The instance serves its own copy in the same sandbox as the built-ins. Installed activities
+  carry a **Third-party** label in the picker, on the Join banner and above the game.
+- **Roles members pick themselves.** In the role editor, **Members can pick this role** (with a group
+  and a short description) lists a role in **Pick roles**, in the server menu and on your own profile
+  card, where members take it and drop it with a tap. `/rolemenu` posts a role menu card in a channel
+  that works the same way, also in end-to-end encrypted servers. Only roles that give nothing a
+  member could misuse can be picked; the editor says why a role cannot.
+- **Role for new members.** **Server settings** → **Roles** → **Role for new members** gives a role
+  to everyone who joins from then on.
+- **Bots can give roles and post files.** `PUT` and `DELETE /servers/{id}/members/{user}/roles/{role}`
+  give a member a role or take it away, within the bot's **Manage roles** reach; the server audit log
+  names the bot. `POST /channels/{id}/attachments` uploads a file (an edited image, a chart) that the
+  bot then sends in a message or a slash-command reply; it needs the new **Attach files** permission,
+  on by default, counts toward the server's stored-bot-files limit, and loses its location and camera
+  metadata like any upload. Message and reaction events now carry `server_id`, and the member list
+  shows each member's role IDs.
 - **Category permissions.** **Edit category** has a **Permissions** tab, as a channel does: the
   **Private category** switch, then each role's channel permissions as **Deny**, **Inherit** or
   **Allow**, voice included. Saving applies them to every channel synced with the category. Closing
@@ -35,6 +74,22 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   **Config** shows how many files are waiting, too large or failed, and the size stored. One server stores up to
   5120 MB of them (**Stored Discord files per server (MB)** under **Discord history import**, `0`
   for no limit); past it, further files keep their Discord links until the limit is raised.
+- **Matrix bridge.** Harmony works with the [Matrix bridge](https://github.com/y4my4my4m/harmony-matrix-bridge),
+  an application service an instance operator runs beside a Matrix homeserver. Messages, replies,
+  images and files cross both ways between a paired channel and Matrix room, in channels without
+  end-to-end encryption. Matrix people show as Discord people do: their name and avatar, with a
+  Matrix icon or a `MATRIX` label (**Bridge source indicator** in **Appearance**), in messages,
+  mentions, the member list, reactions, notifications and their profile card. Harmony members appear
+  in Matrix as their own Matrix users or through one shared bridge account, chosen per channel in
+  **Server settings** → **Bridges** → **Matrix**. Server managers remove a Matrix person from the
+  bridge and erase what it relayed there, as for Discord people. (#197, ZaneH)
+- **One Bridges page.** **Server settings** → **Bridges** holds the Discord and Matrix bridges on two
+  tabs. Links to the former **Discord Bridge** page open the Discord tab.
+- **Keep your messages off a bridge.** **Bridge privacy** in a server's menu stops its Discord or
+  Matrix bridge, each on its own, from relaying your messages, edits, reactions and the bots' public
+  answers to your slash commands. Deleting a message still reaches the bridge, so a copy relayed
+  before is removed too. The entry shows only in servers with a bridge, and the choice lasts when you
+  leave and rejoin. (#197, ZaneH)
 - **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
   the `/` list in server channels and threads, fill in typed options (text, numbers, true or false,
   choices, members, channels, roles) and the bot receives `INTERACTION_CREATE`. It answers within
@@ -173,8 +228,57 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Platform names are reserved.** New accounts and renames cannot take the names of 35 large
   services and platforms, such as `discord`, `google`, `openai` and `twitch`. Accounts that already
   hold one keep it.
+- **Discord history import through every bridge.** **Admin** → **Config** → **Discord bridge** →
+  **Discord history import** has a third choice, **All bridges**: besides bridges their server's
+  owner runs, the instance's Discord bot and the own-bot bridges the instance hosts can import. The
+  three choices are cards with a line each instead of a drop-down. Needs the bridge host 2.8.0.
+- **Import private Discord channels from Harmony.** A pair whose Discord channel `@everyone` cannot
+  read shows a lock. **Import all** and **Import history** name those channels and ask a second
+  time before including them; left unticked, they are left out and the others start. On Discord,
+  `/bridge import-history scope:all` still starts every channel the member can read in one command.
+  The notice the bridge pins in each imported Discord channel no longer sends a push notification,
+  and Discord's "pinned a message" line is removed (bridge 2.8.0).
 
 ### Fixed
+- **A server invite's Markdown badge works in chat.** Pasting the badge from **Add to your
+  website** (`[![Join …](…/badge.svg)](…/invite/…)`) sent stray brackets, the badge image and the
+  bare invite URL. It now sends one link to the invite, labelled "Join …", with the invite card
+  below. `![alt](https://…)` sends a link to the image labelled with its alt text, and `\[` and
+  `\]` in a link label stand for brackets.
+- **A closed invite names the other instance by its address.** The card of an invite to a server
+  on another instance that takes no outside members said "Only people on Harmony can join this
+  server." whenever that instance kept the default name. It now names the instance's domain, as
+  the invite dialog does.
+- **Uploads survive a dropped request.** An attachment, avatar, banner or server icon under 6 MB
+  went up in one request, and when that request failed on the network or stalled, the upload
+  failed with "Network error". It is now sent once more a second later, or once the device is back
+  online. When the first request had in fact been stored and only its answer was lost, the upload
+  completes. Some Firefox installs on Android lost such requests after their preflight.
+- **Public NeoDB posts appear on imported profiles.** Posts fetched from an account's outbox
+  now use the same visibility rules as incoming federation activities, recognizing NeoDB's
+  compact `as:Public` audience instead of treating public posts as direct messages.
+  (#214, ZaneH)
+- **Who a federated post is for is read one way everywhere.** A post whose audience was stated
+  on its Create activity alone lost it: followers-only and public posts became unlisted, and a
+  direct message became an unlisted post on the sender's profile. A message to an
+  account whose name begins with "followers" was taken for a followers-only post and shown to
+  the sender's followers. A followers-only post sent to a personal inbox was refused when its
+  followers address and the stored one differed by a trailing slash. Recipients written as
+  objects were not read; they are now read by their `id`, as Mastodon, Misskey and Pleroma read
+  them. The followers collection is now the one the author's profile declares, else
+  `<actor>/followers`, as on Misskey.
+- **A post addressed to nobody is private.** A fetched post, reply or boosted original that
+  names no audience was stored as unlisted, readable by every account here and shown on public
+  profile pages; it is now direct, as on Mastodon. A direct message naming no account here is
+  no longer stored as a conversation among remote accounts. Opening a Harmony server as a
+  profile no longer imports its channel messages as posts. An incoming message to hundreds of
+  thousands of addresses took seconds of processing; its addresses are now read in linear time
+  and a direct message resolves at most 250 of them.
+- **Encrypted thread replies are readable.** In an end-to-end encrypted channel, thread replies
+  showed as scrambled text in the thread panel and the full thread view, to their sender too.
+  They now read as plaintext for every member holding the channel's keys, after sending, editing,
+  reopening or unlocking encryption. The message a thread was started from showed its ciphertext
+  in the full view, and in the panel once it refreshed; it is decrypted too. (#181, #217, ZaneH)
 - **A Discord reply to a message that is gone arrives without the reply.** A reply relayed
   from Discord to a message erased or purged on Harmony was dropped (`500`); it is now sent
   without the reply link, as Discord shows it. A bot naming a message of another channel gets
@@ -348,6 +452,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
+- **A group chat holds up to 10 people**, its creator included, as a Discord group DM. The picker
+  shows the spots left and stops at the tenth person; adding, rejoining or a group arriving from
+  another instance past 10 is refused with "This group is full". A group already larger keeps
+  its members and takes nobody new until it is below 10.
 - **The member list loads as you scroll**, as on Discord. A server of more than 200 members shows
   its groups and their counts at once and fills in the members near what you see; searching the list,
   `@` suggestions, the kick and ban picker, `from:` in message search and the member pickers of roles,
@@ -391,11 +499,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ### Security
 - Federation, API routes and database functions check what a request acts on, not only who sent
   it. Update to this release.
+- Android: content embedded in the app (activities, YouTube and X posts, media players) can no
+  longer run the app's native commands. The Android WebView handed every embedded frame the same
+  bridge to the app as Harmony's own page; the bridge now answers Harmony's page only.
 
 ### Notes for self-hosters
 - Discord history import is off after the upgrade. To let communities import through bridges they
-  run themselves, turn it on under **Admin** → **Config** → **Discord bridge** → **Discord history
-  import**, and read the notes shown there first. The same section holds the import limits.
+  run themselves, or through every bridge including the instance's Discord bot, turn it on under
+  **Admin** → **Config** → **Discord bridge** → **Discord history import**, and read the notes shown
+  there first. The same section holds the import limits. Imports through the instance bot and
+  hosted own-bot bridges need the bridge host 2.8.0 (`harmony update`).
 - Supabase Studio is off unless you choose it. An install that never chose has it removed by
   `harmony update`, which prints one line; `harmony studio on` brings it back.
 - Sign-up limits and the auth service's per-address limits read the client's address from

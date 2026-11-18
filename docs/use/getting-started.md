@@ -35,11 +35,11 @@ To switch instances later, sign out. The login screen of the app shows a bar wit
 
 If the instance publishes terms of service or a privacy policy, links to them appear under the form.
 
-### Sign up with Google, Twitch or GitHub
+### Sign up with Google, Twitch, GitHub or Discord
 
-When the instance operator has enabled them, buttons appear above the email form: **Continue with Google**, **Continue with Twitch** and **Continue with GitHub**. Only providers the operator turned on are shown, and an instance with none shows only the email form. Operators enable them as described in [OAuth sign-in providers](/self-host/oauth).
+When the instance operator has enabled them, buttons appear above the email form: **Continue with Google**, **Continue with Twitch**, **Continue with GitHub** and **Continue with Discord**. Only providers the operator turned on are shown, and an instance with none shows only the email form. Operators enable them as described in [OAuth sign-in providers](/self-host/oauth).
 
-Signing in with a provider for the first time creates your account. The profile form then starts with the name and picture from that provider and a suggested username, all of which you can change before continuing.
+Signing in with a provider for the first time creates your account. The profile form then starts with the name and picture from that provider and a suggested username, all of which you can change before continuing. With Discord, that is your Discord display name, avatar and username.
 
 ### Instances that limit registration
 
@@ -125,6 +125,10 @@ When your instance federates, the window has two tabs: **This instance**, the li
 3. **Join** opens **Join remote server** with that server filled in; see [Join a server on another instance](#join-a-server-on-another-instance). **Open** switches to a server you are already in.
 
 An instance that publishes no directory, does not answer, or is blocked on yours shows why in place of the list. In the merged list, a line under the count says how many instances did not answer.
+
+### Pick your roles
+
+Some servers let you choose roles for yourself, such as a colour, pronouns or notification roles. Open the server menu (the server name above the channels) and choose **Pick roles**, or open your own profile card and choose **Pick roles** under your roles. Tap a role to take it and tap it again to drop it. A server may also post a role menu in a channel that works the same way.
 
 ## Find your way around
 

@@ -10,6 +10,10 @@
 //   "com.paypal" into "paypal.com" on screen), the label is isolated from the text around it,
 //   look-alike hosts and hosts mid-sentence show the URL, a host-shaped name gains the
 //   destination host, and a destination that is not http(s) shows no label.
+// - The Markdown badge an invite offers for websites, `[![alt](badge.svg)](invite)`, pasted in
+//   chat sends one link to the invite labelled with the alt, escaped brackets read as brackets,
+//   and the invite's card below it; no stray markup is left. Editing shows it as one link.
+//   `![alt](src)` sends a link to the image labelled with the alt.
 // - On a phone the same text sent with the send button gives the same link.
 
 import { test, expect, devices, type Page } from '@playwright/test'
@@ -249,6 +253,53 @@ test('a label shows only what the host check read', async ({ page }) => {
     await expect(r.locator('a')).toHaveCount(0)
     await expect(r.locator('.url-link--unsafe')).toHaveText('javascript://google.com/%0aalert(1)')
   })
+})
+
+test('the Markdown badge of an invite sends as one link to the invite, its card below', async ({ page, baseURL }) => {
+  const code = Array.from({ length: 8 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('')
+  const { error } = await admin.from('invites').insert({ code, server_id: server.id, created_by: user.id, max_uses: 0 })
+  if (error) throw new Error(`invite: ${error.message}`)
+  const invite = `${baseURL}/invite/${code}`
+  // As utils/inviteWidgets.ts writes it for a server named "[JP] Lounge".
+  const badge = `[![Join \\[JP\\] Lounge](${baseURL}/api/federation/widget/invite/${code}/badge.svg?lang=ja)](${invite})`
+
+  await signIn(page, user)
+  await openChannel(page, server.id, channel)
+  await editor(page).click()
+  await page.keyboard.type(`badge ${badge}`, { delay: 5 })
+  await expect(editor(page)).toHaveText(`badge ${badge}`)
+  await expect(editor(page).locator('.editor-link-url')).toHaveText(invite)
+  await sendWithEnter(page)
+
+  expect(await lastContent()).toEqual([
+    { type: 'text', text: 'badge ' },
+    { type: 'url', url: invite, preview: true, label: 'Join [JP] Lounge' },
+  ])
+  const message = row(page, 'badge')
+  const link = message.locator('a.url-link')
+  await expect(link).toHaveText('Join [JP] Lounge')
+  await expect(link).toHaveAttribute('href', invite)
+  await expect(message.locator('.server-invite-card .server-name')).toHaveText(server.name, { timeout: 30000 })
+  await expect(message).not.toContainText('](')
+  await expect(message.locator('img[src*="badge.svg"]')).toHaveCount(0)
+
+  await editor(page).click()
+  await page.keyboard.press('ArrowUp')
+  const box = page.locator('.edit-container .rich-text-editor')
+  await expect(box).toHaveText(`badge [Join \\[JP\\] Lounge](${invite})`)
+  await expect(box.locator('.editor-link-url')).toHaveText(invite)
+  await page.keyboard.press('Escape')
+
+  await editor(page).click()
+  await page.keyboard.type('picture ![a cat](https://example.com/cat.png)', { delay: 5 })
+  await expect(editor(page).locator('.editor-link-label')).toHaveText('a cat')
+  await sendWithEnter(page)
+  expect(await lastContent()).toEqual([
+    { type: 'text', text: 'picture ' },
+    { type: 'url', url: 'https://example.com/cat.png', preview: true, label: 'a cat' },
+  ])
+  await expect(row(page, 'picture').locator('a.url-link')).toHaveText('a cat')
+  await expect(row(page, 'picture')).not.toContainText('![')
 })
 
 test('a post written with a masked link shows its label', async ({ page }) => {

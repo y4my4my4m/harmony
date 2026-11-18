@@ -167,7 +167,7 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { uploadAvatar, downloadAndUploadImage } from '@/utils/fileUpload';
 import { consumePostAuthRedirect, peekPostAuthRedirect } from '@/utils/postAuthRedirect';
 import { isReservedUsername, normalizeUsernameInput, USERNAME_MIN_LENGTH } from '@/utils/usernameRules';
-import { isOAuthIdentityProvider } from '@/utils/customOAuthProviders';
+import { oauthProfilePrefill } from '@/utils/oauthProfilePrefill';
 import { supabase } from '@/supabase';
 import Icon from '@/components/common/Icon.vue';
 import OnboardingServerSuggestions from '@/components/welcome/OnboardingServerSuggestions.vue';
@@ -276,21 +276,11 @@ function prefillFromOAuth(
   identities: Array<{ provider: string }>,
   email?: string,
 ) {
-  const oauth = identities.some(i => isOAuthIdentityProvider(i.provider));
-
-  if (oauth) {
-    avatarPreview.value = metadata.avatar_url || metadata.picture || null;
-    displayName.value = metadata.full_name || metadata.name || metadata.preferred_username || '';
-    if (metadata.bio || metadata.description) {
-      bio.value = String(metadata.bio || metadata.description).substring(0, 500);
-    }
-  }
-
-  const suggested = normalizeUsernameInput(
-    metadata.preferred_username || metadata.user_name || metadata.username || metadata.login ||
-    (email ? email.split('@')[0] : '')
-  );
-  if (suggested.length >= USERNAME_MIN_LENGTH) setUsername(suggested);
+  const prefill = oauthProfilePrefill(metadata, identities, email);
+  if (prefill.avatar) avatarPreview.value = prefill.avatar;
+  if (prefill.displayName) displayName.value = prefill.displayName;
+  if (prefill.bio) bio.value = prefill.bio;
+  if (prefill.username.length >= USERNAME_MIN_LENGTH) setUsername(prefill.username);
 }
 
 function triggerAvatarUpload() {

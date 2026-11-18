@@ -167,6 +167,9 @@
       <AntiSpamAdmin />
     </div>
 
+    <div v-else-if="activeAdminTab === 'activities'" class="admin-grid single">
+      <ActivitiesAdmin />
+    </div>
     <div v-else-if="activeAdminTab === 'webhooks'" class="admin-grid single">
       <WebhooksAdmin />
     </div>
@@ -245,6 +248,7 @@ const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/
 const HostedServersAdmin = defineAsyncComponent(() => import('@/components/admin/HostedServersAdmin.vue'))
 const AntiSpamAdmin = defineAsyncComponent(() => import('@/components/admin/AntiSpamAdmin.vue'))
 const WebhooksAdmin = defineAsyncComponent(() => import('@/components/admin/WebhooksAdmin.vue'))
+const ActivitiesAdmin = defineAsyncComponent(() => import('@/components/admin/ActivitiesAdmin.vue'))
 const AnnouncementsAdmin = defineAsyncComponent(() => import('@/components/admin/AnnouncementsAdmin.vue'))
 const FeaturedCommunities = defineAsyncComponent(() => import('@/components/admin/FeaturedCommunities.vue'))
 const WelcomeServerAdmin = defineAsyncComponent(() => import('@/components/admin/WelcomeServerAdmin.vue'))
@@ -273,6 +277,7 @@ const adminTabs = [
   { key: 'servers', label: t('hostStaff.tab'), icon: 'server' },
   { key: 'antispam', label: t('admin.antiSpam.title'), icon: 'shield' },
   { key: 'webhooks', label: t('adminWebhooks.tab'), icon: 'link' },
+  { key: 'activities', label: t('playTogether.admin.tab'), icon: 'gamepad' },
   { key: 'content', label: 'Content', icon: 'megaphone' },
   { key: 'emojis', label: t('admin.instanceEmojis.tab'), icon: 'emoji' },
   { key: 'stickers', label: t('stickers.manage.navLabel'), icon: 'sticker' },

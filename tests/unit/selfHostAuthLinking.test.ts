@@ -62,8 +62,8 @@ describe('lib.sh linking_*', () => {
     expect(lib(`oauth_enabled "$(printf '${env}')"`).out).toBe('github linkedin_oidc')
     const dir = mkdtempSync(join(tmpdir(), 'oauth-enabled-'))
     try {
-      writeFileSync(join(dir, '.env'), 'GOOGLE_ENABLED=true\nGITHUB_ENABLED=false\nDISCORD_ENABLED=true\n')
-      expect(lib(`SB_ENV='${join(dir, '.env')}'; oauth_enabled ''`).out).toBe('google')
+      writeFileSync(join(dir, '.env'), 'GOOGLE_ENABLED=true\nGITHUB_ENABLED=false\nDISCORD_ENABLED=true\nSLACK_ENABLED=true\n')
+      expect(lib(`SB_ENV='${join(dir, '.env')}'; oauth_enabled ''`).out).toBe('discord google')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -158,18 +158,24 @@ describe('configure.sh and the built-in providers', () => {
     writeFileSync(sbEnv, 'ENABLE_EMAIL_AUTOCONFIRM=true\nPROVIDER_LINKING_DOMAINS=custom:a=custom:a\n')
     let r = configure()
     expect(r.status, r.stderr).toBe(0)
-    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('custom:a=custom:a,github=github,google=google,twitch=twitch')
-    expect(r.stdout).toContain('PROVIDER_LINKING_DOMAINS=custom:a=custom:a,github=github')
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('custom:a=custom:a,discord=discord,github=github,google=google,twitch=twitch')
+    expect(r.stdout).toContain('PROVIDER_LINKING_DOMAINS=custom:a=custom:a,discord=discord,github=github')
     r = configure()
     expect(r.status, r.stderr).toBe(0)
-    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('custom:a=custom:a,github=github,google=google,twitch=twitch')
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('custom:a=custom:a,discord=discord,github=github,google=google,twitch=twitch')
     expect(r.stdout).not.toContain('PROVIDER_LINKING_DOMAINS')
+  })
+
+  it('adds Discord to an install whose other built-in providers were kept apart before it', () => {
+    writeFileSync(sbEnv, 'ENABLE_EMAIL_AUTOCONFIRM=true\nPROVIDER_LINKING_DOMAINS=github=github,google=google,twitch=twitch\n')
+    expect(configure().status).toBe(0)
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('github=github,google=google,twitch=twitch,discord=discord')
   })
 
   it('leaves a pair present, a provider set to default included', () => {
     writeFileSync(sbEnv, 'ENABLE_EMAIL_AUTOCONFIRM=true\nPROVIDER_LINKING_DOMAINS=google=default,twitch=social\n')
     expect(configure().status).toBe(0)
-    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('google=default,twitch=social,github=github')
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('google=default,twitch=social,discord=discord,github=github')
   })
 
   it('keeps them apart on the run that configures SMTP: earlier accounts never proved their address', () => {
@@ -177,13 +183,13 @@ describe('configure.sh and the built-in providers', () => {
     const r = configure(SMTP)
     expect(r.status, r.stderr).toBe(0)
     expect(value('ENABLE_EMAIL_AUTOCONFIRM')).toBe('false')
-    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('github=github,google=google,twitch=twitch')
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('discord=discord,github=github,google=google,twitch=twitch')
   })
 
   it('keeps them apart on a new install without SMTP, not on one with it', () => {
     expect(configure().status).toBe(0)
     expect(value('ENABLE_EMAIL_AUTOCONFIRM')).toBe('true')
-    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('github=github,google=google,twitch=twitch')
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('discord=discord,github=github,google=google,twitch=twitch')
 
     rmSync(sbEnv)
     expect(configure(SMTP).status).toBe(0)

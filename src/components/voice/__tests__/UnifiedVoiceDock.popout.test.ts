@@ -13,6 +13,13 @@ const h = vi.hoisted(() => ({ store: null as any, popout: null as any, storage: 
 // __esModule lets defineAsyncComponent unwrap the mocked module to its default.
 const { stub } = vi.hoisted(() => ({ stub: (name: string) => ({ __esModule: true, default: { name, render: () => null } }) }))
 
+vi.mock('@/stores/playTogether', () => ({
+  usePlayTogetherStore: () => ({
+    appsFor: () => [], loadApps: async () => {}, openLauncher: () => {}, joined: null, launcher: null,
+    sessionIn: () => null, refresh: async () => [], registerSlot: () => {}, unregisterSlot: () => {},
+    view: { members: [], status: 'connecting' }, mode: 'docked', panelHeight: 480,
+  }),
+}))
 vi.mock('@/stores/activities', () => ({
   useActivitiesStore: () => ({ current: null, playingHere: false, launcherOpen: false, launcherAnchor: null }),
 }))

@@ -41,6 +41,13 @@ import { DISCORD_EMOJI_ID, EMOJI_BUCKET, EMOJI_NAME, discordEmojiStoragePath, is
 import { DISCORD_SOUND_ID, MAX_SERVER_SOUNDS, storeDiscordSound, removeStoredSound } from '../utils/discordSoundImport.js'
 import { LIST_MAX_ROWS, LIST_PAGE, selectAllById } from '../utils/pagedSelect.js'
 import { GATEWAY_CAPABILITIES } from '../capabilities.js'
+import { EmptyFileError, OverQuotaError, TooLargeError, storeBotUpload } from '../utils/mirrorFile.js'
+import { fileTypeOf, getUploadCeilingBytes } from '../utils/mirrorExternalMedia.js'
+import { BridgeFileError, decodedFileName, downloadBridgeFile, isDriveFilePath } from '../utils/bridgeFiles.js'
+import { type MatrixAuthor, bridgedMessageAuthor, matrixAuthor } from '../bridge/bridgeAuthors.js'
+import { bridgeChannelPlatform, consentSubject, relayAllowed, serverOfChannel } from '../bridge/memberConsent.js'
+import { BridgeAvatarQuotaError, bridgeAvatarBytes, nativeBridgeAvatar, storeBridgeAvatar } from '../utils/bridgeAvatar.js'
+import { MATRIX_ROOM_ID, matrixRoomBinding, matrixBridgeMembers, publicMatrixBridgeMembers } from '../bridge/matrixRooms.js'
 import { TTLCache } from '../utils/TTLCache.js'
 import { MAX_COMMANDS, validateCommand, validateCommands } from '../commands/validate.js'
 
@@ -83,6 +90,29 @@ const MESSAGE_TOO_LONG = /^Message text exceeds the instance limit of \d+ charac
 const STICKER_REFUSED = /^STICKER_(UNKNOWN|FALLBACK)/
 // enforce_message_reply_scope (20261005650001): reply_to names no message, or one in another channel.
 const REPLY_OUT_OF_SCOPE = /^REPLY_OUT_OF_SCOPE/
+// Further history reads that fill a page whose rows a bridge reader may not receive.
+const HISTORY_REFILL_ROUNDS = 4
+
+/** At most `limit` tasks at once; the rest wait their turn. */
+function concurrencyLimit(limit: number) {
+  let active = 0
+  const waiting: Array<() => void> = []
+  return {
+    async run<T>(task: () => Promise<T>): Promise<T> {
+      if (active >= limit) await new Promise<void>(resolve => waiting.push(resolve))
+      active++
+      try {
+        return await task()
+      } finally {
+        active--
+        waiting.shift()?.()
+      }
+    },
+  }
+}
+
+// GET bridge-files holds each file in memory, up to 50 MiB (MAX_BRIDGE_FILE_BYTES).
+const bridgeDownloads = concurrencyLimit(3)
 // guard_bridge_author_optout (20261112600001): the relayed author opted out of the server's bridge.
 const BRIDGE_AUTHOR_OPTED_OUT = 'BRIDGE_AUTHOR_OPTED_OUT'
 const OPTED_OUT_BODY = { error: 'The author opted out of this bridge', code: BRIDGE_AUTHOR_OPTED_OUT } as const
@@ -229,15 +259,24 @@ export function claimsBridgeMapping(input: unknown): boolean {
  */
 export function botSuppliedMetadata(
   input: unknown,
-  options: { bridgeAuthor?: boolean; bridgeMapping?: boolean } = {},
+  options: { bridgeAuthor?: boolean; bridgeMapping?: boolean; matrixAuthor?: MatrixAuthor | null } = {},
 ): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {}
-  return Object.fromEntries(
+  const metadata = Object.fromEntries(
     Object.entries(input as Record<string, unknown>).filter((entry) =>
-      !SERVER_METADATA_KEYS.has(entry[0])
+      !SERVER_METADATA_KEYS.has(entry[0]) && !MATRIX_AUTHOR_KEYS.has(entry[0])
       && (options.bridgeAuthor === true || !BRIDGE_AUTHOR_KEYS.has(entry[0]))
       && (options.bridgeMapping !== false || !isBridgeMappingEntry(entry))),
   )
+  return options.matrixAuthor ? withMatrixAuthor(metadata, options.matrixAuthor) : metadata
+}
+
+// bridge_author is the API's name of a Matrix author; matrix_user is where it is stored.
+const MATRIX_AUTHOR_KEYS = new Set(['bridge_author', 'matrix_user'])
+
+function withMatrixAuthor(metadata: Record<string, unknown>, author: MatrixAuthor): Record<string, unknown> {
+  const { discord_user: _discord, ...rest } = metadata
+  return { ...rest, matrix_user: author, bridge_source: 'matrix' }
 }
 
 /** The string fields of a bridged thread's Discord starter, or null (bot_create_thread p_discord_user). */
@@ -253,9 +292,12 @@ export function threadStarter(input: unknown): Record<string, string> | null {
 }
 
 /** A reaction's bot-supplied metadata; remote_emoji_url is kept only when it is an https Discord CDN URL. */
-export function reactionMetadata(input: unknown): unknown {
+export function reactionMetadata(input: unknown, author?: MatrixAuthor | null): unknown {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return input || null
-  const metadata = { ...(input as Record<string, unknown>) }
+  let metadata: Record<string, unknown> = { ...(input as Record<string, unknown>) }
+  delete metadata.bridge_author
+  delete metadata.matrix_user
+  if (author) metadata = withMatrixAuthor(metadata, author)
   if ('remote_emoji_url' in metadata && !isDiscordCdnUrl(metadata.remote_emoji_url)) {
     delete metadata.remote_emoji_url
   }
@@ -303,9 +345,21 @@ export class BotRestAPI {
   private setupRoutes() {
     // CHANNEL ENDPOINTS
 
+    this.route('post', '/channels/:channelId/bridge-files', this.uploadBridgeFile)
+    this.route('get', '/channels/:channelId/messages/:messageId/bridge-files/:index', this.getBridgeFile)
+
     this.route('post', '/channels/:channelId/messages', this.sendMessage)
+    this.route('post', '/channels/:channelId/attachments', this.uploadAttachment)
 
     this.route('get', '/channels/:channelId/messages', this.getMessages)
+    this.route('get', '/channels/:channelId/encryption', this.getChannelEncryption)
+    this.route('get', '/channels/:channelId/bridge-platform', this.getBridgePlatform)
+    this.route('get', '/channels/:channelId/bridge-consent/:userId', this.getBridgeConsent)
+    this.route('post', '/channels/:channelId/bridge-avatar', this.uploadBridgeAvatar)
+    this.route('get', '/channels/:channelId/bridge-room', this.getMatrixBridgeRoom)
+    this.route('put', '/channels/:channelId/bridge-room', this.bindMatrixBridgeRoom)
+    this.route('get', '/channels/:channelId/bridge-members', this.getMatrixBridgeMembers)
+    this.route('get', '/channels/:channelId/bridge-members/:userId/avatar', this.getNativeBridgeAvatar)
 
     // Lookup by bridged Discord message ID, stored in metadata.discord_message_id.
     this.route('get', '/channels/:channelId/messages/lookup', this.lookupMessageByDiscordId)
@@ -362,6 +416,8 @@ export class BotRestAPI {
     this.route('post', '/servers/:serverId/roles', this.createRole)
     this.route('patch', '/servers/:serverId/roles/:roleId', this.updateRole)
     this.route('delete', '/servers/:serverId/roles/:roleId', this.deleteRole)
+    this.route('put', '/servers/:serverId/members/:userId/roles/:roleId', this.addMemberRole)
+    this.route('delete', '/servers/:serverId/members/:userId/roles/:roleId', this.removeMemberRole)
 
     // Channel permission overrides; used by Discord bridge permission sync.
     this.route('get', '/channels/:channelId/permission-overrides', this.getChannelPermissionOverrides)
@@ -694,6 +750,7 @@ export class BotRestAPI {
       if (!result.ok) return res.status(result.status).json(result.body)
       res.status(result.duplicate ? 200 : 201).json(this.formatMessage(result.message))
     } catch (error: any) {
+      if (error instanceof BridgeFileError) return res.status(error.status).json({ error: error.message })
       console.error('Send message error:', error)
       res.status(500).json({ error: error.message || 'Internal server error' })
     }
@@ -729,6 +786,9 @@ export class BotRestAPI {
       threadId = thread.id
     }
 
+    const named = await this.namedMatrixAuthor(botId, channelId, metadata)
+    if ('error' in named) return { ok: false, status: named.status, body: { error: named.error }, failure: 'failed' }
+
     // Instance attachment policy (e.g. mirroring Discord CDN URLs into
     // user_media) is applied here, keeping bots policy-agnostic.
     const { parts: messageContent, mirrorDeferred } = await prepareBotMessageContent({ content, embeds, metadata, channelId, botId })
@@ -736,11 +796,11 @@ export class BotRestAPI {
       return { ok: false, status: 400, body: { error: 'Cannot send an empty message' }, failure: 'failed' }
     }
 
-    const bridgeAuthor = claimsBridgeAuthor(metadata) && await this.bridgePairsChannel(botId, channelId)
+    const bridgeAuthor = !named.author && claimsBridgeAuthor(metadata) && await this.bridgePairsChannel(botId, channelId)
     const bridgeMapping = bridgeAuthor
       || (claimsBridgeMapping(metadata) && await this.bridgePairsChannel(botId, channelId))
     const messageMetadata = {
-      ...botSuppliedMetadata(metadata, { bridgeAuthor, bridgeMapping }),
+      ...botSuppliedMetadata(metadata, { bridgeAuthor, bridgeMapping, matrixAuthor: named.author }),
       bot: true,
       created_via: 'bot_api',
       ...(interaction ? { interaction } : {}),
@@ -879,6 +939,246 @@ export class BotRestAPI {
     return { id: typeof data === 'string' ? data : null }
   }
 
+  /**
+   * The Matrix author a bot names in metadata.bridge_author: none, the author when the bot relays
+   * the channel to Matrix, or the refusal to answer.
+   */
+  private async namedMatrixAuthor(
+    botId: string,
+    channelId: string,
+    metadata: unknown,
+  ): Promise<{ author: MatrixAuthor | null } | { status: number; error: string }> {
+    if (!metadata || typeof metadata !== 'object' || !Object.hasOwn(metadata, 'bridge_author')) return { author: null }
+    let platform: string | null
+    try {
+      platform = await bridgeChannelPlatform(botId, channelId)
+    } catch {
+      return { status: 503, error: 'Bridge registration unavailable' }
+    }
+    if (platform !== 'matrix') return { status: 403, error: 'No Matrix bridge registered for this channel' }
+    const author = matrixAuthor((metadata as Record<string, unknown>).bridge_author)
+    if (!author) return { status: 400, error: 'Invalid bridge_author' }
+    return { author }
+  }
+
+  /** `rows` without those whose member opted out of this bot's bridge platform (memberConsent). */
+  private async relayableRows<T extends { user_id?: string | null; bot_id?: string | null; metadata?: unknown }>(
+    botId: string,
+    channelId: string,
+    rows: T[],
+  ): Promise<T[]> {
+    if (rows.length === 0) return rows
+    const serverId = await serverOfChannel(channelId)
+    if (!serverId) return []
+    const kept: T[] = []
+    for (const row of rows) {
+      if (await relayAllowed(botId, serverId, channelId, consentSubject(row))) kept.push(row)
+    }
+    return kept
+  }
+
+  private async requireMatrixFilesAccess(botId: string, channelId: string): Promise<void> {
+    try {
+      if (!UUID_PATTERN.test(channelId)) throw new BridgeFileError(400, 'Invalid channel ID')
+      if (!(await this.matrixChannelAccess(botId, channelId))) {
+        throw new BridgeFileError(403, 'No Matrix read/send binding for this channel')
+      }
+      await matrixRoomBinding(botId, channelId)
+      const { data, error } = await supabase.rpc('channel_messages_encrypted', { p_channel_id: channelId })
+      if (error || typeof data !== 'boolean') throw new Error()
+      if (data) throw new BridgeFileError(403, 'Encrypted channel attachments are not supported')
+    } catch (error) {
+      if (error instanceof BridgeFileError) throw error
+      throw new BridgeFileError(503, 'Matrix attachment access unavailable')
+    }
+  }
+
+  private async matrixFilesAccess(req: BotRequest, res: Response): Promise<boolean> {
+    try {
+      await this.requireMatrixFilesAccess(req.bot!.id, req.params.channelId)
+      return true
+    } catch (error) {
+      const failure = error as BridgeFileError
+      res.status(failure.status).json({ error: failure.message })
+      return false
+    }
+  }
+
+  /**
+   * POST /channels/:channelId/bridge-files (harmony-matrix-bridge): the body is the file,
+   * X-File-Name (URI-encoded) and X-File-Type name it. Stored as POST /attachments stores a file,
+   * for a bot bound to the channel's Matrix room in a channel without end-to-end encryption.
+   */
+  private async uploadBridgeFile(req: BotRequest, res: Response) {
+    try {
+      await this.requireMatrixFilesAccess(req.bot!.id, req.params.channelId)
+    } catch (error) {
+      req.resume()
+      const failure = error instanceof BridgeFileError ? error : new BridgeFileError(503, 'Matrix attachment access unavailable')
+      return res.status(failure.status).json({ error: failure.message })
+    }
+    let fileName: string
+    try {
+      fileName = decodedFileName(req.get('X-File-Name'))
+    } catch (error) {
+      req.resume()
+      const failure = error instanceof BridgeFileError ? error : new BridgeFileError(400, 'Invalid encoded X-File-Name')
+      return res.status(failure.status).json({ error: failure.message })
+    }
+    const contentType = String(req.get('X-File-Type') ?? '').split(';')[0].trim().toLowerCase()
+    return this.storeUpload(req, res, fileName, contentType, 'image-or-file')
+  }
+
+
+  private async attachmentMessage(botId: string, channelId: string, messageId: string, index: number): Promise<any> {
+    const { data: message, error } = await supabase.from('messages').select('*')
+      .eq('id', messageId).eq('channel_id', channelId).eq('is_deleted', false).maybeSingle()
+    if (error) throw new BridgeFileError(503, 'Attachment visibility unavailable')
+    if (!message || !(await this.withinHistory(botId, channelId, message.created_at))
+      || (await this.relayableRows(botId, channelId, [message])).length === 0) throw new BridgeFileError(404, 'Message not found')
+    if ((message.encrypted != null && message.encrypted !== false) || message.encryption_metadata != null || message.media_paths?.length
+      || !Array.isArray(message.content)) throw new BridgeFileError(422, 'Encrypted message attachments are not supported')
+    if (!message.content[index] || message.content[index].type !== 'file') throw new BridgeFileError(422, 'No supported file at this content index')
+    const part = message.content[index]
+    // Bots receive room media only (withSignedMessageMedia); a Drive file is not relayed.
+    if (isDriveFilePath(part.path)) throw new BridgeFileError(422, 'Drive attachments are not relayed')
+    return { part }
+  }
+
+  private async getBridgeFile(req: BotRequest, res: Response) {
+    try {
+      const { channelId, messageId, index } = req.params
+      if (!UUID_PATTERN.test(messageId) || !/^(?:0|[1-9][0-9]{0,5})$/.test(index)) return res.status(400).json({ error: 'Invalid message ID or raw content index' })
+      if (!(await this.matrixFilesAccess(req, res))) return
+      const original = await this.attachmentMessage(req.bot!.id, channelId, messageId, Number(index))
+      const snapshot = JSON.stringify(original.part)
+      const file = await bridgeDownloads.run(() => downloadBridgeFile(original.part, channelId))
+      // Downloads may be slow: consent, binding, encryption and the stored part are fresh at emit.
+      if (!(await this.matrixFilesAccess(req, res))) return
+      const current = await this.attachmentMessage(req.bot!.id, channelId, messageId, Number(index))
+      if (JSON.stringify(current.part) !== snapshot) return res.status(409).json({ error: 'Attachment changed during download; retry the message' })
+      res.set({ 'Content-Type': 'application/octet-stream', 'Content-Length': String(file.bytes.length),
+        'X-File-Name': encodeURIComponent(file.fileName), 'X-File-Type': file.mimeType,
+        'Content-Disposition': 'attachment', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' })
+      return res.send(file.bytes)
+    } catch (error) {
+      return res.status(error instanceof BridgeFileError ? error.status : 503).json({ error: error instanceof BridgeFileError ? error.message : 'Private attachment download unavailable' })
+    }
+  }
+
+  private async uploadBridgeAvatar(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      const botId = req.bot!.id
+      const access = await this.channelWriteAccess(botId, channelId, 'send_messages')
+      if (!access.ok) return res.status(403).json({ error: access.error })
+      if (!(await this.canReadChannel(botId, channelId)) || await bridgeChannelPlatform(botId, channelId) !== 'matrix') {
+        return res.status(403).json({ error: 'No Matrix bridge registered for this channel' })
+      }
+      const { data, content_type } = req.body ?? {}
+      const image = bridgeAvatarBytes(data, content_type)
+      if (!image) return res.status(400).json({ error: 'Expected a base64 raster avatar, at most 1 MiB, with matching content_type' })
+      return res.json({ avatar_url: await storeBridgeAvatar(botId, image, content_type) })
+    } catch (error) {
+      if (error instanceof BridgeAvatarQuotaError) return res.status(507).json({ error: error.message })
+      return res.status(503).json({ error: 'Bridge avatar storage or registration unavailable' })
+    }
+  }
+
+  private async matrixChannelAccess(botId: string, channelId: string): Promise<boolean> {
+    return await this.canReadChannel(botId, channelId)
+      && (await this.channelWriteAccess(botId, channelId, 'send_messages')).ok
+      && await bridgeChannelPlatform(botId, channelId) === 'matrix'
+  }
+
+  private async getMatrixBridgeRoom(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      return res.json(await matrixRoomBinding(req.bot!.id, channelId))
+    } catch { return res.status(503).json({ error: 'Matrix room binding unavailable' }) }
+  }
+
+  private async bindMatrixBridgeRoom(req: BotRequest, res: Response) {
+    const { room_id, initial_sender_mode } = req.body ?? {}
+    if (typeof room_id !== 'string' || !MATRIX_ROOM_ID.test(room_id) || !['ghost', 'relay'].includes(initial_sender_mode)) {
+      return res.status(400).json({ error: 'Expected room_id and initial_sender_mode (ghost or relay)' })
+    }
+    try {
+      const { channelId } = req.params
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      return res.json(await matrixRoomBinding(req.bot!.id, channelId, { room_id, sender_mode: initial_sender_mode }))
+    } catch { return res.status(503).json({ error: 'Matrix room binding unavailable; unpair before changing rooms' }) }
+  }
+
+  private async getMatrixBridgeMembers(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      return res.json(publicMatrixBridgeMembers(await matrixBridgeMembers(req.bot!.id, channelId)))
+    } catch { return res.status(503).json({ error: 'Matrix member consent unavailable' }) }
+  }
+
+  private async getNativeBridgeAvatar(req: BotRequest, res: Response) {
+    const { channelId, userId } = req.params
+    if (!UUID_PATTERN.test(userId)) return res.status(400).json({ error: 'Invalid user ID' })
+    try {
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      const member = (await matrixBridgeMembers(req.bot!.id, channelId, row => row.id === userId)).find(row => row.id === userId)
+      const avatar = member?.avatar_url ? await nativeBridgeAvatar(member.avatar_url) : null
+      if (!avatar) return res.status(404).json({ error: 'No supported consenting member avatar' })
+      return res.json(avatar)
+    } catch { return res.status(503).json({ error: 'Native bridge avatar unavailable' }) }
+  }
+
+  private async getBridgePlatform(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.canReadChannel(req.bot!.id, channelId))) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+      return res.json({ platform: await bridgeChannelPlatform(req.bot!.id, channelId) })
+    } catch {
+      return res.status(503).json({ error: 'Bridge registration unavailable' })
+    }
+  }
+
+  private async getBridgeConsent(req: BotRequest, res: Response) {
+    try {
+      const { channelId, userId } = req.params
+      if (!UUID_PATTERN.test(userId)) return res.status(400).json({ error: 'Invalid user ID' })
+      if (!(await this.canReadChannel(req.bot!.id, channelId))) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+      const { data, error } = await supabase.rpc('bridge_member_relay_allowed', {
+        p_bot_id: req.bot!.id, p_channel_id: channelId, p_user_id: userId,
+      })
+      if (error || typeof data !== 'boolean') return res.status(503).json({ error: 'Bridge consent unavailable' })
+      return res.json({ relay_allowed: data })
+    } catch {
+      return res.status(503).json({ error: 'Bridge consent unavailable' })
+    }
+  }
+
+  private async getChannelEncryption(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.canReadChannel(req.bot!.id, channelId))) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+
+      const { data, error } = await supabase.rpc('channel_messages_encrypted', {
+        p_channel_id: channelId,
+      })
+      if (error || typeof data !== 'boolean') {
+        return res.status(503).json({ error: 'Channel encryption status unavailable' })
+      }
+      return res.json({ messages_encrypted: data })
+    } catch {
+      return res.status(503).json({ error: 'Channel encryption status unavailable' })
+    }
+  }
+
   private async lookupMessageByDiscordId(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
@@ -915,7 +1215,8 @@ export class BotRestAPI {
       if (error) {
         return res.status(500).json({ error: error.message })
       }
-      if (!message || message.is_deleted === true || !(await this.withinHistory(botId, channelId, message.created_at))) {
+      if (!message || message.is_deleted === true || !(await this.withinHistory(botId, channelId, message.created_at))
+        || (await this.relayableRows(botId, channelId, [message])).length === 0) {
         return res.status(404).json({ error: 'Message not found' })
       }
 
@@ -937,7 +1238,7 @@ export class BotRestAPI {
 
       const { data: message, error: fetchError } = await supabase
         .from('messages')
-        .select('channel_id, metadata, bot_id')
+        .select('channel_id, metadata, bot_id, user_id')
         .eq('id', messageId)
         .single()
 
@@ -956,6 +1257,12 @@ export class BotRestAPI {
         if (!mappingOnly || !(await this.bridgePairsChannel(botId, message.channel_id))) {
           return res.status(403).json({ error: 'Bots can only update metadata on their own messages' })
         }
+        if (!(await this.canReadChannel(botId, message.channel_id))) {
+          return res.status(403).json({ error: 'Missing permission: read_messages' })
+        }
+        if ((await this.relayableRows(botId, message.channel_id, [message])).length === 0) {
+          return res.status(404).json({ error: 'Message not found' })
+        }
       }
 
       const access = await this.channelWriteAccess(botId, message.channel_id, 'send_messages')
@@ -963,13 +1270,15 @@ export class BotRestAPI {
         return res.status(403).json({ error: access.error })
       }
 
-      const bridgeAuthor = own && claimsBridgeAuthor(metadata)
+      const named = own ? await this.namedMatrixAuthor(botId, message.channel_id, metadata) : { author: null }
+      if ('error' in named) return res.status(named.status).json({ error: named.error })
+      const bridgeAuthor = own && !named.author && claimsBridgeAuthor(metadata)
         && await this.bridgePairsChannel(botId, message.channel_id)
       const bridgeMapping = bridgeAuthor
         || (own && claimsBridgeMapping(metadata) && await this.bridgePairsChannel(botId, message.channel_id))
       const mergedMetadata = {
         ...(message.metadata || {}),
-        ...(own ? botSuppliedMetadata(metadata, { bridgeAuthor, bridgeMapping }) : metadata),
+        ...(own ? botSuppliedMetadata(metadata, { bridgeAuthor, bridgeMapping, matrixAuthor: named.author }) : metadata),
       }
 
       const { error: updateError } = await supabase
@@ -1010,34 +1319,36 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
       }
       
-      let query = supabase
-        .from('messages')
-        .select(`
-          *,
-          user:profiles!messages_user_id_fkey(id, username, display_name, avatar_url),
-          bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
-        `)
-        .eq('channel_id', channelId)
-        .order('created_at', { ascending: false })
-        .limit(limit)
-      
-      if (before) {
-        query = query.lt('created_at', before as string)
+      const page = (olderThan: string | undefined) => {
+        let query = supabase
+          .from('messages')
+          .select(`
+            *,
+            user:profiles!messages_user_id_fkey(id, username, display_name, avatar_url),
+            bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
+          `)
+          .eq('channel_id', channelId)
+          .order('created_at', { ascending: false })
+          .limit(limit)
+        if (olderThan) query = query.lt('created_at', olderThan)
+        if (after) query = query.gt('created_at', after as string)
+        if (since !== null) query = query.gte('created_at', since)
+        return query
       }
-      if (after) {
-        query = query.gt('created_at', after as string)
+
+      // Rows withheld from a bridge reader (memberConsent) leave a short page; older rows fill it,
+      // at most HISTORY_REFILL_ROUNDS further reads.
+      const kept: any[] = []
+      let cursor = typeof before === 'string' ? before : undefined
+      for (let round = 0; round <= HISTORY_REFILL_ROUNDS && kept.length < limit; round++) {
+        const { data: messages, error } = await page(cursor)
+        if (error) return res.status(500).json({ error: error.message })
+        const rows = messages ?? []
+        kept.push(...(await this.relayableRows(botId, channelId, rows)).slice(0, limit - kept.length))
+        if (rows.length < limit) break
+        cursor = rows[rows.length - 1].created_at
       }
-      if (since !== null) {
-        query = query.gte('created_at', since)
-      }
-      
-      const { data: messages, error } = await query
-      
-      if (error) {
-        return res.status(500).json({ error: error.message })
-      }
-      
-      res.json(messages?.map(m => this.formatMessage(m)) || [])
+      res.json(kept.map(m => this.formatMessage(m)))
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
@@ -1075,7 +1386,8 @@ export class BotRestAPI {
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
       }
-      if (!(await this.withinHistory(botId, message.channel_id, message.created_at, channel.server_id))) {
+      if (!(await this.withinHistory(botId, message.channel_id, message.created_at, channel.server_id))
+        || (await this.relayableRows(botId, message.channel_id, [message])).length === 0) {
         return res.status(404).json({ error: 'Message not found' })
       }
       
@@ -1283,7 +1595,7 @@ export class BotRestAPI {
    * against the interaction's channel), with no message written.
    */
   private async privateReplyParts(content: any, embeds: any, channelId: string, botId: string): Promise<any[]> {
-    return resolveMentionParts(formatContent(content, embeds), channelId, botId)
+    return resolveMentionParts(formatContent(content, embeds, { channelId, botId }), channelId, botId)
   }
 
   private privateReply(reply: any, parts: any[]) {
@@ -1538,7 +1850,7 @@ export class BotRestAPI {
             id: messageId,
             channel_id: message.channel_id,
             thread_id: message.thread_id ?? null,
-            metadata: message.metadata ?? null,
+            metadata: message.metadata,
           })
           .catch(err => console.error(`MESSAGE_DELETE dispatch failed for ${messageId}:`, err))
       }
@@ -1572,10 +1884,12 @@ export class BotRestAPI {
       
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji)
       
+      const named = await this.namedMatrixAuthor(botId, message.channel_id, metadata)
+      if ('error' in named) return res.status(named.status).json({ error: named.error })
       const insertData: any = {
         message_id: messageId,
         bot_id: botId,
-        metadata: reactionMetadata(metadata)
+        metadata: reactionMetadata(metadata, named.author)
       }
       
       if (isUUID) {
@@ -1753,8 +2067,13 @@ export class BotRestAPI {
       if (error) {
         return res.status(500).json({ error: error.message })
       }
-      
-      res.json(members?.map(m => this.formatMember(m)) || [])
+
+      const page = members ?? []
+      const rolesByUser = await this.memberRoleIds(serverId, page.map((m: { user_id: string }) => m.user_id))
+      if (!rolesByUser) {
+        return res.status(500).json({ error: 'Role lookup failed' })
+      }
+      res.json(page.map(m => this.formatMember({ ...m, roles: rolesByUser.get(m.user_id) ?? [] })))
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
@@ -2271,6 +2590,178 @@ export class BotRestAPI {
     }
   }
 
+  /**
+   * POST /channels/:channelId/attachments: the request body is the file, `filename` names it.
+   * Needs send_messages and attach_files in the channel. Answers the file part a message or an
+   * interaction reply of this channel names it by (stripBotSuppliedPaths keeps its path).
+   */
+  private async uploadAttachment(req: BotRequest, res: Response) {
+    const contentType = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase()
+    if (contentType === 'application/json' || contentType.startsWith('multipart/') || contentType === 'application/x-www-form-urlencoded') {
+      req.resume()
+      return res.status(415).json({ error: 'Send the file itself as the request body, with its own Content-Type' })
+    }
+    const rawName = typeof req.query.filename === 'string' ? req.query.filename : ''
+    // The last path segment, without control characters, at most 255 characters.
+    const fileName = rawName.split(/[\\/]/).pop()!.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 255) || 'file'
+    return this.storeUpload(req, res, fileName, contentType)
+  }
+
+  /**
+   * Stores the request body as a file of the bot in the channel (storeBotUpload): send_messages
+   * and attach_files in the channel, the instance's upload ceiling, the server's bot-file quota.
+   * `fileTypes` 'image-or-file' answers video and audio as 'file' (harmony-matrix-bridge accepts
+   * only those two).
+   */
+  private async storeUpload(
+    req: BotRequest,
+    res: Response,
+    fileName: string,
+    contentType: string,
+    fileTypes: 'all' | 'image-or-file' = 'all',
+  ) {
+    const channelId = req.params.channelId
+    const botId = req.bot!.id
+    // An answer sent before the body is read leaves it unread; resume() drains it.
+    const refuse = (status: number, body: Record<string, unknown>) => {
+      req.resume()
+      return res.status(status).json(body)
+    }
+    try {
+      if (!UUID_PATTERN.test(channelId)) return refuse(400, { error: 'channelId must be a UUID' })
+      for (const flag of ['send_messages', 'attach_files'] as const) {
+        const access = await this.channelWriteAccess(botId, channelId, flag)
+        if (!access.ok) return refuse(403, { error: access.error })
+      }
+      const ceiling = await getUploadCeilingBytes()
+      const declared = Number(req.headers['content-length'])
+      if (Number.isFinite(declared) && declared > ceiling) {
+        return refuse(413, { error: 'File too large', max_bytes: ceiling })
+      }
+
+      const stored = await storeBotUpload(req, { botId, channelId, fileName, contentType: contentType || undefined, ceiling })
+      await this.logBotAction(botId, 'file_uploaded', { channel_id: channelId, path: stored.path, bytes: stored.bytes }, { channelId })
+      const fileType = fileTypeOf(stored.contentType)
+      res.status(201).json({
+        type: 'file',
+        path: stored.path,
+        url: stored.url,
+        fileType: fileTypes === 'image-or-file' && fileType !== 'image' ? 'file' : fileType,
+        fileName,
+        fileSize: stored.bytes,
+        mimeType: stored.contentType,
+      })
+    } catch (error: any) {
+      if (error instanceof TooLargeError) return refuse(413, { error: 'File too large', max_bytes: await getUploadCeilingBytes() })
+      if (error instanceof EmptyFileError) return refuse(400, { error: 'The request body is empty' })
+      if (error instanceof OverQuotaError) return refuse(507, { error: 'This server\'s storage for bot files is full' })
+      console.error('Bot upload failed:', error?.message || error)
+      if (!res.headersSent) refuse(500, { error: 'Upload failed' })
+    }
+  }
+
+
+  private async addMemberRole(req: BotRequest, res: Response) {
+    return this.writeMemberRole(req, res, true)
+  }
+
+  private async removeMemberRole(req: BotRequest, res: Response) {
+    return this.writeMemberRole(req, res, false)
+  }
+
+  /**
+   * Adds or removes one role of a member. The role is one the bot may manage (loadManageableRole);
+   * an added role carries only bits the bot may grant. A repeat changes nothing and answers 204.
+   */
+  private async writeMemberRole(req: BotRequest, res: Response, add: boolean) {
+    try {
+      const { serverId, userId, roleId } = req.params
+      const botId = req.bot!.id
+      if (!UUID_PATTERN.test(userId) || !UUID_PATTERN.test(roleId)) {
+        return res.status(400).json({ error: 'userId and roleId must be UUIDs' })
+      }
+
+      const authority = await this.loadRoleAuthority(botId, serverId)
+      if (!authority.ok) {
+        return res.status(authority.status).json({ error: authority.error })
+      }
+      const existing = await this.loadManageableRole(serverId, roleId, authority.positionCap)
+      if (!existing.ok) {
+        return res.status(existing.status).json({ error: existing.error })
+      }
+      if (add) {
+        const missing = u64(parseMask(existing.role.permissions ?? 0) ?? 0n) & ~authority.grantable
+        if (missing !== 0n) {
+          return res.status(403).json(this.missingBitsError(missing, 'through this role'))
+        }
+      }
+
+      const { data: member, error: memberError } = await supabase
+        .from('user_servers')
+        .select('user_id')
+        .eq('server_id', serverId)
+        .eq('user_id', userId)
+        .eq('status', 'accepted')
+        .maybeSingle()
+      if (memberError) {
+        console.error('Member lookup failed:', memberError.message)
+        return res.status(500).json({ error: 'Member lookup failed' })
+      }
+      if (!member) {
+        return res.status(404).json({ error: 'Member not found' })
+      }
+
+      const write = add
+        ? supabase
+          .from('user_roles')
+          .upsert({ user_id: userId, role_id: roleId, server_id: serverId }, { onConflict: 'user_id,role_id', ignoreDuplicates: true })
+          .select('id')
+        : supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', userId)
+          .eq('role_id', roleId)
+          .eq('server_id', serverId)
+          .select('id')
+      const { data: changed, error } = await write
+      if (error) return res.status(500).json({ error: error.message })
+
+      if (Array.isArray(changed) && changed.length > 0) {
+        await this.logBotAction(
+          botId,
+          add ? 'member_role_added' : 'member_role_removed',
+          { server_id: serverId, user_id: userId, role_id: roleId },
+          { serverId },
+        )
+      }
+      res.status(204).send()
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  /** Role ids per member of `userIds`, @everyone excluded; null on a failed read. 100 ids per query bound the URL. */
+  private async memberRoleIds(serverId: string, userIds: string[]): Promise<Map<string, string[]> | null> {
+    const byUser = new Map<string, string[]>()
+    for (let i = 0; i < userIds.length; i += 100) {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('user_id, role_id')
+        .eq('server_id', serverId)
+        .in('user_id', userIds.slice(i, i + 100))
+      if (error || !Array.isArray(data)) {
+        console.error('Member role lookup failed:', error?.message)
+        return null
+      }
+      for (const row of data as Array<{ user_id: string; role_id: string }>) {
+        const list = byUser.get(row.user_id)
+        if (list) list.push(row.role_id)
+        else byUser.set(row.user_id, [row.role_id])
+      }
+    }
+    return byUser
+  }
+
   private async resolveChannelServer(channelId: string): Promise<string | null> {
     const { data } = await supabase
       .from('channels')
@@ -2527,7 +3018,7 @@ export class BotRestAPI {
    * discord_bridge_channels pair of the v2 bridge whose bot it is, or, for a bot that is no v2
    * bridge's bot, a v1 discord_bridge_pairings row of the channel's server whose bot the pairing's
    * creator or the server's owner owns or installed. A pairing names no bot. False on any failed
-   * lookup. A true answer is cached for BRIDGE_PAIR_TTL_MS.
+   * lookup. Discord pairing answers are cached; the durable bot platform is always fresh.
    */
   private async bridgePairsChannel(botId: string, channelId: string | null | undefined): Promise<boolean> {
     if (!channelId) return false
@@ -2538,13 +3029,14 @@ export class BotRestAPI {
     return paired
   }
 
+  /** As bridge_channel_platform's 'discord' branch; a bot with a bridge_platform is not a Discord bridge. */
   private async lookupBridgePair(botId: string, channelId: string): Promise<boolean> {
     const { data: bot, error: botError } = await supabase
       .from('bots')
-      .select('bot_type, owner_id')
+      .select('bot_type, bridge_platform, owner_id')
       .eq('id', botId)
       .maybeSingle()
-    if (botError || bot?.bot_type !== 'bridge') return false
+    if (botError || bot?.bot_type !== 'bridge' || bot.bridge_platform != null) return false
 
     const { data: bridges, error: bridgeError } = await supabase
       .from('discord_bridges')
@@ -2678,13 +3170,13 @@ export class BotRestAPI {
       id: message.id,
       channel_id: message.channel_id,
       thread_id: message.thread_id ?? null,
-      author: author ? {
+      author: bridgedMessageAuthor(message) ?? (author ? {
         id: author.id,
         username: author.username,
         display_name: author.display_name,
         avatar: this.formatAvatarUrl(author.avatar_url),
-        bot: !!message.bot  // Flag to indicate if this is a bot message
-      } : null,
+        bot: !!message.bot
+      } : null),
       content: this.contentToText(message.content),
       // A system notice has no author; metadata names the people it is about.
       is_system: message.is_system === true,

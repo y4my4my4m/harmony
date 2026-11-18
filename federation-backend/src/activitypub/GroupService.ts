@@ -41,6 +41,7 @@ import { groupDiscoverability, instanceFederationOpen } from './serverDirectory.
 import { channelMessageActivity, messageObjectId, withParentObjectIds } from './channelMessageActivity.js';
 import { withMessagePolls } from './messagePolls.js';
 import { groupAuthorOf } from './groupAuthor.js';
+import { addresses } from './audience.js';
 import {
   emojisToAp,
   HARMONY_CROSS_SERVER_EMOJIS,
@@ -372,7 +373,7 @@ async function pinSummaries(
       const { data, error } = await supabase
         .from('messages')
         .select(`id, channel_id, pinned_at, is_system, bot_id,
-          system_type:metadata->>type, webhook:metadata->webhook, discord_user:metadata->discord_user,
+          system_type:metadata->>type, webhook:metadata->webhook, discord_user:metadata->discord_user, bridge_author:metadata->bridge_author,
           author:profiles!messages_user_id_fkey(username),
           bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)`)
         .in('channel_id', chunk)
@@ -387,7 +388,7 @@ async function pinSummaries(
         return null;
       }
       for (const row of (data || []) as any[]) {
-        const metadata = { type: row.system_type, webhook: row.webhook, discord_user: row.discord_user };
+        const metadata = { type: row.system_type, webhook: row.webhook, discord_user: row.discord_user, bridge_author: row.bridge_author };
         rowsOf.get(row.channel_id)?.push({ ...row, metadata });
       }
       if ((data || []).length < READ_PAGE) break;
@@ -1120,8 +1121,8 @@ router.post(
         p_actor_ap_id: actorUrl,
         p_activity_data: activity,
         p_origin_domain: originDomain,
-        p_to_addresses: Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean),
-        p_cc_addresses: Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean),
+        p_to_addresses: addresses(activity.to),
+        p_cc_addresses: addresses(activity.cc),
         p_is_local: false,
       });
       if (storeError) {

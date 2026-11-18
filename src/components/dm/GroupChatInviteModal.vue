@@ -38,6 +38,10 @@
           </button>
         </div>
 
+        <p class="group-limit-hint" data-testid="group-invite-spots" aria-live="polite">
+          {{ spotsLeft > 0 ? $t('dm.groupSpotsLeft', spotsLeft) : $t('dm.groupFull', { count: GROUP_CONVERSATION_LIMIT }) }}
+        </p>
+
         <!-- Search Results -->
         <div v-if="searchQuery" class="search-results">
           <div v-if="isSearching && searchResults.length === 0" class="search-loading" role="status">
@@ -57,7 +61,8 @@
             class="search-result-item"
             data-testid="group-invite-result"
             @click="toggleUserSelection(user)"
-            :class="{ selected: isUserSelected(user.id) }"
+            :class="{ selected: isUserSelected(user.id), disabled: !isUserSelected(user.id) && spotsLeft === 0 }"
+            :aria-disabled="!isUserSelected(user.id) && spotsLeft === 0"
           >
             <Avatar
               :src="user.avatar_url"
@@ -215,6 +220,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import { GROUP_CONVERSATION_LIMIT } from '@/utils/groupConversation'
 import type { DMUser } from '@/stores/useDM'
 
 interface Props {
@@ -246,6 +252,15 @@ const isPrivateGroup = ref(false)
 // Computed
 const isNewGroup = computed(() => !props.conversationId)
 const currentUserId = computed(() => authStore.session?.user?.id)
+
+// The viewer, everyone already in the conversation and everyone picked. Callers pass the
+// participants with or without the viewer.
+const memberCount = computed(() => {
+  const ids = new Set((props.existingParticipants ?? []).map((p) => p.id))
+  if (currentUserId.value) ids.delete(currentUserId.value)
+  return 1 + ids.size + selectedUsers.value.length
+})
+const spotsLeft = computed(() => Math.max(0, GROUP_CONVERSATION_LIMIT - memberCount.value))
 
 const {
   query: searchQuery,
@@ -317,7 +332,7 @@ const toggleUserSelection = (user: UserSearchResult) => {
   const index = selectedUsers.value.findIndex(u => u.id === user.id)
   if (index > -1) {
     selectedUsers.value.splice(index, 1)
-  } else {
+  } else if (spotsLeft.value > 0) {
     selectedUsers.value.push(toDMUser(user))
   }
 }
@@ -501,6 +516,12 @@ watch(() => props.show, (show) => {
   margin: 0;
 }
 
+.group-limit-hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: var(--space-2) 0 0;
+}
+
 /* Search Section */
 .search-input-container {
   position: relative;
@@ -584,6 +605,11 @@ watch(() => props.show, (show) => {
 .search-result-item.selected {
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   border-color: var(--harmony-primary);
+}
+
+.search-result-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .search-result-item .user-info {

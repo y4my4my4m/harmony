@@ -53,7 +53,7 @@
 # An update without either option keeps the provider's mode. remove-provider drops the pair
 # after the provider.
 #
-# linking sets the mode of a GoTrue provider of its own (github, google, twitch, ...):
+# linking sets the mode of a GoTrue provider of its own (discord, github, google, twitch, ...):
 # PROVIDER=PROVIDER keeps it apart, PROVIDER=default joins existing accounts by address.
 # configure.sh writes PROVIDER=PROVIDER for each built-in provider without a pair when
 # ENABLE_EMAIL_AUTOCONFIRM is or was true, and leaves a pair present alone. GoTrue's GitHub

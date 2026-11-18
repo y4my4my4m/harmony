@@ -1,7 +1,7 @@
 <template>
   <section class="discord-bridge" aria-labelledby="discord-bridge-title" data-testid="discord-bridge">
     <div class="settings-section">
-      <h2 id="discord-bridge-title" class="section-title">{{ t('discordBridge.title') }}</h2>
+      <component :is="`h${headingLevel}`" id="discord-bridge-title" class="section-title">{{ t('discordBridge.title') }}</component>
       <p class="section-description">{{ t('discordBridge.intro') }}</p>
     </div>
 
@@ -169,8 +169,10 @@ const props = withDefaults(
     serverName?: string
     /** The instance bot's OAuth2 callback outcome, read from ?linked / ?link_error. */
     linkReturn?: BridgeLinkReturn | null
+    /** Level of the section heading: 3 inside Server settings → Bridges. */
+    headingLevel?: 2 | 3
   }>(),
-  { serverName: '', linkReturn: null },
+  { serverName: '', linkReturn: null, headingLevel: 2 },
 )
 
 /** Status and snapshot refresh; the bridge heartbeats every 30 s and on change. */
@@ -412,6 +414,10 @@ onUnmounted(() => {
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+h3.section-title {
+  font-size: 17px;
 }
 
 .section-description {

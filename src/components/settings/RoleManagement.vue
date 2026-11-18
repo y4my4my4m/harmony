@@ -207,6 +207,54 @@
               </div>
               <ToggleSwitch v-model="editForm.mentionable" :labelledby="`${a11yId}-mention`" :describedby="`${a11yId}-mention-desc`" />
             </div>
+
+            <template v-if="!selectedRole.is_default">
+              <div class="form-group toggle-row">
+                <div class="toggle-info">
+                  <span :id="`${a11yId}-pick`" class="toggle-title">{{ t('server.roleManagement.selfAssignable') }}</span>
+                  <p :id="`${a11yId}-pick-desc`" class="form-help">{{ t('server.roleManagement.selfAssignableDesc') }}</p>
+                </div>
+                <ToggleSwitch
+                  v-model="editForm.selfAssignable"
+                  data-testid="role-self-assignable"
+                  :labelledby="`${a11yId}-pick`"
+                  :describedby="`${a11yId}-pick-desc`"
+                />
+              </div>
+              <template v-if="editForm.selfAssignable">
+                <p v-if="selfAssignWarning" class="form-warning" role="status" data-testid="role-self-assign-warning">
+                  {{ selfAssignWarning }}
+                </p>
+                <div class="form-group">
+                  <label :for="`${a11yId}-pick-group`">{{ t('server.roleManagement.selfAssignGroup') }}</label>
+                  <input
+                    :id="`${a11yId}-pick-group`"
+                    v-model="editForm.selfAssignGroup"
+                    type="text"
+                    class="form-input"
+                    maxlength="50"
+                    :list="`${a11yId}-pick-groups`"
+                    :placeholder="t('server.roleManagement.selfAssignGroupPlaceholder')"
+                    data-testid="role-self-assign-group"
+                  />
+                  <datalist :id="`${a11yId}-pick-groups`">
+                    <option v-for="name in selfAssignGroups" :key="name" :value="name" />
+                  </datalist>
+                </div>
+                <div class="form-group">
+                  <label :for="`${a11yId}-pick-note`">{{ t('server.roleManagement.selfAssignNote') }}</label>
+                  <input
+                    :id="`${a11yId}-pick-note`"
+                    v-model="editForm.selfAssignNote"
+                    type="text"
+                    class="form-input"
+                    maxlength="200"
+                    :placeholder="t('server.roleManagement.selfAssignNotePlaceholder')"
+                    data-testid="role-self-assign-note"
+                  />
+                </div>
+              </template>
+            </template>
           </template>
 
           <!-- Permissions Tab -->
@@ -406,6 +454,7 @@ import { readAllRows } from '@/services/pagedRead'
 import { searchServerMembers } from '@/services/memberDirectoryService'
 import { roleService } from '@/services/RoleService'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import { selfAssignGroupNames, selfAssignProblem } from '@/utils/selfAssignableRoles'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -520,6 +569,9 @@ interface RoleForm {
   hoist: boolean
   mentionable: boolean
   permissions: string[]
+  selfAssignable: boolean
+  selfAssignGroup: string
+  selfAssignNote: string
 }
 const editForm = ref<RoleForm>({
   name: '',
@@ -527,6 +579,9 @@ const editForm = ref<RoleForm>({
   hoist: false,
   mentionable: false,
   permissions: [],
+  selfAssignable: false,
+  selfAssignGroup: '',
+  selfAssignNote: '',
 })
 // Unsaved edits of roles other than the selected one, by role id. Selecting a
 // role takes its draft back into the form; Save or Reset drops it.
@@ -634,6 +689,20 @@ const permissionsArrayToObject = (perms: string[]): Record<string, boolean> => {
 }
 
 // Computed
+// Why members could not pick the selected role as edited; null when they can (overrides aside).
+const selfAssignWarning = computed(() => {
+  const role = selectedRole.value
+  if (!role || !editForm.value.selfAssignable) return null
+  const edited = { ...role, permissions: permissionsArrayToObject(editForm.value.permissions) } as ServerRole
+  const problem = selfAssignProblem(edited, roles.value.map((r) => (r.id === role.id ? edited : r)))
+  if (problem === 'grants') return t('server.roleManagement.selfAssignWarnGrants')
+  if (problem === 'rank') return t('server.roleManagement.selfAssignWarnRank')
+  if (problem === 'admin') return t('server.roleManagement.selfAssignWarnAdmin')
+  return null
+})
+
+const selfAssignGroups = computed(() => selfAssignGroupNames(roles.value))
+
 const hasChanges = computed(() => {
   if (!selectedRole.value) return false
   return isThisRoleDirty(selectedRole.value.id)
@@ -645,6 +714,9 @@ const formOf = (role: ServerRole): RoleForm => ({
   hoist: role.hoist || false,
   mentionable: role.mentionable || false,
   permissions: ensurePermissionsArray(role.permissions),
+  selfAssignable: role.self_assignable === true,
+  selfAssignGroup: role.self_assign_group ?? '',
+  selfAssignNote: role.self_assign_note ?? '',
 })
 
 const copyForm = (form: RoleForm): RoleForm => ({ ...form, permissions: [...form.permissions] })
@@ -656,6 +728,9 @@ function formDiffers(form: RoleForm, role: ServerRole): boolean {
     form.color !== (role.color || '#99AAB5') ||
     form.hoist !== role.hoist ||
     form.mentionable !== role.mentionable ||
+    form.selfAssignable !== (role.self_assignable === true) ||
+    form.selfAssignGroup.trim() !== (role.self_assign_group ?? '') ||
+    form.selfAssignNote.trim() !== (role.self_assign_note ?? '') ||
     JSON.stringify([...form.permissions].sort()) !==
       JSON.stringify([...currentPerms].sort())
   )
@@ -708,6 +783,9 @@ function rebaseForm(form: RoleForm, before: ServerRole, after: ServerRole): Role
     hoist: form.hoist === was.hoist ? now.hoist : form.hoist,
     mentionable: form.mentionable === was.mentionable ? now.mentionable : form.mentionable,
     permissions: permissionsEdited ? [...form.permissions] : now.permissions,
+    selfAssignable: form.selfAssignable === was.selfAssignable ? now.selfAssignable : form.selfAssignable,
+    selfAssignGroup: form.selfAssignGroup === was.selfAssignGroup ? now.selfAssignGroup : form.selfAssignGroup,
+    selfAssignNote: form.selfAssignNote === was.selfAssignNote ? now.selfAssignNote : form.selfAssignNote,
   }
 }
 
@@ -910,6 +988,11 @@ const saveRole = async () => {
       hoist: editForm.value.hoist,
       mentionable: editForm.value.mentionable,
       permissions: permissionsArrayToObject(editForm.value.permissions),
+      ...(role.is_default ? {} : {
+        self_assignable: editForm.value.selfAssignable,
+        self_assign_group: editForm.value.selfAssignGroup.trim() || null,
+        self_assign_note: editForm.value.selfAssignNote.trim() || null,
+      }),
     })
     
     if (updated) {
@@ -1604,6 +1687,16 @@ onActivated(() => {
   margin: 6px 0 0;
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+}
+
+.form-warning {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 8px);
+  background-color: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
 }
 
 .form-input {

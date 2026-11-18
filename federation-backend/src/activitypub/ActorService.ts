@@ -7,7 +7,7 @@ import { misskeyDisplayNameEmojis } from '../utils/misskeyEmojis.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
-import { ActivityProcessor } from './ActivityProcessor.js';
+import { ActivityProcessor, determineVisibility } from './ActivityProcessor.js';
 import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
 import { cache } from '../utils/cache.js';
@@ -2854,6 +2854,12 @@ export async function fetchRecentPostsInBackground(
     userFetchedUrls.set(authorId, fetchedUrls);
 
     const { noteToContent } = await import('./converters/fromActivityPub.js');
+    const { data: authorRow } = await supabase
+      .from('profiles')
+      .select('followers_url')
+      .eq('id', authorId)
+      .maybeSingle();
+    const followersUrl: string | null = authorRow?.followers_url ?? null;
 
     let savedCount = 0;
     let batch = 0;
@@ -2883,7 +2889,7 @@ export async function fetchRecentPostsInBackground(
 
       const slice = page.items.slice(cursor.offset, cursor.offset + (limit - batch));
       for (const item of slice) {
-        const result = await importOutboxItem(item, authorId, outboxUrl, supabase, noteToContent);
+        const result = await importOutboxItem(item, authorId, outboxUrl, supabase, noteToContent, followersUrl);
         if (result.id) oldestId = result.id;
         if (result.saved) savedCount++;
       }
@@ -2950,7 +2956,8 @@ export async function fetchRecentPostsInBackground(
  * Store one outbox entry: a Create (or bare Note/Article/Question) of the author's
  * own post, or an Announce. An Announce whose original is not stored imports
  * the original first; one whose original cannot be stored or boosted is skipped.
- * `id` is the entry's AP id when it is on the outbox host.
+ * `id` is the entry's AP id when it is on the outbox host. `followersUrl` is the author's
+ * stored followers collection.
  */
 async function importOutboxItem(
   item: any,
@@ -2958,6 +2965,7 @@ async function importOutboxItem(
   outboxUrl: string,
   supabase: any,
   noteToContent: (note: any) => any,
+  followersUrl: string | null,
 ): Promise<{ saved: boolean; id?: string }> {
   try {
     const activityType = item?.type;
@@ -3057,6 +3065,10 @@ async function importOutboxItem(
     if (!sameOrigin(note.id, outboxUrl)) {
       return { saved: false };
     }
+    // A Harmony channel message is no post, as in ActivityProcessor.processCreate.
+    if (note['harmony:serverId'] !== undefined) {
+      return { saved: false, id: note.id };
+    }
 
     const { data: existing } = await supabase
       .from('posts')
@@ -3068,18 +3080,10 @@ async function importOutboxItem(
     // noteToContent resolves mentions, hashtags, emoji and attachments.
     const content = noteToContent(note);
 
-    let visibility = 'public';
-    const to = note.to || [];
-    const cc = note.cc || [];
-    const allRecipients = [...to, ...cc];
-
-    if (allRecipients.includes('https://www.w3.org/ns/activitystreams#Public')) {
-      visibility = to.includes('https://www.w3.org/ns/activitystreams#Public') ? 'public' : 'unlisted';
-    } else if (allRecipients.some((r: string) => r.endsWith('/followers'))) {
-      visibility = 'followers';
-    } else {
-      visibility = 'direct';
-    }
+    const visibility = determineVisibility(note, {
+      activity: activityType === 'Create' ? item : undefined,
+      followersUrl,
+    });
 
     const mediaAttachments = extractMediaAttachments(note.attachment);
 

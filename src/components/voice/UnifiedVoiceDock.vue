@@ -187,6 +187,18 @@
         </button>
 
         <button
+          v-if="dockPlayTarget && playTogether.appsFor('voice').length > 0"
+          @click="playTogether.openLauncher(dockPlayTarget)"
+          class="control-btn"
+          :title="t('playTogether.button')"
+          :aria-label="t('playTogether.button')"
+          aria-haspopup="dialog"
+          data-testid="dock-play-together-button"
+        >
+          <Icon name="gamepad" />
+        </button>
+
+        <button
           v-if="soundboardButton.available.value"
           ref="dockSoundboardButtonRef"
           @click="soundboardButton.toggle"
@@ -629,6 +641,8 @@ import { useActivitiesStore } from '@/stores/activities';
 import ActivityDockCard from '@/components/activities/ActivityDockCard.vue';
 import ActivityInvite from '@/components/activities/ActivityInvite.vue';
 import ActivityLauncher from '@/components/activities/ActivityLauncher.vue';
+import { usePlayTogetherStore } from '@/stores/playTogether';
+import type { ActivityTarget } from '@/services/playTogether/sessions';
 import { showsMinimizedAudioControls } from './minimizedVoiceControls';
 import { userPanelDocked } from '@/composables/useUserPanelDock';
 import type { Rect } from './voiceMenuModel';
@@ -946,6 +960,13 @@ const dockSoundboardButtonRef = ref<HTMLButtonElement | null>(null);
 const soundboardButton = useSoundboardButton(dockSoundboardButtonRef);
 const dockActivityButtonRef = ref<HTMLButtonElement | null>(null);
 const activityButton = useActivityButton(dockActivityButtonRef);
+const playTogether = usePlayTogetherStore();
+// Games of this call's channel, where watch together is offered.
+const dockPlayTarget = computed<ActivityTarget | null>(() => {
+  if (!activityButton.available.value || !voiceStore.currentChannelId || !voiceStore.currentServerId) return null;
+  return { kind: 'channel', id: voiceStore.currentChannelId, serverId: voiceStore.currentServerId, voice: true };
+});
+onMounted(() => { void playTogether.loadApps(); });
 const activitiesStore = useActivitiesStore();
 // The dock card shows while the overlay is closed; the overlay shows the stage instead.
 const dockActivity = computed(() => (currentMode.value === 'dock' && !popoutActive.value && activitiesStore.playingHere ? activitiesStore.current : null));

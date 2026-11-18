@@ -20,7 +20,7 @@ flowchart LR
   app["Harmony app: Server settings, Discord Bridge"] --> db
 ```
 
-Communities choose between three modes in **Server settings** → **Discord Bridge**. Each needs something different from you:
+Communities choose between three modes in **Server settings** → **Bridges** → **Discord**. Each needs something different from you:
 
 | Mode | Who runs the bridge | Discord bot | What you provide |
 |---|---|---|---|
@@ -96,7 +96,7 @@ The steps are also on the admin page, under **Set up the bot in the Discord Deve
 
 The secrets go to Vault and are never shown again; the fields then read **Stored**, and leaving a field empty keeps the stored value. **Remove bot** deletes the credentials and turns the bot off: linked communities stop bridging until a bot is set up again, and their bridges and pairs stay.
 
-Server owners then see **Use *instance*'s bot** first, marked **Recommended**, in **Server settings** → **Discord Bridge**.
+Server owners then see **Use *instance*'s bot** first, marked **Recommended**, in **Server settings** → **Bridges** → **Discord**.
 
 | Setting | Default | Effect |
 |---|---|---|
@@ -154,7 +154,7 @@ History import copies a paired Discord channel's older messages into Harmony ([I
 
 | Setting | Default | Effect |
 |---|---|---|
-| **History import** | **Off** | **Self-run bridges** lets a server import through a bridge its owner runs with their own Discord application (bridge 2.6.0 or later). The instance's Discord bot and bots this instance runs for communities never import, whatever the setting. **Off** refuses every import and stops the ones running |
+| **History import** | **Off** | **Self-run bridges** lets a server import through a bridge its owner runs with their own Discord application (bridge 2.6.0 or later). **All bridges** adds the instance's Discord bot and the own-bot bridges this instance hosts (bridge host 2.8.0 or later). **Off** refuses every import and stops the ones running |
 | **Imports running at once** | 1 | Across the instance; the rest wait. `0` is no limit |
 | **Messages per minute, per import** | 600 | The gateway slows an import to this rate, whatever the bridge sends. `0` is no limit |
 | **Stored Discord files per server (MB)** | 5120 | With **Mirror to storage**, a server past this keeps Discord links for further files. `0` is no limit |
@@ -165,6 +165,7 @@ Before turning it on:
 
 - The people who wrote the imported messages did not ask for the copy. The bridge skips authors who are no longer members of the Discord server, and every member can opt out or erase their messages with `/bridge-privacy` ([Bridge privacy](/run/discord-bridge#bridge-privacy)). Deletion requests for content on your instance come to you; your privacy policy should say what a bridge stores and how to ask.
 - A self-run bridge is its owner's Discord application, under their agreement with Discord. Your instance stores what it sends.
+- With **All bridges**, imports through the instance's Discord bot read Discord with your Discord application: Discord's developer terms hold you, its owner, responsible for them. An own-bot bridge hosted here reads with its community's application on your machine. The instance bot's bridges import one channel at a time between them, on their one Discord login.
 - Imported messages send no notifications, count as read, and are not federated: no remote instance receives them. With **Exempt bots** off in a server's AutoMod, its blocking keyword, invite and link rules apply to imported messages.
 - With **Mirror to storage** (see [Attachments from Discord](#attachments-from-discord)), importing years of history copies every Discord file into the instance's message storage, up to the limit per server.
 

@@ -53,6 +53,11 @@
       </div>
     </div>
 
+    <PlayTogetherPanel
+      v-if="currentConversation"
+      :target="{ kind: 'conversation', id: currentConversation.id }"
+    />
+
     <div class="dm-content">
       <!-- On a phone the conversation list is the DM page: Back from a conversation lands
            on it. A new conversation starts from its New DM button. -->
@@ -120,6 +125,7 @@ import { useCallChat } from '@/components/voice/callChat'
 import { conversationListLoading, loadOlderConversationMessages } from '@/composables/chatPaging'
 import Icon from '@/components/common/Icon.vue'
 import DMHeader from '@/components/dm/DMHeader.vue'
+import PlayTogetherPanel from '@/components/playTogether/PlayTogetherPanel.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import { useDMCallJoin } from '@/composables/useDMCallJoin'
 import FollowersList from '@/components/dm/FollowersList.vue'
@@ -532,6 +538,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
 
 <style scoped>
 .dm-view {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;

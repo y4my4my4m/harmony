@@ -17,6 +17,12 @@
 // The stack runs the bot gateway as a child process (see botGateway.ts). The bridge itself is the
 // test: it holds the bot token and calls the routes the real bridge calls.
 //
+// The third journey turns on All bridges with the radio cards (a refused save puts the choice
+// back; arrow keys move and save it), and the bridge, switched to the instance bot, may import. The
+// fourth gives the bridge a Discord channel @everyone cannot read: the pair shows a lock, and Import
+// all leaves it out until the manager ticks the second box, which the job then carries to the
+// bridge as private_approved.
+//
 // The three instance_config keys the journeys write are restored afterwards.
 
 import { test, expect } from '@playwright/test'
@@ -213,9 +219,10 @@ test('history import is off until an instance admin turns it on', async ({ page,
   await expect(section).toBeVisible({ timeout: 45000 })
   const mode = section.locator('[data-testid="import-mode"]')
   await expect(mode).toBeEnabled({ timeout: 20000 })
-  await expect(mode).toHaveValue('off')
+  await expect(mode.getByRole('radio', { name: /^Off/ })).toBeChecked()
+  await expect(mode.getByRole('radio')).toHaveCount(3)
   await expect(section.locator('[data-testid="import-warning"]')).toHaveCount(0)
-  await mode.selectOption('self_run')
+  await mode.getByRole('radio', { name: /^Self-run bridges/ }).check()
   await expect(staffPage.locator('.Vue-Toastification__toast--success').filter({ hasText: 'History import settings saved' }))
     .toBeVisible({ timeout: 20000 })
   await expect(section.locator('[data-testid="import-warning"]')).toContainText('/bridge-privacy')
@@ -427,4 +434,174 @@ test('a manager imports Discord history: old messages land quietly, in date orde
     .order('created_at')
   if (error) throw new Error(`messages: ${error.message}`)
   expect(rows?.map((r) => r.created_at.slice(0, 16))).toEqual(['2023-01-15T10:00', '2023-01-15T10:05', '2023-01-15T10:06'])
+})
+
+async function bridgeRow() {
+  const { data, error } = await admin.from('discord_bridges').select('id').eq('server_id', server.id).single()
+  if (error || !data) throw new Error(`bridge: ${error?.message}`)
+  return data.id as string
+}
+
+test('All bridges, chosen on the radio cards, lets the instance bot import', async ({ page, browser }) => {
+  test.setTimeout(240_000)
+  await setConfig('bridge_history_import', 'self_run')
+  const bridgeId = await bridgeRow()
+  const { error: modeError } = await admin.from('discord_bridges').update({ mode: 'instance', bridge_version: '2.8.0' }).eq('id', bridgeId)
+  if (modeError) throw new Error(`mode: ${modeError.message}`)
+
+  try {
+    // self_run: the instance bot's bridge may not import.
+    await signIn(page, owner)
+    await page.goto(`/server/${server.id}?section=discord-bridge`)
+    const pair = page.locator('[data-testid="pair-row"]').first()
+    await expect(pair).toBeVisible({ timeout: 45000 })
+    await expect(page.locator('[data-testid="import-unavailable"]')).toHaveAttribute('data-reason', 'bridge_mode')
+    expect((await bridgeCall('/config')).json?.history_import).toEqual({ enabled: false, reason: 'bridge_mode' })
+
+    const staffContext = await browser.newContext()
+    const staffPage = await staffContext.newPage()
+    await signIn(staffPage, staff)
+    await staffPage.goto('/admin?tab=config')
+    const section = staffPage.locator('[data-testid="bridge-import-admin"]')
+    const mode = section.locator('[data-testid="import-mode"]')
+    await expect(mode).toBeEnabled({ timeout: 45000 })
+    await expect(mode.getByRole('radio', { name: /^Self-run bridges/ })).toBeChecked()
+
+    // A refused save puts the choice back.
+    await staffPage.route('**/rest/v1/rpc/batch_set_instance_config', (route) =>
+      route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'refused in test' }) }))
+    await mode.getByRole('radio', { name: /^All bridges/ }).check()
+    await expect(staffPage.locator('.Vue-Toastification__toast--error').filter({ hasText: "Couldn't save the history import settings." }))
+      .toBeVisible({ timeout: 20000 })
+    await expect(mode.getByRole('radio', { name: /^Self-run bridges/ })).toBeChecked()
+    expect(await readConfig('bridge_history_import')).toBe('self_run')
+    await staffPage.unroute('**/rest/v1/rpc/batch_set_instance_config')
+
+    await mode.getByRole('radio', { name: /^All bridges/ }).check()
+    await expect.poll(() => readConfig('bridge_history_import')).toBe('all')
+    await expect(section.locator('[data-testid="import-warning-instance-bot"]')).toContainText("Discord's developer terms")
+    await expect(section.locator('.mode-choice.selected')).toHaveText(/All bridges/)
+
+    // Arrow keys move the choice and save it; focus stays on the cards.
+    await mode.getByRole('radio', { name: /^All bridges/ }).focus()
+    await staffPage.keyboard.press('ArrowLeft')
+    await expect.poll(() => readConfig('bridge_history_import')).toBe('self_run')
+    await expect(mode.getByRole('radio', { name: /^Self-run bridges/ })).toBeFocused()
+    await staffPage.keyboard.press('ArrowRight')
+    await expect.poll(() => readConfig('bridge_history_import')).toBe('all')
+    await expect(mode.getByRole('radio', { name: /^All bridges/ })).toBeFocused()
+    await staffContext.close()
+
+    // all: the bridge may import, from Discord and from Harmony.
+    expect((await bridgeCall('/config')).json?.history_import).toEqual({ enabled: true, reason: null })
+    expect((await bridgeCall('/imports')).status).toBe(200)
+    await page.reload()
+    await expect(pair).toBeVisible({ timeout: 45000 })
+    await expect(page.locator('[data-testid="import-unavailable"]')).toHaveCount(0)
+    await expect(pair.locator('[data-testid="import-retry"]')).toBeVisible({ timeout: 30000 })
+    await pair.locator('[data-testid="import-retry"]').click()
+    const consent = page.locator('[data-testid="import-consent"]')
+    await consent.locator('[data-testid="import-consent-check"]').check()
+    await consent.locator('[data-testid="import-consent-start"]').click()
+    await expect.poll(async () => {
+      const listed = await bridgeCall('/imports')
+      return (listed.json?.imports as Array<{ state: string; harmony_channel_id: string }> | undefined)
+        ?.find((j) => j.harmony_channel_id === server.generalChannelId)?.state
+    }, { timeout: 30000 }).toBe('queued')
+    const cancelled = await bridgeCall('/imports', { method: 'GET' })
+    const job = (cancelled.json?.imports as Array<{ id: string }>)[0]
+    expect((await bridgeCall(`/imports/${job.id}/cancel`, { method: 'POST' })).status).toBe(200)
+  } finally {
+    await admin.from('discord_bridges').update({ mode: 'self', bridge_version: '2.6.0' }).eq('id', bridgeId)
+    await setConfig('bridge_history_import', 'self_run')
+  }
+})
+
+test('a Discord channel @everyone cannot read is imported from Harmony only with the second consent', async ({ page }) => {
+  test.setTimeout(240_000)
+  await setConfig('bridge_history_import', 'self_run')
+  const bridgeId = await bridgeRow()
+  const PRIVATE_DISCORD_ID = '1400000000000000110'
+  const { data: staffRoom, error: channelError } = await admin.from('channels')
+    .insert({ server_id: server.id, name: 'staff-room', type: 0 }).select('id').single()
+  if (channelError || !staffRoom) throw new Error(`channel: ${channelError?.message}`)
+  const { error: snapshotError } = await admin.from('discord_bridges').update({
+    bridge_version: '2.8.0',
+    snapshot: {
+      guilds: [{
+        id: GUILD_ID,
+        name: 'Old Guild',
+        channels: [
+          { id: DISCORD_CHANNEL_ID, name: 'general', type: 0, position: 0, can_view: true, can_send: true, can_manage_webhooks: true, everyone_can_view: true },
+          { id: PRIVATE_DISCORD_ID, name: 'mods-only', type: 0, position: 1, can_view: true, can_send: true, can_manage_webhooks: true, everyone_can_view: false },
+        ],
+      }],
+    },
+  }).eq('id', bridgeId)
+  if (snapshotError) throw new Error(`snapshot: ${snapshotError.message}`)
+  const { error: pairError } = await admin.from('discord_bridge_channels').insert({
+    bridge_id: bridgeId,
+    harmony_channel_id: staffRoom.id,
+    discord_channel_id: PRIVATE_DISCORD_ID,
+    discord_channel_name: 'mods-only',
+    direction: 'both',
+    created_by: owner.id,
+  })
+  if (pairError) throw new Error(`pair: ${pairError.message}`)
+
+  await signIn(page, owner)
+  await page.goto(`/server/${server.id}?section=discord-bridge`)
+  const rows = page.locator('[data-testid="pair-row"]')
+  await expect(rows).toHaveCount(2, { timeout: 45000 })
+  const privateRow = rows.filter({ hasText: 'mods-only' })
+  await expect(privateRow.locator('[data-testid="pair-private"]')).toHaveText('Private on Discord')
+  await expect(rows.filter({ hasText: '#general' }).locator('[data-testid="pair-private"]')).toHaveCount(0)
+
+  const jobOf = async (harmonyChannelId: string) => {
+    const listed = await bridgeCall('/imports')
+    const job = (listed.json?.imports as Array<Record<string, unknown>> | undefined)
+      ?.find((j) => j.harmony_channel_id === harmonyChannelId)
+    return job ? { state: job.state, requested_via: job.requested_via, private_approved: job.private_approved } : null
+  }
+
+  // Import all covers #general (cancelled above) and the private pair. Left unticked, the second
+  // box leaves the private one out and #general starts alone.
+  await page.locator('[data-testid="import-all"]').click()
+  const consent = page.locator('[data-testid="import-consent"]')
+  await expect(consent).toContainText('Import the history of 2 channels?')
+  await expect(consent.locator('[data-testid="import-private"]')).toContainText('Private on Discord: #mods-only')
+  await consent.locator('[data-testid="import-consent-check"]').check()
+  await consent.locator('[data-testid="import-consent-start"]').click()
+  await expect.poll(() => jobOf(server.generalChannelId), { timeout: 30000 })
+    .toEqual({ state: 'queued', requested_via: 'harmony', private_approved: false })
+  expect(await jobOf(staffRoom.id)).toBeNull()
+
+  // The private pair alone: nothing starts without the second box.
+  await privateRow.locator('[data-testid="import-start"]').click()
+  await expect(consent.locator('[data-testid="import-private"]')).toContainText('Private on Discord: #mods-only')
+  await consent.locator('[data-testid="import-consent-check"]').check()
+  await expect(consent.locator('[data-testid="import-consent-start"]')).toBeDisabled()
+  await consent.locator('[data-testid="import-private-check"]').check()
+  await expect(consent.locator('[data-testid="import-consent-start"]')).toBeEnabled()
+  await consent.locator('[data-testid="import-consent-start"]').click()
+
+  // The job reaches the bridge with the consent, as a start from Harmony.
+  await expect.poll(() => jobOf(staffRoom.id), { timeout: 30000 })
+    .toEqual({ state: 'queued', requested_via: 'harmony', private_approved: true })
+  await expect(privateRow.locator('[data-testid="import-state"]')).toBeVisible({ timeout: 30000 })
+
+  // The bridge, finding it hidden without consent, fails it; Try again asks the second box anew.
+  const { data: general } = await admin.from('discord_bridge_imports').select('id').eq('harmony_channel_id', server.generalChannelId).single()
+  expect((await bridgeCall(`/imports/${general!.id}/cancel`, { method: 'POST' })).status).toBe(200)
+  const { data: job } = await admin.from('discord_bridge_imports').select('id').eq('harmony_channel_id', staffRoom.id).single()
+  await admin.from('discord_bridge_imports').update({ private_approved: false }).eq('id', job!.id)
+  expect((await bridgeCall(`/imports/${job!.id}`, { method: 'PATCH', body: { state: 'running' } })).status).toBe(200)
+  expect((await bridgeCall(`/imports/${job!.id}`, { method: 'PATCH', body: { state: 'failed', error: 'discord_approval_required' } })).status).toBe(200)
+  await expect(privateRow.locator('[data-testid="import-state"]')).toContainText('the Discord channel is private', { timeout: 45000 })
+  await privateRow.locator('[data-testid="import-retry"]').click()
+  await consent.locator('[data-testid="import-consent-check"]').check()
+  await expect(consent.locator('[data-testid="import-private-check"]')).not.toBeChecked()
+  await expect(consent.locator('[data-testid="import-consent-start"]')).toBeDisabled()
+  await consent.locator('[data-testid="import-consent-cancel"]').click()
+  await expect(consent).toHaveCount(0)
 })

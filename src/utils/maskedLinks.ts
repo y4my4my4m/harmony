@@ -4,16 +4,27 @@
  * Part shape: `{ type: 'url', url, preview, label }`. Clients before 1.9.1 ignore `label` and
  * show the bare URL; no capability flag is needed.
  *
- * Grammar, a subset of CommonMark inline links:
- *   [label](https://host/path)     label: one line, no brackets, not blank
+ * Grammar, a subset of CommonMark inline links and images:
+ *   [label](https://host/path)     label: one line, not blank; `\[` and `\]` stand for brackets
  *   [label](<https://host/path>)   angle brackets: linked, no preview (Discord)
+ *   ![alt](https://host/a.png)     image: a link to the image, labelled with the alt text
+ *   [![alt](https://host/a.svg)](https://host/path)
+ *                                  linked image (README badge): a link to the outer destination,
+ *                                  labelled with the alt text; the image itself is dropped
  * The destination is http or https only. One level of balanced parentheses is kept in it
- * (`https://en.wikipedia.org/wiki/Foo_(bar)`). A `\` before `[` or a leading `!` (image
- * syntax) leaves the text alone.
+ * (`https://en.wikipedia.org/wiki/Foo_(bar)`). An image's alt is a label that may be blank. A
+ * `\` before `[` leaves the link as text; a `\` before `!` leaves the `!` as text and the link a
+ * plain link.
  */
 
+/** One label character: an escaped bracket, or anything but a bracket or a line break. */
+const LABEL = '(?:\\\\[\\[\\]]|[^\\[\\]\\n])'
+const DESTINATION = 'https?:\\/\\/(?:[^\\s()<>]|\\([^\\s()<>]*\\))+'
+const ANGLE_DESTINATION = 'https?:\\/\\/[^\\s<>]+'
+/** Groups: 1 `!`, 2 inner image `![alt](src)`, 3 its alt, 4 label, 5 `<url>` destination, 6 bare destination. */
 const MASKED_LINK_SOURCE =
-  '\\[([^\\[\\]\\n]+)\\]\\((?:<(https?:\\/\\/[^\\s<>]+)>|(https?:\\/\\/(?:[^\\s()<>]|\\([^\\s()<>]*\\))+))\\)'
+  `(!)?\\[(?:(!\\[(${LABEL}*)\\]\\((?:<${ANGLE_DESTINATION}>|${DESTINATION})\\))|(${LABEL}*))\\]` +
+  `\\((?:<(${ANGLE_DESTINATION})>|(${DESTINATION}))\\)`
 
 /** Fresh global regex: callers iterate with exec. */
 export function maskedLinkRegex(): RegExp {
@@ -27,10 +38,12 @@ export interface MaskedLinkMatch {
   url: string
   /** False for the `<url>` form. */
   preview: boolean
-  /** Text between the brackets, untrimmed. */
+  /** Text between the brackets, untrimmed: the whole `![alt](src)` of a linked image. */
   rawLabel: string
   /** Text between the parentheses: the URL, in angle brackets for the `<url>` form. */
   rawDestination: string
+  /** `![alt](url)`: the `!` is at `start`. */
+  image: boolean
 }
 
 /** Masked links in `text`, in order, outside the ranges `skip` reports. */
@@ -40,27 +53,42 @@ export function findMaskedLinks(text: string, skip?: (at: number) => boolean): M
   const re = maskedLinkRegex()
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
-    const before = m.index > 0 ? text[m.index - 1] : ''
-    if (before === '\\' || before === '!') continue
-    if (skip?.(m.index)) continue
-    const label = m[1].trim()
-    if (!label) continue
+    let start = m.index
+    let image = m[1] !== undefined
+    // `\!` and `!` before a linked image stay text.
+    if (image && (m[2] !== undefined || text[start - 1] === '\\')) {
+      start += 1
+      image = false
+    }
+    const linkedImage = m[2] !== undefined
+    const rawLabel = linkedImage ? m[2] : m[4]
+    const label = unescapeBrackets((linkedImage ? m[3] : m[4]).trim())
+    if ((!image && text[start - 1] === '\\') || (!label && !image && !linkedImage) || skip?.(start)) {
+      // A linked image refused whole may hold an image of its own.
+      re.lastIndex = m.index + 1
+      continue
+    }
     out.push({
-      start: m.index,
+      start,
       end: m.index + m[0].length,
       label,
-      url: m[2] ?? m[3],
-      preview: !m[2],
-      rawLabel: m[1],
-      rawDestination: m[2] ? `<${m[2]}>` : m[3],
+      url: m[5] ?? m[6],
+      preview: m[5] === undefined,
+      rawLabel,
+      rawDestination: m[5] !== undefined ? `<${m[5]}>` : m[6],
+      image,
     })
   }
   return out
 }
 
+function unescapeBrackets(label: string): string {
+  return label.replace(/\\([[\]])/g, '$1')
+}
+
 /** Source text of a masked link. */
 export function maskedLinkSource(label: string, url: string, preview = true): string {
-  return `[${label}](${preview ? url : `<${url}>`})`
+  return `[${label.replace(/[[\]]/g, '\\$&')}](${preview ? url : `<${url}>`})`
 }
 
 /**
@@ -75,14 +103,14 @@ export function urlPartSource(part: { url: string; preview?: unknown; label?: un
 
 /** True when `label` survives a round trip through the grammar unchanged. */
 export function isTypableLabel(label: string): boolean {
-  return !!label.trim() && label === label.trim() && !/[[\]\n]/.test(label)
+  return !!label.trim() && label === label.trim() && !label.includes('\n')
 }
 
 /**
  * Text replacing a selection that a paste lands on: the selection as the label of the pasted
  * link, whitespace around the selection kept outside it. Null, for a paste that replaces the
  * selection as usual, when the paste is not a single http(s) URL, the selection is no label
- * (blank, several lines, brackets) or is a link itself, or the URL does not survive the grammar.
+ * (blank, several lines) or is a link itself, or the URL does not survive the grammar.
  */
 export function linkPasteText(selected: string, pasted: string): string | null {
   const url = pasted.trim()

@@ -176,11 +176,13 @@
           <div class="stage-banner">
             <VoiceCallBanner />
             <ActivityInvite v-if="activitiesStore.waiting" :activity="activitiesStore.waiting" class="stage-invite" @click.stop />
+            <PlayTogetherPanel v-if="voicePlayTarget && !stageGame" :target="voicePlayTarget" class="stage-invite" @click.stop />
           </div>
-          <!-- Activity: the shared player, the call as a filmstrip -->
-          <template v-if="stageActivity">
+          <!-- Activity or game: the shared player or frame, the call as a filmstrip -->
+          <template v-if="stageGame || stageActivity">
             <div class="focus-area activity-area" @click.stop>
-              <ActivityStage :activity="stageActivity" />
+              <PlayTogetherPanel v-if="stageGame && voicePlayTarget" :target="voicePlayTarget" stage />
+              <ActivityStage v-else-if="stageActivity" :activity="stageActivity" />
             </div>
             <div v-if="tiles.length > 0" class="filmstrip-container" @click.stop>
               <button
@@ -390,6 +392,19 @@
             </button>
 
             <button
+              v-if="voicePlayTarget && playTogether.appsFor('voice').length > 0"
+              @click="openVoiceGames"
+              class="control-button"
+              :class="{ active: !!stageGame }"
+              :title="t('playTogether.button')"
+              :aria-label="t('playTogether.button')"
+              aria-haspopup="dialog"
+              data-testid="overlay-play-together-button"
+            >
+              <Icon name="gamepad" />
+            </button>
+
+            <button
               v-if="soundboardButton.available.value"
               ref="soundboardButtonRef"
               @click="soundboardButton.toggle"
@@ -506,6 +521,9 @@ import { useActivityButton } from '@/components/activities/useActivityButton';
 import { useActivitiesStore } from '@/stores/activities';
 import ActivityStage from '@/components/activities/ActivityStage.vue';
 import ActivityInvite from '@/components/activities/ActivityInvite.vue';
+import PlayTogetherPanel from '@/components/playTogether/PlayTogetherPanel.vue';
+import { usePlayTogetherStore } from '@/stores/playTogether';
+import type { ActivityTarget } from '@/services/playTogether/sessions';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import AppToolbar from '@/components/a11y/AppToolbar.vue';
@@ -561,6 +579,20 @@ const activityButtonRef = ref<HTMLButtonElement | null>(null);
 const activityButton = useActivityButton(activityButtonRef);
 const activitiesStore = useActivitiesStore();
 const stageActivity = computed(() => (activitiesStore.playingHere ? activitiesStore.current : null));
+const playTogether = usePlayTogetherStore();
+// Games of this call's channel: servers this instance hosts, as watch together.
+const voicePlayTarget = computed<ActivityTarget | null>(() => {
+  if (!activityButton.available.value || !voiceStore.currentChannelId || !voiceStore.currentServerId) return null;
+  return { kind: 'channel', id: voiceStore.currentChannelId, serverId: voiceStore.currentServerId, voice: true };
+});
+const stageGame = computed(() => {
+  const joined = playTogether.joined;
+  return !!joined && joined.target.kind === 'channel' && joined.target.voice && joined.target.id === voiceStore.currentChannelId;
+});
+function openVoiceGames(): void {
+  if (voicePlayTarget.value) playTogether.openLauncher(voicePlayTarget.value);
+}
+onMounted(() => { void playTogether.loadApps(); });
 
 const FILMSTRIP_KEY = 'harmony:activity-filmstrip-hidden';
 const filmstripHidden = ref((() => {

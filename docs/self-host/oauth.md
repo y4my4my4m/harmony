@@ -1,20 +1,21 @@
 ---
 title: OAuth sign-in
-description: Let people sign in to a self-hosted Harmony instance with Google, GitHub, Twitch or an identity provider you run.
+description: Let people sign in to a self-hosted Harmony instance with Google, GitHub, Twitch, Discord or an identity provider you run.
 ---
 
 # OAuth sign-in
 
 This page is for operators who want **Continue with Google**,
-**Continue with GitHub** or **Continue with Twitch** on their sign-in page,
-or a button for an identity provider they run themselves, such as
-Authentik, Keycloak or Better Auth. The second case has its own section,
-[Your own identity provider](#your-own-identity-provider).
+**Continue with GitHub**, **Continue with Twitch** or **Continue with Discord**
+on their sign-in page, or a button for an identity provider they run
+themselves, such as Authentik, Keycloak or Better Auth. The second case has its
+own section, [Your own identity provider](#your-own-identity-provider).
 
 Each provider needs two things: credentials in the Supabase sign-in service,
 which runs the OAuth exchange, and the provider's button turned on in the
 app. Either one alone does nothing useful: a button without credentials
-fails, and credentials without a button are never used.
+fails, and credentials without a button are never used. For the four built-in
+providers both are set in the admin panel.
 
 ## How a sign-in goes
 
@@ -35,12 +36,22 @@ has their address, see [Existing accounts](#existing-accounts). Registration
 set to `invite` or `closed` (`harmony registration`) stops these new accounts
 too: the sign-in service refuses every new account while sign-up is disabled.
 
+A first sign-in through Discord fills in the person's Discord display name and
+avatar, and suggests their Discord username.
+
 ## Create the provider application
 
 In the developer console of each provider you want, create an OAuth
-application for the instance: an OAuth client of type web application at
-Google, an OAuth app at GitHub, an application at Twitch. Give it this
-callback (redirect) URL:
+application for the instance:
+
+| Provider | Where |
+|---|---|
+| Google | Google Cloud console → APIs & Services → Credentials → an OAuth client ID of type web application |
+| GitHub | Settings → Developer settings → OAuth Apps → New OAuth App |
+| Twitch | Twitch developer console → Applications → Register your application |
+| Discord | Discord Developer Portal → your application → OAuth2. The client ID is the application ID; **Reset Secret** shows the client secret |
+
+Give it this callback (redirect) URL:
 
 ```text
 https://db.chat.example.com/auth/v1/callback
@@ -48,13 +59,69 @@ https://db.chat.example.com/auth/v1/callback
 
 The host is `DB_DOMAIN`, the Supabase API, not the app's domain. The URL is
 `API_EXTERNAL_URL` from `self-host/supabase/.env` followed by
-`/auth/v1/callback`.
+`/auth/v1/callback`; the admin panel shows it with a **Copy** button.
 
 Note the client ID and client secret the provider gives you.
 
-## Add the credentials
+A Discord application that already runs this instance's Discord bridge bot can
+sign people in as well: add the callback URL to its OAuth2 redirects and use
+its client ID and secret here.
 
-In `self-host/supabase/.env`, add three lines per provider:
+## Set it up in the admin panel
+
+1. Open **User settings** → **Instance admin** → **Config** →
+   **Authentication**.
+2. In the provider's card, paste the **Client ID** and the **Client secret**,
+   then select **Save**.
+3. Switch on **On sign-in page**.
+
+The card's badge follows the sign-in service: **Applying…** until it has
+taken the credentials, about 15 seconds, then **Active**. Nothing restarts and
+nobody is signed out.
+
+The secret is write-only: the panel shows **Saved** in its place and never
+sends it back to a browser. Leave a field empty to keep the stored value; type
+a new one to replace it. **Clear** deletes both and turns the provider off.
+For a provider set here, switching **On sign-in page** off hides the button and
+also turns the provider off in the sign-in service, so `/auth/v1/authorize`
+refuses it too.
+
+### How the credentials reach the sign-in service
+
+The database keeps the client ID, and the secret in Supabase Vault
+(`auth_provider_credentials`, readable by no client). Every 10 seconds the
+federation server renders them into `50-harmony-oauth.env` in the
+`auth-config` volume, mode `0600`:
+
+```bash
+# Written by the Harmony federation server from Admin, Authentication. Edits are overwritten.
+GOTRUE_EXTERNAL_DISCORD_ENABLED='true'
+GOTRUE_EXTERNAL_DISCORD_CLIENT_ID='123456789012345678'
+GOTRUE_EXTERNAL_DISCORD_SECRET='…'
+GOTRUE_EXTERNAL_DISCORD_REDIRECT_URI='https://db.chat.example.com/auth/v1/callback'
+```
+
+The sign-in service runs with `--config-dir` on that volume, read-only, and
+reloads it five seconds after it changes. Only the federation server's
+`HARMONY_AUTH_CONFIG_DIR` writes it; client IDs and secrets are limited to
+letters, digits and `. _ ~ + / = -` in the database and again before the file
+is written.
+
+A provider set in the admin panel replaces the `supabase/.env` values below
+for that provider. A cleared one stays off: the sign-in service never forgets
+a value it loaded, so the file says `ENABLED=false` for it.
+
+When the panel says the sign-in service does not take credentials from it, the
+federation server has no `HARMONY_AUTH_CONFIG_DIR`: an instance whose
+`docker-compose.yml` predates 1.9.8, or a manual deployment. Use the variables
+below there, or mount one directory read-write into the federation server
+(`HARMONY_AUTH_CONFIG_DIR`) and read-only into the sign-in service, started as
+`auth --config-dir <dir>`. Both run as uid 1000 in their images.
+
+## Set it up in supabase/.env
+
+Without the admin panel, add three lines per provider to
+`self-host/supabase/.env`:
 
 ```bash
 GITHUB_ENABLED=true
@@ -67,6 +134,7 @@ GITHUB_SECRET=your-client-secret
 | Google | `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET` |
 | GitHub | `GITHUB_ENABLED`, `GITHUB_CLIENT_ID`, `GITHUB_SECRET` |
 | Twitch | `TWITCH_ENABLED`, `TWITCH_CLIENT_ID`, `TWITCH_SECRET` |
+| Discord | `DISCORD_ENABLED`, `DISCORD_CLIENT_ID`, `DISCORD_SECRET` |
 
 Apply them:
 
@@ -77,10 +145,11 @@ docker compose up -d
 
 `self-host/supabase-overrides.yml` passes them to the sign-in service as
 `GOTRUE_EXTERNAL_GITHUB_ENABLED`, `GOTRUE_EXTERNAL_GITHUB_CLIENT_ID` and
-`GOTRUE_EXTERNAL_GITHUB_SECRET` (and likewise for `GOOGLE` and `TWITCH`),
-with `GOTRUE_EXTERNAL_<PROVIDER>_REDIRECT_URI` set to
+`GOTRUE_EXTERNAL_GITHUB_SECRET` (and likewise for `GOOGLE`, `TWITCH` and
+`DISCORD`), with `GOTRUE_EXTERNAL_<PROVIDER>_REDIRECT_URI` set to
 `API_EXTERNAL_URL/auth/v1/callback`. `configure.sh` neither writes nor
 removes these keys, so they survive `harmony config` and `harmony update`.
+The admin panel shows such a provider as **Set on the server**.
 
 On a manual deployment with your own Supabase stack, set the
 `GOTRUE_EXTERNAL_*` variables on its `auth` service directly; the upstream
@@ -88,20 +157,14 @@ compose file has no lines for them.
 
 ## Show the buttons
 
-Turn the providers on in the admin panel:
-
-1. Open **User settings** → **Instance admin** → **Config** →
-   **Authentication**.
-2. Switch on **Google**, **Twitch** or **GitHub**.
-3. Select **Save OAuth settings**.
-
-The buttons appear on the sign-in and registration pages the next time they
-load, in the order Google, Twitch, GitHub.
+Each provider's **On sign-in page** switch in **Authentication** shows its
+button. The buttons appear on the sign-in and registration pages the next time
+they load, in the order Google, Twitch, GitHub, Discord.
 
 The app decides which buttons to show in this order:
 
-1. The providers saved in the admin panel (`instance_config.oauth_providers`),
-   when at least one is on.
+1. The providers switched on in the admin panel
+   (`instance_config.oauth_providers`), when at least one is on.
 2. Otherwise, `ENABLED_OAUTH_PROVIDERS` in `self-host/.env`, a comma-separated
    list such as `google,github` (`VITE_ENABLED_OAUTH_PROVIDERS` in a static
    build). A change needs `docker compose up -d`.
@@ -113,6 +176,7 @@ as well.
 
 ## Check it
 
+- The provider's card in **Authentication** says **Active**.
 - Open the sign-in page in a private window and select the provider's
   button. The provider's consent page should open.
 - An error page from the provider about the redirect URI means the callback
@@ -121,10 +185,13 @@ as well.
 - An error after the provider's page sends you back comes from the sign-in
   service: `harmony logs auth` shows it. A provider whose `_ENABLED` key is
   not `true` is refused there.
+- A card stuck on **Applying…**: `harmony logs federation-server` names a
+  directory it cannot write, and `harmony logs auth` a file it cannot read
+  (`reloader: error loading config`).
 
 ## Existing accounts
 
-A first sign-in through Google, GitHub or Twitch either joins the account that
+A first sign-in through Google, GitHub, Twitch or Discord either joins the account that
 already has the person's address, or makes a new one. Which of the two is safe
 depends on whether the instance confirms addresses by email.
 
@@ -136,8 +203,9 @@ would let anyone in:
 - GitHub sends every address on the GitHub account, unverified ones included.
   Whoever adds your address to their GitHub account would sign in to your
   Harmony account, the admin's included.
-- Google's `email_verified` is ignored the same way, and the sign-in service
-  takes the address Twitch sends as verified in every case.
+- Google's `email_verified` and Discord's `verified` are ignored the same way,
+  and the sign-in service takes the address Twitch sends as verified in every
+  case.
 - The other way round: whoever registers here with someone else's address,
   which nobody checks, would receive that person's first sign-in through any
   provider.
@@ -149,11 +217,13 @@ automatically. `configure.sh`, which `harmony install`, `harmony config` and
 sets up SMTP, since the accounts made before it never proved their address:
 
 ```bash
-PROVIDER_LINKING_DOMAINS=github=github,google=google,twitch=twitch
+PROVIDER_LINKING_DOMAINS=discord=discord,github=github,google=google,twitch=twitch
 ```
 
 An entry already there stays, so a choice made with `harmony auth linking`
-holds across updates. An instance that sends email from the start gets no
+holds across updates; an instance kept apart before 1.9.8 gains
+`discord=discord` on its next update. The domains apply to a provider set in
+the admin panel as to one set in `supabase/.env`. An instance that sends email from the start gets no
 entries and joins by verified address.
 
 | The person | Kept apart (without SMTP) | Joined by address |

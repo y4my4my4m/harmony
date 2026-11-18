@@ -18,12 +18,14 @@ import { supabase } from '@/supabase';
 import {
   clearBridgedUsersCache,
   fetchBridgedChannelUsers,
+  bridgedUserKey,
   type BridgedChannelUser,
 } from '@/services/bridgedChannelUsersService';
 import { runtimeConfig } from '@/services/runtimeConfig';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
 import { useExternalEmojiPolicy } from '@/composables/useExternalEmojiPolicy';
+import { matrixMentionToken, parseMatrixId } from '@/utils/matrixMentions';
 import { discordEmojiCdnUrl, discordEmojiRefFromPicked, discordEmojiToken } from '@/utils/discordEmoji';
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
 import { HERE_MENTION_TOKEN, HERE_ROLE_ID } from '@/utils/hereMention';
@@ -76,6 +78,8 @@ export interface AutoSuggestConfig {
   enableCommands?: boolean;
   /** '/poll' is offered while this returns true. */
   pollsEnabled?: () => boolean;
+  /** /rolemenu: a channel of a server this instance hosts. */
+  roleMenusEnabled?: () => boolean;
   /** Server channel the text goes to; without USE_EXTERNAL_EMOJIS there, only its server's custom emoji are offered. */
   channelId?: () => string | null | undefined;
   /**
@@ -536,7 +540,7 @@ export function useAutoSuggest(
       
       // NOTE: the bridge bot check runs in handleInput on '@'; this list stays empty until then.
       for (const bridgedUser of bridgedUsers.value) {
-        const bridgedKey = `discord:${bridgedUser.id}`;
+        const bridgedKey = bridgedUserKey(bridgedUser);
         if (seenUsers.has(bridgedKey)) {
           continue;
         }
@@ -546,25 +550,26 @@ export function useAutoSuggest(
         const usernameStr = normalizeSearchText(bridgedUser.username || '');
         
         if (displayName.includes(query) || usernameStr.includes(query)) {
-          // Discord mentions store `@d!ID:username`: the id drives translation, the username display.
-          const displayText = `@${bridgedUser.username}`;
-          const mentionText = `@d!${bridgedUser.id}:${bridgedUser.username}`;
+          const matrix = bridgedUser.source === 'matrix' ? parseMatrixId(bridgedUser.id) : null;
+          // Discord `@d!ID:username`; Matrix `<@matrix:URI-encoded MXID>`.
+          const mentionText = bridgedUser.source === 'matrix' ? matrixMentionToken(bridgedUser.id) : `@d!${bridgedUser.id}:${bridgedUser.username}`;
+          if (!mentionText) continue;
           
           suggestions.push({
-            id: bridgedUser.id,
+            id: bridgedKey,
             display_name: bridgedUser.displayName,
             username: bridgedUser.username,
             avatar: bridgedUser.avatarUrl,
-            display_text: displayText, // @username
-            mention_text: mentionText, // @d!ID:username
+            display_text: `@${bridgedUser.username}`,
+            mention_text: mentionText,
             isBridged: true,
-            bridgeSource: 'discord',
+            bridgeSource: bridgedUser.source || 'discord',
             user: {
               id: bridgedUser.id,
               username: bridgedUser.username,
               displayName: bridgedUser.displayName,
               avatarUrl: bridgedUser.avatarUrl,
-              domain: 'discord.com',
+              domain: matrix?.domain || 'discord.com',
               isLocal: false
             }
           });
@@ -676,6 +681,7 @@ export function useAutoSuggest(
     { id: 'cmd:meme', name: 'meme', description: 'Search KLIPY for a meme', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a meme' }], enabled: () => instanceSettings.gifMemesEnabled },
     { id: 'cmd:aiemoji', name: 'aiemoji', description: 'Search KLIPY for an AI emoji', permission: '', params: [{ name: 'query', description: 'Search KLIPY for an AI emoji' }], enabled: () => instanceSettings.gifAiEmojisEnabled },
     { id: 'cmd:poll', name: 'poll', description: 'Create a poll', permission: '', enabled: () => finalConfig.pollsEnabled?.() === true },
+    { id: 'cmd:rolemenu', name: 'rolemenu', description: 'Post a menu members pick their roles from', permission: 'MANAGE_ROLES', enabled: () => finalConfig.roleMenusEnabled?.() === true },
   ];
 
   const currentBotTarget = (): BotCommandTarget | null => {
@@ -886,10 +892,12 @@ export function useAutoSuggest(
 
     try {
       const result = await fetchBridgedChannelUsers(channelId);
+      if (channelId !== serverChannelStore.currentChannelId) return;
       bridgedUsers.value = result.users;
       bridgedUsersChannelId.value = channelId;
       bridgedUsersLoaded.value = true;
     } catch {
+      if (channelId !== serverChannelStore.currentChannelId) return;
       bridgedUsers.value = [];
       bridgedUsersLoaded.value = true;
     }

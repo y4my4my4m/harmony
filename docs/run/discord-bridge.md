@@ -5,7 +5,7 @@ description: Connect a Harmony server with a Discord server, choose where the br
 
 # Discord bridge
 
-This page is for Harmony server owners and members with the Manage Server permission who want to connect their server with a Discord server. It covers the three ways to run the bridge, the setup steps in **Server settings** → **Discord Bridge**, what crosses the bridge, the Discord permissions it needs, and how to fix what it reports. Instance operators who want to offer bridges to their communities read [Hosting Discord bridges](/self-host/discord-bridges).
+This page is for Harmony server owners and members with the Manage Server permission who want to connect their server with a Discord server. It covers the three ways to run the bridge, the setup steps in **Server settings** → **Bridges** → **Discord**, what crosses the bridge, the Discord permissions it needs, and how to fix what it reports. Instance operators who want to offer bridges to their communities read [Hosting Discord bridges](/self-host/discord-bridges).
 
 ## What the bridge does
 
@@ -45,7 +45,7 @@ You need:
 ## Open the bridge page
 
 1. Click the server name at the top of the channel list and choose **Server settings**.
-2. Open **Discord Bridge**. The entry appears only to members who can manage the server.
+2. Open **Bridges**, on its **Discord** tab. The entry appears only to members who can manage the server.
 
 The page polls every few seconds, so checks and channel lists update without a reload.
 
@@ -223,11 +223,10 @@ A bridge copies messages as they arrive. **Import history** copies what was said
 
 Import is available when all of these hold; otherwise the bridge page says which one does not:
 
-- The bridge is one you **run yourself**, with your own Discord application. A bridge on **the instance's bot**, or your own bot run on the instance, never imports.
-- The instance's admin has turned history import on. It is off on a new instance; see [History import](/self-host/discord-bridges#history-import).
-- The bridge is 2.6.0 or later (the **Bridge version** on the bridge page).
+- The instance's admin has turned history import on. It is off on a new instance; see [History import](/self-host/discord-bridges#history-import). The admin allows either **Self-run bridges**, the ones a server's owner runs with their own Discord application, or **All bridges**, which adds **the instance's bot** and your own bot run on the instance.
+- The bridge is 2.6.0 or later (the **Bridge version** on the bridge page). On the instance's bot or a bot the instance runs for you, the instance's bridge service needs 2.8.0.
 
-Members with Manage Server start it in **Server settings** → **Discord Bridge**, under **Paired channels**:
+Members with Manage Server start it in **Server settings** → **Bridges** → **Discord**, under **Paired channels**:
 
 - **Import history** on a pair imports that channel.
 - **Import all** imports every pair that can import and has not finished: pairs with no import yet, or one that failed, was cancelled or is paused. A finished pair runs again only from its own **Import again**. **Cancel all** stops every import in progress.
@@ -236,7 +235,7 @@ Each start asks you to confirm what is copied and that you manage the Discord se
 
 In Discord, a member with the Administrator permission runs `/bridge import-history` in the Discord channel and confirms. Its `scope` option `all` imports every paired channel the member can see, and `action` is `start`, `status` (progress, which can be run again at any time) or `cancel`. The member who started an import is recorded with it.
 
-A Discord channel that `@everyone` cannot see is imported only when it is started from Discord, by someone who can see that channel. Started from Harmony, it stops with **the Discord channel is private**.
+A Discord channel whose history `@everyone` cannot read is **private on Discord**; the pair shows a lock (bridge 2.8.0 or later). Starting an import from Harmony that includes one asks a second time, naming the private channels: tick **Include these private channels** if you can read them on Discord or their managers agreed. Left unticked, they are left out and the others start. Started from Discord, `/bridge import-history` covers the private channels the person running it can read, and `scope:all` does them all in one command. An import from Harmony of a private channel without that consent, or with a bridge before 2.8.0, stops with **the Discord channel is private**.
 
 Only pairs that bring Discord messages to Harmony can import: the direction is **Both ways** or **Discord → Harmony only**, and the Harmony channel is not end-to-end encrypted. Other pairs say why, without a button.
 
@@ -244,7 +243,7 @@ Only pairs that bring Discord messages to Harmony can import: the direction is *
 
 - Messages from people who are no longer members of the Discord server are skipped: they left, were banned, or deleted their account, and cannot say no.
 - Messages from members who opted out with `/bridge-privacy` are skipped; see [Bridge privacy](#bridge-privacy).
-- When a channel's import starts, the bridge pins a notice in that Discord channel saying that older messages are being copied to Harmony and how to opt out.
+- When a channel's import starts, the bridge pins a notice in that Discord channel saying that older messages are being copied to Harmony and how to opt out. From bridge 2.8.0 the notice is sent without a push notification, and Discord's "pinned a message" line is removed.
 
 A pair's progress line says how many messages were skipped for their author.
 
@@ -303,7 +302,7 @@ A bridge copies what Discord members write into Harmony. They decide about their
 
 Every member can run it, answers are shown only to them, and it works with every kind of bridge. A long history is erased in the background, and a restart of the gateway does not stop it. It does not touch their messages on Discord.
 
-Members with Manage Server act for someone who cannot run the command, for example after they left, in **Server settings** → **Discord Bridge** → **Bridge privacy**:
+Members with Manage Server act for someone who cannot run the command, for example after they left, in **Server settings** → **Bridges** → **Discord** → **Bridge privacy**:
 
 - **Remove from this server** takes a Discord user ID, deletes what the bridge brought from that user and stops bringing theirs. In Discord, turn on Developer Mode, right-click the user and choose **Copy User ID**. If the page closes before the removal ends, the gateway finishes it; a **Restore** stops it, except for an erase the member asked for themselves.
 - The list shows who is left out and why: **Opted out on Discord**, or removed by a manager or an instance admin. **Restore** lifts a removal made here, from then on: history import leaves out what the member wrote before. A member's own opt-out is theirs to undo, and a member who opted out as well stays opted out. Opting in on Discord does not lift a removal made here.
@@ -368,7 +367,7 @@ The bridge registers these commands in the bridged Discord server. `/bridge` is 
 | `/bridge clone-server` | Create a Harmony channel for every Discord channel and pair them; never overwrites; `dry_run`, `include_voice` and `clone_roles` options |
 | `/bridge sync-order` | Copy Discord's channel and category order to Harmony |
 | `/bridge sync-perms` | Copy Discord roles and the permissions of every paired channel to Harmony |
-| `/bridge import-history` | Import the channel's past Discord messages into its Harmony channel, after a confirmation; Administrator only; a bridge you run yourself only; options `action` (`start`, `status` or `cancel`) and `scope` (`channel`, the default, or `all`) (bridge 2.6.0 or later); see [Import history](#import-history) |
+| `/bridge import-history` | Import the channel's past Discord messages into its Harmony channel, after a confirmation; Administrator only; on bridges the instance's admin allows to import; options `action` (`start`, `status` or `cancel`) and `scope` (`channel`, the default, or `all`) (bridge 2.6.0 or later); see [Import history](#import-history) |
 | `/bridge-privacy` | For every member: `opt-out`, `opt-in`, `status`, `erase` for their own messages (bridge 2.6.0 or later); see [Bridge privacy](#bridge-privacy) |
 | `/bridge sync-emojis`, `/bridge sync-stickers`, `/bridge sync-sounds` | Copy the Discord server's emoji, stickers or soundboard to Harmony and keep them up to date; `mode` `merge` (the default: adds and updates), `mirror` (also removes what the bridge copied from a Discord item deleted since, after a confirmation) or `add`, and `dry_run` (bridge 2.6.0 or later) |
 | `/bridge import-emojis` | Copy the Discord server's custom emoji into the Harmony server under the same names; a rerun adds only new ones (Harmony 1.6.25 or later). With bridge 2.6.0 it is `sync-emojis` in `add` mode |

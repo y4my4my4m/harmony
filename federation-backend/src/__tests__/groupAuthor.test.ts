@@ -27,6 +27,11 @@ describe('groupAuthorOf', () => {
       .toEqual({ kind: 'bot', id: 'b1', name: 'Deploy Bot', icon: BOT.avatar_url })
   })
 
+  it('exports a generalized Matrix author instead of the relay bot', () => {
+    expect(groupAuthorOf({ bot_id: 'b1', metadata: { bridge_author: { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/sam.png' } } }, BOT))
+      .toEqual({ kind: 'bridge', id: 'matrix:@sam:example.org', name: 'Sam', source: 'matrix', icon: 'https://cdn.test/sam.png' })
+  })
+
   it('resolves a stored avatar path and leaves out the default avatar', () => {
     expect(groupAuthorOf({ bot_id: 'b1' }, { ...BOT, avatar_url: 'avatars/b1.png' })?.icon)
       .toMatch(/^https:\/\/db\.host\.test\/storage\/v1\/object\/public\/avatars\/.*b1\.png$/)
@@ -48,6 +53,12 @@ describe('parseGroupAuthor', () => {
     expect(parseGroupAuthor({ kind: 'bridge', id: 'discord:1', name: 'D', source: 'matrix' })?.source).toBe('discord')
   })
 
+  it('accepts Matrix IDs without trusting a conflicting source claim or truncating the ID', () => {
+    const id = 'matrix:@' + 's'.repeat(200) + ':example.org'
+    expect(parseGroupAuthor({ kind: 'bridge', id, name: 'Sam', source: 'discord' })).toEqual({ kind: 'bridge', id, name: 'Sam', source: 'matrix' })
+    expect(parseGroupAuthor({ kind: 'bridge', id: 'matrix:not-a-matrix-id', name: 'Sam' })).toBeNull()
+  })
+
   it('refuses anything else', () => {
     expect(parseGroupAuthor(null)).toBeNull()
     expect(parseGroupAuthor([{ kind: 'bot' }])).toBeNull()
@@ -58,6 +69,11 @@ describe('parseGroupAuthor', () => {
 })
 
 describe('remoteAuthorMetadata', () => {
+  it('stores a federated Matrix author without pretending it is a local authorized bridge bot', () => {
+    expect(remoteAuthorMetadata({ kind: 'bridge', id: 'matrix:@sam:example.org', name: 'Sam', source: 'matrix' })).toEqual({
+      remote_author: { kind: 'bridge', id: 'matrix:@sam:example.org', name: 'Sam', avatar_url: null, source: 'matrix' }, bridge_source: 'matrix',
+    })
+  })
   it('stores a bridged person as discord_user too', () => {
     expect(remoteAuthorMetadata({ kind: 'bridge', id: 'discord:42', name: 'Dana', source: 'discord' })).toEqual({
       remote_author: { kind: 'bridge', id: 'discord:42', name: 'Dana', avatar_url: null, source: 'discord' },

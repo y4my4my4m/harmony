@@ -217,13 +217,16 @@ async function canViewChannel(profileId: string, serverId: string, channelId: st
   return !error && data === true
 }
 
-/** Discord ids left out of a server's bridges (bridge_remote_optouts); null on a failed lookup. */
+/**
+ * Remote ids left out of a server's bridges (bridge_remote_optouts): Discord snowflakes and
+ * Matrix user ids, which cannot collide ('@' leads every MXID). Null on a failed lookup.
+ */
 async function bridgeOptOutIds(serverId: string): Promise<Set<string> | null> {
   const { data, error } = await supabase
     .from('bridge_remote_optouts')
     .select('remote_user_id')
     .eq('server_id', serverId)
-    .eq('platform', DISCORD_PLATFORM)
+    .in('platform', [DISCORD_PLATFORM, 'matrix'])
   if (error || !Array.isArray(data)) {
     console.error(`bridged-users: bridge_remote_optouts lookup for ${serverId} failed:`, error?.message)
     return null
@@ -267,15 +270,10 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
     res.status(503).json({ error: 'Lookup failed' })
     return
   }
-
-  const bridgedUsers = gateway.getBridgedUsers(channelId, excluded)
-  const hasBridge = gateway.hasChannelBridge(channelId)
-
-  res.json({
-    channel_id: channelId,
-    has_bridge: hasBridge,
-    users: bridgedUsers
-  })
+  try {
+    const bridgedUsers = await gateway.getAuthorizedBridgedUsers([channelId], excluded)
+    res.json({ channel_id: channelId, has_bridge: gateway.hasChannelBridge(channelId), users: bridgedUsers })
+  } catch { res.status(503).json({ error: 'Bridge membership unavailable' }) }
 })
 
 app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
@@ -313,14 +311,10 @@ app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
     res.status(503).json({ error: 'Lookup failed' })
     return
   }
-  const bridgedUsers = gateway.getBridgedUsersForServer(channelIds, excluded)
-  const hasBridge = gateway.hasBridgedUsersForServer(channelIds)
-
-  res.json({
-    server_id: serverId,
-    has_bridge: hasBridge,
-    users: bridgedUsers,
-  })
+  try {
+    const bridgedUsers = await gateway.getAuthorizedBridgedUsers(channelIds, excluded)
+    res.json({ server_id: serverId, has_bridge: gateway.hasBridgedUsersForServer(channelIds), users: bridgedUsers })
+  } catch { res.status(503).json({ error: 'Bridge membership unavailable' }) }
 })
 
 // On-demand attachment refresh, active when bridge_attachment_mode = 'refresh'.

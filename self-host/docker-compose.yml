@@ -129,6 +129,11 @@ services:
       NODE_ENV: production
       PORT: "3001"
       FEDERATION_MODE: server
+      # Admin, Authentication writes sign-in provider credentials here; the auth service
+      # reloads them (supabase-overrides.yml).
+      HARMONY_AUTH_CONFIG_DIR: /var/lib/harmony-auth
+    volumes:
+      - auth-config:/var/lib/harmony-auth
     depends_on:
       redis:
         condition: service_healthy
@@ -253,6 +258,8 @@ services:
     profiles: [voice]
 
 volumes:
+  # GoTrue's --config-dir; also declared in supabase-overrides.yml, which mounts it read-only.
+  auth-config:
   caddy-data:
   caddy-config:
   redis-data:

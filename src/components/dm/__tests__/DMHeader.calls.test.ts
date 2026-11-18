@@ -40,6 +40,13 @@ const rt = vi.hoisted(() => {
   return { channels, make, query, rpcResult, rpc: vi.fn(rpcResult) }
 })
 
+vi.mock('@/stores/playTogether', () => ({
+  usePlayTogetherStore: () => ({
+    appsFor: () => [], loadApps: async () => {}, openLauncher: () => {}, joined: null, launcher: null,
+    sessionIn: () => null, refresh: async () => [], registerSlot: () => {}, unregisterSlot: () => {},
+    view: { members: [], status: 'connecting' }, mode: 'docked', panelHeight: 480,
+  }),
+}))
 vi.mock('@/supabase', () => ({
   supabase: {
     channel: (topic: string) => rt.make(topic),

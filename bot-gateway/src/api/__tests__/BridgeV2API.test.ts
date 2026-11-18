@@ -518,6 +518,28 @@ describe('POST /bridge/v2/status', () => {
     })
   })
 
+  it('keeps everyone_can_view when the bridge sends a boolean (2.8.0)', async () => {
+    const channel = { id: D1, name: 'general', type: 0, parent_id: null, position: 1, can_view: true, can_send: true, can_manage_webhooks: false }
+    const res = await supertest(makeApp()).post('/bridge/v2/status').set(auth).send({
+      version: '2.8.0',
+      discord: { connected: true },
+      guilds: [{
+        id: '100000000000000001', name: 'Guild', icon: null,
+        channels: [
+          { ...channel, everyone_can_view: false },
+          { ...channel, id: '200000000000000099', everyone_can_view: 'no' },
+        ],
+      }],
+    })
+
+    expect(res.status).toBe(200)
+    const [args] = rpcCalls('discord_bridge_report_status')
+    expect(args.p_snapshot.guilds[0].channels).toEqual([
+      { ...channel, everyone_can_view: false },
+      { ...channel, id: '200000000000000099' },
+    ])
+  })
+
   // discord_bridge_report_status stores the snapshot and selects a guild only from a connected report.
   it('passes a disconnected report on marked disconnected, with the guilds it carries', async () => {
     const res = await supertest(makeApp()).post('/bridge/v2/status').set(auth).send({

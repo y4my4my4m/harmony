@@ -74,6 +74,8 @@
   <!-- Persistent Voice Connection (only when authenticated) -->
   <PersistentVoiceConnection v-if="!isAuthRoute" />
   <ActivityHost v-if="!isAuthRoute && inVoiceCall" />
+  <PlayTogetherHost v-if="!isAuthRoute" />
+  <PlayTogetherLauncher v-if="!isAuthRoute && playTogetherLauncherOpen" />
 
   <!-- PWA Components. The install prompt waits for sign-in; on auth routes it
        covers the form on small screens. -->
@@ -161,6 +163,7 @@ import DeviceApprovalPrompt from '@/components/encryption/DeviceApprovalPrompt.v
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useAuthStore } from '@/stores/auth'
+import { usePlayTogetherStore } from '@/stores/playTogether'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt.vue'
@@ -207,6 +210,10 @@ const {
 const ImageCropDialog = defineAsyncComponent(() => import('@/components/common/ImageCropDialog.vue'))
 const ThemeCustomizerPanel = defineAsyncComponent(() => import('@/components/settings/user/ThemeCustomizerPanel.vue'))
 const ActivityHost = defineAsyncComponent(() => import('@/components/activities/ActivityHost.vue'))
+const PlayTogetherHost = defineAsyncComponent(() => import('@/components/playTogether/PlayTogetherHost.vue'))
+const PlayTogetherLauncher = defineAsyncComponent(() => import('@/components/playTogether/PlayTogetherLauncher.vue'))
+const playTogether = usePlayTogetherStore()
+const playTogetherLauncherOpen = computed(() => !!playTogether.launcher)
 // Mounted from the first open on, so its close transition plays.
 const { isOpen: themePanelOpen } = useThemeEditorPanel()
 const themePanelOpened = ref(themePanelOpen.value)

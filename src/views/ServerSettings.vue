@@ -168,6 +168,11 @@
             :server-id="serverId"
           />
 
+          <ServerJoinRole
+            v-if="activeSection === 'roles' && permissions.canManageRoles && server.is_local_server !== false"
+            :server-id="serverId"
+          />
+
           <!-- Roles Section: kept alive, so unsaved role edits survive a section switch. -->
           <KeepAlive>
             <RoleManagement
@@ -282,8 +287,9 @@
             :server-id="serverId"
           />
 
-          <DiscordBridgeSetup
-            v-if="activeSection === 'discord-bridge' && permissions.canEditBasicInfo"
+          <BridgesSettings
+            v-if="activeSection === 'bridges' && permissions.canEditBasicInfo"
+            v-model:tab="bridgesTab"
             :server-id="serverId"
             :server-name="server.name"
             :link-return="bridgeLinkReturn"
@@ -329,11 +335,13 @@ import OutgoingWebhooksPanel from '@/components/OutgoingWebhooksPanel.vue'
 import ServerAdvancedSettings from '@/components/settings/ServerAdvancedSettings.vue'
 import ServerEncryptionSettings from '@/components/settings/ServerEncryptionSettings.vue'
 import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
-import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
+import BridgesSettings from '@/components/settings/bridges/BridgesSettings.vue'
+import { BRIDGES_SECTION, requestedSettingsSection } from '@/components/settings/bridges/bridgesSection'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
 import ServerNewcomerAlerts from '@/components/settings/server/ServerNewcomerAlerts.vue'
 import ServerSystemMessages from '@/components/settings/server/ServerSystemMessages.vue'
+import ServerJoinRole from '@/components/settings/server/ServerJoinRole.vue'
 import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
 import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'
 import ServerWelcomeSettings from '@/components/settings/server/ServerWelcomeSettings.vue'
@@ -535,8 +543,8 @@ const availableSections = computed<SettingsSection[]>(() => {
     ...(p.canManageWebhooks && hasCapability('outgoing-webhooks')
       ? [{ id: 'outgoing-webhooks', label: t('outgoingWebhooks.navLabel'), group: 'integrations' as const }]
       : []),
-    // The discord_bridge_* RPCs require MANAGE_SERVER.
-    ...(p.canEditBasicInfo ? [{ id: 'discord-bridge', label: t('discordBridge.navLabel'), group: 'integrations' as const }] : []),
+    // The discord_bridge_* and Matrix bridge manager RPCs require MANAGE_SERVER.
+    ...(p.canEditBasicInfo ? [{ id: BRIDGES_SECTION, label: t('bridges.navLabel'), group: 'integrations' as const }] : []),
     // MANAGE_SERVER on a local server; the RPCs refuse anyone else.
     ...(p.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title'), group: 'moderation' as const }] : []),
     ...(p.canModerateReports ? [{ id: 'reports', label: t('server.reports', 'Reports'), group: 'moderation' as const }] : []),
@@ -559,8 +567,9 @@ const sectionGroups = computed(() => SECTION_GROUPS
   .filter((g) => g.sections.length > 0))
 
 // ?section= opens that section once it is available: permissions can load after the view does.
-// A section the user picked first stays.
-const requestedSection = typeof route.query.section === 'string' ? route.query.section : null
+// A section the user picked first stays. discord-bridge and matrix-bridge open a Bridges tab.
+const { section: requestedSection, bridgeTab: requestedBridgeTab } = requestedSettingsSection(route.query)
+const bridgesTab = ref(requestedBridgeTab)
 let requestedSectionApplied = false
 watch(
   availableSections,
@@ -575,14 +584,14 @@ watch(
 )
 
 // ?linked=1 / ?link_error=: the Discord instance bot's OAuth2 return, read once and dropped from
-// the URL. It applies to the first visit of the Discord Bridge section only.
+// the URL. It applies to the first visit of the Bridges section only.
 const bridgeLinkReturn = ref(parseBridgeLinkReturn(route.query))
 if (bridgeLinkReturn.value) {
   const { linked: _linked, link_error: _linkError, ...rest } = route.query
   void router.replace({ query: rest })
 }
 watch(activeSection, (_section, previous) => {
-  if (previous === 'discord-bridge') bridgeLinkReturn.value = null
+  if (previous === BRIDGES_SECTION) bridgeLinkReturn.value = null
 })
 
 const generalHasChanges = computed(() => {

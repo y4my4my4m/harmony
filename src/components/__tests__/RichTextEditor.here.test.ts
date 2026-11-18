@@ -1,6 +1,6 @@
 /**
- * The composer editor shows @role:here as an @here pill and gives the token back as its plain
- * text, as it does @role:UUID.
+ * The composer editor shows @role:here as an @here pill and a bridged person's token as an
+ * @name pill, and gives each token back as its plain text, as it does @role:UUID.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
@@ -37,7 +37,26 @@ async function editorWith(text: string) {
   return wrapper
 }
 
-describe('RichTextEditor with @here', () => {
+describe('RichTextEditor mention pills', () => {
+  it.each([
+    ['<@matrix:%40sam%3Aexample.org%3A8448>', 'Matrix: @sam'],
+    ['@d!123456789:sam', 'Discord: @sam'],
+  ])('shows %s as an @name pill and keeps the token for sends and edits', async (token, title) => {
+    const text = `hello ${token} there`
+    const wrapper = await editorWith(text)
+    const pill = wrapper.get('.editor-bridged-mention')
+    expect(pill.text()).toBe('@sam')
+    expect(pill.attributes('title')).toBe(title)
+    expect(pill.attributes('data-display-text')).toBe(token)
+    expect((wrapper.vm as unknown as { getPlainText: () => string }).getPlainText()).toBe(text)
+  })
+
+  it.each(['<@matrix:%ZZ>', '<@matrix:%40sam%3Aexample.org', '\\<@matrix:%40sam%3Aexample.org>', '\\@d!123:sam', 'https://example.org/<@matrix:%40sam%3Aexample.org>', '`<@matrix:%40sam%3Aexample.org>`'])('does not render a bridged pill for literal text %s', async text => {
+    const wrapper = await editorWith(text)
+    expect(wrapper.findAll('.editor-bridged-mention')).toHaveLength(0)
+    expect((wrapper.vm as unknown as { getPlainText: () => string }).getPlainText()).toBe(text)
+  })
+
   it('renders @role:here as the @here pill', async () => {
     const text = '@role:here standup'
     const wrapper = await editorWith(text)

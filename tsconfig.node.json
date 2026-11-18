@@ -4,6 +4,7 @@
     "vite.config.*",
     "vite-plugin-selective-preload.ts",
     "vite-plugin-backgrounds.ts",
+    "vite-plugin-activities.ts",
     "vitest.config.*",
     "cypress.config.*",
     "nightwatch.conf.*",

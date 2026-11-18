@@ -88,6 +88,10 @@
 
         <div class="content-row" data-region="body">
           <main :id="MAIN_CONTENT_ID" class="main-content-area" data-region="view" tabindex="-1">
+            <PlayTogetherPanel
+              v-if="playTarget"
+              :target="playTarget"
+            />
             <RouterView 
               :current-server="currentServer"
               :current-channel="currentChannel"
@@ -192,6 +196,8 @@ import UserSidebar from '@/components/UserSidebar.vue'
 import NoServersSplash from '@/components/NoServersSplash.vue'
 import CreateChannel from '@/components/CreateChannel.vue'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
+import PlayTogetherPanel from '@/components/playTogether/PlayTogetherPanel.vue'
+import type { ActivityTarget } from '@/services/playTogether/sessions'
 import MessageSearchModal from '@/components/search/MessageSearchModal.vue'
 import PinnedMessagesPopup from '@/components/PinnedMessagesPopup.vue'
 import AllThreadsModal from '@/components/threads/AllThreadsModal.vue'
@@ -292,6 +298,14 @@ const currentChannelId = computed(() => serverChannelStore.currentChannelId || '
 const currentServer = computed(() => serverChannelStore.currentServer)
 const currentChannel = computed(() => {
   return channels.value.find(c => c.id === currentChannelId.value)
+})
+
+// Play together above a text channel of a server this instance hosts.
+const playTarget = computed<ActivityTarget | null>(() => {
+  const channel = currentChannel.value
+  const server = currentServer.value
+  if (props.isDM || !channel || !server?.id || Number(channel.type ?? 0) !== 0 || server.is_local_server === false) return null
+  return { kind: 'channel', id: channel.id, serverId: server.id, voice: false }
 })
 
 const serverId = computed(() => props.serverId || currentServer.value?.id)
@@ -687,6 +701,7 @@ onMounted(() => {
 }
 
 .main-content-area {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;

@@ -1,4 +1,70 @@
 {
+  "bridgeSource": {
+    "from": "{platform} からのブリッジ",
+    "profile": {
+      "joinedServer": "サーバー参加日",
+      "memberSince": "{platform} の登録日",
+      "status": "ステータス",
+      "roles": "ロール | ロール",
+      "copyId": "ID をコピー",
+      "copied": "コピーしました",
+      "open": "{platform} で開く"
+    }
+  },
+  "matrixBridge": {
+    "title": "Matrix ブリッジ",
+    "pairsTitle": "ペアのチャンネル",
+    "description": "既存の Matrix ルームブリッジに Harmony のメッセージを送る方法を選びます。",
+    "requirements": "個別モードでは、Harmony の投稿者ごとに実際の Matrix メンバーを使います。アプリケーションサービスのユーザー名前空間と、そのユーザーを Matrix ルームに招待する権限が必要です。",
+    "history": "モードの変更は今後の配信にのみ適用されます。既存の履歴は保持されます。",
+    "delivery": "個別モードを選んでも、登録や配信が完了したことにはなりません。Matrix で配信に成功したメッセージの送信者を確認してください。",
+    "loading": "Matrix ブリッジを読み込み中…",
+    "reload": "再読み込み",
+    "empty": "このサーバーに設定済みの Matrix ブリッジはありません。",
+    "waitingRoom": "ブリッジが Matrix ルームに接続するのを待っています。モードは今のうちに保存できます。",
+    "senderMode": "Harmony のメッセージの送信元",
+    "ghost": "個別のブリッジユーザー（推奨）",
+    "relay": "共有ブリッジアカウント",
+    "saving": "モードを保存中…",
+    "loadError": "Matrix ブリッジの設定を読み込めませんでした。再読み込みしてください。",
+    "saveError": "モード変更を確認できませんでした。再読み込みして現在の設定を確認してください。",
+    "privacy": {
+      "lead": "ここで Matrix ユーザーを削除すると、このサーバーのブリッジがそのユーザーから取り込んだものをすべて削除し、今後もメッセージを取り込まないようにします。",
+      "idLabel": "Matrix ユーザー ID",
+      "idHelp": "{'@'}sam:example.org のような完全な Matrix ID です。",
+      "idInvalid": "Matrix ユーザー ID は {'@'}名前:サーバー の形式です。",
+      "removeConfirm": "このブリッジが Matrix ユーザー {id} から取り込んだメッセージ、ファイル、リアクションをすべて削除し、今後も取り込まないようにしますか? この操作は元に戻せません。",
+      "listTitle": "対象外の Matrix ユーザー {count} 人 | 対象外の Matrix ユーザー {count} 人",
+      "source": {
+        "self": "Matrix で本人が対象外に設定"
+      },
+      "restoreLabel": "Matrix ユーザー {id} を再びブリッジする",
+      "alsoSelf": "Matrix で本人も対象外に設定",
+      "purgeLead": "このサーバーのブリッジが Matrix から取り込んだもの (メッセージ、ファイル、リアクション) をすべて削除します。Harmony で書かれたメッセージは残ります。",
+      "purgeConfirm": "Matrix からこのサーバーに取り込まれたメッセージ、ファイル、リアクションをすべて削除しますか? この操作は元に戻せません。"
+    }
+  },
+  "bridges": {
+    "navLabel": "ブリッジ",
+    "title": "ブリッジ",
+    "intro": "ブリッジは、このサーバーのチャンネルを他のチャットプラットフォームのチャンネルやルームとつなぎます。どちらかで送られたメッセージは、送信者の名前と画像付きでもう一方にも表示されます。",
+    "tabs": {
+      "discord": "Discord",
+      "matrix": "Matrix"
+    }
+  },
+  "bridgePrivacy": {
+    "title": "ブリッジのプライバシー",
+    "description": "このサーバーで今後送信する自分のメッセージを、ブリッジが他のプラットフォームへ転送しないようにします。",
+    "scope": "このサーバーのブリッジにのみ適用されます。すでに転送されたコピーの削除や、他のボットが読める内容の変更は行いません。",
+    "optOut": "自分のメッセージを {platform} に転送しない",
+    "none": "現在、このサーバーのメッセージを転送しているブリッジはありません。",
+    "loading": "ブリッジのプライバシーを読み込み中",
+    "saving": "保存中…",
+    "loadError": "プライバシー設定を読み込めませんでした。もう一度お試しください。",
+    "saveError": "変更を確認できませんでした。再読み込みして現在の設定を確認してください。",
+    "retry": "再試行"
+  },
   "common": {
     "save": "保存",
     "cancel": "キャンセル",
@@ -111,6 +177,7 @@
       "google": "Google で続ける",
       "twitch": "Twitch で続ける",
       "github": "GitHub で続ける",
+      "discord": "Discord で続ける",
       "custom": "{name} で続ける"
     },
     "callback": {
@@ -730,7 +797,16 @@
         "removeMember": "メンバーをロールから外せませんでした",
         "addMember": "メンバーをロールに追加できませんでした",
         "reorder": "ロールを並べ替えられませんでした"
-      }
+      },
+      "selfAssignable": "メンバーがこのロールを選べる",
+      "selfAssignableDesc": "「ロールを選ぶ」とロールメニューに表示され、メンバーが自分で付け外しできます。",
+      "selfAssignGroup": "グループ",
+      "selfAssignGroupPlaceholder": "例：カラー、代名詞、通知",
+      "selfAssignNote": "短い説明",
+      "selfAssignNotePlaceholder": "ロールを選ぶときに下に表示されます",
+      "selfAssignWarnGrants": "@everyoneにない権限を持つ間は、メンバーはこのロールを選べません。権限タブで外してください。",
+      "selfAssignWarnRank": "追加の権限を持つロールより上にある間は、メンバーはこのロールを選べません。モデレーターのロールより下に移動してください。",
+      "selfAssignWarnAdmin": "管理者ロールはメンバーが選べません。"
     },
     "privacy": {
       "federatedMembers": "このサーバーには現在 {count} 人の連合メンバーがいます | このサーバーには現在 {count} 人の連合メンバーがいます",
@@ -1487,6 +1563,8 @@
     "conversationDismissed": "会話を非表示にしました。新しいメッセージが届くと再表示されます。",
     "failedToDismissConversation": "会話を非表示にできませんでした",
     "noUsersFound": "ユーザーが見つかりません",
+    "groupSpotsLeft": "残り{count}人 | 残り{count}人",
+    "groupFull": "このグループは満員です。グループは最大{count}人までです。",
     "call": "通話",
     "videoCall": "ビデオ通話",
     "voiceCall": "音声通話",
@@ -1646,9 +1724,9 @@
       "compactMode": "コンパクトモード",
       "compactModeDesc": "間隔を狭めてより多くのメッセージを表示します。",
       "bridgeSourceBadge": "ブリッジ元の表示",
-      "bridgeSourceBadgeDesc": "ブリッジされたメッセージ（Discord など）の送信元を投稿者名の横にどう表示するかを設定します。",
+      "bridgeSourceBadgeDesc": "Discord や Matrix などのブリッジされたプラットフォームの人の送信元を、名前の横にどう表示するかを設定します。",
       "bridgeSourceBadgeIcon": "プラットフォームアイコン",
-      "bridgeSourceBadgeText": "テキストラベル（DISCORD）",
+      "bridgeSourceBadgeText": "テキストラベル（DISCORD、MATRIX）",
       "floatingVideo": "フローティング動画プレーヤー",
       "floatingVideoDesc": "スクロールすると再生中の動画が隅に移動します。YouTubeとネイティブ動画で動作します。",
       "videoPlayer": "ビデオプレーヤー",
@@ -3270,8 +3348,13 @@
       "voiceCall": "音声通話",
       "videoCall": "ビデオ通話",
       "groupCreated": "グループを作成しました",
-      "membersAdded": "メンバーを追加しました"
-    }
+      "membersAdded": "メンバーを追加しました",
+      "activity": "アクティビティ"
+    },
+    "activityStarted": "{actor}が{app}を開始しました。",
+    "activityEnded": "{actor}が{app}を開始しました：{players}人、{duration}。",
+    "activityEndedAlone": "{actor}が{app}を開始しました：{duration}。",
+    "activityFallback": "アクティビティ"
   },
   "time": {
     "now": "今",
@@ -3868,7 +3951,7 @@
       "bot": "標準",
       "botHint": "トークンで接続し、ゲートウェイと REST API を通じて動作します。",
       "bridge": "ブリッジ",
-      "bridgeHint": "Harmony と他のプラットフォーム間でメッセージを中継します。Discord の場合は、代わりにサーバー設定 → Discord ブリッジを使ってください。専用のボットを作成・管理します。"
+      "bridgeHint": "Harmony と他のプラットフォーム間でメッセージを中継します。Discord の場合は、代わりにサーバー設定 → ブリッジ → Discord を使ってください。専用のボットを作成・管理します。"
     },
     "usernameErrors": {
       "tooShort": "3文字以上にしてください。",
@@ -4014,7 +4097,11 @@
       },
       "manage_roles": {
         "label": "ロールの管理",
-        "description": "インストールしたユーザーの最上位ロールより下のロールを、自身が持つ権限の範囲で作成・編集・削除します。"
+        "description": "インストールしたユーザーの最上位ロールより下のロールを、自身が持つ権限の範囲で作成・編集・削除し、メンバーに付与します。"
+      },
+      "attach_files": {
+        "label": "ファイルの添付",
+        "description": "メッセージを送信できるチャンネルに、画像などのファイルをアップロードして投稿します。"
       }
     },
     "commands": {
@@ -4771,7 +4858,10 @@
       "expires_at": "有効期限",
       "temporary": "一時的なメンバーシップ",
       "messages_deleted": "削除されたメッセージ",
-      "federation_discoverable": "連合全体で見つけられるようにする"
+      "federation_discoverable": "連合全体で見つけられるようにする",
+      "self_assignable": "メンバーが選べる",
+      "self_assign_group": "選択グループ",
+      "self_assign_note": "選択時の説明"
     },
     "value": {
       "none": "なし",
@@ -5456,6 +5546,53 @@
       "maxPersonalStickers": "ユーザーごとの個人スタンプ数",
       "maxPersonalStickersHint": "0〜100。既定の 0 で個人スタンプを無効にします。"
     },
+    "signInProviders": {
+      "title": "サインインプロバイダー",
+      "lead": "Google、Twitch、GitHub、Discord でのサインインです。プロバイダーで下のコールバック URL を使って OAuth アプリケーションを作成し、そのクライアント ID とシークレットをここに貼り付けてください。サインインサービスは再起動なしで約 15 秒以内に反映します。",
+      "loadFailed": "サインインプロバイダーの設定を読み込めませんでした。",
+      "writerOff": "このインスタンスのサインインサービスはここから認証情報を受け取りません。フェデレーションサーバーに HARMONY_AUTH_CONFIG_DIR がありません。セルフホストガイドの OAuth サインインの説明どおり、サインインサービスの環境変数に設定してください。",
+      "writerStopped": "フェデレーションサーバーが最後にサインイン設定を反映したのは {time} で、現在は動いていません。ここでの変更はサーバーが戻るまで反映されません。",
+      "writerError": "フェデレーションサーバーがサインイン設定を反映できませんでした： {error}",
+      "callback": "各プロバイダーに登録するコールバック（リダイレクト）URL：",
+      "copy": "コピー",
+      "copied": "コールバック URL をコピーしました",
+      "copyFailed": "コピーできませんでした。URL を選択して手動でコピーしてください。",
+      "showButton": "サインインページに表示",
+      "showButtonLabel": "{provider} をサインインページに表示",
+      "clientId": "クライアント ID",
+      "secret": "クライアントシークレット",
+      "secretSaved": "保存済み。置き換えるには新しい値を入力してください。",
+      "save": "保存",
+      "saving": "保存中…",
+      "clear": "削除",
+      "clearTitle": "{provider} でのサインインを削除しますか？",
+      "clearMessage": "クライアント ID とシークレットを削除し、{provider} でのサインインをオフにします。{provider} で作成したアカウントは、再設定されるまで別の方法でサインインします。",
+      "saved": "{provider} の認証情報を保存しました",
+      "cleared": "{provider} の認証情報を削除しました",
+      "saveFailed": "{provider} の認証情報を保存できませんでした。",
+      "buttonsSaved": "サインインページを更新しました",
+      "buttonsFailed": "サインインページを更新できませんでした。",
+      "status": {
+        "active": "有効",
+        "applying": "反映中…",
+        "hidden": "オフ： サインインページで非表示",
+        "server": "サーバーで設定済み",
+        "unset": "未設定",
+        "unknown": "状態不明"
+      },
+      "problem": {
+        "clientId": "クライアント ID に使えるのは英数字と . _ ~ + / = - だけです。",
+        "discordId": "Discord のクライアント ID はアプリケーション ID で、17〜20 桁の数字です。",
+        "secret": "クライアントシークレットは英数字と . _ ~ + / = - の 8〜512 文字です。",
+        "needBoth": "クライアント ID とクライアントシークレットを入力してください。"
+      },
+      "where": {
+        "google": "Google Cloud コンソール、API とサービス、認証情報： 種類が「ウェブ アプリケーション」の OAuth クライアント ID。",
+        "twitch": "Twitch Developer Console、Applications： アプリケーションを登録。",
+        "github": "GitHub、Settings、Developer settings、OAuth Apps： 新しい OAuth App。",
+        "discord": "Discord Developer Portal、あなたのアプリケーション、OAuth2： Client ID と、Reset Secret で表示されるシークレット。"
+      }
+    },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "投稿1件あたりの1人の最大リアクション数",
@@ -5795,7 +5932,6 @@
     }
   },
   "discordBridge": {
-    "navLabel": "Discord ブリッジ",
     "title": "Discord ブリッジ",
     "intro": "ブリッジは、このサーバーのチャンネルと Discord サーバーのチャンネルをつなぎます。どちらかで送られたメッセージは、送信者の名前と画像付きでもう一方にも表示されます。",
     "loading": "Discord ブリッジを読み込んでいます…",
@@ -6043,6 +6179,7 @@
       "listLabel": "ペアのチャンネル",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "Discord で非公開",
       "ok": "正常",
       "discordGone": "Discord チャンネルが見つかりません",
       "discordGoneFix": "ボットがこの Discord チャンネルを見つけられなくなりました。削除されたか、ボットがアクセスを失っています。ペアを削除するか、ボットに再びアクセスを与えてください。",
@@ -6346,7 +6483,7 @@
       "managed": "このボットは {server} の Discord ブリッジです。設定と管理はそちらで行うため、ここで設定することはありません。",
       "aServer": "あなたのサーバーのひとつ",
       "openSettings": "ブリッジの設定を開く",
-      "unmanaged": "Discord ブリッジはサーバーの設定（サーバー設定 → Discord ブリッジ）で設定します。そのページがブリッジのボットを作成・管理するため、ここでボットを作る必要はありません。",
+      "unmanaged": "Discord ブリッジはサーバーの設定（サーバー設定 → ブリッジ → Discord）で設定します。そのページがブリッジのボットを作成・管理するため、ここでボットを作る必要はありません。",
       "legacyTitle": "古いブリッジ（v1）の手動設定",
       "legacyLead": "設定ファイルを読み込む古い harmony-discord-bridge プログラム専用です。",
       "harmonyPermissions": "このボットを「メッセージを読む」「メッセージを送信」権限付きでサーバーに追加します（/bridge clone-server には「チャンネルの管理」も必要）。",
@@ -6356,7 +6493,7 @@
     },
     "adminSection": {
       "title": "Discord ブリッジ",
-      "lead": "コミュニティは サーバー設定 → Discord ブリッジ で Discord サーバーを接続します。このインスタンスのボットを提供することも、コミュニティ自身のボットを持ち込んでもらうことも、その両方もできます。ブリッジを自分のコンピューターで動かす方法はいつでも使えます。"
+      "lead": "コミュニティは サーバー設定 → ブリッジ → Discord で Discord サーバーを接続します。このインスタンスのボットを提供することも、コミュニティ自身のボットを持ち込んでもらうことも、その両方もできます。ブリッジを自分のコンピューターで動かす方法はいつでも使えます。"
     },
     "admin": {
       "title": "コミュニティ自身のボットを持ち込めるようにする",
@@ -6430,7 +6567,7 @@
       "clearConfirm": "ボットの認証情報を削除しますか？ボットを設定し直すまで、リンクされたコミュニティのブリッジは止まります。ブリッジとチャンネルのペアは残ります。",
       "cancel": "キャンセル",
       "enable": "このボットをコミュニティに提供する",
-      "enableHint": "サーバー管理者には、サーバー設定 → Discord ブリッジ で「このインスタンスのボットを使う」が最初に表示されます。",
+      "enableHint": "サーバー管理者には、サーバー設定 → ブリッジ → Discord で「このインスタンスのボットを使う」が最初に表示されます。",
       "enableNeedsConfig": "先に Application ID、クライアントシークレット、ボットトークンを保存してください。",
       "presence": "プレゼンス同期",
       "presenceHint": "リンクされたすべてのサーバーで Discord の Presence インテントを要求し、コミュニティが誰がオンラインかを表示できるようにします。送られるのは状態の変化だけです。Developer Portal で Presence インテントがオンの間だけオンにしてください。100 サーバーを超えると Discord の承認が必要です。",
@@ -6480,7 +6617,7 @@
         "channel_encrypted": "チャンネルが暗号化されました",
         "import_disabled": "履歴のインポートがオフになりました",
         "pair_not_importable": "このペアは Discord のメッセージを Harmony に取り込まなくなりました",
-        "discord_approval_required": "Discord チャンネルが非公開です。Discord で /bridge import-history を使ってインポートを開始してください",
+        "discord_approval_required": "Discord チャンネルが非公開です。非公開チャンネルを含めて開始し直すか、Discord で /bridge import-history scope:All bridged channels を一度実行してください",
         "discord_channel_unsupported": "Discord チャンネルがテキストチャンネルではありません",
         "discord_access_lost": "ブリッジが Discord チャンネルを読めなくなりました",
         "bridge_stalled": "ブリッジの処理が進まなくなりました",
@@ -6492,6 +6629,7 @@
         "encrypted": "暗号化されたチャンネルは履歴をインポートできません"
       },
       "needsUpdate": "履歴をインポートするには、ブリッジを 2.6.0 以降に更新してください",
+      "needsUpdateHosted": "履歴をインポートするには、このインスタンスのブリッジサービスが 2.8.0 以降である必要があります。インスタンスの管理者が更新します。",
       "mirrorNote": "インポートしたファイルは、このインスタンスのストレージにコピーされます。",
       "consent": {
         "title": "{count} 個のチャンネルの履歴をインポートしますか? | {count} 個のチャンネルの履歴をインポートしますか?",
@@ -6499,11 +6637,14 @@
         "skips": "Discord サーバーを退出した人のメッセージはスキップされます。Discord では誰でも /bridge-privacy で自分のメッセージを対象外にしたり、消去したりできます。",
         "notice": "インポートを開始すると、ブリッジが各 Discord チャンネルにお知らせをピン留めします。",
         "confirm": "私はこの Discord サーバーを管理している、または管理者の同意を得ています。",
+        "privateTitle": "Discord で非公開: {channels} | Discord で非公開: {channels}",
+        "privateLead": "Discord では {'@'}everyone がこれらの履歴を読めません。含めない場合は除外されます。",
+        "privateConfirm": "この非公開チャンネルを含める: 私は Discord でこれを読めるか、管理者の同意を得ています。 | これらの非公開チャンネルを含める: 私は Discord でこれらを読めるか、管理者の同意を得ています。",
         "start": "インポートを開始"
       },
       "unavailable": {
         "instance_off": "このインスタンスでは履歴のインポートがオフになっています。",
-        "bridge_mode": "履歴のインポートは、自分の Discord アプリケーションで自分で実行するブリッジでのみ利用できます。"
+        "bridge_mode": "このインスタンスの履歴のインポートは、サーバーの所有者が自分の Discord アプリケーションで実行するブリッジでのみ利用できます。"
       },
       "authorsSkipped": "{count} 件をスキップ (投稿者が退出または対象外) | {count} 件をスキップ (投稿者が退出または対象外)",
       "automodSkipped": "{count} 件を AutoMod がブロック | {count} 件を AutoMod がブロック"
@@ -6537,17 +6678,30 @@
     },
     "importAdmin": {
       "title": "Discord の履歴インポート",
-      "lead": "サーバーが、所有者が自分の Discord アプリケーションで実行するブリッジを通じて、Discord チャンネルの過去のメッセージを Harmony にコピーできるようにします。このインスタンスの Discord ボットや、このインスタンスが実行するボットでは利用できません。",
+      "lead": "サーバーが、ブリッジを通じて Discord チャンネルの過去のメッセージを Harmony にコピーできるようにします。どのブリッジに許可するかを選んでください。",
       "loadFailed": "履歴インポートの設定を読み込めませんでした。",
       "mode": "履歴のインポート",
-      "modeOff": "オフ",
-      "modeSelfRun": "自分で実行するブリッジ",
-      "modeHint": "オフにすると、実行中のものを含めすべてのインポートを拒否します。",
-      "warningTitle": "オンにする前に",
+      "modes": {
+        "off": {
+          "label": "オフ",
+          "hint": "どのサーバーもインポートできません。実行中のインポートは停止します。"
+        },
+        "self_run": {
+          "label": "自分で実行するブリッジ",
+          "hint": "サーバーの所有者が自分の Discord アプリケーションで実行するブリッジ。"
+        },
+        "all": {
+          "label": "すべてのブリッジ",
+          "hint": "このインスタンスの Discord ボットと、ここでホストされている独自ボットのブリッジも含みます。"
+        }
+      },
+      "modeHint": "選ぶとすぐに保存されます。",
+      "warningTitle": "インポートがオンの間",
       "warningAuthors": "これらのメッセージの投稿者はコピーを求めていません。Discord サーバーを退出した投稿者はスキップされ、メンバーは /bridge-privacy で自分のメッセージを対象外にしたり消去したりできます。",
       "warningRequests": "このインスタンス上のコンテンツの削除依頼はあなたに届きます。サーバー管理者は「サーバー設定」の「Discord ブリッジ」で Discord ユーザーを削除できます。下の「Discord のメッセージをすべて削除」はすべてのサーバーを対象にします。",
       "warningQuiet": "インポートされたメッセージは通知を送らず、既読として扱われ、連合されません。サーバーでボットが除外されていない場合、AutoMod の単語、招待、リンクのルールが適用されます。",
       "warningStorage": "「Mirror to storage」では、インポートしたファイルが下記のサーバーごとの上限まで、このインスタンスのストレージにコピーされます。",
+      "warningInstanceBot": "このインスタンスの Discord ボットによるインポートは、あなたの Discord アプリケーションで Discord を読み取ります。Discord の開発者規約により、所有者であるあなたがその責任を負います。",
       "maxRunning": "同時に実行するインポート数",
       "maxRunningHint": "インスタンス全体での数です。それ以外は順番を待ちます。0 は無制限です。",
       "messagesPerMinute": "インポート 1 件あたりの毎分のメッセージ数",
@@ -6748,7 +6902,7 @@
       "clearSearch": "検索をクリア",
       "found": "{count} 人のメンバーが見つかりました",
       "group": "{title}、{count} 人",
-      "discord": "Discord ブリッジのメンバー",
+      "bridged": "{platform} ブリッジのメンバー",
       "instanceAdmin": "インスタンス管理者",
       "instanceMod": "インスタンスモデレーター",
       "searchHint": "名前またはユーザー名",
@@ -8795,5 +8949,157 @@
       "unsuspended": "{count} アカウントの停止を解除しました",
       "deleted": "{count}件のアカウントを削除しました"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "ロールを選ぶ",
+    "title": "ロールを選ぶ",
+    "intro": "ロールをタップすると付き、もう一度タップすると外れます。すぐに反映されます。",
+    "empty": "このサーバーにはまだ選べるロールがありません。",
+    "otherRoles": "その他のロール",
+    "cardButton": "ロールを選ぶ",
+    "errors": {
+      "notMember": "ロールを選ぶにはサーバーに参加してください。",
+      "notLocal": "このサーバーのロールは、ホストのインスタンスで選びます。",
+      "unavailable": "このロールはもう選べません。",
+      "notPickable": "このロールは権限を与えるため選べません。モデレーターに頼んでください。",
+      "failed": "ロールを変更できませんでした。もう一度お試しください。"
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "ロールを選ぶ",
+    "otherServer": "このロールメニューは別のサーバーのものです。",
+    "empty": "ここで選べるロールはまだありません。",
+    "hint": "ロールをタップすると付き、もう一度タップすると外れます。",
+    "createTitle": "ロールメニューを投稿",
+    "noRoles": "まだ選べるロールがありません。サーバー設定 → ロールで、ロールの「メンバーがこのロールを選べる」をオンにしてください。",
+    "group": "提示するロール",
+    "allGroups": "選べるロールすべて",
+    "titleLabel": "タイトル",
+    "preview": "プレビュー",
+    "post": "投稿",
+    "postFailed": "ロールメニューを投稿できませんでした。"
+  },
+  "joinRole": {
+    "title": "新メンバーのロール",
+    "description": "これから参加する全員にこのロールが付きます。今いるメンバーのロールは変わりません。",
+    "none": "なし",
+    "saved": "新メンバーにこのロールが付きます。",
+    "cleared": "新メンバーにロールは付かなくなりました。",
+    "tooHigh": "自分の最上位ロールより下のロールしか選べません。",
+    "saveFailed": "新メンバーのロールを保存できませんでした。"
+  },
+  "playTogether": {
+    "button": "一緒に遊ぶ",
+    "launcherTitle": "一緒に遊ぶ",
+    "launcherSubtitle": "ここにいる全員が参加できるアクティビティを始めましょう",
+    "loadingApps": "アクティビティを読み込み中…",
+    "noApps": "このインスタンスで有効なアクティビティはありません。",
+    "sandboxNote": "アクティビティは隔離された環境で動作し、アカウントやメッセージなどゲーム外の情報にはアクセスできません。",
+    "players": "{min}〜{max}人",
+    "playing": "{n}人がプレイ中",
+    "join": "参加",
+    "open": "開く",
+    "leave": "退出",
+    "close": "閉じる",
+    "expand": "拡大",
+    "collapse": "縮小",
+    "resize": "アクティビティのサイズを変更",
+    "endForEveryone": "全員で終了",
+    "hostName": "{name}（ホスト）",
+    "return": "戻る",
+    "retry": "再試行",
+    "loading": "{name}を読み込み中…",
+    "loadFailed": "{name}を読み込めませんでした。",
+    "reconnecting": "再接続中…",
+    "escaped": "{name}がサンドボックス外に出ようとしたため停止しました。",
+    "youArePlaying": "プレイ中",
+    "joinTheCall": "通話に参加して遊ぶ",
+    "alreadyRunning": "ここではすでに{name}が実行中のため、それに参加しました。",
+    "openedElsewhere": "このアクティビティは別のウィンドウで開かれています。",
+    "bannerOne": "{name}さんが{app}をプレイ中",
+    "bannerMany": "{name}さんほか{n}人が{app}をプレイ中",
+    "bannerEmpty": "ここで{app}が実行中です",
+    "status": {
+      "connecting": "接続中…",
+      "reconnecting": "再接続中…",
+      "ended": "終了"
+    },
+    "errors": {
+      "ACTIVITY_APP_UNAVAILABLE": "このアクティビティはこのインスタンスでは利用できません。",
+      "ACTIVITY_CONTEXT_UNSUPPORTED": "このアクティビティはここでは実行できません。",
+      "ACTIVITY_RATE_LIMITED": "アクティビティを多く開始しすぎました。数分後にもう一度お試しください。",
+      "NOT_FOUND": "ここでは遊べません。",
+      "DM_BLOCKED": "この相手とは遊べません。",
+      "SERVER_NOT_LOCAL": "アクティビティはこのインスタンスがホストするサーバーでのみ動作します。",
+      "CHANNEL_TYPE": "アクティビティはテキストチャンネルとボイスチャンネルで動作します。",
+      "NOT_IN_CALL": "通話に参加して遊んでください。",
+      "CANNOT_SEND": "このチャンネルではメッセージを送信できません。",
+      "NOT_LOCAL_ACCOUNT": "ここで遊べるのはこのインスタンスのアカウントだけです。",
+      "ENDED": "そのアクティビティは終了しました。",
+      "FULL": "このアクティビティは満員です。",
+      "UNSUPPORTED_VERSION": "このアクティビティで遊ぶにはHarmonyを更新してください。",
+      "UNKNOWN": "アクティビティで問題が発生しました。"
+    },
+    "admin": {
+      "tab": "アクティビティ",
+      "title": "一緒に遊ぶ",
+      "intro": "メンバーがDM・グループDM・テキストチャンネル・通話で開始できるアクティビティです。無効にすると実行中のセッションは終了します。",
+      "none": "アクティビティはインストールされていません。",
+      "toggle": "{name}を提供",
+      "enabled": "アクティビティを有効にしました",
+      "disabled": "アクティビティを無効にしました",
+      "context": {
+        "direct": "DM",
+        "group": "グループDM",
+        "channel": "テキストチャンネル",
+        "voice": "ボイスチャンネル"
+      },
+      "safetyTitle": "アクティビティの隔離について",
+      "safety": {
+        "sandbox": "各アクティビティは独自の不透明なオリジンを持つサンドボックス化されたフレームで動作し、アカウントのセッション・ストレージ・メッセージ・周囲のページを読み取れません。",
+        "network": "コンテンツポリシーにより、ネットワークリクエスト・ポップアップ・フォーム・フレームは拒否され、自身のフォルダのファイルのみ読み込めます。別のページへ移動したフレームは停止されます。",
+        "relay": "プレイヤー同士はこのインスタンスのリレーを介して通信します。リレーはメンバーを確認し、メッセージのサイズと頻度を制限し、セッション後にゲームデータを保持しません。",
+        "members": "参加できるのは会話またはチャンネルのメンバーのみで、退出・通話からの退出・サインアウトした人は30秒以内にゲームから外れます。"
+      },
+      "package": "パッケージ",
+      "checkUpdate": "アップデートを確認",
+      "remove": "削除",
+      "removeConfirm": "完全に削除しますか？",
+      "installTitle": "アクティビティをインストール",
+      "installIntro": "アクティビティのパッケージ（.zip）をアップロードするか、HTTPSアドレスを入力してください。インストール前に内容を確認できます。",
+      "chooseZip": ".zipを選択",
+      "or": "または",
+      "urlLabel": "パッケージのアドレス",
+      "preview": "プレビュー",
+      "replaces": "v{version} を置き換え",
+      "id": "ID",
+      "playersLabel": "プレイヤー",
+      "runsIn": "実行場所",
+      "size": "サイズ",
+      "from": "取得元",
+      "trustWarning": "このアクティビティは作者のコードをメンバーの端末上でサンドボックス内で実行します。ボットを追加するときと同じく、信頼できるものだけをインストールしてください。",
+      "update": "更新",
+      "install": "インストール",
+      "cancel": "キャンセル",
+      "updated": "アクティビティを更新しました",
+      "installed": "アクティビティをインストールしました（無効の状態）",
+      "removed": "アクティビティを削除しました",
+      "errors": {
+        "NOT_A_ZIP": "zipファイルではありません。",
+        "TOO_LARGE": "パッケージが大きすぎます（最大6MB、スクリプト5MB、アイコン256KB）。",
+        "UNEXPECTED_FILE": "manifest.json・スクリプト・アイコン以外のファイルが含まれています。",
+        "MISSING_FILE": "マニフェストで指定されたファイルがありません。",
+        "BAD_MANIFEST": "manifest.json が無効です。",
+        "BAD_ENTRY": "スクリプトが空か、テキストではありません。",
+        "BAD_ICON": "アイコンが宣言された SVG・PNG・WebP ではありません。",
+        "BUILTIN_ID": "この ID はすでに組み込みのアクティビティで使われています。",
+        "TOO_MANY_PACKAGES": "このインスタンスにはすでに50個のパッケージがあります。",
+        "PACKAGE_CHANGED": "プレビュー後にそのアドレスのパッケージが変更されました。もう一度プレビューしてください。",
+        "FETCH_FAILED": "パッケージをダウンロードできませんでした。",
+        "BAD_URL": "https:// のアドレスを使用してください。"
+      }
+    },
+    "thirdParty": "サードパーティ",
+    "thirdPartyNotice": "このインスタンスがインストールしたサードパーティのアクティビティです。Harmony がアクティビティ内でパスワードを求めることはありません。"
   }
 }

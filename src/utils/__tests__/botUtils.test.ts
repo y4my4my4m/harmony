@@ -101,15 +101,16 @@ describe('botUtils', () => {
   describe('permissions', () => {
     it('offers only the flags the gateway checks', () => {
       expect([...ENFORCED_BOT_PERMISSIONS].sort()).toEqual(
-        ['add_reactions', 'manage_channels', 'manage_messages', 'manage_roles', 'read_messages', 'send_messages'],
+        ['add_reactions', 'attach_files', 'manage_channels', 'manage_messages', 'manage_roles', 'read_messages', 'send_messages'],
       )
     })
 
-    it('defaults to read, send and react, with manage_channels only for bridges', () => {
+    it('defaults to read, send, react and attach, with manage_channels only for bridges', () => {
       expect(defaultBotPermissions('bot')).toEqual({
         read_messages: true,
         send_messages: true,
         add_reactions: true,
+        attach_files: true,
         manage_messages: false,
         manage_channels: false,
         manage_roles: false,
@@ -133,6 +134,7 @@ describe('botUtils', () => {
         read_messages: true,
         send_messages: true,
         add_reactions: true,
+        attach_files: false,
         manage_messages: true,
         manage_channels: false,
         manage_roles: true,

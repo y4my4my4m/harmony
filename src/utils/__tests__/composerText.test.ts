@@ -50,12 +50,14 @@ describe('linkPasteText', () => {
   it('links the selection, whitespace kept outside', () => {
     expect(linkPasteText(' the docs ', 'https://example.com/docs')).toBe(' [the docs](https://example.com/docs) ')
   })
+  it('escapes brackets of the selection', () => {
+    expect(linkPasteText('a]b', 'https://example.com')).toBe('[a\\]b](https://example.com)')
+  })
   it.each([
     ['a paste of text', 'docs', 'see https://example.com'],
     ['a paste of a non-http link', 'docs', 'ftp://example.com'],
     ['a blank selection', '  ', 'https://example.com'],
     ['a selection across lines', 'a\nb', 'https://example.com'],
-    ['a selection holding brackets', 'a]b', 'https://example.com'],
     ['a selected link', 'https://old.example', 'https://example.com'],
     ['a URL the grammar cannot hold', 'docs', 'https://example.com/a)b'],
   ])('declines %s', (_name, selected, pasted) => {
@@ -79,6 +81,17 @@ describe('parseMarkdownWithMarkers link tokens', () => {
   it('leaves links in code alone', () => {
     expect(parseMarkdownWithMarkers('```\n[b](https://x.example)\n```').map((t) => t.type)).toEqual(['codeblock'])
   })
+  it('marks an image link, whose markers spell the typed text', () => {
+    const [token] = parseMarkdownWithMarkers('![b](https://x.example/b.png)')
+    expect(token).toMatchObject({ type: 'link', content: 'b', destination: 'https://x.example/b.png', image: true, raw: '![b](https://x.example/b.png)' })
+  })
+  it('keeps a linked image as the label of one link', () => {
+    const text = '[![b](https://x.example/b.svg)](https://x.example)'
+    const tokens = parseMarkdownWithMarkers(text)
+    expect(tokens).toHaveLength(1)
+    expect(tokens[0]).toMatchObject({ type: 'link', content: '![b](https://x.example/b.svg)', destination: 'https://x.example', raw: text })
+    expect(tokens[0].image).toBeUndefined()
+  })
 })
 
 describe('url parts as text', () => {
@@ -101,7 +114,11 @@ describe('url parts as text', () => {
     expect(messagePartsToPlainText(parts)).toBe('read the docs (docs.example.com) or quiet (q.example) or https://evil.example')
   })
 
+  it('escapes the brackets of a label', () => {
+    expect(urlPartSource({ url: 'https://a.example', preview: true, label: 'a]b' })).toBe('[a\\]b](https://a.example)')
+  })
+
   it('keeps a label the grammar cannot hold out of the typed form', () => {
-    expect(urlPartSource({ url: 'https://a.example', preview: true, label: 'a]b' })).toBe('https://a.example')
+    expect(urlPartSource({ url: 'https://a.example', preview: true, label: 'a\nb' })).toBe('https://a.example')
   })
 })

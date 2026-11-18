@@ -68,7 +68,14 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | Method | Path | Access | Purpose |
 |---|---|---|---|
 | `POST` | [`/channels/{channel.id}/messages`](#create-message) | `send_messages` | Post a message, in the channel or one of its threads |
+| `POST` | [`/channels/{channel.id}/attachments`](#upload-a-file) | `send_messages`, `attach_files` | Upload a file to post in the channel |
 | `GET` | [`/channels/{channel.id}/messages`](#get-channel-messages) | `read_messages` | List a channel's messages, newest first |
+| `GET` | [`/channels/{channel.id}/encryption`](#get-channel-encryption) | `read_messages` | Read the channel's effective message encryption state |
+| `GET` | [`/channels/{channel.id}/bridge-platform`](#bridge-registration-and-consent) | `read_messages` | Read this bot/channel's registered bridge platform |
+| `GET` | [`/channels/{channel.id}/bridge-consent/{user.id}`](#bridge-registration-and-consent) | `read_messages`; registered bridge | Check current member relay consent |
+| `POST` | [`/channels/{channel.id}/bridge-avatar`](#upload-a-matrix-bridge-avatar) | Scoped Matrix bridge with read/send | Store bounded raster avatar bytes |
+| `POST` | [`/channels/{channel.id}/bridge-files`](#matrix-attachment-bytes) | Bound Matrix bridge with read/send; plaintext | Store bounded attachment bytes in private message media |
+| `GET` | [`/channels/{channel.id}/messages/{message.id}/bridge-files/{index}`](#matrix-attachment-bytes) | Bound Matrix bridge with read/send; current message visibility | Download a stored raw-index attachment, not a supplied URL |
 | `GET` | [`/channels/{channel.id}/messages/lookup`](#look-up-a-bridged-message) | `read_messages` | Find a message by the Discord message ID in its metadata |
 | `GET` | [`/messages/{message.id}`](#get-message) | `read_messages` | Read one message |
 | `PATCH` | [`/messages/{message.id}`](#edit-message) | `send_messages`, own messages | Edit the bot's message |
@@ -94,6 +101,8 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | `POST` | [`/servers/{server.id}/roles`](#create-role) | `manage_roles` | Create a role |
 | `PATCH` | [`/servers/{server.id}/roles/{role.id}`](#edit-role) | `manage_roles` | Edit a role |
 | `DELETE` | [`/servers/{server.id}/roles/{role.id}`](#delete-role) | `manage_roles` | Delete a role |
+| `PUT` | [`/servers/{server.id}/members/{user.id}/roles/{role.id}`](#member-roles) | `manage_roles` | Give a member a role |
+| `DELETE` | [`/servers/{server.id}/members/{user.id}/roles/{role.id}`](#member-roles) | `manage_roles` | Take a role from a member |
 | `GET` | [`/channels/{channel.id}/permission-overrides`](#list-permission-overrides) | Installed | List a channel's permission overrides |
 | `PUT` | [`/channels/{channel.id}/permission-overrides`](#set-a-permission-override) | `manage_channels` | Create, replace or clear an override |
 | `DELETE` | [`/channels/{channel.id}/permission-overrides/role/{role.id}`](#delete-a-role-override) | `manage_channels` | Delete a role's override |
@@ -159,14 +168,14 @@ A message's content is an array of parts. These are the part types a bot sends; 
 | `role_mention` | `roleId`, `roleName`, `roleColor` | A role mention; `roleId` `here` is @here. See [Mentions](#mentions). |
 | `channel_mention` | `channelId`, `name`, optional `messageId` | A channel link. The server fills in `serverId` and the stored name. |
 | `emoji` | `emoji`: `{ "id", "name", "url" }` | A custom emoji. |
-| `file` | `url`, `fileType`, optional `fileName`, `fileSize`, `altText` | An attachment by URL; there is no upload route. `fileType` is `image`, `video`, `audio` or `file`: the app shows images and videos inline, plays `audio` in a player, and links the rest. |
+| `file` | `url`, `fileType`, optional `fileName`, `fileSize`, `altText`, `path`, `mimeType` | An attachment by URL, or a file the bot [uploaded](#upload-a-file) to the same channel, sent as the upload returned it. `fileType` is `image`, `video`, `audio` or `file`: the app shows images and videos inline, plays `audio` in a player, and links the rest. |
 | `embed` | `url`, `provider`, `previewId`, optional `collapsed` | Kept only when `url` is an `http(s)` URL of at most 2048 characters, `provider` is one of `harmony-post`, `harmony-invite`, `fediverse-post`, `youtube`, `spotify`, `generic`, and `previewId` is a non-empty string; reduced to those fields. |
 
-The server drops `system` parts a bot sends, and removes `path` from every part on create and edit: a bot names attachments by URL.
+The server drops `system` parts a bot sends, and removes `path` from every part on create and edit, except a `file` part whose `path` is a file this bot uploaded to the message's channel.
 
 ### Photo and video metadata
 
-Every photo or video the instance stores on a bot's behalf (a [mirrored](/build/bridges#attachments) attachment, an [imported Discord emoji](#import-a-discord-emoji)) is stored without its location, camera and other metadata, on the server, before it is written. Bots have no option to keep it. What is removed is what the app removes from its members' uploads: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC and AVIF, and the location, camera and other metadata boxes of MP4 and MOV, without re-encoding. Other formats are stored as they are. Files a bot names by URL and the instance does not copy are not touched.
+Every photo or video the instance stores on a bot's behalf (an [uploaded](#upload-a-file) file, a [mirrored](/build/bridges#attachments) attachment, an [imported Discord emoji](#import-a-discord-emoji)) is stored without its location, camera and other metadata, on the server, before it is written. Bots have no option to keep it. What is removed is what the app removes from its members' uploads: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC and AVIF, and the location, camera and other metadata boxes of MP4 and MOV, without re-encoding. Other formats are stored as they are. Files a bot names by URL and the instance does not copy are not touched.
 
 The text parts of a message may hold at most the instance's message length limit, 2000 characters unless the operator changed it. A longer message fails with `400` and an error such as `Message text exceeds the instance limit of 2000 characters (got 2417)`.
 
@@ -204,7 +213,7 @@ Edits and silent content patches apply the same check.
 }
 ```
 
-`metadata` keys the server reserves are dropped: `type`, `federated`, `ap_id`, `from_domain`, `original_url`, `published`, `conversation`, `in_reply_to_ap`, `pending_thread_ap_id`, `federated_at`, `federated_to`, `automod`, `bot`, `created_via`, `embeds`, `suppress_embeds`, `webhook` and `interaction`. The server sets `interaction` (`id`, `name`, `user_id`, and `followup` on follow-ups) on public answers to [slash commands](/build/commands). `discord_user` and `bridge_source` are kept only from a bridge bot whose bridge relays the channel; see [Relayed authors](/build/bridges#relayed-authors). The server then sets `bot: true` and `created_via: "bot_api"`.
+`metadata` keys the server reserves are dropped: `type`, `federated`, `ap_id`, `from_domain`, `original_url`, `published`, `conversation`, `in_reply_to_ap`, `pending_thread_ap_id`, `federated_at`, `federated_to`, `automod`, `bot`, `created_via`, `embeds`, `suppress_embeds`, `webhook` and `interaction`. The server sets `interaction` (`id`, `name`, `user_id`, and `followup` on follow-ups) on public answers to [slash commands](/build/commands). `discord_user` and `bridge_source` are kept only from a bridge bot whose bridge relays the channel. `bridge_author` names a Matrix author and is accepted only from a bot whose channel is bound to a Matrix room; it is stored as `matrix_user`. Without the binding it answers `403`, an invalid author `400`. `matrix_user` itself is never taken from a bot. See [Relayed authors and member privacy](/build/bridges#generalized-authors-and-member-privacy). The server then sets `bot: true` and `created_via: "bot_api"`.
 
 When the instance's bridge attachment mode is `mirror`, `file` and `url` parts pointing at `discordapp.com` or `discordapp.net` are copied into the instance's storage first; see [Attachments](/build/bridges#attachments). Photos and videos copied this way lose their location, camera and other metadata; see [Photo and video metadata](#photo-and-video-metadata).
 
@@ -222,6 +231,37 @@ Returns `201` with the [message object](#message-object). The instance then fetc
 
 Channel access errors are listed under [Errors](#errors).
 
+### Upload a file
+
+`POST /channels/{channel.id}/attachments?filename=<name>`
+
+The request body is the file itself, sent with its own `Content-Type` (`image/png`, `video/mp4`…); a JSON, form or multipart body answers `415`. `filename` names it; the server keeps its last path segment, at most 255 characters, `file` when absent. The stored type and extension follow the file's leading bytes, not the declared type or name, and photos and videos lose their [metadata](#photo-and-video-metadata).
+
+Returns `201` with a `file` part to send in a message or an [interaction reply](/build/commands#respond) of the same channel:
+
+```json
+{
+  "type": "file",
+  "path": "c/6b1d…/bridge/9f0c…/0f0e0d0c-….png",
+  "url": "https://harmony.example.com/storage/v1/object/sign/message_media/c/6b1d…",
+  "fileType": "image",
+  "fileName": "deepfried.png",
+  "fileSize": 48213,
+  "mimeType": "image/png"
+}
+```
+
+`url` is a signed link valid seven days; `path` is what the app reads. Uploads count toward the server's cap on files bots store (5 GB unless the operator changed it), and a file no message names after a day is deleted.
+
+| Status | `error` | Cause |
+|---|---|---|
+| `413` | `File too large` | Over the instance's upload limit; `max_bytes` gives it. |
+| `400` | `The request body is empty` | |
+| `415` | `Send the file itself as the request body, with its own Content-Type` | |
+| `507` | `This server's storage for bot files is full` | The server's cap has no room for the file. |
+
+The bot needs `send_messages` and `attach_files` in the channel; see [Channel access](/build/permissions-rate-limits#channel-access).
+
 ### Get channel messages
 
 `GET /channels/{channel.id}/messages`
@@ -237,6 +277,8 @@ Returns an array of [message objects](#message-object), newest first, with or wi
 `after` with `limit` returns the newest `limit` messages after that time, not the oldest. To read everything since a point, page backwards: request with `before` set to the oldest `timestamp` you received, until you reach messages you already have.
 
 A bot that cannot read the channel, for any reason, gets `403` `Missing permission: read_messages`.
+
+Bridge bots additionally receive only messages whose native author currently permits bridging, including the invoking member on public slash-command bot replies. This also applies to individual and Discord-ID lookups (`404` for hidden messages); privacy lookup failures return an error, never unfiltered history. Filtering happens after the requested page is read, so a page can contain fewer than `limit` results.
 
 ### Get message
 
@@ -297,7 +339,7 @@ The write applies only if the stored content has not changed since the gateway r
 |---|---|---|
 | `metadata` | object | Required. Merged into the existing metadata; top-level keys replace. |
 
-On the bot's own message, reserved keys are dropped as on create. On another author's message, only a bridge bot whose bridge relays the channel may write, and only these keys: `discord_message_id`, `discord_message_ids`, `discord_via_webhook`, `discord_uploaded_files`, and `bridge_source` with the value `harmony`. Both cases need `send_messages` in the channel.
+On the bot's own message, reserved keys are dropped as on create. On another author's message, only a bridge bot whose bridge relays the channel may write, and only these keys: `discord_message_id`, `discord_message_ids`, `discord_via_webhook`, `discord_uploaded_files`, and `bridge_source` with the value `harmony`. Both cases need `send_messages` in the channel. A mapping write on another author's message also requires `read_messages` and current bridge consent; an opted-out message returns `404` without changing or disclosing its metadata.
 
 Does not change `edited_timestamp` and sends no event. Returns `{ "ok": true, "metadata": { … } }` with the merged object. A `discord_message_id` another message of the channel already holds changes nothing: the answer carries the stored metadata.
 
@@ -446,10 +488,57 @@ Returns member objects ordered by user ID. To read every member, request again w
 | `user.is_local` | boolean | `false` for members from other instances. |
 | `user.avatar` | string | Absolute URL; omitted when unset. |
 | `nick` | string or `null` | Nickname in this server. |
-| `roles` | array | Always empty; role assignments are not exposed. |
+| `roles` | UUID[] | IDs of the roles the member holds, @everyone not included. |
 | `joined_at` | timestamp | When the membership was created. |
 
 `400` `after must be a user id` when `after` is not a UUID. A bot without an installation gets `403` `Bot not in guild`.
+
+### Get channel encryption
+
+`GET /channels/{channel.id}/encryption`
+
+Returns `200` with `{ "messages_encrypted": true }` or `{ "messages_encrypted": false }`, the channel's authoritative effective message encryption state (including inherited server settings). Requires `read_messages` and visibility of the channel under the same rules as reading its messages; otherwise returns `403` `Missing permission: read_messages`.
+
+Returns `503` `Channel encryption status unavailable` if the encryption lookup fails or does not return a boolean. Relay clients must treat an unavailable state as unsafe to relay, not as unencrypted. This endpoint reports state only; it does not change existing message read or write behavior.
+
+### Bridge registration and consent
+
+`GET /channels/{channel.id}/bridge-platform` returns `{ "platform": "matrix" }`, `"discord"`, or `null` for this bot/channel. Requires channel read access; a failed or malformed registration lookup returns `503`.
+
+`GET /channels/{channel.id}/bridge-consent/{user.id}` returns `{ "relay_allowed": true | false }`: `false` when the member opted out of this bot's bridge platform in the channel's server. A malformed profile UUID returns `400`, missing channel read access `403`, and an unavailable/nonboolean consent lookup `503`. Treat anything other than explicit `true` as refusal. Check immediately before queued delivery, not only when receiving an event. This cannot atomically revoke a request already in flight.
+
+### Matrix room binding and eligible members
+
+These endpoints require a currently registered Matrix binding and channel read/send permissions:
+
+| Method | Path | Result |
+|---|---|---|
+| `PUT` | `/channels/{channel.id}/bridge-room` | Bind `{ "room_id": "!opaqueRoomId", "initial_sender_mode": "ghost" }`; `relay` is also valid. Returns the current `{ "room_id", "sender_mode" }`, preserving later manager changes. |
+| `GET` | `/channels/{channel.id}/bridge-room` | The current binding and manager-selected sender mode. |
+| `GET` | `/channels/{channel.id}/bridge-members` | Array of eligible native members: `id`, `username`, `display_name`, `avatar_url`, `domain`, `is_local`, `nickname`. Accepted, channel-visible local members only, excluding opt-outs and deleted accounts; nickname takes display-name precedence. |
+| `GET` | `/channels/{channel.id}/bridge-members/{user.id}/avatar` | Optional `{ "data": "<base64>", "content_type": "image/png" }` from the current eligible member's own Harmony avatars storage object. No caller-supplied URL/path; no external hosts, redirects or SVG. Raster bytes are metadata-stripped and capped at 1 MiB. |
+
+Malformed room/mode/user IDs return `400`, missing binding or permissions `403`, and unavailable or malformed binding/consent data `503`. A room cannot be reassigned without unpairing. The avatar endpoint returns `404` for an ineligible member or unsupported/missing picture. Bundled default avatars and external avatar URLs are not mirrored; omit the optional picture rather than discarding text. Mode/member snapshots never replace final delivery-time consent checks.
+
+### Matrix attachment bytes
+
+These routes require an active Matrix room binding, scoped channel read/send permissions and verified plaintext channel policy. They do not change the Discord attachment-mode policy.
+
+`POST /channels/{channel.id}/bridge-files` takes the file as the request body, with `X-File-Name: <encodeURIComponent(filename)>` and `X-File-Type: <MIME type>`. It stores the file as [`POST /channels/{channel.id}/attachments`](#upload-a-file) does: it needs **Attach files** in the channel, counts toward the server's stored-bot-files limit (`507` when full), keeps to the instance's upload ceiling (`413`), and strips location and camera metadata. Names of active content (SVG, HTML, scripts, executables) answer `415`, an empty body `400`.
+
+Returns **`201`** with the file part to send in a message: `{ "type": "file", "path": "c/CHANNEL/bridge/BOT/…", "url": "https://…", "fileType": "image", "fileName": "wave.png", "fileSize": 123, "mimeType": "image/png" }`. `fileType` is `image` or `file`; video and audio answer `file`.
+
+`GET /channels/{channel.id}/messages/{message.id}/bridge-files/{index}` takes the **raw stored content-array index**, not an ordinal among files. It checks current message visibility/history, native bridge consent, room binding, plaintext policy and the stored part again after downloading, before emitting bytes. Only the message's own `c/<channel>/…` object is read; a Drive file (`u/<profile>/<file>`) answers `422`, as bots receive no Drive files. At most three downloads run at once across the gateway. No caller-provided URL, path, foreign-room object, external/legacy URL part or encrypted descriptor is fetched.
+
+A successful download has `Content-Type: application/octet-stream`, `Content-Length`, encoded `X-File-Name`, `X-File-Type`, `Content-Disposition: attachment`, `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`. Bytes are metadata-stripped and bounded by 50 MiB/current bucket policy, including streamed responses and redirects/timeouts. Bad scope/index/metadata returns `400`, missing permission or encrypted channel `403`, invisible/deleted/revoked files `404`, an attachment changed mid-download `409`, size limit `413`, unsupported name/type/signature `415`, unsupported stored/encrypted descriptor `422`, and unavailable policy/storage/consent `503`. Clients must not turn policy failures into successful media delivery. An upload completed before revocation can remain unreferenced; this is not atomic erasure.
+
+### Upload a Matrix bridge avatar
+
+`POST /channels/{channel.id}/bridge-avatar`
+
+Requires a registered Matrix binding and read/send channel permissions. Supply `{ "data": "<standard base64>", "content_type": "image/png" }`; supported raster types are PNG, JPEG, WebP and GIF. Decoded bytes must be nonempty and at most **1 MiB**, with a matching file signature. The endpoint accepts no remote URLs or caller-selected storage paths. It strips identifying media metadata using the normal upload pipeline, stores content-addressed bytes under this bot in the public avatars bucket, and returns `{ "avatar_url": "https://…" }`. Invalid bytes/type/size return `400`; missing authorization `403`; storage/registration failure `503`.
+
+The relay fetches only authenticated, bounded thumbnails from its configured Matrix homeserver; it never puts Matrix credentials in a public avatar URL. Avatar failure omits the optional picture rather than discarding text.
 
 ### List channels
 
@@ -571,6 +660,20 @@ The create errors apply as well.
 `DELETE /servers/{server.id}/roles/{role.id}`
 
 Returns `204`. The default role, administrator roles and roles at or above the bot's position limit answer `403`, as on edit.
+
+### Member roles
+
+`PUT /servers/{server.id}/members/{user.id}/roles/{role.id}` gives the member the role; `DELETE` on the same path takes it away. Both return `204`, also when the member already had or lacked the role. The member's server audit log entry names the bot.
+
+| Status | `error` | Cause |
+|---|---|---|
+| `403` | `Missing permission: manage_roles` | |
+| `403` | `Cannot modify default or admin roles via bot API` | @everyone or an administrator role. |
+| `403` | `Role is at or above the bot's highest manageable position` | See [Role writes](/build/permissions-rate-limits#role-writes). |
+| `403` | `Cannot grant permissions the bot does not hold through this role` | `PUT` only; `missing_permissions` names the bits. |
+| `404` | `Role not found` | Not a role of this server. |
+| `404` | `Member not found` | Not a member, or a pending or banned one. |
+| `400` | `userId and roleId must be UUIDs` | |
 
 ## Channel permission overrides
 

@@ -261,9 +261,15 @@ analytics_default_off() {
 svc_id() { compose ps -q --status running "$1" 2>/dev/null | head -1; }
 
 # Environment of the running auth service, one VAR=value per line; empty when it is not running.
+# The KEY='value' lines of its --config-dir (/etc/harmony-auth/*.env, written from Admin,
+# Authentication) come first: GoTrue lets them override the container's environment, and readers
+# take the first.
 auth_env() {
 	local id; id="$(svc_id auth)"
-	[[ -z "$id" ]] || docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$id" 2>/dev/null || true
+	[[ -n "$id" ]] || return 0
+	docker exec "$id" sh -c 'cat /etc/harmony-auth/*.env 2>/dev/null' 2>/dev/null |
+		sed -n "s/^\([A-Z0-9_]*\)='\([^']*\)'\$/\1=\2/p" || true
+	docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$id" 2>/dev/null || true
 }
 
 # oauth_enabled [ENV]: the GoTrue OAuth providers that are on, space-separated. ENV (auth_env)

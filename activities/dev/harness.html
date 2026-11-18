@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Activity harness</title>
+<style>
+  :root { color-scheme: dark; --bg: #0b0d12; --panel: #151821; --border: #262b38; --text: #e6e8ee; --muted: #8b93a5; --accent: #0ea5e9; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  header h1 { margin: 0 8px 0 0; font-size: 15px; }
+  header label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  select, button { font: inherit; color: inherit; background: #1f2430; border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  #grid { display: flex; flex-wrap: wrap; gap: 14px; padding: 14px; align-items: flex-start; }
+  .player { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .player.is-gone { opacity: 0.4; }
+  .player-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .player-head strong { flex: 1; }
+  .player-head .host { color: #facc15; font-size: 12px; }
+  .player iframe { display: block; border: 0; background: #000; }
+  #log { position: fixed; right: 10px; bottom: 10px; max-width: 420px; max-height: 30vh; overflow: auto; padding: 8px 10px; font: 12px/1.35 ui-monospace, monospace; color: var(--muted); background: rgba(0,0,0,.6); border-radius: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Activity harness</h1>
+  <label>App <select id="app"></select></label>
+  <button id="add" type="button">Add player</button>
+  <button id="kill" type="button">Kill host</button>
+  <label>Theme <select id="theme"><option value="dark">Dark</option><option value="light">Light</option></select></label>
+  <label>Locale <select id="locale"><option>en</option><option>es</option><option>fr</option><option>de</option><option>ja</option><option>ko</option><option>zh</option></select></label>
+  <label>Frame <select id="size"><option value="640x420">Panel 640×420</option><option value="900x620">Wide 900×620</option><option value="375x667">Phone 375×667</option><option value="1280x800">Desktop 1280×800</option></select></label>
+  <label><input id="motion" type="checkbox"> Reduced motion</label>
+  <button id="reset" type="button">Reset</button>
+</header>
+<div id="grid"></div>
+<pre id="log"></pre>
+<script type="module" src="/activities/dev/harness.js"></script>
+</body>
+</html>

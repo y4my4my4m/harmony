@@ -60,13 +60,12 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 2. **DM call decline and busy teardown** (`BUGS.md` H7).
    The ring is app-wide and the 30 s timeout leaves the room (`GlobalDMCallListener`). A decline still only shows a toast, so the caller waits out the timeout; `handleRemoteSignal` has no `decline` or `busy` case, and the busy teardown (`abandonOwnRing`) runs only while `DMHeader` is mounted.
 
-3. **Self-assignable roles.**
-   Only members with Manage Roles hand out roles, and the bot API has no route to add or remove a member's role, so Discord-style reaction-role bots are impossible. Add a `self_assignable` flag (with an optional group label) on `server_roles`, an RPC that adds or removes the caller's own self-assignable role and refuses any role at or above a permission-granting position, and a role picker in the server menu and member card. Works in encrypted servers and needs no bot. Separately, a bot route for member roles gated by `manage_roles` and role position.
-
 4. **Warn before posting a sign-in link.**
    Invitation and password-reset links carry a single-use token: whoever opens one first can claim the account, and a self-hoster pasted one into a public support channel. The composer recognises Harmony and GoTrue sign-in links (`/auth/v1/verify?token=…`, `/reset-password?…token_hash=…`) in any message and asks before sending, with "Send anyway" and a short explanation; a link already posted shows a muted "sign-in link" hint instead of a preview.
 
 *(Notifications of new reports to instance staff and a server's moderators, and custom emoji in announcements, shipped in 1.9.7.)*
+
+*(Self-assignable roles, role menus and the role for new members are built in 1.9.8.)*
 
 *(Discord bridge issues, including mention resolution (`BUGS.md` H41, H42), are tracked in [harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge).)*
 
@@ -121,7 +120,7 @@ Scoped for discussion; nothing here is committed. Each item names the public spe
 
 - **Interoperable end-to-end encryption (MLS).** Messaging Layer Security (RFC 9420) for direct and group conversations, following the W3C Social Web CG draft [Messaging Layer Security in ActivityPub](https://swicg.github.io/activitypub-e2ee/), including conversations with people on other instances and other fediverse software. The protocol is chosen per conversation, advertised through the actor's `keyPackages`, and never downgraded silently. The current scheme stays for existing rooms and channels. Ships behind a flag until the draft stabilises and interoperability with another implementation is shown. Before that, the open encryption items in `BUGS.md` are fixed.
 - **Bluesky through Bridgy Fed.** A per-account setting, off by default, that opts public posts into [Bridgy Fed](https://fed.brid.gy/docs). Chat, direct messages and non-public posts are never bridged.
-- **Bridges beyond Discord.** Bridge v2 relayed authors generalised beyond Discord, and a per-member opt-out in bridged servers. Then a Matrix bridge (application service) in relay mode.
+- **Matrix bridge parity.** The [Matrix bridge](https://github.com/y4my4my4m/harmony-matrix-bridge) relays messages, replies and files of channels without end-to-end encryption. Remaining, as the Discord bridge has them: edits, deletions and reactions in both directions, threads, a privacy command for Matrix people (Discord's `/bridge-privacy`), pairing from **Server settings** → **Bridges** instead of the operator's configuration, and encrypted rooms.
 - **Platform-neutral ids for synced emoji, sounds and stickers.** `emojis.discord_emoji_id`, `server_sounds.discord_sound_id` and `stickers.discord_sticker_id` name one platform. With asset sync for a second bridge (Matrix), each becomes a platform and remote id pair, as `bridge_remote_optouts` is keyed. No client reads the three columns: the change is in the database and bot-gateway, and the bridge API field names stay, so released bridges keep working.
 - **Account portability.** Following import (Mastodon's `following_accounts.csv` or a Harmony export) and a JSON export of posts, follows, blocks and mutes exist. Remaining: importing blocks and mutes from Mastodon's CSVs, exporting in Mastodon's CSV formats, posts as ActivityStreams, and later copying posts between servers with [LOLA](https://swicg.github.io/activitypub-data-portability/lola) (W3C Social Web CG draft), which requires Harmony to act as an OAuth authorization server.
 - **Feedback.** GitHub Discussions for ideas, and an instance setting for the in-app report link. With forum channels (item 14), a public feedback forum on a Harmony server that anyone on a federating instance can join.

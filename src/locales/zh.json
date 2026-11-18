@@ -1,4 +1,70 @@
 {
+  "bridgeSource": {
+    "from": "通过 {platform} 桥接",
+    "profile": {
+      "joinedServer": "加入服务器",
+      "memberSince": "{platform} 注册时间",
+      "status": "状态",
+      "roles": "角色 | 角色",
+      "copyId": "复制 ID",
+      "copied": "已复制",
+      "open": "在 {platform} 中打开"
+    }
+  },
+  "matrixBridge": {
+    "title": "Matrix 桥接",
+    "pairsTitle": "已配对的频道",
+    "description": "选择向现有 Matrix 房间桥接发送 Harmony 消息的方式。",
+    "requirements": "独立模式为 Harmony 作者使用真实的 Matrix 成员。需要应用服务用户命名空间，以及将这些用户邀请到 Matrix 房间的权限。",
+    "history": "模式更改仅影响今后的消息投递。现有历史记录将保留。",
+    "delivery": "选择独立模式不代表注册或投递已完成。请在 Matrix 中成功投递的消息上确认发送者身份。",
+    "loading": "正在加载 Matrix 桥接…",
+    "reload": "重新加载",
+    "empty": "此服务器尚未配置 Matrix 桥接。",
+    "waitingRoom": "正在等待桥接连接 Matrix 房间。现在即可保存模式选择。",
+    "senderMode": "Harmony 消息发送身份",
+    "ghost": "独立桥接用户（推荐）",
+    "relay": "共享桥接账户",
+    "saving": "正在保存模式…",
+    "loadError": "无法加载 Matrix 桥接设置。请重新加载以重试。",
+    "saveError": "无法确认模式更改。请重新加载以查看当前设置。",
+    "privacy": {
+      "lead": "在此处移除 Matrix 用户后，此服务器的桥接从该用户带来的所有内容都会被删除，且不再带入其消息。",
+      "idLabel": "Matrix 用户 ID",
+      "idHelp": "完整的 Matrix ID，例如 {'@'}sam:example.org。",
+      "idInvalid": "Matrix 用户 ID 的格式为 {'@'}名称:服务器。",
+      "removeConfirm": "删除此桥接从 Matrix 用户 {id} 带来的所有消息、文件和回应，并不再带入其消息？此操作无法撤销。",
+      "listTitle": "已排除 {count} 位 Matrix 用户 | 已排除 {count} 位 Matrix 用户",
+      "source": {
+        "self": "本人在 Matrix 上退出"
+      },
+      "restoreLabel": "重新桥接 Matrix 用户 {id}",
+      "alsoSelf": "本人也在 Matrix 上退出",
+      "purgeLead": "移除此服务器的桥接从 Matrix 带来的一切：消息、文件和回应。在 Harmony 上写的消息会保留。",
+      "purgeConfirm": "删除从 Matrix 带入此服务器的所有消息、文件和回应？此操作无法撤销。"
+    }
+  },
+  "bridges": {
+    "navLabel": "桥接",
+    "title": "桥接",
+    "intro": "桥接会把此服务器的频道与其他聊天平台上的频道和房间连接起来。任意一边发送的消息都会带着发送者的名字和头像出现在另一边。",
+    "tabs": {
+      "discord": "Discord",
+      "matrix": "Matrix"
+    }
+  },
+  "bridgePrivacy": {
+    "title": "桥接隐私",
+    "description": "禁止桥接将您今后在此服务器发送的消息转发到其他平台。",
+    "scope": "此设置仅适用于此服务器的桥接，不会删除已转发的副本，也不会改变其他机器人能读取的内容。",
+    "optOut": "不将我的消息转发到 {platform}",
+    "none": "目前没有桥接转发此服务器的消息。",
+    "loading": "正在加载桥接隐私设置",
+    "saving": "正在保存…",
+    "loadError": "无法加载您的隐私设置，请重试。",
+    "saveError": "无法确认更改，请重新加载以查看当前设置。",
+    "retry": "重试"
+  },
   "common": {
     "save": "保存",
     "cancel": "取消",
@@ -111,6 +177,7 @@
       "google": "使用 Google 继续",
       "twitch": "使用 Twitch 继续",
       "github": "使用 GitHub 继续",
+      "discord": "使用 Discord 继续",
       "custom": "使用 {name} 继续"
     },
     "callback": {
@@ -730,7 +797,16 @@
         "removeMember": "无法将成员从角色中移除",
         "addMember": "无法将成员添加到角色",
         "reorder": "无法重新排序角色"
-      }
+      },
+      "selfAssignable": "成员可以选择此角色",
+      "selfAssignableDesc": "显示在“选择角色”和角色菜单中，成员可以自行添加或移除。",
+      "selfAssignGroup": "分组",
+      "selfAssignGroupPlaceholder": "例如：颜色、代词、通知",
+      "selfAssignNote": "简短说明",
+      "selfAssignNotePlaceholder": "选择角色时显示在角色下方",
+      "selfAssignWarnGrants": "此角色拥有 @everyone 没有的权限时，成员无法选择。请在“权限”标签页中移除。",
+      "selfAssignWarnRank": "此角色位于拥有额外权限的角色之上时，成员无法选择。请将其移到所有管理角色之下。",
+      "selfAssignWarnAdmin": "成员无法选择管理员角色。"
     },
     "privacy": {
       "federatedMembers": "此服务器当前有 {count} 名联邦成员 | 此服务器当前有 {count} 名联邦成员",
@@ -1487,6 +1563,8 @@
     "conversationDismissed": "对话已隐藏。收到新消息时会重新出现。",
     "failedToDismissConversation": "隐藏对话失败",
     "noUsersFound": "未找到用户",
+    "groupSpotsLeft": "还可添加 {count} 人 | 还可添加 {count} 人",
+    "groupFull": "此群组已满：群组最多 {count} 人。",
     "call": "通话",
     "videoCall": "视频通话",
     "voiceCall": "语音通话",
@@ -1646,9 +1724,9 @@
       "compactMode": "紧凑模式",
       "compactModeDesc": "通过减少间距一次显示更多消息。",
       "bridgeSourceBadge": "桥接来源标识",
-      "bridgeSourceBadgeDesc": "桥接消息（例如来自 Discord）如何在作者名称旁显示其来源。",
+      "bridgeSourceBadgeDesc": "来自 Discord、Matrix 等桥接平台的用户如何在名称旁显示其来源。",
       "bridgeSourceBadgeIcon": "平台图标",
-      "bridgeSourceBadgeText": "文字标签（DISCORD）",
+      "bridgeSourceBadgeText": "文字标签（DISCORD、MATRIX）",
       "floatingVideo": "浮动视频播放器",
       "floatingVideoDesc": "滚动时播放的视频会浮动到角落。适用于 YouTube 和原生视频。",
       "videoPlayer": "视频播放器",
@@ -3289,8 +3367,13 @@
       "voiceCall": "语音通话",
       "videoCall": "视频通话",
       "groupCreated": "已创建群组",
-      "membersAdded": "已添加成员"
-    }
+      "membersAdded": "已添加成员",
+      "activity": "活动"
+    },
+    "activityStarted": "{actor} 开启了 {app}。",
+    "activityEnded": "{actor} 开启了 {app}：{players} 名玩家，{duration}。",
+    "activityEndedAlone": "{actor} 开启了 {app}：{duration}。",
+    "activityFallback": "一个活动"
   },
   "time": {
     "now": "现在",
@@ -3868,7 +3951,7 @@
       "bot": "标准",
       "botHint": "使用其令牌连接，并通过网关和 REST API 执行操作。",
       "bridge": "桥接",
-      "bridgeHint": "在 Harmony 与其他平台之间转发消息。如需桥接 Discord，请改用服务器设置 → Discord 桥接：它会创建并管理自己的机器人。"
+      "bridgeHint": "在 Harmony 与其他平台之间转发消息。如需桥接 Discord，请改用服务器设置 → 桥接 → Discord：它会创建并管理自己的机器人。"
     },
     "usernameErrors": {
       "tooShort": "至少使用 3 个字符。",
@@ -4014,7 +4097,11 @@
       },
       "manage_roles": {
         "label": "管理角色",
-        "description": "创建、编辑和删除低于其安装者最高角色的角色，且只能授予其自身拥有的权限。"
+        "description": "创建、编辑和删除低于其安装者最高角色的角色并将其授予成员，且只能授予其自身拥有的权限。"
+      },
+      "attach_files": {
+        "label": "附加文件",
+        "description": "在可以发送消息的频道中上传并发布图片等文件。"
       }
     },
     "commands": {
@@ -4771,7 +4858,10 @@
       "expires_at": "过期时间",
       "temporary": "临时成员资格",
       "messages_deleted": "已删除的消息",
-      "federation_discoverable": "在联邦中可被发现"
+      "federation_discoverable": "在联邦中可被发现",
+      "self_assignable": "成员可选择",
+      "self_assign_group": "选择分组",
+      "self_assign_note": "选择说明"
     },
     "value": {
       "none": "无",
@@ -5456,6 +5546,53 @@
       "maxPersonalStickers": "每位用户的个人贴纸数",
       "maxPersonalStickersHint": "0 到 100。默认值 0 表示关闭个人贴纸。"
     },
+    "signInProviders": {
+      "title": "登录提供方",
+      "lead": "使用 Google、Twitch、GitHub 或 Discord 登录。在提供方用下方的回调 URL 创建 OAuth 应用，然后把它的客户端 ID 和密钥粘贴到这里。登录服务约 15 秒内生效，无需重启。",
+      "loadFailed": "无法加载登录提供方设置。",
+      "writerOff": "本实例的登录服务不从这里读取凭据：它的联邦服务器没有设置 HARMONY_AUTH_CONFIG_DIR。请按自托管指南中 OAuth 登录一节的说明，把凭据写入登录服务的环境变量。",
+      "writerStopped": "联邦服务器最后一次应用登录设置是在 {time}，目前没有运行。这里的更改会等到它恢复后生效。",
+      "writerError": "联邦服务器无法应用登录设置：{error}",
+      "callback": "要在每个提供方登记的回调（重定向）URL：",
+      "copy": "复制",
+      "copied": "已复制回调 URL",
+      "copyFailed": "无法复制。请选中 URL 手动复制。",
+      "showButton": "显示在登录页",
+      "showButtonLabel": "在登录页显示 {provider}",
+      "clientId": "客户端 ID",
+      "secret": "客户端密钥",
+      "secretSaved": "已保存。输入新值即可替换。",
+      "save": "保存",
+      "saving": "正在保存…",
+      "clear": "清除",
+      "clearTitle": "清除 {provider} 登录？",
+      "clearMessage": "这会删除客户端 ID 和密钥，并关闭 {provider} 登录。通过 {provider} 创建的账户在重新设置之前需改用其他方式登录。",
+      "saved": "已保存 {provider} 凭据",
+      "cleared": "已清除 {provider} 凭据",
+      "saveFailed": "无法保存 {provider} 凭据。",
+      "buttonsSaved": "登录页已更新",
+      "buttonsFailed": "无法更新登录页。",
+      "status": {
+        "active": "已启用",
+        "applying": "正在应用…",
+        "hidden": "已关闭：在登录页隐藏",
+        "server": "已在服务器上设置",
+        "unset": "未设置",
+        "unknown": "状态未知"
+      },
+      "problem": {
+        "clientId": "客户端 ID 只能包含字母、数字和 . _ ~ + / = -。",
+        "discordId": "Discord 客户端 ID 就是应用 ID，为 17 到 20 位数字。",
+        "secret": "客户端密钥为 8 到 512 个字母、数字或 . _ ~ + / = - 字符。",
+        "needBoth": "请输入客户端 ID 和客户端密钥。"
+      },
+      "where": {
+        "google": "Google Cloud 控制台，API 和服务，凭据：类型为 Web 应用的 OAuth 客户端 ID。",
+        "twitch": "Twitch 开发者控制台，Applications：注册一个应用。",
+        "github": "GitHub，Settings，Developer settings，OAuth Apps：新建 OAuth App。",
+        "discord": "Discord Developer Portal，你的应用，OAuth2：Client ID，以及 Reset Secret 显示的密钥。"
+      }
+    },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "每人对一条帖子的最大反应数",
@@ -5795,7 +5932,6 @@
     }
   },
   "discordBridge": {
-    "navLabel": "Discord 桥接",
     "title": "Discord 桥接",
     "intro": "桥接会把此服务器的频道与某个 Discord 服务器的频道连接起来。任意一边发送的消息都会带着发送者的名字和头像出现在另一边。",
     "loading": "正在加载 Discord 桥接…",
@@ -6043,6 +6179,7 @@
       "listLabel": "已配对的频道",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "在 Discord 上私密",
       "ok": "正常",
       "discordGone": "找不到 Discord 频道",
       "discordGoneFix": "机器人找不到这个 Discord 频道了：它已被删除，或者机器人失去了访问权限。请移除该配对，或重新授予机器人访问权限。",
@@ -6346,7 +6483,7 @@
       "managed": "这个机器人是 {server} 的 Discord 桥接。它在那里设置和管理，这里无需任何配置。",
       "aServer": "您的某个服务器",
       "openSettings": "打开桥接设置",
-      "unmanaged": "Discord 桥接在服务器设置中进行设置：服务器设置 → Discord 桥接。该页面会替您创建并管理桥接的机器人，因此无需在这里创建。",
+      "unmanaged": "Discord 桥接在服务器设置中进行设置：服务器设置 → 桥接 → Discord。该页面会替您创建并管理桥接的机器人，因此无需在这里创建。",
       "legacyTitle": "旧版桥接（v1）手动设置",
       "legacyLead": "仅适用于读取配置文件的旧版 harmony-discord-bridge 程序。",
       "harmonyPermissions": "以“读取消息”和“发送消息”权限将此机器人添加到服务器（/bridge clone-server 还需要“管理频道”）。",
@@ -6356,7 +6493,7 @@
     },
     "adminSection": {
       "title": "Discord 桥接",
-      "lead": "社区在 服务器设置 → Discord 桥接 中连接 Discord 服务器。您可以向他们提供此实例的机器人，也可以让他们带来自己的机器人，或两者兼有。社区始终可以在自己的电脑上运行桥接。"
+      "lead": "社区在 服务器设置 → 桥接 → Discord 中连接 Discord 服务器。您可以向他们提供此实例的机器人，也可以让他们带来自己的机器人，或两者兼有。社区始终可以在自己的电脑上运行桥接。"
     },
     "admin": {
       "title": "允许社区使用自己的机器人",
@@ -6430,7 +6567,7 @@
       "clearConfirm": "要移除机器人的凭据吗？在重新设置机器人之前，已关联的社区将停止桥接。他们的桥接和频道配对会保留。",
       "cancel": "取消",
       "enable": "向社区提供此机器人",
-      "enableHint": "服务器管理员会在 服务器设置 → Discord 桥接 中首先看到“使用此实例的机器人”。",
+      "enableHint": "服务器管理员会在 服务器设置 → 桥接 → Discord 中首先看到“使用此实例的机器人”。",
       "enableNeedsConfig": "请先保存 Application ID、客户端密钥和机器人令牌。",
       "presence": "在线状态同步",
       "presenceHint": "为每个已关联的服务器请求 Discord 的 Presence 意图，让社区可以显示谁在线。只发送状态的变化。仅在 Developer Portal 中开启了 Presence 意图时才开启；超过 100 个服务器后，需要 Discord 批准。",
@@ -6480,7 +6617,7 @@
         "channel_encrypted": "该频道现已加密",
         "import_disabled": "历史记录导入已关闭",
         "pair_not_importable": "该配对不再把 Discord 消息带到 Harmony",
-        "discord_approval_required": "该 Discord 频道是私密的：请在 Discord 上用 /bridge import-history 开始导入",
+        "discord_approval_required": "该 Discord 频道是私密的：请包含私密频道后重新开始，或在 Discord 上运行一次 /bridge import-history scope:All bridged channels",
         "discord_channel_unsupported": "该 Discord 频道不是文字频道",
         "discord_access_lost": "桥接已无法读取该 Discord 频道",
         "bridge_stalled": "桥接停止了进展",
@@ -6492,6 +6629,7 @@
         "encrypted": "加密频道无法导入历史记录"
       },
       "needsUpdate": "请将桥接更新到 2.6.0 或更高版本以导入历史记录",
+      "needsUpdateHosted": "此实例的桥接服务需要 2.8.0 或更高版本才能导入历史。由实例管理员更新。",
       "mirrorNote": "导入的文件会复制到此实例的存储中。",
       "consent": {
         "title": "导入 {count} 个频道的历史记录？ | 导入 {count} 个频道的历史记录？",
@@ -6499,11 +6637,14 @@
         "skips": "已离开 Discord 服务器的人的消息会被跳过。Discord 上的任何人都可以用 /bridge-privacy 排除或抹除自己的消息。",
         "notice": "导入开始时，桥接会在每个 Discord 频道中置顶一条通知。",
         "confirm": "我管理此 Discord 服务器，或已获得其管理者的同意。",
+        "privateTitle": "在 Discord 上私密：{channels} | 在 Discord 上私密：{channels}",
+        "privateLead": "在 Discord 上 {'@'}everyone 无法读取这些频道的历史。除非你包含它们，否则会被跳过。",
+        "privateConfirm": "包含此私密频道：我可以在 Discord 上阅读它，或其管理员已同意。 | 包含这些私密频道：我可以在 Discord 上阅读它们，或其管理员已同意。",
         "start": "开始导入"
       },
       "unavailable": {
         "instance_off": "此实例已关闭历史记录导入。",
-        "bridge_mode": "历史记录导入仅适用于你使用自己的 Discord 应用自行运行的桥接。"
+        "bridge_mode": "在此实例上，历史导入仅适用于服务器所有者使用自己的 Discord 应用运行的桥接。"
       },
       "authorsSkipped": "已跳过 {count} 条（作者已离开或已退出） | 已跳过 {count} 条（作者已离开或已退出）",
       "automodSkipped": "AutoMod 拦截了 {count} 条 | AutoMod 拦截了 {count} 条"
@@ -6537,17 +6678,30 @@
     },
     "importAdmin": {
       "title": "Discord 历史记录导入",
-      "lead": "允许服务器通过其所有者使用自己的 Discord 应用运行的桥接，把 Discord 频道中较早的消息复制到 Harmony。绝不通过此实例的 Discord 机器人或此实例运行的机器人。",
+      "lead": "允许服务器通过其桥接将 Discord 频道的旧消息复制到 Harmony。选择允许哪些桥接这样做。",
       "loadFailed": "无法加载历史记录导入设置。",
       "mode": "历史记录导入",
-      "modeOff": "关闭",
-      "modeSelfRun": "自行运行的桥接",
-      "modeHint": "关闭后会拒绝所有导入，包括正在进行的导入。",
-      "warningTitle": "开启之前",
+      "modes": {
+        "off": {
+          "label": "关闭",
+          "hint": "没有服务器可以导入。正在进行的导入会停止。"
+        },
+        "self_run": {
+          "label": "自行运行的桥接",
+          "hint": "服务器所有者使用自己的 Discord 应用运行的桥接。"
+        },
+        "all": {
+          "label": "所有桥接",
+          "hint": "也包括此实例的 Discord 机器人和此处托管的自有机器人桥接。"
+        }
+      },
+      "modeHint": "选择后立即保存。",
+      "warningTitle": "导入开启期间",
       "warningAuthors": "这些消息的作者并未要求复制。已离开 Discord 服务器的作者会被跳过，成员可用 /bridge-privacy 排除或抹除自己的消息。",
       "warningRequests": "针对此实例上内容的删除请求由你处理。服务器管理者可在“服务器设置”的“Discord 桥接”中移除 Discord 用户；下方的“移除所有 Discord 消息”会清空所有服务器。",
       "warningQuiet": "导入的消息不发送通知，计为已读，也不会联邦。当服务器未豁免机器人时，它们会经过 AutoMod 的词语、邀请和链接规则。",
       "warningStorage": "使用“Mirror to storage”时，导入的文件会复制到此实例的存储中，直至下方的每服务器上限。",
+      "warningInstanceBot": "通过此实例的 Discord 机器人进行的导入会使用你的 Discord 应用读取 Discord：根据 Discord 的开发者条款，你作为其所有者对此负责。",
       "maxRunning": "同时运行的导入数",
       "maxRunningHint": "整个实例范围内。其余的排队等待。0 表示不限制。",
       "messagesPerMinute": "每个导入每分钟的消息数",
@@ -6748,7 +6902,7 @@
       "clearSearch": "清除搜索",
       "found": "找到 {count} 名成员",
       "group": "{title}，{count} 人",
-      "discord": "Discord 桥接成员",
+      "bridged": "{platform} 桥接成员",
       "instanceAdmin": "实例管理员",
       "instanceMod": "实例版主",
       "searchHint": "名称或用户名",
@@ -8795,5 +8949,157 @@
       "unsuspended": "已解除停用 {count} 个账号",
       "deleted": "已删除 {count} 个账号"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "选择角色",
+    "title": "选择你的角色",
+    "intro": "点击角色即可获得，再次点击即可移除。更改立即生效。",
+    "empty": "此服务器还没有可选择的角色。",
+    "otherRoles": "其他角色",
+    "cardButton": "选择角色",
+    "errors": {
+      "notMember": "加入服务器后才能选择其角色。",
+      "notLocal": "此服务器的角色需在其所属实例上选择。",
+      "unavailable": "该角色已无法选择。",
+      "notPickable": "该角色会授予权限，因此无法选择。请联系管理员。",
+      "failed": "无法更改你的角色，请重试。"
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "选择你的角色",
+    "otherServer": "此角色菜单属于另一个服务器。",
+    "empty": "这里还没有可选择的角色。",
+    "hint": "点击角色即可获得，再次点击即可移除。",
+    "createTitle": "发布角色菜单",
+    "noRoles": "还没有可选择的角色。请先在 服务器设置 → 角色 中为某个角色开启“成员可以选择此角色”。",
+    "group": "提供的角色",
+    "allGroups": "所有可选择的角色",
+    "titleLabel": "标题",
+    "preview": "预览",
+    "post": "发布",
+    "postFailed": "无法发布角色菜单。"
+  },
+  "joinRole": {
+    "title": "新成员角色",
+    "description": "从现在起加入的每个人都会获得此角色。现有成员的角色保持不变。",
+    "none": "无",
+    "saved": "新成员将获得此角色。",
+    "cleared": "新成员将不再获得角色。",
+    "tooHigh": "只能选择低于你最高角色的角色。",
+    "saveFailed": "无法保存新成员角色。"
+  },
+  "playTogether": {
+    "button": "一起玩",
+    "launcherTitle": "一起玩",
+    "launcherSubtitle": "开始一个这里所有人都能加入的活动",
+    "loadingApps": "正在加载活动…",
+    "noApps": "此实例尚未开启任何活动。",
+    "sandboxNote": "活动在沙盒中运行：无法查看你的账户、消息或游戏之外的任何内容。",
+    "players": "{min}–{max} 名玩家",
+    "playing": "{n} 人在玩",
+    "join": "加入",
+    "open": "打开",
+    "leave": "离开",
+    "close": "关闭",
+    "expand": "展开",
+    "collapse": "收起",
+    "resize": "调整活动大小",
+    "endForEveryone": "为所有人结束",
+    "hostName": "{name}（主持人）",
+    "return": "返回",
+    "retry": "重试",
+    "loading": "正在加载 {name}…",
+    "loadFailed": "{name} 加载失败。",
+    "reconnecting": "正在重新连接…",
+    "escaped": "{name} 试图离开沙盒，已被停止。",
+    "youArePlaying": "你正在玩",
+    "joinTheCall": "加入通话即可游玩",
+    "alreadyRunning": "{name} 已在此运行，你已加入。",
+    "openedElsewhere": "此活动已在另一个窗口中打开。",
+    "bannerOne": "{name} 正在玩 {app}",
+    "bannerMany": "{name} 和另外 {n} 人正在玩 {app}",
+    "bannerEmpty": "{app} 正在此运行",
+    "status": {
+      "connecting": "正在连接…",
+      "reconnecting": "正在重新连接…",
+      "ended": "已结束"
+    },
+    "errors": {
+      "ACTIVITY_APP_UNAVAILABLE": "此活动在本实例上不可用。",
+      "ACTIVITY_CONTEXT_UNSUPPORTED": "此活动无法在此运行。",
+      "ACTIVITY_RATE_LIMITED": "你开启的活动太多了，请几分钟后再试。",
+      "NOT_FOUND": "你无法在此游玩。",
+      "DM_BLOCKED": "你无法与此人一起游玩。",
+      "SERVER_NOT_LOCAL": "活动只能在本实例托管的服务器上运行。",
+      "CHANNEL_TYPE": "活动可在文字频道和语音频道中运行。",
+      "NOT_IN_CALL": "加入通话即可游玩。",
+      "CANNOT_SEND": "你无法在此频道发送消息。",
+      "NOT_LOCAL_ACCOUNT": "只有本实例的账户可以在此游玩。",
+      "ENDED": "该活动已结束。",
+      "FULL": "此活动人数已满。",
+      "UNSUPPORTED_VERSION": "请更新 Harmony 以游玩此活动。",
+      "UNKNOWN": "活动出现问题。"
+    },
+    "admin": {
+      "tab": "活动",
+      "title": "一起玩",
+      "intro": "成员可在私信、群组私信、文字频道和通话中开启的活动。关闭某个活动会结束其正在进行的会话。",
+      "none": "未安装任何活动。",
+      "toggle": "提供 {name}",
+      "enabled": "已开启活动",
+      "disabled": "已关闭活动",
+      "context": {
+        "direct": "私信",
+        "group": "群组私信",
+        "channel": "文字频道",
+        "voice": "语音频道"
+      },
+      "safetyTitle": "活动如何隔离",
+      "safety": {
+        "sandbox": "每个活动都在拥有独立不透明源的沙盒框架中运行：无法读取账户的会话、存储、消息或周围的页面。",
+        "network": "其内容策略拒绝网络请求、弹窗、表单和框架，只能加载自身文件夹中的文件；跳转到其他页面的框架会被停止。",
+        "relay": "玩家通过本实例的中继通信，中继会验证每位成员、限制消息大小和频率，并且在会话结束后不保留任何游戏数据。",
+        "members": "只有对话或频道的成员可以加入；离开对话、离开通话或退出登录的人会在 30 秒内被移出游戏。"
+      },
+      "package": "软件包",
+      "checkUpdate": "检查更新",
+      "remove": "移除",
+      "removeConfirm": "确定永久移除？",
+      "installTitle": "安装活动",
+      "installIntro": "上传活动软件包（.zip）或填写其 HTTPS 地址。安装前你会先看到它的内容。",
+      "chooseZip": "选择 .zip",
+      "or": "或",
+      "urlLabel": "软件包地址",
+      "preview": "预览",
+      "replaces": "替换 v{version}",
+      "id": "ID",
+      "playersLabel": "玩家",
+      "runsIn": "可在以下位置运行",
+      "size": "大小",
+      "from": "来源",
+      "trustWarning": "此活动会在沙盒中于成员的设备上运行其作者的代码。请像添加机器人一样，只安装你信任的活动。",
+      "update": "更新",
+      "install": "安装",
+      "cancel": "取消",
+      "updated": "活动已更新",
+      "installed": "活动已安装（处于关闭状态）",
+      "removed": "活动已移除",
+      "errors": {
+        "NOT_A_ZIP": "这不是 zip 文件。",
+        "TOO_LARGE": "软件包过大（最多 6 MB，脚本 5 MB，图标 256 KB）。",
+        "UNEXPECTED_FILE": "软件包包含 manifest.json、脚本和图标以外的文件。",
+        "MISSING_FILE": "缺少清单中指定的文件。",
+        "BAD_MANIFEST": "manifest.json 无效。",
+        "BAD_ENTRY": "脚本为空或不是文本。",
+        "BAD_ICON": "图标不是其声明的 SVG、PNG 或 WebP。",
+        "BUILTIN_ID": "此 ID 已被内置活动使用。",
+        "TOO_MANY_PACKAGES": "此实例已有 50 个软件包。",
+        "PACKAGE_CHANGED": "预览后该地址的软件包已更改。请重新预览。",
+        "FETCH_FAILED": "无法下载软件包。",
+        "BAD_URL": "请使用 https:// 地址。"
+      }
+    },
+    "thirdParty": "第三方",
+    "thirdPartyNotice": "此第三方活动由本实例安装。Harmony 绝不会在活动内要求你输入密码。"
   }
 }

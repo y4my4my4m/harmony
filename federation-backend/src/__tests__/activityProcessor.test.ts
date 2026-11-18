@@ -61,23 +61,22 @@ describe('determineVisibility (ActivityPub audience targeting)', () => {
       expect(determineVisibility(note)).toBe('unlisted')
     })
 
-    it('defaults to unlisted when no recipients at all', () => {
-      expect(determineVisibility({})).toBe('unlisted')
-    })
-
-    it('defaults to unlisted when to/cc are undefined', () => {
-      expect(determineVisibility({ to: undefined, cc: undefined })).toBe('unlisted')
+    it('is direct when addressed to nobody, as Mastodon', () => {
+      expect(determineVisibility({})).toBe('direct')
+      expect(determineVisibility({ to: undefined, cc: undefined })).toBe('direct')
+      expect(determineVisibility({ to: [], cc: [] })).toBe('direct')
     })
   })
 
   describe('followers-only posts', () => {
     it('detects followers-only when only followers collection is addressed', () => {
-      const note = { to: [FOLLOWERS], cc: [] }
+      const note = { attributedTo: 'https://mastodon.social/users/alice', to: [FOLLOWERS], cc: [] }
       expect(determineVisibility(note)).toBe('followers')
     })
 
     it('detects followers-only with multiple follower collections', () => {
       const note = {
+        attributedTo: 'https://mastodon.social/users/alice',
         to: [FOLLOWERS, 'https://other.server/users/bob/followers'],
         cc: [],
       }
@@ -128,8 +127,18 @@ describe('determineVisibility (ActivityPub audience targeting)', () => {
       expect(determineVisibility(note)).toBe('public')
     })
 
+    it('reads the activity addressing an object does not state, and the stored followers IRI', () => {
+      const activity = { actor: 'https://mastodon.social/users/alice', to: [FOLLOWERS] }
+      expect(determineVisibility({ attributedTo: activity.actor }, { activity })).toBe('followers')
+      expect(determineVisibility({ to: ['https://mastodon.social/users/followers_club'] })).toBe('direct')
+      expect(determineVisibility({ to: ['https://mastodon.social/@alice/followers'] }, {
+        followersUrl: FOLLOWERS,
+      })).toBe('direct')
+    })
+
     it('Misskey-style addressing with user groups', () => {
       const note = {
+        attributedTo: 'https://misskey.io/users/alice',
         to: ['https://misskey.io/users/alice/followers'],
         cc: [],
       }

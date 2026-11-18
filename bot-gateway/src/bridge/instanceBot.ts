@@ -74,7 +74,10 @@ export function discordAuthorizeUrl(clientId: string, redirectUri: string, state
   return `${DISCORD_AUTHORIZE_URL}?${params.toString().replace(/\+/g, '%20')}`
 }
 
-/** Server Settings → Discord Bridge of `serverId` (src/router: /server/:serverId, ?section=discord-bridge). */
+/**
+ * Server Settings → Bridges → Discord of `serverId` (src/router: /server/:serverId). section=discord-bridge
+ * opens that tab in every client, those older than the Bridges section included.
+ */
 export function bridgeSettingsUrl(base: string, serverId: string, outcome: { linked: true } | { error: LinkError }): string {
   const params = new URLSearchParams({ section: 'discord-bridge' })
   if ('linked' in outcome) params.set('linked', '1')

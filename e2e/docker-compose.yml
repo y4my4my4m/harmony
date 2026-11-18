@@ -38,8 +38,12 @@ services:
     networks:
       - default
       - idp
+    # --config-dir as in self-host/supabase-overrides.yml; this user owns the writer's files.
+    command: ["auth", "--config-dir", "/etc/harmony-auth"]
+    user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
     volumes:
       - ./idp/ca.pem:/etc/e2e-idp/ca.pem:ro
+      - ./auth-config:/etc/harmony-auth:ro
     environment:
       # Go reads trust roots from this file alone: the IdP's throwaway CA.
       SSL_CERT_FILE: /etc/e2e-idp/ca.pem

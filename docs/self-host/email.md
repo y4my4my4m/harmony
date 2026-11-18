@@ -26,7 +26,7 @@ Without SMTP the instance works, with these differences:
 - `harmony admin invite` prints the invitation link for you to send;
   `--send` refuses to run. In the admin panel's **Invites**, **Send by email**
   is off and the page gives you the link to copy.
-- A first sign-in through Google, GitHub or Twitch makes a new account even
+- A first sign-in through Google, GitHub, Twitch or Discord makes a new account even
   when an account has the same address
   ([Existing accounts](/self-host/oauth#existing-accounts)).
 

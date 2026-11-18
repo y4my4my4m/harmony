@@ -28,6 +28,7 @@ import { useMessagePollsStore } from '@/stores/useMessagePolls'
 import { useProfileStore } from '@/stores/useProfile'
 import { useToast } from 'vue-toastification'
 import { i18n } from '@/i18n'
+import { isMatrixMention } from '@/utils/matrixMentions'
 import { NEWER_PAGE, acceptsLiveRow, appendNewer, cursorOf, isPendingRow, mergeTail, newestPersisted } from '@/utils/messageWindow'
 
 /** Rows a catch-up after the newest loaded message reads at once. */
@@ -2988,7 +2989,7 @@ export const useDMStore = defineStore('dm', () => {
     const processedUrls = new Set<string>()
     
     content.forEach(part => {
-      if (part.type === 'mention' && part.username) {
+      if (part.type === 'mention' && part.username && !isMatrixMention(part)) {
         const domain = part.domain || instanceDomain
         // `url` is absent from the narrowed `MentionContent` type but attached
         // at runtime by legacy paths, so it is read through `any`.

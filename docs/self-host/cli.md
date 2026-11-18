@@ -468,7 +468,7 @@ Sign-in through an OpenID Connect or OAuth 2.0 provider you run, such as
 Authentik or Keycloak. [OAuth sign-in](/self-host/oauth#your-own-identity-provider)
 walks through it.
 
-`providers` lists the built-in providers (`github`, `google`, `twitch`, and
+`providers` lists the built-in providers (`discord`, `github`, `google`, `twitch`, and
 any other the auth service has on), whether the auth service has each on, and
 what a first sign-in does with an existing account that has the same address
 (**EXISTING ACCOUNTS**: `separate`, `by address`, or `shared: NAME`). Then it

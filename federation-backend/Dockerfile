@@ -44,6 +44,9 @@ COPY --from=build /app/dist ./dist
 # The winston file transports write logs/ under the working directory. A volume
 # mounted there must be writable by uid 1000 (node).
 RUN mkdir -p logs && chown node:node logs
+# GoTrue's --config-dir (HARMONY_AUTH_CONFIG_DIR). An empty named volume mounted here takes this
+# owner and mode; GoTrue's image runs as uid 1000 as well.
+RUN mkdir -p /var/lib/harmony-auth && chown node:node /var/lib/harmony-auth && chmod 700 /var/lib/harmony-auth
 USER node
 
 EXPOSE 3001

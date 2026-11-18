@@ -650,7 +650,7 @@ if [[ "$(yes_no "$OLD_AUTOCONFIRM")" == true || "$(yes_no "$(env_get "$SB_ENV" E
 		want="$(linking_isolate "$linking" $BUILTIN_OAUTH_PROVIDERS)"
 		if [[ "$want" != "$linking" ]]; then
 			env_set "$SB_ENV" PROVIDER_LINKING_DOMAINS "$want"
-			info "supabase/.env: PROVIDER_LINKING_DOMAINS=$want: a first sign-in through Google, GitHub or Twitch makes a new account instead of joining the one with its address (harmony auth linking)"
+			info "supabase/.env: PROVIDER_LINKING_DOMAINS=$want: a first sign-in through Google, GitHub, Twitch or Discord makes a new account instead of joining the one with its address (harmony auth linking)"
 		fi
 	fi
 fi

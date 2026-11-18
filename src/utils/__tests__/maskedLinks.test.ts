@@ -18,12 +18,13 @@ import {
   parseContentToMessageParts,
 } from '@/utils/unifiedContentProcessing'
 import { setMirrorLinkPreferences } from '@/utils/mirrorLinks'
+import { inviteWidgetSnippets } from '@/utils/inviteWidgets'
 
 describe('findMaskedLinks', () => {
   it('finds [label](url) with its offsets', () => {
     const text = 'read [the docs](https://example.com/docs) now'
     expect(findMaskedLinks(text)).toEqual([
-      { start: 5, end: 41, label: 'the docs', url: 'https://example.com/docs', preview: true, rawLabel: 'the docs', rawDestination: 'https://example.com/docs' },
+      { start: 5, end: 41, label: 'the docs', url: 'https://example.com/docs', preview: true, rawLabel: 'the docs', rawDestination: 'https://example.com/docs', image: false },
     ])
   })
 
@@ -43,7 +44,7 @@ describe('findMaskedLinks', () => {
     ['a blank label', '[  ](https://example.com)'],
     ['a label across lines', '[a\nb](https://example.com)'],
     ['an escaped bracket', '\\[x](https://example.com)'],
-    ['image syntax', '![x](https://example.com/a.png)'],
+    ['an image of a relative path', '![x](a.png)'],
     ['a space in the URL', '[x](https://example.com/a b)'],
   ])('ignores %s', (_name, text) => {
     expect(findMaskedLinks(text)).toEqual([])
@@ -51,6 +52,58 @@ describe('findMaskedLinks', () => {
 
   it('trims the label', () => {
     expect(findMaskedLinks('[ docs ](https://example.com)')[0].label).toBe('docs')
+  })
+
+  it('reads ![alt](src) as a link to the image labelled with its alt, the ! included', () => {
+    expect(findMaskedLinks('see ![a cat](https://example.com/cat.png)!')).toEqual([
+      { start: 4, end: 41, label: 'a cat', url: 'https://example.com/cat.png', preview: true, rawLabel: 'a cat', rawDestination: 'https://example.com/cat.png', image: true },
+    ])
+  })
+
+  it('takes an image with a blank alt', () => {
+    expect(findMaskedLinks('![](https://example.com/cat.png)')).toMatchObject([{ start: 0, label: '', url: 'https://example.com/cat.png', image: true }])
+  })
+
+  it('reads a linked image as one link to the outer destination, labelled with the alt', () => {
+    const text = 'x [![Join Lounge](https://chat.example/badge.svg?lang=ja)](https://chat.example/invite/AB12) y'
+    expect(findMaskedLinks(text)).toEqual([{
+      start: 2,
+      end: text.length - 2,
+      label: 'Join Lounge',
+      url: 'https://chat.example/invite/AB12',
+      preview: true,
+      rawLabel: '![Join Lounge](https://chat.example/badge.svg?lang=ja)',
+      rawDestination: 'https://chat.example/invite/AB12',
+      image: false,
+    }])
+  })
+
+  it('takes a linked image with a blank alt or angle brackets on either URL', () => {
+    expect(findMaskedLinks('[![](<https://a.example/i.svg>)](<https://b.example>)')).toMatchObject([
+      { start: 0, label: '', url: 'https://b.example', preview: false, image: false },
+    ])
+  })
+
+  it('reads the escaped brackets of a label as brackets', () => {
+    expect(findMaskedLinks('[\\[JP\\] Lounge](https://example.com)')).toMatchObject([
+      { label: '[JP] Lounge', rawLabel: '\\[JP\\] Lounge', url: 'https://example.com' },
+    ])
+  })
+
+  it('leaves the ! of \\! as text and links the rest', () => {
+    expect(findMaskedLinks('\\![x](https://example.com)')).toMatchObject([{ start: 2, label: 'x', image: false }])
+  })
+
+  it('finds the image inside an escaped linked image', () => {
+    expect(findMaskedLinks('\\[![x](https://a.example/i.png)](https://b.example)')).toMatchObject([
+      { start: 2, label: 'x', url: 'https://a.example/i.png', image: true },
+    ])
+  })
+
+  it('round-trips a label holding brackets', () => {
+    const source = maskedLinkSource('[JP] Lounge', 'https://example.com')
+    expect(source).toBe('[\\[JP\\] Lounge](https://example.com)')
+    expect(findMaskedLinks(source)[0]).toMatchObject({ label: '[JP] Lounge', end: source.length })
   })
 
   it('round-trips through maskedLinkSource', () => {
@@ -238,6 +291,28 @@ describe('parseContentToMessageParts with masked links', () => {
     const parts = await parseContentToMessageParts('[x.com/NASA/status/1](https://x.com/NASA/status/1)')
     expect(parts).toEqual([{ type: 'url', url: 'https://x.com/NASA/status/1', preview: true, label: 'x.com/NASA/status/1' }])
     expect(shownLinkLabel(parts[0])).toBe('x.com/NASA/status/1')
+  })
+
+  it.each([
+    ['a plain name', 'Lounge', 'Join Lounge'],
+    ['a name with brackets', '[JP] みんなのサーバー', 'Join [JP] みんなのサーバー'],
+  ])('stores the Markdown badge of inviteWidgets with %s as one link to the invite', async (_name, server, label) => {
+    const invite = 'https://chat.example/invite/AB12'
+    const { badgeMarkdown } = inviteWidgetSnippets(invite, server, 'ja')!
+    const parts = await parseContentToMessageParts(`バッジです。\n${badgeMarkdown}`)
+    expect(parts).toEqual([
+      { type: 'text', text: 'バッジです。\n' },
+      { type: 'url', url: invite, preview: true, label },
+    ])
+  })
+
+  it('stores an image as a link to it labelled with its alt, and no label for a blank alt', async () => {
+    expect(await parseContentToMessageParts('![a cat](https://example.com/cat.png)')).toEqual([
+      { type: 'url', url: 'https://example.com/cat.png', preview: true, label: 'a cat' },
+    ])
+    expect(await parseContentToMessageParts('![](https://example.com/cat.png)')).toEqual([
+      { type: 'url', url: 'https://example.com/cat.png', preview: true },
+    ])
   })
 
   it('parses bare URLs beside masked ones', async () => {

@@ -4,6 +4,8 @@ import { TTLCache } from '../utils/TTLCache.js'
 import { OutgoingWebhookRoutes, OUTGOING_WEBHOOK_REFRESH_MS } from './outgoingWebhooks.js'
 import { withSignedMessageMedia } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
+import { bridgedMessageAuthor } from '../bridge/bridgeAuthors.js'
+import { consentSubject, consentingReaders } from '../bridge/memberConsent.js'
 import { absoluteEmojiUrl, isAnimatedEmojiUrl, isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import {
   type EveryoneLayer,
@@ -399,6 +401,7 @@ export class EventDispatcher {
       .gt('created_at', twentyFourHoursAgo)
       .order('created_at', { ascending: false })
       .limit(5000)
+      .returns<ReactionRow[]>()
 
     if (reactions) {
       for (const r of reactions) {
@@ -418,6 +421,7 @@ export class EventDispatcher {
         .gt('created_at', this.lastReactionTimestamp.toISOString())
         .order('created_at', { ascending: true })
         .limit(100)
+        .returns<Array<ReactionRow & { created_at: string }>>()
 
       if (error) {
         console.error('Error polling reactions:', error)
@@ -500,7 +504,11 @@ export class EventDispatcher {
     const serverId = await this.resolveServerId(channelId)
     if (!channelId || !serverId) return
 
-    const botIds = await this.resolveReaders(serverId, channelId)
+    // A removal reaches every reader: a bridge that relayed the reaction removes its copy.
+    const readers = await this.resolveReaders(serverId, channelId)
+    const botIds = type === 'MESSAGE_REACTION_ADD'
+      ? await consentingReaders(readers, serverId, channelId, reaction.user_id ?? null)
+      : readers
     if (botIds.length === 0 && !this.webhooks.wants(type, serverId, botIds)) return
 
     // { id, name, url, animated }. A custom emoji has its emojis row's id, name and absolute url.
@@ -521,6 +529,7 @@ export class EventDispatcher {
     await this.dispatch(type, serverId, channelId, botIds, {
       reaction_id: reaction.id,
       message_id: reaction.message_id,
+      server_id: serverId,
       channel_id: reaction.channel_id,
       user_id: reaction.user_id ?? null,
       bot_id: reaction.bot_id ?? null,
@@ -851,7 +860,7 @@ export class EventDispatcher {
       return
     }
     
-    const botIds = await this.resolveReaders(serverId, message.channel_id)
+    const botIds = await consentingReaders(await this.resolveReaders(serverId, message.channel_id), serverId, message.channel_id, consentSubject(message))
     
     console.log(`Found ${botIds.length} bots that can read channel ${message.channel_id} in server ${serverId}`);
     
@@ -877,7 +886,8 @@ export class EventDispatcher {
     const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) return
     
-    const botIds = await this.resolveReaders(serverId, message.channel_id, message.created_at)
+    const botIds = await consentingReaders(
+      await this.resolveReaders(serverId, message.channel_id, message.created_at), serverId, message.channel_id, consentSubject(message))
     if (botIds.length === 0 && !this.webhooks.wants('MESSAGE_UPDATE', serverId, botIds)) return
     
     await this.dispatch('MESSAGE_UPDATE', serverId, message.channel_id, botIds, await this.formatMessage(message, serverId))
@@ -912,6 +922,7 @@ export class EventDispatcher {
     
     await this.dispatch('MESSAGE_DELETE', serverId, message.channel_id, botIds, {
       id: message.id,
+      server_id: serverId,
       channel_id: message.channel_id,
       thread_id: message.thread_id ?? null,
       metadata: message.metadata
@@ -991,21 +1002,9 @@ export class EventDispatcher {
 
   /** `serverId` is the channel's server; author.nickname is resolved in it. */
   private async formatMessage(message: any, serverId: string | null) {
-    let author = null
+    let author = bridgedMessageAuthor(message)
 
-    // Discord-bridged messages carry the original user's profile inline; no DB hit.
-    if (message.bot_id && message.metadata?.discord_user) {
-      const discordUser = message.metadata.discord_user
-      author = {
-        id: discordUser.id,
-        username: discordUser.username,
-        display_name: discordUser.display_name,
-        avatar: discordUser.avatar_url, // Discord URLs are already complete
-        nickname: null,
-        bot: false, // Treat as regular user for display
-        discord_user: true
-      }
-    } else if (message.bot_id && typeof message.metadata?.webhook?.name === 'string') {
+    if (!author && message.bot_id && typeof message.metadata?.webhook?.name === 'string') {
       // A channel webhook's message names its shown author; execute_channel_webhook writes it.
       const webhook = message.metadata.webhook
       author = {
@@ -1017,7 +1016,7 @@ export class EventDispatcher {
         bot: true,
         webhook: true,
       }
-    } else if (message.user_id || message.bot_id) {
+    } else if (!author && (message.user_id || message.bot_id)) {
       const entry = await this.resolveAuthor(message.user_id ?? null, message.bot_id ?? null)
       if (entry) {
         author = {
@@ -1033,6 +1032,7 @@ export class EventDispatcher {
     
     return {
       id: message.id,
+      server_id: serverId,
       channel_id: message.channel_id,
       thread_id: message.thread_id ?? null,
       author,

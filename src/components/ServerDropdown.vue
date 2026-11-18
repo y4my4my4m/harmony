@@ -23,9 +23,19 @@
           {{ $t('server.inviteLink') }}
         </button>
       </li>
+      <li v-if="showRolePicker" role="none">
+        <button type="button" role="menuitem" class="dropdown-item" data-testid="server-pick-roles" @click="openRolePicker">
+          {{ $t('rolePicker.menuEntry') }}
+        </button>
+      </li>
       <li role="none">
         <button type="button" role="menuitem" class="dropdown-item" data-testid="server-notification-settings" @click="openNotificationSettings">
           {{ $t('notificationSettings.menuEntry') }}
+        </button>
+      </li>
+      <li v-if="showBridgePrivacy" role="none">
+        <button type="button" role="menuitem" class="dropdown-item" data-testid="server-bridge-privacy" @click="openBridgePrivacy">
+          {{ $t('bridgePrivacy.title') }}
         </button>
       </li>
       <li v-if="showWelcomeEntry" role="none">
@@ -43,7 +53,7 @@
 </template>
   
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMenu } from '@/composables/useMenu';
 import { useServerPermissions } from '@/composables/useServerPermissions';
@@ -51,8 +61,12 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerWelcomeStore } from '@/stores/useServerWelcome';
 import { useLeaveServer } from '@/composables/useLeaveServer';
 import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings';
+import { useRolePickerStore } from '@/stores/useRolePicker';
+import { useServerRolesStore } from '@/stores/useServerRoles';
+import { pickableRoleGroups } from '@/utils/selfAssignableRoles';
 import { closeMobileDrawers } from '@/composables/useLayoutState';
 import ServerCopyBanner from '@/components/settings/server/ServerCopyBanner.vue';
+import { useBridgePrivacyStore } from '@/stores/useBridgePrivacy';
 
 interface Props {
   serverId?: string
@@ -129,8 +143,31 @@ const generateInviteLink = () => {
 
 const notificationSettingsStore = useServerNotificationSettingsStore();
 
+const rolePickerStore = useRolePickerStore();
+const serverRolesStore = useServerRolesStore();
+// A copy's roles are written by its host, where members pick them.
+const showRolePicker = computed(() =>
+  !isCopy.value && !!props.serverId &&
+  pickableRoleGroups(serverRolesStore.rolesByServer.get(props.serverId) ?? []).length > 0);
+
+const openRolePicker = () => {
+  if (props.serverId) rolePickerStore.openModal(props.serverId);
+  closeDropdown();
+};
+
 const openNotificationSettings = () => {
   if (props.serverId) notificationSettingsStore.openModal(props.serverId);
+  closeDropdown();
+};
+
+const bridgePrivacy = useBridgePrivacyStore();
+// A copy's bridges belong to its host instance.
+const showBridgePrivacy = computed(() => !isCopy.value && bridgePrivacy.hasBridge(props.serverId));
+watch(() => (props.isVisible && !isCopy.value ? props.serverId : undefined), (serverId) => {
+  if (serverId) void bridgePrivacy.prefetch(serverId);
+}, { immediate: true });
+const openBridgePrivacy = () => {
+  if (props.serverId) void bridgePrivacy.open(props.serverId);
   closeDropdown();
 };
 

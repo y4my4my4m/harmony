@@ -18,6 +18,7 @@ import { confirmForwardedActivity, FORWARDABLE_TYPES } from './forwardedActivity
 import { activityIdHeldByAnother, activityIdIsStorable } from './inboxClaim.js';
 import { sameUrl } from '../utils/apOrigin.js';
 import { storedPostVisibility } from './postAccess.js';
+import { addresses, AS_PUBLIC, audienceOf, recipientsOf, sameAddress } from './audience.js';
 
 const router = Router();
 
@@ -292,7 +293,7 @@ router.get(
 async function addressedViaFollowers(
   userId: string,
   actorUrl: string,
-  recipients: unknown[],
+  recipients: string[],
 ): Promise<boolean> {
   const supabase = getSupabaseClient();
   const { data: sender } = await supabase
@@ -303,7 +304,7 @@ async function addressedViaFollowers(
   if (!sender) return false;
 
   const followersUrl = sender.followers_url || `${actorUrl}/followers`;
-  if (!recipients.includes(followersUrl)) return false;
+  if (!recipients.some((r) => sameAddress(r, followersUrl))) return false;
 
   const { data: follow } = await supabase
     .from('follows')
@@ -518,22 +519,22 @@ async function handleInbox(
     // reported account's personal inbox. Mastodon's Move and Block have no audience either.
     const implicitTypes = ['Like', 'EmojiReact', 'EmojiReaction', 'Undo', 'Accept', 'Reject', 'Follow', 'Flag', 'Move', 'Block', 'QuoteRequest'];
     if (!implicitTypes.includes(activity.type)) {
-      const to = Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean);
-      const cc = Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean);
-      const recipients = [...to, ...cc];
+      // The activity's addressing and that of an embedded object: the sender states both.
+      const embedded = activity.object && typeof activity.object === 'object' ? activity.object : null;
+      const recipients = [...new Set([
+        ...recipientsOf(audienceOf(activity)),
+        ...(embedded ? recipientsOf(audienceOf(embedded)) : []),
+      ])];
       const canonicalUrl = `https://${config.INSTANCE_DOMAIN}/users/${username}`;
-      const PUBLIC_ADDRESSING = 'https://www.w3.org/ns/activitystreams#Public';
 
-      const directlyAddressed = recipients.some((r: string) =>
+      const directlyAddressed = recipients.some((r) =>
         r === user.federated_id || r === canonicalUrl
       );
 
       // Public addressing or a Mention tag also counts as addressed.
       let mentionedInTags = false;
       if (!directlyAddressed) {
-        const isPublic = recipients.some((r: string) =>
-          r === PUBLIC_ADDRESSING || r === 'as:Public' || r === 'Public'
-        );
+        const isPublic = recipients.includes(AS_PUBLIC);
         const object = activity.object;
         const tags = object?.tag || [];
         const tagArray = Array.isArray(tags) ? tags : [tags];
@@ -587,8 +588,8 @@ async function handleInbox(
       p_actor_ap_id: actorUrl,
       p_activity_data: activity,
       p_origin_domain: originDomain,
-      p_to_addresses: Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean),
-      p_cc_addresses: Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean),
+      p_to_addresses: addresses(activity.to),
+      p_cc_addresses: addresses(activity.cc),
       p_is_local: false,
     });
 
