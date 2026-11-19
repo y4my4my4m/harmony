@@ -1204,6 +1204,9 @@
       "revealed": "Spoiler: {text}"
     },
     "speech": {
+      "said": "{author} said:",
+      "repliedTo": "{author} replied to {replyAuthor}:",
+      "replied": "{author} replied:",
       "encrypted": "encrypted message",
       "spoiler": "spoiler",
       "imageWithAlt": "image: {alt}",

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { customEmojiLabel, humanizeEmojiName, spokenEmojiName } from '../emojiNames'
-import { messageSpeechText, summarizeIncoming, systemEventSpeechText, type Translate } from '../messageSpeech'
+import {
+  messageSpeechIntroduction,
+  messageSpeechText,
+  summarizeIncoming,
+  systemEventSpeechText,
+  type Translate,
+} from '../messageSpeech'
 import type { MessagePart } from '@/types'
 
 /** Key plus its params, so assertions read what each piece was built from. */
@@ -65,6 +71,26 @@ describe('messageSpeechText', () => {
     const text = messageSpeechText([{ type: 'text', text: 'x'.repeat(500) }] as MessagePart[], t, { max: 20 })
     expect(text).toHaveLength(20)
     expect(text.endsWith('…')).toBe(true)
+  })
+})
+
+describe('messageSpeechIntroduction', () => {
+  it('names the author of a message and the author it replies to', () => {
+    expect(messageSpeechIntroduction({ author: 'Alice' }, t)).toBe('messageA11y.speech.said(author=Alice)')
+    expect(messageSpeechIntroduction({ author: 'Alice', replyAuthor: 'Bob' }, t))
+      .toBe('messageA11y.speech.repliedTo(author=Alice,replyAuthor=Bob)')
+  })
+
+  it('reads a reply whose original author is unknown without inventing one', () => {
+    expect(messageSpeechIntroduction({ author: 'Alice', replyAuthor: '' }, t))
+      .toBe('messageA11y.speech.replied(author=Alice)')
+    expect(messageSpeechIntroduction({ author: 'Alice', replyAuthor: null }, t))
+      .toBe('messageA11y.speech.replied(author=Alice)')
+  })
+
+  it('falls back to the existing Someone name for an unknown author', () => {
+    expect(messageSpeechIntroduction({ author: '  ' }, t))
+      .toBe('messageA11y.speech.said(author=systemEvents.someone)')
   })
 })
 

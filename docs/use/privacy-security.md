@@ -263,6 +263,7 @@ Removed: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC
 - That storage is ordinary local storage a page can read; it is not the encryption vault. Do not paste a key you would not trust a script on this instance with.
 - **This browser** uses the browser's own speech service. Some browsers and systems generate the voice online, so a browser voice is not always offline.
 - **ElevenLabs-compatible API** sends the text of the message you chose to speak straight from your browser to the API address you enter, along with your key if you set one. That provider's own retention and privacy policy applies to it. The official ElevenLabs endpoint requires a key; a local engine may not. This includes an end-to-end encrypted message: once you unlock and speak it, its decrypted plaintext leaves your device for that provider.
+- The sender's displayed name, and for a reply the displayed name of the author it answers, is sent with the text so both can be read aloud. Those names leave your device the same way the message text does; the quoted message itself is never read or sent.
 - Harmony stores no audio. The message is not changed: it is stored and encrypted exactly as before. An end-to-end encrypted message is decrypted on your device before it is spoken.
 - A message is read only when you pick **Speak message**, and only until it ends or you stop it. Nothing is read or sent on its own, and the feature does not replace your screen reader.
 

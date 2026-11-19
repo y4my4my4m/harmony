@@ -117,6 +117,7 @@ Screen readers in browse mode take single letters for navigation. **Toggle mute*
 - The action is hidden while a message is still encrypted. Once you unlock it, the decrypted text is read — and, with an external API, sent to that provider. Spoilers are never read; they are said as "spoiler".
 - Reading another message replaces the one playing; **Stop speaking** in the same menu stops it at once.
 - The text read is the message as it appears: mentions, custom emoji, attachments and polls are named, as in the announcements.
+- The sender's displayed name introduces it: "Alice said: ...". A reply names the author it answers instead of reading the quoted message: "Alice replied to Bob: ...". When that author cannot be read, it says "Alice replied: ...". System notices keep their own sentence, which already names the people involved.
 
 ## High contrast
 

@@ -225,7 +225,7 @@ import DeleteIcon from '@/components/icons/Delete.vue';
 import AppMenu from '@/components/a11y/AppMenu.vue';
 import { useT } from '@/composables/useT';
 import { spokenEmojiName } from '@/utils/a11y/emojiNames';
-import { messageSpeechText, systemEventSpeechText } from '@/utils/a11y/messageSpeech';
+import { messageSpeechIntroduction, messageSpeechText, systemEventSpeechText } from '@/utils/a11y/messageSpeech';
 import {
   isSpeaking,
   MessageTtsError,
@@ -259,6 +259,10 @@ interface Props {
   systemUserName?: (userId: string) => string;
   /** Plain bot name for a system notice. */
   systemBotName?: (botId: string) => string;
+  /** Plain displayed name of this message's author, from the caches the row renders names with. */
+  authorName?: string;
+  /** Plain displayed name of the author this message replies to; '' when unreadable. */
+  replyAuthorName?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -267,6 +271,8 @@ const props = withDefaults(defineProps<Props>(), {
   canDelete: false,
   hidesOnInstance: false,
   trigger: null,
+  authorName: '',
+  replyAuthorName: '',
 });
 
 const { t } = useT();
@@ -466,10 +472,11 @@ const hasMediaURL = computed(() => {
 
 const hasTextContent = computed(() => hasCopyableText(props.message?.content));
 
-// What would be read aloud: parts the viewer sees (decrypted content when
-// unlocked), spoilers masked, no length cap. A system row renders from metadata,
-// so it reads the same event wording with the people it names. Hidden while still
-// encrypted.
+// What would be read aloud: the displayed author introduces the body, and a
+// reply names the author it answers without reading the quoted text. Parts are
+// the ones the viewer sees (decrypted content when unlocked), spoilers masked,
+// no length cap. A system row reads its event wording alone, since the sentence
+// already names the people. Hidden while still encrypted.
 const speechText = computed(() => {
   const message = props.message;
   if (!message) return '';
@@ -479,8 +486,15 @@ const speechText = computed(() => {
       currentUserId: props.currentUserId,
     });
     if (eventText) return eventText;
+    return messageSpeechText(message.content as MessagePart[], t, { max: Infinity });
   }
-  return messageSpeechText(message.content as MessagePart[], t, { max: Infinity });
+  const body = messageSpeechText(message.content as MessagePart[], t, { max: Infinity });
+  if (!body) return '';
+  const introduction = messageSpeechIntroduction({
+    author: props.authorName,
+    replyAuthor: message.reply_to ? props.replyAuthorName : undefined,
+  }, t);
+  return `${introduction} ${body}`;
 });
 
 const canSpeak = computed(() => {

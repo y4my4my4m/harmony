@@ -76,8 +76,8 @@ const speakItem = '[data-testid="context-menu-speak"]'
 
 const BOB = '00000000-0000-4000-8000-000000000002'
 const THREAD = '00000000-0000-4000-8000-0000000000f1'
-// Real i18n, so the spoken event wording is the text a reader hears.
-const mountSystemMenu = (message: any, extra: Record<string, unknown> = {}) => mount(MessageContextMenu, {
+// Real i18n, so the spoken wording is the text a reader hears.
+const mountI18nMenu = (message: any, extra: Record<string, unknown> = {}) => mount(MessageContextMenu, {
   props: { isVisible: true, position: { x: 0, y: 0 }, message, currentUserId: 'me', ...extra },
   global: {
     plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })],
@@ -92,7 +92,7 @@ const systemMessage = (metadata: Record<string, unknown>, text: string) => ({
 
 describe('MessageContextMenu Speak message for a system notice', () => {
   it('reads a join from metadata with the member name, not the stored content', async () => {
-    wrapper = mountSystemMenu(
+    wrapper = mountI18nMenu(
       systemMessage({ type: 'member_join', subject_id: BOB }, 'has joined the server'),
       { systemUserName: (id: string) => (id === BOB ? 'Bob' : 'Unknown User') },
     )
@@ -100,10 +100,12 @@ describe('MessageContextMenu Speak message for a system notice', () => {
     const [{ text }] = speakMock.mock.calls[0]
     expect(text).toBe('Bob joined the server.')
     expect(text).not.toContain(BOB)
+    // The event sentence already names the member.
+    expect(text).not.toContain('said')
   })
 
   it('reads a thread notice with its name and reads the link as text, not the thread id', async () => {
-    wrapper = mountSystemMenu(
+    wrapper = mountI18nMenu(
       systemMessage({ type: 'thread_created', actor_id: BOB, thread_id: THREAD, thread_name: 'Plans' }, 'started a thread'),
       { systemUserName: (id: string) => (id === BOB ? 'Bob' : 'Unknown User') },
     )
@@ -111,6 +113,61 @@ describe('MessageContextMenu Speak message for a system notice', () => {
     const [{ text }] = speakMock.mock.calls[0]
     expect(text).toBe('Bob started a thread: Plans. See all threads.')
     expect(text).not.toContain(THREAD)
+  })
+})
+
+describe('MessageContextMenu Speak message introduction', () => {
+  it('reads a normal message as its displayed author and the text', async () => {
+    wrapper = mountI18nMenu(
+      { id: 'm1', user_id: 'alice', content: [{ type: 'text', text: 'hello there' }], created_at: new Date() },
+      { authorName: 'Alice' },
+    )
+    await wrapper.get(speakItem).trigger('click')
+    expect(speakMock.mock.calls[0][0].text).toBe('Alice said: hello there')
+  })
+
+  it('names both displayed authors of a reply and reads only the new body', async () => {
+    wrapper = mountI18nMenu(
+      {
+        id: 'm2', user_id: 'alice', reply_to: 'm1', created_at: new Date(),
+        content: [{ type: 'text', text: 'my answer' }],
+      },
+      { authorName: 'Alice', replyAuthorName: 'Bob' },
+    )
+    await wrapper.get(speakItem).trigger('click')
+    const [{ text }] = speakMock.mock.calls[0]
+    expect(text).toBe('Alice replied to Bob: my answer')
+    expect(text).not.toContain('m1')
+  })
+
+  it('reads a reply whose original author is unreadable without inventing one', async () => {
+    wrapper = mountI18nMenu(
+      {
+        id: 'm2', user_id: 'alice', reply_to: 'm1', created_at: new Date(),
+        content: [{ type: 'text', text: 'my answer' }],
+      },
+      { authorName: 'Alice', replyAuthorName: '' },
+    )
+    await wrapper.get(speakItem).trigger('click')
+    expect(speakMock.mock.calls[0][0].text).toBe('Alice replied: my answer')
+  })
+
+  it('falls back to a localized name for an unknown author', async () => {
+    wrapper = mountI18nMenu(
+      { id: 'm1', content: [{ type: 'text', text: 'hi' }], created_at: new Date() },
+      { authorName: '' },
+    )
+    await wrapper.get(speakItem).trigger('click')
+    expect(speakMock.mock.calls[0][0].text).toBe('Someone said: hi')
+  })
+
+  it('names a bridged author as the row shows them', async () => {
+    wrapper = mountI18nMenu(
+      { id: 'm1', content: [{ type: 'text', text: 'hi' }], created_at: new Date() },
+      { authorName: 'Bridged Bob' },
+    )
+    await wrapper.get(speakItem).trigger('click')
+    expect(speakMock.mock.calls[0][0].text).toBe('Bridged Bob said: hi')
   })
 })
 

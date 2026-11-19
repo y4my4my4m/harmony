@@ -76,6 +76,29 @@ export function messageSpeechText(
   return truncate(text, options.max ?? SPOKEN_TEXT_MAX)
 }
 
+export interface SpeechIntroduction {
+  /** Plain displayed name of the message's author. */
+  author?: string | null
+  /** Displayed name of the author the message replies to; undefined when it is
+      not a reply, '' when that author cannot be read. */
+  replyAuthor?: string | null
+}
+
+/**
+ * Spoken introduction of an explicitly spoken message: "Alice said:",
+ * "Alice replied to Bob:" and, when the original's author cannot be read,
+ * "Alice replied:" so no id or invented name is spoken. An unknown author
+ * reads as the existing Someone fallback.
+ */
+export function messageSpeechIntroduction(intro: SpeechIntroduction, t: Translate): string {
+  const author = intro.author?.trim() || t('systemEvents.someone')
+  if (intro.replyAuthor === undefined) return t('messageA11y.speech.said', { author })
+  const replyAuthor = intro.replyAuthor?.trim()
+  return replyAuthor
+    ? t('messageA11y.speech.repliedTo', { author, replyAuthor })
+    : t('messageA11y.speech.replied', { author })
+}
+
 const SYSTEM_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function systemProfileId(value: unknown): string | null {
