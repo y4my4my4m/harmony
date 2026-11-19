@@ -8,6 +8,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Speak a message aloud.** **Speak message** in a message's options menu reads it with
+  this browser's own voice, or an ElevenLabs-compatible API you configure, and **Stop
+  speaking** ends it. The settings and any key stay on this device, per account, are
+  never sent to a Harmony server, and are removed when you sign out. Spoilers
+  are not read, and the action is hidden until an encrypted message is unlocked. See
+  [Privacy and security](docs/use/privacy-security.md#spoken-messages).
 - **Category permissions.** **Edit category** has a **Permissions** tab, as a channel does: the
   **Private category** switch, then each role's channel permissions as **Deny**, **Inherit** or
   **Allow**, voice included. Saving applies them to every channel synced with the category. Closing

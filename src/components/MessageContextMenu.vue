@@ -83,6 +83,19 @@
       <span>Copy text</span>
     </button>
 
+    <!-- Read the message aloud with the voice source chosen in Settings (the
+         browser's own voice, or an external API that receives the text).
+         Offered unless the body is still encrypted. -->
+    <button v-if="canSpeak" type="button" role="menuitem" class="context-menu-item" data-testid="context-menu-speak" @click="speakMessageAction">
+      <Speaker />
+      <span>{{ t('messageTts.menu.speak') }}</span>
+    </button>
+
+    <button v-if="isSpeaking" type="button" role="menuitem" class="context-menu-item" data-testid="context-menu-stop-speaking" @click="stopSpeakingAction">
+      <Icon name="volume-x" size="sm" />
+      <span>{{ t('messageTts.menu.stop') }}</span>
+    </button>
+
     <!-- Image-specific actions. When the message has multiple image
          attachments we operate on the first one - that's the same image
          the chat preview shows largest, and matches Discord's behaviour
@@ -203,6 +216,7 @@ import type { Message, MessagePart, StickerContent } from '@/types';
 import { messageSticker } from '@/utils/stickerParts';
 import { hasCapability } from '@/services/instanceCapabilities';
 import Icon from '@/components/common/Icon.vue';
+import Speaker from '@/components/icons/Speaker.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
 import ReplyIcon from '@/components/icons/Reply.vue';
 import ThreadIcon from '@/components/icons/Thread.vue';
@@ -211,6 +225,14 @@ import DeleteIcon from '@/components/icons/Delete.vue';
 import AppMenu from '@/components/a11y/AppMenu.vue';
 import { useT } from '@/composables/useT';
 import { spokenEmojiName } from '@/utils/a11y/emojiNames';
+import { messageSpeechText } from '@/utils/a11y/messageSpeech';
+import {
+  isSpeaking,
+  MessageTtsError,
+  speakMessage,
+  stopMessageSpeech,
+  type MessageTtsErrorCode,
+} from '@/services/messageTts';
 
 interface Props {
   isVisible: boolean;
@@ -439,6 +461,52 @@ const hasMediaURL = computed(() => {
 });
 
 const hasTextContent = computed(() => hasCopyableText(props.message?.content));
+
+// What would be read aloud: parts the viewer sees (decrypted content when
+// unlocked), spoilers masked, no length cap. Hidden while still encrypted.
+const speechText = computed(() =>
+  props.message ? messageSpeechText(props.message.content as MessagePart[], t, { max: Infinity }) : ''
+);
+
+const canSpeak = computed(() => {
+  const message = props.message;
+  if (!message) return false;
+  if (message.encrypted && !message.decrypted) return false;
+  return speechText.value.trim().length > 0;
+});
+
+const speechErrorKey: Record<MessageTtsErrorCode, string> = {
+  unsupported: 'messageTts.errors.unsupported',
+  'invalid-url': 'messageTts.errors.invalidUrl',
+  'missing-voice-id': 'messageTts.errors.missingVoiceId',
+  'missing-key': 'messageTts.errors.missingKey',
+  http: 'messageTts.errors.http',
+  network: 'messageTts.errors.network',
+  audio: 'messageTts.errors.audio',
+};
+
+const speakMessageAction = async () => {
+  const message = props.message;
+  if (!message || !canSpeak.value) return;
+  // Capture the text before closing: the close handler may change the message.
+  const text = speechText.value;
+  // Close before the fetch/playback so the menu does not linger over the chat.
+  emit('close');
+  try {
+    await speakMessage({ messageId: message.id, text });
+  } catch (error) {
+    // A playback replaced by a newer one resolves, so anything here is real.
+    const code = error instanceof MessageTtsError ? error.code : null;
+    const key = code ? speechErrorKey[code] : 'messageTts.errors.audio';
+    const status = error instanceof MessageTtsError ? error.status : undefined;
+    toast.error(t(key, { status: status ?? '' }));
+  }
+};
+
+const stopSpeakingAction = () => {
+  stopMessageSpeech();
+  emit('close');
+};
 
 // Show "Copy Media URL" when the message has a file attachment, otherwise
 // "Copy Link URL" for plain URLs. Matches Discord's wording: media files

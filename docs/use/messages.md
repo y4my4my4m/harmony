@@ -283,6 +283,7 @@ Hovering a message, or focusing it with the keyboard, shows a toolbar with **Add
 | **Reply**, **Create thread** | Not on system messages. |
 | **Edit message** | Your own messages. |
 | Copy text | When the message has text. |
+| **Speak message**, **Stop speaking** | **Speak message** when the message can be read; **Stop speaking** while one is being read. Reads it aloud on your device; see [Spoken messages](/use/accessibility#spoken-messages). |
 | Copy image, Save image, Save video, Save audio | When the message has that media. |
 | Copy message link | Always. Pasted in a channel of the same server, the link shows as the channel name and jumps to the message. |
 | **Remove embeds**, **Show embeds** | On messages with link previews: for the author, and for members with **Manage Messages**. |

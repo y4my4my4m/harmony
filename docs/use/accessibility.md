@@ -16,9 +16,10 @@ This page is for people who use Harmony with a keyboard, a screen reader, magnif
 | **Reduce motion** | **User settings** → **Appearance**, **High contrast** section | Turns off animations and transitions. |
 | **Screen reader support** | **User settings** → **Appearance**, **High contrast** section | Speaks extra activity and draws a thicker keyboard focus outline. |
 | **Announce new messages** | **User settings** → **Appearance**, **High contrast** section | Reads out messages that arrive in the open channel, conversation or thread. On by default. |
+| **Spoken messages** | **User settings** → **Appearance**, **High contrast** section | Chooses the voice that reads a message aloud from its options menu: this browser, or an ElevenLabs-compatible API. Kept per device. |
 | Voice shortcuts | **User settings** → **Keybindings** | Turns each voice shortcut on or off and changes its keys. |
 
-Changes on **Appearance** show at once as a preview. **Save changes** keeps them and **Reset** returns to what was saved. Saved appearance settings belong to your account and follow you to other devices. **Announce new messages** and the keybindings are kept per device and apply at once, without saving.
+Changes on **Appearance** show at once as a preview. **Save changes** keeps them and **Reset** returns to what was saved. Saved appearance settings belong to your account and follow you to other devices. **Announce new messages**, **Spoken messages** and the keybindings are kept per device and apply at once, without saving.
 
 ## Use Harmony with a keyboard
 
@@ -106,6 +107,16 @@ With **Announce new messages** on, messages that arrive in the open channel, con
 ### Voice shortcuts and browse mode
 
 Screen readers in browse mode take single letters for navigation. **Toggle mute** and **Toggle deafen** therefore default to Ctrl+Shift+M and Ctrl+Shift+D. When they are set to single keys, **User settings** → **Keybindings** shows a note and a button that switches them to the Ctrl+Shift pair. In a text field, only push to talk and shortcuts that include Ctrl, Alt or Meta fire.
+
+## Spoken messages
+
+**Speak message** in a message's options menu reads that message aloud with this browser's own voice or an ElevenLabs-compatible API you configure. It is off until you use it, it never announces anything on its own, and it is separate from **Screen reader support** and **Announce new messages** — it does not replace your screen reader.
+
+- **User settings** → **Appearance**, **High contrast** section, **Spoken messages** chooses the voice source. **This browser** uses the browser's default voice, which may need an online service. **ElevenLabs-compatible API** posts the text to the API you enter; the official ElevenLabs service needs a key.
+- The settings and any key are kept in this browser only, per account, and are removed when you sign out. See [Privacy and security](/use/privacy-security#spoken-messages).
+- The action is hidden while a message is still encrypted. Once you unlock it, the decrypted text is read — and, with an external API, sent to that provider. Spoilers are never read; they are said as "spoiler".
+- Reading another message replaces the one playing; **Stop speaking** in the same menu stops it at once.
+- The text read is the message as it appears: mentions, custom emoji, attachments and polls are named, as in the announcements.
 
 ## High contrast
 
