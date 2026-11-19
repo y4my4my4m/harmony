@@ -255,6 +255,18 @@ Photos and videos usually carry details the camera wrote into the file: where th
 
 Removed: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC and AVIF, and the preview thumbnail a JPEG can carry of the unedited photo; location, camera and other metadata boxes from MP4 and MOV. Nothing is re-encoded. Audio files (MP3, M4A) keep their tags, cover and chapters. Other formats are uploaded as they are.
 
+## Spoken messages
+
+**Speak message** in a message's options menu reads the message aloud, on demand. What it uses and what leaves your device depends on the voice source you choose in **User settings** → **Appearance** → **Spoken messages**:
+
+- The settings — the voice source, the API base URL, the voice ID, the model and any API key — are stored only in this device's browser storage, for the signed-in account. They are never saved to your profile, never sent to a Harmony server, never synced to your other devices and never used for telemetry. They are kept per account on this device and removed when you sign out.
+- That storage is ordinary local storage a page can read; it is not the encryption vault. Do not paste a key you would not trust a script on this instance with.
+- **This browser** uses the browser's own speech service. Some browsers and systems generate the voice online, so a browser voice is not always offline.
+- **ElevenLabs-compatible API** sends the text of the message you chose to speak straight from your browser to the API address you enter, along with your key if you set one. That provider's own retention and privacy policy applies to it. The official ElevenLabs endpoint requires a key; a local engine may not. This includes an end-to-end encrypted message: once you unlock and speak it, its decrypted plaintext leaves your device for that provider.
+- The sender's displayed name, and for a reply the displayed name of the author it answers, is sent with the text so both can be read aloud. Those names leave your device the same way the message text does; the quoted message itself is never read or sent.
+- Harmony stores no audio. The message is not changed: it is stored and encrypted exactly as before. An end-to-end encrypted message is decrypted on your device before it is spoken.
+- A message is read only when you pick **Speak message**, and only until it ends or you stop it. Nothing is read or sent on its own, and the feature does not replace your screen reader.
+
 ## Other privacy settings
 
 **User settings** → **Privacy & safety** also has:
