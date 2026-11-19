@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { customEmojiLabel, humanizeEmojiName, spokenEmojiName } from '../emojiNames'
-import { messageSpeechText, summarizeIncoming, type Translate } from '../messageSpeech'
+import { messageSpeechText, summarizeIncoming, systemEventSpeechText, type Translate } from '../messageSpeech'
 import type { MessagePart } from '@/types'
 
 /** Key plus its params, so assertions read what each piece was built from. */
@@ -65,6 +65,63 @@ describe('messageSpeechText', () => {
     const text = messageSpeechText([{ type: 'text', text: 'x'.repeat(500) }] as MessagePart[], t, { max: 20 })
     expect(text).toHaveLength(20)
     expect(text.endsWith('…')).toBe(true)
+  })
+})
+
+describe('systemEventSpeechText', () => {
+  const ME = '00000000-0000-4000-8000-000000000001'
+  const BOB = '00000000-0000-4000-8000-000000000002'
+  const CAROL = '00000000-0000-4000-8000-000000000003'
+  const THREAD = '00000000-0000-4000-8000-0000000000f1'
+  const names = { user: (id: string) => ({ [ME]: 'Me', [BOB]: 'Bob', [CAROL]: 'Carol' })[id] ?? '' }
+
+  it('names a join by metadata, with the event phrase, never the stored content', () => {
+    const text = systemEventSpeechText({ type: 'member_join', subject_id: BOB }, t, { names })
+    expect(text).toBe('systemEvents.memberJoin(subject=Bob)')
+    expect(text).not.toContain(BOB)
+  })
+
+  it('falls back to the event\'s Someone when the member is unknown or missing', () => {
+    expect(systemEventSpeechText({ type: 'member_join', subject_id: BOB }, t))
+      .toBe('systemEvents.memberJoin(subject=systemEvents.someone)')
+    expect(systemEventSpeechText({ type: 'member_leave' }, t, { names }))
+      .toBe('systemEvents.memberLeave(subject=systemEvents.someone)')
+  })
+
+  it('names the threaded member and reads the link as text, not the thread id', () => {
+    const text = systemEventSpeechText(
+      { type: 'thread_created', actor_id: BOB, thread_id: THREAD, thread_name: 'Plans' },
+      t,
+      { names },
+    )
+    expect(text).toBe('systemEvents.threadCreated(actor=Bob,thread=Plans,allThreads=systemEvents.allThreads)')
+    expect(text).not.toContain(THREAD)
+  })
+
+  it('reads a kick with its moderator and reason', () => {
+    expect(systemEventSpeechText({ type: 'member_kick', subject_id: BOB, actor_id: CAROL, reason: 'spam' }, t, { names }))
+      .toBe('systemEvents.memberKick(actor=Carol,subject=Bob) systemEvents.reason(reason=spam)')
+    expect(systemEventSpeechText({ type: 'member_ban', subject_id: BOB, actor_id: CAROL }, t, { names }))
+      .toBe('systemEvents.memberBan(actor=Carol,subject=Bob)')
+  })
+
+  it('reads a missed call from the viewer and an unanswered one they started', () => {
+    expect(systemEventSpeechText(
+      { type: 'call_ended', actor_id: BOB, call_type: 'voice', participants: [BOB] },
+      t,
+      { names, currentUserId: 'me' },
+    )).toBe('systemEvents.callMissed.voice(actor=Bob)')
+    expect(systemEventSpeechText(
+      { type: 'call_ended', actor_id: ME, call_type: 'voice', participants: [ME] },
+      t,
+      { names, currentUserId: ME },
+    )).toBe('systemEvents.callStarted.voice(actor=Me) systemEvents.noAnswer')
+  })
+
+  it('reads the encryption toggles and names no sentence for an unknown type', () => {
+    expect(systemEventSpeechText({ type: 'channel_voice_encryption_disabled', actor_id: CAROL }, t, { names }))
+      .toBe('systemEvents.voiceEncryptionDisabled(actor=Carol)')
+    expect(systemEventSpeechText({ type: 'something_new' }, t, { names })).toBe('')
   })
 })
 

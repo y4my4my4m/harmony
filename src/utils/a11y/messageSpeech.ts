@@ -76,6 +76,167 @@ export function messageSpeechText(
   return truncate(text, options.max ?? SPOKEN_TEXT_MAX)
 }
 
+const SYSTEM_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function systemProfileId(value: unknown): string | null {
+  return typeof value === 'string' && SYSTEM_UUID.test(value) ? value : null
+}
+
+/** People a system notice names by id; a name that cannot be resolved reads as "Someone". */
+export interface SystemEventSpeechNames {
+  user?: (userId: string) => string | null | undefined
+  bot?: (botId: string) => string | null | undefined
+}
+
+export interface SystemEventSpeechOptions {
+  names?: SystemEventSpeechNames
+  /** The viewer, so an unanswered call the viewer started is announced as missed. */
+  currentUserId?: string | null
+}
+
+const SYSTEM_ENCRYPTION_KEYS: Record<string, string> = {
+  channel_encryption_enabled: 'systemEvents.encryptionEnabled',
+  channel_encryption_disabled: 'systemEvents.encryptionDisabled',
+  channel_voice_encryption_enabled: 'systemEvents.voiceEncryptionEnabled',
+  channel_voice_encryption_disabled: 'systemEvents.voiceEncryptionDisabled',
+}
+
+/** A call's length as the row shows it: 45s, 3m 5s, 1h 2m. */
+function spokenDuration(value: unknown, t: Translate): string {
+  const seconds = Math.max(0, Math.floor(Number(value) || 0))
+  if (seconds < 60) return t('systemEvents.duration.seconds', { s: seconds })
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) {
+    const s = seconds % 60
+    return s > 0 ? t('systemEvents.duration.minutesSeconds', { m: minutes, s }) : t('systemEvents.duration.minutes', { m: minutes })
+  }
+  const hours = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m > 0 ? t('systemEvents.duration.hoursMinutes', { h: hours, m }) : t('systemEvents.duration.hours', { h: hours })
+}
+
+/**
+ * Spoken text of a system notice (messages.is_system), built from the same metadata and
+ * `systemEvents` wording the row renders. '' for a type without a sentence, so the caller
+ * reads the stored content instead. The people are metadata ids resolved through
+ * `options.names`; ids, link targets and the row's author are never spoken.
+ */
+export function systemEventSpeechText(
+  metadata: unknown,
+  t: Translate,
+  options: SystemEventSpeechOptions = {},
+): string {
+  const meta = metadata && typeof metadata === 'object' ? (metadata as Record<string, any>) : {}
+  const type = typeof meta.type === 'string' ? meta.type : ''
+  const someone = t('systemEvents.someone')
+
+  const personName = (value: unknown): string => {
+    const id = systemProfileId(value)
+    return (id && options.names?.user?.(id)?.trim()) || someone
+  }
+  const actorName = (): string => {
+    if (systemProfileId(meta.actor_id)) return personName(meta.actor_id)
+    const discord = meta.discord_user
+    const discordName = discord?.display_name || discord?.username
+    if (typeof discordName === 'string' && discordName) return discordName
+    const botId = systemProfileId(meta.actor_bot_id)
+    if (botId) return options.names?.bot?.(botId)?.trim() || someone
+    if (typeof meta.actor_name === 'string' && meta.actor_name.trim()) return meta.actor_name.trim()
+    return someone
+  }
+
+  const memberIds = Array.isArray(meta.user_ids)
+    ? meta.user_ids.filter((id: unknown): id is string => !!systemProfileId(id))
+    : []
+  const participants = Array.isArray(meta.participants) ? meta.participants : []
+  const missedCall = type === 'call_ended' && participants.length < 2
+  const actorId = systemProfileId(meta.actor_id)
+  const missedByMe = missedCall && actorId !== (options.currentUserId ?? undefined)
+  const callType = meta.call_type === 'video' ? 'video' : 'voice'
+  const subject = () => personName(meta.subject_id)
+
+  let key: string | null = null
+  let params: Record<string, unknown> = {}
+  let plural: number | undefined
+  switch (type) {
+    case 'member_join':
+      key = 'systemEvents.memberJoin'
+      params = { subject: subject() }
+      break
+    case 'member_leave':
+      key = 'systemEvents.memberLeave'
+      params = { subject: subject() }
+      break
+    case 'member_kick':
+    case 'member_ban': {
+      const kick = type === 'member_kick'
+      if (actorId) {
+        key = kick ? 'systemEvents.memberKick' : 'systemEvents.memberBan'
+        params = { actor: actorName(), subject: subject() }
+      } else {
+        key = kick ? 'systemEvents.memberKickNoActor' : 'systemEvents.memberBanNoActor'
+        params = { subject: subject() }
+      }
+      break
+    }
+    case 'thread_created':
+      if (systemProfileId(meta.thread_id)) {
+        key = 'systemEvents.threadCreated'
+        params = {
+          actor: actorName(),
+          thread: typeof meta.thread_name === 'string' && meta.thread_name ? meta.thread_name : t('systemEvents.threadFallbackName'),
+          allThreads: t('systemEvents.allThreads'),
+        }
+      } else {
+        key = 'systemEvents.threadCreatedNoLink'
+        params = { actor: actorName() }
+      }
+      break
+    case 'group_created':
+      if (meta.event === 'members_added' && memberIds.length > 0) {
+        key = 'systemEvents.membersAdded'
+        params = { actor: actorName(), members: memberIds.map(personName).join(t('systemEvents.listSeparator')) }
+      } else if (Number(meta.participant_count) > 0) {
+        key = 'systemEvents.groupCreatedWith'
+        plural = Number(meta.participant_count)
+        params = { actor: actorName(), count: plural }
+      } else {
+        key = 'systemEvents.groupCreated'
+        params = { actor: actorName() }
+      }
+      break
+    case 'call_started':
+      key = `systemEvents.callStarted.${callType}`
+      params = { actor: actorName() }
+      break
+    case 'call_ended':
+      if (missedByMe) {
+        key = `systemEvents.callMissed.${callType}`
+        params = { actor: actorName() }
+      } else if (missedCall) {
+        key = `systemEvents.callStarted.${callType}`
+        params = { actor: actorName() }
+      } else {
+        key = `systemEvents.callEnded.${callType}`
+        params = { actor: actorName(), duration: spokenDuration(meta.duration_seconds, t) }
+      }
+      break
+    default:
+      if (SYSTEM_ENCRYPTION_KEYS[type]) {
+        key = SYSTEM_ENCRYPTION_KEYS[type]
+        params = { actor: actorName() }
+      }
+  }
+  if (!key) return ''
+
+  let text = t(key, params, plural)
+  if ((type === 'member_kick' || type === 'member_ban') && typeof meta.reason === 'string' && meta.reason.trim()) {
+    text += ` ${t('systemEvents.reason', { reason: meta.reason.trim() })}`
+  }
+  if (missedCall && !missedByMe) text += ` ${t('systemEvents.noAnswer')}`
+  return text
+}
+
 export interface IncomingMessage {
   authorName: string
   text: string

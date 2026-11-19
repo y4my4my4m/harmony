@@ -7,6 +7,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { ref } from 'vue'
+import { createI18n } from 'vue-i18n'
+import en from '@/locales/en.json'
 
 const speakMock = vi.hoisted(() => vi.fn(async () => undefined))
 const stopMock = vi.hoisted(() => vi.fn())
@@ -71,6 +73,46 @@ beforeEach(() => {
 })
 
 const speakItem = '[data-testid="context-menu-speak"]'
+
+const BOB = '00000000-0000-4000-8000-000000000002'
+const THREAD = '00000000-0000-4000-8000-0000000000f1'
+// Real i18n, so the spoken event wording is the text a reader hears.
+const mountSystemMenu = (message: any, extra: Record<string, unknown> = {}) => mount(MessageContextMenu, {
+  props: { isVisible: true, position: { x: 0, y: 0 }, message, currentUserId: 'me', ...extra },
+  global: {
+    plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })],
+    stubs: { teleport: true, Icon: true },
+  },
+})
+
+const systemMessage = (metadata: Record<string, unknown>, text: string) => ({
+  id: 'm1', is_system: true, user_id: null, created_at: new Date(), metadata,
+  content: [{ type: 'text', text }],
+}) as any
+
+describe('MessageContextMenu Speak message for a system notice', () => {
+  it('reads a join from metadata with the member name, not the stored content', async () => {
+    wrapper = mountSystemMenu(
+      systemMessage({ type: 'member_join', subject_id: BOB }, 'has joined the server'),
+      { systemUserName: (id: string) => (id === BOB ? 'Bob' : 'Unknown User') },
+    )
+    await wrapper.get(speakItem).trigger('click')
+    const [{ text }] = speakMock.mock.calls[0]
+    expect(text).toBe('Bob joined the server.')
+    expect(text).not.toContain(BOB)
+  })
+
+  it('reads a thread notice with its name and reads the link as text, not the thread id', async () => {
+    wrapper = mountSystemMenu(
+      systemMessage({ type: 'thread_created', actor_id: BOB, thread_id: THREAD, thread_name: 'Plans' }, 'started a thread'),
+      { systemUserName: (id: string) => (id === BOB ? 'Bob' : 'Unknown User') },
+    )
+    await wrapper.get(speakItem).trigger('click')
+    const [{ text }] = speakMock.mock.calls[0]
+    expect(text).toBe('Bob started a thread: Plans. See all threads.')
+    expect(text).not.toContain(THREAD)
+  })
+})
 
 describe('MessageContextMenu Speak message', () => {
   it('reads the visible text with spoilers masked', async () => {

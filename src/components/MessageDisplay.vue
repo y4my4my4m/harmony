@@ -607,6 +607,8 @@
     :can-edit="contextMenuMessage ? canEditMessage(contextMenuMessage) : false"
     :can-delete="contextMenuMessage ? canDeleteMessage(contextMenuMessage) : false"
     :hides-on-instance="contextMenuMessage ? isInstanceHide(contextMenuMessage) : false"
+    :system-user-name="systemUserName"
+    :system-bot-name="botDisplayName"
     @close="closeContextMenu"
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
@@ -1446,6 +1448,8 @@ const getBotDisplayName = (botId: string): ComputedRef<string> => {
 };
 
 const botDisplayName = (botId: string): string => getBotDisplayName(botId).value;
+// Plain name of a member a system notice names, from the same cache its DisplayName reads.
+const systemUserName = (userId: string): string => getUserDisplayName(userId).value;
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getBotAvatarUrl = (botId: string): ComputedRef<string> => {

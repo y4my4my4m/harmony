@@ -225,7 +225,7 @@ import DeleteIcon from '@/components/icons/Delete.vue';
 import AppMenu from '@/components/a11y/AppMenu.vue';
 import { useT } from '@/composables/useT';
 import { spokenEmojiName } from '@/utils/a11y/emojiNames';
-import { messageSpeechText } from '@/utils/a11y/messageSpeech';
+import { messageSpeechText, systemEventSpeechText } from '@/utils/a11y/messageSpeech';
 import {
   isSpeaking,
   MessageTtsError,
@@ -255,6 +255,10 @@ interface Props {
   canDelete?: boolean;
   /** Another member's message in a copy: Delete hides it on this instance only. */
   hidesOnInstance?: boolean;
+  /** Plain member name for a system notice, from the caches the row renders names with. */
+  systemUserName?: (userId: string) => string;
+  /** Plain bot name for a system notice. */
+  systemBotName?: (botId: string) => string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -463,10 +467,21 @@ const hasMediaURL = computed(() => {
 const hasTextContent = computed(() => hasCopyableText(props.message?.content));
 
 // What would be read aloud: parts the viewer sees (decrypted content when
-// unlocked), spoilers masked, no length cap. Hidden while still encrypted.
-const speechText = computed(() =>
-  props.message ? messageSpeechText(props.message.content as MessagePart[], t, { max: Infinity }) : ''
-);
+// unlocked), spoilers masked, no length cap. A system row renders from metadata,
+// so it reads the same event wording with the people it names. Hidden while still
+// encrypted.
+const speechText = computed(() => {
+  const message = props.message;
+  if (!message) return '';
+  if (message.is_system) {
+    const eventText = systemEventSpeechText(message.metadata, t, {
+      names: { user: props.systemUserName, bot: props.systemBotName },
+      currentUserId: props.currentUserId,
+    });
+    if (eventText) return eventText;
+  }
+  return messageSpeechText(message.content as MessagePart[], t, { max: Infinity });
+});
 
 const canSpeak = computed(() => {
   const message = props.message;
