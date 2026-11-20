@@ -164,6 +164,10 @@ While an activity runs, the call bar shows a small player with its title, **Play
 | **End the activity**, **End for everyone** | Ends it for everyone. See [Who controls an activity](#who-controls-an-activity). |
 | **Leave** | Stops the player on your device only; the others keep playing. **Join** brings it back. |
 
+With the call view in **Full screen**, the player fills the screen. The call's controls, the activity's title, its controls and the queue float over it and hide while the pointer rests; moving the pointer brings them back. They stay while the pointer is over them or one of them has keyboard focus.
+
+What plays, the queue and the host come from the server. The others in the call can play, pause and seek only what is already playing, and only while they may control the activity.
+
 If your browser blocks autoplay, the player shows **Click to play**.
 
 Under the voice channel in the channel list, everyone who can see the channel reads **Watching** or **Listening to** followed by the title.
