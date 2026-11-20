@@ -266,6 +266,8 @@ export interface HarmonyChannelOption {
   id: string
   name: string
   categoryName: string | null
+  /** A voice channel: named in existing pairs, never offered for a new pair. */
+  voice?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -696,7 +698,7 @@ export function matchChannelsByName(
     }
     return map
   }
-  const harmony = index(harmonyChannels.filter((c) => !pairedHarmony.has(c.id)), (c) => c.name)
+  const harmony = index(harmonyChannels.filter((c) => !c.voice && !pairedHarmony.has(c.id)), (c) => c.name)
   const discord = index(
     discordChannels.filter((c) => DISCORD_TEXT_CHANNEL_TYPES.includes(c.type) && !pairedDiscord.has(c.id)),
     (c) => c.name,
