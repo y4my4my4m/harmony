@@ -305,6 +305,10 @@ from `supabase/.env`. See [Supabase Studio](/self-host/monitoring#supabase-studi
 - [Email (SMTP)](/self-host/email), [OAuth sign-in](/self-host/oauth),
   [Voice and video](/self-host/voice), [Push notifications](/self-host/push),
   [Discord bridges](/self-host/discord-bridges): optional features.
+- [Announcements](/self-host/announcements): writing announcements and where
+  people read them.
+- [Emojis](/self-host/emojis): the instance's emoji library and importing emojis
+  from other instances.
 - [Stickers](/self-host/stickers): instance stickers, sticker limits, personal
   stickers and sticker reports.
 - [Sign-up limits](/self-host/signup-limits): accounts per network and inbox, disposable

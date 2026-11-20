@@ -183,13 +183,19 @@ The header shows the channel name and description, with buttons for **Pinned mes
 
 The composer at the bottom sends messages. Everything about writing, replying, threads, polls and reactions is in [Messages and threads](/use/messages).
 
+### Member list
+
+The member list groups a server's members by role and online status, with each group's count. A server of up to 200 members loads its whole list at once. In a larger server the groups and counts show at once and members load as you scroll; **Search members** above the list, `@` suggestions, the kick and ban picker and the member pickers of roles and private categories find any member by name, however large the server.
+
+In a server of more than 1000 members, online status changes are not sent live: the list is read again every 20 seconds while it is on screen.
+
 ### Direct messages
 
 **Direct messages** in the rail opens the conversation list. **Start a new DM** searches for people by name, or by full handle such as `@user@domain.com` for someone on another instance. **Create group chat** starts a conversation with several people. Calls in direct messages are covered in [Voice and video](/use/voice-video).
 
 ### Today
 
-Today is a digest of what happened since your last visit: mentions and replies, unread direct messages and channels, threads you are part of, who is live in voice, and posts from people you follow. Select the sun icon in the server rail to open it.
+Today is a digest of what happened since your last visit: mentions and replies, unread direct messages and channels, threads you are part of, who is live in voice, and posts from people you follow. Select the sun icon in the server rail to open it. It also shows your instance's current [announcements](/self-host/announcements#where-people-read-it), which stay listed in **User settings** → **Announcements**.
 
 Today is a beta feature and is on unless you turn it off. The switch is **Today dashboard** under **User settings** → **Advanced** → **Beta features**. The choice is stored per device, so a phone and a desktop each keep their own.
 
