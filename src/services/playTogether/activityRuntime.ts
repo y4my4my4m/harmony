@@ -27,7 +27,8 @@ import {
  * Frame messages are accepted only from the frame's own window, checked against the protocol's
  * shapes and sizes and rate-limited before they reach the relay; the frame never sees the token.
  * Relay frames reach the frame in order through one promise chain, each member with its avatar as a
- * Blob (the frame's CSP refuses remote images). The runtime mirrors members, host, state and, while
+ * Blob (the frame's CSP refuses remote images). Avatars are fetched when a member arrives and a
+ * delivery waits AVATAR_WAIT_MS at most, so one slow avatar URL holds no one's game. The runtime mirrors members, host, state and, while
  * this client hosts, the store, so a reloaded frame gets the full picture again with `init`.
  *
  * Nothing is posted to a frame before it reports `ready`. When the frame's document is left (the
@@ -63,6 +64,10 @@ export interface RuntimeOptions {
 const AVATAR_TIMEOUT_MS = 2_500
 const AVATAR_CACHE_SIZE = 64
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024
+/** Longest a delivery waits for an avatar; one that arrives later reaches the next init or resync. */
+export const AVATAR_WAIT_MS = 400
+/** A URL that failed is not fetched again for this long. */
+const AVATAR_FAILURE_TTL_MS = 10 * 60_000
 const FRAME_RATE_PER_SECOND = 60
 const FRAME_RATE_BURST = 120
 /** Image saves need the frame focused (the click that asked for one), and are spaced and counted. */
@@ -72,6 +77,8 @@ const MAX_TARGETS = 64
 
 /** Insertion-ordered: a hit moves to the end, the first entry is the least recently used. */
 const avatarCache = new Map<string, Promise<Blob | null>>()
+/** URL → time it may be fetched again. Insertion-ordered, capped as the cache. */
+const avatarFailures = new Map<string, number>()
 
 const IMAGE_SIGNATURES: Record<string, { ext: string; test: (b: Uint8Array) => boolean }> = {
   'image/png': { ext: 'png', test: (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 },
@@ -100,30 +107,61 @@ export async function checkedImage(blob: Blob, name: string): Promise<{ blob: Bl
 /** The image at `url` as a Blob, or null on failure, timeout or more than AVATAR_MAX_BYTES. */
 export function avatarBlob(url: string | null): Promise<Blob | null> {
   if (!url || !/^(https?:|\/)/i.test(url)) return Promise.resolve(null)
+  if ((avatarFailures.get(url) ?? 0) > Date.now()) return Promise.resolve(null)
   let pending = avatarCache.get(url)
   if (pending) {
     avatarCache.delete(url)
     avatarCache.set(url, pending)
   } else {
-    pending = (async () => {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), AVATAR_TIMEOUT_MS)
-      try {
-        const response = await fetch(url, { signal: controller.signal, credentials: 'omit' })
-        if (!response.ok) return null
-        const blob = await response.blob()
-        return blob.size <= AVATAR_MAX_BYTES && blob.type.startsWith('image/') ? blob : null
-      } catch {
-        return null
-      } finally {
-        clearTimeout(timer)
-      }
-    })()
+    pending = fetchAvatar(url)
     avatarCache.set(url, pending)
     if (avatarCache.size > AVATAR_CACHE_SIZE) avatarCache.delete(avatarCache.keys().next().value!)
-    pending.then((blob) => { if (!blob) avatarCache.delete(url) }).catch(() => {})
+    pending.then((blob) => {
+      if (blob) return
+      avatarCache.delete(url)
+      avatarFailures.set(url, Date.now() + AVATAR_FAILURE_TTL_MS)
+      if (avatarFailures.size > AVATAR_CACHE_SIZE) avatarFailures.delete(avatarFailures.keys().next().value!)
+    }).catch(() => {})
   }
   return pending
+}
+
+/** Read in chunks: a body past AVATAR_MAX_BYTES is cancelled where it crosses the limit. */
+async function fetchAvatar(url: string): Promise<Blob | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), AVATAR_TIMEOUT_MS)
+  try {
+    const response = await fetch(url, { signal: controller.signal, credentials: 'omit' })
+    const type = response.headers.get('content-type') ?? ''
+    if (!response.ok || !type.startsWith('image/')) return null
+    if (Number(response.headers.get('content-length') ?? 0) > AVATAR_MAX_BYTES) return null
+    if (!response.body) return null
+    const reader = response.body.getReader()
+    const chunks: Uint8Array[] = []
+    let size = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > AVATAR_MAX_BYTES) {
+        void reader.cancel()
+        return null
+      }
+      chunks.push(value)
+    }
+    return new Blob(chunks as BlobPart[], { type })
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** avatarBlob, or null once AVATAR_WAIT_MS passes; the fetch carries on into the cache. */
+function avatarWithin(url: string | null): Promise<Blob | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), AVATAR_WAIT_MS) })
+  return Promise.race([avatarBlob(url), late]).finally(() => clearTimeout(timer))
 }
 
 function isTarget(value: unknown): value is 'host' | string[] {
@@ -228,6 +266,7 @@ export class ActivityRuntime {
         this.view.you = frame.you.id
         this.view.canEnd = frame.canEnd
         this.members = new Map(frame.members.map((m) => [m.id, m]))
+        for (const m of frame.members) void avatarBlob(this.avatarUrl(m))
         this.state = frame.state
         this.store = new Map(Object.entries(frame.store ?? {}))
         this.view.hostId = frame.host
@@ -239,6 +278,7 @@ export class ActivityRuntime {
       case 'join':
         this.members.set(frame.member.id, frame.member)
         this.syncMembers()
+        void avatarBlob(this.avatarUrl(frame.member))
         this.enqueue(async () => this.post({ hp: PROTOCOL_VERSION, t: 'join', member: await this.wire(frame.member) }))
         return
       case 'leave':
@@ -396,7 +436,7 @@ export class ActivityRuntime {
   }
 
   private async wire(member: MemberInfo): Promise<WireMember> {
-    return { ...member, avatarBlob: await avatarBlob(this.avatarUrl(member)) }
+    return { ...member, avatarBlob: await avatarWithin(this.avatarUrl(member)) }
   }
 
   private syncMembers(): void {

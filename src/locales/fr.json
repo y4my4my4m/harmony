@@ -6,28 +6,133 @@
       "memberSince": "Sur {platform} depuis",
       "status": "Statut",
       "roles": "Rôle | Rôles",
-      "copyId": "Copier l’ID",
-      "copied": "Copié",
-      "open": "Ouvrir sur {platform}"
+      "copyId": "Copier l’ID {platform}",
+      "copied": "Copié"
     }
   },
   "matrixBridge": {
     "title": "Passerelle Matrix",
-    "pairsTitle": "Canaux reliés",
-    "description": "Choisissez comment les messages Harmony sont envoyés vers vos passerelles de salons Matrix existantes.",
-    "requirements": "Le mode individuel utilise de vrais membres Matrix pour les auteurs Harmony. Il nécessite un espace de noms du service applicatif et l’autorisation de les inviter dans le salon Matrix.",
-    "history": "Les changements de mode ne concernent que les futurs envois. L’historique existant est conservé.",
-    "delivery": "Choisir le mode individuel ne confirme ni inscription ni livraison. Vérifiez l’expéditeur sur un message livré avec succès dans Matrix.",
+    "description": "Reliez des canaux de ce serveur à des salons Matrix. Les messages envoyés d'un côté apparaissent de l'autre, avec le nom de leur auteur.",
     "loading": "Chargement des passerelles Matrix…",
     "reload": "Recharger",
-    "empty": "Aucune passerelle Matrix configurée pour ce serveur.",
-    "waitingRoom": "En attente de connexion à un salon Matrix. Vous pouvez déjà enregistrer le mode.",
-    "senderMode": "Envoyer les messages Harmony en tant que",
-    "ghost": "Utilisateurs individuels de la passerelle (recommandé)",
-    "relay": "Compte partagé de la passerelle",
-    "saving": "Enregistrement du mode…",
-    "loadError": "Impossible de charger les paramètres de la passerelle Matrix. Rechargez pour réessayer.",
-    "saveError": "Impossible de confirmer le changement de mode. Rechargez pour vérifier le paramètre actuel.",
+    "loadError": "Impossible de charger les réglages de la passerelle Matrix. Rechargez pour réessayer.",
+    "saveError": "Impossible de confirmer la modification. Rechargez pour voir le réglage actuel.",
+    "status": {
+      "none": "Non configurée",
+      "connected": "Reliée à Matrix",
+      "waiting": "En attente de salons Matrix",
+      "problem": "À vérifier",
+      "line": {
+        "none": "Aucun canal de ce serveur n'est encore relié à Matrix.",
+        "connected": "Chaque canal relié a un salon Matrix.",
+        "waiting": "{count} canal attend que la passerelle relie un salon Matrix. | {count} canaux attendent que la passerelle relie un salon Matrix.",
+        "problem": "{count} canal relié n'est pas transmis. Sa fiche ci-dessous explique comment corriger. | {count} canaux reliés ne sont pas transmis. Leurs fiches ci-dessous expliquent comment corriger."
+      },
+      "facts": {
+        "bot": "Bot de la passerelle | Bots de la passerelle",
+        "paired": "Canaux reliés",
+        "rooms": "Reliés à un salon",
+        "waiting": "En attente d'un salon",
+        "stopped": "Non transmis"
+      },
+      "unseen": "Harmony ne peut pas savoir si le service de la passerelle tourne. Pour vérifier, envoyez un message dans un canal relié et cherchez-le dans Matrix."
+    },
+    "pairs": {
+      "title": "Canaux reliés",
+      "listLabel": "Canaux reliés à Matrix",
+      "empty": "Aucun canal n'est encore relié à Matrix.",
+      "harmony": "Harmony",
+      "matrix": "Matrix",
+      "waitingRoom": "En attente que la passerelle relie un salon",
+      "badge": {
+        "connected": "Relié",
+        "waiting": "En attente d'un salon",
+        "stopped": "Non transmis"
+      },
+      "waitingFix": "La passerelle relie un salon dès que ce canal figure dans sa configuration : demandez à la personne qui gère la passerelle de l'ajouter. Vous pouvez déjà choisir comment les membres apparaissent.",
+      "stoppedFix": "{bot} ne peut plus transmettre #{channel} : le bot est désactivé, a perdu « Lire les messages » ou « Envoyer des messages », ou #{channel} a quitté sa liste de canaux. Corrigez cela dans Paramètres du serveur → Paramètres avancés → Bots du serveur.",
+      "via": "Via {bot}",
+      "senderMode": "Comment les membres Harmony apparaissent dans Matrix",
+      "mode": {
+        "ghost": "Comme leurs propres utilisateurs Matrix (recommandé)",
+        "relay": "Via un compte partagé de la passerelle"
+      },
+      "modeHint": {
+        "ghost": "Chaque membre apparaît dans le salon avec son propre nom et sa propre image.",
+        "relay": "Chaque message vient du compte de la passerelle, précédé du nom du membre."
+      },
+      "saving": "Enregistrement…",
+      "edit": "Modifier les canaux reliés",
+      "notOwner": "Seule la personne à qui appartient {bot} peut changer les canaux qu'il transmet. Vous pouvez quand même choisir comment les membres apparaissent, ou le délier."
+    },
+    "modes": {
+      "title": "Comment fonctionnent les deux choix",
+      "ghost": "Comme leurs propres utilisateurs Matrix : la passerelle crée un utilisateur Matrix pour chaque membre Harmony qui voit le canal, avec son nom et son image, et les gens sur Matrix le mentionnent avec l'autocomplétion {'@'} habituelle. Il faut pour cela que l'espace de noms d'utilisateurs de la passerelle soit enregistré sur le serveur d'accueil Matrix, et que le compte de la passerelle puisse inviter des personnes dans le salon. S'il manque l'un des deux, la passerelle signale une erreur ; elle ne passe pas d'elle-même au compte partagé.",
+      "relay": "Via un compte partagé de la passerelle : chaque message vient du compte de la passerelle, précédé du nom de l'auteur, et aucun utilisateur Matrix n'est créé. Les gens sur Matrix mentionnent un membre Harmony en tapant !mention suivi de son nom d'utilisateur exact.",
+      "future": "Une modification ne concerne que les nouveaux messages. Les messages déjà transmis restent tels quels.",
+      "verify": "Enregistrer ici ne prouve pas que la passerelle a pris en compte la modification : vérifiez un nouveau message dans le salon Matrix."
+    },
+    "setup": {
+      "title": "Relier des canaux à Matrix",
+      "editTitle": "Modifier les canaux reliés",
+      "lead": "Choisissez le bot qui fait tourner votre passerelle Matrix et les canaux qu'il transmet. Chaque canal reçoit son salon Matrix dès qu'il figure dans la configuration de la passerelle.",
+      "bot": "Bot de la passerelle",
+      "channels": "Canaux à transmettre",
+      "notAllowed": "Absent de la liste de canaux de {bot}",
+      "notAllowedHelp": "Un canal grisé n'est pas dans la liste de canaux de {bot}. Pour l'ajouter, ouvrez Paramètres du serveur → Paramètres avancés → Bots du serveur, choisissez Canaux à côté de {bot}, puis cochez-le.",
+      "noChannels": "Ce serveur n'a aucun canal textuel que vous pouvez voir.",
+      "pickOne": "Choisissez au moins un canal.",
+      "pickOneEdit": "Choisissez au moins un canal. Pour ne plus en transmettre aucun, utilisez Délier plus bas.",
+      "save": "Relier les canaux",
+      "saveEdit": "Enregistrer les canaux",
+      "saving": "Enregistrement…",
+      "cancel": "Annuler",
+      "saved": "{count} canal est relié à Matrix. | {count} canaux sont reliés à Matrix."
+    },
+    "guide": {
+      "title": "Mettre en place une passerelle Matrix",
+      "lead": "Pour relier des canaux ici, il vous faut un bot à vous qui fait tourner la passerelle Matrix et qui est sur ce serveur.",
+      "steps": {
+        "service": "La personne qui gère cette instance Harmony met en place le service de passerelle Matrix et l'enregistre auprès du serveur d'accueil Matrix. Demandez-lui s'il ne tourne pas encore.",
+        "bot": "Créez un bot pour la passerelle dans {place}, et donnez son jeton à la personne qui gère la passerelle.",
+        "install": "Ajoutez le bot à ce serveur dans {place}. Donnez-lui « Lire les messages » et « Envoyer des messages », puis sous Canaux choisissez « Canaux sélectionnés » et cochez les canaux à transmettre.",
+        "pair": "Revenez ici pour relier ces canaux."
+      },
+      "places": {
+        "myBots": "Paramètres utilisateur → Mes bots",
+        "serverBots": "Paramètres du serveur → Paramètres avancés → Bots du serveur"
+      },
+      "link": "Lire le guide de la passerelle Matrix",
+      "newTab": "(s'ouvre dans un nouvel onglet)",
+      "blockedTitle": "Votre bot sur ce serveur ne peut pas encore transmettre : | Vos bots sur ce serveur ne peuvent pas encore transmettre :",
+      "blockedItem": "{bot} : {reason}",
+      "block": {
+        "bot_inactive": "il est désactivé. Activez-le dans Paramètres utilisateur → Mes bots.",
+        "install_inactive": "il est désactivé sur ce serveur. Ajoutez-le de nouveau dans Paramètres du serveur → Paramètres avancés → Bots du serveur.",
+        "read_send": "il lui faut « Lire les messages » et « Envoyer des messages ». Donnez-les sous Permissions dans Paramètres du serveur → Paramètres avancés → Bots du serveur.",
+        "all_channels": "il peut utiliser tous les canaux, alors qu'une passerelle a besoin d'une liste. Sous Canaux dans Paramètres du serveur → Paramètres avancés → Bots du serveur, choisissez « Canaux sélectionnés ».",
+        "no_channels": "sa liste de canaux ne contient aucun canal textuel. Cochez-en sous Canaux dans Paramètres du serveur → Paramètres avancés → Bots du serveur."
+      }
+    },
+    "unpair": {
+      "title": "Délier de Matrix",
+      "lead": "Délier un bot arrête la transmission de tous ses canaux ici. Les messages déjà transmis restent des deux côtés.",
+      "item": "{bot} : {count} canal | {bot} : {count} canaux",
+      "button": "Délier",
+      "label": "Délier {bot} de Matrix",
+      "confirmTitle": "Délier {bot} ?",
+      "confirmMessage": "{bot} ne transmettra plus {count} canal avec Matrix. Les messages déjà transmis restent. Demandez aussi à la personne qui gère la passerelle de retirer le salon de sa configuration. | {bot} ne transmettra plus {count} canaux avec Matrix. Les messages déjà transmis restent. Demandez aussi à la personne qui gère la passerelle de retirer les salons de sa configuration.",
+      "done": "{bot} est délié de Matrix."
+    },
+    "errors": {
+      "discordBot": "Ce bot fait tourner une passerelle Discord, il ne peut donc pas transmettre Matrix en plus. Utilisez un autre bot.",
+      "allowlist": "Un canal choisi n'est plus dans la liste de canaux du bot. Rechargez et choisissez à nouveau.",
+      "install": "Le bot est désactivé, ou il lui manque « Lire les messages », « Envoyer des messages » ou une liste de canaux sur ce serveur.",
+      "permission": "Seule la personne à qui appartient le bot, avec « Gérer le serveur » sur ce serveur, peut relier ses canaux.",
+      "save": "Impossible d'enregistrer les canaux reliés. Rechargez et réessayez.",
+      "unpair": "Impossible de délier le bot. Rechargez et réessayez.",
+      "installs": "Impossible de charger vos bots ; les canaux ne peuvent donc pas être reliés d'ici pour le moment. Rechargez pour réessayer."
+    },
     "privacy": {
       "lead": "Retirez ici un utilisateur Matrix pour supprimer tout ce que la passerelle de ce serveur a apporté de lui et ne plus apporter ses messages.",
       "idLabel": "ID d'utilisateur Matrix",
@@ -1646,7 +1751,8 @@
       "leaveFailed": "Impossible de quitter le groupe",
       "deleted": "Groupe supprimé",
       "deleteFailed": "Impossible de supprimer le groupe"
-    }
+    },
+    "callUndeliverable": "Votre appel n'a pas pu aboutir."
   },
   "user": {
     "panelToggle": "Votre compte et vos commandes vocales",
@@ -4708,7 +4814,8 @@
     },
     "timedOut": "Vous êtes exclu temporairement de ce serveur jusqu'à {time} et ne pouvez pas envoyer de messages, réagir ni lancer de fils.",
     "antispam": {
-      "rateLimited": "Vous allez trop vite. Réessayez dans {seconds} s.",
+      "rateLimited": "Vous allez trop vite. Réessayez dans {wait}.",
+      "strangerConversations": "Les nouvelles conversations avec des personnes que vous ne connaissez pas sont limitées à {count} par heure. Réessayez dans {wait}.",
       "linksBlocked": "Les nouveaux comptes ne peuvent pas encore publier de liens.",
       "strangerMentions": "Les nouveaux comptes peuvent mentionner au plus {count} personnes qui ne les suivent pas.",
       "serverLimit": "Un compte peut posséder au plus {count} serveurs sur cette instance.",
@@ -6596,6 +6703,9 @@
       "cancel": "Annuler",
       "cancelLabel": "Annuler l'importation de #{channel}",
       "cancelling": "Annulation…",
+      "stopNow": "Arrêter maintenant",
+      "stopNowLabel": "Arrêter maintenant l'importation de #{channel}",
+      "stopNowHint": "Le pont s'arrête à sa prochaine étape. S'il est hors ligne, « Arrêter maintenant » termine l'importation ici.",
       "waiting": "En attente",
       "running": "Importation… {percent} %",
       "runningUnknown": "Importation…",
@@ -7660,6 +7770,9 @@
   },
   "activities": {
     "title": "Regarder ou écouter ensemble",
+    "launcherTitle": "Activités",
+    "launcherSubtitleCall": "Regarder, écouter ou jouer ensemble dans cet appel",
+    "playHeading": "Jouer",
     "addTitle": "Ajouter à l'activité",
     "lede": "Tout le monde dans l'appel lit la même chose au même moment. Collez un lien YouTube, SoundCloud ou Spotify, un lien vers un fichier vidéo ou audio, ou choisissez dans votre Drive.",
     "linkPlaceholder": "Collez un lien",
@@ -9034,11 +9147,13 @@
       "ACTIVITY_CONTEXT_UNSUPPORTED": "Cette activité ne peut pas s’exécuter ici.",
       "ACTIVITY_RATE_LIMITED": "Vous avez lancé beaucoup d’activités. Réessayez dans quelques minutes.",
       "NOT_FOUND": "Vous ne pouvez pas jouer ici.",
-      "DM_BLOCKED": "Vous ne pouvez pas jouer avec cette personne.",
       "SERVER_NOT_LOCAL": "Les activités ne fonctionnent que sur les serveurs hébergés par cette instance.",
       "CHANNEL_TYPE": "Les activités fonctionnent dans les salons textuels et vocaux.",
       "NOT_IN_CALL": "Rejoignez l’appel pour jouer.",
       "CANNOT_SEND": "Vous ne pouvez pas envoyer de messages dans ce salon.",
+      "MEMBER_TIMED_OUT": "Vous êtes exclu temporairement de ce serveur.",
+      "WEBVIEW_OUTDATED": "Mettez à jour Android System WebView pour jouer aux activités.",
+      "PACKAGE_DESKTOP_ONLY": "Cette activité se joue dans Harmony sur un ordinateur.",
       "NOT_LOCAL_ACCOUNT": "Seuls les comptes de cette instance peuvent jouer ici.",
       "ENDED": "Cette activité est terminée.",
       "FULL": "Cette activité est complète.",
@@ -9105,6 +9220,7 @@
       }
     },
     "thirdParty": "Tierce",
+    "desktopOnly": "Ordinateur uniquement",
     "thirdPartyNotice": "Activité tierce, installée par cette instance. Harmony ne vous demande jamais votre mot de passe dans une activité."
   }
 }

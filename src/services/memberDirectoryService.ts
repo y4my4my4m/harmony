@@ -111,16 +111,27 @@ export async function fetchMemberPage(
   }
 }
 
-/** Members whose username or display name contains `query`, best match first. Null when unavailable. */
-export async function searchServerMembers(serverId: string, query: string, limit = 20): Promise<DirectoryMember[] | null> {
+/**
+ * Members whose username or display name contains `query`, best match first. `withoutRole` leaves
+ * out the role's members before the limit (20261123500003_search_members_without_role.sql); an
+ * instance without that argument answers the plain search, and the caller drops them itself.
+ * Null when unavailable.
+ */
+export async function searchServerMembers(
+  serverId: string,
+  query: string,
+  limit = 20,
+  options: { withoutRole?: string | null } = {},
+): Promise<DirectoryMember[] | null> {
   if (!memberDirectoryAvailable()) return null
   const needle = query.trim()
   if (!needle) return []
-  const { data, error } = await supabase.rpc('search_server_members', {
-    p_server_id: serverId,
-    p_query: needle,
-    p_limit: limit,
-  })
+  const args = { p_server_id: serverId, p_query: needle, p_limit: limit }
+  let { data, error } = await supabase.rpc('search_server_members',
+    options.withoutRole ? { ...args, p_without_role: options.withoutRole } : args)
+  if (error?.code === 'PGRST202' && options.withoutRole) {
+    ({ data, error } = await supabase.rpc('search_server_members', args))
+  }
   if (error) {
     if (unavailable(error)) return null
     throw error

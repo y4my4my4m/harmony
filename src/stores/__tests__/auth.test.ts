@@ -775,6 +775,15 @@ describe('useAuthStore', () => {
       await vi.waitFor(() => expect(resetRemoteServerSync).toHaveBeenCalledTimes(1))
       vi.doUnmock('@/utils/remoteServerSync')
     })
+
+    // A reply typed into a notification is the signed-out account's, never the next one's.
+    it('empties the quick reply queue', async () => {
+      const forgetQuickReplies = vi.fn(async () => {})
+      vi.doMock('@/services/ServiceWorkerManager', () => ({ forgetQuickReplies }))
+      useAuthStore().cleanupNotificationSystem()
+      await vi.waitFor(() => expect(forgetQuickReplies).toHaveBeenCalledTimes(1))
+      vi.doUnmock('@/services/ServiceWorkerManager')
+    })
   })
 
   describe('suspended account', () => {

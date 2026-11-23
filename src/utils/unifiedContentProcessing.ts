@@ -98,12 +98,71 @@ const COMBINED_EMOJI_REGEX = new RegExp(
  */
 const absentLocalUsernames = new WeakMap<object, ReadonlySet<string>>();
 
+/** `domain`: the account's own domain, when the handle typed named it by another host. */
+export interface MentionUserData {
+  userId: string;
+  isLocal: boolean;
+  domain?: string;
+}
+
+function actorHost(actorId: unknown): string | null {
+  if (typeof actorId !== 'string') return null;
+  try {
+    return new URL(actorId).host.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remote handles that name no stored account of their domain, matched as
+ * findStoredRemoteAccount (federation-backend ActorService) matches them: the
+ * one stored remote account of that username whose actor id is on the typed
+ * host. A split-domain account (Mastodon LOCAL_DOMAIN + WEB_DOMAIN, Shoot
+ * webapp_url + instance_url) is stored under its account domain and also
+ * named by the host serving its actor; the mention takes the account domain,
+ * as Mastodon's ProcessMentionsService rewrites it to the account's acct. Two
+ * such accounts name neither.
+ */
+async function resolveByActorHost(
+  pairs: Array<{ username: string; domain: string }>,
+): Promise<Record<string, MentionUserData>> {
+  const found: Record<string, MentionUserData> = {};
+  // Quoted: the value holds ':' and '/', reserved in PostgREST logic trees.
+  const orFilter = pairs
+    .map(p => `and(username.eq.${p.username},federated_id.ilike."https://${p.domain}/*")`)
+    .join(',');
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, domain, federated_id')
+    .eq('is_local', false)
+    .or(orFilter);
+  if (error) {
+    debug.warn('Error resolving remote mentions by actor host:', error);
+    return found;
+  }
+
+  const accounts = new Map<string, Array<{ id: string; domain: string }>>();
+  for (const row of data ?? []) {
+    const host = actorHost(row.federated_id);
+    if (!host) continue;
+    const key = `${row.username}@${host}`;
+    accounts.set(key, [...(accounts.get(key) ?? []), { id: row.id, domain: String(row.domain).toLowerCase() }]);
+  }
+  for (const p of pairs) {
+    const key = `${p.username}@${p.domain}`;
+    const matches = accounts.get(key);
+    if (matches?.length === 1) found[key] = { userId: matches[0].id, isLocal: false, domain: matches[0].domain };
+  }
+  return found;
+}
+
 /**
  * Batch-resolves @mention user data. Call before parseContentToMessageParts;
  * otherwise mentions render unresolved.
  */
-export async function resolveMentionsUserData(content: string): Promise<Record<string, { userId: string; isLocal: boolean }>> {
-  const userDataMap: Record<string, { userId: string; isLocal: boolean }> = {};
+export async function resolveMentionsUserData(content: string): Promise<Record<string, MentionUserData>> {
+  const userDataMap: Record<string, MentionUserData> = {};
   
   // Handles inside URLs and inline code are not resolved.
   const skipRanges = opaqueRanges(content);
@@ -194,6 +253,9 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
               };
             });
           }
+
+          const unmatched = pairs.filter(p => !userDataMap[`${p.username}@${p.domain}`]);
+          if (unmatched.length > 0) Object.assign(userDataMap, await resolveByActorHost(unmatched));
         }
       } catch (error) {
         debug.warn('Error batch-resolving remote mentions:', error);
@@ -461,7 +523,7 @@ function matchChannelUrl(
 // Parses one segment of content lying outside fenced code blocks.
 async function parseContentSegment(
   content: string,
-  usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean }>,
+  usernameToUserDataMap: Record<string, MentionUserData>,
   emojiDataMap: Record<string, any>,
   hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }>,
   roleDataMap: Record<string, { name: string; color: string | null }>,
@@ -573,7 +635,7 @@ async function parseContentSegment(
         type: 'mention',
         userId: userId,
         username: username,
-        domain: isLocalHandle ? currentDomain : typedDomain!,
+        domain: isLocalHandle ? currentDomain : userData?.domain ?? typedDomain!,
         isLocal: isLocalHandle,
       });
     } else if (match[9]) {
@@ -662,7 +724,7 @@ export interface ContentParseOptions {
 
 export async function parseContentToMessageParts(
   content: string,
-  usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean }> = {},
+  usernameToUserDataMap: Record<string, MentionUserData> = {},
   emojiDataMap: Record<string, any> = {},
   hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {},
   roleDataMap: Record<string, { name: string; color: string | null }> = {},

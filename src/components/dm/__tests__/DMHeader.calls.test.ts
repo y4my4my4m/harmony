@@ -236,6 +236,23 @@ describe('DMHeader outgoing call', () => {
     expect(rang()).toBe(false)
   })
 
+  it('a call the server refuses for a block rings no one, joins nothing and says it was not placed', async () => {
+    rt.rpc.mockImplementation(async (name: string) => (name === 'start_dm_call_message'
+      ? { data: null, error: { message: 'DM_UNDELIVERABLE', code: 'P0001', hint: 'This message could not be delivered.' } }
+      : rt.rpcResult(name)) as any)
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error.mock.calls[0][0]).toMatch(/dm\.callUndeliverable|could not be placed/)
+    expect(useUnifiedVoiceChannelStore().joinVoiceChannel).not.toHaveBeenCalled()
+    expect(rt.rpc).not.toHaveBeenCalledWith('ring_dm_call', expect.anything())
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    expect(rang()).toBe(false)
+  })
+
   it('an encrypted call this device cannot join rings no one and keeps the current call', async () => {
     gate.ensureCanJoinCall.mockResolvedValue(false)
     const header = mountHeader()
@@ -256,12 +273,57 @@ describe('DMHeader outgoing call', () => {
     const header = mountHeader()
     await settle()
     await header.find('.voice-btn').trigger('click')
-    await header.find('.video-btn').trigger('click')
+    await header.find('[data-testid="dm-more"]').trigger('click')
+    await header.find('[data-testid="dm-menu-video"]').trigger('click')
     await settle()
 
     expect(permissions.canPlaceCall).toHaveBeenCalledTimes(2)
     expect(callSwitch.leaveCurrentCallFor).not.toHaveBeenCalled()
     expect(useUnifiedVoiceChannelStore().leaveVoiceChannel).not.toHaveBeenCalled()
+  })
+
+  it('in another call, a call refused for a block is refused before the switch and the caller stays', async () => {
+    const voice = useUnifiedVoiceChannelStore() as any
+    voice.isConnected = true
+    voice.currentChannelId = 'voice-elsewhere'
+    rt.rpc.mockImplementation(async (name: string) => (name === 'check_dm_call'
+      ? { data: null, error: { message: 'DM_UNDELIVERABLE', code: 'P0001', hint: 'This message could not be delivered.' } }
+      : rt.rpcResult(name)) as any)
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(rt.rpc).toHaveBeenCalledWith('check_dm_call', { p_conversation_id: CONV })
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error.mock.calls[0][0]).toMatch(/dm\.callUndeliverable|could not be placed/)
+    expect(callSwitch.leaveCurrentCallFor).not.toHaveBeenCalled()
+    expect(voice.leaveVoiceChannel).not.toHaveBeenCalled()
+    expect(rt.rpc).not.toHaveBeenCalledWith('start_dm_call_message', expect.anything())
+  })
+
+  it('in another call, a deliverable call is checked, then switches and rings', async () => {
+    const voice = useUnifiedVoiceChannelStore() as any
+    voice.isConnected = true
+    voice.currentChannelId = 'voice-elsewhere'
+    const order: string[] = []
+    callSwitch.leaveCurrentCallFor.mockImplementation(async () => { order.push('switch'); return true })
+    rt.rpc.mockImplementation(async (name: string) => { order.push(name); return rt.rpcResult(name) })
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(order.slice(0, 3)).toEqual(['check_dm_call', 'switch', 'start_dm_call_message'])
+  })
+
+  it('out of a call, placing the call is the only check', async () => {
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+    expect(rt.rpc).not.toHaveBeenCalledWith('check_dm_call', expect.anything())
+    expect(rt.rpc).toHaveBeenCalledWith('start_dm_call_message', expect.anything())
   })
 
   it('an allowed call asks to switch calls after the pre-check, before ringing', async () => {

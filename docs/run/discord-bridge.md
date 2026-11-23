@@ -254,7 +254,7 @@ A pair's progress line says how many messages were skipped for their author.
 - Pins: Discord's pinned messages are pinned in Harmony, up to Harmony's limit of 50 per channel; the rest are skipped.
 - Replies: a reply links to the message it answers once that message is in Harmony. A reply whose original is gone from Discord stays as a plain reply.
 
-Not imported: reactions, messages posted by Discord bots and webhooks (which also leaves out the bridge's own copies of Harmony messages), Discord's system messages such as joins, boosts and pin notices, and messages whose Harmony copy was deleted: a message a moderator deleted here stays deleted however often a channel is imported. The bridge needs **Read Message History** in the channel and the Message Content intent.
+Not imported: reactions, messages posted by Discord bots and webhooks (which also leaves out the bridge's own copies of Harmony messages), Discord's system messages such as joins, boosts and pin notices, and messages whose Harmony copy was deleted: a message a moderator deleted here stays deleted however often a channel is imported. So does a thread a moderator deleted here; a thread removed because all its messages were deleted comes back. After **Remove all bridged messages**, an import builds each thread again on its imported first message. The bridge needs **Read Message History** in the channel and the Message Content intent.
 
 ### Quiet by design
 
@@ -272,14 +272,14 @@ Discord gives no message count, so progress goes by date. Each pair shows its st
 | **Importing… 42%** with **Back to** *date* and a message count | Walking the channel's messages |
 | **Importing threads…** with **Threads 2 of 5** | Importing the channel's threads |
 | **Linking replies…** | Linking replies to their originals |
-| **Cancelling…** | The bridge is stopping the import |
-| **Paused: waiting for the bridge** | The bridge stopped; the import continues when it returns |
+| **Cancelling…** | The bridge is stopping the import, with **Stop now** |
+| **Paused: waiting for the bridge** | The bridge stopped; the import continues when it returns, or from **Resume** |
 | **Imported 1,204 messages** | Finished, with **Import again**; the count is what that run added |
 | **Up to date: no new messages** | Finished a re-run that found nothing new, with **Import again** |
 | **Import stopped: …** | Failed, with **Try again**; the reason is shown, for example the channel pair was removed, the channel is now encrypted, the Discord channel is private, or history import was turned off |
 | **Cancelled** | Stopped by a person, with **Resume** |
 
-**Cancel** on a pair stops its import. Messages already imported stay.
+**Cancel** on a pair stops its import. Messages already imported stay. The bridge stops at its next step; while it has not, the pair reads **Cancelling…** with **Stop now**, which ends the import at once, for a bridge that is offline or gone. Starting the import again while it is cancelling keeps it running.
 
 ### Large servers, repeats and restarts
 
@@ -308,7 +308,7 @@ Members with Manage Server act for someone who cannot run the command, for examp
 - The list shows who is left out and why: **Opted out on Discord**, or removed by a manager or an instance admin. **Restore** lifts a removal made here, from then on: history import leaves out what the member wrote before. A member's own opt-out is theirs to undo, and a member who opted out as well stays opted out. Opting in on Discord does not lift a removal made here.
 - **Remove all bridged messages** deletes everything this server's bridge brought from Discord. Messages written on Harmony stay. When rows stay locked by other work, the page says how many it removed and that some remain; run it again.
 
-A message that is the first message of a thread is kept as an empty, deleted message so that the thread and other people's replies stay; its text, files and author are gone, and the thread is renamed **Thread**, whoever started it, since Discord titles a thread with the first words of its message. Notifications that quoted the removed messages are deleted too. A thread an opted-out member starts on Discord arrives named **Thread**, without their name. Removal cannot be undone.
+A message that is the first message of a thread is kept as an empty, deleted message so that the thread and other people's replies stay; its text, files and author are gone, and the thread is renamed **Thread**, whoever started it, since Discord titles a thread with the first words of its message. A thread left with no message goes, with its "started a thread" line and the emptied first message. An AutoMod alert a thread was started on is kept the same way, and its thread is renamed **Thread** too. Notifications that quoted the removed messages are deleted too. A thread an opted-out member starts on Discord, or that anyone starts on an opted-out member's message, arrives named **Thread**; so does one started before the member opted back in. A thread the member started is shown without their name. Removal cannot be undone.
 
 ## Discord permissions
 
@@ -372,7 +372,7 @@ The bridge registers these commands in the bridged Discord server. `/bridge` is 
 | `/bridge sync-emojis`, `/bridge sync-stickers`, `/bridge sync-sounds` | Copy the Discord server's emoji, stickers or soundboard to Harmony and keep them up to date; `mode` `merge` (the default: adds and updates), `mirror` (also removes what the bridge copied from a Discord item deleted since, after a confirmation) or `add`, and `dry_run` (bridge 2.6.0 or later) |
 | `/bridge import-emojis` | Copy the Discord server's custom emoji into the Harmony server under the same names; a rerun adds only new ones (Harmony 1.6.25 or later). With bridge 2.6.0 it is `sync-emojis` in `add` mode |
 
-`/bridge link` offers only Harmony channels the bridge's Harmony bot can see. An imported emoji is one emoji on both sides, so reactions with it count together. A sync never removes what a member uploaded on Harmony and changes it only to rename a member's emoji the bridge linked by name, never restores what a person removed, and never removes again an emoji a person restored after the bridge removed it. A Harmony emoji of the same name that the bridge did not copy is listed as a name clash; bridges before 2.6.0 link it instead.
+`/bridge link` offers only Harmony channels the bridge's Harmony bot can see. An imported emoji is one emoji on both sides, so reactions with it count together. A sync never removes what a member uploaded on Harmony and changes it only to rename a member's emoji the bridge linked by name, never restores what a person removed, never copies again a sticker or sound a manager deleted or an emoji an instance admin purged, and never removes again an emoji a person restored after the bridge removed it. A Harmony emoji of the same name that the bridge did not copy is listed as a name clash; bridges before 2.6.0 link it instead.
 
 ## Moderation and spam
 

@@ -308,11 +308,13 @@ SELECT is_empty($q$
        AND p.prosrc !~ 'is_history_import\(\)|harmony\.history_import'
        AND c.relname || '.' || t.tgname <> ALL (ARRAY[
            'messages.a_messages_attach_files',
-           'messages.a_messages_bridge_optout_guard',
+           'messages.a_messages_client_write_optout',
+           'messages.a_messages_client_write_optout_edit',
            'messages.a_messages_client_write_guard',
            'messages.a_messages_content_emoji_parts',
            'messages.a_messages_content_permissions',
            'messages.a_messages_deleted_recipient_guard',
+           'messages.a_messages_dm_block_edit_guard',
            'messages.a_messages_dm_block_guard',
            'messages.a_messages_matrix_author_guard',
            'messages.a_messages_media_path_guard',
@@ -340,6 +342,7 @@ SELECT is_empty($q$
            'messages.z_messages_empty_thread_delete',
            'messages.z_messages_media_cleanup',
            'messages.z_messages_moderator_delete_audit',
+           'threads.a_threads_bridge_deleted',
            'threads.a_threads_client_write_guard',
            'threads.sanitize_thread_name_trigger'])
 $q$, 'every trigger on messages and threads consults the import flag or is listed as running during an import');

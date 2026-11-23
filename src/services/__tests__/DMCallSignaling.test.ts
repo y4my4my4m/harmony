@@ -37,7 +37,7 @@ vi.mock('@/services/AuthContextService', () => ({
 }))
 vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
-import { dmCallSignaling } from '@/services/DMCallSignaling'
+import { CallUndeliverableError, dmCallSignaling } from '@/services/DMCallSignaling'
 
 const CONV = '11111111-1111-1111-1111-111111111111'
 const CALLER_CONV = '22222222-2222-2222-2222-222222222222'
@@ -71,6 +71,32 @@ describe('local calls', () => {
     await dmCallSignaling.leaveCall(CONV, 'me')
     expect(realtime.rpc).toHaveBeenLastCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'end', p_receiver_ids: ['them'] }))
     expect(realtime.opened.every((o) => o.topic === `dm-call:${CONV}` && o.opts.config.private === true)).toBe(true)
+  })
+
+  it('a call the server refuses for a block rings no one and holds no call', async () => {
+    realtime.rpc.mockImplementationOnce(async () => ({ data: null,
+      error: { message: 'DM_UNDELIVERABLE', code: 'P0001', hint: 'This message could not be delivered.' } }) as any)
+    await expect(dmCallSignaling.initiateCall(CONV, 'me', 'voice', ['them'])).rejects.toBeInstanceOf(CallUndeliverableError)
+    expect(realtime.rpc).toHaveBeenCalledTimes(1)
+    expect(realtime.rpc).not.toHaveBeenCalledWith('ring_dm_call', expect.anything())
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+  })
+
+  it('the pre-check refuses as placing the call would, and lets any other failure through', async () => {
+    realtime.rpc.mockImplementationOnce(async () => ({ data: null,
+      error: { message: 'DM_UNDELIVERABLE', code: 'P0001', hint: 'This message could not be delivered.' } }) as any)
+    await expect(dmCallSignaling.checkCallDeliverable(CONV)).rejects.toBeInstanceOf(CallUndeliverableError)
+    expect(realtime.rpc).toHaveBeenCalledWith('check_dm_call', { p_conversation_id: CONV })
+    realtime.rpc.mockImplementationOnce(async () => ({ data: null, error: { message: 'network', code: '' } }) as any)
+    await expect(dmCallSignaling.checkCallDeliverable(CONV)).resolves.toBeUndefined()
+    await expect(dmCallSignaling.checkCallDeliverable(CONV)).resolves.toBeUndefined()
+  })
+
+  it('another failure of the call notice still rings', async () => {
+    realtime.rpc.mockImplementationOnce(async () => ({ data: null, error: { message: 'network', code: '' } }) as any)
+    await dmCallSignaling.initiateCall(CONV, 'me', 'voice', ['them'])
+    expect(realtime.rpc).toHaveBeenLastCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'initiate' }))
+    await dmCallSignaling.leaveCall(CONV, 'me')
   })
 
   it('a signal without a subscription opens the private topic and releases it', async () => {

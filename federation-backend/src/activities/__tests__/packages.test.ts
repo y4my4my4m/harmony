@@ -65,7 +65,85 @@ describe('parsePackage', () => {
     const big = new Uint8Array(6 * 1024 * 1024)
     expect(code(() => parsePackage(zip({ 'manifest.json': strToU8(JSON.stringify(manifest())), 'app.js': big, 'icon.svg': SVG })))).toBe('TOO_LARGE')
   })
+
+  it('counts a stored entry by the bytes copied, each record that points at it again', () => {
+    // 1 MB stored once, listed 40 times with a declared size of 0: 40 MB of copies unchecked.
+    const crafted = sharedStoredEntry(40, 1024 * 1024)
+    const before = process.memoryUsage().arrayBuffers
+    expect(code(() => parsePackage(crafted))).toBe('TOO_LARGE')
+    expect(process.memoryUsage().arrayBuffers - before).toBeLessThan(16 * 1024 * 1024)
+  })
+
+  it('refuses one stored entry over 5 MB that declares 0 bytes', () => {
+    expect(code(() => parsePackage(sharedStoredEntry(1, 5.5 * 1024 * 1024)))).toBe('TOO_LARGE')
+  })
+
+  it('stops at 32 zip entries when the end record claims 2^32 - 1', () => {
+    const started = performance.now()
+    expect(code(() => parsePackage(zip64Claiming(0xffffffff)))).toBe('UNEXPECTED_FILE')
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+
+  it('refuses a compression method other than stored or deflate', () => {
+    const bytes = good()
+    // Local header method at 8, central directory record method at 10.
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    view.setUint16(8, 99, true)
+    const cd = findSignature(bytes, 0x02014b50)
+    view.setUint16(cd + 10, 99, true)
+    expect(code(() => parsePackage(bytes))).toBe('NOT_A_ZIP')
+  })
 })
+
+/** One stored local entry of `dataLen` bytes, listed by `records` central directory records, each declaring size 0. */
+function sharedStoredEntry(records: number, dataLen: number): Uint8Array {
+  const name = Buffer.from('x')
+  const local = Buffer.alloc(30)
+  local.writeUInt32LE(0x04034b50, 0)
+  local.writeUInt16LE(name.length, 26)
+  const head = Buffer.concat([local, name, Buffer.alloc(dataLen, 0x41)])
+  const cds: Buffer[] = []
+  for (let i = 0; i < records; i++) {
+    const nm = Buffer.from(`f${i}.js`)
+    const cd = Buffer.alloc(46)
+    cd.writeUInt32LE(0x02014b50, 0)
+    cd.writeUInt16LE(0, 10)
+    cd.writeUInt32LE(dataLen, 20)
+    cd.writeUInt32LE(0, 24)
+    cd.writeUInt16LE(nm.length, 28)
+    cd.writeUInt32LE(0, 42)
+    cds.push(cd, nm)
+  }
+  const dir = Buffer.concat(cds)
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(records, 8)
+  end.writeUInt16LE(records, 10)
+  end.writeUInt32LE(dir.length, 12)
+  end.writeUInt32LE(head.length, 16)
+  return new Uint8Array(Buffer.concat([head, dir, end]))
+}
+
+/** A 98-byte zip64 archive whose end record claims `count` entries, its directory past the end. */
+function zip64Claiming(count: number): Uint8Array {
+  const z64 = Buffer.alloc(56)
+  z64.writeUInt32LE(0x06064b50, 0)
+  z64.writeUInt32LE(count >>> 0, 32)
+  z64.writeUInt32LE(0x7fffff00, 48)
+  const locator = Buffer.alloc(20)
+  locator.writeUInt32LE(0x07064b50, 0)
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(0xffff, 8)
+  end.writeUInt16LE(0xffff, 10)
+  return new Uint8Array(Buffer.concat([z64, locator, end]))
+}
+
+function findSignature(bytes: Uint8Array, signature: number): number {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  for (let i = 0; i + 4 <= bytes.length; i++) if (view.getUint32(i, true) === signature) return i
+  throw new Error('signature not found')
+}
 
 /* -------------------------------------------------------------------------------------------- */
 

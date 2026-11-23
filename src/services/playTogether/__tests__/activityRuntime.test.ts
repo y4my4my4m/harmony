@@ -261,3 +261,67 @@ describe('ActivityRuntime', () => {
     expect(sent).toEqual([])
   })
 })
+
+describe('ActivityRuntime avatars', () => {
+  const realFetch = globalThis.fetch
+  let calls: string[]
+
+  function withAvatars(): InstanceType<typeof ActivityRuntime> {
+    runtime.destroy()
+    posted = []
+    const r = new ActivityRuntime({ id: 's2' } as ActivitySession, (m) => `https://avatars.example/${m.id}`, view, {
+      locale: () => 'en',
+      theme: () => ({ scheme: 'dark', accent: '#0EA5E9', reducedMotion: false }),
+      visible: () => true,
+      notify: vi.fn(),
+      leave: vi.fn(),
+      save: vi.fn(async () => true),
+    })
+    r.start()
+    r.attachFrame(frame as unknown as HTMLIFrameElement)
+    runtime = r
+    return r
+  }
+
+  beforeEach(() => {
+    calls = []
+    globalThis.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      calls.push(url)
+      if (url.endsWith('/hang')) return new Promise<Response>(() => {})
+      if (url.endsWith('/gone')) return Promise.resolve(new Response('missing', { status: 404 }))
+      return Promise.resolve(new Response(PNG, { status: 200, headers: { 'content-type': 'image/png' } }))
+    }) as typeof fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  it('does not hold a member\'s join, or the messages after it, on an avatar that never answers', async () => {
+    withAvatars()
+    fromFrame({ hp: 1, t: 'ready', sdk: '1.0.0' })
+    handlers.frame(welcome())
+    await vi.waitFor(() => expect(posted.some((m) => m.t === 'init')).toBe(true))
+    const started = Date.now()
+    handlers.frame({ op: 'join', member: { ...member('hang', 3) } } as RelayFrame)
+    handlers.frame({ op: 'message', from: BOB, data: 'after' } as RelayFrame)
+    await vi.waitFor(() => expect(posted.some((m) => m.t === 'message')).toBe(true), { timeout: 2000 })
+    expect(Date.now() - started).toBeLessThan(1500)
+    const join = posted.find((m) => m.t === 'join') as { member: { id: string; avatarBlob: Blob | null } }
+    expect(join.member).toMatchObject({ id: 'hang', avatarBlob: null })
+  })
+
+  it('fetches an avatar URL that failed once, not on every rejoin', async () => {
+    withAvatars()
+    fromFrame({ hp: 1, t: 'ready', sdk: '1.0.0' })
+    handlers.frame(welcome())
+    await vi.waitFor(() => expect(posted.some((m) => m.t === 'init')).toBe(true))
+    for (let i = 0; i < 3; i++) {
+      handlers.frame({ op: 'join', member: member('gone', 10 + i) } as RelayFrame)
+      await vi.waitFor(() => expect(posted.filter((m) => m.t === 'join')).toHaveLength(i + 1))
+      handlers.frame({ op: 'leave', id: 'gone', reason: 'left' } as RelayFrame)
+    }
+    expect(calls.filter((u) => u.endsWith('/gone'))).toHaveLength(1)
+  })
+})

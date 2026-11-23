@@ -1,6 +1,11 @@
 // Journey: a group chat holds 10 people, its creator included, as a Discord group DM. The picker
 // counts the spots left and stops at the tenth person; the group is made with all ten. The
 // database refuses an eleventh (20261116100001_group_conversation_limit.sql, pgTAP 296).
+//
+// The creator is an established account. An account younger than new_account_hours may start
+// conversations with 5 strangers per hour (new_account_stranger_dms_per_hour,
+// 20261109200001_instance_write_limits.sql), and each stranger in a new group counts: a new
+// account's group of 10 is refused at the sixth (instance-limits.spec.ts covers the cap).
 
 import { test, expect } from '@playwright/test'
 import { adminClient, createUser, deleteUser, dismissAnnouncements, signIn, type SpecUser } from './harness'
@@ -11,6 +16,9 @@ const candidates: SpecUser[] = []
 
 test.beforeAll(async () => {
   owner = await createUser(admin, 'grlo')
+  const aged = await admin.from('profiles')
+    .update({ created_at: new Date(Date.now() - 30 * 86_400_000).toISOString() }).eq('id', owner.id)
+  if (aged.error) throw new Error(`age owner: ${aged.error.message}`)
   for (let i = 0; i < 10; i++) candidates.push(await createUser(admin, 'grlm'))
 })
 

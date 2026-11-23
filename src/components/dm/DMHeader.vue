@@ -83,16 +83,6 @@
     </div>
 
     <div class="header-actions">
-      <button 
-        class="action-btn add-user-btn"
-        @click="$emit('add-user')"
-        title="Add people to conversation"
-      >
-        <svg viewBox="0 0 24 24" class="add-user-icon" style="width:24px; height:24px;">
-          <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z" fill="currentColor"/>
-        </svg>
-      </button>
-      
       <button
         v-if="hasActiveCallNotJoined"
         class="action-btn join-call-btn"
@@ -109,30 +99,12 @@
         :class="{ active: isInVoiceCall }"
         @click="toggleVoiceCall"
         :title="isInVoiceCall ? 'End voice call' : 'Start voice call'"
+        :aria-label="isInVoiceCall ? 'End voice call' : 'Start voice call'"
+        data-testid="dm-call"
       >
         <Icon :name="isInVoiceCall ? 'phone-off' : 'phone'" :size="16" />
       </button>
       
-      <button 
-        class="action-btn video-btn"
-        :class="{ active: isInVideoCall }"
-        @click="toggleVideoCall"
-        :title="isInVideoCall ? 'Turn off camera' : 'Start video call'"
-      >
-        <Icon :name="isInVideoCall ? 'video-off' : 'video'" :size="16" />
-      </button>
-      
-      <button
-        v-if="!isMobile && playAvailable"
-        class="action-btn play-btn"
-        :title="t('playTogether.button')"
-        :aria-label="t('playTogether.button')"
-        data-testid="play-together-button"
-        @click="openPlayTogether"
-      >
-        <Icon name="gamepad" :size="18" />
-      </button>
-
       <button 
         class="action-btn search-btn"
         @click="handleSearchClick"
@@ -148,7 +120,10 @@
           class="action-btn more-btn"
           @click="handleMoreClick"
           title="More options"
+          aria-label="More options"
+          :aria-expanded="showOptionsMenu"
           :class="{ active: showOptionsMenu }"
+          data-testid="dm-more"
         >
           <svg viewBox="0 0 24 24" class="more-icon">
             <path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z" fill="currentColor"/>
@@ -156,21 +131,20 @@
         </button>
 
         <div v-if="showOptionsMenu" class="actions-menu" v-click-outside="closeActionsMenu" ref="optionsMenuRef">
-          <!-- On mobile the header only shows the call and overflow buttons;
-               the remaining actions live here instead. -->
+          <!-- The header keeps Call and Search; the call starts with the camera off and the dock
+               turns it on, ringing or answered. -->
           <button
-            v-if="isMobile && playAvailable"
             class="action-item"
-            data-testid="play-together-menu-item"
-            @click="closeActionsMenu(); openPlayTogether()"
+            data-testid="dm-menu-add-people"
+            @click="handleMenuAddUser"
           >
-            <Icon name="gamepad" :size="16" />
-            <span>{{ t('playTogether.button') }}</span>
+            <Icon name="user-plus" :size="16" />
+            <span>Add people</span>
           </button>
 
           <button
-            v-if="isMobile"
             class="action-item"
+            data-testid="dm-menu-video"
             @click="handleMenuVideoCall"
           >
             <Icon :name="isInVideoCall ? 'video-off' : 'video'" :size="16" />
@@ -178,12 +152,13 @@
           </button>
 
           <button
-            v-if="isMobile"
+            v-if="playAvailable"
             class="action-item"
-            @click="handleMenuAddUser"
+            data-testid="activities-menu-item"
+            @click="closeActionsMenu(); openPlayTogether()"
           >
-            <Icon name="user-plus" :size="16" />
-            <span>Add people</span>
+            <Icon name="popcorn" :size="16" />
+            <span>{{ t('activities.launcherTitle') }}</span>
           </button>
 
           <button
@@ -318,7 +293,7 @@ import { getAvatarUrl } from '@/utils/avatarUtils'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
-import { dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
+import { CallUndeliverableError, dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
 import { dmCallPermissions } from '@/services/DMCallPermissions'
 import { dmCallRoute, localCallReceivers } from '@/services/dmCallRouting'
 import { authContextService } from '@/services/AuthContextService'
@@ -1018,6 +993,19 @@ const startCall = async (profileId: string, callType: 'voice' | 'video') => {
   }
   // An encrypted conversation's call this device cannot join rings no one.
   if (!(await ensureCanJoinCall('dm', `dm-${props.conversation.id}`))) return
+  // In another call, a refusal comes before the switch, which leaves that call. Out of one,
+  // placing the call answers the same with no extra request.
+  if (peer?.id && voiceStore.isConnectedOrJoining) {
+    try {
+      await dmCallSignaling.checkCallDeliverable(props.conversation.id)
+    } catch (error) {
+      if (error instanceof CallUndeliverableError) {
+        toast.error(t('dm.callUndeliverable'))
+        return
+      }
+      throw error
+    }
+  }
   if (!(await leaveCurrentCallFor())) return
   await startLocalCall(profileId, callType, receiverIds)
 }
@@ -1049,8 +1037,17 @@ const startLocalCall = async (profileId: string, callType: 'voice' | 'video', re
   
   ringRefused = false
   ringAbandoned = false
-  await dmCallSignaling.initiateCall(props.conversation.id, profileId, callType, receiverIds)
-  
+  try {
+    await dmCallSignaling.initiateCall(props.conversation.id, profileId, callType, receiverIds)
+  } catch (error) {
+    // A block refuses the call as it refuses a message, in words that do not name a block.
+    if (error instanceof CallUndeliverableError) {
+      toast.error(t('dm.callUndeliverable'))
+      return
+    }
+    throw error
+  }
+
   const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
 
   if (ringAbandoned) {
@@ -1497,10 +1494,7 @@ const getDefaultGroupName = (): string => {
     height: 40px;
   }
 
-  /* Only the call button and the overflow menu stay in the header;
-     video / add-people / search move into the overflow menu. */
-  .add-user-btn,
-  .video-btn,
+  /* Search moves into the overflow menu: the header keeps Call and More. */
   .search-btn {
     display: none;
   }

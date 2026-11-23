@@ -19,11 +19,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   Supabase Vault. Self-host: `harmony update` sets this up. Instances that keep their credentials in
   `supabase/.env` work as before, and a self-host install that keeps providers apart from existing
   accounts keeps Discord apart too.
-- **Play together.** The gamepad button in a DM, a group, a text channel or a call starts a
-  multiplayer activity everyone there can join from the notice it posts; nobody needs to be in a
-  call. In a call the activity takes the stage like a shared screen. The panel docks above the
+- **Play together.** The **Activities** button (popcorn) in a DM, a group, a text channel or a
+  call starts a multiplayer activity everyone there can join from the notice it posts; nobody needs
+  to be in a call. In a call the activity takes the stage like a shared screen. The panel docks above the
   messages at a height you drag, expands over them, and keeps running behind a corner card when you
-  open another conversation. The first activity is **DrawinPhone**: write a prompt, draw the next
+  open another conversation. A game ends when its last player selects **Leave**; one whose last player
+  only lost the connection waits a minute for them to come back. The first activity is **DrawinPhone**: write a prompt, draw the next
   one, describe the drawing after that, then replay every chain together with reactions and
   favourites. Activities run sandboxed with no access to your account or your messages, and talk
   through a relay in the federation backend; instance admins turn each on or off in **Admin** →
@@ -85,6 +86,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   bridge and erase what it relayed there, as for Discord people. (#197, ZaneH)
 - **One Bridges page.** **Server settings** → **Bridges** holds the Discord and Matrix bridges on two
   tabs. Links to the former **Discord Bridge** page open the Discord tab.
+- **Matrix bridges are set up in the app.** **Server settings** → **Bridges** → **Matrix** pairs
+  channels: choose your bridge bot and tick channels from its channel list (one outside the list says
+  where to add it), change them later, or unpair the bot. A status card counts the paired channels,
+  those with a Matrix room and those still waiting for one, and a manager without a bot gets the setup
+  steps and a link to the guide.
 - **Keep your messages off a bridge.** **Bridge privacy** in a server's menu stops its Discord or
   Matrix bridge, each on its own, from relaying your messages, edits, reactions and the bots' public
   answers to your slash commands. Deleting a message still reaches the bridge, so a copy relayed
@@ -240,6 +246,120 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and Discord's "pinned a message" line is removed (bridge 2.8.0).
 
 ### Fixed
+- **Discord people stay in their own channel's member list.** Leaving a bridged channel before its
+  member list loaded put its Discord people in the list of the channel opened next, even in another
+  server, where they then came and went every minute.
+- **A reply shows a Discord or Matrix person in their own name colour.** A reply quoting a bridged
+  person drew their name in Discord blurple whenever it appeared before the channel's member list
+  loaded; it now takes their role colour when the list arrives, as their own message does.
+- **A mention of a split-domain account typed with its server's host now opens the account.**
+  `@maddy@chat.understars.dev` names the account stored as `@maddy@understars.dev` (Mastodon
+  `WEB_DOMAIN` setups, Shoot): new messages store the account itself and show it as
+  `@maddy@understars.dev`, as Mastodon does, and mentions already sent, or of an account this
+  instance has not met yet, are looked up when clicked instead of doing nothing.
+- **A Discord file added by an edit is stored even when the edit lands mid-download.** The mirror
+  worker dropped the message from its queue, so the new file kept a Discord link that expired after
+  about a day.
+- **One deleted Discord attachment no longer keeps a message's other files from being stored.** The
+  others are stored at once; only the dead link waits for a re-sign.
+- **Mirroring Discord files no longer slows down as a server stores more of them.** The per-server
+  limit and the admin's "Storing Discord files" figure now read running totals instead of adding up
+  every stored file.
+- **History import no longer leaves stray files** when a batch repeats a Discord message or fails
+  partway.
+- **A Discord message relayed after the history import stored it now notifies.** The live copy
+  replaces the quiet imported one, with mentions, unread counts and federation.
+- **An import whose bridge went away can be stopped.** "Cancelling…" offers Stop now, and a paused
+  import has Resume.
+- **Linking replies of a very long imported channel no longer times out.**
+- **A thread a moderator deleted stays deleted on the next history import.**
+- **Importing again after removing all bridged messages rebuilds threads on their messages,** with
+  one "started a thread" line.
+- **Starting an import while it is cancelling keeps it running.**
+- **Erasing the member who started an import no longer deadlocks with it.**
+- **Fast history imports no longer wait out rate limits** when reading and updating their job.
+- **A late bridge report can no longer restore an import's cursor after a purge.**
+- **Opting back in, or a Restore, stops an erase at once.** A batch already running no longer
+  finishes erasing after it.
+- **Images in a busy author's Discord messages are re-signed without waiting for another look.**
+- **A Discord thread started on an opted-out member's message no longer carries their words as its
+  title**, nor does one started before its author opted back in.
+- **No account can tell from a refused message whether a Discord user opted out of a bridge.**
+- **Erasing a Discord member also clears the title of a thread started on an AutoMod alert about
+  them.**
+- **Importing a Discord emoji gives up after 15 seconds** instead of waiting forever on Discord's
+  CDN.
+- **A Discord bridge can no longer move an opted-out member's message to another author, or onto
+  them.**
+- **Stickers and sounds a manager deletes, and emoji an instance admin purges, stay deleted.** The
+  Discord bridge's next sync no longer copies them back and lists them as left removed (bridge
+  2.8.0).
+- **Public pages of remote accounts load quickly on large instances.** Looking an account up no
+  longer reads every profile; the index builds during the upgrade without blocking the instance.
+- **Custom emoji a remote account removes disappear from its profile.** Taking every custom emoji
+  out of a name and bio left the old ones showing here.
+- **Removing a reaction made with a server's custom emoji works on member instances.** The reaction
+  could stay once the instance held a second copy of the emoji's image.
+- **A server on another instance can no longer flood its members with emoji changes.** A copy takes
+  at most 2000 renames, new images and restores an hour; the rest follow at a later sync.
+- **An instance admin's removal of another server's emoji outlives the admin's account.** The emoji
+  came back at the next sync once that admin's account was deleted.
+- **Reactions with a server's custom emoji show as one pill.** Instances that had cached the same
+  image twice split them; they are merged on upgrade and at each sync.
+- **Server changes reach member instances when servers' clocks differ.** A change made while an
+  update was being sent could be dropped; it now goes out in the next update.
+- **Every emoji of a server hosted elsewhere reaches its copy.** An old database rule on some
+  instances allowed one emoji per name and instance. It refused a second server's emoji of the same
+  name, an emoji added again under its old name, and some reactions with remote emoji. The rule is
+  removed.
+- **A blocked account no longer learns who blocks it.** It could read the block naming it and ask
+  whether an account blocked it. Neither answers now, and a call to someone who blocks you says
+  "Your call could not be placed."
+- **A blocked account can no longer edit its earlier direct messages.** Its edits reached the person
+  who blocked it as they were made. They are now refused like new messages; deleting still works.
+- **Member searches in Kick, Ban and Roles no longer show another server's members.** A search still
+  running when the dialog closed or the server changed could fill the next view.
+- **Watch together recovers from a false playback state.** A member who could control the activity
+  could keep everyone paused or at the start until the next real control. A state the server does
+  not confirm within 3 seconds now gives way, and a late update no longer jumps playback back after
+  a seek.
+- **Roles → Add members finds members the role lacks.** The list came up empty when the first 30
+  matches already held the role.
+- **A reply typed into a notification is sent only as the account it was for.** Unsent replies
+  survived sign-out and went out as whoever signed in next.
+- **Play together no longer tells a blocked account it is blocked.** A direct conversation with
+  someone who blocks you answers as any conversation you cannot play in.
+- **Calling someone who blocks you no longer ends your current call first.** From another call,
+  Harmony says "Your call could not be placed." before asking to switch calls.
+- **A personal emoji's owner is shown to everyone.** An account its owner blocks saw no name, which
+  revealed the block.
+- **Replies typed into a notification are sent as soon as Harmony has loaded.** A reply from the
+  notification while Harmony was still loading waited until you switched back to the tab.
+- **Sign-in through your own OIDC provider gets the address from userinfo.** A provider that sends
+  the address and name from its userinfo endpoint only, as Better Auth and Authelia 4.39 do, ended
+  every sign-in with "Error getting user email from external provider": the sign-in service read
+  the ID token alone. `harmony auth add-provider --issuer` now has the sign-in service read
+  userinfo, and an ID token signed with the client secret (HS256) no longer matters. Providers that
+  already work keep reading the ID token; one that fails this way switches with
+  `harmony auth add-provider ID --userinfo`, which asks for the client secret again.
+  `harmony auth providers` shows which each one reads.
+- **DMs show the other person's new avatar and name at once.** When someone you have a DM or group
+  chat with changed their avatar or display name, the conversation kept the old one until you
+  opened a server you both belong to. The DM header, the conversation list and their messages now
+  update as soon as they save, with or without a shared server.
+- **A limit notice says how long to wait in minutes or hours, and names the conversation limit.**
+  Reaching an hourly limit said "Try again in 3600 s". The wait is now given as "45 seconds",
+  "59 minutes" or "1 hour". Starting conversations, or a group chat, with more people you don't
+  know than the instance allows per hour says so and gives the number, instead of "You're doing
+  that too quickly".
+- **The voice dock works over the media viewer.** With an image or video open full size, the dock
+  showed on top but a press on it reached the viewer underneath: dragging the dock moved the image,
+  and its buttons did nothing. The dock, docked or minimized, now drags and answers its buttons over
+  the viewer, and Escape after pressing one of them still closes the viewer. Other dialogs now
+  cover the dock instead of showing it over their own buttons.
+- **The voice dock stays at the left edge.** Dropped against the left edge of the window, the
+  docked bar jumped back to the middle at the height it was dropped. It now stays where it is
+  dropped, also after a reload; released near its home at the bottom centre it still snaps there.
 - **Other instances' list keeps up.** Typed text narrows the servers shown at once, and the count
   appears with the answer for that text instead of the previous one's. More than 60 servers loaded
   stay loaded while an instance is still being read; the list is read again in pages. A failed
@@ -475,6 +595,24 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
+- **A quieter DM header.** A DM or group shows **Call**, **Search** and **More options** (⋯). A
+  call starts with your camera off, and the call bar turns it on while it rings or after it is
+  answered; **More options** holds **Add people**, **Start video call** for video from the first
+  second, and **Activities**.
+- **Send any kind of file.** Chats and Drive take every file type, as Discord does: an APK, an
+  executable or a JSON file no longer stops at "isn't allowed". A type your instance's storage does
+  not serve as itself is stored as a download under its own name and shows as a file card; HTML,
+  SVG, XML and scripts are always stored that way, so nothing sent opens as a page. Size limits are
+  unchanged.
+- **One Activities button in calls.** Watch or listen together and the games share one
+  **Activities** dialog behind the popcorn button: in a call on this instance's servers it offers a link or a Drive file to
+  watch together above the games; elsewhere it lists the games. The voice dock drops from 14
+  controls to 10 in three groups parted by separators (the call, what plays in it, the view):
+  **Participants**, **Spatial audio**, **Voice settings** and **Pop out call** sit under **More
+  options** (⋯).
+  Arrows pointing out open a larger view and arrows pointing in a smaller one, in the dock, the
+  minimized dock and the call view alike; the square corners mean full screen only, and floating
+  the dock has its own icon instead of Pop out's.
 - **Discover communities shows more servers.** On both tabs the search and filters fold behind a
   **Search and filters** button and open folded; the tabs, the count and every active filter stay
   on screen, each filter a chip that clears it, and scrolling the list folds open controls. Other
@@ -531,7 +669,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   it. Update to this release.
 - Android: content embedded in the app (activities, YouTube and X posts, media players) can no
   longer run the app's native commands. The Android WebView handed every embedded frame the same
-  bridge to the app as Harmony's own page; the bridge now answers Harmony's page only.
+  bridge to the app as Harmony's own page; the bridge now answers Harmony's page only. On a
+  WebView too old for that, the app runs no activities and asks to update Android System WebView.
+- Activities: joining a text channel's game takes **Send Messages** there, as starting one did,
+  and a member timed out in the server cannot play in its channels; both see the game and the
+  reason instead of **Join**, and a member who loses the permission mid-game is removed within 30
+  seconds. Installing an activity package reads at most 32 zip entries and 6 MB as written: a
+  crafted zip of a few bytes could stall the federation backend for minutes or exhaust its memory.
+  The activity relay counts its per-address limits per IPv6 /64, caps sockets that have not signed
+  in, and caps bytes queued for slow readers across all connections. A slow avatar address no
+  longer holds the game for everyone. The activity frame loses the desktop app's message ports
+  before the activity runs. Installed packages run on computers only: phones run the frame in the
+  app's own web process, where one that never yields would freeze the app.
 
 ### Notes for self-hosters
 - An instance still named Harmony from an earlier install is named after its domain by

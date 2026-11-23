@@ -232,7 +232,8 @@ Turning **Mirror to storage** on also covers messages bridged earlier. Only mess
 - **Large files.** Files over `BRIDGE_MIRROR_INLINE_MAX_BYTES` (default 25 MB) go through a queue and are stored one at a time (`BRIDGE_MIRROR_CONCURRENCY`, default 1), so a burst of big files does not slow the bridge.
 - **Temp disk.** Each file is downloaded to a temporary file first, in `BRIDGE_MIRROR_TMPDIR` (default: the operating system's temp directory, on the gateway container's disk). Keep free space there of about the size of the largest file, up to the upload ceiling.
 - **Storage.** Storage needs room for all the files. Check free space before turning the option on for a bridge with years of history. **Stored Discord files per server (MB)**, under [History import](#history-import), caps what one server stores (default 5120, `0` for no limit); a file past it keeps its Discord link, and is stored once the limit is raised.
-- **Expired links.** A Discord link that expired before the file was stored is refreshed through the bridge, which must be online. While it is not, the gateway tries again every 15 minutes. A stored file never goes back to a Discord link.
+- **Expired links.** A Discord link that expired before the file was stored is refreshed through the bridge, which must be online. While it is not, the gateway tries again every 15 minutes. The message's other files are stored meanwhile, so one link Discord no longer signs (a deleted attachment) holds back only itself; after five refresh requests it is counted as failed. A stored file never goes back to a Discord link.
+- **Edits.** A message edited while its files download keeps its place in the queue, and the files the edit added are stored next.
 - **One gateway.** The queue assumes one gateway process.
 
 ## Versions

@@ -295,9 +295,8 @@ both; the admin panel lists them but cannot change them.
   It checks when you add the provider and again at sign-in. A provider on
   the same machine or LAN needs a DNS name that resolves to a public address
   from inside the `auth` container.
-- **An asymmetric signing key.** ID tokens signed with RS256, RS384, RS512,
-  ES256, ES384, ES512, PS256, PS384, PS512 or EdDSA. HS256, signed with the
-  client secret, is refused.
+- **A userinfo endpoint** that answers with `sub` and `email`. OIDC
+  providers have one; see [ID token or userinfo](#id-token-or-userinfo).
 - **An email address**, unless you add the provider with `--email-optional`.
 
 ### 1. Register Harmony with the provider
@@ -329,15 +328,17 @@ harmony auth add-provider authentik --name Authentik \
 
 It asks for the client secret without showing it. For scripts, pass
 `--client-secret-file FILE` (`-` reads standard input) or set
-`HARMONY_OAUTH_CLIENT_SECRET`. Before it stores anything, the sign-in
-service fetches `ISSUER/.well-known/openid-configuration` and checks that
-its `issuer` equals `--issuer`. The provider's accounts stay apart from
-existing ones ([First sign-in and existing accounts](#first-sign-in-and-existing-accounts)):
+`HARMONY_OAUTH_CLIENT_SECRET`. Before it stores anything, it fetches
+`ISSUER/.well-known/openid-configuration`, checks that its `issuer` equals
+`--issuer`, and takes the provider's authorization, token and userinfo
+endpoints from it. The provider's accounts stay apart from existing ones
+([First sign-in and existing accounts](#first-sign-in-and-existing-accounts)):
 
 ```text
 ==> Recreating the auth service with PROVIDER_LINKING_DOMAINS=custom:authentik=custom:authentik...
 ==> Saving sign-in provider custom:authentik...
  ✓ Sign-in provider custom:authentik (Authentik) added; its button shows on the next load of the sign-in page
+ ✓ Address and name: from the provider's userinfo endpoint
  ✓ Existing accounts: kept apart; a first sign-in through custom:authentik makes a new account
 
    Redirect (callback) URL to register with the provider:
@@ -357,8 +358,8 @@ The provider's id is `custom:authentik`. Reload the sign-in page: the button
 2. **Client type**: Confidential. **Redirect URIs/Origins**: Strict,
    `https://db.chat.example.com/auth/v1/callback`.
 3. **Signing Key**: pick one, such as *authentik Self-signed Certificate*.
-   Without a signing key, Authentik signs ID tokens with HS256, which the
-   sign-in service refuses.
+   Without one, Authentik signs ID tokens with HS256, which only matters
+   with `--id-token`: the sign-in service refuses HS256.
 4. Keep the default scope mappings (`openid`, `email`, `profile`).
 5. **Applications** → **Applications** → **Create**: name `Harmony`, slug
    `harmony`, provider `Harmony`.
@@ -402,8 +403,39 @@ harmony auth add-provider betterauth --name "Example Account" \
 ```
 
 With Better Auth, register the client with the redirect URI above and the
-`openid`, `email` and `profile` scopes. Its JWT plugin signs with EdDSA by
-default, which the sign-in service accepts.
+`openid`, `email` and `profile` scopes. Its ID token carries no address; its
+userinfo endpoint does, which is where Harmony reads it.
+
+### ID token or userinfo
+
+An OIDC provider can hand over the person's address and name in the ID
+token, from its userinfo endpoint, or both. OpenID Connect lets it keep them
+for userinfo when the sign-in also gets an access token, and Better Auth and
+Authelia (4.39 and later) do. The sign-in service reads only one of the two:
+
+| Added with | Reads | Needs |
+|---|---|---|
+| `--issuer` | userinfo, with the access token from the token endpoint | A `userinfo_endpoint` in the discovery document |
+| `--issuer` and `--id-token` | The ID token, verified against the provider's keys | The address in the ID token; an RS, ES, PS or EdDSA signing key (HS256 is refused) |
+
+Without `--id-token`, `add-provider` stores the provider with the endpoints
+of its discovery document; a document without `userinfo_endpoint` gives an
+ID token provider. Harmony 1.9.1 to 1.9.7 added every `--issuer` provider as
+an ID token one, and they stay that way while they work. `harmony auth
+providers` shows each one under **ADDRESS FROM**.
+
+A sign-in through an ID token provider that keeps the address for userinfo
+ends with `Error getting user email from external provider`. Switch it:
+
+```bash
+harmony auth add-provider betterauth --userinfo
+```
+
+It asks for the client secret again: the sign-in service does not hand back
+the stored one, and the provider is made again under the same id. Its
+button, settings and accounts stay. If the sign-in service refuses the new
+form, the old one is put back with the secret you gave. `--id-token`, with
+`--issuer`, switches back.
 
 ### OAuth 2.0 without discovery
 
@@ -474,7 +506,7 @@ it by hand, run `docker compose up -d auth`.
 ### Change or remove a provider
 
 `harmony auth add-provider` with an existing id updates that provider; give
-only what changes. A new client secret:
+only what changes, and it keeps reading what it read. A new client secret:
 
 ```bash
 harmony auth add-provider authentik --client-secret-file /root/authentik-secret
@@ -506,16 +538,23 @@ With your own Supabase stack, the `auth` service needs:
 
 `harmony auth` works with the self-host stack only. Elsewhere, create the
 provider through the sign-in service's admin API with the service role key,
-then add its button to `instance_config`:
+then add its button to `instance_config`. As `harmony auth add-provider`
+does, give the endpoints of the provider's discovery document, so the
+sign-in service reads userinfo:
 
 ```bash
 curl -X POST https://db.chat.example.com/auth/v1/admin/custom-providers \
   -H "apikey: $SERVICE_ROLE_KEY" -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
   -H 'Content-Type: application/json' \
-  -d '{"provider_type":"oidc","identifier":"custom:authentik","name":"Authentik",
-       "issuer":"https://auth.example.com/application/o/harmony/",
+  -d '{"provider_type":"oauth2","identifier":"custom:authentik","name":"Authentik",
+       "authorization_url":"https://auth.example.com/application/o/authorize/",
+       "token_url":"https://auth.example.com/application/o/token/",
+       "userinfo_url":"https://auth.example.com/application/o/userinfo/",
        "client_id":"...","client_secret":"...","scopes":["openid","email","profile"]}'
 ```
+
+`"provider_type":"oidc"` with `"issuer"` in place of the three endpoints
+reads the ID token instead ([ID token or userinfo](#id-token-or-userinfo)).
 
 ```sql
 UPDATE public.instance_config
@@ -530,13 +569,16 @@ UPDATE public.instance_config
 | Symptom | Cause | Fix |
 |---|---|---|
 | `URL cannot resolve to private network addresses` or `URL cannot point to localhost or loopback addresses` | The provider's host resolves to a LAN, loopback or link-local address from the `auth` container | Use a DNS name that resolves to a public address |
-| `oidc: issuer mismatch, expected "A" got "B"` | `--issuer` differs from the discovery document's `issuer`, often by a trailing `/` | Pass B exactly |
+| `oidc: issuer mismatch, expected A got B` | `--issuer` differs from the discovery document's `issuer`, often by a trailing `/` | Pass B exactly |
+| `the discovery document of ISSUER names no userinfo_endpoint` | `--userinfo` for a provider without userinfo | Use `--id-token` |
+| `switching custom:ID to read from userinfo makes it again and needs the client secret` | `--userinfo` or `--id-token` changes what the provider reads | Give the secret (prompt, `--client-secret-file` or `HARMONY_OAUTH_CLIENT_SECRET`) |
 | `discovery request to ... returned 404 Not Found` | No discovery document under the issuer | Check the issuer, or pass `--discovery-url` |
 | `x509: certificate signed by unknown authority` | The provider's certificate is not from a public CA | Serve it with a publicly trusted certificate |
 | `this auth service has no custom sign-in providers` | The sign-in service is older than 2.187.0 | `harmony update` |
 | The provider's page says the redirect URI is invalid | The redirect URI registered with the provider differs | Register `https://db.chat.example.com/auth/v1/callback` exactly |
-| Back on Harmony: `failed to verify ID token`, with `unsupported` algorithm | The provider signs ID tokens with HS256 | Give the client an RSA, EC or Ed25519 signing key (Authentik: **Signing Key**) |
-| Back on Harmony: `Error getting user email from external provider` | No address from the provider | Grant the `email` scope or map an email claim; or re-add with `--email-optional` |
+| Back on Harmony: `failed to verify ID token`, with `unsupported` algorithm | An ID token provider signs with HS256 | `harmony auth add-provider ID --userinfo`, or give the client an RSA, EC or Ed25519 signing key (Authentik: **Signing Key**) |
+| Back on Harmony: `Error getting user email from external provider`, and `harmony auth providers` says `ID token` | The provider keeps the address for userinfo (Better Auth, Authelia 4.39+) | `harmony auth add-provider ID --userinfo` |
+| Back on Harmony: `Error getting user email from external provider`, from a userinfo provider | No address from the provider | Grant the `email` scope or map an email claim; or re-add with `--email-optional` |
 | Back on Harmony: `Unverified email with custom:ID` | The provider sent `email_verified: false` and the instance confirms addresses by email | The person confirms through the email they received, or the provider marks addresses verified |
 | Back on Harmony: `Signups not allowed for this instance` | Registration is `invite` or `closed` | `harmony registration open`, or invite the person first |
 | A JSON page saying `custom provider custom:ID not found` | The button outlived its provider | `harmony auth remove-provider ID` |

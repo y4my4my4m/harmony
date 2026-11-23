@@ -123,6 +123,7 @@ describe('POST /channels/:id/threads', () => {
       expect(args).toEqual({
         p_bot_id: BOT_ID, p_channel_id: PAIRED, p_name: 'From Discord',
         p_parent_message_id: STARTER, p_discord_thread_id: '1234567890123', p_discord_user: null,
+        p_created_at: null, p_starter_discord_user_id: null,
       })
       db.rows('discord_bridge_threads').push({ thread_id: THREAD, bridge_id: BRIDGE_ID, discord_thread_id: '1234567890123' })
       return { data: THREAD, error: null }
@@ -163,12 +164,33 @@ describe('POST /channels/:id/threads', () => {
     expect(mocks.rpc).not.toHaveBeenCalled()
   })
 
+  it('passes the Discord thread\'s creation time and its starter message\'s author, only for a paired thread', async () => {
+    seed()
+    const calls: Record<string, unknown>[] = []
+    mocks.rpc.mockImplementation(async (_fn: string, args: Record<string, unknown>) => {
+      calls.push(args)
+      return { data: THREAD, error: null }
+    })
+    const post = (body: object) => supertest(app()).post(`/api/v1/channels/${PAIRED}/threads`).send(body)
+    await post({ name: 'x', discord_thread_id: '1234567890123', created_at: '2026-11-20T10:00:00.000Z', starter_discord_user_id: '1400000000000000003' })
+    await post({ name: 'x', created_at: '2026-11-20T10:00:00.000Z', starter_discord_user_id: '1400000000000000003' })
+    await post({ name: 'x', discord_thread_id: '1234567890124' })
+    expect(calls.map(c => [c.p_created_at, c.p_starter_discord_user_id])).toEqual([
+      ['2026-11-20T10:00:00.000Z', '1400000000000000003'],
+      [null, null],
+      [null, null],
+    ])
+  })
+
   it('validates its body', async () => {
     seed()
     const post = (body: unknown) => supertest(app()).post(`/api/v1/channels/${PAIRED}/threads`).send(body as object)
     expect((await post({ name: '  ' })).status).toBe(400)
     expect((await post({ name: 'x', message_id: 'nope' })).status).toBe(400)
     expect((await post({ name: 'x', discord_thread_id: 'abc' })).status).toBe(400)
+    expect((await post({ name: 'x', discord_thread_id: '1234567890123', created_at: 'yesterday' })).status).toBe(400)
+    expect((await post({ name: 'x', discord_thread_id: '1234567890123', starter_discord_user_id: 'dana' })).status).toBe(400)
+    expect(mocks.rpc).not.toHaveBeenCalled()
   })
 
   it('maps rpc refusals to statuses', async () => {

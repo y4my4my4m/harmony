@@ -10,18 +10,20 @@ Play together runs small multiplayer activities, such as the drawing game Drawin
 ## Start an activity
 
 1. Open a DM, a group or a text channel.
-2. Select the gamepad button in the header. On a phone it is in the **⋮** menu.
+2. Select **Activities** (the popcorn) in the header. On a phone it is in the **⋮** menu.
 3. Pick an activity.
 
 The activity opens in a panel above the messages, and a notice in the conversation tells everyone you started it, with a **Join** button.
 
-In a voice call, select the gamepad button in the call controls. The activity takes the call's stage, the way a shared screen does, with the call's people in a strip beneath it.
+In a voice call, select **Activities** in the call controls and pick a game under **Play**. The activity takes the call's stage, the way a shared screen does, with the call's people in a strip beneath it.
 
 Only one activity runs in a conversation or channel at a time. If one is already running, starting another joins the running one.
 
+Activities your instance installed (marked **Third-party**) play in Harmony on a computer. On a phone or tablet the picker marks them **Computer only**; the built-in activities play everywhere.
+
 ## Join
 
-Select **Join** on the notice in the conversation, or on the banner above the messages that says who is playing. In a call, join from the banner on the stage. You need to be in the call to join a call's activity.
+Select **Join** on the notice in the conversation, or on the banner above the messages that says who is playing. In a call, join from the banner on the stage. You need to be in the call to join a call's activity. In a text channel you need to be allowed to send messages there, and a member timed out in the server cannot play in its channels: the banner and the notice say why instead of offering **Join**.
 
 ## The panel
 

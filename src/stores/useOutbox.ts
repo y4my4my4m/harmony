@@ -285,7 +285,7 @@ export const useOutboxStore = defineStore('outbox', () => {
       sourceName,
       type: attachment.type,
       size: attachment.size,
-      fileType: attachmentFileType(attachment.type || ''),
+      fileType: attachmentFileType(attachment.type || '', attachment.name),
       file: attachment.file,
       previewUrl: attachment.previewUrl || URL.createObjectURL(attachment.file),
       path: '',
@@ -392,6 +392,8 @@ export const useOutboxStore = defineStore('outbox', () => {
         registerLocalMediaSource(file.path, file.previewUrl)
       }
       file.url = uploaded.url
+      // A type storage does not serve as itself is stored as octet-stream: the part is a file card.
+      file.fileType = attachmentFileType(uploaded.contentType, file.name)
       file.status = 'completed'
       return true
     } catch (error) {

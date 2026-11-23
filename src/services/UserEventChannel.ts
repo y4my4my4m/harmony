@@ -49,6 +49,8 @@ type UserEventType =
   | 'federated_call:incoming' | 'federated_call:accepted' | 'federated_call:rejected' | 'federated_call:ended'
   // A DM partner's presence change (presence_publish).
   | 'presence:update'
+  // A conversation partner's profile change (broadcast_profile_change, 20261118200001).
+  | 'profile:updated'
   // Server mute or deafen of this user, and a moderator's move or disconnect
   // (20261017100002_voice_moderation.sql).
   | 'voice:moderation' | 'voice:moved'

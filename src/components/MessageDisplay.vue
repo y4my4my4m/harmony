@@ -4340,24 +4340,13 @@ const handleReactionUserSelect = async (user: ReactionUser) => {
 // Modals (User Profile, Invite)
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
-  const unresolvedMatch = userId.match(/^unresolved-([^@]+)@(.+)$/);
-  if (unresolvedMatch) {
-    const [, username, domain] = unresolvedMatch;
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, created_at, is_local')
-      .eq('username', username)
-      .eq('domain', domain)
-      .maybeSingle();
-    if (data) {
-      await fetchUserProfile(data.id).catch(() => null);
-      return getUserProfile(data.id).value || data;
-    }
-  }
-  // Handles plain "@user@domain" / "user@domain" / "@user" from chat
-  // mentions. Routes through activityPubService so unseen federated users are
-  // fetched from their origin instance.
+const resolveNonUuidProfile = async (mentionId: string): Promise<any | null> => {
+  // `unresolved-<user>@<host>` is a remote mention stored while no account matched it; it
+  // resolves as the handle typed. A local `unresolved-<user>` names no account.
+  const userId = mentionId.replace(/^unresolved-(?=[^@]+@.)/, '');
+  // Handles plain "@user@domain" / "user@domain" / "@user" from chat mentions.
+  // activityPubService reads the stored profile, else /lookup-user, which fetches an
+  // unseen account and finds a split-domain one by the host serving its actor.
   const handleMatch = userId.match(/^@?([^@\s]+)(?:@([^\s]+))?$/);
   if (
     handleMatch

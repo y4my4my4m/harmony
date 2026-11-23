@@ -122,13 +122,14 @@ import { caseInboundPosts } from './cases/inbound-posts.ts'
 import { caseRemoteReplies } from './cases/remoteReplies.ts'
 import { caseQuotes } from './cases/quotes.ts'
 import { caseEmojiOrigin } from './cases/emojiOrigin.ts'
+import { caseProfileEmojis } from './cases/profileEmojis.ts'
 import { caseChannelReactionUndo } from './cases/channelReactionUndo.ts'
 import { caseQuoteNotifications } from './cases/notif.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
 import { caseVoiceModeration } from './cases/voiceModeration.ts'
 import { caseVoiceModerationFederation } from './cases/voiceModerationFederation.ts'
 import { caseVoicePresenceRefresh } from './cases/voicePresenceRefresh.ts'
-import { caseGroupActor } from './cases/groupActor.ts'
+import { caseGroupActor, deliver as deliverSigned } from './cases/groupActor.ts'
 import { caseChannelPermissions } from './cases/channelPermissions.ts'
 import { casePrivateCategories } from './cases/privateCategories.ts'
 import { caseGroupRelay } from './cases/groupRelay.ts'
@@ -2854,6 +2855,7 @@ async function main() {
     await caseOutboundFlag(db, peer, localUrl, env, backend)
     await caseInboundReactions(db, peer, localUrl)
     await caseEmojiOrigin({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE }, post, signedHeaders, assert, eq })
+    await caseProfileEmojis({ db, peer, localUrl, ids: { remote: REMOTE }, post, signedHeaders, assert, eq })
     await caseOutboundReactions(db, peer, backend)
     await caseRemoteReactionCounts(db, peer, localUrl)
     await caseDocumentCache(db, localUrl)
@@ -2897,11 +2899,9 @@ async function main() {
         auth: { autoRefreshToken: false, persistSession: false },
         global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
       }),
-      deliver: (activity, signer = { key: peer.key.privateKey, actor: peer.actorUrl }) => {
-        const body = JSON.stringify(activity)
-        const target = `${localUrl}/inbox`
-        return post(target, signedHeaders(target, body, signer.key, `${signer.actor}#main-key`), body).then((r) => r.status)
-      },
+      // The earlier cases spend the peer's inbox share: a 429 is sent again once the window turns.
+      deliver: (activity, signer = { key: peer.key.privateKey, actor: peer.actorUrl }) =>
+        deliverSigned(post, signedHeaders, `${localUrl}/inbox`, JSON.stringify(activity), signer.key, `${signer.actor}#main-key`),
     })
     await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
     await caseQuotes({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })

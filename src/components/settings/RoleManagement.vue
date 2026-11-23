@@ -446,7 +446,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onActivated, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onActivated, onDeactivated, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
 import { supabase } from '@/supabase'
@@ -881,20 +881,23 @@ const selectRole = async (role: ServerRole) => {
   const draft = roleDrafts.value[role.id]
   editForm.value = draft ? copyForm(draft) : formOf(role)
   dropDraft(role.id)
-  
-  addMemberSearch.value = ''
-  availableMembers.value = []
-  
+
+  resetMemberSearch()
+
+  // A later selection, or another server, owns the list: an earlier load lands nowhere.
+  const load = ++roleMembersSeq
   loadingMembers.value = true
   try {
     await loadServerBridgedUsers({ force: true })
     const members = await roleService.getRoleMembers(role.id)
+    if (load !== roleMembersSeq) return
     roleMembers.value = mergeRoleMembers(members, role.id)
   } catch (error) {
+    if (load !== roleMembersSeq) return
     console.error('Failed to load role members:', error)
     roleMembers.value = []
   } finally {
-    loadingMembers.value = false
+    if (load === roleMembersSeq) loadingMembers.value = false
   }
 }
 
@@ -1090,63 +1093,83 @@ const removeMember = async (member: RoleMemberRow) => {
   }
 }
 
-// Every member, read once and in pages: for an instance that cannot search its membership.
-let everyMember: Promise<any[]> | null = null
-const loadServerMembers = (): Promise<any[]> => {
-  everyMember ??= readAllRows<any>(() => supabase
-    .from('user_servers')
-    .select(`
-      user_id,
-      profiles:user_id (
-        id,
-        username,
-        display_name,
-        avatar_url
-      )
-    `, { count: 'exact' })
-    .eq('server_id', props.serverId)
-    .or('status.is.null,status.eq.accepted')
-    .order('id'))
-    .then(data => data.map((us: any) => ({
-      id: us.user_id,
-      username: us.profiles?.username || 'Unknown',
-      display_name: us.profiles?.display_name,
-      avatar_url: us.profiles?.avatar_url,
-    })))
-    .catch((error) => {
-      console.error('Failed to load server members:', error)
-      everyMember = null
-      return []
-    })
-  return everyMember
+// Every member of one server, read once and in pages: for an instance that cannot search its membership.
+let everyMember: { serverId: string; rows: Promise<any[]> } | null = null
+const loadServerMembers = (serverId: string): Promise<any[]> => {
+  if (everyMember?.serverId === serverId) return everyMember.rows
+  const entry = {
+    serverId,
+    rows: readAllRows<any>(() => supabase
+      .from('user_servers')
+      .select(`
+        user_id,
+        profiles:user_id (
+          id,
+          username,
+          display_name,
+          avatar_url
+        )
+      `, { count: 'exact' })
+      .eq('server_id', serverId)
+      .or('status.is.null,status.eq.accepted')
+      .order('id'))
+      .then(data => data.map((us: any) => ({
+        id: us.user_id,
+        username: us.profiles?.username || 'Unknown',
+        display_name: us.profiles?.display_name,
+        avatar_url: us.profiles?.avatar_url,
+      })))
+      .catch((error) => {
+        console.error('Failed to load server members:', error)
+        if (everyMember === entry) everyMember = null
+        return []
+      }),
+  }
+  everyMember = entry
+  return entry.rows
 }
 
 const handleAddMemberSearch = () => {
   if (searchTimeout) {
     clearTimeout(searchTimeout)
   }
-  
+
   searchTimeout = setTimeout(() => {
     searchAvailableMembers()
   }, 200)
 }
 
-// Members that can be added: not in the role already. The instance searches the membership;
-// where it cannot (no member directory), every member is read once and filtered here.
+// Members that can be added: not in the role already. The instance searches the membership and
+// leaves the role's members out; where it cannot (no member directory), every member is read once
+// and filtered here.
 let addMemberSearchSeq = 0
+let roleMembersSeq = 0
+
+/** Drops the add-member search, its pending timer and any answer still in flight. */
+function resetMemberSearch(): void {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchTimeout = null
+  addMemberSearchSeq++
+  addMemberSearch.value = ''
+  availableMembers.value = []
+  searchingMembers.value = false
+}
+
 const searchAvailableMembers = async () => {
   const query = addMemberSearch.value.toLowerCase().trim()
   const seq = ++addMemberSearchSeq
   if (!query) {
     availableMembers.value = []
+    searchingMembers.value = false
     return
   }
-  
+
   searchingMembers.value = true
-  
+  const serverId = props.serverId
+
   let matches: any[] = []
   try {
-    const found = await searchServerMembers(props.serverId, query, 30)
+    const found = await searchServerMembers(serverId, query, 10, { withoutRole: selectedRole.value?.id })
     if (found) {
       matches = found.map(m => ({
         id: m.id,
@@ -1155,7 +1178,7 @@ const searchAvailableMembers = async () => {
         avatar_url: m.avatar_url,
       }))
     } else {
-      matches = (await loadServerMembers()).filter(member => {
+      matches = (await loadServerMembers(serverId)).filter(member => {
         const username = (member.username || '').toLowerCase()
         const displayName = (member.display_name || '').toLowerCase()
         return username.includes(query) || displayName.includes(query)
@@ -1164,7 +1187,7 @@ const searchAvailableMembers = async () => {
   } catch (error) {
     console.error('Failed to search server members:', error)
   }
-  // The latest search wins.
+  // The latest search wins; resetMemberSearch retires one the view no longer shows.
   if (seq !== addMemberSearchSeq) return
 
   const roleMemberIds = new Set(roleMembers.value.map(m => m.id))
@@ -1275,6 +1298,9 @@ const memberName = (member: { display_name?: string; username: string }): string
 // Watch for server changes
 watch(() => props.serverId, () => {
   everyMember = null
+  resetMemberSearch()
+  roleMembersSeq++
+  roleMembers.value = []
   selectedRole.value = null
   roleDrafts.value = {}
   roles.value = []
@@ -1325,6 +1351,9 @@ onActivated(() => {
   if (activatedBefore) void loadRoles()
   activatedBefore = true
 })
+// A hidden or closed view keeps no member search: its answer would show on the next visit.
+onDeactivated(resetMemberSearch)
+onBeforeUnmount(resetMemberSearch)
 </script>
 
 <style scoped>

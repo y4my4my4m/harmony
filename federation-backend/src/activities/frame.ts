@@ -76,6 +76,11 @@ export function frameHtml(scriptSrc: string, nonce: string): string {
   var parentWindow = window.parent;
   var post = parentWindow.postMessage.bind(parentWindow);
   window.addEventListener('pagehide', function () { post({ hp: 1, t: 'gone' }, '*'); }, true);
+  // A desktop shell may run its bridge scripts in subframes too (wry on WebView2). Their
+  // window.ipc and __TAURI_INTERNALS__ are non-configurable; the ports they call at send time,
+  // window.chrome.webview and window.webkit.messageHandlers, are removed before the activity runs.
+  try { delete window.chrome; } catch (e) {}
+  try { delete window.webkit; } catch (e) {}
   var script = document.createElement('script');
   script.src = ${JSON.stringify(scriptSrc).replace(/</g, '\\u003c')};
   document.head.appendChild(script);

@@ -305,6 +305,28 @@ describe('BridgeChannelPairs import controls', () => {
     expect(rpcCalls('discord_bridge_import_cancel')).toEqual([{ p_bridge_id: 'b1', p_import_id: 'j1' }])
   })
 
+  it('a job its bridge has not stopped yet offers Stop now, which cancels it again', async () => {
+    const w = mountPairs({ imports: [makeJob({ cancel_requested: true })] })
+    expect(w.get('[data-testid="import-state"]').text()).toBe('Cancelling…')
+    expect(w.find('[data-testid="import-cancel"]').exists()).toBe(false)
+    expect(w.get('[data-testid="import-stop-hint"]').text()).toContain('If it is offline')
+    const stop = w.get('[data-testid="import-stop"]')
+    expect(stop.attributes('disabled')).toBeUndefined()
+    expect(stop.attributes('aria-label')).toBe('Stop the import for #general now')
+    await stop.trigger('click')
+    await flushPromises()
+    expect(rpcCalls('discord_bridge_import_cancel')).toEqual([{ p_bridge_id: 'b1', p_import_id: 'j1' }])
+  })
+
+  it('a paused job offers Resume for its channel', async () => {
+    const w = mountPairs({ imports: [makeJob({ state: 'paused' })] })
+    expect(w.get('[data-testid="import-retry"]').text()).toBe('Resume')
+    await w.get('[data-testid="import-retry"]').trigger('click')
+    await agree(w)
+    await flushPromises()
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'], p_include_private: false }])
+  })
+
   it('Cancel all cancels every job of the bridge', async () => {
     const w = mountPairs({ imports: [makeJob()] })
     await w.get('[data-testid="cancel-all"]').trigger('click')

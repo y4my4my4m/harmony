@@ -172,8 +172,29 @@ services:
           - idp.e2e.test
     ports:
       - "${E2E_IDP_PORT:-56480}:${E2E_IDP_PORT:-56480}"
+      - "${E2E_IDP_USERINFO_PORT:-56481}:${E2E_IDP_USERINFO_PORT:-56481}"
     volumes:
       - ./idp:/etc/dex:ro
+
+  # OIDC provider whose ID token carries no address; userinfo does (e2e/idp-userinfo.mjs).
+  # In idp's network namespace: idp.e2e.test on its own port, with dex's certificate.
+  idp-userinfo:
+    image: ${E2E_NODE_IMAGE:-node:24-alpine}
+    network_mode: service:idp
+    command: ["node", "/srv/idp-userinfo.mjs"]
+    volumes:
+      - ./idp-userinfo.mjs:/srv/idp-userinfo.mjs:ro
+      - ./idp:/srv/idp:ro
+    environment:
+      ISSUER: ${E2E_IDP_USERINFO_ISSUER:-https://idp.e2e.test:56481/api/auth}
+      PORT: ${E2E_IDP_USERINFO_PORT:-56481}
+      TLS_CERT: /srv/idp/idp.pem
+      TLS_KEY: /srv/idp/idp.key
+      CLIENT_ID: ${E2E_IDP_CLIENT_ID:-harmony-e2e}
+      CLIENT_SECRET: ${E2E_IDP_CLIENT_SECRET:-unset}
+      REDIRECT_URIS: http://localhost:${E2E_PORT:-54480}/auth/v1/callback
+      PASSWORD: ${E2E_IDP_PASSWORD:-unset}
+      USERS: "${E2E_IDP_USERINFO_NEW_EMAIL:-userinfo-new@e2e.harmony.local}|Una Userinfo|una_userinfo,${E2E_IDP_USERINFO_SWITCH_EMAIL:-userinfo-switch@e2e.harmony.local}|Sid Switch|sid_switch"
 
 networks:
   idp:

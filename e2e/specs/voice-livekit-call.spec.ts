@@ -159,7 +159,8 @@ test('a member who starts talking lights up for the others before the SFU could 
   // sends silence, so Bob's analysis of her track stays quiet. Automatic sends her speech.
   await a.locator('[data-testid="dock-mute"]').click()
   await expect(speakingAvatar(b, alice)).toBeVisible({ timeout: 5_000 })
-  await a.locator('.control-btn.settings-btn').click()
+  await a.getByTestId('dock-more').click()
+  await a.getByTestId('dock-more-settings').click()
   await a.locator('label:has([data-testid="input-sensitivity-manual"])').click()
   await a.locator('[data-testid="input-threshold"]').fill('-10')
   await expect(speakingAvatar(b, alice)).toHaveCount(0, { timeout: 6_000 })

@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WebSocket from 'ws'
-import { ActivityRelay, type Admission, type RelayDeps, type RelayOptions } from '../relay.js'
+import { ActivityRelay, addressKey, type Admission, type RelayDeps, type RelayOptions } from '../relay.js'
 import { CLOSE, MESSAGE_MAX_BYTES, type RelayFrame } from '../protocol.js'
 
 const SESSION = '0a0a0a0a-0000-4000-8000-000000000001'
@@ -341,6 +341,32 @@ describe('activity relay: host and lifetime', () => {
     expect(b.client.frames.some((f) => f.op === 'host')).toBe(false)
   })
 
+  it('ends a session at once when its last member leaves on purpose', async () => {
+    await restart({ emptyGraceMs: 60_000 })
+    const a = await join(ALICE)
+    a.client.ws.close(1000, 'left')
+    await vi.waitFor(() => expect(deps.finished).toEqual([{ id: SESSION, reason: 'empty' }]), { timeout: 1000 })
+  })
+
+  it('keeps an emptied session for the grace period when the last connection drops', async () => {
+    await restart({ emptyGraceMs: 60_000 })
+    const a = await join(ALICE)
+    a.client.ws.terminate()
+    await sleep(300)
+    expect(deps.finished).toEqual([])
+    expect(relay.sessionCount).toBe(1)
+  })
+
+  it('keeps the session while another member stays after one leaves on purpose', async () => {
+    await restart({ emptyGraceMs: 60_000 })
+    const a = await join(ALICE)
+    await join(BOB)
+    await a.client.next('join')
+    a.client.ws.close(1000, 'left')
+    await sleep(300)
+    expect(deps.finished).toEqual([])
+  })
+
   it('ends an empty session after the grace period', async () => {
     const a = await join(ALICE)
     a.client.close()
@@ -552,5 +578,54 @@ describe('activity relay: hardening', () => {
     const ws = new WebSocket(url)
     const status = await new Promise<number>((resolve) => ws.once('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0)))
     expect(status).toBe(429)
+  })
+  it('keys IPv6 limits by /64 and IPv4-mapped addresses by their IPv4 address', () => {
+    expect(addressKey('2001:db8:1:2:3:4:5:6')).toBe('2001:db8:1:2::/64')
+    expect(addressKey('2001:DB8:0001:0002::9')).toBe('2001:db8:1:2::/64')
+    expect(addressKey('2001:db8::1')).toBe('2001:db8:0:0::/64')
+    expect(addressKey('fe80::1%eth0')).toBe('fe80:0:0:0::/64')
+    expect(addressKey('64:ff9b::192.0.2.1')).toBe('64:ff9b:0:0::/64')
+    expect(addressKey('::ffff:192.0.2.7')).toBe('192.0.2.7')
+    expect(addressKey('192.0.2.7')).toBe('192.0.2.7')
+    expect(addressKey('unknown')).toBe('unknown')
+  })
+
+  it('counts every address of one IPv6 /64 against one per-address cap', async () => {
+    await restart({ maxConnectionsPerIp: 2, clientIp: (req) => String(req.headers['x-test-ip']) })
+    await open({ 'x-test-ip': '2001:db8:aa:1::1' })
+    await open({ 'x-test-ip': '2001:db8:aa:1::2' })
+    const ws = new WebSocket(url, { headers: { 'x-test-ip': '2001:db8:aa:1:ffff::3' } })
+    const status = await new Promise<number>((resolve) => ws.once('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0)))
+    expect(status).toBe(503)
+    await open({ 'x-test-ip': '2001:db8:aa:2::1' })
+  })
+
+  it('caps sockets that have not said hello, and frees a slot at hello', async () => {
+    await restart({ maxPendingPerAddress: 2 })
+    const first = await open()
+    await open()
+    const refused = new WebSocket(url)
+    const status = await new Promise<number>((resolve) => refused.once('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0)))
+    expect(status).toBe(503)
+    first.send({ op: 'hello', v: 1, token: `token-${ALICE}`, session: SESSION })
+    await first.next('welcome')
+    await open()
+  })
+
+  it('caps sockets that have not said hello across the process', async () => {
+    await restart({ maxPendingConnections: 1, clientIp: (req) => String(req.headers['x-test-ip']) })
+    await open({ 'x-test-ip': '192.0.2.1' })
+    const ws = new WebSocket(url, { headers: { 'x-test-ip': '192.0.2.2' } })
+    const status = await new Promise<number>((resolve) => ws.once('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0)))
+    expect(status).toBe(503)
+  })
+
+  it('returns queued bytes to the budget once frames are written', async () => {
+    const a = await join(ALICE)
+    const b = await join(BOB)
+    await a.client.next('join')
+    for (let i = 0; i < 5; i++) b.client.send({ op: 'send', data: { i, pad: 'x'.repeat(2000) } })
+    for (let i = 0; i < 5; i++) await a.client.next('message')
+    await vi.waitFor(() => expect(relay.queuedByteCount).toBe(0))
   })
 })

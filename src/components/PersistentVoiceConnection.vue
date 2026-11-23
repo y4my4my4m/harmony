@@ -1,14 +1,22 @@
+<!--
+  The voice layer: the dock and the voice moderation host, a child of <body>. An open dialog makes
+  everything outside it inert (utils/a11y/layers inertOthers), this layer included, and an inert
+  element passes presses to whatever lies under it; so while inert the layer paints under the
+  dialogs (z-index 1000 and up). The media viewer leaves it interactive (data-over-viewer) under
+  the dock, which paints over the viewer.
+-->
 <template>
-  <div class="persistent-voice">
-    <!-- Unified Voice Dock - handles all modes (dock, minimized, overlay) -->
-    <!-- Uses isConnectedOrJoining for optimistic UI - shows dock immediately on click -->
-    <UnifiedVoiceDock 
-      v-if="isConnectedOrJoining"
-    />
-    <!-- Voice moderation: own locks and departures in a call, the kick/ban dialog of a voice menu -->
-    <VoiceModerationHost v-if="isConnectedOrJoining || hasKickBan" />
-    
-  </div>
+  <Teleport to="body">
+    <div class="persistent-voice" data-over-viewer>
+      <!-- Unified Voice Dock - handles all modes (dock, minimized, overlay) -->
+      <!-- Uses isConnectedOrJoining for optimistic UI - shows dock immediately on click -->
+      <UnifiedVoiceDock
+        v-if="isConnectedOrJoining"
+      />
+      <!-- Voice moderation: own locks and departures in a call, the kick/ban dialog of a voice menu -->
+      <VoiceModerationHost v-if="isConnectedOrJoining || hasKickBan" />
+    </div>
+  </Teleport>
 </template>
 
 <script lang="ts">
@@ -48,6 +56,10 @@ export default defineComponent({
   bottom: 0;
   pointer-events: none;
   z-index: 9998;
+}
+
+.persistent-voice[inert] {
+  z-index: 999;
 }
 
 .persistent-voice > * {

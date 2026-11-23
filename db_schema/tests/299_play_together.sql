@@ -42,8 +42,8 @@ SELECT is(public.activity_join_refusal('11111111-0000-0000-0000-000000000001', N
   'alice is in the voice call');
 SELECT is(public.activity_join_refusal('22222222-0000-0000-0000-000000000002', NULL, '29900000-0000-0000-0000-000000000002', true), 'CANNOT_SEND',
   'bob cannot start where he cannot send');
-SELECT is(public.activity_join_refusal('22222222-0000-0000-0000-000000000002', NULL, '29900000-0000-0000-0000-000000000002', false), NULL,
-  'bob may still join there');
+SELECT is(public.activity_join_refusal('22222222-0000-0000-0000-000000000002', NULL, '29900000-0000-0000-0000-000000000002', false), 'CANNOT_SEND',
+  'bob cannot join there either (20261121100001)');
 SELECT is(public.activity_join_refusal('11111111-0000-0000-0000-000000000001', NULL, '29900000-0000-0000-0000-000000000003'), 'SERVER_NOT_LOCAL',
   'a copy''s channel is refused');
 SELECT is(public.activity_join_refusal('11111111-0000-0000-0000-000000000001', '77777777-0000-0000-0000-000000000007', '66666666-0000-0000-0000-000000000006'),
@@ -51,8 +51,8 @@ SELECT is(public.activity_join_refusal('11111111-0000-0000-0000-000000000001', '
 
 INSERT INTO public.user_blocks (blocker_id, blocked_user_id) VALUES
   ('22222222-0000-0000-0000-000000000002', '11111111-0000-0000-0000-000000000001');
-SELECT is(public.activity_join_refusal('11111111-0000-0000-0000-000000000001', '77777777-0000-0000-0000-000000000007', NULL), 'DM_BLOCKED',
-  'a block refuses the DM both ways');
+SELECT is(public.activity_join_refusal('11111111-0000-0000-0000-000000000001', '77777777-0000-0000-0000-000000000007', NULL), 'NOT_FOUND',
+  'a block refuses the DM as a conversation out of reach (20261123500004)');
 DELETE FROM public.user_blocks WHERE blocker_id = '22222222-0000-0000-0000-000000000002';
 
 -- Starting. --------------------------------------------------------------------------------------

@@ -9,6 +9,7 @@
 #   bash admin.sh auth providers
 #   bash admin.sh auth add-provider ID [--name N] (--issuer URL [--discovery-url URL] |
 #            --authorize-url URL --token-url URL --userinfo-url URL) [--client-id ID]
+#            [--userinfo | --id-token]
 #            [--client-secret-file FILE|-] [--scopes "S ..."] [--icon URL]
 #            [--email-optional | --require-email] [--no-pkce | --pkce]
 #            [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
@@ -36,12 +37,20 @@
 # Without an argument it applies REGISTRATION from .env.
 #
 # auth manages sign-in through the instance's own OAuth 2.0 / OIDC providers (GoTrue
-# custom providers, identifier custom:ID). add-provider creates or updates one: GoTrue
-# fetches and checks the issuer's discovery document before it stores the provider and
-# its client secret. The secret comes from --client-secret-file (- reads stdin),
-# HARMONY_OAUTH_CLIENT_SECRET or a hidden prompt; empty keeps a stored one. The sign-in
-# page shows instance_config.custom_oauth_providers, which add-provider and
-# remove-provider keep in step.
+# custom providers, identifier custom:ID). add-provider creates or updates one. The secret
+# comes from --client-secret-file (- reads stdin), HARMONY_OAUTH_CLIENT_SECRET or a hidden
+# prompt; empty keeps a stored one. The sign-in page shows
+# instance_config.custom_oauth_providers, which add-provider and remove-provider keep in step.
+#
+# GoTrue's OIDC provider reads the person from the ID token alone and never asks userinfo
+# while a token response carries one (CustomOIDCProvider.GetUserData, 2.197.0). OIDC Core
+# 5.4 lets a provider keep the email and profile claims for userinfo (Better Auth,
+# Authelia 4.39+), so an --issuer provider is stored as GoTrue's OAuth 2.0 type with the
+# endpoints of the issuer's discovery document, checked as GoTrue checks it. --id-token
+# keeps GoTrue's OIDC type, as does a discovery document without userinfo_endpoint. An
+# update without either option keeps the stored type. A type change deletes the provider
+# and creates it again under the same identifier (GoTrue cannot change a type in place),
+# which needs the client secret, and restores the old one when the new one is refused.
 #
 # A new provider is kept apart: PROVIDER_LINKING_DOMAINS in supabase/.env gains
 # custom:ID=custom:ID (linking.sh), so its first sign-in never joins an existing
@@ -64,7 +73,7 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-usage() { sed -n '2,62p' "${BASH_SOURCE[0]}"; }
+usage() { sed -n '2,71p' "${BASH_SOURCE[0]}"; }
 
 # Node program run in federation-server. PARAMS is a JSON object whose values
 # are base64, so any byte of a password survives the trip.
@@ -94,7 +103,8 @@ function fail(msg, r) {
     const j = r.json || {};
     detail = ` (HTTP ${r.status}: ${String(j.msg || j.message || j.error_description || j.error || r.text || "").slice(0, 300)})`;
   }
-  out({ ok: false, error: msg + detail });
+  // json_field reads a string up to the next double quote.
+  out({ ok: false, error: (msg + detail).replace(/"/g, "\x27") });
   process.exit(1);
 }
 
@@ -304,6 +314,27 @@ async function saveShown(list) {
   });
   if (!r.ok) fail("updating the sign-in buttons in instance_config failed", r);
 }
+
+// The issuer discovery document, checked as GoTrue checks it (FetchAndValidateOIDCDiscovery,
+// internal/utilities/oidc_discovery.go); the messages are GoTrue words.
+async function discover(issuer, discoveryUrl) {
+  const url = discoveryUrl || issuer.replace(/\/$/, "") + "/.well-known/openid-configuration";
+  let res;
+  try {
+    res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15000) });
+  } catch (e) {
+    fail(`oidc: discovery request to ${url} failed: ${e.cause?.message || e.message}`);
+  }
+  if (!res.ok) fail(`oidc: discovery request to ${url} returned ${res.status} ${res.statusText}`.trim());
+  let doc = null;
+  try { doc = JSON.parse(await res.text()); } catch {}
+  if (!doc || typeof doc !== "object") fail(`oidc: failed to decode discovery document from ${url}`);
+  if (doc.issuer !== issuer) fail(`oidc: issuer mismatch, expected ${issuer} got ${doc.issuer ?? ""}`);
+  return doc;
+}
+
+const READS = { oidc: "ID token", oauth2: "userinfo" };
+const FROM = { oidc: "from the ID token", oauth2: "from userinfo" };
 '
 
 NODE_PROVIDER_LIST='
@@ -312,7 +343,7 @@ const shown = await shownProviders();
 const rows = providers.map((p) => {
   const state = !p.enabled ? "disabled" : shown.some((s) => s.id === p.identifier) ? "shown" : "no button";
   const where = p.provider_type === "oidc" ? p.issuer : p.authorization_url;
-  return [p.identifier, p.name, p.provider_type, state, where || ""].join("\t");
+  return [p.identifier, p.name, READS[p.provider_type] || p.provider_type, state, where || ""].join("\t");
 });
 const stale = shown.filter((s) => !providers.some((p) => p.identifier === s.id)).map((s) => s.id);
 out({ ok: true, count: providers.length, rows: Buffer.from(rows.join("\n")).toString("base64"), stale: stale.join(" ") });
@@ -320,7 +351,8 @@ out({ ok: true, count: providers.length, rows: Buffer.from(rows.join("\n")).toSt
 
 NODE_PROVIDER_ADD='
 const id = arg("id");
-const type = arg("type");
+const source = arg("source");
+const claims = arg("claims");
 const body = {};
 if (arg("name")) body.name = arg("name");
 if (arg("client_id")) body.client_id = arg("client_id");
@@ -328,18 +360,89 @@ if (arg("client_secret")) body.client_secret = arg("client_secret");
 if (arg("scopes")) body.scopes = arg("scopes").split(/[\s,]+/).filter(Boolean);
 if (arg("email_optional")) body.email_optional = arg("email_optional") === "1";
 if (arg("pkce")) body.pkce_enabled = arg("pkce") === "1";
-if (arg("issuer")) body.issuer = arg("issuer");
-if (arg("discovery_url")) body.discovery_url = arg("discovery_url");
-if (arg("authorize_url")) body.authorization_url = arg("authorize_url");
-if (arg("token_url")) body.token_url = arg("token_url");
-if (arg("userinfo_url")) body.userinfo_url = arg("userinfo_url");
 
 const existing = (await gotrueProviders()).find((p) => p.identifier === id);
-let provider;
-if (existing) {
-  if (type && type !== existing.provider_type) {
-    fail(`${id} is an ${existing.provider_type} provider; remove it first to make it ${type}`);
+let type = "";
+let fromIssuer = false;
+let noUserinfo = false;
+if (source === "endpoints") {
+  type = "oauth2";
+  if (arg("authorize_url")) body.authorization_url = arg("authorize_url");
+  if (arg("token_url")) body.token_url = arg("token_url");
+  if (arg("userinfo_url")) body.userinfo_url = arg("userinfo_url");
+} else {
+  let issuer = arg("issuer");
+  let discoveryUrl = arg("discovery_url");
+  if (!issuer && claims && existing?.provider_type === "oidc") {
+    issuer = existing.issuer || "";
+    discoveryUrl = existing.discovery_url || "";
   }
+  if (!issuer && claims === "id_token" && existing?.provider_type === "oauth2") {
+    fail(`${id} reads userinfo and keeps no issuer: give --issuer with --id-token`);
+  }
+  if (issuer) {
+    const reads = claims || (existing?.provider_type === "oidc" ? "id_token" : "userinfo");
+    if (reads === "userinfo") {
+      const doc = await discover(issuer, discoveryUrl);
+      if (doc.userinfo_endpoint) {
+        if (!doc.authorization_endpoint || !doc.token_endpoint) {
+          fail(`the discovery document of ${issuer} lacks authorization_endpoint or token_endpoint`);
+        }
+        type = "oauth2";
+        fromIssuer = true;
+        body.authorization_url = doc.authorization_endpoint;
+        body.token_url = doc.token_endpoint;
+        body.userinfo_url = doc.userinfo_endpoint;
+        if (body.scopes && !body.scopes.includes("openid")) body.scopes.unshift("openid");
+      } else if (claims === "userinfo") {
+        fail(`the discovery document of ${issuer} names no userinfo_endpoint: add the provider with --id-token`);
+      } else {
+        noUserinfo = true;
+      }
+    }
+    if (!type) {
+      type = "oidc";
+      body.issuer = issuer;
+      if (discoveryUrl) body.discovery_url = discoveryUrl;
+    }
+  }
+}
+
+// GoTrue cannot change a type in place: delete, create under the same identifier, and
+// on refusal create the old provider again. Accounts stay: identities hold the
+// identifier, not the provider row.
+async function replace(old) {
+  if (!body.client_secret) {
+    fail(`switching ${id} to read ${FROM[type]} makes it again and needs the client secret: the auth service does not hand back the stored one`);
+  }
+  const common = (p) => {
+    const b = { identifier: id, name: p.name, client_id: p.client_id, scopes: p.scopes,
+                pkce_enabled: p.pkce_enabled, email_optional: p.email_optional, enabled: p.enabled };
+    for (const k of ["acceptable_client_ids", "custom_claims_allowlist"]) if (p[k]?.length) b[k] = p[k];
+    for (const k of ["attribute_mapping", "authorization_params"]) if (p[k] && Object.keys(p[k]).length) b[k] = p[k];
+    return b;
+  };
+  const own = (p) => p.provider_type === "oidc"
+    ? { issuer: p.issuer, ...(p.discovery_url ? { discovery_url: p.discovery_url } : {}), skip_nonce_check: p.skip_nonce_check }
+    : { authorization_url: p.authorization_url, token_url: p.token_url, userinfo_url: p.userinfo_url,
+        ...(p.jwks_uri ? { jwks_uri: p.jwks_uri } : {}) };
+  const next = { ...common(old), ...body, provider_type: type };
+  if (fromIssuer && !next.scopes?.includes("openid")) next.scopes = ["openid", ...(next.scopes || [])];
+  const del = await call("DELETE", `${PROVIDERS}/${id}`);
+  if (!del.ok) fail(`removing ${id} to make it again failed`, del);
+  const made = await call("POST", PROVIDERS, { body: next });
+  if (made.ok) return made.json;
+  const back = await call("POST", PROVIDERS, {
+    body: { ...common(old), ...own(old), provider_type: old.provider_type, client_secret: body.client_secret },
+  });
+  if (back.ok) fail(`the auth service refused ${id} reading ${FROM[type]}; it is back as it was, reading ${FROM[old.provider_type]}, with the client secret just given`, made);
+  fail(`the auth service refused ${id} reading ${FROM[type]}, and as it was: it has no ${id} now`, made);
+}
+
+let provider;
+if (existing && type && type !== existing.provider_type) {
+  provider = await replace(existing);
+} else if (existing) {
   const r = await call("PUT", `${PROVIDERS}/${id}`, { body });
   if (!r.ok) fail("updating the provider failed", r);
   provider = r.json;
@@ -349,7 +452,7 @@ if (existing) {
                               ["client_secret", "a client secret (prompt, --client-secret-file or HARMONY_OAUTH_CLIENT_SECRET)"]]) {
     if (!body[field]) fail(`a new provider needs ${flag}`);
   }
-  if (type === "oidc" && !body.scopes) body.scopes = ["openid", "email", "profile"];
+  if ((type === "oidc" || fromIssuer) && !body.scopes) body.scopes = ["openid", "email", "profile"];
   const r = await call("POST", PROVIDERS, { body: { provider_type: type, identifier: id, ...body } });
   if (!r.ok) fail("adding the provider failed", r);
   provider = r.json;
@@ -360,7 +463,8 @@ const before = shown.find((s) => s.id === id);
 const icon = arg("icon_set") === "1" ? arg("icon") : before?.icon || "";
 const entry = icon ? { id, name: provider.name, icon } : { id, name: provider.name };
 await saveShown(before ? shown.map((s) => (s.id === id ? entry : s)) : [...shown, entry]);
-out({ ok: true, id, name: provider.name, type: provider.provider_type, created: !existing });
+out({ ok: true, id, name: provider.name, reads: provider.provider_type === "oidc" ? "id_token" : "userinfo",
+      replaced: !!existing && existing.provider_type !== provider.provider_type, noUserinfo, created: !existing });
 '
 
 NODE_PROVIDER_EXISTS='
@@ -685,7 +789,7 @@ auth_providers() {
 		info "No custom sign-in providers (harmony auth add-provider adds one)"
 	else
 		{
-			printf 'ID\tNAME\tTYPE\tSIGN-IN PAGE\tEXISTING ACCOUNTS\tISSUER OR AUTHORIZE URL\n'
+			printf 'ID\tNAME\tADDRESS FROM\tSIGN-IN PAGE\tEXISTING ACCOUNTS\tISSUER OR AUTHORIZE URL\n'
 			while IFS=$'\t' read -r pid pname ptype pstate pwhere; do
 				printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$pname" "$ptype" "$pstate" "$(linking_mode "$value" "$pid")" "$pwhere"
 			done <<<"$rows"
@@ -709,7 +813,7 @@ auth_providers() {
 
 auth_add_provider() {
 	local id="" name="" issuer="" discovery="" authorize="" token="" userinfo="" client_id="" secret="" secret_file=""
-	local scopes="" icon="" icon_set=0 email_optional="" pkce="" type="" res
+	local scopes="" icon="" icon_set=0 email_optional="" pkce="" source="" claims="" res
 	local link="" vouch=0 linking want
 	if [[ $# -gt 0 && "$1" != -* ]]; then id="$1"; shift; fi
 	while [[ $# -gt 0 ]]; do
@@ -728,6 +832,8 @@ auth_add_provider() {
 			--require-email) email_optional=0 ;;
 			--no-pkce) pkce=0 ;;
 			--pkce) pkce=1 ;;
+			--userinfo) [[ "$claims" != id_token ]] || die "--userinfo and --id-token exclude each other"; claims=userinfo ;;
+			--id-token) [[ "$claims" != userinfo ]] || die "--userinfo and --id-token exclude each other"; claims=id_token ;;
 			--separate-accounts) [[ "$link" != 1 ]] || die "--separate-accounts and --link-existing-accounts exclude each other"; link=0 ;;
 			--link-existing-accounts) [[ "$link" != 0 ]] || die "--separate-accounts and --link-existing-accounts exclude each other"; link=1 ;;
 			--provider-verifies-email) vouch=1 ;;
@@ -736,6 +842,9 @@ auth_add_provider() {
 		shift
 	done
 	[[ $vouch -eq 0 || "$link" == 1 ]] || die "--provider-verifies-email goes with --link-existing-accounts"
+	if [[ -n "$claims" && -n "$authorize$token$userinfo" ]]; then
+		die "--userinfo and --id-token go with --issuer, not with --authorize-url, --token-url and --userinfo-url"
+	fi
 	if [[ "$link" == 1 ]] && autoconfirm_on && [[ $vouch -eq 0 ]]; then
 		refuse_autoconfirm_link
 	fi
@@ -749,10 +858,10 @@ auth_add_provider() {
 		die "give --issuer (OIDC) or --authorize-url, --token-url and --userinfo-url (OAuth 2.0), not both"
 	fi
 	if [[ -n "$issuer$discovery" ]]; then
-		type=oidc
+		source=issuer
 		[[ -n "$issuer" ]] || die "--discovery-url needs --issuer too"
 	elif [[ -n "$authorize$token$userinfo" ]]; then
-		type=oauth2
+		source=endpoints
 	fi
 	[[ ${#name} -le 100 ]] || die "the name is at most 100 characters"
 
@@ -784,17 +893,34 @@ auth_add_provider() {
 	[[ "$want" == "$linking" ]] || apply_linking "$want"
 
 	info "Saving sign-in provider $id..."
-	node_call res "$NODE_PROVIDER_LIB$NODE_PROVIDER_ADD" id "$id" type "$type" name "$name" \
+	node_call res "$NODE_PROVIDER_LIB$NODE_PROVIDER_ADD" id "$id" source "$source" claims "$claims" name "$name" \
 		issuer "$issuer" discovery_url "$discovery" authorize_url "$authorize" token_url "$token" \
 		userinfo_url "$userinfo" client_id "$client_id" client_secret "$secret" scopes "$scopes" \
 		icon "$icon" icon_set "$icon_set" email_optional "$email_optional" pkce "$pkce"
 	if [[ "$(json_field "$res" created)" == true ]]; then
 		ok "Sign-in provider $id ($(json_field "$res" name)) added; its button shows on the next load of the sign-in page"
+	elif [[ "$(json_field "$res" replaced)" == true ]]; then
+		ok "Sign-in provider $id ($(json_field "$res" name)) made again; its accounts sign in as before"
 	else
 		ok "Sign-in provider $id ($(json_field "$res" name)) updated"
 	fi
+	say_reads "$id" "$(json_field "$res" reads)" "$claims" "$(json_field "$res" noUserinfo)"
 	say_linking "$id" "$want"
 	show_callback
+}
+
+# say_reads ID READS CLAIMS NO_USERINFO: where the provider's address and name come from.
+say_reads() {
+	if [[ "$2" == userinfo ]]; then
+		ok "Address and name: from the provider's userinfo endpoint"
+		return
+	fi
+	ok "Address and name: from the ID token"
+	if [[ "$4" == true ]]; then
+		info "The discovery document names no userinfo endpoint"
+	elif [[ -z "$3" ]]; then
+		info "A provider that sends the address from userinfo only ends sign-ins with 'Error getting user email from external provider': harmony auth add-provider ${1#custom:} --userinfo"
+	fi
 }
 
 auth_remove_provider() {

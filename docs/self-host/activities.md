@@ -57,10 +57,21 @@ The frame names the web app as its only script source: the backend reads it from
 - Each activity runs in an `<iframe sandbox="allow-scripts allow-pointer-lock">`: an opaque origin with no access to the account's session, storage, messages or the page around it. The frame's own `Content-Security-Policy` repeats the sandbox, so the document stays isolated even when opened directly.
 - The policy refuses every network connection (`connect-src 'none'`), form, popup, plugin and frame, and loads scripts, styles and images only from the activity's own folder.
 - Players talk through the relay in the federation backend. The Harmony client holds the account's token and forwards what the activity sends after checking its size and rate; the activity never sees a token.
-- The relay admits only accounts of this instance that belong to the conversation or channel (and, in a voice channel, are in the call). Every 30 seconds it checks each member's token and membership again and removes those who signed out or left. It limits each connection to 40 messages a second and 1 MB a second, counting a message once per recipient, and holds no game data after a session ends.
+- The relay admits only accounts of this instance that belong to the conversation or channel (and, in a voice channel, are in the call). In a text channel a player needs **Send Messages** there, and a member timed out in the server cannot play in its channels. Every 30 seconds it checks each member's token and membership again and removes those who signed out, left or lost the permission. It limits each connection to 40 messages a second and 1 MB a second, counting a message once per recipient, and holds no game data after a session ends.
+- The relay counts its per-address limits by IPv4 address or IPv6 /64, limits sockets that have not yet signed in to 8 per address and 256 in all, and closes a slow reader once 128 MB are queued for sending across all connections.
 - A frame that navigates itself to another page is detached at once (Harmony's loader reports the document leaving) and receives nothing further.
+- The loader removes the desktop app's message ports (`window.chrome`, `window.webkit`) from the frame before the activity runs.
+- A member's avatar reaches the activity only if it loads within 400 ms; a slow or failing avatar address delays no one's game.
+- Installed packages are read with at most 32 zip entries and 6 MB unpacked, counted as written, so a crafted zip cannot exhaust the backend's memory or time.
+- Installed packages run on computers only. Phones and tablets run the frame in the app's own web process (Android WebView, WKWebView, mobile Safari), where an activity that never yields would freeze the app; the desktop app and desktop browsers run the sandboxed frame in a process of its own. Built-in activities ship with the app and run everywhere.
+- The Android app runs no activity when its System WebView lacks WebMessageListener, the API that keeps the app's native bridge from frames; the picker asks the member to update Android System WebView.
 
-What the sandbox cannot stop: an activity sees what its players send it and can pass that to any player, and browsers apply no content policy to WebRTC or DNS prefetching. Enable activities you trust, as you would install a bot.
+What the sandbox cannot stop:
+
+- An activity sees what its players send it and can pass that to any player.
+- Browsers apply no content policy to WebRTC or DNS prefetching, and none to a frame navigating itself: the address of that navigation reaches the site it names, carrying whatever the activity puts in it. Harmony detaches the frame after that load, not before it.
+
+Enable activities you trust, as you would install a bot.
 
 ## Limits
 

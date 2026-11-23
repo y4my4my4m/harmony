@@ -81,6 +81,7 @@ export class RelayConnection {
     this.unsubscribeAuth = null
     const ws = this.ws
     this.ws = null
+    // 1000 'left': the relay ends a session this leaves empty at once (relay.ts LEFT).
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) ws.close(1000, 'left')
   }
 

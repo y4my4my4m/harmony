@@ -198,8 +198,8 @@ INSERT INTO public.user_blocks (blocker_id, blocked_user_id)
 VALUES ('22222222-0000-0000-0000-000000000002', '11111111-0000-0000-0000-000000000001');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is(public.ring_dm_call('77777777-0000-0000-0000-000000000007',
-                              ARRAY['22222222-0000-0000-0000-000000000002']::uuid[], 'initiate', 'voice'), 0,
-          'a receiver who blocked the caller is not rung');
+                              ARRAY['22222222-0000-0000-0000-000000000002']::uuid[], 'initiate', 'voice'), 1,
+          'a receiver who blocked the caller counts as an unblocked one would (20261123500005)');
 SELECT tests.clear_authentication();
 UPDATE public.user_blocks SET expires_at = now() - interval '1 minute'
  WHERE blocker_id = '22222222-0000-0000-0000-000000000002'

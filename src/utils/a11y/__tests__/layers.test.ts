@@ -86,6 +86,25 @@ describe('Escape stack', () => {
     expect(onEscape).toHaveBeenCalledTimes(1)
   })
 
+  it('hands Escape from focus in a companion of the topmost layer to it, and only to it', () => {
+    const dock = el('<div data-over-viewer><div><button>mute</button></div></div>')
+    const viewer = el('<div><button>in</button></div>')
+    const prompt = el('<div><button>ok</button></div>')
+    document.body.append(dock, viewer)
+    const onViewer = vi.fn()
+    const removeViewer = pushLayer({ kind: 'dialog', element: () => viewer, onEscape: onViewer, companions: '[data-over-viewer]' })
+    escape(dock.querySelector('button')!)
+    expect(onViewer).toHaveBeenCalledTimes(1)
+
+    document.body.append(prompt)
+    const onPrompt = vi.fn()
+    pushLayer({ kind: 'dialog', element: () => prompt, onEscape: onPrompt })
+    escape(dock.querySelector('button')!)
+    expect(onPrompt).not.toHaveBeenCalled()
+    expect(onViewer).toHaveBeenCalledTimes(1)
+    removeViewer()
+  })
+
   it('does not hand an Escape to a layer that its own dispatch opened', () => {
     const page = el('<div><input /></div>')
     const prompt = el('<div><button>discard</button></div>')
@@ -150,6 +169,20 @@ describe('inertOthers', () => {
     release()
     expect(document.getElementById('pre')!.hasAttribute('inert')).toBe(true)
     expect(document.getElementById('app')!.hasAttribute('inert')).toBe(false)
+  })
+
+  it('leaves companions interactive beside one layer, not beside the next', () => {
+    document.body.innerHTML = '<div id="app"></div><div id="voice" data-over-viewer></div><div id="viewer"></div><div id="prompt"></div>'
+    const voice = document.getElementById('voice')!
+    const releaseViewer = inertOthers([document.getElementById('viewer')!], '[data-over-viewer]')
+    expect(voice.hasAttribute('inert')).toBe(false)
+    expect(document.getElementById('app')!.hasAttribute('inert')).toBe(true)
+    const releasePrompt = inertOthers([document.getElementById('prompt')!])
+    expect(voice.hasAttribute('inert')).toBe(true)
+    releasePrompt()
+    expect(voice.hasAttribute('inert')).toBe(false)
+    releaseViewer()
+    expect(document.querySelectorAll('[inert]').length).toBe(0)
   })
 
   it('counts stacked holds so releasing in any order is safe', () => {

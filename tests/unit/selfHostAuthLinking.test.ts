@@ -250,8 +250,14 @@ exec)
 		echo "{\"ok\":true,\"exists\":$e}" ;;
 	*'const existing = (await gotrueProviders()).find'*)
 		printf 'add %s auth=%s\n' "$id" "$running" >> "$state/events"
+		field() { printf '%s' "$params" | sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p" | base64 -d; }
+		claims="$(field claims)"
+		printf 'source=%s claims=%s\n' "$(field source)" "$claims" > "$state/add_params"
+		# $state/reads: what the auth service ends up with; else what the options ask.
+		reads="$(cat "$state/reads" 2>/dev/null || { [ "$claims" = id_token ] && echo id_token || echo userinfo; })"
+		nou="$(cat "$state/no_userinfo" 2>/dev/null || echo false)"
 		if grep -qxF "$id" "$state/providers"; then c=false; else c=true; echo "$id" >> "$state/providers"; fi
-		echo "{\"ok\":true,\"id\":\"$id\",\"name\":\"Authentik\",\"type\":\"oidc\",\"created\":$c}" ;;
+		echo "{\"ok\":true,\"id\":\"$id\",\"name\":\"Authentik\",\"reads\":\"$reads\",\"replaced\":false,\"noUserinfo\":$nou,\"created\":$c}" ;;
 	*'const known = (await gotrueProviders()).some'*)
 		printf 'remove %s auth=%s\n' "$id" "$running" >> "$state/events"
 		if grep -qxF "$id" "$state/providers"; then
@@ -259,7 +265,7 @@ exec)
 		else r=false; fi
 		echo "{\"ok\":true,\"id\":\"$id\",\"removed\":$r,\"unlisted\":$r}" ;;
 	*'const rows = providers.map'*)
-		rows="$(while read -r p; do [ -n "$p" ] && printf '%s\tName\toidc\tshown\thttps://idp.test/\n' "$p"; done < "$state/providers")"
+		rows="$(while read -r p; do [ -n "$p" ] && printf '%s\tName\tID token\tshown\thttps://idp.test/\n' "$p"; done < "$state/providers")"
 		echo "{\"ok\":true,\"rows\":\"$(printf '%s' "$rows" | base64 | tr -d '\n')\",\"stale\":\"\"}" ;;
 	esac ;;
 esac
@@ -357,6 +363,46 @@ describe('harmony auth and account linking', () => {
     expect(events()).toEqual([])
   })
 
+  it('hands the program the source and --userinfo or --id-token, and says where the address comes from', () => {
+    const params = () => readFileSync(join(state, 'add_params'), 'utf8').trim()
+    let r = add()
+    expect(r.status, r.stderr).toBe(0)
+    expect(params()).toBe('source=issuer claims=')
+    expect(r.stdout).toContain("Address and name: from the provider's userinfo endpoint")
+
+    r = add('--id-token')
+    expect(r.status, r.stderr).toBe(0)
+    expect(params()).toBe('source=issuer claims=id_token')
+    expect(r.stdout).toContain('Address and name: from the ID token')
+    expect(r.stdout).not.toContain('--userinfo')
+
+    r = harmony('add-provider', 'authentik', '--userinfo')
+    expect(r.status, r.stderr).toBe(0)
+    expect(params()).toBe('source= claims=userinfo')
+  })
+
+  it('points a provider that still reads the ID token at --userinfo, and names a document without userinfo', () => {
+    writeFileSync(join(state, 'reads'), 'id_token')
+    let r = add()
+    expect(r.status, r.stderr).toBe(0)
+    expect(r.stdout).toContain("'Error getting user email from external provider': harmony auth add-provider authentik --userinfo")
+    writeFileSync(join(state, 'no_userinfo'), 'true')
+    r = add()
+    expect(r.stdout).toContain('The discovery document names no userinfo endpoint')
+    expect(r.stdout).not.toContain('add-provider authentik --userinfo')
+  })
+
+  it('refuses --userinfo with --id-token, and either with the OAuth 2.0 endpoints', () => {
+    let r = add('--userinfo', '--id-token')
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain('exclude each other')
+    r = harmony('add-provider', 'forge', '--name', 'Forge', '--client-id', 'c', '--id-token',
+      '--authorize-url', 'https://f.test/a', '--token-url', 'https://f.test/t', '--userinfo-url', 'https://f.test/u')
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain('go with --issuer')
+    expect(events()).toEqual([])
+  })
+
   it('stops before any change when PROVIDER_LINKING_DOMAINS does not parse', () => {
     writeFileSync(sbEnv, readFileSync(sbEnv, 'utf8').replace(/^PROVIDER_LINKING_DOMAINS=.*$/m, 'PROVIDER_LINKING_DOMAINS=custom:other'))
     const r = add()
@@ -382,8 +428,9 @@ describe('harmony auth and account linking', () => {
       'PROVIDER_LINKING_DOMAINS=custom:authentik=custom:authentik,custom:gone=custom:gone'))
     const r = harmony('providers')
     expect(r.status, r.stderr).toBe(0)
-    expect(r.stdout).toMatch(/custom:authentik\s+Name\s+oidc\s+shown\s+separate/)
-    expect(r.stdout).toMatch(/custom:open\s+Name\s+oidc\s+shown\s+by address/)
+    expect(r.stdout).toMatch(/ID\s+NAME\s+ADDRESS FROM\s+SIGN-IN PAGE/)
+    expect(r.stdout).toMatch(/custom:authentik\s+Name\s+ID token\s+shown\s+separate/)
+    expect(r.stdout).toMatch(/custom:open\s+Name\s+ID token\s+shown\s+by address/)
     expect(r.stderr).toContain('custom:open join existing accounts by address')
     expect(r.stdout).toContain('custom:gone')
   })

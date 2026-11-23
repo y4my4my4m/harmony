@@ -17,6 +17,8 @@ export const PACKAGE_MAX_BYTES = 6 * 1024 * 1024
 export const ENTRY_MAX_BYTES = 5 * 1024 * 1024
 export const ICON_MAX_BYTES = 256 * 1024
 export const MANIFEST_MAX_BYTES = 64 * 1024
+/** Central directory records read: three files, a folder record and archiver extras. */
+export const ZIP_ENTRIES_MAX = 32
 /** Packages one instance holds. */
 export const PACKAGES_MAX = 50
 
@@ -140,14 +142,22 @@ export function parsePackage(zip: Uint8Array): ParsedPackage {
   if (!(zip[0] === 0x50 && zip[1] === 0x4b)) fail('NOT_A_ZIP', 'not a zip file')
 
   let declared = 0
+  let entries = 0
   let files: Record<string, Uint8Array>
   try {
     files = unzipSync(zip, {
       filter: (file) => {
+        // fflate visits as many records as the end record claims; zip64 allows 2^32 - 1.
+        if (++entries > ZIP_ENTRIES_MAX) fail('UNEXPECTED_FILE', `a package holds at most ${ZIP_ENTRIES_MAX} zip entries`)
         // Directory entries carry no data.
         if (file.name.endsWith('/')) return false
-        declared += file.originalSize
-        if (file.originalSize > ENTRY_MAX_BYTES || declared > PACKAGE_MAX_BYTES) fail('TOO_LARGE', `${file.name} is too large`)
+        if (file.compression !== 0 && file.compression !== 8) fail('NOT_A_ZIP', `${file.name} uses an unsupported compression method`)
+        // fflate copies a stored entry's compressed size and inflates a deflated one into its
+        // declared size; records may share one local entry, so each copy counts.
+        const bytes = file.compression === 0 ? file.size : file.originalSize
+        if (!Number.isSafeInteger(bytes) || bytes < 0) fail('NOT_A_ZIP', `${file.name} has an invalid size`)
+        declared += bytes
+        if (bytes > ENTRY_MAX_BYTES || declared > PACKAGE_MAX_BYTES) fail('TOO_LARGE', `${file.name} is too large`)
         return true
       },
     })

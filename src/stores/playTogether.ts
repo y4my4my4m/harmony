@@ -16,6 +16,7 @@ import {
   type ActivityTarget,
 } from '@/services/playTogether/sessions'
 import { ActivityRuntime, type RuntimeView } from '@/services/playTogether/activityRuntime'
+import { frameRefusal } from '@/services/playTogether/frameSupport'
 import type { SessionContext, ThemeInfo } from '../../activities/sdk/protocol'
 
 /**
@@ -30,6 +31,8 @@ import type { SessionContext, ThemeInfo } from '../../activities/sdk/protocol'
 
 const HEIGHT_KEY = 'harmony:play-together-height'
 const NOTIFY_THROTTLE_MS = 8_000
+/** After Leave: the relay has ended an emptied session and written its row. */
+const LEAVE_REFRESH_MS = 1_500
 export const PANEL_MIN_HEIGHT = 300
 export const PANEL_DEFAULT_HEIGHT = 480
 
@@ -61,8 +64,9 @@ export function targetContext(target: ActivityTarget, conversationType?: string 
 }
 
 function errorKey(code: string): string {
-  const known = ['ACTIVITY_APP_UNAVAILABLE', 'ACTIVITY_CONTEXT_UNSUPPORTED', 'ACTIVITY_RATE_LIMITED', 'NOT_FOUND', 'DM_BLOCKED',
-    'SERVER_NOT_LOCAL', 'CHANNEL_TYPE', 'NOT_IN_CALL', 'CANNOT_SEND', 'NOT_LOCAL_ACCOUNT', 'ENDED', 'FULL', 'UNSUPPORTED_VERSION']
+  const known = ['ACTIVITY_APP_UNAVAILABLE', 'ACTIVITY_CONTEXT_UNSUPPORTED', 'ACTIVITY_RATE_LIMITED', 'NOT_FOUND',
+    'SERVER_NOT_LOCAL', 'CHANNEL_TYPE', 'NOT_IN_CALL', 'CANNOT_SEND', 'MEMBER_TIMED_OUT', 'NOT_LOCAL_ACCOUNT',
+    'WEBVIEW_OUTDATED', 'PACKAGE_DESKTOP_ONLY', 'ENDED', 'FULL', 'UNSUPPORTED_VERSION']
   return `playTogether.errors.${known.includes(code) ? code : 'UNKNOWN'}`
 }
 
@@ -158,6 +162,12 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
   }
 
   async function start(appId: string, target: ActivityTarget): Promise<boolean> {
+    const app = appById(appId)
+    const refusal = app ? frameRefusal(app) : null
+    if (refusal) {
+      toast.error(t(errorKey(refusal)))
+      return false
+    }
     try {
       const { session, existing } = await startSession(appId, target)
       if (existing && session.app_id !== appId) {
@@ -177,6 +187,11 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
     const app = appById(session.app_id)
     if (!app || !app.enabled) {
       toast.error(t(errorKey('ACTIVITY_APP_UNAVAILABLE')))
+      return false
+    }
+    const refusal = frameRefusal(app)
+    if (refusal) {
+      toast.error(t(errorKey(refusal)))
       return false
     }
     leave()
@@ -225,6 +240,8 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
     joined.value = null
     resetView()
     void refresh(current.target)
+    // The relay ends a session the leave emptied and then writes the row; read it again after.
+    setTimeout(() => { void refresh(current.target) }, LEAVE_REFRESH_MS)
   }
 
   function endForEveryone(): void {
@@ -235,6 +252,11 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
     void loadApps()
     void refresh(target)
     launcher.value = { target, conversationType }
+  }
+
+  /** Why this account cannot join a session it can see, as a sentence. */
+  function refusalText(code: string): string {
+    return code === 'NOT_IN_CALL' ? t('playTogether.joinTheCall') : t(errorKey(code))
   }
 
   function closeLauncher(): void {
@@ -322,6 +344,7 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
     endForEveryone,
     openLauncher,
     closeLauncher,
+    refusalText,
     returnTo,
     registerSlot,
     unregisterSlot,

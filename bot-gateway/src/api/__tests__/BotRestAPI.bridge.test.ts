@@ -572,6 +572,75 @@ describe('sendMessage and a Discord message id already bridged', () => {
     expect(res.status).toBe(500)
   })
 
+  describe('a row its history import stored first', () => {
+    const LIVE = '00000000-0000-0000-0000-0000000000f9'
+    const imported = () => db.rows('messages').push({
+      id: EXISTING, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, is_deleted: false,
+      content: [{ type: 'text', text: 'first' }],
+      metadata: { discord_message_id: '77', bot: true, history_import: true, created_via: 'history_import' },
+    })
+    // bridge_relay_supersede_import over the fake table: the live row replaces the imported one.
+    const supersede = (answer: 'take' | 'refuse') => {
+      const base = mocks.rpc.getMockImplementation()!
+      mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+        if (fn !== 'bridge_relay_supersede_import') return base(fn, args)
+        if (answer === 'refuse') return { data: null, error: null }
+        const rows = db.rows('messages')
+        rows.splice(rows.findIndex((m) => m.id === args.p_message_id), 1)
+        rows.push({ id: LIVE, channel_id: PAIRED, user_id: null, bot_id: args.p_bot_id, is_deleted: false,
+          thread_id: args.p_thread_id, reply_to: args.p_reply_to, content: args.p_content, metadata: args.p_metadata })
+        return { data: LIVE, error: null }
+      })
+    }
+    const send = () => supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'text', text: 'live' }], metadata: { discord_message_id: '77' } })
+
+    it('is taken over by the live relay, which is stored as a new message', async () => {
+      seed()
+      imported()
+      refuseInsert(DUPLICATE_ERROR)
+      supersede('take')
+      mocks.discard.mockClear()
+      const res = await send()
+      expect(res.status).toBe(201)
+      expect(res.body.id).toBe(LIVE)
+      const calls = mocks.rpc.mock.calls.filter(([fn]) => fn === 'bridge_relay_supersede_import').map(([, args]) => args)
+      expect(calls).toEqual([{
+        p_bot_id: BOT_ID, p_message_id: EXISTING, p_thread_id: null, p_reply_to: null,
+        p_content: [{ type: 'text', text: 'live' }],
+        p_metadata: expect.objectContaining({ discord_message_id: '77', bot: true, created_via: 'bot_api' }),
+      }])
+      expect(mocks.discard).not.toHaveBeenCalled()
+      expect(db.rows('bot_audit_log')).toHaveLength(1)
+    })
+
+    it('answers with the imported row when it cannot be taken over', async () => {
+      seed()
+      imported()
+      refuseInsert(DUPLICATE_ERROR)
+      supersede('refuse')
+      mocks.discard.mockClear()
+      const res = await send()
+      expect(res.status).toBe(200)
+      expect(res.body.id).toBe(EXISTING)
+      expect(mocks.discard).toHaveBeenCalledWith([{ type: 'text', text: 'live' }], DUPLICATE_ERROR)
+    })
+
+    it('leaves a relayed row alone', async () => {
+      seed()
+      db.rows('messages').push({
+        id: EXISTING, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, is_deleted: false,
+        content: [{ type: 'text', text: 'first' }], metadata: { discord_message_id: '77', bot: true, created_via: 'bot_api' },
+      })
+      refuseInsert(DUPLICATE_ERROR)
+      supersede('take')
+      const res = await send()
+      expect(res.status).toBe(200)
+      expect(res.body.id).toBe(EXISTING)
+      expect(mocks.rpc.mock.calls.some(([fn]) => fn === 'bridge_relay_supersede_import')).toBe(false)
+    })
+  })
+
   it('hands the parts of a message that was not stored to the mirror cleanup, with the refusal', async () => {
     seed()
     mocks.discard.mockClear()
@@ -643,6 +712,19 @@ describe('PATCH /messages/:id/metadata and a Discord message id already bridged'
     const res = await supertest(app()).patch(`/api/v1/messages/${MINE}/metadata`)
       .send({ metadata: { discord_message_id: '77' } })
     expect(res.status).toBe(500)
+  })
+
+  it('answers 403 BRIDGE_AUTHOR_OPTED_OUT when the database refuses a new author', async () => {
+    seed()
+    db.rows('messages').push({
+      id: MINE, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content: [],
+      metadata: { bot: true, discord_user: { id: '41', username: 'dana' } },
+    })
+    refuseUpdate({ code: '23514', message: 'BRIDGE_AUTHOR_OPTED_OUT' })
+    const res = await supertest(app()).patch(`/api/v1/messages/${MINE}/metadata`)
+      .send({ metadata: { discord_user: { id: '42', username: 'alice' } } })
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('BRIDGE_AUTHOR_OPTED_OUT')
   })
 })
 

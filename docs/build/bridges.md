@@ -296,7 +296,7 @@ Existing `discord_user` metadata, old messages and Discord v2/legacy registratio
 
 ### Register the experimental Matrix relay
 
-The bot's owner, who also manages the server, calls the authenticated Supabase RPC:
+**Server settings** → **Bridges** → **Matrix** offers this to the bot's owner, who also manages the server: it lists the caller's bots installed in the server (`bot_server_permissions` embedding `bots`, filtered on `bot.owner_id`, bots with a `discord_bridges` row left out) and the server's text channels, and calls the RPCs below. A client calls the authenticated Supabase RPC itself:
 
 ```js
 await supabase.rpc('configure_matrix_bridge', {
@@ -314,8 +314,8 @@ The running Matrix application service binds each configured channel through `PU
 
 Under **Server settings** → **Bridges** → **Matrix**, managers choose a mode for each bot/channel pair:
 
-- **Individual bridged users**: stable application-service ghost accounts join the Matrix room with Harmony names/avatars. Messages have no author prefix, and Matrix clients can autocomplete those joined users.
-- **Shared bridge account**: one Matrix sender with explicit Harmony attribution; no new ghosts. Existing configurations default to this mode; the example configuration explicitly recommends ghosts for new installations.
+- **As their own Matrix users** (`ghost`): stable application-service ghost accounts join the Matrix room with Harmony names/avatars. Messages have no author prefix, and Matrix clients can autocomplete those joined users.
+- **Through one shared bridge account** (`relay`): one Matrix sender with explicit Harmony attribution; no new ghosts. Existing configurations default to this mode; the example configuration explicitly recommends ghosts for new installations.
 
 The authenticated manager RPCs are `get_server_matrix_bridges(p_server_id)`, a JSON array of the server's bindings (`bot_id`, `bot_username`, `bot_display_name`, `channel_id`, `channel_name`, `room_id`, `sender_mode`, `sender_mode_set_by_manager`, `active`), and `set_matrix_bridge_sender_mode(p_bot_id, p_channel_id, p_sender_mode)`, which answers the updated binding. This settings panel manages already-registered bridges; homeserver/application-service installation and initial channel pairing remain operator setup, not Discord OAuth or hosted-bot provisioning.
 
@@ -467,12 +467,12 @@ A job started in the app (`requested_via` `harmony`) covers a Discord channel wh
 | `403` `import_disabled` (with `reason`) | Import is off for this bridge; any route |
 | `429` `import_busy` | `PATCH` asked for `running` while the instance runs its maximum number of imports. A running job silent for 10 minutes gives its slot away and is set to `paused` |
 | `429` `import_rate_limited` | `POST messages` past the instance's messages per minute for one import. Nothing was stored; send the same batch after the wait, at most 60 s |
-| `400` `invalid_thread` | A thread body that is not an object or has bad values |
+| `400` `invalid_thread` | A thread body that is not an object or has bad values. With `reason` `thread_deleted`: a person deleted the thread's Harmony copy; skip the thread and carry on |
 | `409` `invalid_transition` | `PATCH` asked for a state change the job's state does not allow |
-| `409` `import_not_running` | The job is not `running`. A job whose pair was removed, whose channel became encrypted, whose import was turned off, or whose server's or instance's bridged messages were all removed is set to `failed` with `error` `pair_removed`, `channel_encrypted`, `import_disabled`, `server_purged` or `instance_purged`; stop it and do not retry |
+| `409` `import_not_running` | The job is not `running`, or a `PATCH` other than `state` and `error` reached a job that is not `running`. A job whose pair was removed, whose channel became encrypted, whose import was turned off, or whose server's or instance's bridged messages were all removed is set to `failed` with `error` `pair_removed`, `channel_encrypted`, `import_disabled`, `server_purged` or `instance_purged`; stop it and do not retry |
 | `500` | `{ "error": "Import request failed" }` |
 
-`PATCH` moves a job from `queued` to `running`, from `running` to `paused`, `done` or `failed` (with `error`), and from `paused` back to `running`. It moves a job to `cancelled` only after `cancel_requested` is true: poll `GET /imports` for that flag, and stop when it is set. A person restarting a `failed`, `cancelled` or `paused` job in the app sets it back to `queued` with its cursors kept; after a purge the cursors are cleared, and the job starts from the newest message again.
+`PATCH` moves a job from `queued` to `running`, from `running` to `paused`, `done` or `failed` (with `error`), and from `paused` back to `running`. It moves a job to `cancelled` only after `cancel_requested` is true: poll `GET /imports` for that flag, and stop when it is set. A second cancel of a job with `cancel_requested` set, from the app or `POST /imports/{id}/cancel`, sets it to `cancelled` without the bridge, and so does a job that starts while one asked to stop has been silent for 10 minutes. A start of a job with `cancel_requested` set clears the flag and the job keeps running; a `PATCH` to `cancelled` then answers `409` `invalid_transition`. A person restarting a `failed`, `cancelled` or `paused` job in the app sets it back to `queued` with its cursors kept; after a purge the cursors are cleared, and the job starts from the newest message again.
 
 Report `reached_discord_message_id` and `reached_at` after each committed batch, and `phase`, `threads_total` and `threads_done` as the job moves on; the app draws its progress from `start_at`, `reached_at` and `channel_created_at`. Resume a job found `running` or `queued` after a restart from its stored `reached_discord_message_id`.
 
@@ -507,7 +507,7 @@ Leave out messages whose author is no longer a member of the guild and messages 
 | `too_long` | Over the instance's message length limit, 2000 characters by default while Discord allows 4000 |
 | `check_violation` | Another check of the messages table |
 
-An entry without a usable `discord_message_id` is answered nowhere. A live message and a batch that carry the same `discord_message_id` leave one row. `imported_count` counts only inserted rows, so do not read `skipped` as imported.
+An entry without a usable `discord_message_id` is answered nowhere. A live message and a batch that carry the same `discord_message_id` leave one row. A batch that carries one `discord_message_id` twice stores the first valid copy; the later one is answered in `skipped` and its files are never copied. `imported_count` counts only inserted rows, so do not read `skipped` as imported.
 
 Mirroring attachments makes a batch slow; use a generous HTTP timeout.
 
@@ -519,16 +519,17 @@ After the channel's messages, list the Discord threads (active and archived publ
 {
   "discord_thread_id": "1400000000000000300", "name": "Weekend",
   "created_at": "2023-02-01T12:00:00Z",
-  "starter_discord_message_id": "…", "discord_user": { "id": "…", "username": "dana" },
+  "starter_discord_message_id": "…", "starter_discord_user_id": "…",
+  "discord_user": { "id": "…", "username": "dana" },
   "archived": true, "locked": false
 }
 ```
 
-The call is idempotent per `discord_thread_id`. A starter that is not in Harmony makes a standalone thread. Send the thread's messages with the returned `thread_id` in each message.
+The call is idempotent per `discord_thread_id`. A starter that is not in Harmony makes a standalone thread. Send the thread's messages with the returned `thread_id` in each message. A thread whose Harmony copy a person deleted answers `400` `{ "code": "invalid_thread", "reason": "thread_deleted" }` and is not created again; one removed with its channel or server, or deleted because its messages were, is. A purge of the server's bridged messages drops the pairs of its threads, so a re-import builds each thread on its re-imported starter.
 
 ### Replies
 
-Messages arrive newest first, so a reply often precedes its target. After the thread phase, set `phase` to `replies` and call `POST /imports/{id}/replies/link` once: it links every imported reply whose target is now in the channel. A target that never arrives stays an unresolved reply.
+Messages arrive newest first, so a reply often precedes its target. After the thread phase, set `phase` to `replies` and call `POST /imports/{id}/replies/link` once: it links every imported reply whose target is now in the channel. The gateway works through the channel 2,000 rows at a time, each in its own transaction, and keeps its place on the job: a call that times out continues where it stopped when repeated. A write of `phase` starts the linking over. A target that never arrives stays an unresolved reply.
 
 ## Privacy
 
@@ -545,6 +546,8 @@ A remote user opts out of a server's bridge, and has what the bridge brought era
 A bridge keeps the list and sends nothing of an opted-out author: no message, edit, reaction or thread. The gateway enforces it as well:
 
 - `POST /channels/{id}/messages` and an edit whose `metadata.discord_user.id` is opted out answer `403` `{ "code": "BRIDGE_AUTHOR_OPTED_OUT" }`. Drop the message; do not retry. A silent content update that only re-signs a Discord link (the same URL up to the query) or copies a file into storage still goes through, so the files of messages left on Harmony keep working.
+- [`PATCH /messages/{id}/metadata`](/build/rest#merge-message-metadata) that names another author answers the same `403` when the message's author or the new one is opted out.
+- A thread is titled `Thread` when its starter, or the author of the message it starts on, is opted out, or opted back in after the thread or that message was written: Discord titles a thread on a message with the message's text. Send `starter_discord_user_id`, the starter message's author, with the thread when Harmony has no copy of that message, and `created_at` on [`POST /channels/{id}/threads`](/build/rest#create-thread) (Harmony 1.9.8).
 - A mention part of an opted-out Discord user arrives as the text `@name`.
 - A batch of [history import](#history-import) answers `rejected` with `reason` `opted_out` for it.
 - Opting in, and a manager's restore, is forward-looking: a batch answers `rejected` with `reason` `before_opt_in` for a message the user wrote before. Do not add the user to the opt-out list for it.

@@ -341,9 +341,11 @@ SELECT is((SELECT count(*)::integer FROM pg_index x
                                    to_regclass('public.idx_reactions_matrix_author'))
               AND x.indisvalid),
           3, 'the Matrix author indexes are built and valid');
-SELECT ok(pg_get_triggerdef((SELECT oid FROM pg_trigger WHERE tgname = 'a_messages_bridge_optout_guard'))
+SELECT ok(pg_get_triggerdef((SELECT oid FROM pg_trigger WHERE tgname = 'a_messages_client_write_optout'))
               LIKE '%matrix_user%'
-          AND pg_get_triggerdef((SELECT oid FROM pg_trigger WHERE tgname = 'a_reactions_bridge_optout_guard'))
+          AND pg_get_triggerdef((SELECT oid FROM pg_trigger WHERE tgname = 'a_messages_client_write_optout_edit'))
+              LIKE '%matrix_user%'
+          AND pg_get_triggerdef((SELECT oid FROM pg_trigger WHERE tgname = 'a_reactions_client_write_optout'))
               LIKE '%matrix_user%',
           'the opt-out guards fire on a Matrix author');
 SELECT ok(NOT has_function_privilege('authenticated', 'public.matrix_user_valid(jsonb)', 'EXECUTE')

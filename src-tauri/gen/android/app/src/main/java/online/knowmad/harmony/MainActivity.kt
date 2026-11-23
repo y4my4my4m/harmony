@@ -43,7 +43,10 @@ class MainActivity : TauriActivity() {
     // main-thread task, then posts the first load: this runnable runs between the two.
     webView.post {
       wrapChromeClient(webView)
-      if (!MainFrameIpc.install(webView)) android.util.Log.w("Harmony", "WebMessageListener missing: subframes keep the IPC bridge")
+      if (!MainFrameIpc.install(webView)) {
+        android.util.Log.w("Harmony", "WebMessageListener missing: subframes keep the IPC bridge; activity frames refused")
+        webView.settings.userAgentString = FramesUnsafe.userAgent(webView.settings.userAgentString)
+      }
     }
   }
 

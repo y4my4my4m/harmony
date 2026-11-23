@@ -64,12 +64,13 @@
         v-if="playAvailable"
         type="button"
         class="action-btn play-btn"
-        :title="t('playTogether.button')"
-        :aria-label="t('playTogether.button')"
-        data-testid="play-together-button"
+        :title="t('activities.launcherTitle')"
+        :aria-label="t('activities.launcherTitle')"
+        aria-haspopup="dialog"
+        data-testid="activities-button"
         @click="openPlayTogether"
       >
-        <Icon name="gamepad" :size="17" aria-hidden="true" />
+        <Icon name="popcorn" :size="17" aria-hidden="true" />
       </button>
 
       <button 

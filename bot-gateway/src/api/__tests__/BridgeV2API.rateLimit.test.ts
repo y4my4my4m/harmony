@@ -218,8 +218,53 @@ describe('bridge traffic against the per-bot, per-route rate limit', () => {
     ])
 
     expect(statuses).not.toContain(429)
-    expect([...table.peak.keys()].sort()).toEqual(['/bridge/v2/imports/', '/bridge/v2/imports/:id', '/bridge/v2/imports/:id/messages'])
+    expect([...table.peak.keys()].sort()).toEqual([
+      'GET /bridge/v2/imports/', `PATCH /bridge/v2/imports/${JOB}`, `POST /bridge/v2/imports/${JOB}/messages`,
+    ])
     for (const peak of table.peak.values()) expect(peak).toBeLessThan(MAX_REQUESTS)
+  })
+
+  // Threads of one page each at the bridge's default 1 s page delay: per thread a POST of the
+  // thread and its batch, a PATCH of the walk and one of threads_done, and a GET of the job after
+  // each of its two waits. GET and PATCH of the job count apart, and per job.
+  it('a bridge importing small threads stays under the limit, reading and patching its job', async () => {
+    const JOB = '00000000-0000-0000-0000-0000000000e1'
+    const OTHER_JOB = '00000000-0000-0000-0000-0000000000e2'
+    const running = (id: string) => ({ id, bridge_id: BRIDGE_ID, harmony_channel_id: '00000000-0000-0000-0000-0000000000c1', state: 'running' })
+    const db = new FakeDb({
+      discord_bridges: [{
+        id: BRIDGE_ID, server_id: SERVER_ID, bot_id: BOT_ID, mode: 'self', discord_guild_id: '100000000000000001',
+        settings: {}, updated_at: '2026-10-07T10:00:00.000Z',
+      }],
+      discord_bridge_imports: [running(JOB), running(OTHER_JOB)],
+      messages: [],
+    })
+    mocks.from.mockImplementation((t: string) => db.from(t))
+    const base = mocks.rpc.getMockImplementation()!
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      if (fn === 'bridge_import_present_ids') return { data: [], error: null }
+      if (fn === 'bridge_import_messages') return { data: { inserted: [], skipped: [] }, error: null }
+      if (fn === 'bridge_import_thread') return { data: '00000000-0000-0000-0000-0000000000d1', error: null }
+      if (fn === 'discord_bridge_import_update') return { data: { id: args.p_import_id, state: 'running' }, error: null }
+      return base(fn, args)
+    })
+    const batch = { messages: [{ discord_message_id: '1400000000000000001', created_at: '2023-01-01T00:00:00Z', content: [{ type: 'text', text: 'hi' }], discord_user: { id: '1400000000000000101', username: 'alice' } }] }
+    const thread = { discord_thread_id: '1500000000000000001', name: 'small', created_at: '2023-01-01T00:00:00Z' }
+    const perThread = (job: string, offset: number): Call[] => [
+      ...every(2_000, TEN_MINUTES, { method: 'post', path: `/bridge/v2/imports/${job}/threads`, body: thread }, offset),
+      ...every(2_000, TEN_MINUTES, { method: 'post', path: `/bridge/v2/imports/${job}/messages`, body: batch }, offset + 100),
+      ...every(2_000, TEN_MINUTES, { method: 'patch', path: `/bridge/v2/imports/${job}`, body: { thread_cursor: { at: null, done: [] } } }, offset + 200),
+      ...every(2_000, TEN_MINUTES, { method: 'get', path: `/bridge/v2/imports/${job}` }, offset + 1_200),
+      ...every(2_000, TEN_MINUTES, { method: 'patch', path: `/bridge/v2/imports/${job}`, body: { threads_done: 1 } }, offset + 1_300),
+      ...every(2_000, TEN_MINUTES, { method: 'get', path: `/bridge/v2/imports/${job}` }, offset + 1_900),
+    ]
+
+    const statuses = await replay([...perThread(JOB, 0), ...perThread(OTHER_JOB, 50)])
+
+    expect(statuses).not.toContain(429)
+    expect(table.peak.get(`GET /bridge/v2/imports/${JOB}`)).toBe(61)
+    expect(table.peak.get(`PATCH /bridge/v2/imports/${JOB}`)).toBe(61)
+    expect(table.peak.get(`PATCH /bridge/v2/imports/${OTHER_JOB}`)).toBe(61)
   })
 
   it('answers 429 once a route exceeds the limit, without affecting the other routes', async () => {

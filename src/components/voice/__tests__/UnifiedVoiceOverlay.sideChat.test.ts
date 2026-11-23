@@ -28,7 +28,7 @@ vi.mock('@/components/activities/useActivityButton', () => ({
     anchor: { value: null }, toggle: () => {}, close: () => {},
   }),
 }))
-vi.mock('@/components/activities/ActivityLauncher.vue', () => stub('ActivityLauncher'))
+vi.mock('@/components/activities/ActivitiesLauncher.vue', () => stub('ActivitiesLauncher'))
 vi.mock('@/components/activities/ActivityStage.vue', () => stub('ActivityStage'))
 vi.mock('@/components/activities/ActivityInvite.vue', () => stub('ActivityInvite'))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))

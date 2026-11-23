@@ -132,6 +132,32 @@ describe('presence', () => {
     expect(user(FRIEND)?.isOnline).toBe(false)
   })
 
+  it('applies profile:updated from the user channel to a cached DM partner; an uncached profile is not read', async () => {
+    await userDataService.subscribeToContext('dm-conversations', 'dm', [FRIEND])
+    expect(db.channels.map((c) => c.topic)).not.toContain('server-presence:server-1')
+    const updated: string[] = []
+    const listener = (e: Event) => updated.push((e as CustomEvent).detail.userId)
+    userDataService.addEventListener('user-updated', listener)
+    try {
+      userEvents.handlers['profile:updated']({
+        type: 'profile:updated', user_id: FRIEND, display_name: 'Friend renamed',
+        avatar_url: 'https://cdn.test/friend.webp', custom_status: { text: 'lunch' },
+      })
+      await Promise.resolve()
+      expect(user(FRIEND)).toMatchObject({ displayName: 'Friend renamed', avatarUrl: 'https://cdn.test/friend.webp' })
+      expect(user(FRIEND)?.customStatus?.text).toBe('lunch')
+      expect(updated).toContain(FRIEND)
+
+      const uncached = 'dddddddd-0000-4000-8000-000000000004'
+      userEvents.handlers['profile:updated']({ type: 'profile:updated', user_id: uncached, avatar_url: 'x' })
+      await Promise.resolve()
+      expect(user(uncached)).toBeNull()
+      expect(updated).not.toContain(uncached)
+    } finally {
+      userDataService.removeEventListener('user-updated', listener)
+    }
+  })
+
   it('a manual Invisible goes to profiles.status as Online; an automatic change writes nothing there', async () => {
     db.calls.length = 0
     await userDataService.updateCurrentUserStatus(UserStatus.Invisible, true)

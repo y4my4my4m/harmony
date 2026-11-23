@@ -1,14 +1,20 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 
-// profiles table: local alice, and remote doesnm whose instance is a subdomain.
+// profiles table: local alice, remote doesnm whose instance is a subdomain, and accounts
+// served from another host than their domain: maddy (split domain, Shoot), two sams on one
+// host, and a local lee whose actor id names a foreign host.
 // The vitest VITE_DOMAIN is harmony.test.
 const profiles = [
   { id: '00000000-0000-4000-8000-00000000a11c', username: 'alice', domain: 'harmony.test', display_name: 'Alice', is_local: true },
   { id: '00000000-0000-4000-8000-0000000d0e55', username: 'doesnm', domain: 'chat.understars.dev', display_name: 'doesnm', is_local: false },
+  { id: '00000000-0000-4000-8000-00000000add1', username: 'maddy', domain: 'understars.dev', federated_id: 'https://chat.understars.dev/users/maddy', is_local: false },
+  { id: '00000000-0000-4000-8000-00000000005a', username: 'sam', domain: 'a.example', federated_id: 'https://shared.example/users/sam', is_local: false },
+  { id: '00000000-0000-4000-8000-00000000005b', username: 'sam', domain: 'b.example', federated_id: 'https://shared.example/@sam', is_local: false },
+  { id: '00000000-0000-4000-8000-000000000133', username: 'lee', domain: 'harmony.test', federated_id: 'https://web.example/users/lee', is_local: true },
 ]
 
-// lookup.fail: every profiles query answers with an error.
-const lookup = vi.hoisted(() => ({ fail: false }))
+// lookup.fail: every profiles query answers with an error. lookup.filters: each .or() filter sent.
+const lookup = vi.hoisted(() => ({ fail: false, filters: [] as string[] }))
 
 vi.mock('@/supabase', () => {
   const query = () => {
@@ -18,8 +24,12 @@ vi.mock('@/supabase', () => {
       in: (col: string, vals: string[]) => { rows = rows.filter((r: any) => vals.includes(r[col])); return q },
       eq: (col: string, v: unknown) => { rows = rows.filter((r: any) => r[col] === v); return q },
       or: (filter: string) => {
+        lookup.filters.push(filter)
         const pairs = [...filter.matchAll(/and\(username\.eq\.([^,]+),domain\.eq\.([^)]+)\)/g)]
-        rows = rows.filter((r: any) => pairs.some(([, u, d]) => r.username === u && r.domain === d))
+        const hosted = [...filter.matchAll(/and\(username\.eq\.([^,]+),federated_id\.ilike\."https:\/\/([^/"]+)\/\*"\)/g)]
+        rows = rows.filter((r: any) =>
+          pairs.some(([, u, d]) => r.username === u && r.domain === d)
+          || hosted.some(([, u, h]) => r.username === u && String(r.federated_id ?? '').toLowerCase().startsWith(`https://${h}/`)))
         return q
       },
       then: (resolve: any) => resolve(lookup.fail ? { data: null, error: { message: 'unavailable' } } : { data: rows, error: null }),
@@ -122,6 +132,51 @@ describe('parseContentToMessageParts mentions', () => {
   it('leaves handles inside fenced code alone', async () => {
     const parts = await parse('```\n@alice\n```')
     expect(mentions(parts)).toEqual([])
+  })
+})
+
+describe('parseContentToMessageParts split-domain mentions', () => {
+  it('gives a handle on the host serving the actor the account stored under its own domain, under that domain', async () => {
+    const parts = await parse('@maddy@chat.understars.dev hi')
+    expect(mentions(parts)).toEqual([
+      expect.objectContaining({ username: 'maddy', domain: 'understars.dev', isLocal: false, userId: '00000000-0000-4000-8000-00000000add1' }),
+    ])
+    expect(plain(parts)).toBe('<maddy@understars.dev> hi')
+  })
+
+  it('matches the account domain directly and sends no actor-host query', async () => {
+    lookup.filters = []
+    const parts = await parse('@maddy@understars.dev')
+    expect(mentions(parts)[0]).toMatchObject({ domain: 'understars.dev', userId: '00000000-0000-4000-8000-00000000add1' })
+    expect(lookup.filters.some(f => f.includes('federated_id'))).toBe(false)
+  })
+
+  it('resolves both handles of one account in one message', async () => {
+    const parts = await parse('@maddy@understars.dev and @maddy@chat.understars.dev')
+    expect(mentions(parts).map(m => `${m.userId} ${m.domain}`)).toEqual([
+      '00000000-0000-4000-8000-00000000add1 understars.dev',
+      '00000000-0000-4000-8000-00000000add1 understars.dev',
+    ])
+  })
+
+  it('names neither of two accounts served from one host', async () => {
+    const parts = await parse('@sam@shared.example')
+    expect(mentions(parts)[0]).toMatchObject({ userId: 'unresolved-sam@shared.example' })
+  })
+
+  it('never gives a remote handle a local account', async () => {
+    const parts = await parse('@lee@web.example')
+    expect(mentions(parts)[0]).toMatchObject({ isLocal: false, userId: 'unresolved-lee@web.example' })
+  })
+
+  it('leaves the handle unresolved when the lookup fails', async () => {
+    lookup.fail = true
+    try {
+      const parts = await parse('@maddy@chat.understars.dev')
+      expect(mentions(parts)[0]).toMatchObject({ userId: 'unresolved-maddy@chat.understars.dev' })
+    } finally {
+      lookup.fail = false
+    }
   })
 })
 

@@ -287,9 +287,10 @@ describe('EncryptedSearchIndex', () => {
     })
     const opened = await EncryptedSearchIndex.open(PROFILE, key)
     spy.mockRestore()
-    expect(opened === null || opened.isClosed).toBe(true)
+    // fake-indexeddb may deliver the versionchange after open() resolves.
     const blocked = new Promise<string>(resolve => setTimeout(() => resolve('blocked'), 2000))
     expect(await Promise.race([deleted!, blocked])).toBe('deleted')
+    expect(opened === null || opened.isClosed).toBe(true)
 
     index = (await EncryptedSearchIndex.open(PROFILE, key))!
     expect(index).not.toBeNull()

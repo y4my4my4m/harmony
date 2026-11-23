@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll } from 'vitest'
 
 const toastError = vi.hoisted(() => vi.fn())
 vi.mock('vue-toastification', () => ({ useToast: () => ({ error: toastError }) }))
@@ -7,11 +7,13 @@ import {
   isLastingRejectionCode,
   cleanDbMessage,
   describeBlockNotice,
+  formatRetryWait,
   isModerationRejectionCode,
   moderationRejectionFromError,
   notifyModerationRejection,
 } from '@/services/AutoModService'
 import { i18n } from '@/i18n'
+import en from '@/locales/en.json'
 
 describe('moderationRejectionFromError', () => {
   it('reads AUTOMOD_BLOCKED from a singular-request error with its JSON detail', () => {
@@ -77,6 +79,53 @@ describe('instance limit refusals', () => {
     expect(notifyModerationRejection({ message: 'something else' })).toBe(false)
     expect(notifyModerationRejection(null)).toBe(false)
     expect(toastError).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('rate limit refusals', () => {
+  beforeAll(() => {
+    i18n.global.setLocaleMessage('en', en as any)
+    i18n.global.locale.value = 'en'
+  })
+
+  it('words the wait in one rounded-up unit', () => {
+    expect(formatRetryWait(1, 'en')).toBe('1 second')
+    expect(formatRetryWait(45, 'en')).toBe('45 seconds')
+    expect(formatRetryWait(61, 'en')).toBe('2 minutes')
+    expect(formatRetryWait(3540, 'en')).toBe('59 minutes')
+    expect(formatRetryWait(3599, 'en')).toBe('1 hour')
+    expect(formatRetryWait(3600, 'en')).toBe('1 hour')
+    expect(formatRetryWait(Number.NaN, 'en')).toBe('1 minute')
+    expect(formatRetryWait(3540, 'ja')).toBe('59 分')
+  })
+
+  it('names new conversations with strangers, with their limit, from the PostgREST details', () => {
+    const r = moderationRejectionFromError({
+      code: 'P0001',
+      message: 'ANTISPAM_RATE_LIMITED:3600',
+      details: '{"kind" : "stranger_dm", "limit" : 5, "window_seconds" : 3600}',
+      hint: 'An account can start a limited number of new conversations per hour.',
+    })
+    expect(r).toEqual({
+      code: 'ANTISPAM_RATE_LIMITED',
+      message: "New conversations with people you don't know are limited to 5 per hour. Try again in 1 hour.",
+      details: { kind: 'stranger_dm', limit: 5, window_seconds: 3600 },
+    })
+  })
+
+  it('says any other limit is reached too quickly, in minutes past a minute', () => {
+    expect(moderationRejectionFromError({
+      code: 'P0001',
+      message: 'ANTISPAM_RATE_LIMITED:1790',
+      details: '{"kind" : "follow", "limit" : 200, "window_seconds" : 3600}',
+    })?.message).toBe("You're doing that too quickly. Try again in 30 minutes.")
+  })
+
+  it('reads a refusal without details, as an older server sends it', () => {
+    expect(moderationRejectionFromError({ code: 'P0001', message: 'ANTISPAM_RATE_LIMITED:12', details: null }))
+      .toEqual({ code: 'ANTISPAM_RATE_LIMITED', message: "You're doing that too quickly. Try again in 12 seconds." })
+    expect(moderationRejectionFromError({ message: 'ANTISPAM_RATE_LIMITED:12', details: 'not json' })?.message)
+      .toBe("You're doing that too quickly. Try again in 12 seconds.")
   })
 })
 

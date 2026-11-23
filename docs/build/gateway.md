@@ -308,6 +308,8 @@ Sent to the bot that wrote a message when all of these hold: the instance's brid
 }
 ```
 
+In `mirror` mode the gateway also sends it for a message whose files it is copying when one of its attachment links has expired or carries no signature; the other files are copied first, so `content` holds their parts with `path` set, and the bot writes those back unchanged.
+
 Field names in this event are camelCase. `content` is the message's stored parts. The bot renews the URLs and writes the parts back with a [silent content patch](/build/rest#patch-content-silently). While the bot is not connected, the gateway renews them itself when the instance has its Discord bot set up. See [Attachments](/build/bridges#attachments).
 
 ### BRIDGE_CONFIG_UPDATE

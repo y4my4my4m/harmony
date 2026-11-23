@@ -1066,8 +1066,9 @@ export const useAuthStore = defineStore('auth', {
           debug.error('Error resetting view context:', error);
         });
 
-        // Send-path answers and signed media URLs belong to the account that read them.
+        // Send-path answers, signed media URLs and quick replies belong to the account that made them.
         Promise.all([
+          import('@/services/ServiceWorkerManager').then(({ forgetQuickReplies }) => forgetQuickReplies()),
           import('@/services/ChannelEncryptionService').then(({ forgetChannelEncryption }) => forgetChannelEncryption()),
           import('@/services/conversationEncryption').then(({ forgetConversationEncryption }) => forgetConversationEncryption()),
           import('@/services/privateMedia').then(({ forgetSignedMediaUrls }) => forgetSignedMediaUrls()),

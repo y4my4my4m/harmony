@@ -351,23 +351,13 @@
             <button
               v-if="bridgedExternalId"
               type="button"
-              class="secondary-action-btn"
-              :class="{ copied: bridgedIdCopied, 'single-action-btn': !bridgedProfileUrl }"
+              class="secondary-action-btn single-action-btn"
+              :class="{ copied: bridgedIdCopied }"
               data-testid="profile-bridged-copy-id"
               @click="copyBridgedId"
             >
               <Icon :name="bridgedIdCopied ? 'check' : 'copy'" :size="16" />
-              {{ bridgedIdCopied ? t('bridgeSource.profile.copied') : t('bridgeSource.profile.copyId') }}
-            </button>
-            <button
-              v-if="bridgedProfileUrl"
-              type="button"
-              class="secondary-action-btn"
-              data-testid="profile-bridged-open"
-              @click="openBridgedProfile"
-            >
-              <Icon name="external-link" :size="16" />
-              {{ t('bridgeSource.profile.open', { platform: bridgedPlatformLabel }) }}
+              {{ bridgedIdCopied ? t('bridgeSource.profile.copied') : t('bridgeSource.profile.copyId', { platform: bridgedPlatformLabel }) }}
             </button>
           </template>
 
@@ -505,9 +495,7 @@ import { pickableRoleGroups } from '@/utils/selfAssignableRoles'
 import KickBanModal from './moderation/KickBanModal.vue'
 import BridgeSourceBadge from './messages/BridgeSourceBadge.vue'
 import { bridgedProfilePlatform } from '@/services/bridgedChannelUsersService'
-import { matrixProfileUrl } from '@/utils/matrixMentions'
 import { bridgedAuthorHandle, bridgedAuthorName, bridgePlatformLabel } from '@/utils/messageAuthor'
-import { openLink } from '@/services/outsideLinks'
 import type { User, FederatedUser } from '../types'
 import Avatar from './common/Avatar.vue'
 import SupporterBadge from './common/SupporterBadge.vue'
@@ -825,14 +813,6 @@ const bridgedExternalId = computed(() => {
   return user.bridge_id || user.id.slice(bridgedPlatform.value.length + 1)
 })
 
-/** The person's page on their platform; null for an id that names none. */
-const bridgedProfileUrl = computed((): string | null => {
-  const id = bridgedExternalId.value
-  if (bridgedPlatform.value === 'matrix') return matrixProfileUrl(id)
-  if (bridgedPlatform.value === 'discord') return /^\d{5,20}$/.test(id) ? `https://discord.com/users/${id}` : null
-  return null
-})
-
 const bridgedRoleCount = computed(() => getUserRoles(props.user).length)
 
 const hasBridgedStats = computed(() => {
@@ -1146,11 +1126,6 @@ const copyBridgedId = async () => {
   } catch (error) {
     debug.error('Failed to copy bridged ID:', error)
   }
-}
-
-const openBridgedProfile = (event: MouseEvent) => {
-  if (!bridgedProfileUrl.value) return
-  openLink(bridgedProfileUrl.value, { opener: event.currentTarget instanceof HTMLElement ? event.currentTarget : null })
 }
 
 const sendDirectMessage = async () => {

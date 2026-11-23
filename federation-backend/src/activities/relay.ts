@@ -10,7 +10,8 @@
  *
  * Host: the first member to connect. A host that disconnects keeps the role for hostGraceMs; then
  * the connected member that joined earliest takes it, players before spectators. A session with
- * nobody connected for emptyGraceMs ends.
+ * nobody connected for emptyGraceMs ends; one whose last member closed with LEFT (Leave in the
+ * client) ends at once. A dropped connection or a page reload closes otherwise and keeps the grace.
  *
  * The database row hears every membership change (activity_session_sync, debounced) and a heartbeat
  * every heartbeatMs; every readmitMs each member's token is checked and the member admitted again,
@@ -24,6 +25,7 @@
  */
 
 import type { IncomingMessage, Server } from 'node:http'
+import { isIP } from 'node:net'
 import type { Duplex } from 'node:stream'
 import { WebSocket, WebSocketServer, type RawData } from 'ws'
 import {
@@ -96,6 +98,11 @@ export interface RelayOptions {
   spectatorSlots: number
   /** Largest send buffer a connection may hold before it is closed as too slow. */
   maxBufferedBytes: number
+  /** Bytes queued for sending across all connections; past it a slow reader is closed instead. */
+  bufferBudgetBytes: number
+  /** Sockets that have not said hello: process-wide and per address. */
+  maxPendingConnections: number
+  maxPendingPerAddress: number
   /** verifyToken and admit answers slower than this close the connection (4013). */
   depTimeoutMs: number
   /** WebSocket upgrades per address: sustained per second and burst. */
@@ -124,6 +131,9 @@ const DEFAULTS: RelayOptions = {
   maxConnectionsPerIp: 24,
   spectatorSlots: 16,
   maxBufferedBytes: 16 * 1024 * 1024,
+  bufferBudgetBytes: 128 * 1024 * 1024,
+  maxPendingConnections: 256,
+  maxPendingPerAddress: 8,
   depTimeoutMs: 8_000,
   upgradesPerSecond: 1,
   upgradeBurst: 20,
@@ -137,6 +147,28 @@ const DEFAULTS: RelayOptions = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_TARGETS = 64
+/** Close code and reason of a member leaving on purpose (relayConnection.ts stop()). */
+export const LEFT = { code: 1000, reason: 'left' } as const
+/** A reader holding more than this unsent is closed once the process-wide budget is reached. */
+const SLOW_READER_BYTES = 256 * 1024
+
+/**
+ * The address limits are kept per: an IPv4 address, or the /64 of an IPv6 address, the block one
+ * subscriber holds. An IPv4-mapped IPv6 address counts as its IPv4 address.
+ */
+export function addressKey(ip: string): string {
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip)
+  if (mapped) return mapped[1]
+  const bare = ip.split('%')[0].toLowerCase()
+  if (isIP(bare) !== 6) return ip
+  const width = (parts: string[]) => parts.reduce((n, part) => n + (part.includes('.') ? 2 : 1), 0)
+  const [head, tail] = bare.split('::')
+  const headParts = head ? head.split(':') : []
+  const tailParts = tail === undefined ? [] : tail ? tail.split(':') : []
+  const zeros = bare.includes('::') ? Array(8 - width(headParts) - width(tailParts)).fill('0') : []
+  const groups = [...headParts, ...zeros, ...tailParts].slice(0, 4).map((g) => parseInt(g, 16).toString(16))
+  return `${groups.join(':')}::/64`
+}
 const STRIKE_WINDOW_MS = 10_000
 const ADMIT_FAILURES = 3
 /** Profiles a session remembers (join order, member state) across reconnects. */
@@ -195,6 +227,8 @@ interface Connection {
   helloTimer: ReturnType<typeof setTimeout> | null
   tokenTimer: ReturnType<typeof setTimeout> | null
   closed: boolean
+  /** Counted against the pending caps until hello. */
+  pending: boolean
 }
 
 interface Seen {
@@ -258,6 +292,9 @@ export class ActivityRelay {
   private readonly sessions = new Map<string, Session>()
   private readonly connections = new Set<Connection>()
   private readonly perIp = new Map<string, number>()
+  private readonly pendingPerIp = new Map<string, number>()
+  private pending = 0
+  private queuedBytes = 0
   private readonly upgrades = new Map<string, Bucket>()
   private readonly dropped = new Map<string, number>()
   private storeBytes = 0
@@ -285,14 +322,15 @@ export class ActivityRelay {
       socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
       return
     }
-    const ip = this.options.clientIp(req)
+    const ip = addressKey(this.options.clientIp(req))
     let bucket = this.upgrades.get(ip)
     if (!bucket) this.upgrades.set(ip, (bucket = new Bucket(this.options.upgradesPerSecond, this.options.upgradeBurst, this.options.now())))
     if (!bucket.take(1, this.options.now())) {
       socket.end('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\nRetry-After: 10\r\n\r\n')
       return
     }
-    if (this.connections.size >= this.options.maxConnections || (this.perIp.get(ip) ?? 0) >= this.options.maxConnectionsPerIp) {
+    if (this.connections.size >= this.options.maxConnections || (this.perIp.get(ip) ?? 0) >= this.options.maxConnectionsPerIp
+      || this.pending >= this.options.maxPendingConnections || (this.pendingPerIp.get(ip) ?? 0) >= this.options.maxPendingPerAddress) {
       socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nRetry-After: 10\r\n\r\n')
       return
     }
@@ -336,9 +374,12 @@ export class ActivityRelay {
       helloTimer: null,
       tokenTimer: null,
       closed: false,
+      pending: true,
     }
     this.connections.add(conn)
     this.perIp.set(ip, (this.perIp.get(ip) ?? 0) + 1)
+    this.pending++
+    this.pendingPerIp.set(ip, (this.pendingPerIp.get(ip) ?? 0) + 1)
     conn.helloTimer = setTimeout(() => this.closeConn(conn, CLOSE.NO_HELLO, 'no hello'), this.options.helloTimeoutMs)
 
     ws.on('pong', () => { conn.alive = true })
@@ -348,7 +389,7 @@ export class ActivityRelay {
         this.closeConn(conn, CLOSE.UNAVAILABLE, 'relay error')
       })
     })
-    ws.on('close', () => this.onClose(conn))
+    ws.on('close', (code: number, reason: Buffer) => this.onClose(conn, code === LEFT.code && reason.toString() === LEFT.reason))
     ws.on('error', () => this.closeConn(conn, CLOSE.BAD_FRAME, 'socket error'))
   }
 
@@ -470,6 +511,7 @@ export class ActivityRelay {
     }
     if (conn.helloTimer) clearTimeout(conn.helloTimer)
     conn.helloTimer = null
+    this.settlePending(conn)
     // Claimed before the awaits: a second hello on this socket is refused above.
     conn.profileId = 'pending'
 
@@ -634,7 +676,7 @@ export class ActivityRelay {
     return session
   }
 
-  private onClose(conn: Connection): void {
+  private onClose(conn: Connection, left = false): void {
     conn.closed = true
     if (conn.helloTimer) clearTimeout(conn.helloTimer)
     if (conn.tokenTimer) clearTimeout(conn.tokenTimer)
@@ -642,14 +684,16 @@ export class ActivityRelay {
       const n = (this.perIp.get(conn.ip) ?? 1) - 1
       if (n <= 0) this.perIp.delete(conn.ip)
       else this.perIp.set(conn.ip, n)
+      this.settlePending(conn)
     }
     const session = conn.session
     if (!session || !conn.member || session.ended) return
     if (session.conns.get(conn.member.id) !== conn) return
-    this.removeMember(session, conn.member.id, 'left')
+    this.removeMember(session, conn.member.id, 'left', left)
   }
 
-  private removeMember(session: Session, id: string, reason: 'left' | 'timeout' | 'removed'): void {
+  /** `final`: the member left on purpose; a session it leaves empty ends without the grace. */
+  private removeMember(session: Session, id: string, reason: 'left' | 'timeout' | 'removed', final = false): void {
     session.conns.delete(id)
     this.broadcast(session, { op: 'leave', id, reason })
     if (reason === 'removed') session.seen.delete(id)
@@ -657,6 +701,10 @@ export class ActivityRelay {
     if (session.conns.size === 0) {
       if (session.hostTimer) clearTimeout(session.hostTimer)
       session.hostTimer = null
+      if (final) {
+        this.endSession(session, 'empty')
+        return
+      }
       session.emptyTimer = setTimeout(() => this.endSession(session, 'empty'), this.options.emptyGraceMs)
       session.emptyTimer.unref?.()
     } else if (session.host === id) {
@@ -814,11 +862,30 @@ export class ActivityRelay {
 
   private sendRaw(conn: Connection, text: string): void {
     if (conn.closed || conn.ws.readyState !== WebSocket.OPEN) return
-    if (conn.ws.bufferedAmount > this.options.maxBufferedBytes) {
+    const bytes = Buffer.byteLength(text)
+    if (conn.ws.bufferedAmount > this.options.maxBufferedBytes
+      || (this.queuedBytes + bytes > this.options.bufferBudgetBytes && conn.ws.bufferedAmount > SLOW_READER_BYTES)) {
       this.closeConn(conn, CLOSE.RATE_LIMITED, 'too slow')
       return
     }
-    conn.ws.send(text)
+    this.queuedBytes += bytes
+    // ws calls back once the frame is written, or with an error when the socket closes first.
+    conn.ws.send(text, () => { this.queuedBytes -= bytes })
+  }
+
+  /** Bytes handed to sockets and not yet written, for health and tests. */
+  get queuedByteCount(): number {
+    return this.queuedBytes
+  }
+
+  /** A socket leaves the pending count at hello or when it closes, whichever comes first. */
+  private settlePending(conn: Connection): void {
+    if (!conn.pending) return
+    conn.pending = false
+    this.pending--
+    const n = (this.pendingPerIp.get(conn.ip) ?? 1) - 1
+    if (n <= 0) this.pendingPerIp.delete(conn.ip)
+    else this.pendingPerIp.set(conn.ip, n)
   }
 
   private closeConn(conn: Connection, code: number, reason: string): void {

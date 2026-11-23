@@ -347,6 +347,7 @@ Does not change `edited_timestamp` and sends no event. Returns `{ "ok": true, "m
 |---|---|
 | `400` | `metadata must be a JSON object` |
 | `403` | `Bots can only update metadata on their own messages` |
+| `403` | `The author opted out of this bridge`, with `"code": "BRIDGE_AUTHOR_OPTED_OUT"`: the write names another author, and the message's author or the new one opted out |
 | `404` | `Message not found` |
 
 ### Look up a bridged message
@@ -411,6 +412,10 @@ A thread's messages carry the parent channel's `channel_id` and the thread's `th
 | `message_id` | UUID | Start the thread on this message of the channel. Without it the thread is standalone. |
 | `discord_thread_id` | string | Discord bridges: pair the new thread with this Discord thread. |
 | `discord_user` | object | With `discord_thread_id`: the Discord member who started the thread, `{ "id", "username", "display_name", "avatar_url" }`. The notice names them. |
+| `created_at` | string | With `discord_thread_id`: when the Discord thread was created, ISO 8601. |
+| `starter_discord_user_id` | string | With `discord_thread_id`: the Discord ID of the author of the message the thread starts on, when Harmony has no copy of it. |
+
+A Discord thread is titled `Thread`, and its notice names no member, when the member who started it opted out of the bridge or opted back in after `created_at`. It is titled `Thread` too when the author of its starter message (the message at `message_id`, else `starter_discord_user_id`, written when the thread's ID says) opted out, or opted back in after writing it.
 
 The server posts a system notice with no author, `metadata.type` `thread_created`, `actor_bot_id` the bot, `thread_id` and `thread_name`. A standalone thread hangs off that notice, which also carries `metadata.standalone: true`.
 
@@ -742,7 +747,7 @@ Returns the server's emoji: `id`, `name`, `url`, `server_id`, `discord_emoji_id`
 
 `GET /servers/{server.id}/emojis/discord`
 
-Only the bot of the server's Discord bridge. Returns `{ "limit", "emojis" }`. `limit` is the server's emoji limit. `emojis` holds every active emoji plus removed emoji that still carry a Discord link: `id`, `name`, `url`, `discord_emoji_id`, `removed` (boolean), `imported` (boolean: the bridge imported it, so it may [remove](#remove-a-server-emoji) it; `false` for a member's emoji, also one linked by name, and for one a person restored after the bridge removed it) and `restorable` (boolean: the bridge removed it, so `update` may restore it). The list is never partial: past 10,000 rows the answer is `500` with `"code": "LIST_TOO_LARGE"`. `403` `Bot is not the Discord bridge of this server`.
+Only the bot of the server's Discord bridge. Returns `{ "limit", "emojis" }`. `limit` is the server's emoji limit. `emojis` holds every active emoji plus removed emoji that still carry a Discord link: `id`, `name`, `url`, `discord_emoji_id`, `removed` (boolean), `imported` (boolean: the bridge imported it, so it may [remove](#remove-a-server-emoji) it; `false` for a member's emoji, also one linked by name, and for one a person restored after the bridge removed it) and `restorable` (boolean: the bridge removed it, so `update` may restore it). An emoji an instance admin purged is listed as removed, with `url` `null` and `imported` and `restorable` `false`. The list is never partial: past 10,000 rows the answer is `500` with `"code": "LIST_TOO_LARGE"`. `403` `Bot is not the Discord bridge of this server`.
 
 ### Import a Discord emoji
 
@@ -764,7 +769,7 @@ Only the bot of the server's Discord bridge.
 | `updated` | `200` | The emoji was imported before and `update` changed its name or restored it. |
 | `created` | `201` | The gateway downloaded the image from Discord's CDN (at most 512 KiB), removed its metadata and created a server emoji. |
 
-The response is `{ "status", "id", "name", "url", "discord_emoji_id", "removed" }`. Importing the same Discord emoji again never creates a second row. `400` for an invalid field; `403` `Bot is not the Discord bridge of this server`, or with `"code": "EMOJI_REMOVED"` when `update` would restore or rename an emoji a person removed; `409` with `"code": "EMOJI_LIMIT"` when the server is at its emoji limit, or `"code": "EMOJI_NAME_TAKEN"` when another emoji already has the name; `502` when the image cannot be downloaded or stored.
+The response is `{ "status", "id", "name", "url", "discord_emoji_id", "removed" }`. Importing the same Discord emoji again never creates a second row. `400` for an invalid field; `403` `Bot is not the Discord bridge of this server`, or with `"code": "EMOJI_REMOVED"` when `update` would restore or rename an emoji a person removed, or for an emoji an instance admin purged, which is never imported again; `409` with `"code": "EMOJI_LIMIT"` when the server is at its emoji limit, or `"code": "EMOJI_NAME_TAKEN"` when another emoji already has the name; `502` when the image cannot be downloaded or stored.
 
 ### Remove a server emoji
 
@@ -798,7 +803,7 @@ Only the bot of the server's Discord bridge.
 | `updated` | `200` | The sticker was imported before and `update` changed its name or description, or restored it. |
 | `created` | `201` | The gateway downloaded the image from Discord's CDN, removed its metadata and created a server sticker. |
 
-The response is `{ "status", "id", "name", "description", "url", "discord_sticker_id", "removed" }`. Importing the same Discord sticker again never creates a second row. The image is downloaded only for a new sticker, and must meet the [sticker limits](/run/stickers#add-a-sticker): PNG, APNG or GIF, at most 512 KB and 320 × 320 pixels, an animation at most 5 seconds. `400` for an invalid field; `403` `Bot is not the Discord bridge of this server`; `409` with `"code": "STICKER_LIMIT"` when the server is at its sticker limit, or `"code": "STICKER_NAME_TAKEN"` when another sticker already has the name; `422` with `"code": "STICKER_FILE"` and `"reason"` `lottie`, `type`, `size`, `dimensions` or `duration` when the sticker cannot be copied; `502` when the image cannot be downloaded or stored.
+The response is `{ "status", "id", "name", "description", "url", "discord_sticker_id", "removed" }`. Importing the same Discord sticker again never creates a second row. The image is downloaded only for a new sticker, and must meet the [sticker limits](/run/stickers#add-a-sticker): PNG, APNG or GIF, at most 512 KB and 320 × 320 pixels, an animation at most 5 seconds. `400` for an invalid field; `403` `Bot is not the Discord bridge of this server`, or with `"code": "STICKER_REMOVED"` for a sticker a person deleted on Harmony, which is never imported again; `409` with `"code": "STICKER_LIMIT"` when the server is at its sticker limit, or `"code": "STICKER_NAME_TAKEN"` when another sticker already has the name; `422` with `"code": "STICKER_FILE"` and `"reason"` `lottie`, `type`, `size`, `dimensions` or `duration` when the sticker cannot be copied; `502` when the image cannot be downloaded or stored.
 
 ### Remove a server sticker
 
@@ -833,7 +838,7 @@ Only the bot of the server's Discord bridge.
 | `updated` | `200` | The sound was imported before and `update` changed its name, emoji or volume. |
 | `created` | `201` | The gateway downloaded the clip from Discord's CDN (an MP3 or Ogg file of at most 512 KiB and 5.2 seconds) and created a server sound. |
 
-The response is `{ "status", "id", "name", "emoji", "emoji_id", "volume", "discord_sound_id" }`. Importing the same Discord sound again never creates a second row. `400` for an invalid field; `403` `Bot is not the Discord bridge of this server`; `409` with `"code": "SOUND_LIMIT"` when the server already holds 48 sounds; `502` when the clip cannot be downloaded or stored.
+The response is `{ "status", "id", "name", "emoji", "emoji_id", "volume", "discord_sound_id" }`. Importing the same Discord sound again never creates a second row. `400` for an invalid field; `403` `Bot is not the Discord bridge of this server`, or with `"code": "SOUND_REMOVED"` for a sound a person deleted on Harmony, which is never imported again; `409` with `"code": "SOUND_LIMIT"` when the server already holds 48 sounds; `502` when the clip cannot be downloaded or stored.
 
 ### Delete a server sound
 

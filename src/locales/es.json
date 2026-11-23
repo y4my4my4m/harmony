@@ -6,28 +6,133 @@
       "memberSince": "En {platform} desde",
       "status": "Estado",
       "roles": "Rol | Roles",
-      "copyId": "Copiar ID",
-      "copied": "Copiado",
-      "open": "Abrir en {platform}"
+      "copyId": "Copiar ID de {platform}",
+      "copied": "Copiado"
     }
   },
   "matrixBridge": {
     "title": "Puente de Matrix",
-    "pairsTitle": "Canales conectados",
-    "description": "Elige cómo se envían los mensajes de Harmony a tus puentes de salas de Matrix existentes.",
-    "requirements": "El modo individual utiliza miembros reales de Matrix para los autores de Harmony. Requiere un espacio de nombres de usuarios del servicio de aplicaciones y permiso para invitarlos a la sala de Matrix.",
-    "history": "Los cambios de modo solo afectan a futuras entregas. Se conserva el historial existente.",
-    "delivery": "Elegir el modo individual no confirma el registro ni la entrega. Comprueba el remitente en un mensaje entregado correctamente en Matrix.",
+    "description": "Conecta canales de este servidor con salas de Matrix. Los mensajes enviados en un lado aparecen en el otro, con el nombre de quien los envió.",
     "loading": "Cargando puentes de Matrix…",
     "reload": "Recargar",
-    "empty": "No hay puentes de Matrix configurados para este servidor.",
-    "waitingRoom": "Esperando a que el puente conecte una sala de Matrix. Ya puedes guardar el modo.",
-    "senderMode": "Enviar mensajes de Harmony como",
-    "ghost": "Usuarios individuales del puente (recomendado)",
-    "relay": "Cuenta compartida del puente",
-    "saving": "Guardando modo…",
-    "loadError": "No se pudieron cargar los ajustes del puente de Matrix. Recarga para volver a intentarlo.",
-    "saveError": "No se pudo confirmar el cambio de modo. Recarga para comprobar el ajuste actual.",
+    "loadError": "No se pudo cargar la configuración del puente de Matrix. Recarga para intentarlo de nuevo.",
+    "saveError": "No se pudo confirmar el cambio. Recarga para ver la configuración actual.",
+    "status": {
+      "none": "Sin configurar",
+      "connected": "Conectado a Matrix",
+      "waiting": "Esperando salas de Matrix",
+      "problem": "Requiere atención",
+      "line": {
+        "none": "Ningún canal de este servidor está conectado a Matrix todavía.",
+        "connected": "Cada canal conectado tiene una sala de Matrix.",
+        "waiting": "{count} canal espera a que el puente conecte una sala de Matrix. | {count} canales esperan a que el puente conecte una sala de Matrix.",
+        "problem": "{count} canal conectado no se está puenteando. Su tarjeta, más abajo, explica cómo arreglarlo. | {count} canales conectados no se están puenteando. Sus tarjetas, más abajo, explican cómo arreglarlo."
+      },
+      "facts": {
+        "bot": "Bot del puente | Bots del puente",
+        "paired": "Canales conectados",
+        "rooms": "Conectados a una sala",
+        "waiting": "Esperando una sala",
+        "stopped": "Sin puentear"
+      },
+      "unseen": "Harmony no puede saber si el servicio del puente está en marcha. Para comprobarlo, envía un mensaje en un canal conectado y búscalo en Matrix."
+    },
+    "pairs": {
+      "title": "Canales conectados",
+      "listLabel": "Canales conectados con Matrix",
+      "empty": "Todavía no hay ningún canal conectado con Matrix.",
+      "harmony": "Harmony",
+      "matrix": "Matrix",
+      "waitingRoom": "Esperando a que el puente conecte una sala",
+      "badge": {
+        "connected": "Conectado",
+        "waiting": "Esperando una sala",
+        "stopped": "Sin puentear"
+      },
+      "waitingFix": "El puente conecta una sala en cuanto este canal está en su configuración: pide a quien gestiona el puente que lo añada. Ya puedes elegir cómo aparecen los miembros.",
+      "stoppedFix": "{bot} ya no puede puentear #{channel}: el bot está desactivado, perdió «Leer mensajes» o «Enviar mensajes», o #{channel} salió de su lista de canales. Arréglalo en Configuración del servidor → Configuración avanzada → Bots del servidor.",
+      "via": "A través de {bot}",
+      "senderMode": "Cómo aparecen los miembros de Harmony en Matrix",
+      "mode": {
+        "ghost": "Como sus propios usuarios de Matrix (recomendado)",
+        "relay": "A través de una cuenta compartida del puente"
+      },
+      "modeHint": {
+        "ghost": "Cada miembro aparece en la sala con su propio nombre e imagen.",
+        "relay": "Cada mensaje sale de la cuenta del puente, con el nombre del miembro delante."
+      },
+      "saving": "Guardando…",
+      "edit": "Cambiar canales conectados",
+      "notOwner": "Solo quien es dueño de {bot} puede cambiar qué canales puentea. Aun así puedes elegir cómo aparecen los miembros o desconectarlo."
+    },
+    "modes": {
+      "title": "Cómo funcionan las dos opciones",
+      "ghost": "Como sus propios usuarios de Matrix: el puente crea un usuario de Matrix para cada miembro de Harmony que puede ver el canal, con su nombre e imagen, y la gente en Matrix los menciona con el autocompletado de {'@'} de siempre. Esto requiere que el espacio de nombres de usuarios del puente esté registrado en el servidor doméstico de Matrix y que la cuenta del puente pueda invitar gente a la sala. Si falta algo, el puente informa de un error; no cambia por su cuenta a la cuenta compartida.",
+      "relay": "A través de una cuenta compartida del puente: cada mensaje sale de la cuenta del puente con el nombre del autor delante, y no se crean usuarios de Matrix. La gente en Matrix menciona a un miembro de Harmony escribiendo !mention y su nombre de usuario exacto.",
+      "future": "Un cambio solo afecta a los mensajes nuevos. Los mensajes ya puenteados se quedan como están.",
+      "verify": "Guardar aquí no demuestra que el puente haya aplicado el cambio: comprueba un mensaje nuevo en la sala de Matrix."
+    },
+    "setup": {
+      "title": "Conectar canales con Matrix",
+      "editTitle": "Cambiar canales conectados",
+      "lead": "Elige el bot que hace funcionar tu puente de Matrix y los canales que puentea. Cada canal recibe su sala de Matrix en cuanto está en la configuración del puente.",
+      "bot": "Bot del puente",
+      "channels": "Canales para puentear",
+      "notAllowed": "No está en la lista de canales de {bot}",
+      "notAllowedHelp": "Un canal en gris no está en la lista de canales de {bot}. Para añadirlo, abre Configuración del servidor → Configuración avanzada → Bots del servidor, elige Canales junto a {bot} y márcalo.",
+      "noChannels": "Este servidor no tiene canales de texto que puedas ver.",
+      "pickOne": "Elige al menos un canal.",
+      "pickOneEdit": "Elige al menos un canal. Para dejar de puentearlos todos, usa Desconectar más abajo.",
+      "save": "Conectar canales",
+      "saveEdit": "Guardar canales",
+      "saving": "Guardando…",
+      "cancel": "Cancelar",
+      "saved": "{count} canal está conectado con Matrix. | {count} canales están conectados con Matrix."
+    },
+    "guide": {
+      "title": "Configurar un puente de Matrix",
+      "lead": "Para conectar canales aquí necesitas un bot propio que haga funcionar el puente de Matrix y que esté en este servidor.",
+      "steps": {
+        "service": "Quien gestiona esta instancia de Harmony configura el servicio del puente de Matrix y lo registra en el servidor doméstico de Matrix. Pregúntale si aún no está en marcha.",
+        "bot": "Crea un bot para el puente en {place} y entrega su token a quien gestiona el puente.",
+        "install": "Añade el bot a este servidor en {place}. Dale «Leer mensajes» y «Enviar mensajes»; luego, en Canales, elige «Canales seleccionados» y marca los canales que quieras puentear.",
+        "pair": "Vuelve aquí para conectar esos canales."
+      },
+      "places": {
+        "myBots": "Configuración de usuario → Mis bots",
+        "serverBots": "Configuración del servidor → Configuración avanzada → Bots del servidor"
+      },
+      "link": "Leer la guía del puente de Matrix",
+      "newTab": "(se abre en una pestaña nueva)",
+      "blockedTitle": "Tu bot en este servidor aún no puede puentear: | Tus bots en este servidor aún no pueden puentear:",
+      "blockedItem": "{bot}: {reason}",
+      "block": {
+        "bot_inactive": "está desactivado. Actívalo en Configuración de usuario → Mis bots.",
+        "install_inactive": "está desactivado en este servidor. Vuelve a añadirlo en Configuración del servidor → Configuración avanzada → Bots del servidor.",
+        "read_send": "necesita «Leer mensajes» y «Enviar mensajes». Dáselos en Permisos, en Configuración del servidor → Configuración avanzada → Bots del servidor.",
+        "all_channels": "puede usar todos los canales, y un puente necesita una lista. En Canales, en Configuración del servidor → Configuración avanzada → Bots del servidor, elige «Canales seleccionados».",
+        "no_channels": "su lista de canales no tiene ningún canal de texto. Marca algunos en Canales, en Configuración del servidor → Configuración avanzada → Bots del servidor."
+      }
+    },
+    "unpair": {
+      "title": "Desconectar de Matrix",
+      "lead": "Al desconectar un bot, deja de puentear todos sus canales de aquí. Los mensajes ya puenteados se quedan en ambos lados.",
+      "item": "{bot}: {count} canal | {bot}: {count} canales",
+      "button": "Desconectar",
+      "label": "Desconectar {bot} de Matrix",
+      "confirmTitle": "¿Desconectar {bot}?",
+      "confirmMessage": "{bot} dejará de puentear {count} canal con Matrix. Los mensajes ya puenteados se quedan. Pide también a quien gestiona el puente que quite la sala de su configuración. | {bot} dejará de puentear {count} canales con Matrix. Los mensajes ya puenteados se quedan. Pide también a quien gestiona el puente que quite las salas de su configuración.",
+      "done": "{bot} está desconectado de Matrix."
+    },
+    "errors": {
+      "discordBot": "Este bot hace funcionar un puente de Discord, así que no puede puentear Matrix también. Usa otro bot.",
+      "allowlist": "Un canal elegido ya no está en la lista de canales del bot. Recarga y vuelve a elegir.",
+      "install": "El bot está desactivado, o le faltan «Leer mensajes», «Enviar mensajes» o una lista de canales en este servidor.",
+      "permission": "Solo quien es dueño del bot, con «Gestionar servidor» en este servidor, puede conectar sus canales.",
+      "save": "No se pudieron guardar los canales conectados. Recarga e inténtalo de nuevo.",
+      "unpair": "No se pudo desconectar el bot. Recarga e inténtalo de nuevo.",
+      "installs": "No se pudieron cargar tus bots, así que ahora no se pueden conectar canales desde aquí. Recarga para intentarlo de nuevo."
+    },
     "privacy": {
       "lead": "Quita aquí a un usuario de Matrix para borrar todo lo que el puente de este servidor trajo de él y dejar de traer sus mensajes.",
       "idLabel": "ID de usuario de Matrix",
@@ -1646,7 +1751,8 @@
       "leaveFailed": "No se pudo salir del grupo",
       "deleted": "Grupo eliminado",
       "deleteFailed": "No se pudo eliminar el grupo"
-    }
+    },
+    "callUndeliverable": "No se pudo realizar tu llamada."
   },
   "user": {
     "panelToggle": "Tu cuenta y controles de voz",
@@ -4708,7 +4814,8 @@
     },
     "timedOut": "Tienes tiempo fuera en este servidor hasta {time} y no puedes enviar mensajes, reaccionar ni iniciar hilos.",
     "antispam": {
-      "rateLimited": "Lo estás haciendo demasiado rápido. Inténtalo de nuevo en {seconds} s.",
+      "rateLimited": "Lo estás haciendo demasiado rápido. Inténtalo de nuevo en {wait}.",
+      "strangerConversations": "Las conversaciones nuevas con personas que no conoces están limitadas a {count} por hora. Inténtalo de nuevo en {wait}.",
       "linksBlocked": "Las cuentas nuevas aún no pueden publicar enlaces.",
       "strangerMentions": "Las cuentas nuevas pueden mencionar como máximo a {count} personas que no las siguen.",
       "serverLimit": "Una cuenta puede poseer como máximo {count} servidores en esta instancia.",
@@ -6596,6 +6703,9 @@
       "cancel": "Cancelar",
       "cancelLabel": "Cancelar la importación de #{channel}",
       "cancelling": "Cancelando…",
+      "stopNow": "Detener ahora",
+      "stopNowLabel": "Detener ahora la importación de #{channel}",
+      "stopNowHint": "El puente se detiene en su siguiente paso. Si está desconectado, «Detener ahora» termina la importación aquí.",
       "waiting": "En espera",
       "running": "Importando… {percent} %",
       "runningUnknown": "Importando…",
@@ -7660,6 +7770,9 @@
   },
   "activities": {
     "title": "Ver o escuchar juntos",
+    "launcherTitle": "Actividades",
+    "launcherSubtitleCall": "Ver, escuchar o jugar juntos en esta llamada",
+    "playHeading": "Jugar",
     "addTitle": "Añadir a la actividad",
     "lede": "Todos en la llamada reproducen lo mismo en el mismo momento. Pega un enlace de YouTube, SoundCloud o Spotify, un enlace a un archivo de video o audio, o elige uno de tu Drive.",
     "linkPlaceholder": "Pega un enlace",
@@ -9034,11 +9147,13 @@
       "ACTIVITY_CONTEXT_UNSUPPORTED": "Esta actividad no puede ejecutarse aquí.",
       "ACTIVITY_RATE_LIMITED": "Has iniciado muchas actividades. Inténtalo de nuevo en unos minutos.",
       "NOT_FOUND": "No puedes jugar aquí.",
-      "DM_BLOCKED": "No puedes jugar con esta persona.",
       "SERVER_NOT_LOCAL": "Las actividades solo funcionan en servidores alojados en esta instancia.",
       "CHANNEL_TYPE": "Las actividades funcionan en canales de texto y de voz.",
       "NOT_IN_CALL": "Únete a la llamada para jugar.",
       "CANNOT_SEND": "No puedes enviar mensajes en este canal.",
+      "MEMBER_TIMED_OUT": "Estás aislado temporalmente en este servidor.",
+      "WEBVIEW_OUTDATED": "Actualiza Android System WebView para jugar actividades.",
+      "PACKAGE_DESKTOP_ONLY": "Esta actividad se juega en Harmony en un ordenador.",
       "NOT_LOCAL_ACCOUNT": "Solo las cuentas de esta instancia pueden jugar aquí.",
       "ENDED": "Esa actividad ha terminado.",
       "FULL": "Esta actividad está llena.",
@@ -9105,6 +9220,7 @@
       }
     },
     "thirdParty": "De terceros",
+    "desktopOnly": "Solo ordenador",
     "thirdPartyNotice": "Actividad de terceros, instalada por esta instancia. Harmony nunca te pide la contraseña dentro de una actividad."
   }
 }

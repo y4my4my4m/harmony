@@ -30,6 +30,8 @@ function setup(opts: {
   content?: any[]
   mode?: 'link' | 'refresh' | 'mirror'
   claimed?: boolean
+  /** claim_id on the claimed row; absent as on a database before 20261123100001. */
+  claimId?: string
   attempts?: number
   connected?: boolean
   walkDone?: boolean
@@ -56,7 +58,9 @@ function setup(opts: {
       case 'bridge_mirror_observe': return { walk_done: opts.walkDone ?? true }
       case 'bridge_mirror_backfill': return 3
       case 'bridge_mirror_claim':
-        return opts.claimed === false ? [] : [{ message_id: 'm1', attempts: opts.attempts ?? 0 }]
+        return opts.claimed === false ? [] : [{
+          message_id: 'm1', attempts: opts.attempts ?? 0, ...(opts.claimId ? { claim_id: opts.claimId } : {}),
+        }]
       case 'update_message_content_silent':
         if (opts.updateThrows !== undefined) {
           throw Object.assign(new Error('update_message_content_silent failed: boom'), { code: opts.updateThrows })
@@ -204,6 +208,69 @@ describe('MirrorWorker.tick', () => {
     await t.worker.tick()
     expect(t.gateway.sendToBot).not.toHaveBeenCalled()
     expect(t.finish()[0]).toMatchObject({ p_state: 'queued', p_retry_seconds: 900, p_attempts: 2 })
+  })
+
+  it('stores the signed links of a message while another waits for the bridge to re-sign it', async () => {
+    // An unsigned attachment link, as a deleted attachment is left: Discord no longer signs it.
+    const dead = 'https://cdn.discordapp.com/attachments/1/2/a.png'
+    const content = [{ type: 'file', url: dead }, { type: 'file', url: fresh('b') }]
+    const t = setup({ content, attempts: 1 })
+    await t.worker.tick()
+    expect(t.mirror).toHaveBeenCalledTimes(1)
+    expect(t.mirror.mock.calls[0][0]).toBe(fresh('b'))
+    const upd = t.calls.find((c) => c[0] === 'update_message_content_silent')![1]
+    expect(upd.p_content[0]).toEqual({ type: 'file', url: dead })
+    expect(upd.p_content[1].path).toBe('c/c1/bridge/b1/B.png')
+    expect(t.gateway.sendToBot).toHaveBeenCalledWith('b1', {
+      op: 0, t: 'REFRESH_ATTACHMENTS', d: { messageId: 'm1', channelId: 'c1', content: upd.p_content },
+    })
+    expect(t.finish()).toEqual([expect.objectContaining({ p_state: 'queued', p_retry_seconds: 120, p_attempts: 2 })])
+    expect(t.discard).not.toHaveBeenCalled()
+  })
+
+  it('fails on the fifth refresh with the other files stored', async () => {
+    const t = setup({ content: [{ type: 'file', url: stale('a') }, { type: 'file', url: fresh('b') }], attempts: 4 })
+    await t.worker.tick()
+    expect(t.calls.find((c) => c[0] === 'update_message_content_silent')![1].p_content[1].path).toBe('c/c1/bridge/b1/B.png')
+    expect(t.finish()[0]).toMatchObject({ p_state: 'failed', p_attempts: 5, p_error: 'Discord would not refresh the link' })
+  })
+
+  it('stores the signed links while the bot is offline, and waits 900 s for the rest', async () => {
+    const t = setup({ content: [{ type: 'file', url: stale('a') }, { type: 'file', url: fresh('b') }], attempts: 2, connected: false })
+    await t.worker.tick()
+    expect(t.mirror).toHaveBeenCalledTimes(1)
+    expect(t.calls.find((c) => c[0] === 'update_message_content_silent')![1].p_content[1].path).toBe('c/c1/bridge/b1/B.png')
+    expect(t.gateway.sendToBot).not.toHaveBeenCalled()
+    expect(t.finish()[0]).toMatchObject({ p_state: 'queued', p_retry_seconds: 900, p_attempts: 2 })
+  })
+
+  it('asks for the refresh with the content an edit left, after re-applying the stored path', async () => {
+    const original = [{ type: 'file', url: stale('a') }, { type: 'file', url: fresh('b') }]
+    const edited = [{ type: 'text', text: 'edited' }, ...original]
+    const t = setup({ content: original, updateResults: [false, true], rereads: [
+      { id: 'm1', content: original, channel_id: 'c1', bot_id: 'b1' },
+      { id: 'm1', content: edited, channel_id: 'c1', bot_id: 'b1' },
+    ] })
+    await t.worker.tick()
+    const sent = (t.gateway.sendToBot.mock.calls as any[])[0][1].d.content
+    expect(sent[0]).toEqual({ type: 'text', text: 'edited' })
+    expect(sent[1].url).toBe(stale('a'))
+    expect(sent[2].path).toBe('c/c1/bridge/b1/B.png')
+  })
+
+  it('passes the claim id of the row to every outcome', async () => {
+    for (const opts of [{}, { content: [{ type: 'file', url: stale() }] }, { mirror: vi.fn(async () => { throw new Error('boom') }) }]) {
+      const t = setup({ claimId: 'k1', ...opts })
+      await t.worker.tick()
+      expect(t.finish()).toHaveLength(1)
+      expect(t.finish()[0].p_claim_id).toBe('k1')
+    }
+  })
+
+  it('sends no claim id to a database whose claim returns none', async () => {
+    const t = setup()
+    await t.worker.tick()
+    expect(t.finish()[0]).not.toHaveProperty('p_claim_id')
   })
 
   it('writes the other part and finishes too_large', async () => {

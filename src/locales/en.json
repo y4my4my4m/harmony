@@ -6,28 +6,133 @@
       "memberSince": "{platform} member since",
       "status": "Status",
       "roles": "Role | Roles",
-      "copyId": "Copy ID",
-      "copied": "Copied",
-      "open": "Open on {platform}"
+      "copyId": "Copy {platform} ID",
+      "copied": "Copied"
     }
   },
   "matrixBridge": {
     "title": "Matrix bridge",
-    "pairsTitle": "Paired channels",
-    "description": "Choose how Harmony messages are sent to your existing Matrix room bridges.",
-    "requirements": "Individual mode uses real Matrix members for Harmony authors. It requires an application-service user namespace and permission to invite them into the Matrix room.",
-    "history": "Mode changes affect future deliveries only. Existing history is preserved.",
-    "delivery": "Choosing individual mode does not confirm registration or delivery. Verify the sender on a successfully delivered message in Matrix.",
+    "description": "Link channels on this server with rooms on Matrix. Messages sent on either side show up on the other, with the name of whoever sent them.",
     "loading": "Loading Matrix bridges…",
     "reload": "Reload",
-    "empty": "No configured Matrix bridges for this server.",
-    "waitingRoom": "Waiting for the bridge to connect a Matrix room. Your mode choice can be saved now.",
-    "senderMode": "Send Harmony messages as",
-    "ghost": "Individual bridged users (recommended)",
-    "relay": "Shared bridge account",
-    "saving": "Saving mode…",
     "loadError": "Could not load Matrix bridge settings. Reload to try again.",
-    "saveError": "Could not confirm the mode change. Reload to check the current setting.",
+    "saveError": "Could not confirm the change. Reload to check the current setting.",
+    "status": {
+      "none": "Not set up",
+      "connected": "Bridged to Matrix",
+      "waiting": "Waiting for Matrix rooms",
+      "problem": "Needs attention",
+      "line": {
+        "none": "No channel on this server is bridged to Matrix yet.",
+        "connected": "Every paired channel has a Matrix room.",
+        "waiting": "{count} channel is waiting for the bridge to connect a Matrix room. | {count} channels are waiting for the bridge to connect a Matrix room.",
+        "problem": "{count} paired channel isn't being bridged. Its card below says how to fix it. | {count} paired channels aren't being bridged. Their cards below say how to fix them."
+      },
+      "facts": {
+        "bot": "Bridge bot | Bridge bots",
+        "paired": "Paired channels",
+        "rooms": "Connected to a room",
+        "waiting": "Waiting for a room",
+        "stopped": "Not being bridged"
+      },
+      "unseen": "Harmony can't tell whether the bridge service is running. To check, send a message in a paired channel and look for it in Matrix."
+    },
+    "pairs": {
+      "title": "Paired channels",
+      "listLabel": "Channels paired with Matrix",
+      "empty": "No channel is paired with Matrix yet.",
+      "harmony": "Harmony",
+      "matrix": "Matrix",
+      "waitingRoom": "Waiting for the bridge to connect a room",
+      "badge": {
+        "connected": "Connected",
+        "waiting": "Waiting for a room",
+        "stopped": "Not being bridged"
+      },
+      "waitingFix": "The bridge connects a room once this channel is in its configuration: ask whoever runs the bridge to add it. You can already choose how members appear.",
+      "stoppedFix": "{bot} can't bridge #{channel} anymore: the bot is turned off, lost Read messages or Send messages, or #{channel} left its channel list. Fix it in Server settings → Advanced settings → Server bots.",
+      "via": "Through {bot}",
+      "senderMode": "Harmony members appear in Matrix",
+      "mode": {
+        "ghost": "As their own Matrix users (recommended)",
+        "relay": "Through one shared bridge account"
+      },
+      "modeHint": {
+        "ghost": "Each member shows up in the room with their own name and picture.",
+        "relay": "Every message comes from the bridge's account, with the member's name in front."
+      },
+      "saving": "Saving…",
+      "edit": "Change paired channels",
+      "notOwner": "Only the owner of {bot} can change which channels it bridges. You can still choose how members appear, or unpair it."
+    },
+    "modes": {
+      "title": "How the two choices work",
+      "ghost": "As their own Matrix users: the bridge adds a Matrix user for each Harmony member who can see the channel, with their name and picture, and people on Matrix mention them with the usual {'@'} autocomplete. This needs the bridge's user namespace registered on the Matrix homeserver, and the bridge account allowed to invite people into the room. If either is missing, the bridge reports an error; it does not switch to the shared account by itself.",
+      "relay": "Through one shared bridge account: every message comes from the bridge account with the author's name in front, and no Matrix users are added. People on Matrix mention a Harmony member by typing !mention and the member's exact username.",
+      "future": "A change applies to new messages only. Messages already bridged stay as they are.",
+      "verify": "Saving here doesn't prove the bridge has taken the change: check a new message in the Matrix room."
+    },
+    "setup": {
+      "title": "Pair channels with Matrix",
+      "editTitle": "Change paired channels",
+      "lead": "Choose the bot that runs your Matrix bridge and the channels it bridges. Each channel gets its Matrix room once it's in the bridge's configuration.",
+      "bot": "Bridge bot",
+      "channels": "Channels to bridge",
+      "notAllowed": "Not in {bot}'s channel list",
+      "notAllowedHelp": "A greyed-out channel isn't in {bot}'s channel list. To add one, open Server settings → Advanced settings → Server bots, choose Channels next to {bot}, and tick it.",
+      "noChannels": "This server has no text channels you can see.",
+      "pickOne": "Choose at least one channel.",
+      "pickOneEdit": "Choose at least one channel. To stop bridging all of them, use Unpair below.",
+      "save": "Pair channels",
+      "saveEdit": "Save channels",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "saved": "{count} channel is paired with Matrix. | {count} channels are paired with Matrix."
+    },
+    "guide": {
+      "title": "Set up a Matrix bridge",
+      "lead": "To pair channels here, you need a bot of your own that runs the Matrix bridge and is in this server.",
+      "steps": {
+        "service": "Whoever runs this Harmony instance sets up the Matrix bridge service and registers it with the Matrix homeserver. Ask them if it isn't running yet.",
+        "bot": "Create a bot for the bridge in {place}, and give its token to whoever runs the bridge.",
+        "install": "Add the bot to this server in {place}. Give it Read messages and Send messages, then under Channels choose Selected channels and tick the channels to bridge.",
+        "pair": "Come back here to pair those channels."
+      },
+      "places": {
+        "myBots": "User settings → My bots",
+        "serverBots": "Server settings → Advanced settings → Server bots"
+      },
+      "link": "Read the Matrix bridge guide",
+      "newTab": "(opens in a new tab)",
+      "blockedTitle": "Your bot in this server can't bridge yet: | Your bots in this server can't bridge yet:",
+      "blockedItem": "{bot}: {reason}",
+      "block": {
+        "bot_inactive": "it is turned off. Turn it on in User settings → My bots.",
+        "install_inactive": "it is turned off in this server. Add it again in Server settings → Advanced settings → Server bots.",
+        "read_send": "it needs Read messages and Send messages. Give them under Permissions in Server settings → Advanced settings → Server bots.",
+        "all_channels": "it may use every channel, and a bridge needs a list. Under Channels in Server settings → Advanced settings → Server bots, choose Selected channels.",
+        "no_channels": "its channel list has no text channel. Tick some under Channels in Server settings → Advanced settings → Server bots."
+      }
+    },
+    "unpair": {
+      "title": "Unpair from Matrix",
+      "lead": "Unpairing a bot stops it bridging every channel it pairs here. Messages already bridged stay on both sides.",
+      "item": "{bot}: {count} channel | {bot}: {count} channels",
+      "button": "Unpair",
+      "label": "Unpair {bot} from Matrix",
+      "confirmTitle": "Unpair {bot}?",
+      "confirmMessage": "{bot} stops bridging {count} channel with Matrix. Messages already bridged stay. Ask whoever runs the bridge to take the room out of its configuration too. | {bot} stops bridging {count} channels with Matrix. Messages already bridged stay. Ask whoever runs the bridge to take the rooms out of its configuration too.",
+      "done": "{bot} is unpaired from Matrix."
+    },
+    "errors": {
+      "discordBot": "This bot runs a Discord bridge, so it can't bridge Matrix too. Use a separate bot.",
+      "allowlist": "A chosen channel isn't in the bot's channel list anymore. Reload and choose again.",
+      "install": "The bot is turned off, or lacks Read messages, Send messages or a channel list in this server.",
+      "permission": "Only the bot's owner, with Manage Server on this server, can pair its channels.",
+      "save": "Could not save the paired channels. Reload and try again.",
+      "unpair": "Could not unpair the bot. Reload and try again.",
+      "installs": "Could not load your bots, so channels can't be paired from here right now. Reload to try again."
+    },
     "privacy": {
       "lead": "Remove a Matrix user here to delete everything this server's bridge brought from them and stop bringing their messages.",
       "idLabel": "Matrix user ID",
@@ -1695,7 +1800,8 @@
       "leaveFailed": "Failed to leave group",
       "deleted": "Group deleted",
       "deleteFailed": "Failed to delete group"
-    }
+    },
+    "callUndeliverable": "Your call could not be placed."
   },
   "announcements": {
     "title": "Announcements",
@@ -4708,7 +4814,8 @@
     },
     "timedOut": "You are timed out in this server until {time} and cannot send messages, react or start threads.",
     "antispam": {
-      "rateLimited": "You're doing that too quickly. Try again in {seconds} s.",
+      "rateLimited": "You're doing that too quickly. Try again in {wait}.",
+      "strangerConversations": "New conversations with people you don't know are limited to {count} per hour. Try again in {wait}.",
       "linksBlocked": "New accounts cannot post links yet.",
       "strangerMentions": "New accounts can mention at most {count} people who do not follow them.",
       "serverLimit": "An account can own at most {count} servers on this instance.",
@@ -6592,6 +6699,9 @@
       "cancel": "Cancel",
       "cancelLabel": "Cancel the import for #{channel}",
       "cancelling": "Cancelling…",
+      "stopNow": "Stop now",
+      "stopNowLabel": "Stop the import for #{channel} now",
+      "stopNowHint": "The bridge stops at its next step. If it is offline, Stop now ends the import here.",
       "waiting": "Waiting",
       "running": "Importing… {percent}%",
       "runningUnknown": "Importing…",
@@ -7956,6 +8066,9 @@
   },
   "activities": {
     "title": "Watch or listen together",
+    "launcherTitle": "Activities",
+    "launcherSubtitleCall": "Watch, listen or play together in this call",
+    "playHeading": "Play",
     "addTitle": "Add to the activity",
     "lede": "Everyone in the call plays the same thing at the same moment. Paste a YouTube, SoundCloud or Spotify link, a video or audio file link, or pick from your Drive.",
     "linkPlaceholder": "Paste a link",
@@ -9030,11 +9143,13 @@
       "ACTIVITY_CONTEXT_UNSUPPORTED": "This activity can’t run here.",
       "ACTIVITY_RATE_LIMITED": "You’ve started a lot of activities. Try again in a few minutes.",
       "NOT_FOUND": "You can’t play here.",
-      "DM_BLOCKED": "You can’t play with this person.",
       "SERVER_NOT_LOCAL": "Activities run only on servers this instance hosts.",
       "CHANNEL_TYPE": "Activities run in text and voice channels.",
       "NOT_IN_CALL": "Join the call to play.",
       "CANNOT_SEND": "You can’t send messages in this channel.",
+      "MEMBER_TIMED_OUT": "You are timed out in this server.",
+      "WEBVIEW_OUTDATED": "Update Android System WebView to play activities.",
+      "PACKAGE_DESKTOP_ONLY": "This activity plays in Harmony on a computer.",
       "NOT_LOCAL_ACCOUNT": "Only accounts of this instance can play here.",
       "ENDED": "That activity has ended.",
       "FULL": "This activity is full.",
@@ -9101,6 +9216,7 @@
       }
     },
     "thirdParty": "Third-party",
+    "desktopOnly": "Computer only",
     "thirdPartyNotice": "Third-party activity, installed by this instance. Harmony never asks for your password inside an activity."
   }
 }

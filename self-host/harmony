@@ -20,6 +20,8 @@
 #   harmony auth add-provider ID --name N --issuer URL --client-id C [...]
 #                                   add or update one (OIDC; OAuth 2.0 takes
 #                                   --authorize-url, --token-url, --userinfo-url);
+#                                   it reads userinfo, or the ID token with
+#                                   --id-token (--userinfo switches back);
 #                                   its accounts stay apart from existing ones
 #                                   unless --link-existing-accounts
 #   harmony auth remove-provider ID
@@ -44,7 +46,7 @@ SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 # shellcheck source=lib.sh
 source "$(dirname "$SELF")/lib.sh"
 
-usage() { sed -n '2,39p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,41p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 need_config() { [[ -f "$ENV_FILE" ]] || die "not installed yet: $SELF_HOST_DIR/harmony install"; }
 

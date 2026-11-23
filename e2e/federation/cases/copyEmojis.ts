@@ -14,7 +14,13 @@
 //   - a Group without harmony:emojis (1.9.6 and older) leaves them as they are;
 //   - the Group's Update renames one and removes the other; the same Update signed by a member
 //     changes nothing;
-//   - fx_bob's reaction with the copy's emoji reaches the peer naming the peer's image.
+//   - fx_bob's reaction with the copy's emoji reaches the peer naming the peer's image;
+//   - the Group relays a member's reaction with its emoji, then its Undo after a row of the same
+//     image without a Group id appeared here: the Undo removes the reaction from the copy's row;
+//   - two rows cached for one image hold reactions; the Update that lists the image takes over
+//     the older and moves the newer's reactions onto it: one pill;
+//   - an instance admin's removal of a copy's emoji holds after the admin's account is deleted
+//     (deleted_by cleared) when the Group lists the emoji again.
 //
 // The BullMQ worker is not part of this harness: the job handlers are called as the worker would.
 
@@ -32,6 +38,10 @@ const H_WAVE = 'fed00287-0000-0000-0000-0000000000a1'
 const P_WAVE = 'fed00287-0000-0000-0000-0000000000b1'
 const P_DANCE = 'fed00287-0000-0000-0000-0000000000b2'
 const CACHED = 'fed00287-0000-0000-0000-0000000000c1'
+const P_SPIN = 'fed00287-0000-0000-0000-0000000000b3'
+const SPIN_OLD = 'fed00287-0000-0000-0000-0000000000c2'
+const SPIN_NEW = 'fed00287-0000-0000-0000-0000000000c3'
+const PLAIN_WAVE = 'fed00287-0000-0000-0000-0000000000c4'
 const PEER_MESSAGE = 'fed00287-0000-0000-0000-000000000001'
 
 interface Captured { method: string; url: string; headers: Record<string, string>; raw: Buffer }
@@ -86,7 +96,8 @@ export async function caseCopyEmojis(ctx: CopyEmojisContext): Promise<void> {
     peer.extraGroupFields = {}
     await db.from('reactions').delete().eq('message_id', PEER_MESSAGE)
     await db.from('messages').delete().eq('id', PEER_MESSAGE)
-    await db.from('emojis').delete().in('id', [H_WAVE, CACHED])
+    await db.from('emojis').delete().in('id', [H_WAVE, CACHED, SPIN_OLD, SPIN_NEW, PLAIN_WAVE])
+    await db.from('user_servers').delete().eq('server_id', ids.remoteRef).eq('user_id', ids.remote)
     await db.from('emojis').delete().eq('server_id', ids.remoteRef).not('ap_id', 'is', null)
     await db.from('servers').update({ allow_cross_server_emojis: true }).eq('id', ids.remoteRef)
   }
@@ -234,4 +245,73 @@ async function hostedByPeer(ctx: CopyEmojisContext, backend: (p: string) => Prom
   assert(like, 'the reaction reaches the peer')
   eq(like?.tag?.[0]?.icon?.url, image('wave'), 'naming the peer\'s image')
   assert(typeof like?.content === 'string' && like.content.startsWith(':hello'), 'and the emoji\'s shortcode', like?.content)
+
+  // The Group relays fx_remote's reaction with its emoji, then the Undo.
+  await db.from('user_servers').upsert(
+    { server_id: ids.remoteRef, user_id: ids.remote, status: 'accepted', member_instance: peerHost },
+    { onConflict: 'server_id,user_id' },
+  )
+  const copyInbox = `${localUrl}/servers/${ids.remoteRef}/inbox`
+  const relay = (inner: Record<string, unknown>) => JSON.stringify({
+    '@context': AS, id: `${peer.groupUrl}/relays/${crypto.randomUUID()}`, type: 'Announce', actor: peer.groupUrl,
+    object: { '@context': AS, ...inner }, to: [`https://${instanceDomain}/users/fx_bob`],
+  })
+  const asGroup = (json: string) =>
+    deliver(ctx.post, ctx.signedHeaders, copyInbox, json, peer.groupKey.privateKey, `${peer.groupUrl}#main-key`)
+  const remoteReactions = async () => (await db.from('reactions').select('id, emoji_id')
+    .eq('message_id', PEER_MESSAGE).eq('user_id', ids.remote)).data ?? []
+  const react = {
+    id: `${peer.actorUrl}/likes/${crypto.randomUUID()}`, type: 'EmojiReact', actor: peer.actorUrl,
+    object: `${peerOrigin}/messages/${PEER_MESSAGE}`, content: ':hello:',
+    tag: [{ type: 'Emoji', name: ':hello:', icon: { type: 'Image', url: image('wave') } }],
+  }
+  eq(await asGroup(relay(react)), 202, 'the Group\'s relay of a member\'s reaction is taken (202)')
+  const held = await poll(async () => (await remoteReactions())[0] ?? null)
+  eq(held?.emoji_id, renamed?.id, 'the reaction holds the copy\'s emoji')
+  // The instance imports the image keeping its URL: a row of it without a Group id.
+  await db.from('emojis').delete().eq('id', PLAIN_WAVE)
+  const plain = await db.from('emojis').insert({ id: PLAIN_WAVE, name: 'wave_import', url: image('wave'), server_id: null, scope: 'instance' })
+  assert(!plain.error, 'a row of the image without a Group id appears', plain.error?.message)
+  const undo = { id: `${peer.actorUrl}/activities/${crypto.randomUUID()}`, type: 'Undo', actor: peer.actorUrl, object: react }
+  eq(await asGroup(relay(undo)), 202, 'the relayed Undo is taken (202)')
+  const gone = await poll(async () => ((await remoteReactions()).length === 0 ? true : null))
+  assert(gone, 'the Undo removes the reaction from the copy\'s emoji', JSON.stringify(await remoteReactions()))
+
+  // Two rows an activity cached for one image, each holding a reaction.
+  await db.from('emojis').delete().in('id', [SPIN_OLD, SPIN_NEW])
+  const spinRows = await db.from('emojis').insert([
+    { id: SPIN_OLD, name: 'spin', url: image('spin'), server_id: null, domain: peerHost, created_at: new Date(Date.now() - 60_000).toISOString() },
+    { id: SPIN_NEW, name: 'spin', url: image('spin'), server_id: null, domain: peerHost, created_at: new Date().toISOString() },
+  ])
+  assert(!spinRows.error, 'seed two cached rows of one image', spinRows.error?.message)
+  const spun = await db.from('reactions').insert([
+    { message_id: PEER_MESSAGE, user_id: ids.remote, emoji_id: SPIN_NEW, metadata: { federated: true } },
+    { message_id: PEER_MESSAGE, user_id: ids.bob, emoji_id: SPIN_OLD, metadata: { federated: true } },
+  ])
+  assert(!spun.error, 'with a reaction on each', spun.error?.message)
+  const listed = [emoji(P_WAVE, 'hello', 'wave'), emoji(P_SPIN, 'spin')]
+  assert(await deliver(ctx.post, ctx.signedHeaders, inbox, JSON.stringify(activity(peer.groupUrl, listed)),
+    peer.groupKey.privateKey, `${peer.groupUrl}#main-key`) < 300, 'the Group lists the image')
+  const spin = await poll(async () => copyEmoji(P_SPIN))
+  eq(spin?.id, SPIN_OLD, 'the older cached row is taken over')
+  const pills = await poll(async () => {
+    const { data } = await db.from('reactions').select('emoji_id').eq('message_id', PEER_MESSAGE).in('user_id', [ids.remote, ids.bob])
+      .in('emoji_id', [SPIN_OLD, SPIN_NEW])
+    return data && data.length === 2 && data.every((r) => r.emoji_id === SPIN_OLD) ? data : null
+  })
+  assert(pills, 'both reactions hold it: one pill')
+  eq((await db.from('emojis').select('id').eq('id', SPIN_NEW)).data?.length ?? -1, 0, 'the newer cached row is gone')
+
+  // An instance admin removes the copy's emoji; the admin's account is deleted later.
+  const removedAt = new Date(Date.now() - 1000).toISOString()
+  await db.from('emojis').update({ deleted_at: removedAt, deleted_by: ids.bob }).eq('id', renamed?.id ?? '')
+  await db.from('emojis').update({ deleted_by: null }).eq('id', renamed?.id ?? '')
+  assert(await deliver(ctx.post, ctx.signedHeaders, inbox, JSON.stringify(activity(peer.groupUrl, [emoji(P_WAVE, 'again', 'wave'), emoji(P_SPIN, 'spin')])),
+    peer.groupKey.privateKey, `${peer.groupUrl}#main-key`) < 300, 'the Group lists the emoji again, renamed')
+  const relisted = await poll(async () => {
+    const r = await copyEmoji(P_WAVE)
+    return r?.name === 'again' ? r : null
+  })
+  assert(relisted, 'the rename applies')
+  assert(relisted?.deleted_at, 'the admin\'s removal holds without its remover', JSON.stringify(relisted))
 }

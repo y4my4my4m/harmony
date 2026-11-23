@@ -324,43 +324,61 @@ function clearSelectedMember() {
   });
 }
 
-watch(() => props.show, async (visible) => {
-  if (visible && needsMemberSelect.value && serverMembers.value.length === 0) {
-    // Try cached context first
-    const contextUsers = userDataService.getUsersInContext(props.serverId);
-    if (contextUsers.length > 0) {
-      serverMembers.value = contextUsers.map(u => ({
-        id: u.id,
-        username: u.username,
-        display_name: u.displayName,
-        avatar_url: u.avatarUrl
-      }));
-    } else {
-      // No member list open for this server: every member, ids in pages, profiles in chunks.
-      const userIds = await getUserIdsForServer(props.serverId);
-      if (userIds.length > 0) {
-        const profiles = await getProfiles(userIds);
-        serverMembers.value = profiles.map(p => ({
-          id: p.id,
-          username: p.username,
-          display_name: p.display_name,
-          avatar_url: p.avatar_url
-        }));
-      }
-    }
-    nextTick(() => {
-      showDropdown.value = true;
-      memberSearchInput.value?.focus();
-    });
+async function loadServerMembers(serverId: string): Promise<MemberInfo[]> {
+  // Try cached context first
+  const contextUsers = userDataService.getUsersInContext(serverId);
+  if (contextUsers.length > 0) {
+    return contextUsers.map(u => ({
+      id: u.id,
+      username: u.username,
+      display_name: u.displayName,
+      avatar_url: u.avatarUrl
+    }));
   }
+  // No member list open for this server: every member, ids in pages, profiles in chunks.
+  const userIds = await getUserIdsForServer(serverId);
+  if (userIds.length === 0) return [];
+  const profiles = await getProfiles(userIds);
+  return profiles.map(p => ({
+    id: p.id,
+    username: p.username,
+    display_name: p.display_name,
+    avatar_url: p.avatar_url
+  }));
+}
+
+// The picker's members and searches belong to one opening for one server. Closing the dialog or
+// changing the server drops them and any answer still in flight.
+let memberLoadSeq = 0
+function resetMemberPicker() {
+  memberLoadSeq++;
+  memberSearchSeq++;
+  if (memberSearchTimer) clearTimeout(memberSearchTimer);
+  memberSearchTimer = null;
+  serverMembers.value = [];
+  memberSearch.value = '';
+  foundMembers.value = null;
+  selectedMember.value = null;
+  showDropdown.value = false;
+  activeIndex.value = -1;
+}
+
+watch(() => [props.show, props.serverId] as const, async ([visible, serverId], previous) => {
+  if (previous) resetMemberPicker();
   if (!visible) {
-    memberSearch.value = '';
-    foundMembers.value = null;
-    selectedMember.value = null;
-    showDropdown.value = false;
     reason.value = '';
     deleteSeconds.value = 0;
+    return;
   }
+  if (!needsMemberSelect.value) return;
+  const load = ++memberLoadSeq;
+  const members = await loadServerMembers(serverId).catch((): MemberInfo[] => []);
+  if (load !== memberLoadSeq) return;
+  serverMembers.value = members;
+  nextTick(() => {
+    showDropdown.value = true;
+    memberSearchInput.value?.focus();
+  });
 }, { immediate: true })
 
 async function confirm() {

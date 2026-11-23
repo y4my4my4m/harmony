@@ -11,7 +11,15 @@ This is a **plaintext bridge**, not an encrypted participant. Text, mentions, im
 
 ## Initial operator setup
 
-The bridge runs as the separate [harmony-matrix-bridge](https://github.com/y4my4my4m/harmony-matrix-bridge) service; its runtime is not bundled with Harmony. The bot's owner, who manages the server, installs a dedicated scoped read/send bot and registers its channel bindings with `configure_matrix_bridge`. A Matrix homeserver operator installs the generated application-service registration, including the exclusive ghost-user namespace. The bridge account must be in each Matrix room and able to invite users for ghost mode.
+The bridge runs as the separate [harmony-matrix-bridge](https://github.com/y4my4my4m/harmony-matrix-bridge) service; its runtime is not bundled with Harmony. A Matrix homeserver operator installs the generated application-service registration, including the exclusive ghost-user namespace. The bridge account must be in each Matrix room and able to invite users for ghost mode.
+
+The Harmony side, for a member with **Manage Server** who owns the bridge's bot:
+
+1. Create a dedicated bot under **User settings** → **My bots** and give its token to the bridge service's configuration.
+2. Add the bot to the server under **Server settings** → **Advanced settings** → **Server bots**, with **Read messages** and **Send messages**. Under **Channels**, choose **Selected channels** and tick the channels to bridge.
+3. Open **Server settings** → **Bridges** → **Matrix**, choose the bot and tick the channels to pair. Only text channels in the bot's channel list can be ticked; the others are greyed out with a note saying where to add them. A paired channel shows **Waiting for the bridge to connect a room** until the running service binds the Matrix room from its configuration.
+
+A manager without such a bot sees these steps on the empty tab. **Change paired channels** replaces the bot's channels; **Unpair**, for the bot's owner or any manager, removes all of the bot's pairs in the server. The status card at the top counts the paired channels, those with a Matrix room and those still waiting, and any the bot can no longer bridge because it was turned off, lost read or send, or lost the channel from its list. It cannot tell whether the service is running.
 
 The service's configuration holds the initial one-to-one room/channel pairs, directions and explicit user allowlists. These remain additional restrictions: member opt-out does not grant access to an unallowlisted account. Existing configurations without a sender mode retain shared-relay behavior; the example configuration explicitly selects ghosts for new installations.
 
@@ -19,12 +27,12 @@ The standalone service's [README](https://github.com/y4my4my4m/harmony-matrix-br
 
 ## Choose how Harmony authors appear in Matrix
 
-With **Manage Server**, open **Server settings** → **Bridges** → **Matrix**. Each registered pair has its own sender-mode choice:
+With **Manage Server**, open **Server settings** → **Bridges** → **Matrix**. Each paired channel has its own **Harmony members appear in Matrix** choice:
 
 | Choice | Effect |
 |---|---|
-| **Individual bridged users — recommended** | Harmony members appear as actual bridge-managed Matrix room members with their Harmony name/nickname and avatar. Their message bodies have no attribution prefix. |
-| **Shared bridge account** | All Harmony messages use the bridge account, with the author's name in the body. No new ghost users are added. |
+| **As their own Matrix users (recommended)** | Harmony members appear as actual bridge-managed Matrix room members with their Harmony name/nickname and avatar. Their message bodies have no attribution prefix. |
+| **Through one shared bridge account** | All Harmony messages use the bridge account, with the author's name in the body. No new ghost users are added. |
 
 The saved manager choice overrides the initial service configuration. If saving fails, reload before trying again: a lost response does not prove the server failed to save.
 

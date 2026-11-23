@@ -602,15 +602,18 @@ export class BotRestAPI {
   }
 
   /**
-   * Body { name, message_id?, discord_thread_id?, discord_user? }. On message_id the thread
-   * hangs off that message (an existing thread of it is returned); otherwise it is standalone.
-   * A Discord thread id pairs the thread with the bot's bridge and makes the call idempotent;
-   * with it, discord_user (the member who started the Discord thread) names the notice.
+   * Body { name, message_id?, discord_thread_id?, discord_user?, created_at?, starter_discord_user_id? }.
+   * On message_id the thread hangs off that message (an existing thread of it is returned);
+   * otherwise it is standalone. A Discord thread id pairs the thread with the bot's bridge and
+   * makes the call idempotent; with it, discord_user (the member who started the Discord thread)
+   * names the notice, created_at is the Discord thread's creation time and starter_discord_user_id
+   * the author of the Discord message it starts on: bot_create_thread titles it Thread for an
+   * opted-out author, or one who opted back in since.
    */
   private async createThread(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
-      const { name, message_id, discord_thread_id, discord_user } = req.body ?? {}
+      const { name, message_id, discord_thread_id, discord_user, created_at, starter_discord_user_id } = req.body ?? {}
       const botId = req.bot!.id
       if (typeof name !== 'string' || !name.trim()) {
         return res.status(400).json({ error: 'name is required' })
@@ -620,6 +623,13 @@ export class BotRestAPI {
       }
       if (discord_thread_id != null && (typeof discord_thread_id !== 'string' || !SNOWFLAKE_RE.test(discord_thread_id))) {
         return res.status(400).json({ error: 'discord_thread_id must be a Discord snowflake' })
+      }
+      if (created_at != null && (typeof created_at !== 'string' || Number.isNaN(Date.parse(created_at)))) {
+        return res.status(400).json({ error: 'created_at must be an ISO 8601 time' })
+      }
+      if (starter_discord_user_id != null
+        && (typeof starter_discord_user_id !== 'string' || !SNOWFLAKE_RE.test(starter_discord_user_id))) {
+        return res.status(400).json({ error: 'starter_discord_user_id must be a Discord snowflake' })
       }
       const access = await this.channelWriteAccess(botId, channelId, 'send_messages')
       if (!access.ok) return res.status(403).json({ error: access.error })
@@ -634,6 +644,8 @@ export class BotRestAPI {
         p_parent_message_id: message_id ?? null,
         p_discord_thread_id: discord_thread_id ?? null,
         p_discord_user: discord_thread_id != null ? threadStarter(discord_user) : null,
+        p_created_at: discord_thread_id != null && created_at != null ? new Date(created_at).toISOString() : null,
+        p_starter_discord_user_id: discord_thread_id != null ? (starter_discord_user_id ?? null) : null,
       })
       if (error) {
         const status = error.code === 'P0002' ? 404 : error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
@@ -824,7 +836,8 @@ export class BotRestAPI {
         metadata: messageMetadata
       })
       .select(messageSelect)
-    let { data: rows, error } = await insertRow(reply_to || null)
+    let replyUsed: string | null = reply_to || null
+    let { data: rows, error } = await insertRow(replyUsed)
 
     // A reply to a message that no longer exists (erased by a bridge privacy request, removed by
     // a purge) is sent without the reply, as Discord shows a reply whose original is gone.
@@ -832,29 +845,47 @@ export class BotRestAPI {
     if (replyOutOfScope && typeof reply_to === 'string') {
       const parent = await supabase.from('messages').select('id').eq('id', reply_to).maybeSingle()
       if (!parent.error && !parent.data) {
+        replyUsed = null
         ;({ data: rows, error } = await insertRow(null))
         replyOutOfScope = false
       }
     }
 
-    // No row: the files this request mirrored into its parts have nothing to reference them.
-    if (error || !rows?.[0]) await discardMirroredParts(messageContent, error)
+    const discordMessageId = (messageMetadata as Record<string, unknown>).discord_message_id
+    const idTaken = error?.code === '23505'
+      && !!error.message?.includes('messages_channel_discord_message_id_unique')
+      && typeof discordMessageId === 'string'
+
+    // No row: the files this request mirrored into its parts have nothing to reference them. A
+    // relay that takes over an imported row (below) stores them.
+    if (!idTaken && (error || !rows?.[0])) await discardMirroredParts(messageContent, error)
 
     // The unique index allows one live row per Discord message per channel. A live relay
-    // racing a history import (or a retry) loses here; answer with the row that won.
-    const discordMessageId = (messageMetadata as Record<string, unknown>).discord_message_id
-    if (error?.code === '23505'
-      && error.message?.includes('messages_channel_discord_message_id_unique')
-      && typeof discordMessageId === 'string') {
-      const held = await this.messageIdByDiscordId(channelId, discordMessageId)
-      if (held.error) return { ok: false, status: 500, body: { error: held.error }, failure: 'failed' }
+    // racing a history import (or a retry) loses here. A row of this bot's history import is
+    // quiet (no realtime insert, unread count, notification or federation): the relay takes its
+    // place (bridge_relay_supersede_import). Otherwise it answers with the row that won.
+    if (idTaken) {
+      const refuse = async (result: WriteResult): Promise<WriteResult> => {
+        await discardMirroredParts(messageContent, error)
+        return result
+      }
+      const held = await this.messageIdByDiscordId(channelId, discordMessageId as string)
+      if (held.error) return refuse({ ok: false, status: 500, body: { error: held.error }, failure: 'failed' })
       const { data: existing, error: lookupError } = held.id === null
         ? { data: null, error: null }
         : await supabase.from('messages').select(messageSelect).eq('id', held.id).eq('bot_id', botId).maybeSingle()
-      if (lookupError) return { ok: false, status: 500, body: { error: lookupError.message }, failure: 'failed' }
-      if (existing && existing.is_deleted !== true) return { ok: true, message: existing, duplicate: true }
-      // The row that holds the id is another bot's: not this bot's to read back.
-      return { ok: false, status: 409, body: { error: 'That Discord message id is taken in this channel', code: 'DISCORD_MESSAGE_ID_TAKEN' }, failure: 'failed' }
+      if (lookupError) return refuse({ ok: false, status: 500, body: { error: lookupError.message }, failure: 'failed' })
+      if (!existing || existing.is_deleted === true) {
+        // The row that holds the id is another bot's: not this bot's to read back.
+        return refuse({ ok: false, status: 409, body: { error: 'That Discord message id is taken in this channel', code: 'DISCORD_MESSAGE_ID_TAKEN' }, failure: 'failed' })
+      }
+      const taken = existing.metadata?.history_import === true
+        ? await this.supersedeImport(existing.id, { botId, threadId, replyTo: replyUsed, content: messageContent, metadata: messageMetadata }, messageSelect)
+        : null
+      if (!taken) return refuse({ ok: true, message: existing, duplicate: true })
+      if ('error' in taken) return { ok: false, status: 500, body: { error: taken.error }, failure: 'failed' }
+      rows = [taken.row]
+      error = null
     }
 
     if (error) {
@@ -925,6 +956,35 @@ export class BotRestAPI {
     })
   }
   
+  /**
+   * The live relay's row in place of this bot's imported row, read back with `select`; null when
+   * the import cannot be taken over (bridge_relay_supersede_import answered NULL, AutoMod dropped
+   * the relay's row, or the call failed): the caller answers with the imported row. `error`: the
+   * row was stored and could not be read back.
+   */
+  private async supersedeImport(
+    importedId: string,
+    row: { botId: string; threadId: string | null; replyTo: string | null; content: unknown[]; metadata: Record<string, unknown> },
+    select: string,
+  ): Promise<{ row: any } | { error: string } | null> {
+    const { data: id, error } = await supabase.rpc('bridge_relay_supersede_import', {
+      p_bot_id: row.botId,
+      p_message_id: importedId,
+      p_thread_id: row.threadId,
+      p_reply_to: row.replyTo,
+      p_content: row.content,
+      p_metadata: row.metadata,
+    })
+    if (error) {
+      if (error.message !== 'relay_dropped') console.error('bridge_relay_supersede_import failed:', error.code, error.message)
+      return null
+    }
+    if (typeof id !== 'string') return null
+    const { data, error: readError } = await supabase.from('messages').select(select).eq('id', id).maybeSingle()
+    if (readError || !data) return { error: readError?.message ?? 'Message not found after insert' }
+    return { row: data }
+  }
+
   /**
    * The id of the live message of a channel that holds a Discord message id; null when none does.
    * bridge_message_by_discord_id reads messages_channel_discord_message_id_unique. A select
@@ -1291,6 +1351,10 @@ export class BotRestAPI {
       if (updateError?.code === '23505'
         && updateError.message?.includes('messages_channel_discord_message_id_unique')) {
         return res.json({ ok: true, metadata: message.metadata ?? {} })
+      }
+      // The message's author or its new one opted out (guard_bridge_author_optout).
+      if (updateError?.message === BRIDGE_AUTHOR_OPTED_OUT) {
+        return res.status(403).json({ ...OPTED_OUT_BODY })
       }
 
       if (updateError) {
@@ -2603,6 +2667,7 @@ export class BotRestAPI {
     }
     const rawName = typeof req.query.filename === 'string' ? req.query.filename : ''
     // The last path segment, without control characters, at most 255 characters.
+    // eslint-disable-next-line no-control-regex -- strips C0 and DEL controls.
     const fileName = rawName.split(/[\\/]/).pop()!.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 255) || 'file'
     return this.storeUpload(req, res, fileName, contentType)
   }
@@ -3462,6 +3527,27 @@ export class BotRestAPI {
           restorable: imported && e.deleted_at != null && e.bridge_removed_at === e.deleted_at,
         }
       })
+      // An emoji an instance admin purged has no row left; listed as removed by a person, a sync
+      // leaves it out (bridge_removed_assets, 20261123300002).
+      const purged = await selectAllById<{ id: string; name: string | null; remote_id: string }>((afterId) => {
+        const query = supabase
+          .from('bridge_removed_assets')
+          .select('id, name, remote_id')
+          .eq('server_id', serverId)
+          .eq('kind', 'emoji')
+          .eq('platform', 'discord')
+        return (afterId ? query.gt('id', afterId) : query).order('id').limit(LIST_PAGE)
+      })
+      if (purged.error) return res.status(500).json({ error: purged.error.message })
+      if (purged.truncated) return res.status(500).json({ error: `more than ${LIST_MAX_ROWS} purged emoji`, code: 'LIST_TOO_LARGE' })
+      const held = new Set(emojis.map((e) => e.discord_emoji_id).filter(Boolean))
+      for (const p of purged.rows) {
+        if (held.has(p.remote_id)) continue
+        emojis.push({
+          id: p.id, name: p.name ?? p.remote_id, url: null, discord_emoji_id: p.remote_id, removed: true,
+          imported: false, restorable: false,
+        })
+      }
       res.json({ limit, emojis })
     } catch (error: any) {
       res.status(500).json({ error: error.message })
@@ -3565,7 +3651,7 @@ export class BotRestAPI {
       return res.status(409).json({ error: error.message, code: 'STICKER_NAME_TAKEN' })
     }
     if (error.code === 'P0002') return res.status(404).json({ error: error.message })
-    const refused = this.refusalCode(error, ['STICKER_NOT_LINKED'])
+    const refused = this.refusalCode(error, ['STICKER_NOT_LINKED', 'STICKER_REMOVED'])
     if (refused) return res.status(403).json({ error: error.message, code: refused })
     const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
     return res.status(status).json({ error: error.message })
@@ -3716,7 +3802,7 @@ export class BotRestAPI {
     if (error.message?.startsWith('SOUNDBOARD_FULL')) {
       return res.status(409).json({ error: error.message, code: 'SOUND_LIMIT' })
     }
-    const refused = this.refusalCode(error, ['SOUND_NOT_LINKED'])
+    const refused = this.refusalCode(error, ['SOUND_NOT_LINKED', 'SOUND_REMOVED'])
     if (refused) return res.status(403).json({ error: error.message, code: refused })
     const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
     return res.status(status).json({ error: error.message })

@@ -104,7 +104,9 @@
     </div>
     <span class="pt-banner__text">{{ bannerText }}</span>
     <span v-if="runningApp?.source === 'package'" class="pt-chip" data-testid="play-together-banner-third-party">{{ t('playTogether.thirdParty') }}</span>
+    <span v-if="running.refusal" class="pt-banner__refusal" data-testid="play-together-refusal">{{ store.refusalText(running.refusal) }}</span>
     <button
+      v-else
       type="button"
       class="pt-btn"
       :disabled="joining"
@@ -490,6 +492,14 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pt-banner__refusal {
+  flex-shrink: 0;
+  max-width: 50%;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs, 12px);
+  text-align: right;
 }
 
 .pt-btn {

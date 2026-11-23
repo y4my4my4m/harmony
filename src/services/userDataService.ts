@@ -10,9 +10,9 @@
  * get_presence, which answers only for profiles sharing a server or a
  * conversation with the viewer, or that it follows, and changes arrive as
  * presence:update on server-presence:{serverId} and on the private user channel
- * (DM partners). Only profile and friends contexts receive no changes: they are
- * re-read every HEARTBEAT_INTERVAL while the tab is shown, and when it is shown
- * again.
+ * (DM partners). Profile changes arrive the same way, as profile:updated. Only
+ * profile and friends contexts receive no presence changes: they are re-read
+ * every HEARTBEAT_INTERVAL while the tab is shown, and when it is shown again.
  */
 
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/supabase'
@@ -132,8 +132,12 @@ class UserDataService extends EventTarget {
   // set them: the setter may be gone (a desktop app's activity lease).
   private statusExpirySweep: ReturnType<typeof setInterval> | null = null
 
+  /** Emits `initialized` ({ userId }) each time it resolves with the current user loaded. */
   async initialize(userId: string, username: string, avatarUrl?: string, existingProfile?: any): Promise<void> {
-    if (this.initialized && this.currentUserId === userId) return
+    if (this.initialized && this.currentUserId === userId) {
+      this.emitEvent('initialized', { userId })
+      return
+    }
     
     debug.log('Initializing User Data Service for:', username)
     
@@ -156,6 +160,7 @@ class UserDataService extends EventTarget {
     
     this.initialized = true
     debug.log('User Data Service initialized')
+    this.emitEvent('initialized', { userId })
   }
 
   /** Activity tracking; not needed for the initial render. */
@@ -572,6 +577,12 @@ class UserDataService extends EventTarget {
     this.presenceOffs.forEach(off => off())
     this.presenceOffs = [
       userEventChannel.on('presence:update', (payload) => this.applyPresenceUpdate(payload)),
+      // A conversation partner's profile change. A profile not cached is read when shown.
+      userEventChannel.on('profile:updated', (payload) => {
+        const userId = payload?.user_id
+        if (typeof userId !== 'string' || !this.users.has(userId)) return
+        void this.handleProfileUpdate('user', { new: payload })
+      }),
       userEventChannel.on('_reconnected', () => { void this.refreshContextPresence(true) }),
     ]
     if (typeof document !== 'undefined') {

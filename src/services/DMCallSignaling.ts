@@ -25,6 +25,15 @@ import { authContextService } from './AuthContextService'
 import { debug } from '@/utils/debug'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 
+/** start_dm_call_message refused the call: the two accounts are blocked between them. */
+export class CallUndeliverableError extends Error {
+  readonly code = 'DM_UNDELIVERABLE'
+  constructor() {
+    super('DM_UNDELIVERABLE')
+    this.name = 'CallUndeliverableError'
+  }
+}
+
 export interface CallSignal {
   type: 'initiate' | 'accept' | 'decline' | 'end' | 'join' | 'leave' | 'busy' | 'timeout'
   callerId: string
@@ -421,9 +430,25 @@ class DMCallSignalingService {
   }
 
   /**
+   * Throws CallUndeliverableError when placing a call in the conversation
+   * would be refused for a block (check_dm_call: the refusals of
+   * start_dm_call_message, with nothing posted). Any other failure passes;
+   * the call attempt answers it.
+   */
+  async checkCallDeliverable(conversationId: string): Promise<void> {
+    const { error } = await supabase.rpc('check_dm_call', { p_conversation_id: conversationId })
+    if (error && /DM_UNDELIVERABLE/.test(`${error.message} ${error.hint ?? ''}`)) {
+      throw new CallUndeliverableError()
+    }
+  }
+
+  /**
    * Ring each receiver on their own ring topic (dm-calls:{receiverId}) and
    * arm the CALL_TIMEOUT_MS no-answer timer. Posts the call notice through
    * start_dm_call_message first so its id can ride along in the signal.
+   * Throws CallUndeliverableError when the notice is refused for a block
+   * between the two accounts (DM_UNDELIVERABLE): ring_dm_call would ring
+   * no one, and nothing is rung.
    */
   async initiateCall(
     conversationId: string,
@@ -432,14 +457,16 @@ class DMCallSignalingService {
     receiverIds: string[] // Who to call
   ): Promise<void> {
     const startedAt = new Date()
-    
+
     let systemMessageId: string | null = null
+    let refused = false
     try {
       const { data: msgId, error } = await supabase.rpc('start_dm_call_message', {
         p_conversation_id: conversationId,
         p_call_type: callType,
       })
       if (error) {
+        refused = /DM_UNDELIVERABLE/.test(`${error.message} ${error.hint ?? ''}`)
         debug.error('Failed to post call system message:', error.message)
       } else {
         systemMessageId = (msgId as string | null) ?? null
@@ -447,6 +474,7 @@ class DMCallSignalingService {
     } catch (error) {
       debug.error('Failed to post call system message:', error)
     }
+    if (refused) throw new CallUndeliverableError()
     
     const timeoutTimer = window.setTimeout(() => {
       void this.handleCallTimeout(conversationId)

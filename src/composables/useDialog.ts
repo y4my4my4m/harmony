@@ -69,6 +69,8 @@ export interface UseDialogOptions {
   returnFocus?: MaybeRefOrGetter<HTMLElement | null | undefined | false>
   /** Default true. */
   inertBackground?: boolean
+  /** Selector of top-level elements left interactive beside the dialog (utils/a11y/layers). */
+  companions?: string
   /** Default true. */
   lockScroll?: boolean
 }
@@ -172,9 +174,10 @@ export function useDialog(options: UseDialogOptions) {
         onEscape: () => {
           if (toValue(options.closeOnEscape) !== false) options.onClose?.()
         },
+        companions: options.companions,
       }),
     )
-    if (options.inertBackground !== false) cleanups.push(inertOthers([el]))
+    if (options.inertBackground !== false) cleanups.push(inertOthers([el], options.companions))
     if (options.lockScroll !== false) cleanups.push(lockBodyScroll())
     document.addEventListener('keydown', onKeydown, true)
     document.addEventListener('focusin', onFocusIn, true)

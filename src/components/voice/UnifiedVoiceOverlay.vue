@@ -361,6 +361,8 @@
               <Icon name="screen-share" />
             </button>
 
+            <span class="control-sep" aria-hidden="true" data-testid="overlay-sep" />
+
             <!-- The activity view has its own react button, aimed at the player. -->
             <button
               v-if="voiceStore.liveReactionsAvailable && !stageActivity"
@@ -378,30 +380,16 @@
 
             <button
               v-if="activityButton.available.value"
-              ref="activityButtonRef"
               @click="activityButton.toggle"
               class="control-button"
               :class="{ active: activityButton.visible.value || activityButton.running.value }"
-              :title="t('activities.title')"
-              :aria-label="t('activities.title')"
+              :title="t('activities.launcherTitle')"
+              :aria-label="t('activities.launcherTitle')"
               aria-haspopup="dialog"
               :aria-expanded="activityButton.visible.value"
-              data-testid="overlay-activity-button"
+              data-testid="overlay-activities-button"
             >
               <Icon name="popcorn" />
-            </button>
-
-            <button
-              v-if="voicePlayTarget && playTogether.appsFor('voice').length > 0"
-              @click="openVoiceGames"
-              class="control-button"
-              :class="{ active: !!stageGame }"
-              :title="t('playTogether.button')"
-              :aria-label="t('playTogether.button')"
-              aria-haspopup="dialog"
-              data-testid="overlay-play-together-button"
-            >
-              <Icon name="gamepad" />
             </button>
 
             <button
@@ -480,12 +468,8 @@
     <!-- Spatial Audio Panel -->
     <SpatialAudioPanel :is-under-overlay="true" />
 
-    <!-- The dock renders the launcher while the call view is in this window -->
-    <ActivityLauncher
-      v-if="poppedOut && activityButton.visible.value"
-      :anchor="activityButton.anchor.value"
-      @close="activityButton.close"
-    />
+    <!-- Popped out, the call's launcher opens in this window; App.vue renders it otherwise -->
+    <ActivitiesLauncher v-if="poppedOut && activityButton.visible.value" />
 
     <!-- Confetti Effect -->
     <ConfettiEffect :is-active="easterEggState.isActive && easterEggState.type === 'rainbow-party'" />
@@ -523,7 +507,6 @@ import ActivityStage from '@/components/activities/ActivityStage.vue';
 import ActivityInvite from '@/components/activities/ActivityInvite.vue';
 import PlayTogetherPanel from '@/components/playTogether/PlayTogetherPanel.vue';
 import { usePlayTogetherStore } from '@/stores/playTogether';
-import type { ActivityTarget } from '@/services/playTogether/sessions';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import AppToolbar from '@/components/a11y/AppToolbar.vue';
@@ -552,7 +535,7 @@ import { setCallChatOpen, useCallChat, useCallChatUnread } from './callChat';
 
 const SoundboardPopover = defineAsyncComponent(() => import('./SoundboardPopover.vue'));
 const CallSideChat = defineAsyncComponent(() => import('./CallSideChat.vue'));
-const ActivityLauncher = defineAsyncComponent(() => import('@/components/activities/ActivityLauncher.vue'));
+const ActivitiesLauncher = defineAsyncComponent(() => import('@/components/activities/ActivitiesLauncher.vue'));
 
 const { t } = useI18n();
 
@@ -575,23 +558,13 @@ const streamPickerAnchor = ref<Rect | null>(null);
 
 const soundboardButtonRef = ref<HTMLButtonElement | null>(null);
 const soundboardButton = useSoundboardButton(soundboardButtonRef);
-const activityButtonRef = ref<HTMLButtonElement | null>(null);
-const activityButton = useActivityButton(activityButtonRef);
+const activityButton = useActivityButton();
 const activitiesStore = useActivitiesStore();
 const stageActivity = computed(() => (activitiesStore.playingHere ? activitiesStore.current : null));
 const playTogether = usePlayTogetherStore();
 // Games of this call's channel: servers this instance hosts, as watch together.
-const voicePlayTarget = computed<ActivityTarget | null>(() => {
-  if (!activityButton.available.value || !voiceStore.currentChannelId || !voiceStore.currentServerId) return null;
-  return { kind: 'channel', id: voiceStore.currentChannelId, serverId: voiceStore.currentServerId, voice: true };
-});
-const stageGame = computed(() => {
-  const joined = playTogether.joined;
-  return !!joined && joined.target.kind === 'channel' && joined.target.voice && joined.target.id === voiceStore.currentChannelId;
-});
-function openVoiceGames(): void {
-  if (voicePlayTarget.value) playTogether.openLauncher(voicePlayTarget.value);
-}
+const voicePlayTarget = activityButton.target;
+const stageGame = activityButton.gameOnStage;
 onMounted(() => { void playTogether.loadApps(); });
 
 const FILMSTRIP_KEY = 'harmony:activity-filmstrip-hidden';
@@ -2013,6 +1986,16 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Between the call's own controls and what plays in it. */
+.control-sep {
+  flex: none;
+  align-self: center;
+  width: 1px;
+  height: 28px;
+  margin: 0 6px;
+  background: var(--border-color, var(--border-primary));
 }
 
 .control-button {

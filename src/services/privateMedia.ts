@@ -1,4 +1,5 @@
 import { shallowReactive } from 'vue'
+import { storedTypeFor } from '@/services/uploads/storedType'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase, SUPABASE_URL } from '@/supabase'
 import { debug } from '@/utils/debug'
@@ -682,10 +683,12 @@ export interface ComposerAttachment {
   altText?: string
 }
 
-export function attachmentFileType(mimeType: string): 'image' | 'video' | 'audio' | 'file' {
-  if (mimeType.startsWith('image/')) return 'image'
-  if (mimeType.startsWith('video/')) return 'video'
-  if (mimeType.startsWith('audio/')) return 'audio'
+/** How an attachment shows, by the type it is stored with (uploads/storedType.ts): a file stored as octet-stream is a file card. */
+export function attachmentFileType(mimeType: string, name = ''): 'image' | 'video' | 'audio' | 'file' {
+  const stored = storedTypeFor(mimeType, name, null)
+  if (stored.startsWith('image/')) return 'image'
+  if (stored.startsWith('video/')) return 'video'
+  if (stored.startsWith('audio/')) return 'audio'
   return 'file'
 }
 
@@ -697,7 +700,7 @@ export async function attachmentParts(
   const parts: FileContent[] = []
   for (const file of files) {
     if (file.uploadStatus !== 'completed') continue
-    const fileType = attachmentFileType(file.type || '')
+    const fileType = attachmentFileType(file.type || '', file.name)
     const alt = file.altText?.trim() ? { altText: file.altText.trim() } : {}
     if (file.uploadedPath && file.uploadedUrl) {
       if (!room) throw new Error('Attachments need a channel or conversation')

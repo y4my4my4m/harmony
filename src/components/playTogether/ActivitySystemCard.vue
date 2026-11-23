@@ -15,7 +15,7 @@
       @click="join"
     >{{ t('playTogether.join') }}</button>
     <span v-else-if="store.isJoined(session.id)" class="pt-card__in">{{ t('playTogether.youArePlaying') }}</span>
-    <span v-else-if="session.refusal === 'NOT_IN_CALL'" class="pt-card__in">{{ t('playTogether.joinTheCall') }}</span>
+    <span v-else-if="session.refusal" class="pt-card__in" data-testid="activity-system-refusal">{{ store.refusalText(session.refusal) }}</span>
   </span>
 </template>
 

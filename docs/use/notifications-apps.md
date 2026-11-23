@@ -138,7 +138,7 @@ On iPhone and iPad, push works only after you add Harmony to the Home Screen (Sh
 
 **Subscribed devices** lists every device that receives push. The remove button next to one stops push to it.
 
-Where the browser supports it, a pushed message offers **Reply**, **Mark as read** and **Dismiss**.
+Where the browser supports it, a pushed message offers **Reply**, **Mark as read** and **Dismiss**. A reply is sent when Harmony next opens, as the account the notification was for; signing out first drops it.
 
 ## Desktop app
 

@@ -2,10 +2,17 @@
 // platform's icon, or its DISCORD / MATRIX label when Appearance asks for labels, and opens the
 // profile card with the platform handle. Server settings has one Bridges entry with a Discord and
 // a Matrix tab, and the former Discord Bridge link opens the Discord tab. A member's Bridge privacy
-// lists only the platforms the server bridges and keeps the choice across a reload.
+// lists only the platforms the server bridges and keeps the choice across a reload. On the Matrix
+// tab a manager with no bot of their own reads the setup steps and the guide link; the owner of a
+// bot installed in the server pairs channels of its channel list, sees each wait for a room and the
+// status card count them, and unpairs the bot.
+//
+// MATRIX_TAB_SHOTS=<directory> saves the Matrix tab empty, with the setup form, and paired, at 1440x900.
 
-import { test, expect, type Page } from '@playwright/test'
+import path from 'node:path'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import {
+  addChannel,
   addMember,
   adminClient,
   createUser,
@@ -28,7 +35,13 @@ let roomId = ''
 const MATRIX_TEXT = 'hello from a Matrix room'
 const DISCORD_TEXT = 'hello from a Discord server'
 
-async function seedBot(username: string, displayName: string, fields: Record<string, unknown>): Promise<string> {
+async function seedBot(
+  username: string,
+  displayName: string,
+  fields: Record<string, unknown>,
+  target: SeededServer = server,
+  allowedChannelIds: string[] = [target.generalChannelId],
+): Promise<string> {
   const { data, error } = await admin
     .from('bots')
     .insert({ username: username.slice(0, 32), display_name: displayName, owner_id: owner.id, is_public: false, ...fields })
@@ -37,8 +50,8 @@ async function seedBot(username: string, displayName: string, fields: Record<str
   if (error || !data) throw new Error(`bot ${displayName}: ${error?.message}`)
   botIds.push(data.id)
   const { error: installError } = await admin.from('bot_server_permissions').insert({
-    bot_id: data.id, server_id: server.id, installed_by: owner.id, is_active: true,
-    read_messages: true, send_messages: true, allowed_channel_ids: [server.generalChannelId],
+    bot_id: data.id, server_id: target.id, installed_by: owner.id, is_active: true,
+    read_messages: true, send_messages: true, allowed_channel_ids: allowedChannelIds,
   })
   if (installError) throw new Error(`install ${displayName}: ${installError.message}`)
   return data.id
@@ -120,10 +133,15 @@ test('a Matrix person shows as a Discord person does, by icon or by label', asyn
   await test.step('the Matrix author opens the profile card with the Matrix handle, as the Discord one does', async () => {
     await row(page, MATRIX_TEXT).locator('button.username').click()
     await expect(page.getByTestId('profile-modal-handle')).toHaveText('@sam:example.org')
-    await expect(page.getByText('Open on Matrix')).toBeVisible()
+    await expect(page.getByTestId('profile-bridged-copy-id')).toHaveText(/Copy Matrix ID/)
+    await expect(page.getByTestId('profile-bridged-open')).toHaveCount(0)
     await page.keyboard.press('Escape')
     await row(page, DISCORD_TEXT).locator('button.username').click()
     await expect(page.getByTestId('profile-modal-handle')).toHaveText('@gus')
+    // The card keeps people in Harmony: an id to copy, no link to the other platform.
+    await expect(page.getByTestId('profile-bridged-copy-id')).toHaveText(/Copy Discord ID/)
+    await expect(page.getByTestId('profile-bridged-open')).toHaveCount(0)
+    await expect(page.getByText('Open on Discord')).toHaveCount(0)
     await page.keyboard.press('Escape')
   })
 
@@ -200,5 +218,144 @@ test('Bridge privacy lists the bridged platforms only and keeps the choice', asy
     await expect(messageList(page)).toBeVisible({ timeout: 30000 })
     const dialog = await openPrivacy()
     await expect(dialog.locator('.privacy-row[data-platform="matrix"]').getByRole('switch')).toHaveAttribute('aria-checked', 'true')
+  })
+})
+
+const SHOTS = process.env.MATRIX_TAB_SHOTS ?? ''
+
+/** Viewport capture; `end` is scrolled to the bottom of the viewport first. */
+async function shoot(page: Page, file: string, end?: Locator): Promise<void> {
+  if (!SHOTS) return
+  if (end) await end.evaluate((el) => el.scrollIntoView({ block: 'end' }))
+  await page.screenshot({ path: path.join(SHOTS, `${file}.png`) })
+}
+
+async function openMatrixTab(page: Page, serverId: string) {
+  await page.goto(`/server/${serverId}?section=bridges&tab=matrix`)
+  await dismissAnnouncements(page)
+  const panel = page.getByTestId('bridges-panel-matrix')
+  await expect(panel.getByTestId('matrix-status')).toBeVisible({ timeout: 30000 })
+  return panel
+}
+
+test.describe('Matrix tab setup', () => {
+  let helper: SpecUser
+  let bareServer: SeededServer
+  let setupServer: SeededServer
+  let setupBot = ''
+  let newsId = ''
+  let secretId = ''
+  const setupRoom = () => `!setup${owner.username.slice(-6)}:example.org`
+
+  test.beforeAll(async () => {
+    helper = await createUser(admin, 'mxhelper')
+    bareServer = await seedServer(admin, helper, `Matrix bare ${helper.username.slice(-6)}`)
+    setupServer = await seedServer(admin, owner, `Matrix setup ${owner.username.slice(-6)}`)
+    newsId = await addChannel(admin, setupServer, 'news')
+    secretId = await addChannel(admin, setupServer, 'secret')
+    setupBot = await seedBot(`mxs_${owner.username}`, 'Room Relay', { bot_type: 'bot' }, setupServer, [setupServer.generalChannelId, newsId])
+  })
+
+  test.afterAll(async () => {
+    await admin.from('servers').delete().in('id', [bareServer?.id, setupServer?.id].filter(Boolean))
+    await deleteUser(admin, helper)
+  })
+
+  const bindings = async () => {
+    const { data, error } = await admin.from('bridge_channels').select('channel_id, room_id, sender_mode').eq('bot_id', setupBot)
+    if (error) throw new Error(`bindings: ${error.message}`)
+    return ((data ?? []) as { channel_id: string; room_id: string | null; sender_mode: string }[])
+      .sort((a, b) => a.channel_id.localeCompare(b.channel_id))
+  }
+
+  test('a manager with no bot of their own gets the setup steps and the guide', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await signIn(page, helper)
+    const panel = await openMatrixTab(page, bareServer.id)
+    await expect(panel.getByTestId('matrix-status-title')).toHaveText('Not set up')
+    await expect(panel.getByTestId('matrix-bridge-empty')).toBeVisible()
+    await expect(panel.getByTestId('matrix-setup')).toHaveCount(0)
+    const steps = panel.getByTestId('matrix-guide-steps').getByRole('listitem')
+    await expect(steps).toHaveCount(4)
+    await expect(steps.nth(0)).toContainText('Matrix bridge service')
+    await expect(steps.nth(1)).toContainText('User settings → My bots')
+    await expect(steps.nth(2)).toContainText('Server settings → Advanced settings → Server bots')
+    const link = panel.getByRole('link', { name: /Read the Matrix bridge guide/ })
+    await expect(link).toHaveAttribute('href', 'https://docs.mony.lol/run/matrix-bridge')
+    await expect(link).toHaveAttribute('target', '_blank')
+    await shoot(page, 'matrix-empty')
+  })
+
+  test('the owner of a bot in the server pairs channels, sees them wait for rooms, and unpairs', async ({ page }) => {
+    test.setTimeout(120_000)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await signIn(page, owner)
+    const panel = await openMatrixTab(page, setupServer.id)
+    const form = panel.getByTestId('matrix-setup')
+    const card = (channelId: string) => panel.locator(`[data-testid="matrix-pair"][data-channel="${channelId}"]`)
+
+    await test.step('the empty tab offers the bot and the channels of its channel list', async () => {
+      await expect(panel.getByTestId('matrix-status-title')).toHaveText('Not set up')
+      await expect(form.getByLabel('Bridge bot')).toHaveValue(setupBot)
+      await expect(form.getByRole('checkbox', { name: /#general/ })).toBeEnabled()
+      await expect(form.getByRole('checkbox', { name: /#news/ })).toBeEnabled()
+      await expect(form.getByRole('checkbox', { name: /#secret/ })).toBeDisabled()
+      await expect(form.locator(`[data-channel="${secretId}"]`)).toContainText("Not in Room Relay's channel list")
+      await expect(form.getByTestId('matrix-setup-allowlist-help')).toContainText('choose Channels next to Room Relay')
+      await shoot(page, 'matrix-setup-form', form)
+    })
+
+    await test.step('pairing two channels leaves both waiting for a room', async () => {
+      await form.getByRole('checkbox', { name: /#general/ }).check()
+      await form.getByRole('checkbox', { name: /#news/ }).check()
+      await form.getByRole('button', { name: 'Pair channels' }).click()
+      await expect(panel.getByTestId('matrix-bridge-notice')).toHaveText('2 channels are paired with Matrix.')
+      await expect(panel.getByTestId('matrix-pair')).toHaveCount(2)
+      await expect(card(setupServer.generalChannelId)).toContainText('Waiting for the bridge to connect a room')
+      await expect(card(newsId)).toContainText('Waiting for the bridge to connect a room')
+      await expect(panel.getByTestId('matrix-status-title')).toHaveText('Waiting for Matrix rooms')
+      await expect(panel.getByTestId('matrix-status-bot')).toHaveText('Room Relay')
+      await expect(panel.getByTestId('matrix-status-paired')).toHaveText('2')
+      await expect(panel.getByTestId('matrix-status-rooms')).toHaveText('0')
+      await expect(panel.getByTestId('matrix-status-waiting')).toHaveText('2')
+      await expect(page.locator(':focus')).toHaveText('Paired channels')
+      expect((await bindings()).map(b => [b.channel_id, b.room_id])).toEqual(
+        [[setupServer.generalChannelId, null], [newsId, null]].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+      )
+    })
+
+    await test.step('a room the bridge connects shows on its card and in the counts', async () => {
+      const { error } = await admin.rpc('matrix_bridge_bind_room', {
+        p_bot_id: setupBot, p_channel_id: setupServer.generalChannelId, p_room_id: setupRoom(), p_initial_sender_mode: 'relay',
+      })
+      if (error) throw new Error(`bind room: ${error.message}`)
+      await panel.getByTestId('matrix-bridge-reload').click()
+      await expect(card(setupServer.generalChannelId).getByTestId('matrix-pair-room')).toHaveText(setupRoom())
+      await expect(card(setupServer.generalChannelId).getByTestId('matrix-pair-badge')).toHaveText('Connected')
+      await expect(panel.getByTestId('matrix-status-rooms')).toHaveText('1')
+      await expect(panel.getByTestId('matrix-status-waiting')).toHaveText('1')
+    })
+
+    await test.step('how members appear is saved per channel', async () => {
+      const select = card(newsId).getByLabel('Harmony members appear in Matrix')
+      await select.selectOption('ghost')
+      await expect.poll(async () => (await bindings()).find(b => b.channel_id === newsId)?.sender_mode).toBe('ghost')
+      await expect(select).toHaveValue('ghost')
+      await expect(select).toBeEnabled()
+      await shoot(page, 'matrix-paired')
+      await shoot(page, 'matrix-paired-cards', panel.getByTestId('matrix-unpair-card'))
+    })
+
+    await test.step('unpairing asks first and empties the tab', async () => {
+      await panel.getByRole('button', { name: 'Unpair Room Relay from Matrix' }).click()
+      const dialog = page.getByRole('alertdialog', { name: /Unpair Room Relay/ })
+      await expect(dialog).toContainText('Room Relay stops bridging 2 channels with Matrix.')
+      await dialog.getByRole('button', { name: 'Unpair' }).click()
+      await expect(panel.getByTestId('matrix-bridge-notice')).toHaveText('Room Relay is unpaired from Matrix.')
+      await expect(panel.getByTestId('matrix-status-title')).toHaveText('Not set up')
+      await expect(panel.getByTestId('matrix-pair')).toHaveCount(0)
+      await expect(form).toBeVisible()
+      await expect.poll(bindings).toEqual([])
+    })
   })
 })

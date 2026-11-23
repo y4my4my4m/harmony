@@ -23,7 +23,7 @@ import { membershipOutlivesRemove, removalReason, removedByStaff } from './membe
 import { isServerBlockedHere } from './instanceServerBlocks.js';
 import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
 import { actorHostReadsPost, storedPostVisibility } from './postAccess.js';
-import { inboundEmojiOrigin, inboundEmojiRowId, ownEmojiId } from '../utils/emojiOrigin.js';
+import { inboundEmojiOrigin, inboundEmojiRowId, inboundEmojiRowIds, ownEmojiId } from '../utils/emojiOrigin.js';
 import { cacheInboundEmojiTags } from '../utils/remoteEmojiCache.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
@@ -235,6 +235,19 @@ export function transientNetworkCause(error: unknown): string | null {
 /** Visibilities a boost or quote may copy (posts BEFORE INSERT, 20261005650001). */
 function isBoostableVisibility(visibility: unknown): boolean {
   return visibility === 'public' || visibility === 'unlisted';
+}
+
+/** Profile federation_metadata as an object; older rows hold it as a JSON-encoded string. */
+function profileMetadata(value: unknown): Record<string, any> {
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? { ...(parsed as Record<string, any>) } : {};
 }
 
 /** A quoted post as read for the quote's reblog snapshot. */
@@ -1620,19 +1633,14 @@ export class ActivityProcessor {
         .maybeSingle();
       Object.assign(updateData, await movedColumns(supabase, profileData, existing));
 
-      const federationMetadata: any = {};
-      if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
-        federationMetadata.bio_emojis = profileData.bio_emojis;
-      }
-      if (profileData.display_name_emojis && profileData.display_name_emojis.length > 0) {
-        federationMetadata.display_name_emojis = profileData.display_name_emojis;
-      }
-      if (Object.keys(federationMetadata).length > 0) {
-        // Merge with existing federation_metadata
-        const existingMeta = existing?.federation_metadata ? (typeof existing.federation_metadata === 'string' ? JSON.parse(existing.federation_metadata) : existing.federation_metadata) : {};
-        // An object: SQL readers (public pages) take keys with ->, which a JSON-encoded string has none of.
-        updateData.federation_metadata = { ...existingMeta, ...federationMetadata };
-      }
+      // The actor's emoji lists replace the stored ones, empty included: an actor naming no emoji
+      // has none. An object: SQL readers (public pages) take keys with ->, which a JSON-encoded
+      // string has none of. Keys of other writers stay.
+      updateData.federation_metadata = {
+        ...profileMetadata(existing?.federation_metadata),
+        bio_emojis: profileData.bio_emojis ?? [],
+        display_name_emojis: profileData.display_name_emojis ?? [],
+      };
 
       await supabase
         .from('profiles')
@@ -2695,8 +2703,8 @@ export class ActivityProcessor {
     const undoesFavourite = isFavouriteLike({ emoji, emojiUrl, emojiName });
 
     // Lookup only: an Undo naming an unknown emoji matches nothing rather than
-    // creating a row.
-    let emojiId: string | null = null;
+    // creating a row. Every row the image may have resolved to when the reaction arrived.
+    const emojiIds = new Set<string>();
     if (isCustomEmoji) {
       const origin = inboundEmojiOrigin(emojiName!, actorUrl, config.INSTANCE_DOMAIN);
       let urlHost: string | null = null;
@@ -2705,7 +2713,11 @@ export class ActivityProcessor {
       } catch {
         urlHost = null;
       }
-      emojiId = await inboundEmojiRowId(supabase, emojiUrl!, origin.domain ?? urlHost);
+      for (const id of await inboundEmojiRowIds(supabase, emojiUrl!, origin.domain ?? urlHost)) emojiIds.add(id);
+      if (origin.own) {
+        const own = await ownEmojiId(supabase, emojiUrl!);
+        if (own) emojiIds.add(own);
+      }
     }
 
     // Content strings processLike writes for this emoji.
@@ -2722,7 +2734,7 @@ export class ActivityProcessor {
     return (row: any) => {
       if (row.interaction_type === 'favorite') return undoesFavourite;
       if (undoesFavourite) return isHeartReaction(row.custom_emoji_content);
-      if (emojiId !== null && row.emoji_id === emojiId) return true;
+      if (typeof row.emoji_id === 'string' && emojiIds.has(row.emoji_id)) return true;
       return typeof row.custom_emoji_content === 'string' && contents.has(row.custom_emoji_content);
     };
   }
@@ -3947,25 +3959,19 @@ export class ActivityProcessor {
       profileRecord.shared_inbox_url = actor.endpoints.sharedInbox;
     }
 
-    // Persist custom emoji metadata so the frontend can render shortcodes, and
-    // the actor's creation date, which the spam heuristics read as account age.
+    // Custom emoji lists, so the frontend can render shortcodes, and the actor's creation date,
+    // which the spam heuristics read as account age. The lists replace the stored ones, empty
+    // included, as ActorService's lookup writes them.
     const apPublished = typeof actor.published === 'string' && Number.isFinite(Date.parse(actor.published))
       ? new Date(actor.published).toISOString()
       : null;
-    if (profileData.display_name_emojis?.length || profileData.bio_emojis?.length || apPublished) {
-      const existingMeta = (existing as any)?.federation_metadata || {};
-      const meta = typeof existingMeta === 'string' ? JSON.parse(existingMeta) : { ...existingMeta };
-      if (profileData.display_name_emojis?.length) {
-        meta.display_name_emojis = profileData.display_name_emojis;
-      }
-      if (profileData.bio_emojis?.length) {
-        meta.bio_emojis = profileData.bio_emojis;
-      }
-      if (apPublished) {
-        meta.ap_published = apPublished;
-      }
-      profileRecord.federation_metadata = meta;
+    const meta = profileMetadata((existing as any)?.federation_metadata);
+    meta.display_name_emojis = profileData.display_name_emojis ?? [];
+    meta.bio_emojis = profileData.bio_emojis ?? [];
+    if (apPublished) {
+      meta.ap_published = apPublished;
     }
+    profileRecord.federation_metadata = meta;
 
     const { error: upsertError } = await supabase
       .from('profiles')

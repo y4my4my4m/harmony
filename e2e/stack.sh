@@ -24,6 +24,8 @@
 # The OIDC provider (dex) listens on E2E_IDP_PORT, default E2E_PORT + 2000 (e2e/specs/livekit.ts
 # takes E2E_PORT + 1000 to + 1012), on a network of 198.18.0.0/15 (E2E_IDP_SUBNET, default one
 # /24 per E2E_PORT modulo 512). Its config, CA and certificate are generated into e2e/idp/.
+# e2e/idp-userinfo.mjs, a provider that sends the address from userinfo only, shares dex's
+# network namespace and certificate on E2E_IDP_USERINFO_PORT, default E2E_IDP_PORT + 1.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -44,6 +46,8 @@ idp_net=$((PORT % 512))
 IDP_SUBNET="${E2E_IDP_SUBNET:-198.$((18 + idp_net / 256)).$((idp_net % 256)).0/24}"
 IDP_HOST="idp.e2e.test"
 IDP_ISSUER="https://$IDP_HOST:$IDP_PORT/dex"
+IDP_USERINFO_PORT="${E2E_IDP_USERINFO_PORT:-$((IDP_PORT + 1))}"
+IDP_USERINFO_ISSUER="https://$IDP_HOST:$IDP_USERINFO_PORT/api/auth"
 
 # Throwaway values; the database publishes no port.
 DB_PASSWORD="e2e-local-postgres"
@@ -56,6 +60,8 @@ IDP_PASSWORD_HASH='$2a$10$bHxt7zb62lwgA4jIKGqG5eoZkbH8AJYZY7nf1pD1UxwZ/ioCol.ee'
 IDP_NEW_EMAIL="oidc-new@e2e.harmony.local"
 IDP_LINK_EMAIL="oidc-link@e2e.harmony.local"
 IDP_APART_EMAIL="oidc-apart@e2e.harmony.local"
+IDP_USERINFO_NEW_EMAIL="userinfo-new@e2e.harmony.local"
+IDP_USERINFO_SWITCH_EMAIL="userinfo-switch@e2e.harmony.local"
 
 log()  { printf '\033[36m==>\033[0m %s\n' "$*"; }
 ok()   { printf '\033[32mok \033[0m %s\n' "$*"; }
@@ -123,6 +129,10 @@ E2E_IDP_PASSWORD=$IDP_PASSWORD
 E2E_IDP_NEW_EMAIL=$IDP_NEW_EMAIL
 E2E_IDP_LINK_EMAIL=$IDP_LINK_EMAIL
 E2E_IDP_APART_EMAIL=$IDP_APART_EMAIL
+E2E_IDP_USERINFO_PORT=$IDP_USERINFO_PORT
+E2E_IDP_USERINFO_ISSUER=$IDP_USERINFO_ISSUER
+E2E_IDP_USERINFO_NEW_EMAIL=$IDP_USERINFO_NEW_EMAIL
+E2E_IDP_USERINFO_SWITCH_EMAIL=$IDP_USERINFO_SWITCH_EMAIL
 
 # GoTrue runs as this user and watches E2E_AUTH_CONFIG_DIR, where the writer leaves 0600 files.
 E2E_UID=$(id -u)

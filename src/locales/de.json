@@ -6,28 +6,133 @@
       "memberSince": "Auf {platform} seit",
       "status": "Status",
       "roles": "Rolle | Rollen",
-      "copyId": "ID kopieren",
-      "copied": "Kopiert",
-      "open": "Auf {platform} öffnen"
+      "copyId": "{platform}-ID kopieren",
+      "copied": "Kopiert"
     }
   },
   "matrixBridge": {
     "title": "Matrix-Bridge",
-    "pairsTitle": "Verbundene Kanäle",
-    "description": "Wähle, wie Harmony-Nachrichten an bestehende Matrix-Bridges gesendet werden.",
-    "requirements": "Der Einzelmodus verwendet echte Matrix-Mitglieder für Harmony-Autoren. Er benötigt einen Benutzer-Namensraum des Application Service und die Berechtigung, sie in den Matrix-Raum einzuladen.",
-    "history": "Modusänderungen gelten nur für zukünftige Zustellungen. Der bisherige Verlauf bleibt erhalten.",
-    "delivery": "Die Auswahl bestätigt weder Registrierung noch Zustellung. Prüfe den Absender einer erfolgreich zugestellten Nachricht in Matrix.",
+    "description": "Verbinde Kanäle dieses Servers mit Räumen auf Matrix. Nachrichten von einer Seite erscheinen auf der anderen, mit dem Namen der Person, die sie geschickt hat.",
     "loading": "Matrix-Bridges werden geladen…",
     "reload": "Neu laden",
-    "empty": "Für diesen Server sind keine Matrix-Bridges eingerichtet.",
-    "waitingRoom": "Warte auf die Verbindung mit einem Matrix-Raum. Die Moduswahl kann schon gespeichert werden.",
-    "senderMode": "Harmony-Nachrichten senden als",
-    "ghost": "Einzelne überbrückte Benutzer (empfohlen)",
-    "relay": "Gemeinsames Bridge-Konto",
-    "saving": "Modus wird gespeichert…",
-    "loadError": "Die Einstellungen der Matrix-Bridge konnten nicht geladen werden. Bitte neu laden.",
-    "saveError": "Die Modusänderung konnte nicht bestätigt werden. Lade neu, um die aktuelle Einstellung zu prüfen.",
+    "loadError": "Die Einstellungen der Matrix-Bridge konnten nicht geladen werden. Lade neu, um es noch einmal zu versuchen.",
+    "saveError": "Die Änderung konnte nicht bestätigt werden. Lade neu, um die aktuelle Einstellung zu sehen.",
+    "status": {
+      "none": "Nicht eingerichtet",
+      "connected": "Mit Matrix verbunden",
+      "waiting": "Wartet auf Matrix-Räume",
+      "problem": "Braucht Aufmerksamkeit",
+      "line": {
+        "none": "Noch kein Kanal dieses Servers ist mit Matrix verbunden.",
+        "connected": "Jeder verbundene Kanal hat einen Matrix-Raum.",
+        "waiting": "{count} Kanal wartet darauf, dass die Bridge einen Matrix-Raum verbindet. | {count} Kanäle warten darauf, dass die Bridge einen Matrix-Raum verbindet.",
+        "problem": "{count} verbundener Kanal wird nicht übertragen. Seine Karte unten erklärt, wie du das behebst. | {count} verbundene Kanäle werden nicht übertragen. Ihre Karten unten erklären, wie du das behebst."
+      },
+      "facts": {
+        "bot": "Bridge-Bot | Bridge-Bots",
+        "paired": "Verbundene Kanäle",
+        "rooms": "Mit einem Raum verbunden",
+        "waiting": "Warten auf einen Raum",
+        "stopped": "Werden nicht übertragen"
+      },
+      "unseen": "Harmony kann nicht erkennen, ob der Bridge-Dienst läuft. Schreib zum Prüfen eine Nachricht in einen verbundenen Kanal und such sie in Matrix."
+    },
+    "pairs": {
+      "title": "Verbundene Kanäle",
+      "listLabel": "Mit Matrix verbundene Kanäle",
+      "empty": "Noch kein Kanal ist mit Matrix verbunden.",
+      "harmony": "Harmony",
+      "matrix": "Matrix",
+      "waitingRoom": "Wartet darauf, dass die Bridge einen Raum verbindet",
+      "badge": {
+        "connected": "Verbunden",
+        "waiting": "Wartet auf einen Raum",
+        "stopped": "Wird nicht übertragen"
+      },
+      "waitingFix": "Die Bridge verbindet einen Raum, sobald dieser Kanal in ihrer Konfiguration steht: Bitte die Person, die die Bridge betreibt, ihn einzutragen. Wie Mitglieder erscheinen, kannst du schon jetzt wählen.",
+      "stoppedFix": "{bot} kann #{channel} nicht mehr übertragen: Der Bot ist ausgeschaltet, hat „Nachrichten lesen“ oder „Nachrichten senden“ verloren, oder #{channel} steht nicht mehr in seiner Kanalliste. Behebe das unter Servereinstellungen → Erweiterte Einstellungen → Server-Bots.",
+      "via": "Über {bot}",
+      "senderMode": "So erscheinen Harmony-Mitglieder in Matrix",
+      "mode": {
+        "ghost": "Als eigene Matrix-Benutzer (empfohlen)",
+        "relay": "Über ein gemeinsames Bridge-Konto"
+      },
+      "modeHint": {
+        "ghost": "Jedes Mitglied erscheint im Raum mit eigenem Namen und Bild.",
+        "relay": "Jede Nachricht kommt vom Konto der Bridge, mit dem Namen des Mitglieds davor."
+      },
+      "saving": "Wird gespeichert…",
+      "edit": "Verbundene Kanäle ändern",
+      "notOwner": "Nur die Person, der {bot} gehört, kann ändern, welche Kanäle er überträgt. Du kannst trotzdem wählen, wie Mitglieder erscheinen, oder ihn trennen."
+    },
+    "modes": {
+      "title": "So funktionieren die beiden Möglichkeiten",
+      "ghost": "Als eigene Matrix-Benutzer: Die Bridge legt für jedes Harmony-Mitglied, das den Kanal sehen kann, einen Matrix-Benutzer mit seinem Namen und Bild an, und Leute auf Matrix erwähnen es mit der gewohnten {'@'}-Autovervollständigung. Dafür muss der Benutzer-Namensraum der Bridge auf dem Matrix-Homeserver registriert sein, und das Bridge-Konto muss Leute in den Raum einladen dürfen. Fehlt eines davon, meldet die Bridge einen Fehler; sie wechselt nicht von selbst zum gemeinsamen Konto.",
+      "relay": "Über ein gemeinsames Bridge-Konto: Jede Nachricht kommt vom Bridge-Konto, mit dem Namen der Person davor, und es werden keine Matrix-Benutzer angelegt. Leute auf Matrix erwähnen ein Harmony-Mitglied mit !mention und seinem genauen Benutzernamen.",
+      "future": "Eine Änderung gilt nur für neue Nachrichten. Bereits übertragene Nachrichten bleiben, wie sie sind.",
+      "verify": "Das Speichern hier beweist nicht, dass die Bridge die Änderung übernommen hat: Prüfe eine neue Nachricht im Matrix-Raum."
+    },
+    "setup": {
+      "title": "Kanäle mit Matrix verbinden",
+      "editTitle": "Verbundene Kanäle ändern",
+      "lead": "Wähle den Bot, der deine Matrix-Bridge betreibt, und die Kanäle, die er überträgt. Jeder Kanal bekommt seinen Matrix-Raum, sobald er in der Konfiguration der Bridge steht.",
+      "bot": "Bridge-Bot",
+      "channels": "Zu übertragende Kanäle",
+      "notAllowed": "Nicht in der Kanalliste von {bot}",
+      "notAllowedHelp": "Ein ausgegrauter Kanal steht nicht in der Kanalliste von {bot}. Um ihn hinzuzufügen, öffne Servereinstellungen → Erweiterte Einstellungen → Server-Bots, wähle Kanäle neben {bot} und hake ihn an.",
+      "noChannels": "Dieser Server hat keine Textkanäle, die du sehen kannst.",
+      "pickOne": "Wähle mindestens einen Kanal.",
+      "pickOneEdit": "Wähle mindestens einen Kanal. Um keinen mehr zu übertragen, nutze unten „Trennen“.",
+      "save": "Kanäle verbinden",
+      "saveEdit": "Kanäle speichern",
+      "saving": "Wird gespeichert…",
+      "cancel": "Abbrechen",
+      "saved": "{count} Kanal ist mit Matrix verbunden. | {count} Kanäle sind mit Matrix verbunden."
+    },
+    "guide": {
+      "title": "Eine Matrix-Bridge einrichten",
+      "lead": "Um hier Kanäle zu verbinden, brauchst du einen eigenen Bot, der die Matrix-Bridge betreibt und auf diesem Server ist.",
+      "steps": {
+        "service": "Wer diese Harmony-Instanz betreibt, richtet den Matrix-Bridge-Dienst ein und registriert ihn beim Matrix-Homeserver. Frag dort nach, falls er noch nicht läuft.",
+        "bot": "Erstelle unter {place} einen Bot für die Bridge und gib sein Token der Person, die die Bridge betreibt.",
+        "install": "Füge den Bot unter {place} zu diesem Server hinzu. Gib ihm „Nachrichten lesen“ und „Nachrichten senden“, wähle dann unter Kanäle „Ausgewählte Kanäle“ und hake die zu übertragenden Kanäle an.",
+        "pair": "Komm hierher zurück, um diese Kanäle zu verbinden."
+      },
+      "places": {
+        "myBots": "Benutzereinstellungen → Meine Bots",
+        "serverBots": "Servereinstellungen → Erweiterte Einstellungen → Server-Bots"
+      },
+      "link": "Anleitung zur Matrix-Bridge lesen",
+      "newTab": "(öffnet in einem neuen Tab)",
+      "blockedTitle": "Dein Bot auf diesem Server kann noch nicht übertragen: | Deine Bots auf diesem Server können noch nicht übertragen:",
+      "blockedItem": "{bot}: {reason}",
+      "block": {
+        "bot_inactive": "Er ist ausgeschaltet. Schalte ihn unter Benutzereinstellungen → Meine Bots ein.",
+        "install_inactive": "Er ist auf diesem Server ausgeschaltet. Füge ihn unter Servereinstellungen → Erweiterte Einstellungen → Server-Bots erneut hinzu.",
+        "read_send": "Er braucht „Nachrichten lesen“ und „Nachrichten senden“. Gib sie unter Berechtigungen in Servereinstellungen → Erweiterte Einstellungen → Server-Bots.",
+        "all_channels": "Er darf jeden Kanal nutzen, eine Bridge braucht aber eine Liste. Wähle unter Kanäle in Servereinstellungen → Erweiterte Einstellungen → Server-Bots „Ausgewählte Kanäle“.",
+        "no_channels": "Seine Kanalliste enthält keinen Textkanal. Hake unter Kanäle in Servereinstellungen → Erweiterte Einstellungen → Server-Bots welche an."
+      }
+    },
+    "unpair": {
+      "title": "Von Matrix trennen",
+      "lead": "Ein getrennter Bot überträgt keinen seiner Kanäle hier mehr. Bereits übertragene Nachrichten bleiben auf beiden Seiten.",
+      "item": "{bot}: {count} Kanal | {bot}: {count} Kanäle",
+      "button": "Trennen",
+      "label": "{bot} von Matrix trennen",
+      "confirmTitle": "{bot} trennen?",
+      "confirmMessage": "{bot} überträgt {count} Kanal nicht mehr mit Matrix. Bereits übertragene Nachrichten bleiben. Bitte die Person, die die Bridge betreibt, auch den Raum aus ihrer Konfiguration zu nehmen. | {bot} überträgt {count} Kanäle nicht mehr mit Matrix. Bereits übertragene Nachrichten bleiben. Bitte die Person, die die Bridge betreibt, auch die Räume aus ihrer Konfiguration zu nehmen.",
+      "done": "{bot} ist von Matrix getrennt."
+    },
+    "errors": {
+      "discordBot": "Dieser Bot betreibt eine Discord-Bridge und kann deshalb nicht auch Matrix übertragen. Nimm einen eigenen Bot.",
+      "allowlist": "Ein gewählter Kanal steht nicht mehr in der Kanalliste des Bots. Lade neu und wähle noch einmal.",
+      "install": "Der Bot ist ausgeschaltet, oder ihm fehlen auf diesem Server „Nachrichten lesen“, „Nachrichten senden“ oder eine Kanalliste.",
+      "permission": "Nur die Person, der der Bot gehört, kann seine Kanäle verbinden, und dafür braucht sie „Server verwalten“ auf diesem Server.",
+      "save": "Die verbundenen Kanäle konnten nicht gespeichert werden. Lade neu und versuche es noch einmal.",
+      "unpair": "Der Bot konnte nicht getrennt werden. Lade neu und versuche es noch einmal.",
+      "installs": "Deine Bots konnten nicht geladen werden, deshalb lassen sich hier gerade keine Kanäle verbinden. Lade neu, um es noch einmal zu versuchen."
+    },
     "privacy": {
       "lead": "Entferne hier eine Matrix-Person, um alles zu löschen, was die Bridge dieses Servers von ihr gebracht hat, und keine weiteren Nachrichten von ihr zu bringen.",
       "idLabel": "Matrix-Benutzer-ID",
@@ -1646,7 +1751,8 @@
       "leaveFailed": "Gruppe konnte nicht verlassen werden",
       "deleted": "Gruppe gelöscht",
       "deleteFailed": "Gruppe konnte nicht gelöscht werden"
-    }
+    },
+    "callUndeliverable": "Dein Anruf konnte nicht hergestellt werden."
   },
   "user": {
     "panelToggle": "Dein Konto und Sprachsteuerung",
@@ -4708,7 +4814,8 @@
     },
     "timedOut": "Du bist auf diesem Server bis {time} im Timeout und kannst keine Nachrichten senden, nicht reagieren und keine Threads starten.",
     "antispam": {
-      "rateLimited": "Das geht zu schnell. Versuche es in {seconds} s erneut.",
+      "rateLimited": "Das geht zu schnell. Versuche es in {wait} erneut.",
+      "strangerConversations": "Neue Unterhaltungen mit Personen, die du nicht kennst, sind auf {count} pro Stunde begrenzt. Versuche es in {wait} erneut.",
       "linksBlocked": "Neue Konten können noch keine Links posten.",
       "strangerMentions": "Neue Konten können höchstens {count} Personen erwähnen, die ihnen nicht folgen.",
       "serverLimit": "Ein Konto kann auf dieser Instanz höchstens {count} Server besitzen.",
@@ -6596,6 +6703,9 @@
       "cancel": "Abbrechen",
       "cancelLabel": "Import für #{channel} abbrechen",
       "cancelling": "Wird abgebrochen…",
+      "stopNow": "Jetzt beenden",
+      "stopNowLabel": "Import für #{channel} jetzt beenden",
+      "stopNowHint": "Die Bridge hält beim nächsten Schritt an. Ist sie offline, beendet „Jetzt beenden“ den Import hier.",
       "waiting": "Wartet",
       "running": "Import läuft… {percent} %",
       "runningUnknown": "Import läuft…",
@@ -7660,6 +7770,9 @@
   },
   "activities": {
     "title": "Gemeinsam schauen oder hören",
+    "launcherTitle": "Aktivitäten",
+    "launcherSubtitleCall": "In diesem Anruf gemeinsam schauen, hören oder spielen",
+    "playHeading": "Spielen",
     "addTitle": "Zur Aktivität hinzufügen",
     "lede": "Bei allen im Anruf läuft dasselbe im selben Moment. Füge einen YouTube-, SoundCloud- oder Spotify-Link oder einen Link zu einer Video- oder Audiodatei ein, oder wähle aus deinem Drive.",
     "linkPlaceholder": "Link einfügen",
@@ -9034,11 +9147,13 @@
       "ACTIVITY_CONTEXT_UNSUPPORTED": "Diese Aktivität kann hier nicht laufen.",
       "ACTIVITY_RATE_LIMITED": "Du hast viele Aktivitäten gestartet. Versuche es in ein paar Minuten erneut.",
       "NOT_FOUND": "Du kannst hier nicht spielen.",
-      "DM_BLOCKED": "Du kannst mit dieser Person nicht spielen.",
       "SERVER_NOT_LOCAL": "Aktivitäten laufen nur auf Servern, die diese Instanz hostet.",
       "CHANNEL_TYPE": "Aktivitäten laufen in Text- und Sprachkanälen.",
       "NOT_IN_CALL": "Tritt dem Anruf bei, um zu spielen.",
       "CANNOT_SEND": "Du kannst in diesem Kanal keine Nachrichten senden.",
+      "MEMBER_TIMED_OUT": "Du bist auf diesem Server im Timeout.",
+      "WEBVIEW_OUTDATED": "Aktualisiere Android System WebView, um Aktivitäten zu spielen.",
+      "PACKAGE_DESKTOP_ONLY": "Diese Aktivität läuft in Harmony auf einem Computer.",
       "NOT_LOCAL_ACCOUNT": "Nur Konten dieser Instanz können hier spielen.",
       "ENDED": "Diese Aktivität ist beendet.",
       "FULL": "Diese Aktivität ist voll.",
@@ -9105,6 +9220,7 @@
       }
     },
     "thirdParty": "Drittanbieter",
+    "desktopOnly": "Nur Computer",
     "thirdPartyNotice": "Aktivität eines Drittanbieters, von dieser Instanz installiert. Harmony fragt innerhalb einer Aktivität nie nach deinem Passwort."
   }
 }

@@ -6,28 +6,133 @@
       "memberSince": "{platform} 注册时间",
       "status": "状态",
       "roles": "角色 | 角色",
-      "copyId": "复制 ID",
-      "copied": "已复制",
-      "open": "在 {platform} 中打开"
+      "copyId": "复制 {platform} ID",
+      "copied": "已复制"
     }
   },
   "matrixBridge": {
     "title": "Matrix 桥接",
-    "pairsTitle": "已配对的频道",
-    "description": "选择向现有 Matrix 房间桥接发送 Harmony 消息的方式。",
-    "requirements": "独立模式为 Harmony 作者使用真实的 Matrix 成员。需要应用服务用户命名空间，以及将这些用户邀请到 Matrix 房间的权限。",
-    "history": "模式更改仅影响今后的消息投递。现有历史记录将保留。",
-    "delivery": "选择独立模式不代表注册或投递已完成。请在 Matrix 中成功投递的消息上确认发送者身份。",
+    "description": "将此服务器的频道与 Matrix 房间相连。任一侧发送的消息都会带着发送者的名字出现在另一侧。",
     "loading": "正在加载 Matrix 桥接…",
     "reload": "重新加载",
-    "empty": "此服务器尚未配置 Matrix 桥接。",
-    "waitingRoom": "正在等待桥接连接 Matrix 房间。现在即可保存模式选择。",
-    "senderMode": "Harmony 消息发送身份",
-    "ghost": "独立桥接用户（推荐）",
-    "relay": "共享桥接账户",
-    "saving": "正在保存模式…",
-    "loadError": "无法加载 Matrix 桥接设置。请重新加载以重试。",
-    "saveError": "无法确认模式更改。请重新加载以查看当前设置。",
+    "loadError": "无法加载 Matrix 桥接设置。请重新加载后重试。",
+    "saveError": "无法确认更改。请重新加载以查看当前设置。",
+    "status": {
+      "none": "尚未设置",
+      "connected": "已桥接到 Matrix",
+      "waiting": "正在等待 Matrix 房间",
+      "problem": "需要处理",
+      "line": {
+        "none": "此服务器还没有频道桥接到 Matrix。",
+        "connected": "每个已配对的频道都有 Matrix 房间。",
+        "waiting": "{count} 个频道正在等待桥接连接 Matrix 房间。",
+        "problem": "{count} 个已配对的频道没有在桥接。请查看下方卡片了解如何修复。"
+      },
+      "facts": {
+        "bot": "桥接机器人",
+        "paired": "已配对的频道",
+        "rooms": "已连接房间",
+        "waiting": "等待房间",
+        "stopped": "未在桥接"
+      },
+      "unseen": "Harmony 无法得知桥接服务是否在运行。要检查，请在已配对的频道发一条消息，然后在 Matrix 中查找。"
+    },
+    "pairs": {
+      "title": "已配对的频道",
+      "listLabel": "与 Matrix 配对的频道",
+      "empty": "还没有频道与 Matrix 配对。",
+      "harmony": "Harmony",
+      "matrix": "Matrix",
+      "waitingRoom": "正在等待桥接连接房间",
+      "badge": {
+        "connected": "已连接",
+        "waiting": "等待房间",
+        "stopped": "未在桥接"
+      },
+      "waitingFix": "此频道写入桥接的配置后，桥接就会连接一个房间：请让运行桥接的人添加它。你现在就可以选择成员的显示方式。",
+      "stoppedFix": "{bot} 已无法桥接 #{channel}：机器人已关闭、失去了“读取消息”或“发送消息”，或 #{channel} 已不在它的频道列表中。请在 服务器设置 → 高级设置 → 服务器机器人 中修复。",
+      "via": "通过 {bot}",
+      "senderMode": "Harmony 成员在 Matrix 中的显示方式",
+      "mode": {
+        "ghost": "作为各自的 Matrix 用户（推荐）",
+        "relay": "通过一个共享的桥接账户"
+      },
+      "modeHint": {
+        "ghost": "每位成员都以自己的名字和头像出现在房间里。",
+        "relay": "每条消息都来自桥接账户，并在前面加上成员的名字。"
+      },
+      "saving": "正在保存…",
+      "edit": "更改已配对的频道",
+      "notOwner": "只有 {bot} 的所有者才能更改它桥接的频道。你仍可选择成员的显示方式，或解除配对。"
+    },
+    "modes": {
+      "title": "两种方式如何运作",
+      "ghost": "作为各自的 Matrix 用户：桥接会为每位能看到该频道的 Harmony 成员创建一个带有名字和头像的 Matrix 用户，Matrix 上的人可以用平常的 {'@'} 自动补全提及他们。这需要桥接的用户命名空间已在 Matrix 主服务器上注册，并且桥接账户可以邀请人进入房间。缺少其中任何一项，桥接都会报告错误，而不会自行切换到共享账户。",
+      "relay": "通过一个共享的桥接账户：每条消息都来自桥接账户，前面加上作者的名字，不会创建 Matrix 用户。Matrix 上的人要提及 Harmony 成员，需输入 !mention 加上对方准确的用户名。",
+      "future": "更改只影响新消息。已桥接的消息保持不变。",
+      "verify": "在这里保存并不代表桥接已应用更改：请在 Matrix 房间里检查一条新消息。"
+    },
+    "setup": {
+      "title": "将频道与 Matrix 配对",
+      "editTitle": "更改已配对的频道",
+      "lead": "选择运行 Matrix 桥接的机器人以及要桥接的频道。每个频道写入桥接的配置后，就会连接到它的 Matrix 房间。",
+      "bot": "桥接机器人",
+      "channels": "要桥接的频道",
+      "notAllowed": "不在 {bot} 的频道列表中",
+      "notAllowedHelp": "灰色的频道不在 {bot} 的频道列表中。要添加，请打开 服务器设置 → 高级设置 → 服务器机器人，在 {bot} 旁选择“频道”，然后勾选它。",
+      "noChannels": "此服务器没有你能看到的文字频道。",
+      "pickOne": "请至少选择一个频道。",
+      "pickOneEdit": "请至少选择一个频道。要停止桥接所有频道，请使用下方的“解除配对”。",
+      "save": "配对频道",
+      "saveEdit": "保存频道",
+      "saving": "正在保存…",
+      "cancel": "取消",
+      "saved": "{count} 个频道已与 Matrix 配对。"
+    },
+    "guide": {
+      "title": "设置 Matrix 桥接",
+      "lead": "要在这里配对频道，你需要一个属于你自己、运行 Matrix 桥接并已加入此服务器的机器人。",
+      "steps": {
+        "service": "运行此 Harmony 实例的人负责搭建 Matrix 桥接服务，并在 Matrix 主服务器上注册它。如果它还没运行，请联系他们。",
+        "bot": "在 {place} 中为桥接创建一个机器人，并把它的令牌交给运行桥接的人。",
+        "install": "在 {place} 中把机器人添加到此服务器。给它“读取消息”和“发送消息”，然后在“频道”中选择“选定的频道”，并勾选要桥接的频道。",
+        "pair": "回到这里配对这些频道。"
+      },
+      "places": {
+        "myBots": "用户设置 → 我的机器人",
+        "serverBots": "服务器设置 → 高级设置 → 服务器机器人"
+      },
+      "link": "阅读 Matrix 桥接指南",
+      "newTab": "（在新标签页中打开）",
+      "blockedTitle": "你在此服务器中的机器人还不能桥接：",
+      "blockedItem": "{bot}：{reason}",
+      "block": {
+        "bot_inactive": "它已关闭。请在 用户设置 → 我的机器人 中开启。",
+        "install_inactive": "它在此服务器中已关闭。请在 服务器设置 → 高级设置 → 服务器机器人 中重新添加。",
+        "read_send": "它需要“读取消息”和“发送消息”。请在 服务器设置 → 高级设置 → 服务器机器人 的“权限”中授予。",
+        "all_channels": "它可以使用所有频道，但桥接需要一个列表。请在 服务器设置 → 高级设置 → 服务器机器人 的“频道”中选择“选定的频道”。",
+        "no_channels": "它的频道列表中没有文字频道。请在 服务器设置 → 高级设置 → 服务器机器人 的“频道”中勾选一些。"
+      }
+    },
+    "unpair": {
+      "title": "解除与 Matrix 的配对",
+      "lead": "解除机器人的配对后，它在这里的所有频道都将停止桥接。已桥接的消息会保留在两侧。",
+      "item": "{bot}：{count} 个频道",
+      "button": "解除配对",
+      "label": "解除 {bot} 与 Matrix 的配对",
+      "confirmTitle": "解除 {bot} 的配对？",
+      "confirmMessage": "{bot} 将不再把 {count} 个频道与 Matrix 桥接。已桥接的消息会保留。也请让运行桥接的人把房间从其配置中移除。",
+      "done": "{bot} 已解除与 Matrix 的配对。"
+    },
+    "errors": {
+      "discordBot": "此机器人在运行 Discord 桥接，因此不能同时桥接 Matrix。请使用另一个机器人。",
+      "allowlist": "所选频道已不在机器人的频道列表中。请重新加载后重新选择。",
+      "install": "机器人已关闭，或在此服务器中缺少“读取消息”、“发送消息”或频道列表。",
+      "permission": "只有在此服务器拥有“管理服务器”权限的机器人所有者才能配对它的频道。",
+      "save": "无法保存已配对的频道。请重新加载后重试。",
+      "unpair": "无法解除机器人的配对。请重新加载后重试。",
+      "installs": "无法加载你的机器人，因此现在无法在这里配对频道。请重新加载后重试。"
+    },
     "privacy": {
       "lead": "在此处移除 Matrix 用户后，此服务器的桥接从该用户带来的所有内容都会被删除，且不再带入其消息。",
       "idLabel": "Matrix 用户 ID",
@@ -1646,7 +1751,8 @@
       "leaveFailed": "无法退出群组",
       "deleted": "群组已删除",
       "deleteFailed": "无法删除群组"
-    }
+    },
+    "callUndeliverable": "你的通话无法接通。"
   },
   "user": {
     "panelToggle": "您的账户和语音控制",
@@ -4708,7 +4814,8 @@
     },
     "timedOut": "您在此服务器中已被禁言至 {time}，无法发送消息、添加反应或创建话题。",
     "antispam": {
-      "rateLimited": "操作过于频繁。请在 {seconds} 秒后重试。",
+      "rateLimited": "操作过于频繁。请在 {wait}后重试。",
+      "strangerConversations": "与不认识的人发起的新会话每小时最多 {count} 个。请在 {wait}后重试。",
       "linksBlocked": "新账户暂时无法发布链接。",
       "strangerMentions": "新账户最多只能提及 {count} 个未关注自己的人。",
       "serverLimit": "在此实例上，一个账户最多可拥有 {count} 个服务器。",
@@ -6596,6 +6703,9 @@
       "cancel": "取消",
       "cancelLabel": "取消 #{channel} 的导入",
       "cancelling": "正在取消…",
+      "stopNow": "立即停止",
+      "stopNowLabel": "立即停止 #{channel} 的导入",
+      "stopNowHint": "桥接会在下一步停止。如果桥接离线，“立即停止”会在这里结束导入。",
       "waiting": "等待中",
       "running": "正在导入… {percent}%",
       "runningUnknown": "正在导入…",
@@ -7660,6 +7770,9 @@
   },
   "activities": {
     "title": "一起看或一起听",
+    "launcherTitle": "活动",
+    "launcherSubtitleCall": "在此通话中一起看、听或玩",
+    "playHeading": "玩",
     "addTitle": "添加到活动",
     "lede": "通话中的每个人会同时播放相同的内容。粘贴 YouTube、SoundCloud 或 Spotify 链接、视频或音频文件链接，或从你的 Drive 中选择。",
     "linkPlaceholder": "粘贴链接",
@@ -9034,11 +9147,13 @@
       "ACTIVITY_CONTEXT_UNSUPPORTED": "此活动无法在此运行。",
       "ACTIVITY_RATE_LIMITED": "你开启的活动太多了，请几分钟后再试。",
       "NOT_FOUND": "你无法在此游玩。",
-      "DM_BLOCKED": "你无法与此人一起游玩。",
       "SERVER_NOT_LOCAL": "活动只能在本实例托管的服务器上运行。",
       "CHANNEL_TYPE": "活动可在文字频道和语音频道中运行。",
       "NOT_IN_CALL": "加入通话即可游玩。",
       "CANNOT_SEND": "你无法在此频道发送消息。",
+      "MEMBER_TIMED_OUT": "你在此服务器被禁言。",
+      "WEBVIEW_OUTDATED": "请更新 Android System WebView 以玩活动。",
+      "PACKAGE_DESKTOP_ONLY": "此活动需在电脑上的 Harmony 中玩。",
       "NOT_LOCAL_ACCOUNT": "只有本实例的账户可以在此游玩。",
       "ENDED": "该活动已结束。",
       "FULL": "此活动人数已满。",
@@ -9105,6 +9220,7 @@
       }
     },
     "thirdParty": "第三方",
+    "desktopOnly": "仅限电脑",
     "thirdPartyNotice": "此第三方活动由本实例安装。Harmony 绝不会在活动内要求你输入密码。"
   }
 }

@@ -7,10 +7,10 @@ import { supabase } from '@/supabase'
 // blocked says so.
 
 vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
-const validateImageUpload = vi.fn(async (_file: File, _bucket: string): Promise<string | null> => null)
+const validateUploadSize = vi.fn(async (_file: Blob, _bucket: string): Promise<string | null> => null)
 const getBucketLimits = vi.fn(async () => ({ maxBytes: 0, allowedMime: null, label: 'file' }))
 vi.mock('@/utils/uploadValidation', () => ({
-  validateImageUpload: (file: File, bucket: string) => validateImageUpload(file, bucket),
+  validateUploadSize: (file: Blob, bucket: string) => validateUploadSize(file, bucket),
   getBucketLimits: () => getBucketLimits(),
   humanizeUploadError: (error: { message?: string }) => error?.message ?? 'error',
 }))
@@ -58,7 +58,7 @@ beforeEach(() => {
   driveRefusesUploads.mockReset()
   driveRefusesUploads.mockResolvedValue(false)
   driveAvailable.mockClear()
-  validateImageUpload.mockClear()
+  validateUploadSize.mockClear()
   getBucketLimits.mockClear()
   vi.stubGlobal('XMLHttpRequest', FakeXHR)
   vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: { access_token: 't' } }, error: null } as never)
@@ -74,7 +74,7 @@ describe('Drive uploads', () => {
   it('sends the same bytes kept in Drive as that object, without an upload', async () => {
     findDriveFilesByHash.mockResolvedValue([{ bucket: 'message_media', path: KEPT, state: 'drive', size_bytes: 3 }])
     const upload = startMessageMediaUpload(PATH, new File(['png'], 'x.png', { type: 'image/png' }), { name: 'x.png' })
-    await expect(upload.result).resolves.toEqual({ path: KEPT, url: `https://signed/${KEPT}`, reused: true })
+    await expect(upload.result).resolves.toEqual({ path: KEPT, url: `https://signed/${KEPT}`, reused: true, contentType: 'image/png' })
     expect(FakeXHR.last).toBeNull()
     expect(findDriveFilesByHash).toHaveBeenCalledWith('ab'.repeat(32))
   })
@@ -145,13 +145,13 @@ describe('Drive uploads', () => {
 
   it('asks for the bucket limits and the Drive probe at once, not one after the other', async () => {
     let releaseValidation!: () => void
-    validateImageUpload.mockImplementationOnce(() => new Promise((resolve) => {
+    validateUploadSize.mockImplementationOnce(() => new Promise((resolve) => {
       releaseValidation = () => resolve(null)
     }))
     findDriveFilesByHash.mockResolvedValue([])
     startMessageMediaUpload(PATH, new File(['png'], 'x.png', { type: 'image/png' }), { validate: true })
     await flushPromises()
-    expect(validateImageUpload).toHaveBeenCalled()
+    expect(validateUploadSize).toHaveBeenCalled()
     expect(driveAvailable).toHaveBeenCalled()
     expect(FakeXHR.last).toBeNull()
 

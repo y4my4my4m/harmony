@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { computed } from 'vue'
 vi.mock('@/supabase', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { access_token: 'token' } } }) } } }))
 vi.mock('@/services/instanceConfig', () => ({ apiUrl: (path: string) => path }))
 import { fetchBridgedChannelUsers, fetchBridgedServerUsers, clearBridgedUsersCache, findBridgedUserInCache, bridgedUserKey, bridgedUserToProfileUser, isBridgedMatrixProfileUser, isBridgedDiscordProfileUser, bridgedAuthorColor, bridgedAuthorMember, bridgedProfileTarget, bridgedProfilePlatform } from '../bridgedChannelUsersService'
@@ -64,5 +65,15 @@ describe('platform-qualified bridged member cache', () => {
     expect(bridgedAuthorMember({ platform: 'matrix', id: matrix.id, username: 'sam' }).roles).toEqual(roles)
     expect(bridgedAuthorMember({ platform: 'matrix', id: '@lee:example.org', username: '', display_name: 'Lee' }))
       .toEqual({ id: '@lee:example.org', username: 'lee', displayName: 'Lee', avatarUrl: '', source: 'matrix' })
+  })
+
+  it('recolours a name computed before the member list arrived, and again after a clear', async () => {
+    const color = computed(() => bridgedAuthorColor('discord', '42'))
+    expect(color.value).toBe('var(--text-primary)')
+    respond([{ ...matrix, source: 'discord', id: '42', roles: [{ id: 'r', name: 'Mod', color: '#e67e22', position: 1 }] }])
+    await fetchBridgedChannelUsers('channel')
+    expect(color.value).toBe('#e67e22')
+    clearBridgedUsersCache()
+    expect(color.value).toBe('var(--text-primary)')
   })
 })

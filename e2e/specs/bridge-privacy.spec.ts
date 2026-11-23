@@ -10,6 +10,11 @@
 //   manager, her next message is refused, and Restore lets her through again.
 // - Remove all bridged messages leaves only what was written on Harmony.
 //
+// Harmony 1.9.8: an outsider's message naming Dana meets the reserved-key refusal, which tells
+// nothing of her opt-out; the bridge cannot move a message onto her or off her. A thread Eve
+// starts on a message of Dana's arrives as Thread, as does a thread on an AutoMod alert about
+// Dana once she erases, and a thread Eve started before her Restore.
+//
 // The bridge registers both members with op 6 and keeps them registered, as a bridge older than
 // 2.6.0 does: the member list drops whoever is left out all the same, and a mention of her arrives
 // as text. A reply to an erased message crosses without the reply.
@@ -33,6 +38,7 @@ import { startBotGateway, type BotGateway } from './botGateway'
 
 const admin = adminClient()
 let owner: SpecUser
+let outsider: SpecUser
 let server: SeededServer
 let botId = ''
 let token = ''
@@ -48,6 +54,7 @@ let nextDiscordId = 1500000000000000200n
 
 test.beforeAll(async () => {
   owner = await createUser(admin, 'bpo')
+  outsider = await createUser(admin, 'bpx')
   server = await seedServer(admin, owner, `Privacy ${owner.username}`)
 
   const client = await userClient(owner)
@@ -115,6 +122,7 @@ test.afterAll(async () => {
   await admin.from('discord_bridges').delete().eq('server_id', server?.id ?? '')
   if (botId) await admin.from('bots').delete().eq('id', botId)
   await deleteUser(admin, owner)
+  await deleteUser(admin, outsider)
 })
 
 async function gatewayCall(path: string, init: { method?: string; body?: unknown } = {}) {
@@ -142,6 +150,15 @@ function relay(author: typeof DANA, text: string, replyTo?: string, files: unkno
   })
 }
 
+/** A Discord thread as the bridge creates it on Harmony; answers the thread object. */
+function bridgeThread(body: Record<string, unknown>) {
+  nextDiscordId += 1n
+  return gatewayCall(`/api/v1/channels/${server.generalChannelId}/threads`, {
+    method: 'POST',
+    body: { discord_thread_id: String(nextDiscordId), ...body },
+  })
+}
+
 /** Identifies as the bridge and registers both Discord members of #general (op 6). */
 async function registerMembers(): Promise<void> {
   socket = new WebSocket(gateway.wsUrl)
@@ -166,13 +183,14 @@ async function bridgedIds(): Promise<string[]> {
   return ((await res.json()).users as Array<{ id: string }>).map((u) => u.id).sort()
 }
 
-/** Texts of the channel's messages that name a relayed author, as stored. */
+/** Texts of the channel's messages that name a relayed author, as stored; thread notices left out. */
 async function relayedTexts(): Promise<string[]> {
   const { data, error } = await admin
     .from('messages')
     .select('content, metadata, created_at')
     .eq('channel_id', server.generalChannelId)
     .not('metadata->discord_user', 'is', null)
+    .not('is_system', 'is', true)
     .order('created_at')
   if (error) throw new Error(`messages: ${error.message}`)
   return (data ?? []).map((row) => (row.content as Array<{ text?: string }>)[0]?.text ?? '')
@@ -241,6 +259,56 @@ test('a Discord member opts out and erases; a manager removes another and clears
     expect(await relayedTexts()).toEqual(['Dana one', 'Eve one', 'Dana two', 'Eve two', 'Eve three'])
   })
 
+  await test.step('her opt-out stays the bridge\'s and the manager\'s to know, and her words stay off', async () => {
+    // Any account's message naming a Discord user is refused for the key, opted out or not.
+    const probe = await userClient(outsider)
+    for (const id of [DANA.id, EVE.id]) {
+      const { error } = await probe.from('messages').insert({
+        channel_id: server.generalChannelId, user_id: outsider.id,
+        content: [{ type: 'text', text: 'probe' }], metadata: { discord_user: { id } },
+      })
+      expect(error?.message).toBe('metadata key reserved for the server: discord_user')
+    }
+
+    // The bridge moves no message onto her, nor one of hers to someone else.
+    const onto = await gatewayCall(`/api/v1/messages/${sentIds[1]}/metadata`, { method: 'PATCH', body: { metadata: { discord_user: DANA } } })
+    expect(onto.status, onto.text).toBe(403)
+    expect(onto.json?.code).toBe('BRIDGE_AUTHOR_OPTED_OUT')
+    const off = await gatewayCall(`/api/v1/messages/${sentIds[2]}/metadata`, { method: 'PATCH', body: { metadata: { discord_user: EVE } } })
+    expect(off.status, off.text).toBe(403)
+    const { data: kept } = await admin.from('messages').select('metadata').eq('id', sentIds[2]).single()
+    expect(kept?.metadata?.discord_user?.id).toBe(DANA.id)
+
+    // Someone starts a Discord thread on a message of Dana's, which Discord titles with her words.
+    const onDana = await bridgeThread({
+      name: 'Dana after opting out', starter_discord_user_id: DANA.id, created_at: new Date().toISOString(),
+    })
+    expect(onDana.status, onDana.text).toBe(201)
+    expect(onDana.json?.name).toBe('Thread')
+    const { data: notice } = await admin.from('messages').select('metadata')
+      .eq('channel_id', server.generalChannelId).eq('metadata->>thread_id', onDana.json?.id).single()
+    expect(notice?.metadata?.thread_name).toBe('Thread')
+  })
+
+  // AutoMod blocked one of Dana's messages; a moderator's bot started a thread on the alert,
+  // titled from it.
+  const { data: event, error: eventError } = await admin.from('automod_events').insert({
+    server_id: server.id, channel_id: server.generalChannelId, bot_id: botId, event_type: 'message',
+    details: { author_key: `discord:${DANA.id}`, author_name: 'dana' },
+  }).select('id').single()
+  expect(eventError).toBeNull()
+  const alertText = 'Blocked a message from @dana (Discord): secret plans'
+  const { data: alert, error: alertError } = await admin.from('messages').insert({
+    channel_id: server.generalChannelId, is_system: true, content: [{ type: 'text', text: alertText }],
+    metadata: { type: 'automod_alert', automod: { event_id: event!.id } },
+  }).select('id').single()
+  expect(alertError).toBeNull()
+  const onAlert = await gatewayCall(`/api/v1/channels/${server.generalChannelId}/threads`, {
+    method: 'POST', body: { name: alertText, message_id: alert!.id },
+  })
+  expect(onAlert.status, onAlert.text).toBe(201)
+  expect(onAlert.json?.name).toBe(alertText)
+
   await test.step('Dana erases: her messages leave the channel, the others stay', async () => {
     const erased = await gatewayCall('/bridge/v2/privacy/erase', { method: 'POST', body: { remote_user_id: DANA.id } })
     expect(erased.status, erased.text).toBe(202)
@@ -250,9 +318,14 @@ test('a Discord member opts out and erases; a manager removes another and clears
     expect(again.json?.code).toBe('erase_recent')
 
     expect(await relayedTexts()).toEqual(['Eve one', 'Eve two', 'Eve three'])
+    // The alert stays under its thread, emptied; the thread and its notice lose the alert's words.
+    const { data: alertThread } = await admin.from('threads').select('name').eq('id', onAlert.json?.id).single()
+    expect(alertThread?.name).toBe('Thread')
     await page.reload()
     await dismissAnnouncements(page)
     await expect(list.getByText('Eve three')).toBeVisible({ timeout: 45000 })
+    await expect(list.getByText('secret plans')).toHaveCount(0)
+    await expect(list.getByText('Dana after opting out')).toHaveCount(0)
     await expect(list.getByText('Written on Harmony')).toBeVisible()
     await expect(list.getByText('Dana one')).toHaveCount(0)
     await expect(list.getByText('Dana two')).toHaveCount(0)
@@ -312,6 +385,30 @@ test('a Discord member opts out and erases; a manager removes another and clears
     expect(again.status, again.text).toBe(201)
     const { data: mentioning } = await admin.from('messages').select('content').eq('id', again.json?.id).single()
     expect((mentioning?.content as unknown[])[1]).toEqual({ type: 'text', text: '@Dana' })
+
+    // A Discord thread Eve started while removed reaches Harmony with its first post now: it
+    // arrives as Thread, without her name. One she starts now keeps its title.
+    const before = await bridgeThread({ name: 'Eve while removed', discord_user: EVE, created_at: new Date(Date.now() - 3_600_000).toISOString() })
+    expect(before.status, before.text).toBe(201)
+    expect(before.json?.name).toBe('Thread')
+    const after = await bridgeThread({ name: 'Eve is back thread', discord_user: EVE, created_at: new Date(Date.now() + 60_000).toISOString() })
+    expect(after.json?.name).toBe('Eve is back thread')
+
+    const chat = await page.context().newPage()
+    await chat.route('**/bot-gateway/bridged-users/**', async (route) => {
+      const path = new URL(route.request().url()).pathname.replace(/^\/bot-gateway/, '')
+      await route.fulfill({ response: await route.fetch({ url: `${gateway.url}${path}` }) })
+    })
+    await chat.goto(`/chat/${server.id}/${server.generalChannelId}`)
+    await dismissAnnouncements(chat)
+    const chatList = chat.locator('[data-testid="message-list"]')
+    const notice = (name: string) => chatList.locator('.thread-created-text').filter({ hasText: name })
+    await expect(notice('Eve is back thread')).toContainText('Eve started a thread', { timeout: 45000 })
+    await expect(chatList.getByText('Eve while removed')).toHaveCount(0)
+    await chat.close()
+    // The purge below counts the bridged messages it removes; these notices would be among them.
+    const { error: cleanup } = await admin.from('messages').delete().in('metadata->>thread_id', [before.json?.id, after.json?.id])
+    expect(cleanup).toBeNull()
   })
 
   await test.step('Remove all bridged messages leaves what was written on Harmony', async () => {

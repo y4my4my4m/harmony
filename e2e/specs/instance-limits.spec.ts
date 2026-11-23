@@ -32,6 +32,11 @@ test.describe.configure({ mode: 'serial' })
 const admin = adminClient()
 const CONFIG_KEYS = ['antispam', 'max_servers_per_user', 'max_bots_per_user', 'drive_instance_limit_mb']
 const TOO_QUICKLY = 'too quickly'
+// ANTISPAM_RATE_LIMITED words its wait in one unit; an hourly limit just reached waits about an hour.
+const WITHIN_THE_MINUTE = /too quickly\. Try again in (\d+ seconds?|1 minute)\./
+const WITHIN_THE_HOUR = /too quickly\. Try again in (1 hour|\d+ minutes)\./
+const strangers = (limit: number) => new RegExp(
+  `New conversations with people you don't know are limited to ${limit} per hour\\. Try again in (1 hour|\\d+ minutes)\\.`)
 
 let saved: Array<{ config_key: string; config_value: unknown }> = []
 let antispam: Record<string, unknown> = {}
@@ -100,7 +105,7 @@ test('a message past the limit is refused and stays in the composer', async ({ p
   await composer(page).click()
   await composer(page).pressSequentially('limit three', { delay: 10 })
   await page.keyboard.press('Enter')
-  await expect(toast(page, TOO_QUICKLY)).toBeVisible({ timeout: 15000 })
+  await expect(toast(page, WITHIN_THE_MINUTE)).toBeVisible({ timeout: 15000 })
   await expect(composer(page)).toContainText('limit three')
   await expect(messageList(page).locator('.message-item').filter({ hasText: 'limit three' })).toHaveCount(0)
 
@@ -182,7 +187,7 @@ test('a follow past the limit is refused', async ({ page }) => {
   await follow(first)
   await expect.poll(following, { timeout: 15000 }).toBe(1)
   await follow(second)
-  await expect(toast(page, TOO_QUICKLY)).toBeVisible({ timeout: 15000 })
+  await expect(toast(page, WITHIN_THE_HOUR)).toBeVisible({ timeout: 15000 })
   expect(await following()).toBe(1)
 })
 
@@ -346,7 +351,7 @@ test('new conversations with strangers past the limit are refused', async ({ pag
   await startDm(page, first)
   await page.waitForURL(/\/dm\/[0-9a-f-]{36}/, { timeout: 30000 })
   await startDm(page, second)
-  await expect(toast(page, TOO_QUICKLY)).toBeVisible({ timeout: 15000 })
+  await expect(toast(page, strangers(1))).toBeVisible({ timeout: 15000 })
 
   const { count } = await admin.from('conversations').select('id', { count: 'exact', head: true }).eq('created_by', sender.id)
   expect(count).toBe(1)
@@ -366,7 +371,7 @@ test('a new account counts people it shares only a server with; an older account
   await startDm(page, first)
   await page.waitForURL(/\/dm\/[0-9a-f-]{36}/, { timeout: 30000 })
   await startDm(page, second)
-  await expect(toast(page, TOO_QUICKLY)).toBeVisible({ timeout: 15000 })
+  await expect(toast(page, strangers(1))).toBeVisible({ timeout: 15000 })
   expect(await started()).toBe(1)
 
   await admin.from('profiles')
@@ -374,6 +379,31 @@ test('a new account counts people it shares only a server with; an older account
   await startDm(page, second)
   await page.waitForURL(/\/dm\/[0-9a-f-]{36}/, { timeout: 30000 })
   expect(await started()).toBe(2)
+})
+
+test('a new account\'s group of strangers past the limit is refused, and the refusal names the limit', async ({ page }) => {
+  test.setTimeout(180_000)
+  const sender = await newUser('ilgrs')
+  for (let i = 0; i < 3; i++) await newUser('ilgrp')
+  await limits({ new_account_stranger_dms_per_hour: 2 })
+
+  await signIn(page, sender)
+  await page.goto('/dm')
+  await dismissAnnouncements(page)
+  await expect(page.locator('[data-testid="dm-sidebar"]')).toBeVisible({ timeout: 30000 })
+  await page.getByRole('button', { name: 'Create group chat' }).click()
+  await page.getByTestId('group-invite-search').fill('ilgrp')
+  const results = page.getByTestId('group-invite-result')
+  await expect(results).toHaveCount(3, { timeout: 15000 })
+  for (let picked = 1; picked <= 3; picked++) {
+    await results.first().click()
+    await expect(page.getByText(`Selected users (${picked})`)).toBeVisible()
+  }
+  await page.getByRole('button', { name: 'Create group (4)' }).click()
+  await expect(toast(page, strangers(2))).toBeVisible({ timeout: 15000 })
+
+  const { count } = await admin.from('conversations').select('id', { count: 'exact', head: true }).eq('created_by', sender.id)
+  expect(count).toBe(0)
 })
 
 test('uploads stop past the instance total, except for staff', async ({ page }) => {

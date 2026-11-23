@@ -63,12 +63,9 @@ The call bar holds the controls for the call you are in. Hover a button to see i
 | **Camera** | Turns your camera on or off. |
 | **Share screen** | Opens the screen share panel. See [Share your screen](#share-your-screen). |
 | **React** | Sends a live reaction. Shown only when someone has video or a stream on, on an SFU call. |
-| **Watch or listen together** | Starts an activity, or adds to the running one. Shown in voice channels of servers on your own instance. See [Watch or listen together](#watch-or-listen-together). |
+| **Activities** | Opens **Activities**: watch or listen together, or start a game. Shown in voice channels of servers on your own instance. See [Watch or listen together](#watch-or-listen-together) and [Play together](/use/play-together). |
 | **Soundboard** | Opens the soundboard. Shown only where you may play sounds. |
-| **Spatial audio** | Opens the spatial audio panel. |
-| **Voice settings** | Opens **Voice & video settings** for devices and audio processing. |
-| **Pop out call** | Moves the call view into its own window. See [Chat beside the call and pop it out](#chat-beside-the-call-and-pop-it-out). |
-| **Participants** | Lists everyone in the call. |
+| **More options** (⋯) | **Participants** lists everyone in the call; **Spatial audio** opens the spatial audio panel; **Voice settings** opens **Voice & video settings** for devices and audio processing; **Pop out call** moves the call view into its own window (see [Chat beside the call and pop it out](#chat-beside-the-call-and-pop-it-out)). |
 | **Open call view** | Expands the call to the full call view with video tiles. |
 | **Minimize voice panel** | Shrinks the call bar to a small panel you can drag. |
 | **Float over other windows** | Desktop app, in the small panel: moves it out of Harmony into its own window that stays on top of other apps. See [Keep the call on top of other apps](#keep-the-call-on-top-of-other-apps). |
@@ -141,8 +138,8 @@ A watched stream can be focused, taken **Full screen**, or **Pop out** into a fl
 
 An activity plays a video or music for everyone in a voice channel at the same moment. Activities work in voice channels of servers on your own instance, not in direct message calls or in servers hosted on other instances. Anyone in the voice channel can start one. Nothing plays for the others until they choose to: they see who started it and its title, with **Join** and **Not now**. **Not now** leaves a **Join** in the call bar.
 
-1. Click **Watch or listen together** in the call bar.
-2. Paste a link and click **Watch together** or **Listen together**. Or click **Choose from your Drive**, pick a video or audio file and click **Play together**.
+1. Click **Activities** in the call bar.
+2. Under **Watch or listen together**, paste a link and click **Watch together** or **Listen together**. Or click **Choose from your Drive**, pick a video or audio file and click **Play together**.
 
 | Source | What plays |
 |---|---|
@@ -170,7 +167,7 @@ Under the voice channel in the channel list, everyone who can see the channel re
 
 ### Queue
 
-Clicking **Watch or listen together** while an activity runs opens **Add to the activity**: **Add to queue** puts the link or file at the end of the queue, and **Play now** starts a new activity in its place, with an empty queue. In the call view, **Queue** lists up to 50 items, each with **Play now**, which plays it and keeps the rest of the queue, and **Remove from queue**. When an item ends, the next one plays.
+Clicking **Activities** while an activity runs offers **Add to the activity**: **Add to queue** puts the link or file at the end of the queue, and **Play now** starts a new activity in its place, with an empty queue. In the call view, **Queue** lists up to 50 items, each with **Play now**, which plays it and keeps the rest of the queue, and **Remove from queue**. When an item ends, the next one plays.
 
 An activity ends when someone clicks **End the activity**, when the last item ends with nothing queued, or when the last person leaves the voice channel.
 
@@ -234,7 +231,8 @@ In a group conversation, the same buttons ring every member on your instance; th
 
 | What you see | Why |
 |---|---|
-| "You cannot call this user" or "You have blocked this user" | One of you blocked the other. |
+| "You have blocked this user" | You blocked them. |
+| "Your call could not be placed." | The call cannot reach them. Shown before Harmony asks to switch calls, so your current call stays. |
 | "This user is in Do Not Disturb mode" | Their status is **Do not disturb**. |
 | "User is busy" | They are in another direct message call. A voice channel does not count. |
 | "This user has disabled call notifications" | They turned off both **Chat & Messages** notifications and **Voice activity sounds**. |

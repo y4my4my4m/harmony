@@ -76,24 +76,32 @@ export const INTERACTION_WINDOW_SECONDS = 5
 const MAJOR_PARAMS = new Set(['channelId', 'serverId', 'guildId'])
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// History import routes count per method and per job (`:id`): a bridge reads and patches its job
+// twice for every thread it imports.
+const PER_JOB_MOUNT = '/bridge/v2/imports'
+
 /**
  * Bucket for a request: the matched route pattern with its major parameters filled in, e.g.
  * /api/v1/channels/<channel uuid>/messages. Express matches routes case-insensitively and with an
  * optional trailing slash, and the query string is not part of the route, so every spelling of
  * one route on one resource shares a bucket. baseUrl is the URL's own spelling of the mount path
  * and is lowercased; a major parameter that is not a UUID is one shared `:invalid` value.
- * Interaction routes answer INTERACTION_BUCKET.
+ * Interaction routes answer INTERACTION_BUCKET. History import routes are prefixed with the
+ * method (HEAD as GET) and fill `:id` as a major parameter.
  */
 export function rateLimitBucket(req: Request): string {
   const routePath = req.route?.path
   if (typeof routePath !== 'string') return UNMATCHED_BUCKET
   if (routePath.startsWith('/interactions/')) return INTERACTION_BUCKET
+  const base = req.baseUrl.toLowerCase()
+  const perJob = base.endsWith(PER_JOB_MOUNT)
   const filled = routePath.replace(/:(\w+)/g, (param: string, name: string) => {
-    if (!MAJOR_PARAMS.has(name)) return param
+    if (!MAJOR_PARAMS.has(name) && !(perJob && name === 'id')) return param
     const value = req.params?.[name]
     return typeof value === 'string' && UUID.test(value) ? value.toLowerCase() : ':invalid'
   })
-  return `${req.baseUrl.toLowerCase()}${filled}`
+  if (!perJob) return `${base}${filled}`
+  return `${req.method === 'HEAD' ? 'GET' : req.method} ${base}${filled}`
 }
 
 /**

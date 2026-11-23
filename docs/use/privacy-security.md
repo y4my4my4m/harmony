@@ -222,10 +222,12 @@ Right-click a member and choose **Block** or **Mute user**. Profiles and the men
 | Notifications from them | Stopped | Stopped |
 | Their calls to you | Refused | Arrive without a ringtone or pop-up |
 | Their messages in server channels | Collapsed into "1 blocked message" with **Show message** | Shown |
-| Direct messages | Neither of you can write to the other one to one, start a conversation or add the other to a group. In a group you share, their messages collapse into "1 blocked message" | Shown |
+| Direct messages | Neither of you can write to the other one to one, edit an earlier message there, start a conversation or add the other to a group. In a group you share, their messages collapse into "1 blocked message" | Shown |
 | Reactions to your messages | They cannot add them | Allowed |
 | Server member lists | You both stay listed, with your status, as on Discord | Shown |
 | Posts | Hidden from each other; you stop following them | Shown |
+
+The person you block is not told and cannot look up who blocks them. A message or edit they send you is "not delivered", a call "not placed", and a new conversation is refused as by someone who accepts them only from people they know.
 
 A block is also sent to other instances as an ActivityPub block. A block does not stop the other person reading what you post in servers you share.
 

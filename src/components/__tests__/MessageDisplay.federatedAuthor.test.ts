@@ -113,6 +113,16 @@ vi.mock('@/composables/useFloatingVideo', () => ({
   floatingReturnTarget: () => null,
   useFloatingVideo: () => ({ floatingMessageId: ref(null) }),
 }))
+// Handle lookups the profile card makes, and the accounts they answer.
+const handles = vi.hoisted(() => ({ calls: [] as string[], users: {} as Record<string, object> }))
+vi.mock('@/services/activityPubService', () => ({
+  activityPubService: {
+    getUserByHandle: vi.fn(async (handle: string) => {
+      handles.calls.push(handle)
+      return handles.users[handle] ?? null
+    }),
+  },
+}))
 vi.mock('@/services/readState', () => ({ markChannelRead: vi.fn(), markConversationRead: vi.fn() }))
 vi.mock('@/services/FundingService', () => ({ fundingService: loose({}) }))
 vi.mock('@/services/AutoModService', () => ({ isModerationRejectionCode: () => false }))
@@ -261,6 +271,27 @@ describe('MessageDisplay federated author', () => {
     expect(wrapper!.getComponent({ name: 'UserProfileModal' }).props('user')).toMatchObject({
       id: 'matrix:@sam:example.org', bridge_source: 'matrix', bridge_id: '@sam:example.org', username: 'sam',
     })
+  })
+
+  it('opens the account a remote mention stored unresolved names, looked up by the handle typed', async () => {
+    handles.calls = []
+    handles.users['maddy@chat.understars.dev'] = { id: 'remote-maddy', username: 'maddy', domain: 'understars.dev' }
+    await mountList([message('one', 0)])
+    wrapper!.findComponent({ name: 'UnifiedMessageContent' }).vm.$emit('show-user-profile', 'unresolved-maddy@chat.understars.dev', new MouseEvent('click'))
+    await flushPromises()
+    expect(handles.calls).toEqual(['maddy@chat.understars.dev'])
+    const card = wrapper!.getComponent({ name: 'UserProfileModal' })
+    expect(card.props('show')).toBe(true)
+    expect(card.props('user')).toMatchObject({ id: 'remote-maddy', domain: 'understars.dev' })
+  })
+
+  it('looks up nothing for a local mention stored unresolved', async () => {
+    handles.calls = []
+    await mountList([message('one', 0)])
+    wrapper!.findComponent({ name: 'UnifiedMessageContent' }).vm.$emit('show-user-profile', 'unresolved-nobody', new MouseEvent('click'))
+    await flushPromises()
+    expect(handles.calls).toEqual([])
+    expect(wrapper!.getComponent({ name: 'UserProfileModal' }).props('show')).toBe(false)
   })
 
   it('reports a Matrix message with its shown author, not a fabricated Harmony profile', async () => {

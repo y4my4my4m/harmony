@@ -28,7 +28,7 @@ export interface ActivitySession {
   ended_at: string | null
   members: SessionMember[]
   played_count: number
-  /** get_activity_session only: why the caller cannot join now (NOT_IN_CALL, DM_BLOCKED). */
+  /** Why the caller cannot join now: NOT_IN_CALL, CANNOT_SEND or MEMBER_TIMED_OUT. */
   refusal?: string | null
 }
 
@@ -54,7 +54,7 @@ export class ActivityError extends Error {
 
 const CODES = [
   'ACTIVITY_APP_UNAVAILABLE', 'ACTIVITY_CONTEXT_UNSUPPORTED', 'ACTIVITY_RATE_LIMITED', 'ACTIVITY_CONTEXT',
-  'NOT_LOCAL_ACCOUNT', 'NOT_FOUND', 'DM_BLOCKED', 'SERVER_NOT_LOCAL', 'CHANNEL_TYPE', 'NOT_IN_CALL', 'CANNOT_SEND',
+  'NOT_LOCAL_ACCOUNT', 'NOT_FOUND', 'SERVER_NOT_LOCAL', 'CHANNEL_TYPE', 'NOT_IN_CALL', 'CANNOT_SEND',
 ]
 
 function raise(error: { message: string } | null): void {

@@ -29,7 +29,7 @@ vi.mock('@/components/activities/useActivityButton', () => ({
     anchor: { value: null }, toggle: () => {}, close: () => {},
   }),
 }))
-vi.mock('@/components/activities/ActivityLauncher.vue', () => ({ default: { name: 'ActivityLauncher', render: () => null } }))
+vi.mock('@/components/activities/ActivitiesLauncher.vue', () => ({ default: { name: 'ActivitiesLauncher', render: () => null } }))
 vi.mock('@/components/activities/ActivityDockCard.vue', () => ({ default: { name: 'ActivityDockCard', render: () => null } }))
 vi.mock('@/components/activities/ActivityStage.vue', () => ({ default: { name: 'ActivityStage', render: () => null } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -198,12 +198,15 @@ async function mountDock() {
 const button = (w: VueWrapper, testid: string) => w.find(`[data-testid="${testid}"]`)
 
 describe('UnifiedVoiceDock pop-out', () => {
-  it('offers Pop out among the dock controls, titled by the channel', async () => {
+  it('offers Pop out in the dock\'s More menu, titled by the channel', async () => {
     h.store = makeStore([member('bob')])
     wrapper = await mountDock()
-    const popOut = button(wrapper, 'dock-popout')
-    expect(popOut.attributes('aria-label')).toBe('voice.popout.open')
-    await popOut.trigger('click')
+    await button(wrapper, 'dock-more').trigger('click')
+    await flushPromises()
+    const popOut = document.querySelector<HTMLElement>('[data-testid="dock-popout"]')!
+    expect(popOut.getAttribute('role')).toBe('menuitem')
+    expect(popOut.textContent).toContain('voice.popout.open')
+    popOut.click()
     await flushPromises()
     expect(openCallPopout).toHaveBeenCalledWith({ title: 'voice.popout.windowTitle' })
   })

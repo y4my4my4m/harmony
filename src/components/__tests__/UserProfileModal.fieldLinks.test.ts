@@ -162,21 +162,19 @@ describe('UserProfileModal profile field links', () => {
 })
 
 describe('UserProfileModal bridged person', () => {
-  const people: Record<'discord' | 'matrix', { member: BridgedChannelUser; handle: string; url: string }> = {
+  const people: Record<'discord' | 'matrix', { member: BridgedChannelUser; handle: string }> = {
     discord: {
       member: { source: 'discord', id: '123456789', username: 'sam', displayName: 'Sam', avatarUrl: '' },
       handle: '@sam',
-      url: 'https://discord.com/users/123456789',
     },
     matrix: {
       member: { source: 'matrix', id: '@sam:example.org', username: 'sam', displayName: 'Sam', avatarUrl: '' },
       handle: '@sam:example.org',
-      url: 'https://matrix.to/#/%40sam%3Aexample.org',
     },
   }
 
-  it.each(['discord', 'matrix'] as const)('shows a %s person with one card and one action set', async platform => {
-    const { member, handle, url } = people[platform]
+  it.each(['discord', 'matrix'] as const)('shows a %s person with one card, and no way off Harmony', async platform => {
+    const { member, handle } = people[platform]
     const wrapper = open(bridgedUserToProfileUser(member) as never)
     await flushPromises()
     expect(wrapper.get('.display-name').text()).toBe('Sam')
@@ -190,8 +188,8 @@ describe('UserProfileModal bridged person', () => {
     expect(wrapper.find('.banner-actions .action-button').exists()).toBe(false)
     expect(wrapper.find('.activities-section').exists()).toBe(false)
     expect(wrapper.find('.profile-actions a').exists()).toBe(false)
-    await wrapper.get('[data-testid="profile-bridged-open"]').trigger('click')
-    expect(openLink).toHaveBeenCalledWith(url, expect.anything())
+    expect(wrapper.find('[data-testid="profile-bridged-open"]').exists()).toBe(false)
+    expect(wrapper.findAll('.profile-actions button')).toHaveLength(1)
     expect(supabase.from).not.toHaveBeenCalled()
     expect(relationships).not.toHaveBeenCalled()
     wrapper.unmount()
@@ -221,7 +219,7 @@ describe('UserProfileModal bridged person', () => {
     wrapper.unmount()
   })
 
-  it('offers no outside link for an id that names no account', async () => {
+  it('renders a hostile id and name as text', async () => {
     const wrapper = open({ id: 'matrix:javascript:alert(1)', bridge_source: 'matrix', bridge_id: 'javascript:alert(1)', display_name: '<script>Sam</script>' })
     await flushPromises()
     expect(wrapper.get('.display-name').text()).toBe('<script>Sam</script>')

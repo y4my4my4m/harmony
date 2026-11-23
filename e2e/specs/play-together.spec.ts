@@ -6,7 +6,7 @@
 // The backend runs as a child process (backend.ts): page.route() carries the frame document and
 // routeWebSocket() bridges the relay socket to it.
 
-import { test, expect, type Browser, type BrowserContext, type FrameLocator, type Page } from '@playwright/test'
+import { test, expect, devices, type Browser, type BrowserContext, type FrameLocator, type Page } from '@playwright/test'
 import { addMember, adminClient, createUser, deleteUser, openChannel, seedServer, signIn, type SeededServer, type SpecUser } from './harness'
 import { startBackend, type Backend } from './backend'
 import JSZip from 'jszip'
@@ -39,6 +39,40 @@ async function open(browser: Browser, user: SpecUser): Promise<{ context: Browse
 }
 
 const game = (page: Page): FrameLocator => page.frameLocator('[data-testid="play-together-frame"]')
+
+/** A DM's Activities entry is in its header's More options menu. */
+async function openDmActivities(page: Page): Promise<void> {
+  await page.getByTestId('dm-more').click()
+  await page.getByTestId('activities-menu-item').click()
+}
+
+/** The launcher, each app card and the sandbox note lie within the dialog's left and right edges. */
+async function expectLauncherFits(page: Page): Promise<void> {
+  const launcher = page.getByTestId('activities-launcher')
+  const dialog = page.getByRole('dialog').filter({ has: launcher })
+  const parts = [launcher, launcher.locator('.act-launcher__note'), ...await launcher.locator('.act-launcher__app').all()]
+  await expect(async () => {
+    const frame = await dialog.boundingBox()
+    if (!frame) throw new Error('no launcher dialog')
+    for (const part of parts) {
+      const box = await part.boundingBox()
+      if (!box) throw new Error('launcher part not laid out')
+      expect(box.x).toBeGreaterThanOrEqual(frame.x)
+      expect(box.x + box.width).toBeLessThanOrEqual(frame.x + frame.width)
+    }
+  }).toPass({ timeout: 5000 })
+}
+
+/** The game frame is the topmost element at its centre: nothing in the page paints over it. */
+async function expectFrameOnTop(page: Page): Promise<void> {
+  await expect.poll(() => page.evaluate(() => {
+    const frame = document.querySelector('[data-testid="play-together-frame"]')
+    if (!frame) return 'no frame'
+    const box = frame.getBoundingClientRect()
+    const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+    return top === frame ? 'frame' : `${top?.tagName.toLowerCase()}.${[...(top?.classList ?? [])].join('.')}`
+  }), { timeout: 5000 }).toBe('frame')
+}
 
 async function scribble(page: Page): Promise<void> {
   const box = await game(page).locator('[data-testid="dp-canvas"]').boundingBox()
@@ -112,8 +146,9 @@ test('two people play DrawinPhone in a DM, then the starter ends it', async ({ b
   const b = await open(browser, bob)
 
   await a.page.goto(`/dm/${dm}`)
-  await a.page.getByTestId('play-together-button').click()
-  await expect(a.page.getByTestId('play-together-launcher')).toBeVisible()
+  await openDmActivities(a.page)
+  await expect(a.page.getByTestId('activities-launcher')).toBeVisible()
+  await expectLauncherFits(a.page)
   await a.page.getByTestId('play-together-app-drawinphone').click()
 
   await expect(a.page.getByTestId('play-together-panel')).toBeVisible()
@@ -129,6 +164,15 @@ test('two people play DrawinPhone in a DM, then the starter ends it', async ({ b
   await expect(game(b.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
   await expect(game(b.page).getByTestId('dp-player')).toHaveCount(2)
   await expect(game(a.page).getByTestId('dp-player')).toHaveCount(2)
+
+  // Expanded, the panel covers the conversation and the game stays above it.
+  await expectFrameOnTop(a.page)
+  await a.page.getByTestId('play-together-expand').click()
+  await expect(a.page.getByTestId('play-together-panel')).toHaveClass(/is-expanded/)
+  await expectFrameOnTop(a.page)
+  await a.page.getByTestId('play-together-expand').click()
+  await expect(a.page.getByTestId('play-together-panel')).not.toHaveClass(/is-expanded/)
+  await expectFrameOnTop(a.page)
 
   // Write, then draw the other's prompt.
   await game(a.page).getByTestId('dp-start').click()
@@ -174,8 +218,16 @@ test('two people play DrawinPhone in a DM, then the starter ends it', async ({ b
 
 test('the activity frame runs in an opaque origin without storage or network', async ({ browser }) => {
   const a = await open(browser, alice)
+  // A desktop shell's bridge as wry adds it on WebView2, in every frame: window.ipc calls
+  // window.chrome.webview at send time.
+  await a.page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown> & { chrome?: Record<string, unknown> }
+    w.chrome = { ...(w.chrome ?? {}), webview: { postMessage: () => { (window as unknown as { __bridged?: boolean }).__bridged = true } } }
+    Object.defineProperty(window, 'ipc', { value: Object.freeze({ postMessage: (m: string) => (w.chrome!.webview as { postMessage: (m: string) => void }).postMessage(m) }) })
+    w.webkit = { messageHandlers: { ipc: { postMessage: () => {} } } }
+  })
   await a.page.goto(`/dm/${dm}`)
-  await a.page.getByTestId('play-together-button').click()
+  await openDmActivities(a.page)
   await a.page.getByTestId('play-together-app-drawinphone').click()
   await expect(game(a.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
 
@@ -207,6 +259,17 @@ test('the activity frame runs in an opaque origin without storage or network', a
   })
   expect(probe).toEqual({ origin: 'null', storage: 'blocked', cookie: 'blocked', top: 'blocked', fetch: 'blocked', socket: 'blocked' })
 
+  // The loader removed the shell's message ports before the activity ran: the bridge it left
+  // behind reaches nothing. The app's own page keeps them.
+  const ports = await frame.evaluate(() => {
+    const w = window as unknown as Record<string, unknown> & { ipc: { postMessage: (m: string) => void } }
+    let sent = 'sent'
+    try { w.ipc.postMessage('{}') } catch { sent = 'refused' }
+    return { chrome: typeof w.chrome, webkit: typeof w.webkit, sent, bridged: w.__bridged === true }
+  })
+  expect(ports).toEqual({ chrome: 'undefined', webkit: 'undefined', sent: 'refused', bridged: false })
+  expect(await a.page.evaluate(() => typeof (window as unknown as { chrome?: unknown }).chrome)).toBe('object')
+
   // An activity that navigates its own frame away is detached and the frame blanked.
   await frame.evaluate(() => { location.href = '/activities/index.json' })
   await expect(a.page.getByText('tried to leave its sandbox')).toBeVisible()
@@ -228,8 +291,10 @@ test('an admin turns DrawinPhone off and the launcher stops offering it', async 
 
   const a = await open(browser, alice)
   await a.page.goto(`/dm/${dm}`)
-  await expect(a.page.locator('.dm-header, [class*="header"]').first()).toBeVisible()
-  await expect(a.page.getByTestId('play-together-button')).toHaveCount(0)
+  await a.page.getByTestId('dm-more').click()
+  await expect(a.page.getByTestId('dm-menu-add-people')).toBeVisible({ timeout: 30_000 })
+  await expect(a.page.getByTestId('activities-menu-item')).toHaveCount(0)
+  await a.page.keyboard.press('Escape')
 
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-checked', 'true')
@@ -244,7 +309,7 @@ test('a call plays DrawinPhone on its stage, and the frame takes input over the 
 
   await openChannel(a.page, server.id, server.generalChannelId)
   await enterCall(a.page, alice, false)
-  await a.page.getByTestId('dock-play-together-button').click()
+  await a.page.getByTestId('dock-activities-button').click()
   await a.page.getByTestId('play-together-app-drawinphone').click()
 
   // The call view opens with the game on its stage.
@@ -273,6 +338,47 @@ test('a call plays DrawinPhone on its stage, and the frame takes input over the 
   await a.context.close()
   await b.context.close()
 })
+
+/** One stored local entry of `dataLen` bytes, listed by `records` central directory records declaring size 0. */
+function sharedStoredEntry(records: number, dataLen: number): Buffer {
+  const name = Buffer.from('x')
+  const local = Buffer.alloc(30)
+  local.writeUInt32LE(0x04034b50, 0)
+  local.writeUInt16LE(name.length, 26)
+  const head = Buffer.concat([local, name, Buffer.alloc(dataLen, 0x41)])
+  const cds: Buffer[] = []
+  for (let i = 0; i < records; i++) {
+    const nm = Buffer.from(`f${i}.js`)
+    const cd = Buffer.alloc(46)
+    cd.writeUInt32LE(0x02014b50, 0)
+    cd.writeUInt32LE(dataLen, 20)
+    cd.writeUInt16LE(nm.length, 28)
+    cds.push(cd, nm)
+  }
+  const dir = Buffer.concat(cds)
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(records, 8)
+  end.writeUInt16LE(records, 10)
+  end.writeUInt32LE(dir.length, 12)
+  end.writeUInt32LE(head.length, 16)
+  return Buffer.concat([head, dir, end])
+}
+
+/** A 98-byte zip64 archive whose end record claims `count` entries. */
+function zip64Claiming(count: number): Buffer {
+  const z64 = Buffer.alloc(56)
+  z64.writeUInt32LE(0x06064b50, 0)
+  z64.writeUInt32LE(count >>> 0, 32)
+  z64.writeUInt32LE(0x7fffff00, 48)
+  const locator = Buffer.alloc(20)
+  locator.writeUInt32LE(0x07064b50, 0)
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(0xffff, 8)
+  end.writeUInt16LE(0xffff, 10)
+  return Buffer.concat([z64, locator, end])
+}
 
 /**
  * A minimal package: the activity protocol by hand (activities/sdk/protocol.ts), greeting every
@@ -326,6 +432,14 @@ test('an admin installs an activity package, switches it on, and a member plays 
   const boss$ = await open(browser, boss)
   await boss$.page.goto('/admin?tab=activities')
 
+  // Crafted zips are refused at once: a zip64 end record claiming 2^32 - 1 entries, and one stored
+  // entry listed 40 times with a declared size of 0.
+  const error = boss$.page.getByTestId('activities-admin-error')
+  await boss$.page.getByTestId('activities-admin-file').setInputFiles({ name: 'endless.zip', mimeType: 'application/zip', buffer: zip64Claiming(0xffffffff) })
+  await expect(error).toContainText('32 zip entries', { timeout: 5_000 })
+  await boss$.page.getByTestId('activities-admin-file').setInputFiles({ name: 'copies.zip', mimeType: 'application/zip', buffer: sharedStoredEntry(40, 1024 * 1024) })
+  await expect(error).toContainText('too large', { timeout: 5_000 })
+
   await boss$.page.getByTestId('activities-admin-file').setInputFiles({ name: 'tictac.zip', mimeType: 'application/zip', buffer: zip })
   const preview = boss$.page.getByTestId('activities-admin-preview')
   await expect(preview).toContainText('Tic Tac')
@@ -342,12 +456,33 @@ test('an admin installs an activity package, switches it on, and a member plays 
   expect(served.status).toBe(200)
   expect(served.headers.get('content-security-policy')).toBe("sandbox; default-src 'none'")
 
+  // On a phone, an installed package waits for a computer; the built-in plays.
+  const phone = await browser.newContext({ serviceWorkers: 'block', ...devices['Pixel 7'] })
+  const p = await phone.newPage()
+  await backend.route(p)
+  await signIn(p, alice)
+  await p.goto(`/dm/${dm}`)
+  await openDmActivities(p)
+  await expect(p.getByTestId('play-together-desktop-only-tictac')).toHaveText('Computer only')
+  await expect(p.getByTestId('play-together-app-tictac')).toBeDisabled()
+  await expect(p.getByTestId('play-together-app-drawinphone')).toBeEnabled()
+  await expect(p.getByTestId('play-together-desktop-only-drawinphone')).toHaveCount(0)
+  await phone.close()
+
   // Third-party label: on the package, not the built-in.
   const a = await open(browser, alice)
   await a.page.goto(`/dm/${dm}`)
-  await a.page.getByTestId('play-together-button').click()
+  await openDmActivities(a.page)
   await expect(a.page.getByTestId('play-together-third-party-tictac')).toHaveText('Third-party')
   await expect(a.page.getByTestId('play-together-third-party-drawinphone')).toHaveCount(0)
+
+  // Two cards fit the dialog side by side, and stacked at phone width.
+  await expectLauncherFits(a.page)
+  const desktop = a.page.viewportSize()!
+  await a.page.setViewportSize({ width: 375, height: 812 })
+  await expectLauncherFits(a.page)
+  await a.page.setViewportSize(desktop)
+
   await a.page.getByTestId('play-together-app-tictac').click()
   await expect(game(a.page).getByTestId('pkg-hello')).toContainText(alice.displayName, { timeout: 30_000 })
   await expect(a.page.getByTestId('play-together-third-party')).toContainText('Harmony never asks for your password')
@@ -376,5 +511,70 @@ test('an admin installs an activity package, switches it on, and a member plays 
   expect(row.data).toEqual([])
 
   await boss$.context.close()
+  await a.context.close()
+})
+
+test('a member who cannot send, or is timed out, cannot join a channel\'s game', async ({ browser }) => {
+  test.setTimeout(120_000)
+  const quiet = await must('quiet channel', admin.from('channels').insert({ server_id: server.id, name: 'quiet', type: 0 }).select('id').single())
+  const quietId = quiet.data!.id
+  const everyone = await must('default role', admin.from('server_roles').select('id').eq('server_id', server.id).eq('is_default', true).single())
+  await must('deny send', admin.from('channel_permission_overrides').insert({
+    channel_id: quietId, target_type: 'role', role_id: everyone.data!.id, allow_permissions: 0, deny_permissions: 4096,
+  }))
+
+  const a = await open(browser, alice)
+  const b = await open(browser, bob)
+
+  await test.step('read-only in the channel: no Join, and the reason, on the banner and the card', async () => {
+    await openChannel(a.page, server.id, quietId)
+    await a.page.getByTestId('activities-button').click()
+    await a.page.getByTestId('play-together-app-drawinphone').click()
+    await expect(game(a.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
+    await openChannel(b.page, server.id, quietId)
+    await expect(b.page.getByTestId('play-together-refusal')).toHaveText('You can’t send messages in this channel.', { timeout: 30_000 })
+    await expect(b.page.getByTestId('play-together-join')).toHaveCount(0)
+    await expect(b.page.getByTestId('activity-system-refusal')).toHaveText('You can’t send messages in this channel.')
+    await expect(b.page.getByTestId('activity-system-join')).toHaveCount(0)
+    await expect(game(a.page).getByTestId('dp-player')).toHaveCount(1)
+    await a.page.getByTestId('play-together-end').click()
+  })
+
+  await test.step('timed out in the server: no Join in a channel he could send in, and the reason', async () => {
+    await must('timeout', admin.from('server_member_timeouts').insert({
+      server_id: server.id, user_id: bob.id, until: new Date(Date.now() + 3_600_000).toISOString(), reason: 'journey',
+    }))
+    await openChannel(a.page, server.id, server.generalChannelId)
+    await a.page.getByTestId('activities-button').click()
+    await a.page.getByTestId('play-together-app-drawinphone').click()
+    await expect(game(a.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
+    await openChannel(b.page, server.id, server.generalChannelId)
+    await expect(b.page.getByTestId('play-together-refusal')).toHaveText('You are timed out in this server.', { timeout: 30_000 })
+    await expect(b.page.getByTestId('play-together-join')).toHaveCount(0)
+    await expect(game(a.page).getByTestId('dp-player')).toHaveCount(1)
+    await a.page.getByTestId('play-together-end').click()
+  })
+
+  await admin.from('server_member_timeouts').delete().eq('server_id', server.id).eq('user_id', bob.id)
+  await a.context.close()
+  await b.context.close()
+})
+
+test('a game its last player leaves ends at once, and the banner goes with it', async ({ browser }) => {
+  test.setTimeout(90_000)
+  const a = await open(browser, alice)
+  await a.page.goto(`/dm/${dm}`)
+  await openDmActivities(a.page)
+  await a.page.getByTestId('play-together-app-drawinphone').click()
+  await expect(game(a.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
+
+  await a.page.getByTestId('play-together-leave').click()
+  await expect(a.page.getByTestId('play-together-panel')).toHaveCount(0)
+  // No reload: the leaving client reads the ended session again; the relay ends it without the
+  // 60 s grace a dropped connection keeps.
+  await expect(a.page.getByTestId('play-together-banner')).toHaveCount(0, { timeout: 10_000 })
+  const row = await must('session', admin.from('activity_sessions').select('status, end_reason')
+    .eq('conversation_id', dm).order('started_at', { ascending: false }).limit(1).single())
+  expect(row.data).toMatchObject({ status: 'ended', end_reason: 'empty' })
   await a.context.close()
 })

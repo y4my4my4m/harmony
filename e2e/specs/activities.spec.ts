@@ -131,8 +131,8 @@ test('a Drive video plays for everyone in the call and follows the host', async 
     await enterVoice(page, host)
 
     await test.step('the host starts the video from the call dock and pauses it', async () => {
-      await page.getByTestId('activity-button').first().click()
-      await page.getByTestId('activity-launcher').getByTestId('activity-from-drive').click()
+      await page.getByTestId('dock-activities-button').first().click()
+      await page.getByTestId('activities-watch').getByTestId('activity-from-drive').click()
       await page.getByTestId('drive-picker').getByTestId('drive-picker-file').filter({ hasText: 'clip-6s.webm' }).click()
       await page.getByTestId('drive-picker-confirm').click()
       const card = page.getByTestId('activity-dock-card')
@@ -262,7 +262,7 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
   })
 
   await test.step('a pasted link starts the video in the relay player', async () => {
-    await page.getByTestId('activity-button').first().click()
+    await page.getByTestId('dock-activities-button').first().click()
     await page.getByTestId('activity-link').fill('https://www.youtube.com/watch?v=rFrPz1WkBvk&si=share123')
     await page.getByTestId('activity-start').click()
     await expect.poll(() => asked, { timeout: 15000 }).toContain('rFrPz1WkBvk')
@@ -476,7 +476,7 @@ test('at 150% and 80% zoom the player covers its slot, in the dock card and on t
           }
           root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')!.$patch((s) => { s.connectionMode = 'livekit' })
         })
-        await page.getByTestId('activity-button').first().click()
+        await page.getByTestId('dock-activities-button').first().click()
         await page.getByTestId('activity-link').fill('https://www.youtube.com/watch?v=rFrPz1WkBvk')
         await page.getByTestId('activity-start').click()
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 vi.mock('@/supabase', () => ({ supabase: { realtime: { isConnected: () => true } } }))
@@ -11,9 +11,15 @@ vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profile: { id:
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'auth-me' } } }) }))
 
 const serverList = vi.hoisted(() => ({ rows: [] as unknown[] }))
+// The row get_voice_activity answers.
+const row = vi.hoisted(() => ({ activity: null as unknown, reads: 0 }))
 vi.mock('@/services/activities/activityService', async (load) => ({
   ...(await load<typeof import('@/services/activities/activityService')>()),
   getServerActivities: async () => serverList.rows,
+  getActivity: async () => {
+    row.reads++
+    return { activity: row.activity, server_now: Date.now() }
+  },
 }))
 
 const { useActivitiesStore } = await import('@/stores/activities')
@@ -24,7 +30,15 @@ const state = (over: Record<string, unknown> = {}) => ({
   revision: 1, started_at: '2026-10-14T10:00:00Z', ...over,
 }) as any
 
-beforeEach(() => setActivePinia(createPinia()))
+// States carry position_at in database-clock ms; the clock reads 2000 here.
+beforeEach(() => {
+  setActivePinia(createPinia())
+  vi.useFakeTimers()
+  vi.setSystemTime(2000)
+  row.activity = null
+  row.reads = 0
+})
+afterEach(() => vi.useRealTimers())
 
 describe('activities store', () => {
   it('applies a newer revision of the run it holds and ignores an older one', () => {
@@ -123,13 +137,70 @@ describe('activities store', () => {
     expect(store.current).toMatchObject({ revision: 7, playing: false })
   })
 
-  it('a database state applies past a peer\'s, whatever revision the peer named', () => {
+  it('a peer state the database does not reach in time gives way to the database\'s', async () => {
+    const store = useActivitiesStore()
+    const peer = (userId: string, activity: unknown) =>
+      store.receivePeer({ userId, message: { type: 'activity', channelId: 'ch-1', activity } })
+    store.apply('ch-1', state({ revision: 5 }), true)
+    // One revision ahead, paused: no control made it.
+    peer('p2', state({ revision: 6, playing: false, position_at: 2000 }))
+    expect(store.current).toMatchObject({ revision: 6, playing: false })
+
+    // The database still answers 5; the deadline has not passed, and 5 may be a late broadcast.
+    expect(store.apply('ch-1', state({ revision: 5, position_at: 1000 }), true)).toBe(false)
+    row.activity = state({ revision: 5, position_at: 1000 })
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(row.reads).toBe(1)
+    expect(store.current).toMatchObject({ revision: 5, playing: true })
+
+    // The refuted participant is not taken again in the run; another one is.
+    peer('p2', state({ revision: 6, playing: false, position_at: 4000 }))
+    expect(store.current).toMatchObject({ revision: 5, playing: true })
+    peer('p3', state({ revision: 6, position_ms: 7000, position_at: 5000 }))
+    expect(store.current).toMatchObject({ revision: 6, position_ms: 7000 })
+  })
+
+  it('a broadcast older than a peer\'s state does not step it back, and the database confirms it', async () => {
+    const store = useActivitiesStore()
+    const peer = (revision: number, position_ms: number) => store.receivePeer({ userId: 'p2', message: { type: 'activity',
+      channelId: 'ch-1', activity: state({ revision, position_ms, position_at: 2000 + revision }) } })
+    store.apply('ch-1', state({ revision: 5 }), true)
+    // Two seeks a member made; the peer's states arrive before the broadcasts.
+    peer(6, 10_000)
+    peer(7, 20_000)
+    expect(store.apply('ch-1', state({ revision: 6, position_ms: 10_000, position_at: 2006 }), true)).toBe(false)
+    expect(store.current).toMatchObject({ revision: 7, position_ms: 20_000 })
+    store.apply('ch-1', state({ revision: 7, position_ms: 20_000, position_at: 2007 }), true)
+
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(row.reads).toBe(0)
+    expect(store.current).toMatchObject({ revision: 7, position_ms: 20_000 })
+  })
+
+  it('a peer state the database reaches only by a read is kept', async () => {
     const store = useActivitiesStore()
     store.apply('ch-1', state({ revision: 5 }), true)
-    store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1', activity: state({ revision: 8, playing: false, position_at: 2000 }) } })
-    expect(store.current).toMatchObject({ revision: 8, playing: false })
-    expect(store.apply('ch-1', state({ revision: 6, playing: true, position_at: 3000 }), true)).toBe(true)
-    expect(store.current).toMatchObject({ revision: 6, playing: true })
+    store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1',
+      activity: state({ revision: 6, playing: false, position_at: 2000 }) } })
+    row.activity = state({ revision: 6, playing: false, position_at: 2000 })
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(row.reads).toBe(1)
+    expect(store.current).toMatchObject({ revision: 6, playing: false })
+    store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1',
+      activity: state({ revision: 7, playing: true, position_at: 2100 }) } })
+    expect(store.current).toMatchObject({ revision: 7, playing: true })
+  })
+
+  it('a peer\'s position_at lies near the database clock', () => {
+    const store = useActivitiesStore()
+    const peer = (position_at: number) => store.receivePeer({ userId: 'p2', message: { type: 'activity', channelId: 'ch-1',
+      activity: state({ revision: 6, position_ms: 0, position_at }) } })
+    store.apply('ch-1', state({ revision: 5, position_ms: 4000 }), true)
+    peer(2000 + 3_600_000)
+    peer(2000 - 3_600_000)
+    expect(store.current).toMatchObject({ revision: 5, position_ms: 4000 })
+    peer(2000 + 5000)
+    expect(store.current).toMatchObject({ revision: 6, position_ms: 0 })
   })
 
   it('bounds a peer by the database\'s revision of a run the server list seeded', async () => {
@@ -142,7 +213,8 @@ describe('activities store', () => {
 
     for (let r = 6; r <= 20; r++) peer(r)
     expect(store.current?.revision).toBe(8)
-    expect(store.apply('ch-1', state({ revision: 6, playing: true, position_at: 9000 }), true)).toBe(true)
+    row.activity = state({ revision: 6, playing: true, position_at: 1900 })
+    await vi.advanceTimersByTimeAsync(3000)
     expect(store.current).toMatchObject({ revision: 6, playing: true })
   })
 

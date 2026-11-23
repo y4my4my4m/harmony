@@ -177,6 +177,11 @@ watch(() => store.slot, (slot) => {
   track()
 }, { immediate: true })
 
+// Expanding raises the panel's z-index; post flush reads it after the panel re-renders.
+watch(() => store.mode, () => {
+  if (store.slot) layer.value = layerFor(store.slot)
+}, { flush: 'post' })
+
 // The call view may have made the host inert before the game took its stage.
 watch([onStage, hostEl], ([stage, el]) => {
   if (stage && el?.hasAttribute('inert')) el.removeAttribute('inert')

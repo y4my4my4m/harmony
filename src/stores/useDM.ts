@@ -2337,18 +2337,25 @@ export const useDMStore = defineStore('dm', () => {
       debug.log('Setting up DM realtime subscriptions for user:', userId)
       
       const { userDataService } = await import('@/services/userDataService')
+      // other_user is a copy of the partner's profile; it follows the cache.
       const userUpdatedHandler = (event: any) => {
         const { userId: updatedUserId } = event.detail
-        
-        const updatedConversations = conversations.value.filter(conv =>
-          conv.other_user?.id === updatedUserId && !(conv.other_user as any)?._isPlaceholder
-        )
-        
-        if (updatedConversations.length > 0) {
-          for (const conv of updatedConversations) {
-            loadConversationUserProfile(conv.id)
+        const cached = userDataService.getUser(updatedUserId)
+        if (!cached) return
+        conversations.value.forEach((conv, index) => {
+          const other = conv.other_user
+          if (!other || other.id !== updatedUserId || other._isPlaceholder) return
+          // A cleared field is null in the cache and absent here.
+          const next = {
+            display_name: cached.displayName || undefined,
+            avatar_url: cached.avatarUrl || undefined,
+            username: cached.username || other.username,
+            color: cached.color || undefined,
           }
-        }
+          if (next.display_name === other.display_name && next.avatar_url === other.avatar_url
+              && next.username === other.username && next.color === other.color) return
+          conversations.value[index] = { ...conv, other_user: { ...other, ...next } }
+        })
       }
       // Re-entrant: runs again on every conversation switch. Drop the previous
       // registration before overwriting the slot, or cleanup() cannot reach it.

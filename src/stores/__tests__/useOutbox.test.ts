@@ -23,7 +23,8 @@ vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
 vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
 vi.mock('@/utils/uploadValidation', () => ({
-  validateImageUpload: vi.fn(async () => null),
+  validateUploadSize: vi.fn(async () => null),
+  getBucketLimits: vi.fn(async () => ({ maxBytes: 0, allowedMime: null, label: 'file' })),
   humanizeUploadError: (error: { message?: string }) => error?.message || 'Upload failed',
 }))
 vi.mock('@/composables/useEncryptionFallbackPrompt', () => ({

@@ -1,3 +1,4 @@
+import { shallowRef } from 'vue'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { UserStatus, type User } from '@/types'
@@ -56,6 +57,8 @@ const pending = new Map<string, Promise<CachedBridgedUsers>>()
 const serverPending = new Map<string, Promise<CachedBridgedUsers>>()
 /** Latest payload by platform-qualified external id (any channel/server fetch). */
 const usersByKey = new Map<string, BridgedChannelUser>()
+/** Reactive stand-in for usersByKey, which Vue does not track: bumped on every write. */
+const usersVersion = shallowRef(0)
 
 function isCacheValid(entry: CachedBridgedUsers | undefined): boolean {
   if (!entry) return false
@@ -83,6 +86,7 @@ function indexBridgedUsers(users: BridgedChannelUser[]): void {
   for (const user of users) {
     usersByKey.set(bridgedUserKey(user), user)
   }
+  usersVersion.value++
 }
 
 export function clearBridgedUsersCache(channelId?: string): void {
@@ -95,6 +99,7 @@ export function clearBridgedUsersCache(channelId?: string): void {
     pending.clear()
     serverPending.clear()
     usersByKey.clear()
+    usersVersion.value++
   }
 }
 
@@ -104,6 +109,7 @@ export function findBridgedUserInCache(
   externalUserId: string,
   source: BridgeMemberSource = 'discord',
 ): BridgedChannelUser | null {
+  void usersVersion.value
   return usersByKey.get(`${source}:${externalUserId}`) ?? null
 }
 

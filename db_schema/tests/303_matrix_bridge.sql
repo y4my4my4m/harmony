@@ -347,10 +347,10 @@ SELECT is((SELECT count(*)::integer FROM pg_trigger t
             WHERE t.tgrelid IN ('public.messages'::regclass, 'public.reactions'::regclass,
                                 'public.user_servers'::regclass, 'public.profiles'::regclass, 'public.bots'::regclass)
               AND t.tgname IN ('a_messages_matrix_author_guard', 'a_reactions_matrix_author_guard',
-                               'a_messages_bridge_optout_guard', 'a_reactions_bridge_optout_guard',
-                               'a_bots_bridge_platform_guard')
+                               'a_messages_client_write_optout', 'a_messages_client_write_optout_edit',
+                               'a_reactions_client_write_optout', 'a_bots_bridge_platform_guard')
               AND t.tgqual IS NOT NULL),
-          5, 'every trigger of the Matrix bridge has a WHEN clause');
+          6, 'every trigger of the Matrix bridge has a WHEN clause');
 
 SELECT * FROM finish();
 ROLLBACK;

@@ -75,7 +75,7 @@
   <PersistentVoiceConnection v-if="!isAuthRoute" />
   <ActivityHost v-if="!isAuthRoute && inVoiceCall" />
   <PlayTogetherHost v-if="!isAuthRoute" />
-  <PlayTogetherLauncher v-if="!isAuthRoute && playTogetherLauncherOpen" />
+  <ActivitiesLauncher v-if="!isAuthRoute && activitiesLauncherHere" />
 
   <!-- PWA Components. The install prompt waits for sign-in; on auth routes it
        covers the form on small screens. -->
@@ -211,9 +211,14 @@ const ImageCropDialog = defineAsyncComponent(() => import('@/components/common/I
 const ThemeCustomizerPanel = defineAsyncComponent(() => import('@/components/settings/user/ThemeCustomizerPanel.vue'))
 const ActivityHost = defineAsyncComponent(() => import('@/components/activities/ActivityHost.vue'))
 const PlayTogetherHost = defineAsyncComponent(() => import('@/components/playTogether/PlayTogetherHost.vue'))
-const PlayTogetherLauncher = defineAsyncComponent(() => import('@/components/playTogether/PlayTogetherLauncher.vue'))
+const ActivitiesLauncher = defineAsyncComponent(() => import('@/components/activities/ActivitiesLauncher.vue'))
 const playTogether = usePlayTogetherStore()
-const playTogetherLauncherOpen = computed(() => !!playTogether.launcher)
+// A call's launcher opens in the call's pop-out window while the call view is there (UnifiedVoiceOverlay).
+const activitiesLauncherHere = computed(() => {
+  const target = playTogether.launcher?.target
+  if (!target) return false
+  return !(callPopout.window && target.kind === 'channel' && target.voice)
+})
 // Mounted from the first open on, so its close transition plays.
 const { isOpen: themePanelOpen } = useThemeEditorPanel()
 const themePanelOpened = ref(themePanelOpen.value)

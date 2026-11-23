@@ -30,7 +30,7 @@ harmony admin reset-password (--email E | --username U) [--password P]
 harmony admin invite <email> [--send]
 harmony registration [open | invite | closed]
 harmony auth providers
-harmony auth add-provider ID [--name N] (--issuer URL | --authorize-url URL --token-url URL --userinfo-url URL)
+harmony auth add-provider ID [--name N] (--issuer URL [--userinfo | --id-token] | --authorize-url URL --token-url URL --userinfo-url URL)
                              [--client-id C] [--client-secret-file FILE|-] [options]
                              [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 harmony auth remove-provider ID
@@ -455,7 +455,7 @@ admin.
 
 ```text
 harmony auth providers
-harmony auth add-provider ID [--name N] (--issuer URL [--discovery-url URL] |
+harmony auth add-provider ID [--name N] (--issuer URL [--discovery-url URL] [--userinfo | --id-token] |
                              --authorize-url URL --token-url URL --userinfo-url URL)
                              [--client-id C] [--client-secret-file FILE|-] [--scopes "S ..."]
                              [--icon URL] [--email-optional | --require-email] [--no-pkce | --pkce]
@@ -472,26 +472,33 @@ walks through it.
 any other the auth service has on), whether the auth service has each on, and
 what a first sign-in does with an existing account that has the same address
 (**EXISTING ACCOUNTS**: `separate`, `by address`, or `shared: NAME`). Then it
-lists your own providers the same way, with whether the sign-in page shows
-them, and the redirect (callback) URL to register with them,
+lists your own providers the same way, with where the sign-in service reads
+each person's address and name (**ADDRESS FROM**: `userinfo` or `ID token`),
+whether the sign-in page shows them, and the redirect (callback) URL to
+register with them,
 `API_EXTERNAL_URL/auth/v1/callback`. It warns about buttons whose provider the
 auth service no longer has, and about providers on that join accounts by
 address while `ENABLE_EMAIL_AUTOCONFIRM=true`.
 
 `add-provider` creates the provider `custom:ID`, or updates it when it exists,
 and puts its button on the sign-in page. `ID` is 1 to 43 characters of `a-z`,
-`0-9` and `-`. The auth service fetches the issuer's discovery document first
-and refuses the provider when it cannot.
+`0-9` and `-`. With `--issuer`, it fetches the issuer's discovery document
+first, refuses the provider when it cannot or when the document's `issuer`
+differs, and stores the document's authorization, token and userinfo
+endpoints: the auth service reads each person from userinfo
+([ID token or userinfo](/self-host/oauth#id-token-or-userinfo)).
 
 | Option | Effect |
 |---|---|
 | `--name N` | Button text: **Continue with N**. Required for a new provider |
 | `--issuer URL` | OIDC: the issuer, exactly as the provider's discovery document states it. Endpoints come from `URL/.well-known/openid-configuration` |
 | `--discovery-url URL` | OIDC: the discovery document lives elsewhere |
+| `--id-token` | With `--issuer`: the auth service reads the person from the ID token instead of userinfo |
+| `--userinfo` | Switches a provider that reads the ID token to userinfo; needs the client secret |
 | `--authorize-url`, `--token-url`, `--userinfo-url` | OAuth 2.0 without discovery: all three for a new provider |
 | `--client-id C` | Client ID the provider issued. Required for a new provider |
 | `--client-secret-file FILE` | Reads the client secret from `FILE`; `-` reads standard input |
-| `--scopes "S ..."` | Space-separated. OIDC default: `openid email profile` (`openid` is always added) |
+| `--scopes "S ..."` | Space-separated. With `--issuer` the default is `openid email profile`, and `openid` is always added |
 | `--icon URL` | `https://` image shown on the button; without it, a key |
 | `--email-optional` | Accepts accounts the provider gives no address; `--require-email` undoes it |
 | `--no-pkce` | For a provider without PKCE; `--pkce` undoes it |
@@ -502,8 +509,10 @@ and refuses the provider when it cannot.
 Without `--client-secret-file`, the secret comes from
 `HARMONY_OAUTH_CLIENT_SECRET`, or else from a hidden prompt; empty keeps the
 stored secret of an existing provider. A URL option must start with
-`https://`. A provider's type (OIDC or OAuth 2.0) cannot change: remove it and
-add it again.
+`https://`. An update keeps what the provider reads unless `--userinfo` or
+`--id-token` says otherwise. A change makes the provider again under the same
+id, with its button, settings and accounts, so it needs the client secret;
+when the auth service refuses the new form, the old one is put back.
 
 The two account options write `PROVIDER_LINKING_DOMAINS` in
 `supabase/.env` (`custom:ID=custom:ID` keeps the provider apart) and recreate
