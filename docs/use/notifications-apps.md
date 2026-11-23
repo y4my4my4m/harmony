@@ -156,6 +156,18 @@ Download the file for your system from the [GitHub releases](https://github.com/
 The macOS build is not notarized by Apple. The first time you open it, right-click the app and choose **Open**.
 :::
 
+### NixOS
+
+This repository carries an initial Nix package for the official Linux `.deb` under [`nix/`](https://github.com/y4my4my4m/harmony/blob/master/nix/README.md). Build it with `nix-build nix` and run `./result/bin/harmony`; the README covers installing it in a system or profile.
+
+Like the `.deb`, the Nix package does not update itself. Update the pinned package version and hash (or obtain an updated package expression), then rebuild it. Chromium's sandbox helper cannot keep its setuid bit inside the Nix store. If unprivileged user namespaces are unavailable, enable the shared Chromium sandbox wrapper:
+
+```nix
+security.chromiumSuidSandbox.enable = true;
+```
+
+Harmony uses the user-namespace sandbox when available, otherwise the shared helper. If neither is usable, Harmony starts with the Chromium sandbox disabled.
+
 ### Connect to your instance
 
 On first launch the app shows **Welcome to Harmony** and asks for the **Instance domain** of the instance you use, such as `har.mony.lol`. Click **Connect**. To switch instances later, click **Change** in the bar at the top of the sign-in screen.
@@ -178,7 +190,7 @@ The app checks for updates 20 seconds after it starts and every 6 hours after th
 
 **User settings** → **Advanced** → **Updates** shows your version, has **Check for updates**, and a **Download updates automatically** switch. With it off, Harmony still checks and asks before downloading.
 
-On Linux, only the AppImage updates itself. Update a `.deb` install by installing the newer `.deb`.
+On Linux, only the AppImage updates itself. Update a `.deb` install by installing the newer `.deb`, and a Nix install by updating its pinned package expression and rebuilding it.
 
 ### Desktop settings
 
