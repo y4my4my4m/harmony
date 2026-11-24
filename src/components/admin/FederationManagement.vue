@@ -8,7 +8,7 @@
         <Icon name="plus" :size="16" />
         Add instance
       </button>
-      <button @click="refreshFederationData" class="action-btn" :disabled="loadingStates.federationStats">
+      <button @click="refreshFederationData(true)" class="action-btn" :disabled="loadingStates.federationStats">
         <Icon name="refresh-cw" :size="16" />
         Refresh
       </button>
@@ -18,55 +18,55 @@
   <!-- Federation Stats -->
   <div class="federation-stats">
     <div class="stat-card">
-      <div class="stat-value">{{ formatNumber(instanceStats?.total_instances) }}</div>
+      <div class="stat-value" data-testid="federation-stat-total">{{ formatNumber(stats?.instances.total) }}</div>
       <div class="stat-label">Total instances</div>
     </div>
     <div class="stat-card">
-      <div class="stat-value">{{ formatNumber(instanceStats?.active_instances) }}</div>
+      <div class="stat-value">{{ formatNumber(stats?.instances.active7d) }}</div>
       <div class="stat-label">Active (7 days)</div>
     </div>
     <div class="stat-card">
-      <div class="stat-value">{{ formatNumber(instanceStats?.trusted_instances) }}</div>
+      <div class="stat-value">{{ formatNumber(stats?.instances.trusted) }}</div>
       <div class="stat-label">Trusted</div>
     </div>
     <div class="stat-card">
-      <div class="stat-value">{{ formatNumber(instanceStats?.blocked_instances) }}</div>
+      <div class="stat-value">{{ formatNumber(stats?.instances.blocked) }}</div>
       <div class="stat-label">Blocked</div>
     </div>
   </div>
 
   <!-- Endpoint Health Stats -->
-  <div class="federation-section" v-if="federationStats">
+  <div class="federation-section" v-if="stats">
     <div class="section-header">
       <h3>Endpoint health</h3>
-      <div class="health-indicator" :class="getEndpointHealthClass(federationStats.endpoint_health)">
-        {{ federationStats.endpoint_health.success_rate }}% success rate
+      <div class="health-indicator" :class="endpointHealthClass">
+        {{ stats.endpoints.successRate }}% success rate
       </div>
     </div>
     <div class="federation-stats">
       <div class="stat-card">
-        <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.total_endpoints) }}</div>
+        <div class="stat-value">{{ formatNumber(stats.endpoints.total) }}</div>
         <div class="stat-label">Total endpoints</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value" :class="{ 'error-text': federationStats.endpoint_health.dead_endpoints > 0 }">
-          {{ formatNumber(federationStats.endpoint_health.dead_endpoints) }}
+        <div class="stat-value" :class="{ 'error-text': stats.endpoints.dead > 0 }">
+          {{ formatNumber(stats.endpoints.dead) }}
         </div>
         <div class="stat-label">Dead endpoints</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.healthy_endpoints) }}</div>
+        <div class="stat-value">{{ formatNumber(stats.endpoints.healthy) }}</div>
         <div class="stat-label">Healthy</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.endpoints_with_failures) }}</div>
+        <div class="stat-value">{{ formatNumber(stats.endpoints.failing) }}</div>
         <div class="stat-label">With failures</div>
       </div>
     </div>
-    <div class="endpoint-details" v-if="federationStats.endpoint_health.dead_endpoints > 0">
+    <div class="endpoint-details" v-if="stats.endpoints.dead > 0">
       <div class="warning-banner">
         <Icon name="alert-triangle" :size="16" />
-        <span>{{ federationStats.endpoint_health.dead_endpoints }} endpoint(s) marked as dead and removed from follows</span>
+        <span>{{ stats.endpoints.dead }} endpoint(s) marked as dead and removed from follows</span>
         <button
           v-if="isAdmin"
           class="danger-btn purge-btn"
@@ -463,7 +463,8 @@ import { useProfileStore } from '@/stores/useProfile'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import { adminService, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats, type DeadEndpoint } from '@/services/AdminService'
+import { adminService, successRate, type FederatedInstance, type InstanceSearchResult, type DeadEndpoint } from '@/services/AdminService'
+import { applyInstanceChange, useInstanceStats, type InstanceFlags } from '@/composables/useInstanceStats'
 import { formatNumber, formatTimeAgo, formatRelativeTime } from './adminFormat'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
@@ -478,15 +479,7 @@ const { t } = useI18n()
 const { confirm, prompt } = useConfirmDialog()
 
 // Federation management data
-const instanceStats = ref<InstanceStats>({
-  total_instances: 0,
-  blocked_instances: 0,
-  trusted_instances: 0,
-  active_instances: 0,
-  recently_discovered: 0
-})
-
-const federationStats = ref<FederationStats | null>(null)
+const { stats, load: loadStats, adjust: adjustStats } = useInstanceStats()
 const deadEndpointsList = ref<DeadEndpoint[]>([])
 const purgingEndpointIds = ref<Set<string>>(new Set())
 const federatedInstances = ref<FederatedInstance[]>([])
@@ -529,13 +522,13 @@ const instancePagination = ref({
 })
 
 // Federation management methods
-const refreshFederationData = async () => {
+const refreshFederationData = async (refresh = false) => {
   loadingStates.value.federationStats = true
   try {
     await Promise.all([
-      loadInstanceStats(),
+      loadStats(refresh),
       loadFederatedInstances(),
-      loadFederationStats()
+      loadDeadEndpoints()
     ])
   } catch (error) {
     debug.error('Failed to refresh federation data:', error)
@@ -544,38 +537,48 @@ const refreshFederationData = async () => {
   }
 }
 
-const loadFederationStats = async () => {
-  try {
-    const [stats, deadEndpoints] = await Promise.all([
-      adminService.getFederationStats(),
-      adminService.getDeadEndpoints()
-    ])
-    federationStats.value = stats
-    deadEndpointsList.value = deadEndpoints
-  } catch (error) {
-    debug.error('Failed to load federation stats:', error)
-  }
+const loadDeadEndpoints = async () => {
+  deadEndpointsList.value = await adminService.getDeadEndpoints()
 }
 
-const getEndpointHealthClass = (health: FederationStats['endpoint_health']) => {
-  if (health.dead_endpoints > 0) return 'error'
-  if (health.success_rate < 80) return 'warning'
+/** Counts a change this client made to one federated_instances row into the held snapshot. */
+const recordInstanceChange = (before: InstanceFlags | null, after: InstanceFlags | null) =>
+  adjustStats((s) => applyInstanceChange(s.instances, before, after, Date.now()))
+
+/** Takes purged dead endpoints out of the held snapshot. */
+const recordEndpointsPurged = (count: number, failures: number) =>
+  adjustStats((s) => {
+    const e = s.endpoints
+    e.total = Math.max(0, e.total - count)
+    e.dead = Math.max(0, e.dead - count)
+    e.failing = Math.max(0, e.failing - count)
+    e.failures = Math.max(0, e.failures - failures)
+    e.successRate = successRate(e.failures, e.successes)
+  })
+
+const endpointHealthClass = computed(() => {
+  const e = stats.value?.endpoints
+  if (!e) return 'healthy'
+  if (e.dead > 0) return 'error'
+  if (e.successRate < 80) return 'warning'
   return 'healthy'
-}
+})
 
 const purgeDeadEndpoints = async () => {
   const ok = await confirm({
     title: 'Purge dead endpoints',
-    message: `Permanently remove all ${federationStats.value?.endpoint_health.dead_endpoints} dead endpoint(s) and their failed deliveries? This cannot be undone.`,
+    message: `Permanently remove all ${stats.value?.endpoints.dead} dead endpoint(s) and their failed deliveries? This cannot be undone.`,
     confirmButtonText: 'Purge',
     dangerAction: true,
   })
   if (!ok) return
   loadingStates.value.purgingDead = true
   try {
+    const purgedFailures = deadEndpointsList.value.reduce((sum, e) => sum + (e.total_failures || 0), 0)
     const result = await adminService.purgeDeadEndpoints()
     debug.log(`Purged ${result.purgedEndpoints} dead endpoints and ${result.purgedDeliveries} failed deliveries`)
-    await loadFederationStats()
+    recordEndpointsPurged(result.purgedEndpoints, purgedFailures)
+    await loadDeadEndpoints()
   } catch (error) {
     debug.error('Failed to purge dead endpoints:', error)
   } finally {
@@ -588,10 +591,7 @@ const purgeSingleEndpoint = async (endpoint: DeadEndpoint) => {
   try {
     await adminService.purgeSingleEndpoint(endpoint.id, endpoint.endpoint_url)
     deadEndpointsList.value = deadEndpointsList.value.filter(e => e.id !== endpoint.id)
-    if (federationStats.value) {
-      federationStats.value.endpoint_health.dead_endpoints--
-      federationStats.value.endpoint_health.total_endpoints--
-    }
+    recordEndpointsPurged(1, endpoint.total_failures || 0)
   } catch (error) {
     debug.error('Failed to purge endpoint:', error)
   } finally {
@@ -643,15 +643,6 @@ const runOrphanCleanup = async () => {
     debug.error('Failed to run orphan cleanup:', error)
   } finally {
     loadingStates.value.orphanCleanup = false
-  }
-}
-
-const loadInstanceStats = async () => {
-  try {
-    const stats = await adminService.getInstanceStats()
-    instanceStats.value = stats
-  } catch (error) {
-    debug.error('Failed to load instance stats:', error)
   }
 }
 
@@ -714,11 +705,14 @@ const refreshInstance = async (instanceId: string) => {
   }
 }
 
+const instanceRow = (instanceId: string) => federatedInstances.value.find(i => i.id === instanceId) ?? null
+
 const toggleInstanceTrust = async (instanceId: string, trusted: boolean) => {
   try {
+    const before = instanceRow(instanceId)
     await adminService.updateInstanceTrust(instanceId, trusted, authStore.session?.user?.id || '')
+    if (before) recordInstanceChange(before, { ...before, is_trusted: trusted })
     await loadFederatedInstances()
-    await loadInstanceStats()
   } catch (error) {
     debug.error('Failed to update instance trust:', error)
     toast.error('Failed to update instance trust')
@@ -733,9 +727,10 @@ const toggleInstanceBlock = async (instanceId: string, blocked: boolean) => {
       if (answer === null) return
       reason = answer.trim() || 'Admin decision'
     }
+    const before = instanceRow(instanceId)
     await adminService.updateInstanceBlock(instanceId, blocked, reason, authStore.session?.user?.id || '')
+    if (before) recordInstanceChange(before, { ...before, is_blocked: blocked })
     await loadFederatedInstances()
-    await loadInstanceStats()
   } catch (error) {
     debug.error('Failed to update instance block status:', error)
     toast.error('Failed to update instance block status')
@@ -786,13 +781,20 @@ const deleteInstance = async (instanceId: string) => {
   if (!ok) return
   
   try {
+    const before = instanceRow(instanceId)
     await adminService.deleteInstance(instanceId, authStore.session?.user?.id || '')
+    if (before) recordInstanceChange(before, null)
     await loadFederatedInstances()
-    await loadInstanceStats()
   } catch (error) {
     debug.error('Failed to delete instance:', error)
     toast.error('Failed to delete instance')
   }
+}
+
+/** The row addInstanceFromDomain writes; it refuses a domain already present. */
+const addedInstance = (trusted: boolean): InstanceFlags => {
+  const now = new Date().toISOString()
+  return { is_blocked: false, is_trusted: trusted, last_seen_at: now, created_at: now }
 }
 
 const loadDiscoveredInstances = async () => {
@@ -807,8 +809,8 @@ const loadDiscoveredInstances = async () => {
 const addDiscoveredInstance = async (domain: string) => {
   try {
     await adminService.addInstanceFromDomain(domain, false, authStore.session?.user?.id || '')
+    recordInstanceChange(null, addedInstance(false))
     await loadFederatedInstances()
-    await loadInstanceStats()
     discoveredInstances.value = discoveredInstances.value.filter(i => i.domain !== domain)
   } catch (error) {
     debug.error('Failed to add discovered instance:', error)
@@ -840,8 +842,8 @@ const addInstanceFromDiscovery = async () => {
       addAsTrusted.value,
       authStore.session?.user?.id || ''
     )
+    recordInstanceChange(null, addedInstance(addAsTrusted.value))
     await loadFederatedInstances()
-    await loadInstanceStats()
     
     newInstanceDomain.value = ''
     discoveryResult.value = null

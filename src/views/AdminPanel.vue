@@ -49,45 +49,19 @@
         <div class="module-header">
           <Icon name="dashboard" :size="20" />
           <h2>System overview</h2>
+          <span v-if="updatedText" class="snapshot-age" data-testid="admin-stats-updated">{{ updatedText }}</span>
         </div>
         <div class="stats-grid">
-          <div class="stat-card">
+          <div v-for="card in statCards" :key="card.key" class="stat-card">
             <div class="stat-icon">
-              <Icon name="users" :size="24" />
+              <Icon :name="card.icon" :size="24" />
             </div>
             <div class="stat-content">
-              <div class="stat-value">{{ systemStats.totalUsers }}</div>
-              <div class="stat-label">Total users</div>
-              <div class="stat-change positive">+{{ systemStats.newUsersToday }} today</div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon">
-              <Icon name="server" :size="24" />
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ systemStats.totalServers }}</div>
-              <div class="stat-label">Chat servers</div>
-              <div class="stat-change">{{ systemStats.activeServers }} active</div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon">
-              <Icon name="federation" :size="24" />
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ systemStats.federatedInstances }}</div>
-              <div class="stat-label">Federated instances</div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon">
-              <Icon name="message" :size="24" />
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ formatNumber(systemStats.totalPosts) }}</div>
-              <div class="stat-label">Total posts</div>
-              <div class="stat-change">{{ systemStats.postsToday }} today</div>
+              <div class="stat-value" :data-testid="`admin-stat-${card.key}`">
+                <span v-if="card.approximate" class="approx-mark" title="Approximate"><span aria-hidden="true">≈</span><span class="sr-only">approximately </span></span>{{ formatNumber(card.value) }}
+              </div>
+              <div class="stat-label">{{ card.label }}</div>
+              <div v-if="card.change" class="stat-change" :class="{ positive: card.key === 'users' }">{{ card.change }}</div>
             </div>
           </div>
         </div>
@@ -107,22 +81,24 @@
             <div class="metric-header">
               <span>Database</span>
             </div>
-            <div class="metric-value">{{ systemHealth.database.responseTime }}ms</div>
-            <div class="metric-detail">{{ systemHealth.database.connections }} connections</div>
+            <div class="metric-value" data-testid="admin-db-response">{{ stats ? `${stats.responseMs}ms` : '—' }}</div>
+            <div class="metric-detail">{{ stats?.database?.connections ?? 0 }} connections</div>
           </div>
           <div class="metric-card">
             <div class="metric-header">
               <span>Federation queue</span>
-              <div class="metric-status" :class="systemHealth.federation.status"></div>
+              <div class="metric-status" :class="queueStatus"></div>
             </div>
-            <div class="metric-value">{{ systemHealth.federation.pending }}</div>
+            <div class="metric-value">
+              <span v-if="isApproximate('queue_pending')" class="approx-mark" title="Approximate"><span aria-hidden="true">≈</span><span class="sr-only">approximately </span></span>{{ stats?.queue?.pending ?? 0 }}
+            </div>
             <div class="metric-detail">pending deliveries</div>
           </div>
           <div class="metric-card">
             <div class="metric-header">
               <span>Database size</span>
             </div>
-            <div class="metric-value">{{ systemHealth.storage.total }}</div>
+            <div class="metric-value" data-testid="admin-db-size">{{ stats?.database ? formatBytes(stats.database.sizeBytes) : '—' }}</div>
             <div class="metric-detail">total size</div>
           </div>
         </div>
@@ -225,7 +201,6 @@
 import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
 import { badgeCount, refreshInstancePendingReports, useReportQueueCounts } from '@/composables/useReportQueueCounts'
 import { hasCapability } from '@/services/instanceCapabilities'
-import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -257,6 +232,9 @@ const FundingSupporters = defineAsyncComponent(() => import('@/components/admin/
 const DriveAdmin = defineAsyncComponent(() => import('@/components/admin/DriveAdmin.vue'))
 const StickerSettings = defineAsyncComponent(() => import('@/components/stickers/StickerSettings.vue'))
 import { adminService } from '@/services/AdminService'
+import { useInstanceStats } from '@/composables/useInstanceStats'
+import { formatAge, formatNumber } from '@/components/admin/adminFormat'
+import { formatBytes } from '@/components/drive/driveFormat'
 import { useProfileStore } from '@/stores/useProfile'
 
 
@@ -328,141 +306,51 @@ onMounted(async () => {
     return
   }
 
-  if (isAdmin.value) await loadInitialData()
+  if (isAdmin.value && activeAdminTab.value === 'overview') await loadInitialData()
 })
 
-// Reactive data
-const loading = ref(false)
+const { stats, loading, failed, ageSeconds, load: loadStats } = useInstanceStats()
 
+const isApproximate = (column: string) => stats.value?.approximate.includes(column) === true
 
-
-
-
-// User servers modal
-
-
-// System stats
-const systemStats = ref({
-  totalUsers: 0,
-  newUsersToday: 0,
-  totalServers: 0,
-  activeServers: 0,
-  federatedInstances: 0,
-  totalPosts: 0,
-  postsToday: 0
+const statCards = computed(() => {
+  const s = stats.value
+  return [
+    { key: 'users', icon: 'users', label: 'Total users', value: s?.users.total, approximate: isApproximate('users_total'),
+      change: `+${formatNumber(s?.users.new24h)} in the last 24 hours` },
+    { key: 'servers', icon: 'server', label: 'Chat servers', value: s?.servers.total, approximate: isApproximate('servers_total'),
+      change: `${formatNumber(s?.servers.active30d)} active in the last 30 days` },
+    { key: 'instances', icon: 'federation', label: 'Federated instances', value: s?.instances.total, approximate: false,
+      change: '' },
+    { key: 'posts', icon: 'message', label: 'Total posts', value: s?.posts.total, approximate: isApproximate('posts_total'),
+      change: `+${formatNumber(s?.posts.last24h)} in the last 24 hours` },
+  ]
 })
 
-// System health
-const systemHealth = ref({
-  database: { responseTime: 0, connections: 0 },
-  federation: { pending: 0, status: 'healthy' },
-  storage: { used: 0, total: '—' },
+const updatedText = computed(() => {
+  if (!stats.value) return ''
+  if (stats.value.computedAt === null) return stats.value.refreshingElsewhere ? 'Updating…' : ''
+  return `Updated ${formatAge(ageSeconds.value ?? 0)}`
 })
 
+const queueStatus = computed(() => (stats.value?.queue?.pending ?? 0) > 100 ? 'warning' : 'healthy')
 
-// Computed properties
-const systemStatus = computed(() => {
-  const health = systemHealth.value
-  if (health.federation.status === 'error') {
-    return { class: 'error', text: 'Federation issues' }
-  }
-  return { class: 'healthy', text: 'All systems operational' }
+const systemStatus = computed(() =>
+  failed.value
+    ? { class: 'error', text: 'Statistics unavailable' }
+    : { class: 'healthy', text: 'All systems operational' })
+
+const healthStatus = computed(() =>
+  failed.value ? { class: 'error', text: 'Unavailable' } : { class: 'healthy', text: 'Healthy' })
+
+const loadInitialData = () => loadStats(false)
+
+// The snapshot is read where it shows: Overview here, the Federation tab in its module.
+watch(activeAdminTab, (tab) => {
+  if (tab === 'overview' && isAdmin.value) void loadInitialData()
 })
 
-// eslint-disable-next-line unused-imports/no-unused-vars
-const federationStatus = computed(() => {
-  const pending = systemHealth.value.federation.pending
-  if (pending > 100) {
-    return { class: 'warning', text: `${pending} pending deliveries` }
-  }
-  return { class: 'healthy', text: 'Federation active' }
-})
-
-const healthStatus = computed(() => {
-  const issues = []
-  if (systemHealth.value.federation.status === 'error') issues.push('federation')
-  
-  if (issues.length === 0) return { class: 'healthy', text: 'Healthy' }
-  if (issues.length === 1) return { class: 'warning', text: 'Minor issues' }
-  return { class: 'error', text: 'Critical issues' }
-})
-
-
-
-// Methods
-const loadInitialData = async () => {
-  loading.value = true
-  try {
-    // Core dashboard data gates the global spinner; every slower/secondary
-    // section streams in behind its own per-section loadingStates flag so one
-    // slow federation query doesn't hold the whole panel on a spinner.
-    // allSettled: one failed loader must not abort the rest.
-    await Promise.allSettled([
-      loadSystemStats(),
-      loadSystemHealth(),
-    ])
-
-    void Promise.allSettled([
-    ])
-  } catch (error) {
-    debug.error('Failed to load admin data:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
-const loadSystemStats = async () => {
-  try {
-    const stats = await adminService.getSystemStats()
-    
-    systemStats.value = {
-      totalUsers: stats.total_users,
-      newUsersToday: stats.newUsersToday || 0,
-      totalServers: stats.total_servers,
-      activeServers: stats.active_servers,
-      federatedInstances: stats.federated_instances,
-      totalPosts: stats.total_posts,
-      postsToday: stats.postsToday || 0
-    }
-  } catch (error) {
-    debug.error('Failed to load system stats:', error)
-    systemStats.value = {
-      totalUsers: 0,
-      newUsersToday: 0,
-      totalServers: 0,
-      activeServers: 0,
-      federatedInstances: 0,
-          totalPosts: 0,
-      postsToday: 0
-    }
-  }
-}
-
-const loadSystemHealth = async () => {
-  try {
-    systemHealth.value = await adminService.getSystemHealth()
-  } catch (error) {
-    debug.error('Failed to load system health:', error)
-    systemHealth.value = {
-      database: { responseTime: 0, connections: 0 },
-      federation: { pending: 0, status: 'error' },
-      storage: { used: 0, total: '—' },
-    }
-  }
-}
-
-const refreshData = async () => {
-  await loadInitialData()
-}
-
-// Utility functions
-const formatNumber = (num: number | undefined) => {
-  if (num === undefined || num === null) return '0'
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
-  return num.toString()
-}
-
+const refreshData = () => loadStats(true)
 
 </script>
 
@@ -812,6 +700,18 @@ const formatNumber = (num: number | undefined) => {
   font-weight: 600;
   margin: 0;
   flex: 1;
+}
+
+.snapshot-age {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.approx-mark {
+  margin-right: 2px;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 

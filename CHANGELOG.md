@@ -90,6 +90,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- **The admin panel no longer stalls the instance.** **Overview**, **Federation** and the **Users**
+  filter counts read one stored statistics snapshot instead of many exact counts at once, which held
+  every database connection and made other requests fail. **Overview** says when its figures were
+  computed, counts accounts and posts of the last 24 hours, and shows chat servers active in the
+  last 30 days. A suspension made in the panel updates the counts at once. Totals over very large
+  tables are estimates, marked ≈.
 - **Announcements show the emoji or icon their admin chose.** The **Icon** field takes an emoji, or
   info, warning, megaphone, maintenance, update or security; an emoji and `megaphone` showed the
   info icon in the pop-up, on **Today** and in **User settings** → **Announcements**.
@@ -374,6 +380,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Notes for self-hosters
 
+- The admin panel's statistics refresh every 5 minutes through pg_cron (`admin-instance-stats`);
+  without pg_cron, opening the panel refreshes figures older than 15 minutes. Posts, messages and
+  profiles are now vacuumed once 5% of their rows change. Nothing to do.
 - Discord history import also has **All bridges**: communities import through every bridge, the
   instance's Discord bot included, set under **Admin** → **Config** → **Discord bridge** → **Discord
   history import**. Imports through the instance bot and hosted own-bot bridges need the bridge host

@@ -5,6 +5,16 @@ export const formatNumber = (num: number | undefined) => {
   return num.toString()
 }
 
+/** An age in seconds: "just now", "4 min ago", "2 h ago", "3 d ago". */
+export const formatAge = (seconds: number): string => {
+  const min = Math.floor(seconds / 60)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min} min ago`
+  const hours = Math.floor(min / 60)
+  if (hours < 24) return `${hours} h ago`
+  return `${Math.floor(hours / 24)} d ago`
+}
+
 export const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString()
 }

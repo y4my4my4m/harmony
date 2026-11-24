@@ -24,12 +24,7 @@ vi.mock('@/composables/useLayoutState', async () => {
 vi.mock('@/services/AdminService', () => ({
   adminService: {
     checkAdminOrModPermissions: vi.fn(async () => true),
-    getSystemStats: vi.fn(async () => ({})),
-    getSystemHealth: vi.fn(async () => ({
-      database: { responseTime: 0, connections: 0 },
-      federation: { pending: 0, status: 'ok' },
-      storage: { used: 0, total: '0' },
-    })),
+    getAdminInstanceStats: vi.fn(async () => null),
   },
 }))
 

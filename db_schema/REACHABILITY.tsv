@@ -34,6 +34,7 @@ admin_get_upload_limit	definer	jsonb	authenticated+service_role	client	rpc in sr
 admin_get_webhook_settings	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_instance_invite_account	definer	TABLE(auth_user_id uuid, email text, invited boolean, accepted boolean, has_profile boolean, invite_id uuid, revoked boolean)	service_role	client	rpc in federation-backend/src/routes/adminInvites.ts
 admin_instance_invites	definer	TABLE(id uuid, email text, auth_user_id uuid, source text, delivery text, invited_by_username text, created_at timestamp with time zone, links_issued integer, link_sent_at timestamp with time zone, accepted_at timestamp with time zone, account_username text, revoked_at timestamp with time zone, revoked_by_username text, status text)	service_role	client	rpc in federation-backend/src/routes/adminInvites.ts
+admin_instance_stats	definer	jsonb	authenticated+service_role	client	rpc in src/services/AdminService.ts
 admin_list_emojis	definer	TABLE(id uuid, kind text, name text, url text, domain text, scope text, server_id uuid, server_name text, uploader uuid, uploader_username text, created_at timestamp with time zone, usage_count integer, reaction_count bigint, deleted_at timestamp with time zone, deleted_by_username text, imported_from text, hotlinked boolean, is_ai_generated boolean, total_count bigint, license text, source_domain text)	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts
 admin_list_outgoing_webhooks	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_list_remote_emojis	definer	TABLE(id uuid, name text, url text, domain text, license text, first_seen_at timestamp with time zone, usage_count integer, import_name text, name_taken boolean, total_count bigint)	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts
@@ -598,8 +599,6 @@ get_conversation_thread	invoker	jsonb	service_role	service key	nothing reference
 get_current_profile_id	definer	uuid	anon+authenticated+service_role	client, policy, trigger	policy public.ap_activities SELECT on Users can view their own activities, public.bot_audit_log SELECT on bot_audit_log_select_owner, public.bot_commands SELECT on bot_commands_select_owner, +200
 get_current_user_profile_id	definer	uuid	anon+authenticated+service_role	client	called by search_messages
 get_custom_status	definer	jsonb	service_role	service key	nothing references it
-get_db_connection_count	definer	integer	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
-get_db_size	definer	text	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
 get_default_channel	definer	uuid	service_role	client, trigger	called by ban_server_member, handle_member_join_system_message, handle_member_leave_system_message, +2
 get_device_signing_key	definer	TABLE(device_signing_public_key text, revoked_at timestamp with time zone)	anon+authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 get_emoji_metadata_bulk	invoker	TABLE(server_id uuid, last_modified timestamp with time zone, emoji_count integer)	anon+authenticated+service_role	client	rpc in src/stores/useEmojiCache.ts
@@ -957,6 +956,7 @@ recovery_code_owner	invoker	uuid	service_role	client	called by generate_mfa_reco
 redact_encrypted_notification_preview	definer	trigger	service_role	trigger	trigger public.notifications BEFORE INSERT (trg_redact_encrypted_notification_preview)
 redeem_invite	definer	jsonb	authenticated+service_role	client	rpc in src/services/inviteService.ts
 redeem_recovery_code_and_disable_mfa	definer	boolean	authenticated+service_role	client	rpc in src/components/settings/user/TwoFactorSettings.vue, src/stores/auth.ts, src/views/ResetPasswordView.vue
+refresh_admin_instance_stats	definer	boolean	service_role	client, cron	cron */5 * * * * (admin-instance-stats)
 refuse_banned_membership	definer	trigger	service_role	trigger	trigger public.user_servers BEFORE INSERT/UPDATE (a_user_servers_ban_guard)
 refuse_client_bridge_platform	invoker	trigger	service_role	trigger	trigger public.bots BEFORE UPDATE (a_bots_bridge_platform_guard)
 refuse_client_system_parts	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_system_part_guard), public.posts BEFORE INSERT/UPDATE (a_posts_system_part_guard), public.profiles BEFORE INSERT/UPDATE (a_profiles_system_part_guard)
