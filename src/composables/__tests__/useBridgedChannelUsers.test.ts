@@ -15,7 +15,7 @@ describe('bridged member request scope', () => {
     const old = deferred(), current = deferred()
     fetchUsers.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise)
     const channel = ref<string | null>('old'), scope = effectScope()
-    const members = scope.run(() => useBridgedChannelUsers(channel))!
+    const members = scope.run(() => useBridgedChannelUsers(channel, 'server'))!
     channel.value = 'new'; await nextTick()
     current.resolve({ hasBridge: true, users: [discord('2')] }); await flushPromises()
     expect(members.users.value[0].id).toBe('2')
@@ -29,11 +29,11 @@ describe('bridged member request scope', () => {
     scope.stop()
   })
 
-  it('keeps the previous channel list on screen until the next one arrives', async () => {
+  it('within a server, keeps the previous channel list on screen until the next one arrives', async () => {
     const next = deferred()
     fetchUsers.mockResolvedValueOnce({ hasBridge: true, users: [matrix('@sam:a.hs')] }).mockReturnValueOnce(next.promise)
     const channel = ref('a'), scope = effectScope()
-    const members = scope.run(() => useBridgedChannelUsers(channel))!
+    const members = scope.run(() => useBridgedChannelUsers(channel, 'server'))!
     await flushPromises()
     channel.value = 'b'; await nextTick()
     expect(members.users.value.map(user => user.id)).toEqual(['@sam:a.hs'])
@@ -43,12 +43,39 @@ describe('bridged member request scope', () => {
     scope.stop()
   })
 
+  it('a channel of another server starts from an empty list', async () => {
+    const next = deferred()
+    fetchUsers.mockResolvedValueOnce({ hasBridge: true, users: [matrix('@sam:a.hs')] }).mockReturnValueOnce(next.promise)
+    const channel = ref('a'), server = ref('one'), scope = effectScope()
+    const members = scope.run(() => useBridgedChannelUsers(channel, server))!
+    await flushPromises()
+    expect(members.users.value).toHaveLength(1)
+    server.value = 'two'; channel.value = 'b'; await nextTick()
+    expect(members.users.value).toEqual([])
+    expect(members.hasBridge.value).toBe(false)
+    next.resolve({ hasBridge: true, users: [matrix('@lee:b.hs')] }); await flushPromises()
+    expect(members.users.value.map(user => user.id)).toEqual(['@lee:b.hs'])
+    expect(members.hasBridge.value).toBe(true)
+    scope.stop()
+  })
+
+  it('a server named after its channel keeps the channel list', async () => {
+    fetchUsers.mockResolvedValueOnce({ hasBridge: true, users: [matrix('@sam:a.hs')] })
+    const server = ref<string | null>(null), scope = effectScope()
+    const members = scope.run(() => useBridgedChannelUsers('a', server))!
+    await flushPromises()
+    server.value = 'one'; await nextTick()
+    expect(members.users.value).toHaveLength(1)
+    expect(fetchUsers).toHaveBeenCalledTimes(1)
+    scope.stop()
+  })
+
   it('polls only while a member reports presence', async () => {
     vi.useFakeTimers()
     fetchUsers.mockResolvedValueOnce({ hasBridge: true, users: [matrix('@sam:hs')] })
       .mockResolvedValueOnce({ hasBridge: true, users: [matrix('@sam:hs'), discord('1')] })
     const channel = ref('matrix-only'), scope = effectScope()
-    scope.run(() => useBridgedChannelUsers(channel))
+    scope.run(() => useBridgedChannelUsers(channel, 'server'))
     await flushPromises()
     expect(vi.getTimerCount()).toBe(0)
     channel.value = 'mixed'; await nextTick(); await flushPromises()
@@ -60,7 +87,7 @@ describe('bridged member request scope', () => {
     vi.useFakeTimers()
     const pending = deferred(); fetchUsers.mockReturnValueOnce(pending.promise)
     const scope = effectScope()
-    const members = scope.run(() => useBridgedChannelUsers('channel'))!
+    const members = scope.run(() => useBridgedChannelUsers('channel', 'server'))!
     scope.stop()
     pending.resolve({ hasBridge: true, users: [discord('1')] }); await flushPromises()
     expect(members.users.value).toEqual([])

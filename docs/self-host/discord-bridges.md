@@ -157,7 +157,7 @@ History import copies a paired Discord channel's older messages into Harmony ([I
 | **History import** | **Off** | **Self-run bridges** lets a server import through a bridge its owner runs with their own Discord application (bridge 2.6.0 or later). **All bridges** adds the instance's Discord bot and the own-bot bridges this instance hosts (bridge host 2.8.0 or later). **Off** refuses every import and stops the ones running |
 | **Imports running at once** | 1 | Across the instance; the rest wait. `0` is no limit |
 | **Messages per minute, per import** | 600 | The gateway slows an import to this rate, whatever the bridge sends. `0` is no limit |
-| **Stored Discord files per server (MB)** | 5120 | With **Mirror to storage**, a server past this keeps Discord links for further files. `0` is no limit |
+| **Stored Discord files per server (MB)** | 5120 | With **Mirror to storage**, a server past this keeps Discord links for further files. Files bots upload and avatars of a Matrix bridge count too, and are refused past it. `0` is no limit |
 
 The same page shows how many imports run and wait, how many messages were imported, and how much room stored Discord files take.
 
@@ -171,7 +171,7 @@ Before turning it on:
 
 **Remove all Discord messages**, at the bottom of that section, deletes every message, file and reaction any bridge brought from Discord, on every server of the instance. It is for when the instance must stop holding Discord content, for example when its Discord application loses access. Server managers do the same for one server, or for one Discord user, on their bridge page.
 
-Each import is a job the bridge works through in the background, reading Discord's history one page at a time, so a large channel takes hours. The `BRIDGE_IMPORT_*` variables above tune a bridge process; the limits in the table are the instance's and hold whatever those say.
+Each import is a job the bridge works through in the background, reading Discord's history one page at a time, so a large channel takes hours. `BRIDGE_IMPORT_PAGE_DELAY_MS` and `BRIDGE_IMPORT_POLL_MS` (see the bridge's [README](https://github.com/y4my4my4m/harmony-discord-bridge#readme)) tune a bridge process; the limits in the table are the instance's and hold whatever those say.
 
 The volume holds per-bridge state under `/data/hosted/<bridge id>` and `/data/instance/<bridge id>`, and the instance bot's emoji map under `/data/app-emojis`.
 
@@ -250,5 +250,7 @@ Some bridge features need a Harmony release with the matching gateway routes and
 | 2.4.0 | 1.7.5 | Threads cross the bridge; the bot needs **Create Public Threads** and **Send Messages in Threads** |
 | 2.4.1 | 1.7.6 | The "started a thread" notice names the Discord member who started the thread |
 | 2.6.0 | 1.9.7 | `/bridge import-history` and the **Import history** buttons; the bot needs **Read Message History**. Discord's private threads no longer cross the bridge, live or imported |
+| 2.7.0 | | Each own-bot bridge the instance hosts runs in a worker thread of its own, with its own memory limit, and restarts alone |
+| 2.8.0 | 1.9.8 | **All bridges** for history import: the instance's bot and own-bot hosted bridges import too. Pairs whose Discord channel `@everyone` cannot read show a lock, and import from Harmony asks before including them. The pinned import notice sends no push notification. Stickers and sounds deleted on Harmony, and emoji an instance admin purged, are not copied back |
 
 When a release needs a new Discord permission, communities whose bot was added earlier have to add it again: **Add to Discord again** for the instance bot, **Invite the bot to your Discord server** for their own bot. Communities that run the bridge themselves update their own container; the bridge page shows each bridge's **Bridge version**.

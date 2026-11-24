@@ -5783,7 +5783,9 @@
         "signalsPerMinute": "Signaux d'appel par minute",
         "signalsHint": "Établir les appels pair à pair, répondre aux appels en MP et raccrocher, effets d'appel. Rejoindre un appel de dix personnes en demande environ 45.",
         "ringsPerMinute": "Appels passés par minute",
-        "ringsHint": "Chaque appel sonne une fois. Raccrocher n'est jamais refusé."
+        "ringsHint": "Chaque appel sonne une fois. Raccrocher n'est jamais refusé.",
+        "rolePicksPerMinute": "Choix de rôles par minute",
+        "rolePicksHint": "Prendre et quitter les rôles à choisir. Chaque changement atteint tout le serveur."
       },
       "bots": {
         "title": "Bots",
@@ -9116,11 +9118,11 @@
     "saved": "Les nouveaux membres recevront ce rôle.",
     "cleared": "Les nouveaux membres ne reçoivent plus de rôle.",
     "tooHigh": "Tu ne peux choisir qu’un rôle sous ton rôle le plus élevé.",
-    "saveFailed": "Impossible d’enregistrer le rôle des nouveaux membres."
+    "saveFailed": "Impossible d’enregistrer le rôle des nouveaux membres.",
+    "notOpen": "Ce rôle donne des permissions que @everyone n’a pas, ou se trouve au-dessus d’un rôle qui en donne. Il ne peut pas être donné aux nouveaux membres.",
+    "currentNotOpen": "Ce rôle ne peut plus être donné aux nouveaux membres. Choisissez-en un autre."
   },
   "playTogether": {
-    "button": "Jouer ensemble",
-    "launcherTitle": "Jouer ensemble",
     "launcherSubtitle": "Lancez une activité que tout le monde ici peut rejoindre",
     "loadingApps": "Chargement des activités…",
     "noApps": "Aucune activité n’est activée sur cette instance.",

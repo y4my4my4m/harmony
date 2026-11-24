@@ -1,5 +1,6 @@
 // Journey: any file type, as Discord takes it. An APK, an SVG and an HTML page attach in a DM and
-// in Drive. A type storage does not serve as itself (the bucket's list) is stored as
+// in Drive, and neither picker names the types it takes: an `accept` list greys an APK out in the
+// Android and macOS file pickers (setInputFiles ignores it). A type storage does not serve as itself (the bucket's list) is stored as
 // application/octet-stream under its own name: it shows as a file card and downloads, and nothing
 // that would run (SVG, HTML) opens as a page or an inline image. A PNG keeps its type and shows
 // inline.
@@ -35,6 +36,8 @@ test.afterAll(async () => {
   await deleteUser(admin, owner)
 })
 
+const APK_TYPE = 'application/vnd.android.package-archive'
+
 const preview = (page: Page, name: string) => page.getByTestId('file-preview-item').filter({ hasText: name })
 
 async function attach(page: Page, name: string, mimeType: string, buffer: Buffer) {
@@ -63,8 +66,18 @@ test('an APK, an SVG and an HTML page send as files; a PNG still shows inline', 
   await page.goto(`/dm/${dm}`)
   await dismissAnnouncements(page)
 
+  await test.step('Upload file opens a picker for every type', async () => {
+    await expect(page.getByTestId('composer-file-input')).not.toHaveAttribute('accept')
+    await page.getByTestId('composer-attach').click()
+    const opened = page.waitForEvent('filechooser')
+    await page.getByTestId('upload-menu-file').click()
+    const chooser = await opened
+    expect(chooser.isMultiple()).toBe(true)
+    await chooser.setFiles({ name: 'cartouche-0.5.1.apk', mimeType: APK_TYPE, buffer: Buffer.from('PK\x03\x04 apk bytes') })
+    await expect(preview(page, 'cartouche-0.5.1.apk')).toContainText('Uploaded', { timeout: 20_000 })
+  })
+
   await test.step('every type attaches, none is refused', async () => {
-    await attach(page, 'cartouche-0.5.1.apk', 'application/vnd.android.package-archive', Buffer.from('PK\x03\x04 apk bytes'))
     await attach(page, 'logo.svg', 'image/svg+xml', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'))
     await attach(page, 'page.html', 'text/html', Buffer.from('<!doctype html><script>alert(1)</script>'))
     await attach(page, 'dot.png', 'image/png', PNG)
@@ -102,7 +115,8 @@ test('an APK, an SVG and an HTML page send as files; a PNG still shows inline', 
     await expect(page.getByTestId('drive-view')).toBeVisible({ timeout: 30_000 })
     await dismissAnnouncements(page)
     await page.getByTestId('drive-layout-list').click()
-    await page.getByTestId('drive-file-input').setInputFiles({ name: 'tool.apk', mimeType: 'application/vnd.android.package-archive', buffer: Buffer.from('PK\x03\x04 drive apk') })
+    await expect(page.getByTestId('drive-file-input')).not.toHaveAttribute('accept')
+    await page.getByTestId('drive-file-input').setInputFiles({ name: 'tool.apk', mimeType: APK_TYPE, buffer: Buffer.from('PK\x03\x04 drive apk') })
     await expect(page.getByTestId('drive-items').getByTestId('drive-file').filter({ hasText: 'tool.apk' })).toBeVisible({ timeout: 30_000 })
     await expect(page.getByText("isn't allowed")).toHaveCount(0)
   })

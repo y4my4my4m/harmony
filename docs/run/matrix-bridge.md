@@ -84,7 +84,7 @@ Encrypted rooms remain blocked. An encrypted attachment descriptor in a plaintex
 
 ## Member privacy
 
-Each Harmony member can open **Server menu → Bridge privacy → Do not forward my messages — Matrix**. Discord has its own independent switch. These preferences are per-member, per-server, and per-platform, not per bridge bot; the administrator's sender-mode choice does not override them. The switch is shown only for a platform the server bridges. A preference outlives leaving and rejoining the server.
+Each Harmony member can open **Server menu → Bridge privacy → Do not forward my messages to Matrix**. Discord has its own independent switch. These preferences are per-member, per-server, and per-platform, not per bridge bot; the administrator's sender-mode choice does not override them. The switch is shown only for a platform the server bridges. A preference outlives leaving and rejoining the server.
 
 Opt-out blocks future bridged message/file delivery and fresh ghost profile exposure. The running worker removes tracked ghost memberships when it sees that the member is no longer eligible. It rechecks consent before queued delivery and profile operations rather than trusting the original message or a cached member list.
 

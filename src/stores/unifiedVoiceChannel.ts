@@ -58,6 +58,7 @@ let inputModeWatchStop: WatchStopHandle | null = null;
 let keybindDisposers: Array<() => void> = [];
 
 let webrtcListenersRegistered = false;
+let sessionFollowed = false;
 
 // Handlers for the remote server's answer to a pending federated voice join.
 let federatedAnswerUnsubscribe: (() => void) | null = null;
@@ -68,6 +69,15 @@ let federatedAnswerUnsubscribe: (() => void) | null = null;
 // (15 s each).
 export const VOICE_RECONNECT_GIVE_UP_MS = 45_000;
 let reconnectGiveUp: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Takes back the presence a failed or cancelled join recorded. With the account's session gone, or
+ * another account in its place, the database refuses it.
+ */
+async function rollBackPresence(serverId: string, channelId: string, userId: string): Promise<void> {
+  if (useAuthStore().session?.user?.id !== userId) return;
+  await useServerUsersStore().leaveVoiceChannel(serverId, channelId, userId);
+}
 
 function clearReconnectGiveUp(): void {
   if (reconnectGiveUp) clearTimeout(reconnectGiveUp);
@@ -415,6 +425,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       opts: { livekit?: { wsUrl: string; token: string }; local?: boolean; federated?: boolean } = {},
     ): Promise<boolean> {
       this.joinError = null;
+      this.followSession();
       try {
         const authStore = useAuthStore();
         const serverChannelStore = useServerChannelStore();
@@ -581,7 +592,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
       
       if (abortSignal?.aborted) {
-        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+        await rollBackPresence(serverId, channelId, userId);
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
@@ -599,12 +610,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         if (webrtcSuccess) {
           await webrtcManager.leaveChannel();
         }
-        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+        await rollBackPresence(serverId, channelId, userId);
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
       if (!webrtcSuccess) {
-        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+        await rollBackPresence(serverId, channelId, userId);
         throw new Error(webrtcManager.getLastJoinError() ?? 'Could not connect to the call.');
       }
       
@@ -621,7 +632,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       if (abortSignal?.aborted) {
         await webrtcManager.leaveChannel();
-        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+        await rollBackPresence(serverId, channelId, userId);
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
@@ -673,6 +684,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.dmOtherUserId = null;
         this.currentChannelName = (serverChannelStore as any).getChannelNameById?.(channelId) || 'Voice Channel';
       }
+      // Cancelled while DM presence was awaited: the transport is gone.
+      if (abortSignal?.aborted) {
+        this.currentChannelId = null;
+        this.currentServerId = null;
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
       this.isConnected = true;
       this.isConnecting = false;
       this.connectionAbortController = null;
@@ -712,6 +729,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.localStream = webrtcManager.getLocalStream();
       
       await this.initializeSpatialAudio(userId);
+      // Left meanwhile.
+      if (this.currentChannelId !== channelId) return false;
       
       this.setupPushToTalk();
       
@@ -1130,6 +1149,50 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         debug.error('Failed to leave voice channel:', error);
         return false;
       }
+    },
+
+    /**
+     * The call is the account's: it ends as the session does, whichever path ends it (sign-out in
+     * another tab, a revoked or refused session, another account signed in here). Sync, so the
+     * microphone is closed before the path goes on. logout() leaves the call beforehand.
+     */
+    followSession(): void {
+      if (sessionFollowed) return;
+      sessionFollowed = true;
+      const authStore = useAuthStore();
+      watch(() => authStore.session?.user?.id, (userId, previous) => {
+        if (previous && userId !== previous) this.endCallWithSession();
+      }, { flush: 'sync' });
+    },
+
+    /**
+     * Closes the call here at once, joined or still joining. Nothing is sent: the account's requests
+     * are refused, and another account's would not be its own. The others see the connection end.
+     */
+    endCallWithSession(): void {
+      // A leave that logout() stopped waiting for still holds the transport.
+      void webrtcManager.leaveChannel({ silent: true });
+      dmCallSignaling.cleanup();
+      if (!this.isConnectedOrJoining) return;
+      debug.log('Session ended: closing the call');
+
+      this.connectionAbortController?.abort();
+      this.optimisticChannelId = null;
+      this.optimisticServerId = null;
+      this.optimisticChannelName = null;
+      this.cleanupFederatedSubscription();
+      if (this.pendingFederatedJoin?.timeout) clearTimeout(this.pendingFederatedJoin.timeout);
+      this.pendingFederatedJoin = null;
+
+      this.clearVoiceChannelState();
+      this.cleanupSpatialAudio();
+      void closeVoiceAudioContext();
+      this.cleanupPushToTalk();
+      this.isFederatedChannel = false;
+      this.resetState();
+
+      useThemeStore().playAudio('voice_disconnect');
+      voiceAnnouncer.disconnected();
     },
 
     async toggleVideo(): Promise<boolean> {

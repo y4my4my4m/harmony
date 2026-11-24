@@ -198,6 +198,32 @@ describe('unmuted ring', () => {
     })
   })
 
+  it.each(['notifications_disabled', 'error'])('a ring refused for %s is declined without a reason, and the caller stops ringing', async (reason) => {
+    permissions.canReceiveCall.mockResolvedValue({ allowed: false, reason })
+    signal('initiate')
+    await settle()
+
+    expect(rt.rpc).toHaveBeenCalledWith('send_signal', {
+      p_topic: `dm-call:${CONV}`, p_event: 'call-signal', p_payload: { type: 'decline', callType: 'voice', reason: undefined },
+    })
+    expect(globalDMCallListener.showIncomingCallModal.value).toBe(false)
+  })
+
+  it('an auto-decline that cannot be sent is caught', async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      rt.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'not admitted' } } as any)
+      permissions.canReceiveCall.mockResolvedValue({ allowed: false, reason: 'dnd' })
+      signal('initiate')
+      await settle()
+      expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+  })
+
   it('a ring cancelled while the gate runs is not recorded', async () => {
     let allow!: (value: unknown) => void
     permissions.canReceiveCall.mockReturnValue(new Promise((resolve) => { allow = resolve }))
@@ -304,6 +330,18 @@ describe('federated ring', () => {
     federatedRing()
     await settle()
     expect(globalDMCallListener.showIncomingCallModal.value).toBe(true)
+  })
+
+  it('a ring the caller ends while the gate runs never shows', async () => {
+    let allow!: (value: unknown) => void
+    permissions.canReceiveCall.mockReturnValue(new Promise((resolve) => { allow = resolve }))
+    federatedRing()
+    await settle()
+    userEvents.handlers['federated_call:ended']({ conversationId: CONV })
+    allow({ allowed: true })
+    await settle()
+    expect(globalDMCallListener.showIncomingCallModal.value).toBe(false)
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
   })
 
   it('a muted ring is recorded without a popup', async () => {

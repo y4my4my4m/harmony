@@ -123,6 +123,7 @@ Limits on what one local account creates and how fast it writes, on by default o
 | **Same, for new accounts**, also counting people who share only a server with the account | `new_account_stranger_dms_per_hour` | `5` |
 | **Call signals per minute**: peer-to-peer call setup, DM call answers and hang-ups, call effects | `account_signals_per_minute` | `300` |
 | **Calls placed per minute**, to this instance and to others; hanging up is never refused | `account_rings_per_minute` | `10` |
+| **Role picks per minute**: taking and dropping self-assignable roles | `account_role_picks_per_minute` | `60` |
 | **Requests per minute, per bot** | `bot_requests_per_minute` | `600` |
 | **Requests per minute, per linked Discord bridge** | `bridge_requests_per_minute` | `3000` |
 | **An account counts as new for (hours)** | `new_account_hours` | `24` |
@@ -196,7 +197,10 @@ disagree.
 
 The web app sends a file over 6 MB in 6 MB pieces through storage's
 resumable (TUS) endpoint, so Caddy's 50 MB request body limit and
-Cloudflare's 100 MB do not bound the size of a file.
+Cloudflare's 100 MB do not bound the size of a file. A bot sends a file in
+one request to the bot gateway: Caddy passes it on whatever its size, the
+gateway refuses one over the ceiling, and Cloudflare's 100 MB does apply in
+front of a proxied `DOMAIN`.
 
 Larger files cost storage. On the file backend they fill the disk under
 `supabase/volumes/storage`. On Cloudflare R2 or another S3-compatible store
@@ -435,7 +439,7 @@ values.
 | `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET`, and the same for `GITHUB`, `TWITCH` and `DISCORD` | not written | OAuth providers, mapped by `supabase-overrides.yml`. See [OAuth sign-in](/self-host/oauth) |
 | `PROVIDER_LINKING_DOMAINS` | `discord=discord,github=github,google=google,twitch=twitch` while `ENABLE_EMAIL_AUTOCONFIRM=true` (`configure.sh`, for each built-in provider without an entry); `harmony auth add-provider` adds `custom:ID=custom:ID` per provider | Sign-in providers that never join an existing account by its address, as comma-separated `provider=domain` pairs (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`); `PROVIDER=default` joins by address. `harmony auth linking` sets a built-in provider's entry. A value that is not such pairs stops the sign-in service from starting. See [Existing accounts](/self-host/oauth#existing-accounts) and [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
 | `FILE_SIZE_LIMIT` | not written; `harmony config --upload-ceiling` writes it | Largest file storage accepts, bytes, resumable uploads included; `52428800` when absent (`supabase-overrides.yml`). See [Upload limits](#upload-limits) |
-| `STORAGE_BACKEND`, `GLOBAL_S3_BUCKET`, `GLOBAL_S3_ENDPOINT`, `GLOBAL_S3_PROTOCOL`, `GLOBAL_S3_FORCE_PATH_STYLE`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `REGION` | not written | Where uploads live: `file` (the default) under `supabase/volumes/storage`, or `s3` in the named bucket of an S3-compatible store (Cloudflare R2, MinIO, AWS). For R2: `GLOBAL_S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com`, `REGION=auto`, `GLOBAL_S3_FORCE_PATH_STYLE=true`. Switching backends moves no files. `harmony backup` archives `supabase/volumes/storage` only, so a bucket needs its own backup |
+| `STORAGE_BACKEND`, `STORAGE_S3_BUCKET`, `STORAGE_S3_ENDPOINT`, `STORAGE_S3_REGION`, `STORAGE_S3_FORCE_PATH_STYLE`, `STORAGE_S3_ACCESS_KEY_ID`, `STORAGE_S3_SECRET_ACCESS_KEY` | not written | Where uploads live: `file` (the default) under `supabase/volumes/storage`, or `s3` in the named bucket of an S3-compatible store (Cloudflare R2, MinIO, AWS). For R2: `STORAGE_S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com` and `STORAGE_S3_REGION=auto`; `STORAGE_S3_FORCE_PATH_STYLE` is `true` unless set. The storage container gets these keys and no `AWS_*` or `REGION` variable of the shell that runs Compose. Switching backends moves no files. `harmony backup` archives `supabase/volumes/storage` only, so a bucket needs its own backup |
 | `RATE_LIMIT_EMAIL_SENT` | not written; the stack reads it as `100` | Mail per hour for the whole instance while email confirmation is on. Keep it under your SMTP provider's limit. See [Sign-up limits](/self-host/signup-limits#email-budget) |
 | `GOTRUE_IMAGE` | `configure.sh` | The sign-in service's image: the Supabase stack's own `supabase/gotrue` image from `v2.197.0` on, otherwise `supabase/gotrue:v2.197.0`. A newer image set by hand stays |
 | `STORAGE_IMAGE` | `configure.sh` | The storage service's image: the Supabase stack's own `supabase/storage-api` image from `v1.90.0` on, otherwise `supabase/storage-api:v1.90.0`. A newer image set by hand stays. See [Storage and realtime versions](#storage-and-realtime-versions) |

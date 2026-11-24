@@ -5,7 +5,7 @@ description: Turn play-together activities on or off for an instance, and what t
 
 # Activities
 
-Activities are the multiplayer apps members start with **Play together** (see [Play together](/use/play-together)). This page is for instance admins and operators.
+Activities are the multiplayer apps members start with **Activities** (see [Play together](/use/play-together)). This page is for instance admins and operators.
 
 ## Turn an activity on or off
 
@@ -56,20 +56,22 @@ The frame names the web app as its only script source: the backend reads it from
 
 - Each activity runs in an `<iframe sandbox="allow-scripts allow-pointer-lock">`: an opaque origin with no access to the account's session, storage, messages or the page around it. The frame's own `Content-Security-Policy` repeats the sandbox, so the document stays isolated even when opened directly.
 - The policy refuses every network connection (`connect-src 'none'`), form, popup, plugin and frame, and loads scripts, styles and images only from the activity's own folder.
+- The loader removes WebRTC (`RTCPeerConnection`), which that policy does not cover, from the frame before the activity runs. A second policy lets a document the activity nests in its frame run no script but the loader.
 - Players talk through the relay in the federation backend. The Harmony client holds the account's token and forwards what the activity sends after checking its size and rate; the activity never sees a token.
-- The relay admits only accounts of this instance that belong to the conversation or channel (and, in a voice channel, are in the call). In a text channel a player needs **Send Messages** there, and a member timed out in the server cannot play in its channels. Every 30 seconds it checks each member's token and membership again and removes those who signed out, left or lost the permission. It limits each connection to 40 messages a second and 1 MB a second, counting a message once per recipient, and holds no game data after a session ends.
+- The relay admits only accounts of this instance that belong to the conversation or channel (and, in a voice channel, are in the call). In a text channel a player needs **Send Messages** there, and a member timed out in the server cannot play in its channels. Every 30 seconds it checks each member's token and membership again and removes those who signed out, left or lost the permission. While GoTrue or the database does not answer, members stay connected for three checks; after that they are disconnected, and their clients reconnect on their own. It limits each connection to 40 messages a second and 1 MB a second, counting a message once per recipient, and holds no game data after a session ends.
 - The relay counts its per-address limits by IPv4 address or IPv6 /64, limits sockets that have not yet signed in to 8 per address and 256 in all, and closes a slow reader once 128 MB are queued for sending across all connections.
 - A frame that navigates itself to another page is detached at once (Harmony's loader reports the document leaving) and receives nothing further.
 - The loader removes the desktop app's message ports (`window.chrome`, `window.webkit`) from the frame before the activity runs.
 - A member's avatar reaches the activity only if it loads within 400 ms; a slow or failing avatar address delays no one's game.
-- Installed packages are read with at most 32 zip entries and 6 MB unpacked, counted as written, so a crafted zip cannot exhaust the backend's memory or time.
+- Installed packages are read with at most 32 zip entries and 6 MB unpacked, each file inflated no further than its declared size and none that shares or overlaps another's data, so a crafted zip cannot exhaust the backend's memory or time.
 - Installed packages run on computers only. Phones and tablets run the frame in the app's own web process (Android WebView, WKWebView, mobile Safari), where an activity that never yields would freeze the app; the desktop app and desktop browsers run the sandboxed frame in a process of its own. Built-in activities ship with the app and run everywhere.
 - The Android app runs no activity when its System WebView lacks WebMessageListener, the API that keeps the app's native bridge from frames; the picker asks the member to update Android System WebView.
 
 What the sandbox cannot stop:
 
 - An activity sees what its players send it and can pass that to any player.
-- Browsers apply no content policy to WebRTC or DNS prefetching, and none to a frame navigating itself: the address of that navigation reaches the site it names, carrying whatever the activity puts in it. Harmony detaches the frame after that load, not before it.
+- Browsers apply no content policy to DNS prefetching (Safari none to `preconnect` links either), and none to a frame navigating itself: the address of that navigation reaches the site it names, carrying whatever the activity puts in it, and that site sees the player's IP address. Harmony detaches the frame after that load, not before it.
+- Safari before 15.4 ignores the second policy: an activity can use WebRTC from a nested document there.
 
 Enable activities you trust, as you would install a bot.
 
@@ -83,6 +85,6 @@ Enable activities you trust, as you would install a bot.
 | Connections | 5,000 per backend process, 24 per address, new ones at 1 a second per address (bursts of 20) |
 | Sessions | 2,000 per backend process; host stores share 256 MB |
 | Sessions started | 6 per account in 10 minutes |
-| Idle session | ends 1 minute after its last player leaves; 3 minutes without the relay counts as ended |
+| Idle session | ends at once when its last player selects **Leave**, 1 minute after its last player lost the connection; 3 minutes without the relay counts as ended |
 
 A restart of the federation backend loses the game in progress: players reconnect on their own and start again from the activity's lobby.

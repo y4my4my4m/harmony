@@ -25,7 +25,8 @@ import { authContextService } from './AuthContextService'
 import { debug } from '@/utils/debug'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { ChannelCloseBackoff } from '@/utils/realtimeRefusal'
-import { sendSignal as sendRoomSignal } from './signalRelay'
+import type { CallPermissionCheck } from './DMCallPermissions'
+import { SIGNAL_ACK_TIMEOUT_MS, sendSignal as sendRoomSignal } from './signalRelay'
 
 
 /** start_dm_call_message refused the call: the two accounts are blocked between them. */
@@ -192,7 +193,7 @@ class DMCallSignalingService {
     // realtime-js keeps one channel per topic and the first config wins, so
     // this is the only place the topic is opened.
     const channel = supabase.channel(`dm-call:${conversationId}`, {
-      config: { private: true, presence: { key: profileId ?? `anon-${Date.now()}` } }
+      config: { private: true, broadcast: { ack: true }, presence: { key: profileId ?? `anon-${Date.now()}` } }
     })
 
     channel
@@ -472,16 +473,16 @@ class DMCallSignalingService {
       () => this.broadcastSignal(conversationId, signal))
   }
 
-  /** The signal as a client broadcast, as an instance without send_signal takes it. */
-  private async broadcastSignal(conversationId: string, signal: CallSignal): Promise<void> {
+  /** The signal as a client broadcast, as an instance without send_signal takes it; the send's outcome. */
+  private async broadcastSignal(conversationId: string, signal: CallSignal): Promise<string> {
     const held = this.channels.has(conversationId) || this.channelSetup.has(conversationId)
     try {
       const channel = await this.ensureChannel(conversationId)
-      await channel.send({
+      return await channel.send({
         type: 'broadcast',
         event: 'call-signal',
         payload: signal
-      })
+      }, { timeout: SIGNAL_ACK_TIMEOUT_MS })
     } finally {
       if (!held) this.releaseChannelIfUnused(conversationId)
     }
@@ -658,10 +659,14 @@ class DMCallSignalingService {
     return true
   }
 
+  /**
+   * `reason` is sent when send_signal takes it (busy, blocked, dnd); a receiver's gate has others
+   * (CallPermissionCheck), which decline without one.
+   */
   async declineCall(
     conversationId: string,
     userId: string,
-    reason?: 'busy' | 'blocked' | 'dnd'
+    reason?: CallPermissionCheck['reason']
   ): Promise<void> {
     const call = this.activeCalls.get(conversationId)
     
@@ -675,12 +680,14 @@ class DMCallSignalingService {
       callType: 'voice', // doesn't matter for decline
       timestamp: Date.now(),
       conversationId,
-      reason
+      reason: reason === 'busy' || reason === 'blocked' || reason === 'dnd' ? reason : undefined
     }
     
-    await this.sendSignal(conversationId, signal)
-    
-    this.deleteActiveCall(conversationId)
+    try {
+      await this.sendSignal(conversationId, signal)
+    } finally {
+      this.deleteActiveCall(conversationId)
+    }
   }
 
   async endCall(
@@ -1402,6 +1409,7 @@ class DMCallSignalingService {
     this.presenceProbes.clear()
     this.emptyGraceTimers.clear()
     this.ringWatchdogs.clear()
+    this.bumpVersion()
   }
 }
 

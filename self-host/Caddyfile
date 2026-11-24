@@ -54,9 +54,17 @@
 	tls {$CADDY_TLS}
 	encode zstd gzip
 
-	# nginx: client_max_body_size 50M.
-	request_body {
+	# nginx: client_max_body_size 50M. A nested request_body lowers this limit and cannot raise it, so
+	# the two routes a bot sends a file to are outside it. The gateway counts their bodies against the
+	# upload ceiling (instance_config.upload_ceiling_bytes, 50 MiB by default) and answers 413 with
+	# max_bytes; the limit here is the largest ceiling there is (UPLOAD_CEILING_MAX in lib.sh).
+	@botUpload path_regexp ^/bot-gateway/api/v1/channels/[^/]+/(attachments|bridge-files)/?$
+	@notBotUpload not path_regexp ^/bot-gateway/api/v1/channels/[^/]+/(attachments|bridge-files)/?$
+	request_body @notBotUpload {
 		max_size 50MB
+	}
+	request_body @botUpload {
+		max_size 5TiB
 	}
 
 	# nginx adds these on every response; `?` keeps a value the upstream set.

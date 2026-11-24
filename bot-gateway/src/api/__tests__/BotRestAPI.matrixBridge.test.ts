@@ -31,6 +31,8 @@ let optOutsFail: boolean
 let consent: unknown
 let room: unknown
 let members: unknown
+// bridge_upload_reserve's answer.
+let admitted: boolean
 const fetcher = vi.fn()
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks() })
 function app() { const a = express(); a.use(express.json({ limit: '2mb' })); a.use('/api/v1', new BotRestAPI().router); return a }
@@ -40,6 +42,7 @@ const inserted = () => db.writesTo('messages', 'insert').map(w => w.rows[0])
 beforeEach(() => {
   forgetBridgeConsent()
   platform = 'matrix'; platformFails = false; optedOut = {}; optOutsFail = false; consent = true
+  admitted = true
   room = { room_id: '!opaqueRoom', sender_mode: 'ghost' }
   members = [{ id: USER, username: 'alice', display_name: 'Alice', avatar_url: 'alice/avatar.png', nickname: null, domain: 'profiles.example', is_local: true }]
   fetcher.mockReset(); vi.stubGlobal('fetch', fetcher)
@@ -65,6 +68,8 @@ beforeEach(() => {
     }
     if (fn === 'matrix_bridge_bind_room' || fn === 'matrix_bridge_room') return { data: room, error: null }
     if (fn === 'matrix_bridge_channel_members') return { data: members, error: null }
+    if (fn === 'bridge_upload_reserve') return { data: admitted, error: null }
+    if (fn === 'bridge_upload_release') return { data: null, error: null }
     throw new Error('Unmocked RPC: ' + fn)
   })
   mocks.upload.mockResolvedValue({ error: null })
@@ -288,10 +293,34 @@ describe('Matrix room control and consenting native members', () => {
 describe('bounded Matrix avatar upload', () => {
   const png = Buffer.from([137,80,78,71,13,10,26,10]).toString('base64')
   const upload = () => supertest(app()).post(base + '/bridge-avatar').send({ data: png, content_type: 'image/png' })
-  it('stores only content-addressed image bytes under this bridge bot', async () => {
+  const claims = () => mocks.rpc.mock.calls.filter(([fn]) => fn === 'bridge_upload_reserve').map(([, args]) => args)
+  const releases = () => mocks.rpc.mock.calls.filter(([fn]) => fn === 'bridge_upload_release').map(([, args]) => args)
+  it('stores only content-addressed image bytes under this bridge bot and the channel\'s server', async () => {
     const r = await upload()
-    expect(r.status).toBe(200); expect(r.body.avatar_url).toContain('/avatars/bridges/' + BOT + '/')
-    expect(mocks.upload).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^bridges/${BOT}/[a-f0-9]{64}\\.png$`)), expect.any(Buffer), expect.objectContaining({ contentType: 'image/png' }))
+    expect(r.status).toBe(200); expect(r.body.avatar_url).toContain(`/avatars/bridges/${BOT}/${SERVER}/`)
+    expect(mocks.upload).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^bridges/${BOT}/${SERVER}/[a-f0-9]{64}\\.png$`)), expect.any(Buffer), expect.objectContaining({ contentType: 'image/png' }))
+  })
+  it('claims the bytes of a new avatar before the upload and releases the claim after it, stored or not', async () => {
+    const order: string[] = []
+    mocks.upload.mockImplementation(async () => { order.push(`upload after ${claims().length} claim(s), ${releases().length} release(s)`); return { error: null } })
+    expect((await upload()).status).toBe(200)
+    expect(order).toEqual(['upload after 1 claim(s), 0 release(s)'])
+    expect(claims()).toEqual([{ p_reservation_id: expect.any(String), p_channel_id: CHANNEL, p_bytes: 8, p_avatar_bot_id: BOT, p_max_avatars: 1000 }])
+    expect(releases()).toEqual([{ p_reservation_id: claims()[0].p_reservation_id }])
+    mocks.upload.mockResolvedValue({ error: { message: 'unavailable' } })
+    expect((await upload()).status).toBe(503)
+    expect(releases()).toEqual(claims().map(({ p_reservation_id }) => ({ p_reservation_id })))
+    expect(claims()).toHaveLength(2)
+  })
+  it('answers a stored avatar\'s URL without a claim or an upload', async () => {
+    const first = await upload()
+    const name = (first.body.avatar_url as string).split('/').at(-1)
+    mocks.list.mockResolvedValue({ data: [{ name }], error: null })
+    mocks.rpc.mockClear(); mocks.upload.mockClear()
+    const again = await upload()
+    expect(again.status).toBe(200); expect(again.body.avatar_url).toBe(first.body.avatar_url)
+    expect(mocks.list).toHaveBeenLastCalledWith(`bridges/${BOT}/${SERVER}`, { limit: 10, search: name!.split('.')[0] })
+    expect(claims()).toEqual([]); expect(mocks.upload).not.toHaveBeenCalled()
   })
   it.each([{ data: png, content_type: 'image/svg+xml' }, { data: 'invalid base64', content_type: 'image/png' }, { data: png, content_type: 'image/jpeg' }, { data: Buffer.alloc(1024 * 1024 + 1).toString('base64'), content_type: 'image/png' }])('rejects invalid raster input', async body => {
     mocks.upload.mockClear()
@@ -304,10 +333,10 @@ describe('bounded Matrix avatar upload', () => {
     forgetBridgeConsent(); platform = 'matrix'; mocks.upload.mockResolvedValue({ error: { message: 'unavailable' } })
     expect((await upload()).status).toBe(503)
   })
-  it('answers 507 for a new avatar past the 5000 a bot keeps', async () => {
-    mocks.list.mockImplementation(async (_prefix: string, options: { search?: string }) => (
-      { data: options.search ? [] : Array.from({ length: 5000 }, (_, i) => ({ name: `${i}.png` })), error: null }))
-    expect((await upload()).status).toBe(507)
+  it('answers 507 for a new avatar past the bot\'s or the server\'s limit, and uploads nothing', async () => {
+    admitted = false
+    const refused = await upload()
+    expect(refused.status).toBe(507); expect(refused.body).toEqual({ error: 'Bridge avatar limit reached' })
     expect(mocks.upload).not.toHaveBeenCalled()
   })
 })

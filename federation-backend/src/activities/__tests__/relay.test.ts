@@ -1,8 +1,9 @@
 import { createServer, type Server } from 'node:http'
-import type { AddressInfo } from 'node:net'
+import { connect, type AddressInfo } from 'node:net'
+import type { Duplex } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WebSocket from 'ws'
-import { ActivityRelay, addressKey, type Admission, type RelayDeps, type RelayOptions } from '../relay.js'
+import { ActivityRelay, addressKey, isRelayUpgrade, type Admission, type RelayDeps, type RelayOptions } from '../relay.js'
 import { CLOSE, MESSAGE_MAX_BYTES, type RelayFrame } from '../protocol.js'
 
 const SESSION = '0a0a0a0a-0000-4000-8000-000000000001'
@@ -20,6 +21,9 @@ interface Fake extends RelayDeps {
   refusals: Map<string, string>
   signedOut: Set<string>
   admitError: boolean
+  verifyError: boolean
+  /** Token checks not answered yet. */
+  checking: number
   stall: boolean
   maxPlayers: number
   finished: Array<{ id: string; reason: string }>
@@ -34,6 +38,8 @@ function fakeDeps(): Fake {
     refusals: new Map(),
     signedOut: new Set(),
     admitError: false,
+    verifyError: false,
+    checking: 0,
     stall: false,
     maxPlayers: 8,
     finished: [],
@@ -42,7 +48,11 @@ function fakeDeps(): Fake {
     canEnd: new Set([ALICE]),
     expiresAt: null,
     async verifyToken(token) {
-      if (fake.stall) return new Promise(() => {})
+      if (fake.verifyError) throw new Error('GoTrue down')
+      if (fake.stall) {
+        fake.checking++
+        return new Promise(() => {})
+      }
       const id = token.replace(/^token-/, '')
       return NAMES[id] && !fake.signedOut.has(id) ? { profileId: id, expiresAt: fake.expiresAt } : null
     },
@@ -449,19 +459,86 @@ describe('activity relay: limits', () => {
     expect(status).toBe(503)
   })
 
-  it('ignores upgrades on other paths', async () => {
-    const other = vi.fn()
-    server.on('upgrade', (_req, socket) => {
-      other()
-      socket.destroy()
+  it('serves an upgrade request on another path as an ordinary request', async () => {
+    const app = createServer({ shouldUpgradeCallback: isRelayUpgrade }, (req, res) => {
+      let body = ''
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', () => res.writeHead(202, { 'Content-Type': 'text/plain' }).end(`${req.method} ${req.url} ${body}`))
     })
-    const ws = new WebSocket(url.replace('/api/federation/activities/socket', '/elsewhere'))
-    ws.on('error', () => {})
-    await sleep(50)
-    expect(other).toHaveBeenCalled()
-    ws.terminate()
+    relay.attach(app)
+    await new Promise<void>((resolve) => app.listen(0, '127.0.0.1', resolve))
+    const { port } = app.address() as AddressInfo
+    try {
+      const answer = await rawRequest(port, 'POST /inbox HTTP/1.1\r\nHost: x\r\nConnection: Upgrade, close\r\nUpgrade: websocket\r\nContent-Length: 5\r\n\r\nhello')
+      expect(answer).toMatch(/^HTTP\/1\.1 202 /)
+      expect(answer).toContain('POST /inbox hello')
+
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/activities/socket`)
+      await new Promise<void>((resolve, reject) => {
+        ws.once('open', () => resolve())
+        ws.once('error', reject)
+      })
+      ws.terminate()
+    } finally {
+      app.closeAllConnections()
+      await new Promise<void>((resolve) => app.close(() => resolve()))
+    }
+  })
+
+  it('refuses an upgrade on another path and closes its socket where Node raises it anyway', async () => {
+    const { port } = server.address() as AddressInfo
+    const answer = await rawRequest(port, 'GET /inbox HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n')
+    expect(answer).toMatch(/^HTTP\/1\.1 400 /)
+  })
+
+  it.each([
+    ['an origin outside the allowed list', 'Origin: https://evil.example\r\n', {}, 403],
+    ['an address over its upgrade rate', '', { upgradeBurst: 0 }, 429],
+    ['a full relay', '', { maxConnections: 0 }, 503],
+  ] as Array<[string, string, Partial<RelayOptions>, number]>)('closes the socket of %s while the client keeps its half open', async (_name, header, options, status) => {
+    await restart(options)
+    const { port } = server.address() as AddressInfo
+    const answer = await rawRequest(port, `GET /activities/socket HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n${header}\r\n`)
+    expect(answer).toMatch(new RegExp(`^HTTP/1\\.1 ${status} `))
+  })
+
+  it('survives a reset after refusing an upgrade', async () => {
+    const { port } = server.address() as AddressInfo
+    const sockets: Duplex[] = []
+    server.prependListener('upgrade', (_req, socket) => sockets.push(socket))
+    const client = connect(port, '127.0.0.1')
+    client.on('error', () => {})
+    client.write('GET /activities/socket HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nOrigin: https://evil.example\r\n\r\n')
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    expect(sockets[0].listenerCount('error')).toBeGreaterThan(0)
+    expect(() => sockets[0].emit('error', new Error('ECONNRESET'))).not.toThrow()
+    client.destroy()
   })
 })
+
+/** What a server answers `text` with; rejects when its side of the socket is still open after 2 s. */
+function rawRequest(port: number, text: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // Half-open allowed: the client never closes first.
+    const socket = connect({ port, host: '127.0.0.1', allowHalfOpen: true })
+    let answer = ''
+    const timer = setTimeout(() => {
+      socket.destroy()
+      reject(new Error(`socket still open after: ${answer}`))
+    }, 2000)
+    // Writing to a socket the server destroyed fails; one it half-closed still takes the write.
+    const probe = setInterval(() => { if (answer) socket.write(' ') }, 50)
+    const done = () => {
+      clearTimeout(timer)
+      clearInterval(probe)
+      resolve(answer)
+    }
+    socket.on('connect', () => socket.write(text))
+    socket.on('data', (chunk) => { answer += chunk })
+    socket.on('error', () => socket.destroy())
+    socket.on('close', done)
+  })
+}
 
 async function restart(options: Partial<RelayOptions>): Promise<void> {
   await relay.close()
@@ -555,11 +632,61 @@ describe('activity relay: hardening', () => {
     expect(await a.client.next('leave')).toMatchObject({ id: BOB, reason: 'removed' })
   })
 
-  it('removes members after repeated admission failures', async () => {
-    await restart({ readmitMs: 30 })
+  it.each(['admitError', 'verifyError'] as const)('disconnects members after repeated failures (%s), to be retried', async (failure) => {
+    await restart({ readmitMs: 30, emptyGraceMs: 60_000 })
     const a = await join(ALICE)
-    deps.admitError = true
-    expect(await a.client.next('error')).toMatchObject({ code: 'REFUSED', refusal: 'UNAVAILABLE' })
+    deps[failure] = true
+    expect(await a.client.next('error')).toMatchObject({ code: 'UNAVAILABLE', fatal: true })
+    expect((await a.client.closed).code).toBe(CLOSE.UNAVAILABLE)
+
+    const early = await open()
+    early.send({ op: 'hello', v: 1, token: `token-${ALICE}`, session: SESSION })
+    expect(await early.next('error')).toMatchObject({ code: 'UNAVAILABLE', fatal: true })
+    expect((await early.closed).code).toBe(CLOSE.UNAVAILABLE)
+
+    deps[failure] = false
+    const again = await join(ALICE)
+    expect(again.welcome.host).toBe(ALICE)
+  })
+
+  it('keeps a member through fewer than three failed checks', async () => {
+    await restart({ readmitMs: 60 })
+    const a = await join(ALICE)
+    deps.verifyError = true
+    await sleep(90)
+    deps.verifyError = false
+    await sleep(200)
+    deps.verifyError = true
+    await sleep(90)
+    deps.verifyError = false
+    await sleep(100)
+    expect(a.client.ws.readyState).toBe(WebSocket.OPEN)
+    expect(a.client.frames.filter((f) => f.op === 'error')).toEqual([])
+  })
+
+  it('skips a readmit pass while the previous one runs', async () => {
+    await restart({ readmitMs: 20, depTimeoutMs: 10_000 })
+    await join(ALICE)
+    await join(BOB)
+    deps.stall = true
+    await sleep(250)
+    expect(deps.checking).toBe(2)
+  })
+
+  it('checks a bounded number of members at a time', async () => {
+    await restart({ readmitMs: 40, depTimeoutMs: 10_000, maxConnectionsPerIp: 100, maxPendingPerAddress: 100 })
+    deps.maxPlayers = 64
+    const extra = Array.from({ length: 12 }, (_, i) => `77777777-0000-4000-8000-0000000000${String(i).padStart(2, '0')}`)
+    for (const id of extra) NAMES[id] = `extra${id.slice(-2)}`
+    try {
+      for (const id of extra) await join(id)
+      deps.stall = true
+      await vi.waitFor(() => expect(deps.checking).toBeGreaterThan(0))
+      await sleep(150)
+      expect(deps.checking).toBe(8)
+    } finally {
+      for (const id of extra) delete NAMES[id]
+    }
   })
 
   it('closes a hello the token check does not answer in time', async () => {

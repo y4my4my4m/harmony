@@ -11,13 +11,13 @@
  */
 
 import { createHash } from 'node:crypto'
-import { unzipSync } from 'fflate'
+import { inflateRawSync } from 'node:zlib'
 
 export const PACKAGE_MAX_BYTES = 6 * 1024 * 1024
 export const ENTRY_MAX_BYTES = 5 * 1024 * 1024
 export const ICON_MAX_BYTES = 256 * 1024
 export const MANIFEST_MAX_BYTES = 64 * 1024
-/** Central directory records read: three files, a folder record and archiver extras. */
+/** Central directory records a zip may list: three files, a folder record and archiver extras. */
 export const ZIP_ENTRIES_MAX = 32
 /** Packages one instance holds. */
 export const PACKAGES_MAX = 50
@@ -136,51 +136,128 @@ function iconType(name: string, bytes: Uint8Array): { ext: 'svg' | 'png' | 'webp
   return { ext: 'svg', contentType: 'image/svg+xml' }
 }
 
+interface ZipEntry {
+  name: string
+  /** 0 stored, 8 deflated. */
+  method: number
+  /** Offset of the local header, and of the data after it. */
+  offset: number
+  start: number
+  /** Bytes of data in the zip, and unpacked: as declared, or the data's own for a stored entry. */
+  size: number
+  unpacked: number
+}
+
+/**
+ * The files of a zip's central directory (APPNOTE 4.3.12 and 4.3.16; zip64 4.3.14, 4.3.15 and
+ * 4.5.3). Nothing is unpacked. Entries that share or overlap local data are refused: each byte of
+ * the zip is then inflated at most once.
+ */
+function readDirectory(zip: Uint8Array): ZipEntry[] {
+  const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength)
+  const u16 = (at: number) => view.getUint16(at, true)
+  const u32 = (at: number) => view.getUint32(at, true)
+  const u64 = (at: number) => Number(view.getBigUint64(at, true))
+
+  // The end record is 22 bytes and a comment of at most 65535.
+  let end = zip.byteLength - 22
+  while (u32(end) !== 0x06054b50) if (zip.byteLength - --end > 22 + 0xffff) fail('NOT_A_ZIP', 'the zip has no end record')
+  let count = u16(end + 10)
+  let at = u32(end + 16)
+  if (end >= 20 && u32(end - 20) === 0x07064b50) {
+    const end64 = u64(end - 12)
+    if (u32(end64) === 0x06064b50) {
+      count = u64(end64 + 32)
+      at = u64(end64 + 48)
+    }
+  }
+  if (count > ZIP_ENTRIES_MAX) fail('UNEXPECTED_FILE', `a package holds at most ${ZIP_ENTRIES_MAX} zip entries`)
+
+  const entries: ZipEntry[] = []
+  let total = 0
+  for (let i = 0; i < count; i++) {
+    if (u32(at) !== 0x02014b50) fail('NOT_A_ZIP', 'the zip directory is damaged')
+    const method = u16(at + 10)
+    const nameLength = u16(at + 28)
+    const extraLength = u16(at + 30)
+    // Flag 0x800: the name is UTF-8.
+    const name = Buffer.from(zip.buffer, zip.byteOffset + at + 46, nameLength).toString(u16(at + 8) & 0x800 ? 'utf8' : 'latin1')
+    let size = u32(at + 20)
+    let declared = u32(at + 24)
+    let offset = u32(at + 42)
+    const extra = at + 46 + nameLength
+    for (let x = extra; x + 4 <= extra + extraLength; x += 4 + u16(x + 2)) {
+      if (u16(x) !== 1) continue
+      let field = x + 4
+      if (declared === 0xffffffff) { declared = u64(field); field += 8 }
+      if (size === 0xffffffff) { size = u64(field); field += 8 }
+      if (offset === 0xffffffff) offset = u64(field)
+      break
+    }
+    at = extra + extraLength + u16(at + 32)
+    // Directory entries carry no data.
+    if (name.endsWith('/')) continue
+    if (method !== 0 && method !== 8) fail('NOT_A_ZIP', `${name} uses an unsupported compression method`)
+    const unpacked = method === 0 ? size : declared
+    total += unpacked
+    if (unpacked > ENTRY_MAX_BYTES || total > PACKAGE_MAX_BYTES) fail('TOO_LARGE', `${name} is too large`)
+    if (u32(offset) !== 0x04034b50) fail('NOT_A_ZIP', `${name} has no local header`)
+    const start = offset + 30 + u16(offset + 26) + u16(offset + 28)
+    if (start + size > zip.byteLength) fail('NOT_A_ZIP', `${name} is cut short`)
+    entries.push({ name, method, offset, start, size, unpacked })
+  }
+
+  let previous = 0
+  for (const entry of [...entries].sort((a, b) => a.offset - b.offset)) {
+    if (entry.offset < previous) fail('NOT_A_ZIP', `${entry.name} overlaps another entry`)
+    previous = entry.start + entry.size
+  }
+  return entries
+}
+
+/** An entry's bytes. Inflating stops once the output passes the declared size. */
+function unpack(zip: Uint8Array, entry: ZipEntry): Uint8Array {
+  const data = zip.subarray(entry.start, entry.start + entry.size)
+  if (entry.method === 0) return data.slice()
+  let bytes: Uint8Array
+  try {
+    bytes = inflateRawSync(data, { maxOutputLength: Math.max(1, entry.unpacked) })
+  } catch {
+    fail('NOT_A_ZIP', `${entry.name} could not be unpacked`)
+  }
+  if (bytes.byteLength !== entry.unpacked) fail('NOT_A_ZIP', `${entry.name} is not its declared size`)
+  return bytes
+}
+
 /** A package's files, checked; throws PackageError. */
 export function parsePackage(zip: Uint8Array): ParsedPackage {
   if (zip.byteLength > PACKAGE_MAX_BYTES) fail('TOO_LARGE', `a package is at most ${PACKAGE_MAX_BYTES} bytes`)
   if (!(zip[0] === 0x50 && zip[1] === 0x4b)) fail('NOT_A_ZIP', 'not a zip file')
 
-  let declared = 0
-  let entries = 0
-  let files: Record<string, Uint8Array>
+  let entries: ZipEntry[]
   try {
-    files = unzipSync(zip, {
-      filter: (file) => {
-        // fflate visits as many records as the end record claims; zip64 allows 2^32 - 1.
-        if (++entries > ZIP_ENTRIES_MAX) fail('UNEXPECTED_FILE', `a package holds at most ${ZIP_ENTRIES_MAX} zip entries`)
-        // Directory entries carry no data.
-        if (file.name.endsWith('/')) return false
-        if (file.compression !== 0 && file.compression !== 8) fail('NOT_A_ZIP', `${file.name} uses an unsupported compression method`)
-        // fflate copies a stored entry's compressed size and inflates a deflated one into its
-        // declared size; records may share one local entry, so each copy counts.
-        const bytes = file.compression === 0 ? file.size : file.originalSize
-        if (!Number.isSafeInteger(bytes) || bytes < 0) fail('NOT_A_ZIP', `${file.name} has an invalid size`)
-        declared += bytes
-        if (bytes > ENTRY_MAX_BYTES || declared > PACKAGE_MAX_BYTES) fail('TOO_LARGE', `${file.name} is too large`)
-        return true
-      },
-    })
+    entries = readDirectory(zip)
   } catch (error) {
     if (error instanceof PackageError) throw error
+    // A RangeError: an offset or length past the end of the zip.
     fail('NOT_A_ZIP', 'the zip could not be read')
   }
-  const total = Object.values(files).reduce((n, bytes) => n + bytes.byteLength, 0)
-  if (total > PACKAGE_MAX_BYTES) fail('TOO_LARGE', 'the unpacked package is too large')
 
   // One top-level folder, as zipping a folder produces, is dropped from every path.
-  const names = Object.keys(files)
-  const folders = new Set(names.map((name) => (name.includes('/') ? name.split('/')[0] : '')))
+  const folders = new Set(entries.map(({ name }) => (name.includes('/') ? name.split('/')[0] : '')))
   const prefix = folders.size === 1 && !folders.has('') ? `${[...folders][0]}/` : ''
-  const byName = new Map<string, Uint8Array>()
-  for (const name of names) {
-    const local = name.slice(prefix.length)
-    if (local.includes('/') || local.includes('\\') || !FILE_NAME.test(local)) fail('UNEXPECTED_FILE', `${name} is not allowed in a package`)
-    byName.set(local, files[name])
+  const byName = new Map<string, ZipEntry>()
+  for (const entry of entries) {
+    const local = entry.name.slice(prefix.length)
+    if (local.includes('/') || local.includes('\\') || !FILE_NAME.test(local)) fail('UNEXPECTED_FILE', `${entry.name} is not allowed in a package`)
+    if (byName.has(local)) fail('UNEXPECTED_FILE', `${entry.name} is in the package twice`)
+    byName.set(local, entry)
   }
 
-  const manifestBytes = byName.get('manifest.json') ?? fail('MISSING_FILE', 'manifest.json is missing')
-  if (manifestBytes.byteLength > MANIFEST_MAX_BYTES) fail('TOO_LARGE', 'manifest.json is too large')
+  // Nothing but the manifest is unpacked before every name is known to belong.
+  const manifestEntry = byName.get('manifest.json') ?? fail('MISSING_FILE', 'manifest.json is missing')
+  if (manifestEntry.unpacked > MANIFEST_MAX_BYTES) fail('TOO_LARGE', 'manifest.json is too large')
+  const manifestBytes = unpack(zip, manifestEntry)
   let rawManifest: unknown
   try {
     rawManifest = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(manifestBytes))
@@ -194,15 +271,18 @@ export function parsePackage(zip: Uint8Array): ParsedPackage {
       fail('UNEXPECTED_FILE', `${name} is not the manifest, the entry or the icon`)
     }
   }
-  const entryBytes = byName.get(manifest.entry) ?? fail('MISSING_FILE', `${manifest.entry} is missing`)
-  const iconBytes = byName.get(manifest.icon) ?? fail('MISSING_FILE', `${manifest.icon} is missing`)
+  const script = byName.get(manifest.entry) ?? fail('MISSING_FILE', `${manifest.entry} is missing`)
+  const picture = byName.get(manifest.icon) ?? fail('MISSING_FILE', `${manifest.icon} is missing`)
+  if (picture.unpacked > ICON_MAX_BYTES) fail('BAD_ICON', 'the icon is too large')
+  const entryBytes = unpack(zip, script)
+  const iconBytes = unpack(zip, picture)
   if (entryBytes.byteLength === 0 || entryBytes.byteLength > ENTRY_MAX_BYTES) fail('BAD_ENTRY', 'the entry is empty or too large')
   try {
     new TextDecoder('utf-8', { fatal: true }).decode(entryBytes)
   } catch {
     fail('BAD_ENTRY', 'the entry is not UTF-8 text')
   }
-  if (iconBytes.byteLength === 0 || iconBytes.byteLength > ICON_MAX_BYTES) fail('BAD_ICON', 'the icon is empty or too large')
+  if (iconBytes.byteLength === 0) fail('BAD_ICON', 'the icon is empty')
   const icon = iconType(manifest.icon, iconBytes)
 
   const { entry: _entry, icon: _icon, ...fields } = manifest

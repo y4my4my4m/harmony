@@ -16,6 +16,8 @@
 
 BEGIN;
 
+SET LOCAL lock_timeout = '3s';
+
 CREATE OR REPLACE FUNCTION public.get_user_conversations()
 RETURNS jsonb
 LANGUAGE sql
@@ -160,8 +162,9 @@ $$;
 REVOKE ALL ON FUNCTION public.broadcast_dm_message_deleted() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.broadcast_dm_message_deleted() TO service_role;
 
-DROP TRIGGER IF EXISTS trigger_broadcast_dm_message_deleted ON public.messages;
-CREATE TRIGGER trigger_broadcast_dm_message_deleted
+-- CREATE OR REPLACE TRIGGER takes SHARE ROW EXCLUSIVE; DROP TRIGGER would take ACCESS EXCLUSIVE
+-- and stop reads too.
+CREATE OR REPLACE TRIGGER trigger_broadcast_dm_message_deleted
     AFTER UPDATE OF is_deleted ON public.messages
     FOR EACH ROW
     WHEN (NEW.conversation_id IS NOT NULL

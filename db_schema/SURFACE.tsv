@@ -159,6 +159,8 @@ bot_permission_mask	p_names jsonb	bigint	invoker	public, pg_temp		unreferenced
 bot_permission_names	p_mask bigint	jsonb	invoker	public, pg_temp		unreferenced
 bot_rate_limit_take	p_bot_id uuid, p_bucket text, p_limit integer, p_window_seconds integer	integer	definer	public, pg_temp	service_role	client
 bridge_author_lock_key	p_server_id uuid, p_platform text, p_remote_user_id text	bigint	invoker	public, pg_temp	service_role	unreferenced
+bridge_avatar_track_object		trigger	definer	public, pg_temp		trigger
+bridge_avatar_unbound	p_limit integer	TABLE(bot_id uuid, server_id uuid)	definer	public, pg_temp	service_role	client
 bridge_channel_platform	p_bot_id uuid, p_channel_id uuid	text	definer	public, pg_temp	service_role	client
 bridge_delete_server_sound	p_bot_id uuid, p_server_id uuid, p_sound_id uuid	text	definer	public, pg_temp	service_role	client
 bridge_evict_removed_emojis	p_bot_id uuid, p_server_id uuid, p_ids uuid[]	TABLE(id uuid, path text)	definer	public, pg_temp	service_role	client
@@ -180,7 +182,7 @@ bridge_member_optout_ids	p_server_id uuid, p_platform text	jsonb	definer	public,
 bridge_member_privacy	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated	client
 bridge_member_relay_allowed	p_bot_id uuid, p_channel_id uuid, p_user_id uuid	boolean	definer	public, pg_temp	service_role	client
 bridge_message_by_discord_id	p_channel_id uuid, p_discord_message_id text	uuid	definer	public, pg_temp	service_role	client
-bridge_mirror_allows	p_channel_id uuid, p_bytes bigint	boolean	definer	public, pg_temp	service_role	client
+bridge_mirror_allows	p_channel_id uuid, p_bytes bigint	boolean	definer	public, pg_temp	service_role	unreferenced
 bridge_mirror_backfill	p_limit integer	integer	definer	public, pg_temp	service_role	client
 bridge_mirror_claim	p_lease_seconds integer	TABLE(message_id uuid, attempts integer, claim_id uuid)	definer	public, pg_temp	service_role	client
 bridge_mirror_enqueue	p_message_ids uuid[]	integer	definer	public, pg_temp	service_role	client
@@ -217,6 +219,8 @@ bridge_relay_supersede_import	p_bot_id uuid, p_message_id uuid, p_thread_id uuid
 bridge_remove_server_emoji	p_bot_id uuid, p_server_id uuid, p_emoji_id uuid	text	definer	public, pg_temp	service_role	client
 bridge_require_server_bot	p_bot_id uuid, p_server_id uuid	void	definer	public, pg_temp		unreferenced
 bridge_retire_server_sticker	p_bot_id uuid, p_server_id uuid, p_sticker_id uuid	text	definer	public, pg_temp	service_role	client
+bridge_upload_release	p_reservation_id uuid	void	definer	public, pg_temp	service_role	client
+bridge_upload_reserve	p_reservation_id uuid, p_channel_id uuid, p_bytes bigint, p_avatar_bot_id uuid, p_max_avatars integer	boolean	definer	public, pg_temp	service_role	client
 broadcast_bot_installation_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_bot_presence_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_category_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -710,6 +714,7 @@ guard_megolm_key_request		trigger	definer	public, pg_temp	service_role	trigger
 guard_message_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_message_media_paths		trigger	invoker	public, pg_temp	service_role	trigger
 guard_message_poll_parts		trigger	invoker	public, pg_temp	service_role	trigger
+guard_message_role_menu		trigger	definer	public, pg_temp	service_role	trigger
 guard_message_room		trigger	invoker	public, pg_temp	service_role	trigger
 guard_override_grants		trigger	invoker	public, pg_temp	service_role	trigger
 guard_post_client_write		trigger	invoker	public, pg_temp	service_role	trigger
@@ -876,6 +881,7 @@ on_auth_password_changed		trigger	definer	pg_catalog, public, pg_temp	service_ro
 on_auth_session_created		trigger	definer	pg_catalog, public, pg_temp	service_role	trigger
 on_auth_session_deleted		trigger	definer	pg_catalog, public, pg_temp	service_role	trigger
 on_invited_password_chosen		trigger	definer	public, pg_temp	service_role	trigger
+open_role_refusal	p_role_id uuid	text	definer	public, pg_temp	service_role	unreferenced
 outgoing_webhook_assert_vault		void	invoker	public, pg_temp	service_role	unreferenced
 outgoing_webhook_check_fields	p_name text, p_url text, p_events text[]	void	invoker	public, pg_temp	service_role	unreferenced
 outgoing_webhook_creator_reads	p_webhook outgoing_webhooks, p_channel_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced

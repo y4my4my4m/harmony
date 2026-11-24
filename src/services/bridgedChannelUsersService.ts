@@ -50,6 +50,8 @@ interface CachedBridgedUsers {
 
 const CACHE_TTL_MS = 90 * 1000
 const CACHE_MAX_SIZE = 50
+/** A gateway that answers nothing reads as no bridged people. */
+const REQUEST_TIMEOUT_MS = 15_000
 
 const cache = new Map<string, CachedBridgedUsers>()
 const serverCache = new Map<string, CachedBridgedUsers>()
@@ -101,6 +103,16 @@ export function clearBridgedUsersCache(channelId?: string): void {
     usersByKey.clear()
     usersVersion.value++
   }
+}
+
+/** Whether the member search finds the person. A Discord id matches whole: snowflakes share digits. */
+export function bridgedUserMatches(user: BridgedChannelUser, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const id = user.id.toLowerCase()
+  return (user.displayName || '').toLowerCase().includes(q)
+    || user.username.toLowerCase().includes(q)
+    || (user.source === 'matrix' ? id.includes(q) : id === q)
 }
 
 /** Look up a bridged user from the in-memory cache (no network). */
@@ -253,6 +265,7 @@ export async function fetchBridgedChannelUsers(
     try {
       const response = await fetch(apiUrl(`/bot-gateway/bridged-users/${channelId}`), {
         headers: await authHeaders(),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
       if (!response.ok) {
         debug.log(`Failed to fetch bridged users: ${response.status}`)
@@ -310,6 +323,7 @@ export async function fetchBridgedServerUsers(
     try {
       const response = await fetch(apiUrl(`/bot-gateway/bridged-users/server/${serverId}`), {
         headers: await authHeaders(),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
       if (!response.ok) {
         debug.log(`Failed to fetch server bridged users: ${response.status}`)

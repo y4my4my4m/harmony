@@ -3,6 +3,8 @@
 //  - A reply names a Discord person in the colour of their own message header: their highest
 //    coloured Discord role, answered here only after the reply has rendered.
 //  - A channel's late answer never fills the member list of the channel opened since.
+//  - Opening another server empties the bridged list before that server's answer.
+//  - The member search takes a Discord person's whole id, not some of its digits.
 //
 // The stack runs no bot gateway: rows are written with the service role, as the gateway does,
 // and the member list is a routed answer.
@@ -27,6 +29,7 @@ let owner: SpecUser
 let server: SeededServer
 let botId = ''
 let quietChannelId = ''
+let otherServer: SeededServer
 
 const DANA = { id: '1400000000000000103', username: 'dana', display_name: 'Dana' }
 const ORANGE = 'rgb(230, 126, 34)'
@@ -67,6 +70,7 @@ test.beforeAll(async () => {
   })
   if (replyError) throw new Error(`reply: ${replyError.message}`)
   quietChannelId = await addChannel(admin, server, 'quiet')
+  otherServer = await seedServer(admin, owner, `Next door ${owner.username}`)
 })
 
 test.afterAll(async () => {
@@ -150,8 +154,9 @@ test('a bridged channel answering late leaves the member list of the channel ope
   // general's answer lands after #quiet's: Dana never joins the list of #quiet.
   const generalAnswer = page.waitForResponse((response) => response.url().endsWith(`/bridged-users/${server.generalChannelId}`))
   release()
-  await generalAnswer
-  await page.waitForTimeout(1000)
+  await (await generalAnswer).finished()
+  // The app has read the body and painted.
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
   const bridgedRows = page.locator('.user-sidebar .user-item.bridged-user')
   await expect(page.locator('.user-sidebar')).toBeVisible()
   await expect(bridgedRows).toHaveCount(0)
@@ -159,4 +164,60 @@ test('a bridged channel answering late leaves the member list of the channel ope
   // Back in #general, its own answer shows her.
   await channelRow(page, 'general').click()
   await expect(bridgedRows.filter({ hasText: DANA.display_name })).toHaveCount(1, { timeout: 15000 })
+})
+
+test('opening another server empties the bridged list before its answer', async ({ page }) => {
+  test.setTimeout(150_000)
+  const EVE = { ...DANA, id: '1500000000000000201', username: 'eve', display_name: 'Eve' }
+  const answer = (person: typeof DANA) => ({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      has_bridge: true,
+      users: [{ id: person.id, username: person.username, displayName: person.display_name, avatarUrl: '', source: 'discord', presenceStatus: 'online', harmonyRoleIds: [], customStatus: null }],
+    }),
+  })
+  let release!: () => void
+  const released = new Promise<void>((resolve) => { release = resolve })
+  let nextAsked = false
+  await page.route(`**/bot-gateway/bridged-users/${server.generalChannelId}`, (route) => route.fulfill(answer(DANA)))
+  await page.route(`**/bot-gateway/bridged-users/${otherServer.generalChannelId}`, async (route) => {
+    nextAsked = true
+    await released
+    await route.fulfill(answer(EVE))
+  })
+
+  const sidebar = page.locator('.user-sidebar')
+  const bridgedRows = sidebar.locator('.user-item.bridged-user')
+  const openServer = (name: string) => page.locator('#app-server-rail').locator(`[aria-label*="${name}"]`).first().click()
+
+  await signIn(page, owner)
+  await openChannel(page, server.id, server.generalChannelId)
+  await expect(bridgedRows.filter({ hasText: DANA.display_name })).toHaveCount(1, { timeout: 15000 })
+
+  await test.step('some digits of a Discord id find nobody, the whole id finds its person', async () => {
+    const search = page.getByTestId('member-search')
+    await search.fill('1400')
+    await expect(bridgedRows).toHaveCount(0)
+    await search.fill(DANA.id)
+    await expect(bridgedRows.filter({ hasText: DANA.display_name })).toHaveCount(1)
+    await search.fill('')
+  })
+
+  await test.step('the next server lists nobody until its own answer', async () => {
+    await openServer(`Next door ${owner.username}`)
+    await expect(page).toHaveURL(new RegExp(`/${otherServer.id}/${otherServer.generalChannelId}$`), { timeout: 15000 })
+    await expect.poll(() => nextAsked, { timeout: 15000 }).toBe(true)
+    await expect(bridgedRows).toHaveCount(0)
+    release()
+    await expect(bridgedRows.filter({ hasText: EVE.display_name })).toHaveCount(1, { timeout: 15000 })
+    await expect(bridgedRows).toHaveCount(1)
+  })
+
+  await test.step('switching back lists the first server\'s person only', async () => {
+    await openServer(`Reply colours ${owner.username}`)
+    await expect(page).toHaveURL(new RegExp(`/${server.id}/`), { timeout: 15000 })
+    await expect(bridgedRows.filter({ hasText: DANA.display_name })).toHaveCount(1, { timeout: 15000 })
+    await expect(bridgedRows).toHaveCount(1)
+  })
 })

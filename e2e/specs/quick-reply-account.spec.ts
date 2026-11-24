@@ -79,9 +79,9 @@ test('a quick reply is sent only as the account its notification was for', async
 
   await test.step('ben signs in on the same browser and neither is sent as him', async () => {
     await signIn(page, ben)
-    // The drain that runs once ben's data has loaded drops what is not his.
+    // The drain that runs once ben's data has loaded drops what is not his. A reply leaves the queue
+    // after its send has answered: one sent as ben is stored by now.
     await expect.poll(() => queued(page), { timeout: 30000 }).toBe(0)
-    await page.waitForTimeout(2000)
     expect(await posted()).toEqual(['ann: ann from the tray'])
   })
 

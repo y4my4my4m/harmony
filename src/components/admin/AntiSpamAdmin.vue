@@ -188,12 +188,13 @@ const ACCOUNT_LIMITS = [
   { key: 'new_account_stranger_dms_per_hour', label: 'admin.antiSpam.accounts.newStrangerDmsPerHour', hint: 'admin.antiSpam.accounts.newStrangerDmsHint' },
 ] as const
 
-// Limits on calls (20261124100001), on an instance that relays call signals.
-const CALL_LIMITS = [
+// Limits added by 20261124100001, on an instance that has it (capability signal-relay).
+const RELAY_LIMITS = [
   { key: 'account_signals_per_minute', label: 'admin.antiSpam.accounts.signalsPerMinute', hint: 'admin.antiSpam.accounts.signalsHint' },
   { key: 'account_rings_per_minute', label: 'admin.antiSpam.accounts.ringsPerMinute', hint: 'admin.antiSpam.accounts.ringsHint' },
+  { key: 'account_role_picks_per_minute', label: 'admin.antiSpam.accounts.rolePicksPerMinute', hint: 'admin.antiSpam.accounts.rolePicksHint' },
 ] as const
-const accountLimits = [...ACCOUNT_LIMITS, ...(hasCapability('signal-relay') ? CALL_LIMITS : [])]
+const accountLimits = [...ACCOUNT_LIMITS, ...(hasCapability('signal-relay') ? RELAY_LIMITS : [])]
 
 const saved = ref<InstanceAntiSpamSettings | null>(null)
 const draft = ref<InstanceAntiSpamSettings | null>(null)

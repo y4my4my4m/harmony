@@ -17,6 +17,7 @@
         <option v-for="role in choices" :key="role.id" :value="role.id">{{ role.name }}</option>
       </select>
     </div>
+    <p v-if="currentRefused" class="join-role-note" data-testid="join-role-refused">{{ t('joinRole.currentNotOpen') }}</p>
   </section>
 </template>
 
@@ -27,6 +28,7 @@ import { useToast } from 'vue-toastification'
 import { roleService } from '@/services/RoleService'
 import { getServerSettings } from '@/services/permissionsService'
 import { useServerRolesStore } from '@/stores/useServerRoles'
+import { selfAssignProblem } from '@/utils/selfAssignableRoles'
 
 const props = defineProps<{ serverId: string }>()
 
@@ -39,31 +41,48 @@ const loaded = ref(false)
 const busy = ref(false)
 const headingId = computed(() => `join-role-${props.serverId}`)
 
-// @everyone and administrator roles are refused (set_server_join_role).
-const choices = computed(() =>
-  (rolesStore.rolesByServer.get(props.serverId) ?? []).filter((r) => !r.is_default && !r.is_admin))
+const roles = computed(() => rolesStore.rolesByServer.get(props.serverId) ?? [])
 
-async function load() {
+// set_server_join_role gives new members a role that open_role_refusal passes; channel overrides are
+// checked by the server only. The role chosen now stays listed, so the select shows it.
+const choices = computed(() => roles.value.filter((r) =>
+  !r.is_default && !r.is_admin && (r.id === current.value || selfAssignProblem(r, roles.value) === null)))
+
+const currentRefused = computed(() => {
+  const role = roles.value.find((r) => r.id === current.value)
+  return !!role && selfAssignProblem(role, roles.value) !== null
+})
+
+async function load(serverId: string) {
   loaded.value = false
+  current.value = null
   const [settings] = await Promise.all([
-    getServerSettings(props.serverId),
-    rolesStore.ensureServerLoaded(props.serverId),
+    getServerSettings(serverId),
+    rolesStore.ensureServerLoaded(serverId),
   ])
+  if (serverId !== props.serverId) return
   current.value = settings?.default_role_id ?? null
   loaded.value = true
+}
+
+function joinRoleError(message: string): string {
+  if (message.includes('ROLE_NOT_OPEN')) return t('joinRole.notOpen')
+  if (message.includes('ROLE_RANKS_TOO_HIGH')) return t('joinRole.tooHigh')
+  return t('joinRole.saveFailed')
 }
 
 async function onChange(event: Event) {
   const select = event.target as HTMLSelectElement
   const roleId = select.value || null
+  const serverId = props.serverId
   busy.value = true
   try {
-    const result = await roleService.setServerJoinRole(props.serverId, roleId)
+    const result = await roleService.setServerJoinRole(serverId, roleId)
     if (result.ok) {
-      current.value = roleId
+      if (serverId === props.serverId) current.value = roleId
       toast.success(roleId ? t('joinRole.saved') : t('joinRole.cleared'))
     } else {
-      toast.error(result.error.includes('ROLE_RANKS_TOO_HIGH') ? t('joinRole.tooHigh') : t('joinRole.saveFailed'))
+      toast.error(joinRoleError(result.error))
     }
   } finally {
     busy.value = false
@@ -72,10 +91,16 @@ async function onChange(event: Event) {
   }
 }
 
-watch(() => props.serverId, () => { void load() }, { immediate: true })
+watch(() => props.serverId, (serverId) => { void load(serverId) }, { immediate: true })
 </script>
 
 <style scoped>
+.join-role-note {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 10px 0 0;
+}
+
 .settings-card {
   background-color: var(--background-secondary);
   border-radius: 8px;

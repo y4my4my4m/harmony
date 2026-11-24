@@ -67,21 +67,54 @@ const loading = ref(false)
 const failed = ref(false)
 const fetchedAt = ref(0)
 
+/** A change this client made that the snapshots computed before it lack. */
+interface Adjustment {
+  edit: (s: InstanceStats) => void
+  /** Client clock, ms. */
+  at: number
+  /** computedAt of the snapshot held then; undefined when none was. */
+  base: string | null | undefined
+}
+let adjustments: Adjustment[] = []
+let issued = 0
+let applied = 0
+
+/** Whether `next`, the answer to request `ticket`, is newer than the held snapshot. */
+function supersedes(next: InstanceStats, ticket: number): boolean {
+  if (!stats.value) return true
+  // Server clock on both sides; NaN without a snapshot.
+  const order = Date.parse(next.computedAt ?? '') - Date.parse(stats.value.computedAt ?? '')
+  return order ? order > 0 : ticket > applied
+}
+
 async function load(refresh = false): Promise<void> {
+  const ticket = ++issued
+  const askedAt = Date.now()
   loading.value = true
   try {
-    stats.value = await adminService.getAdminInstanceStats(refresh)
+    const next = await adminService.getAdminInstanceStats(refresh)
+    if (!supersedes(next, ticket)) return
+    // Client clock, ms; the request time keeps the estimate at or before the server's answer.
+    const computedBy = askedAt - (next.ageSeconds ?? 0) * 1000
+    adjustments = adjustments.filter((a) => a.base === next.computedAt || computedBy < a.at)
+    for (const { edit } of adjustments) edit(next)
+    stats.value = next
+    applied = Math.max(applied, ticket)
     fetchedAt.value = Date.now()
     failed.value = false
   } catch {
-    failed.value = true
+    if (ticket > applied) failed.value = true
   } finally {
-    loading.value = false
+    if (ticket === issued) loading.value = false
   }
 }
 
-/** Edits the held snapshot in place, for a change this client made since it was read. */
+/**
+ * Edits the held snapshot for a change this client made, and every later snapshot computed
+ * before it.
+ */
 function adjust(edit: (s: InstanceStats) => void): void {
+  adjustments.push({ edit, at: Date.now(), base: stats.value?.computedAt })
   if (!stats.value) return
   edit(stats.value)
   triggerRef(stats)

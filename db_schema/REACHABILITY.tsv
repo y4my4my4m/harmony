@@ -66,7 +66,7 @@ antispam_int	invoker	integer	service_role	client, trigger	called by antispam_che
 antispam_post_guard	definer	trigger	service_role	trigger	trigger public.posts BEFORE INSERT/UPDATE (trg_antispam_post_guard)
 antispam_rate_check	definer	void	service_role	client, trigger	called by antispam_check_local_author, antispam_take, dm_start_guard
 antispam_settings	definer	jsonb	service_role	client, trigger	called by antispam_check_local_author, antispam_take, check_and_increment_bot_rate_limit, +4
-antispam_take	definer	void	service_role	client, trigger	called by antispam_take_ring, antispam_write_guard, send_signal
+antispam_take	definer	void	service_role	client, trigger	called by antispam_take_ring, antispam_write_guard, send_signal, +1
 antispam_take_ring	definer	void	service_role	client	rpc in federation-backend/src/routes/livekit.ts
 antispam_write_guard	definer	trigger	service_role	trigger	trigger public.follows BEFORE INSERT (z_follows_rate_limit), public.post_interactions BEFORE INSERT (z_post_interactions_rate_limit), public.reactions BEFORE INSERT (z_reactions_rate_limit), +2
 apply_account_move	invoker	uuid	service_role	client	called by begin_account_move, record_remote_account_move
@@ -159,6 +159,8 @@ bot_permission_mask	invoker	bigint	-	client	called by bot_command_upsert_row, bo
 bot_permission_names	invoker	jsonb	-	client	called by bot_command_json
 bot_rate_limit_take	definer	integer	service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts
 bridge_author_lock_key	invoker	bigint	service_role	client, trigger	called by bridge_import_messages, bridge_privacy_erase, bridge_privacy_remove_remote_user, +3
+bridge_avatar_track_object	definer	trigger	-	trigger	trigger storage.objects AFTER DELETE (bridge_avatar_track_delete), storage.objects AFTER INSERT (bridge_avatar_track_insert), storage.objects AFTER UPDATE (bridge_avatar_track_update)
+bridge_avatar_unbound	definer	TABLE(bot_id uuid, server_id uuid)	service_role	client	rpc in bot-gateway/src/bridge/avatarPurge.ts
 bridge_channel_platform	definer	text	service_role	client, trigger	rpc in bot-gateway/src/bridge/memberConsent.ts
 bridge_delete_server_sound	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_evict_removed_emojis	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordEmoji.test.ts
@@ -180,7 +182,7 @@ bridge_member_optout_ids	definer	jsonb	service_role	client	rpc in bot-gateway/sr
 bridge_member_privacy	definer	jsonb	authenticated	client	rpc in src/services/bridgeMemberPrivacyApi.ts
 bridge_member_relay_allowed	definer	boolean	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_message_by_discord_id	definer	uuid	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
-bridge_mirror_allows	definer	boolean	service_role	client	rpc in bot-gateway/src/utils/mirrorExternalMedia.ts
+bridge_mirror_allows	definer	boolean	service_role	client	called by bridge_upload_reserve
 bridge_mirror_backfill	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_claim	definer	TABLE(message_id uuid, attempts integer, claim_id uuid)	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_enqueue	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/mirrorEnqueue.ts
@@ -217,6 +219,8 @@ bridge_relay_supersede_import	invoker	uuid	service_role	client	rpc in bot-gatewa
 bridge_remove_server_emoji	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_require_server_bot	definer	void	-	client	called by bridge_delete_server_sound, bridge_evict_removed_emojis, bridge_evict_retired_stickers, +5
 bridge_retire_server_sticker	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
+bridge_upload_release	definer	void	service_role	client	rpc in bot-gateway/src/utils/uploadReservation.ts
+bridge_upload_reserve	definer	boolean	service_role	client	rpc in bot-gateway/src/utils/uploadReservation.ts
 broadcast_bot_installation_change	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (broadcast_bot_installation_change)
 broadcast_bot_presence_change	definer	trigger	service_role	trigger	trigger public.bot_presence AFTER INSERT/UPDATE (broadcast_bot_presence_change)
 broadcast_category_change	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channel_categories AFTER INSERT/DELETE/UPDATE (trg_broadcast_category_change)
@@ -710,6 +714,7 @@ guard_megolm_key_request	definer	trigger	service_role	trigger	trigger public.meg
 guard_message_client_write	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_client_write_guard)
 guard_message_media_paths	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_media_path_guard)
 guard_message_poll_parts	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_poll_guard)
+guard_message_role_menu	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT (a_messages_role_menu_guard), public.messages BEFORE UPDATE (a_messages_role_menu_edit_guard)
 guard_message_room	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_room_guard)
 guard_override_grants	invoker	trigger	service_role	trigger	trigger public.channel_permission_overrides BEFORE INSERT/UPDATE (a_channel_overrides_grant_guard)
 guard_post_client_write	invoker	trigger	service_role	trigger	trigger public.posts BEFORE INSERT/UPDATE (a_posts_client_write_guard)
@@ -876,6 +881,7 @@ on_auth_password_changed	definer	trigger	service_role	trigger	trigger auth.users
 on_auth_session_created	definer	trigger	service_role	trigger	trigger auth.sessions AFTER INSERT (harmony_session_created)
 on_auth_session_deleted	definer	trigger	service_role	trigger	trigger auth.sessions AFTER DELETE (harmony_session_deleted)
 on_invited_password_chosen	definer	trigger	service_role	trigger	trigger auth.users AFTER UPDATE (harmony_invite_password_chosen)
+open_role_refusal	definer	text	service_role	client, trigger	called by assign_default_role_to_member, self_assign_refusal, set_server_join_role
 outgoing_webhook_assert_vault	invoker	void	service_role	client	called by claim_outgoing_webhook_delivery, create_outgoing_webhook, outgoing_webhook_new_secret
 outgoing_webhook_check_fields	invoker	void	service_role	client	called by create_outgoing_webhook, update_outgoing_webhook
 outgoing_webhook_creator_reads	definer	boolean	service_role	client	called by enqueue_outgoing_webhook_event

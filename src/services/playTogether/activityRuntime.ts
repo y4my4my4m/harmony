@@ -164,6 +164,11 @@ function avatarWithin(url: string | null): Promise<Blob | null> {
   return Promise.race([avatarBlob(url), late]).finally(() => clearTimeout(timer))
 }
 
+/** A message heard in the pop-out window carries that window's Blob, no instance of this one's. */
+function isBlob(value: unknown): value is Blob {
+  return value instanceof Blob || /^\[object (Blob|File)\]$/.test(Object.prototype.toString.call(value))
+}
+
 function isTarget(value: unknown): value is 'host' | string[] {
   return value === 'host' || (Array.isArray(value) && value.length <= MAX_TARGETS && value.every((v) => typeof v === 'string'))
 }
@@ -183,6 +188,8 @@ export class ActivityRuntime {
   private tokensAt = Date.now()
   private saves = 0
   private lastSaveAt = -Infinity
+  // The call's pop-out window while there is one.
+  private otherWindow: Window | null = null
   private readonly onWindowMessage = (event: MessageEvent) => this.fromFrame(event)
 
   constructor(
@@ -216,8 +223,16 @@ export class ActivityRuntime {
 
   destroy(): void {
     window.removeEventListener('message', this.onWindowMessage)
+    this.listenIn(null)
     this.connection.stop()
     this.frame = null
+  }
+
+  /** Hears the frame in `other` too: it posts to the window that holds it. */
+  listenIn(other: Window | null): void {
+    this.otherWindow?.removeEventListener('message', this.onWindowMessage)
+    this.otherWindow = other
+    other?.addEventListener('message', this.onWindowMessage)
   }
 
   /** The frame element now showing the activity; a new element or a reload starts it over. */
@@ -378,9 +393,9 @@ export class ActivityRuntime {
         const blob = msg.blob
         const now = Date.now()
         if (
-          !(blob instanceof Blob)
+          !isBlob(blob)
           || !(SAVE_TYPES as readonly string[]).includes(blob.type)
-          || document.activeElement !== this.frame
+          || this.frame.ownerDocument.activeElement !== this.frame
           || this.saves >= SAVE_MAX_PER_SESSION
           || now - this.lastSaveAt < SAVE_INTERVAL_MS
         ) {

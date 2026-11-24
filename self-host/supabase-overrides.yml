@@ -149,22 +149,24 @@ services:
   # `harmony config --upload-ceiling SIZE` sets FILE_SIZE_LIMIT in supabase/.env,
   # recreates storage and writes the same number into
   # instance_config.upload_ceiling_bytes, above which no upload limit goes.
-  # STORAGE_BACKEND s3 keeps uploads in an S3-compatible bucket (Cloudflare R2,
-  # MinIO, AWS) named by the GLOBAL_S3_* and AWS_* keys of supabase/.env; file
-  # (the default) keeps them under supabase/volumes/storage. imgproxy reads S3
-  # objects through presigned URLs from storage, so it needs no S3 keys.
+  # STORAGE_BACKEND s3 keeps uploads in an S3-compatible bucket (Cloudflare R2, MinIO,
+  # AWS) named by the STORAGE_S3_* keys of supabase/.env; file (the default) keeps them
+  # under supabase/volumes/storage. imgproxy reads S3 objects through presigned URLs from
+  # storage, so it needs no S3 keys.
+  # Compose prefers the calling shell's variables over supabase/.env. Under the names
+  # storage-api reads (AWS_* through the AWS SDK, REGION), an admin's exported AWS CLI
+  # variables would replace the bucket's, so supabase/.env has names of its own.
   storage:
     image: ${STORAGE_IMAGE:-supabase/storage-api:v1.90.0}
     environment:
       FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-52428800}
       STORAGE_BACKEND: ${STORAGE_BACKEND:-file}
-      GLOBAL_S3_BUCKET: ${GLOBAL_S3_BUCKET:-stub}
-      GLOBAL_S3_ENDPOINT: ${GLOBAL_S3_ENDPOINT:-}
-      GLOBAL_S3_PROTOCOL: ${GLOBAL_S3_PROTOCOL:-https}
-      GLOBAL_S3_FORCE_PATH_STYLE: ${GLOBAL_S3_FORCE_PATH_STYLE:-true}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      REGION: ${REGION:-stub}
+      GLOBAL_S3_BUCKET: ${STORAGE_S3_BUCKET:-stub}
+      GLOBAL_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-}
+      GLOBAL_S3_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-true}
+      AWS_ACCESS_KEY_ID: ${STORAGE_S3_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${STORAGE_S3_SECRET_ACCESS_KEY:-}
+      REGION: ${STORAGE_S3_REGION:-stub}
 
   # Animated emoji and large images: frames count toward the source resolution
   # limit (megapixels). v4.0.22 in place of the stack's v3.8.0: it decodes every

@@ -7,26 +7,36 @@
 -- self_assign_refusal(p_role_id): NULL when a member may give themselves the role, else a code:
 --   ROLE_NOT_FOUND      no such role
 --   NOT_SELF_ASSIGNABLE the role is not marked self-assignable, or is @everyone
+--   or a code of open_role_refusal
+--
+-- open_role_refusal(p_role_id): NULL when any member may hold the role, gaining no power and
+-- outranking nobody who has some, else a code:
+--   ROLE_NOT_FOUND      no such role
 --   SERVER_NOT_LOCAL    the server is a copy of another instance's
 --   ROLE_IS_ADMIN       an administrator role
 --   ROLE_GRANTS_PERMISSIONS the role's server permissions exceed @everyone's
---   ROLE_RANKS_TOO_HIGH the role sits at or above a role that grants permissions beyond @everyone's
---                       (is_admin, or bits outside @everyone's): picking it would outrank moderators
+--   ROLE_RANKS_TOO_HIGH the role has no position, or sits at or above a role that grants permissions
+--                       beyond @everyone's (is_admin, bits outside @everyone's, or a channel override
+--                       as under ROLE_OVERRIDE_GRANTS): its holders would outrank moderators
 --   ROLE_OVERRIDE_GRANTS a channel override of the role allows a bit outside @everyone's server
 --                       permissions and VIEW_CHANNEL; opening a channel to the role stays allowed
 --
 -- set_my_self_assignable_role(p_role_id, p_on): the caller, an accepted member of the role's server,
 -- gives themselves the role (p_on, every check above) or drops it (the role need only be
 -- self-assignable). Returns p_on; a repeat changes nothing. Errors: 28000 not signed in, P0002
--- ROLE_NOT_FOUND, 42501 NOT_A_MEMBER or a self_assign_refusal code.
+-- ROLE_NOT_FOUND, 42501 NOT_A_MEMBER or a self_assign_refusal code, P0001 ANTISPAM_RATE_LIMITED past
+-- account_role_picks_per_minute (20261124100001): a change is a federation job, a broadcast and an
+-- audit row.
 --
 -- Join role. server_settings.default_role_id was stored and audited but applied nowhere.
 -- assign_default_role_to_member now also gives it when a membership becomes accepted (insert, or a
--- status change from anything else), on servers this instance hosts, to anyone but the owner,
--- unless it is @everyone or an administrator role. set_server_join_role(p_server_id, p_role_id) sets or clears it: the caller
--- needs MANAGE_ROLES on a local server and the role must rank below their highest role (owner and
--- instance admins pass), as guard_server_settings_default_role requires of direct writes, which now
--- also refuse @everyone and administrator roles.
+-- status change from anything else), on servers this instance hosts, to anyone but the owner, when
+-- it is not @everyone and open_role_refusal has no objection. set_server_join_role(p_server_id,
+-- p_role_id) sets or clears it: the caller needs MANAGE_ROLES on a local server, the role must rank
+-- below their highest role (owner and instance admins pass), as guard_server_settings_default_role
+-- requires of direct writes, which now also refuse @everyone and administrator roles, and
+-- open_role_refusal's code is raised as ROLE_NOT_OPEN with the code in DETAIL. Values stored before
+-- this migration that open_role_refusal objects to are cleared.
 --
 -- server_audit_roles records the three new columns.
 
@@ -50,7 +60,7 @@ ALTER TABLE public.server_roles ADD CONSTRAINT server_roles_self_assign_note_len
 -- Picking a role
 -- ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION public.self_assign_refusal(p_role_id uuid)
+CREATE OR REPLACE FUNCTION public.open_role_refusal(p_role_id uuid)
 RETURNS text
 LANGUAGE plpgsql
 STABLE
@@ -66,9 +76,6 @@ BEGIN
     IF NOT FOUND THEN
         RETURN 'ROLE_NOT_FOUND';
     END IF;
-    IF NOT v_role.self_assignable OR v_role.is_default THEN
-        RETURN 'NOT_SELF_ASSIGNABLE';
-    END IF;
     IF NOT EXISTS (SELECT 1 FROM public.servers s WHERE s.id = v_role.server_id AND s.is_local_server) THEN
         RETURN 'SERVER_NOT_LOCAL';
     END IF;
@@ -83,12 +90,18 @@ BEGIN
     IF COALESCE(v_role.permissions, 0) & ~v_everyone <> 0 THEN
         RETURN 'ROLE_GRANTS_PERMISSIONS';
     END IF;
-    IF EXISTS (SELECT 1 FROM public.server_roles sr
-                WHERE sr.server_id = v_role.server_id
-                  AND sr.id <> v_role.id
-                  AND NOT sr.is_default
-                  AND (sr.is_admin OR COALESCE(sr.permissions, 0) & ~v_everyone <> 0)
-                  AND sr.position <= v_role.position) THEN
+    IF v_role.position IS NULL
+       OR EXISTS (SELECT 1 FROM public.server_roles sr
+                   WHERE sr.server_id = v_role.server_id
+                     AND sr.id <> v_role.id
+                     AND sr.is_default IS NOT TRUE
+                     AND COALESCE(sr.position, 0) <= v_role.position
+                     AND (sr.is_admin
+                          OR COALESCE(sr.permissions, 0) & ~v_everyone <> 0
+                          OR EXISTS (SELECT 1 FROM public.channel_permission_overrides o
+                                      WHERE o.role_id = sr.id
+                                        AND COALESCE(o.allow_permissions, 0)
+                                            & ~(v_everyone | v_view_channel) <> 0))) THEN
         RETURN 'ROLE_RANKS_TOO_HIGH';
     END IF;
     IF EXISTS (SELECT 1 FROM public.channel_permission_overrides o
@@ -97,6 +110,27 @@ BEGIN
         RETURN 'ROLE_OVERRIDE_GRANTS';
     END IF;
     RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.self_assign_refusal(p_role_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_role public.server_roles;
+BEGIN
+    SELECT * INTO v_role FROM public.server_roles WHERE id = p_role_id;
+    IF NOT FOUND THEN
+        RETURN 'ROLE_NOT_FOUND';
+    END IF;
+    IF NOT v_role.self_assignable OR v_role.is_default THEN
+        RETURN 'NOT_SELF_ASSIGNABLE';
+    END IF;
+    RETURN public.open_role_refusal(p_role_id);
 END;
 $$;
 
@@ -130,6 +164,7 @@ BEGIN
         IF v_refusal IS NOT NULL THEN
             RAISE EXCEPTION '%', v_refusal USING ERRCODE = '42501';
         END IF;
+        PERFORM public.antispam_take(v_me, 'role_pick', 'account_role_picks_per_minute', 60);
         INSERT INTO public.user_roles (user_id, role_id, server_id, assigned_by)
         VALUES (v_me, p_role_id, v_server, v_me)
         ON CONFLICT (user_id, role_id) DO NOTHING;
@@ -139,6 +174,7 @@ BEGIN
     IF NOT v_self_assignable THEN
         RAISE EXCEPTION 'NOT_SELF_ASSIGNABLE' USING ERRCODE = '42501';
     END IF;
+    PERFORM public.antispam_take(v_me, 'role_pick', 'account_role_picks_per_minute', 60);
     DELETE FROM public.user_roles WHERE user_id = v_me AND role_id = p_role_id;
     RETURN false;
 END;
@@ -178,9 +214,8 @@ BEGIN
               JOIN server_roles sr ON sr.id = ss.default_role_id
                                   AND sr.server_id = ss.server_id
                                   AND NOT sr.is_default
-                                  AND NOT sr.is_admin
              WHERE ss.server_id = NEW.server_id;
-            IF v_join_role IS NOT NULL THEN
+            IF v_join_role IS NOT NULL AND public.open_role_refusal(v_join_role) IS NULL THEN
                 INSERT INTO user_roles (user_id, role_id, server_id)
                 VALUES (NEW.user_id, v_join_role, NEW.server_id)
                 ON CONFLICT (user_id, role_id) DO NOTHING;
@@ -238,6 +273,7 @@ AS $$
 DECLARE
     v_me uuid := public.get_current_profile_id();
     v_role public.server_roles;
+    v_refusal text;
 BEGIN
     IF v_me IS NULL THEN
         RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
@@ -262,6 +298,10 @@ BEGIN
            AND v_role.position >= public.get_user_highest_role_position(v_me, p_server_id) THEN
             RAISE EXCEPTION 'ROLE_RANKS_TOO_HIGH' USING ERRCODE = '42501';
         END IF;
+        v_refusal := public.open_role_refusal(p_role_id);
+        IF v_refusal IS NOT NULL THEN
+            RAISE EXCEPTION 'ROLE_NOT_OPEN' USING ERRCODE = '42501', DETAIL = v_refusal;
+        END IF;
     END IF;
 
     INSERT INTO public.server_settings (server_id, default_role_id)
@@ -269,6 +309,16 @@ BEGIN
     ON CONFLICT (server_id) DO UPDATE SET default_role_id = EXCLUDED.default_role_id;
 END;
 $$;
+
+-- Before this migration no value was applied: one that open_role_refusal objects to was stored
+-- without giving anyone its powers. The server's owner can choose a role again.
+UPDATE public.server_settings ss
+   SET default_role_id = NULL
+  FROM public.servers s
+ WHERE s.id = ss.server_id
+   AND s.is_local_server
+   AND ss.default_role_id IS NOT NULL
+   AND public.open_role_refusal(ss.default_role_id) IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- Audit
@@ -320,6 +370,8 @@ CREATE TRIGGER z_server_roles_audit_update
                             NEW.self_assign_group, NEW.self_assign_note))
     EXECUTE FUNCTION public.server_audit_roles();
 
+REVOKE ALL ON FUNCTION public.open_role_refusal(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.open_role_refusal(uuid) TO service_role;
 REVOKE ALL ON FUNCTION public.self_assign_refusal(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.self_assign_refusal(uuid) TO service_role;
 REVOKE ALL ON FUNCTION public.set_my_self_assignable_role(uuid, boolean) FROM PUBLIC, anon;

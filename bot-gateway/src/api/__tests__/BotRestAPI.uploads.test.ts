@@ -42,7 +42,7 @@ vi.mock('../../utils/mirrorExternalMedia.js', async (importOriginal) => {
   return { ...actual, getUploadCeilingBytes: async () => 1000 }
 })
 
-import { BotRestAPI } from '../BotRestAPI.js'
+import { BotRestAPI, BusyError, UPLOADS_PER_BOT, WAITING_UPLOADS_PER_BOT, keyedConcurrencyLimit } from '../BotRestAPI.js'
 import { EmptyFileError, OverQuotaError, TooLargeError } from '../../utils/mirrorFile.js'
 import { formatContent } from '../messageContent.js'
 
@@ -127,7 +127,7 @@ describe('POST /channels/:id/attachments', () => {
       mimeType: 'image/png',
     })
     const [, opts] = mocks.store.mock.calls[0]
-    expect(opts).toMatchObject({ botId: BOT_ID, channelId: GENERAL, fileName: 'deepfried.png', contentType: 'image/png', ceiling: 1000 })
+    expect(opts).toMatchObject({ botId: BOT_ID, channelId: GENERAL, fileName: 'deepfried.png', contentType: 'image/png', ceiling: 1000, declaredSize: PNG.length })
     expect(db.rows('bot_audit_log').map((r) => r.action_type)).toEqual(['file_uploaded'])
   })
 
@@ -171,6 +171,83 @@ describe('POST /channels/:id/attachments', () => {
     mocks.store.mockRejectedValueOnce(new OverQuotaError(11))
     expect((await post(GENERAL, PNG)).status).toBe(507)
     expect(db.rows('bot_audit_log')).toEqual([])
+  })
+})
+
+describe('uploads of one bot at once', () => {
+  it('stores UPLOADS_PER_BOT at a time, lets the rest wait unread, and answers 429 past the line', async () => {
+    seed()
+    let open = 0
+    let most = 0
+    const finish: Array<() => void> = []
+    mocks.store.mockImplementation(async (body: NodeJS.ReadableStream) => {
+      most = Math.max(most, ++open)
+      await new Promise<void>((resolve) => finish.push(resolve))
+      for await (const _ of body) { /* consumes the request as the real store does */ }
+      open--
+      return { path: STORED, url: `https://signed.test/${STORED}`, contentType: 'image/png', bytes: PNG.length }
+    })
+    const server = app().listen(0)
+    try {
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/v1/channels/${GENERAL}/attachments?filename=a.png`
+      const send = () => fetch(url, { method: 'POST', headers: { 'content-type': 'image/png' }, body: new Uint8Array(PNG) })
+      const admitted = Array.from({ length: UPLOADS_PER_BOT + WAITING_UPLOADS_PER_BOT }, send)
+      await vi.waitFor(() => expect(mocks.store).toHaveBeenCalledTimes(UPLOADS_PER_BOT))
+      // The line fills before the next request asks.
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      const refused = await send()
+      expect(refused.status).toBe(429)
+      expect(refused.headers.get('retry-after')).toBe('5')
+      expect(await refused.json()).toEqual({ error: 'Too many uploads at once', retry_after: 5 })
+      expect(mocks.store).toHaveBeenCalledTimes(UPLOADS_PER_BOT)
+
+      let settled = false
+      const all = Promise.all(admitted).then((responses) => { settled = true; return responses.map((r) => r.status) })
+      while (!settled) {
+        finish.splice(0).forEach((done) => done())
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+      expect(new Set(await all)).toEqual(new Set([201]))
+      expect(most).toBe(UPLOADS_PER_BOT)
+      const next = send()
+      await vi.waitFor(() => expect(finish).toHaveLength(1))
+      finish[0]()
+      expect((await next).status).toBe(201)
+    } finally {
+      server.closeAllConnections()
+      await new Promise((resolve) => server.close(resolve))
+    }
+  })
+
+  it('counts each bot apart, frees a place on failure and never runs more than the limit', async () => {
+    const limiter = keyedConcurrencyLimit(1, 1)
+    const gates: Array<() => void> = []
+    const hold = () => new Promise<void>((resolve) => gates.push(resolve))
+    const first = limiter.run('a', async () => { await hold(); throw new Error('failed') })
+    const second = limiter.run('a', async () => 'second')
+    await expect(limiter.run('a', async () => 'third')).rejects.toBeInstanceOf(BusyError)
+    expect(await limiter.run('b', async () => 'other')).toBe('other')
+    gates.forEach((open) => open())
+    await expect(first).rejects.toThrow('failed')
+    expect(await second).toBe('second')
+    expect(await limiter.run('a', async () => 'again')).toBe('again')
+
+    // A task started in the turn another ends in waits behind the one whose turn it is.
+    const order: string[] = []
+    let running = 0
+    let most = 0
+    const step = (name: string) => limiter.run('c', async () => {
+      most = Math.max(most, ++running)
+      order.push(name)
+      await Promise.resolve()
+      running--
+    })
+    const one = step('one')
+    const two = step('two')
+    const three = one.then(() => step('three'))
+    await Promise.all([one, two, three])
+    expect(order).toEqual(['one', 'two', 'three'])
+    expect(most).toBe(1)
   })
 })
 

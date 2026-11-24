@@ -156,6 +156,76 @@ test('the dock has one Activities button, and More holds the rest', async ({ pag
   })
 })
 
+test('from the call view, the Activities button and Add to queue open the launcher over it', async ({ page }) => {
+  test.setTimeout(120_000)
+  // Something to queue to: an activity this member plays (a file that never answers).
+  const started = await must('activity', admin.from('voice_activities').upsert({
+    channel_id: voiceId, server_id: server.id, source: 'url', item: { url: 'http://127.0.0.1:9/clip.webm', title: 'Clip' },
+    host_id: owner.id, playing: false, rate: 1, position_ms: 0, position_at: new Date().toISOString(),
+  }))
+  expect(started.error).toBeNull()
+  try {
+    await signIn(page, owner)
+    await openChannel(page, server.id, server.generalChannelId)
+    await enterCall(page)
+    await dock(page).getByTestId('dock-open-call-view').click()
+    await expect(page.getByTestId('voice-overlay')).toBeVisible({ timeout: 15_000 })
+    const launcher = page.getByTestId('activities-launcher')
+
+    /**
+     * The topmost painted element at the launcher's link field. Inert elements paint and are not
+     * hit: the point is tested with the inertness of the page lifted.
+     */
+    const painted = () => page.evaluate(() => {
+      const field = document.querySelector('[data-testid="activities-launcher"] [data-testid="activity-link"]')
+      if (!field) return 'no field'
+      const inert = [...document.querySelectorAll('[inert]')]
+      inert.forEach((el) => el.removeAttribute('inert'))
+      const box = field.getBoundingClientRect()
+      const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+      inert.forEach((el) => el.setAttribute('inert', ''))
+      return top === field ? 'field' : `${top?.tagName.toLowerCase()}.${[...(top?.classList ?? [])].join('.')}`
+    })
+
+    await test.step('the popcorn button opens it above the call view, usable', async () => {
+      await page.getByTestId('overlay-activities-button').click()
+      await expect(launcher).toBeVisible()
+      await expect.poll(painted, { timeout: 5_000 }).toBe('field')
+      await launcher.getByTestId('activity-link').fill('https://example.com/movie.mp4')
+      await expect(launcher.getByTestId('activity-start')).toBeEnabled()
+      await expect(page.getByTestId('activities-launcher')).toHaveCount(1)
+    })
+
+    await test.step('closing it gives the call view back', async () => {
+      await page.getByRole('dialog', { name: 'Activities' }).getByRole('button', { name: 'Close' }).click()
+      await expect(launcher).toHaveCount(0)
+      await expect(page.getByTestId('voice-overlay')).toBeVisible()
+      await page.getByTestId('voice-mute').click()
+    })
+
+    await test.step('Add to queue on the stage opens it the same way', async () => {
+      await page.getByTestId('activity-queue-toggle').click()
+      await page.getByTestId('activity-queue-add').click()
+      await expect(launcher).toBeVisible()
+      await expect.poll(painted, { timeout: 5_000 }).toBe('field')
+      await page.keyboard.press('Escape')
+      await expect(launcher).toHaveCount(0)
+      await expect(page.getByTestId('voice-overlay')).toBeVisible()
+    })
+
+    await test.step('minimized, the dock opens it over the app as before', async () => {
+      await page.locator('.voice-overlay [title="Minimize call view"]').click()
+      await expect(page.getByTestId('voice-overlay')).toHaveCount(0)
+      await dock(page).getByTestId('dock-activities-button').click()
+      await expect(launcher).toBeVisible()
+      await expect.poll(painted, { timeout: 5_000 }).toBe('field')
+      await page.keyboard.press('Escape')
+    })
+  } finally {
+    await admin.from('voice_activities').delete().eq('channel_id', voiceId)
+  }
+})
+
 test('a DM header keeps Call, Search and More; More holds Add people, video and Activities', async ({ page }) => {
   test.setTimeout(90_000)
   await signIn(page, owner)

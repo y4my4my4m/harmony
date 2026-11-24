@@ -5783,7 +5783,9 @@
         "signalsPerMinute": "Señales de llamada por minuto",
         "signalsHint": "Establecer llamadas punto a punto, contestar y colgar llamadas de MD, efectos de llamada. Unirse a una llamada de diez personas requiere unas 45.",
         "ringsPerMinute": "Llamadas realizadas por minuto",
-        "ringsHint": "Cada llamada suena una vez. Colgar nunca se rechaza."
+        "ringsHint": "Cada llamada suena una vez. Colgar nunca se rechaza.",
+        "rolePicksPerMinute": "Elecciones de rol por minuto",
+        "rolePicksHint": "Tomar y dejar roles autoasignables. Cada cambio llega a todos en el servidor."
       },
       "bots": {
         "title": "Bots",
@@ -9116,11 +9118,11 @@
     "saved": "Los nuevos miembros recibirán este rol.",
     "cleared": "Los nuevos miembros ya no reciben un rol.",
     "tooHigh": "Solo puedes elegir un rol por debajo de tu rol más alto.",
-    "saveFailed": "No se pudo guardar el rol para nuevos miembros."
+    "saveFailed": "No se pudo guardar el rol para nuevos miembros.",
+    "notOpen": "Ese rol da permisos que @everyone no tiene o está por encima de uno que los da, así que no se puede dar a los miembros nuevos.",
+    "currentNotOpen": "Este rol ya no se puede dar a los miembros nuevos. Elige otro."
   },
   "playTogether": {
-    "button": "Jugar juntos",
-    "launcherTitle": "Jugar juntos",
     "launcherSubtitle": "Inicia una actividad a la que todos aquí pueden unirse",
     "loadingApps": "Cargando actividades…",
     "noApps": "Esta instancia no tiene actividades activadas.",

@@ -48,6 +48,9 @@ test.afterAll(async () => {
 /** Attention stubs and alert counters, installed before the app's scripts run. */
 async function instrument(page: Page) {
   await page.addInitScript(() => {
+    // handlerCount finds a module by its resource entry; the buffer holds 250 by default and the dev
+    // server serves more than that unbundled.
+    performance.setResourceTimingBufferSize(5000)
     const w = window as any
     const state = { focused: true, hidden: false }
     w.__alerts = { sounds: [] as Array<{ at: number; via: string }>, constructed: [] as string[], toasts: 0 }

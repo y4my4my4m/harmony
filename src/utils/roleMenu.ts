@@ -21,16 +21,18 @@ export function roleMenuPartOf(content: readonly unknown[] | null | undefined): 
 
 /**
  * Parts of a role menu message: the card, then a text part listing the roles for readers that do
- * not draw it (search, previews, notifications, other instances).
+ * not draw it (search, previews, notifications, other instances). `defaultTitle`, in the poster's
+ * language, heads the text of an untitled menu; its card carries no title and shows each viewer's own.
  */
 export function roleMenuMessageParts(
   serverId: string,
   group: string | null,
   title: string,
+  defaultTitle: string,
   roleNames: readonly string[],
 ): Array<RoleMenuContent | { type: 'text'; text: string }> {
   const heading = title.trim().slice(0, MAX_TITLE)
-  const text = roleNames.length > 0 ? `${heading}: ${roleNames.join(' · ')}` : heading
+  const text = [heading || defaultTitle, roleNames.join(' · ')].filter(Boolean).join(': ')
   return [
     { type: 'role_menu', serverId, group, ...(heading ? { title: heading } : {}) },
     { type: 'text', text },

@@ -49,7 +49,10 @@ const read = (row: Row, col: string) => {
 
 function fakeSupabase() {
   return {
-    rpc: (fn: string) => Promise.resolve({ data: rpcResult[fn] ?? null, error: null }),
+    rpc: (fn: string, args: any) => {
+      const result = rpcResult[fn]
+      return Promise.resolve({ data: (typeof result === 'function' ? result(args) : result) ?? null, error: null })
+    },
     from(table: string) {
       const filters: Array<(row: Row) => boolean> = []
       let op: 'select' | 'delete' | 'update' = 'select'
@@ -220,6 +223,27 @@ describe('group DM by remote conversation id', () => {
       'carol-id', [{ type: 'text', text: 'hi' }], null, { skipSpamGuard: true },
     )
     expect(tables.messages).toEqual([expect.objectContaining({ conversation_id: 'conv-1', user_id: 'carol-id' })])
+  })
+})
+
+describe('group DM started on another instance', () => {
+  // With the author, 13 people: past the 10 of a group made here (20261116100001).
+  it('a message naming 12 people arrives with all of them', async () => {
+    const people = Array.from({ length: 11 }, (_, i) => `https://remote.test/users/person${i}`)
+    people.forEach((url, i) => tables.profiles.push({ id: `person-${i}`, username: `person${i}`, is_local: i >= 8, federated_id: url, updated_at: FRESH }))
+    rpcResult.dm_recipients_allowing = (args: any) => args.p_recipients
+    // Stands in for the function: the conversation holds the actor and everyone named.
+    rpcResult.get_or_create_federated_group_conversation = (args: any) => {
+      tables.conversation_participants.push(...[args.p_actor_id, ...args.p_local_recipient_ids].map((id: string) => participant('conv-13', id)))
+      return 'conv-13'
+    }
+    await P.handleDirectMessage(
+      { id: 'https://remote.test/notes/13', attributedTo: CAROL, to: [ALICE, ...people] },
+      'carol-id', [{ type: 'text', text: 'all of us' }], null, { skipSpamGuard: true },
+    )
+    expect(tables.conversation_participants.filter((p) => p.conversation_id === 'conv-13').map((p) => p.user_id))
+      .toEqual(['carol-id', 'alice-id', ...people.map((_, i) => `person-${i}`)])
+    expect(tables.messages).toEqual([expect.objectContaining({ conversation_id: 'conv-13', user_id: 'carol-id' })])
   })
 })
 

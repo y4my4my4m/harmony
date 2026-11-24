@@ -155,20 +155,12 @@ async function resolveLocalProfileByActorUrl(actorUrl: string): Promise<{ id: st
   return null;
 }
 
-/** Participants of a group conversation: 20261116100001_group_conversation_limit.sql. */
-const GROUP_CONVERSATION_LIMIT = 10;
-
 /**
  * Addresses a direct message or group invite may name; one naming more is refused whole, never
- * cut short. Well above GROUP_CONVERSATION_LIMIT: a group that predates the limit is found by its
- * remote id, whatever its size.
+ * cut short. The 10 people of a group made here do not bind a group made elsewhere
+ * (20261116100001_group_conversation_limit.sql).
  */
 const MAX_DIRECT_RECIPIENTS = 250;
-
-/** The database refused a group past GROUP_CONVERSATION_LIMIT. */
-function groupConversationFull(error: { message?: string } | null): boolean {
-  return !!error?.message?.startsWith('GROUP_CONVERSATION_FULL');
-}
 
 /** federated_id values per `in` filter: PostgREST reads the list from the request URL. */
 const PROFILE_LOOKUP_CHUNK = 25;
@@ -4789,11 +4781,6 @@ export class ActivityProcessor {
           p_local_recipient_ids: allowedIds,
           p_remote_conversation_id: remoteConvId
         });
-      if (groupConversationFull(convError)) {
-        logDenied('group DM', normalizeActor(activity?.actor ?? object.attributedTo),
-          `${object.id} would take a group past ${GROUP_CONVERSATION_LIMIT} people`);
-        return;
-      }
       if (convError || !convId) {
         logger.error(`Failed to get/create group conversation:`, convError);
         return;
@@ -4919,11 +4906,6 @@ export class ActivityProcessor {
       }
     );
 
-    if (groupConversationFull(convError)) {
-      logDenied('group invite', normalizeActor(object.attributedTo),
-        `${object.id} would take a group past ${GROUP_CONVERSATION_LIMIT} people`);
-      return;
-    }
     if (convError || !conversationId) {
       logger.error('Failed to get/create group for invite:', convError);
       return;

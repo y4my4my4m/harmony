@@ -129,6 +129,22 @@ describe('POST /channels/:id/bridge-files', () => {
     expect((await upload(PNG, encodeURIComponent('page.html'))).status).toBe(415)
     expect(mocks.store).not.toHaveBeenCalled()
   })
+  it.each([
+    ['application/json', '{"a":1}'], ['application/json; charset=utf-8', '[1]'],
+    ['application/x-www-form-urlencoded', 'a=1'], ['multipart/form-data; boundary=x', '--x--'],
+  ])('refuses a %s body, which something else has read or which wraps the file', async (type, body) => {
+    const res = await supertest(app()).post(base + '/bridge-files').set('Authorization', 'Bearer test')
+      .set('Content-Type', type).set('X-File-Name', 'data.json').set('X-File-Type', 'application/json').send(body)
+    expect(res.status).toBe(415)
+    expect(res.body.error).toBe('Send the file itself as the request body, with its own Content-Type')
+    expect(mocks.store).not.toHaveBeenCalled()
+  })
+  it('stores a JSON file sent as application/octet-stream', async () => {
+    storedType = 'application/json'
+    const res = await upload(Buffer.from('{"a":1}'), 'data.json', 'application/json')
+    expect(res.status).toBe(201)
+    expect(mocks.store.mock.calls[0][1]).toMatchObject({ fileName: 'data.json', contentType: 'application/json', declaredSize: 7 })
+  })
   it('needs attach_files and fits the upload ceiling', async () => {
     db.rows('bot_server_permissions')[0].attach_files = false
     const denied = await upload()

@@ -16,7 +16,6 @@ import {
   applyBridgeAttachmentPolicy,
   getBridgeAttachmentMode,
   isAllowedSourceUrl,
-  mirrorAllows,
   readBridgeAttachmentMode,
 } from '../mirrorExternalMedia.js'
 
@@ -87,22 +86,6 @@ describe('bridge attachment mode', () => {
   })
 })
 
-describe('mirrorAllows', () => {
-  it('asks bridge_mirror_allows and answers true only for true', async () => {
-    expect(await mirrorAllows(CHANNEL, 42)).toBe(true)
-    expect(mocks.rpc).toHaveBeenCalledWith('bridge_mirror_allows', { p_channel_id: CHANNEL, p_bytes: 42 })
-    mocks.rpc.mockResolvedValue({ data: false, error: null })
-    expect(await mirrorAllows(CHANNEL, 42)).toBe(false)
-    mocks.rpc.mockResolvedValue({ data: null, error: null })
-    expect(await mirrorAllows(CHANNEL, 42)).toBe(false)
-  })
-
-  it('throws when the answer cannot be read', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'function not found' } })
-    await expect(mirrorAllows(CHANNEL, 42)).rejects.toThrow(/bridge_mirror_allows failed: function not found/)
-  })
-})
-
 describe('applyBridgeAttachmentPolicy and the server cap', () => {
   const part = { type: 'file', fileType: 'image', url: 'https://cdn.discordapp.com/attachments/1/2/cat.png?ex=1', fileSize: 2048 }
 
@@ -113,7 +96,7 @@ describe('applyBridgeAttachmentPolicy and the server cap', () => {
     vi.stubGlobal('fetch', fetch)
 
     await expect(applyBridgeAttachmentPolicy([part], BOT, CHANNEL)).resolves.toEqual({ parts: [part], deferred: true })
-    expect(mocks.rpc).toHaveBeenCalledWith('bridge_mirror_allows', { p_channel_id: CHANNEL, p_bytes: 2048 })
+    expect(mocks.rpc).toHaveBeenCalledWith('bridge_upload_reserve', expect.objectContaining({ p_channel_id: CHANNEL, p_bytes: 2048 }))
     expect(fetch).not.toHaveBeenCalled()
   })
 
@@ -126,7 +109,7 @@ describe('applyBridgeAttachmentPolicy and the server cap', () => {
     const sizeless = { type: 'url', url: part.url }
 
     await expect(applyBridgeAttachmentPolicy([sizeless], BOT, CHANNEL)).resolves.toEqual({ parts: [sizeless], deferred: true })
-    expect(mocks.rpc).toHaveBeenCalledWith('bridge_mirror_allows', { p_channel_id: CHANNEL, p_bytes: 4096 })
+    expect(mocks.rpc).toHaveBeenCalledWith('bridge_upload_reserve', expect.objectContaining({ p_channel_id: CHANNEL, p_bytes: 4096 }))
     expect(cancel).toHaveBeenCalled()
   })
 

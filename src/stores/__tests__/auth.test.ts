@@ -882,6 +882,60 @@ describe('useAuthStore', () => {
       vi.doUnmock('@/composables/useViewContext')
     })
 
+    describe('in a call', () => {
+      const leaveVoiceChannel = vi.fn()
+      const voice = { isConnectedOrJoining: true, isConnected: false, leaveVoiceChannel, clearVoiceChannelState: vi.fn(), stopVoiceSessionHeartbeat: vi.fn() }
+
+      beforeEach(() => {
+        leaveVoiceChannel.mockReset()
+        vi.doMock('@/router', () => ({ default: { push: vi.fn().mockResolvedValue(undefined) } }))
+        vi.doMock('@/composables/usePushNotifications', () => ({
+          usePushNotifications: () => ({ detachForLogout: vi.fn().mockResolvedValue(undefined), resetState: vi.fn() }),
+        }))
+        vi.doMock('@/composables/useViewContext', () => ({ markDeviceAway: vi.fn().mockResolvedValue(undefined) }))
+        vi.doMock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => voice }))
+      })
+      afterEach(() => {
+        vi.useRealTimers()
+        for (const path of ['@/router', '@/composables/usePushNotifications', '@/composables/useViewContext',
+          '@/stores/unifiedVoiceChannel']) vi.doUnmock(path)
+      })
+
+      it('leaves it while the session still exists: its signals refuse an anonymous caller', async () => {
+        const { signOutAndForget } = await import('@/supabase')
+        const store = useAuthStore()
+        const session = { access_token: jwtWithAAL('aal2'), user: {} } as any
+        store.session = session
+        let sessionAtLeave: unknown = 'not left'
+        let signedOutAtLeave = -1
+        leaveVoiceChannel.mockImplementation(async () => {
+          sessionAtLeave = store.session
+          signedOutAtLeave = vi.mocked(signOutAndForget).mock.calls.length
+          return true
+        })
+        await store.logout()
+        expect(leaveVoiceChannel).toHaveBeenCalledTimes(1)
+        expect(sessionAtLeave).toStrictEqual(session)
+        expect(signedOutAtLeave).toBe(0)
+      })
+
+      it('a leave that hangs holds sign-out at most 3 s', async () => {
+        vi.useFakeTimers()
+        const { signOutAndForget } = await import('@/supabase')
+        leaveVoiceChannel.mockReturnValue(new Promise(() => {}))
+        const store = useAuthStore()
+        store.session = { access_token: jwtWithAAL('aal2'), user: {} } as any
+        const done = store.logout()
+        await vi.waitFor(() => expect(leaveVoiceChannel).toHaveBeenCalled())
+        await vi.advanceTimersByTimeAsync(2_900)
+        expect(signOutAndForget).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(200)
+        await vi.waitFor(() => expect(signOutAndForget).toHaveBeenCalledTimes(1))
+        vi.useRealTimers()
+        await done
+      })
+    })
+
     // clear() also voids a funding read still running; $reset() would not.
     it('clears the funding store', async () => {
       const clear = vi.fn()
@@ -912,6 +966,20 @@ describe('useAuthStore', () => {
       useAuthStore().cleanupNotificationSystem()
       await vi.waitFor(() => expect(resetRemoteServerSync).toHaveBeenCalledTimes(1))
       vi.doUnmock('@/utils/remoteServerSync')
+    })
+
+    it('drops the games and the watch-together state of the account', async () => {
+      const playTogether = vi.fn()
+      const activities = vi.fn()
+      vi.doMock('@/stores/playTogether', () => ({ usePlayTogetherStore: () => ({ reset: playTogether }) }))
+      vi.doMock('@/stores/activities', () => ({ useActivitiesStore: () => ({ reset: activities }) }))
+      useAuthStore().cleanupNotificationSystem()
+      await vi.waitFor(() => {
+        expect(playTogether).toHaveBeenCalledTimes(1)
+        expect(activities).toHaveBeenCalledTimes(1)
+      })
+      vi.doUnmock('@/stores/playTogether')
+      vi.doUnmock('@/stores/activities')
     })
 
     // A reply typed into a notification is the signed-out account's, never the next one's.

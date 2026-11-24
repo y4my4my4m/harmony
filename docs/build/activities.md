@@ -59,15 +59,15 @@ Any instance can install an activity that is not built in. Build your entry into
 | the script `manifest.entry` names, ending `.js` | 5 MB, UTF-8 |
 | the icon `manifest.icon` names | SVG, PNG or WebP, 256 KB |
 
-The zip is at most 6 MB and holds nothing else. Admins install it from a file or an `https://` address; the instance keeps its own copy and serves it at hash-named paths, so a new version means a new zip and an update by each instance's admin. A package cannot take the id of a built-in activity.
+The zip is at most 6 MB, packed and unpacked, and holds nothing else. Admins install it from a file or an `https://` address; the instance keeps its own copy and serves it at hash-named paths, so a new version means a new zip and an update by each instance's admin. A package cannot take the id of a built-in activity.
 
 ## What the sandbox allows
 
 | Allowed | Refused |
 | --- | --- |
-| Scripts, styles, images, media and fonts from the activity's own folder, `data:` and `blob:` | `fetch`, XHR, WebSocket, EventSource, `sendBeacon` |
+| Scripts, styles, images, media and fonts from the activity's own folder, `data:` and `blob:` | `fetch`, XHR, WebSocket, EventSource, `sendBeacon`, WebRTC |
 | Canvas, WebGL, Web Audio, pointer lock, workers from `blob:` | Cookies, `localStorage`, IndexedDB |
-| | Popups, forms, top navigation, downloads, `alert`/`confirm` |
+| | Popups, forms, top navigation, downloads, `alert`/`confirm`, scripts in a nested frame |
 | | Camera, microphone, geolocation, clipboard reads |
 
 Keep everything in memory. A frame that leaves its document (navigating itself, or `location.reload()`) is detached for good. `saveImage` checks the bytes against the declared type and names the file with that type's extension. Call it from a click in the frame: Harmony refuses a save while the frame does not have focus, more than one every 2 seconds, or more than 20 per game.
@@ -163,5 +163,6 @@ The client speaks JSON text frames to `wss://<instance>/api/federation/activitie
 | 4004 | Too many frames, or too slow to read them |
 | 4005 | The session ended |
 | 4009 | The same account connected again elsewhere |
+| 4013 | The relay could not check the account or is full; connect again |
 
 The frame and relay types are in `activities/sdk/protocol.ts`.

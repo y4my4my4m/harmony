@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import express from 'express'
 import supertest from 'supertest'
+import { deflateRawSync } from 'node:zlib'
 import { strToU8, zipSync } from 'fflate'
 import { PackageError, parsePackage, sha256Hex } from '../packages.js'
 
@@ -67,8 +68,8 @@ describe('parsePackage', () => {
   })
 
   it('counts a stored entry by the bytes copied, each record that points at it again', () => {
-    // 1 MB stored once, listed 40 times with a declared size of 0: 40 MB of copies unchecked.
-    const crafted = sharedStoredEntry(40, 1024 * 1024)
+    // 1 MB stored once, listed 20 times with a declared size of 0: 20 MB of copies unchecked.
+    const crafted = sharedStoredEntry(20, 1024 * 1024)
     const before = process.memoryUsage().arrayBuffers
     expect(code(() => parsePackage(crafted))).toBe('TOO_LARGE')
     expect(process.memoryUsage().arrayBuffers - before).toBeLessThan(16 * 1024 * 1024)
@@ -84,6 +85,67 @@ describe('parsePackage', () => {
     expect(performance.now() - started).toBeLessThan(1000)
   })
 
+  it('stops inflating an entry past its declared size', () => {
+    // 64 MB of zeros in 64 KB, declared as 1 byte.
+    const bomb = { data: deflateRawSync(Buffer.alloc(64 * 1024 * 1024)), unpacked: 1 }
+    const before = process.memoryUsage().arrayBuffers
+    expect(code(() => parsePackage(craft([
+      { name: 'manifest.json', ...packed(JSON.stringify(manifest())) }, { name: 'app.js', ...bomb }, { name: 'icon.svg', ...packed(SVG) },
+    ])))).toBe('NOT_A_ZIP')
+    expect(process.memoryUsage().arrayBuffers - before).toBeLessThan(16 * 1024 * 1024)
+  })
+
+  it('refuses an entry shorter than its declared size', () => {
+    expect(code(() => parsePackage(craft([
+      { name: 'manifest.json', ...packed(JSON.stringify(manifest())) }, { name: 'app.js', data: deflateRawSync(JS), unpacked: JS.byteLength + 1 }, { name: 'icon.svg', ...packed(SVG) },
+    ])))).toBe('NOT_A_ZIP')
+  })
+
+  it('refuses two records that point at one local entry', () => {
+    expect(code(() => parsePackage(craft([
+      { name: 'manifest.json', ...packed(JSON.stringify(manifest())) }, { name: 'app.js', ...packed(SVG) }, { name: 'icon.svg', ...packed(SVG), sameAs: 1 },
+    ])))).toBe('NOT_A_ZIP')
+  })
+
+  it('refuses an entry inside another one\'s data', () => {
+    // The local entry of app.js, stored whole as the data of icon.svg.
+    const inner = craft([{ name: 'app.js', ...packed(JS) }])
+    const crafted = craft([{ name: 'manifest.json', ...packed(JSON.stringify(manifest())) }, { name: 'icon.svg', data: inner, unpacked: inner.byteLength, method: 0 }, { name: 'app.js', ...packed(JS), within: 1 }])
+    expect(code(() => parsePackage(crafted))).toBe('NOT_A_ZIP')
+  })
+
+  it('inflates nothing of a zip whose records share one stream', () => {
+    // 32 records of one 256 KB stream that inflates to 256 MB.
+    const bomb = deflateRawSync(Buffer.alloc(256 * 1024 * 1024))
+    const started = performance.now()
+    expect(code(() => parsePackage(craft(Array.from({ length: 32 }, (_, i) => ({ name: `f${i}.js`, data: bomb, unpacked: 1, sameAs: 0 })))))).toBe('NOT_A_ZIP')
+    expect(performance.now() - started).toBeLessThan(500)
+  })
+
+  it('inflates nothing of a file that does not belong', () => {
+    const bomb = deflateRawSync(Buffer.alloc(256 * 1024 * 1024))
+    const started = performance.now()
+    expect(code(() => parsePackage(craft([
+      { name: 'manifest.json', ...packed(JSON.stringify(manifest())) }, { name: 'app.js', ...packed(JS) }, { name: 'icon.svg', ...packed(SVG) },
+      { name: 'extra.bin', data: bomb, unpacked: 1 },
+    ])))).toBe('UNEXPECTED_FILE')
+    expect(performance.now() - started).toBeLessThan(200)
+  })
+
+  it('refuses a name listed twice', () => {
+    expect(code(() => parsePackage(craft([
+      { name: 'manifest.json', ...packed(JSON.stringify(manifest())) }, { name: 'app.js', ...packed(JS) }, { name: 'icon.svg', ...packed(SVG) }, { name: 'app.js', ...packed('2') },
+    ])))).toBe('UNEXPECTED_FILE')
+  })
+
+  it.each([false, true])('reads a zip with a comment (zip64: %s)', (zip64) => {
+    const pkg = parsePackage(craft([
+      { name: 'manifest.json', ...packed(JSON.stringify(manifest())) }, { name: 'app.js', ...packed(JS) }, { name: 'icon.svg', data: SVG, unpacked: SVG.byteLength, method: 0 },
+    ], { zip64, comment: 'built by hand' }))
+    expect(pkg.entry.sha256).toBe(sha256Hex(JS))
+    expect(pkg.icon.sha256).toBe(sha256Hex(SVG))
+  })
+
   it('refuses a compression method other than stored or deflate', () => {
     const bytes = good()
     // Local header method at 8, central directory record method at 10.
@@ -94,6 +156,85 @@ describe('parsePackage', () => {
     expect(code(() => parsePackage(bytes))).toBe('NOT_A_ZIP')
   })
 })
+
+interface Crafted {
+  name: string
+  data: Uint8Array
+  /** Declared unpacked size. */
+  unpacked: number
+  method?: number
+  /** Index of the entry whose local header this record points at. */
+  sameAs?: number
+  /** Index of the entry whose data this record's local header is taken from. */
+  within?: number
+}
+
+function packed(content: Uint8Array | string): { data: Uint8Array; unpacked: number } {
+  const bytes = typeof content === 'string' ? strToU8(content) : content
+  return { data: deflateRawSync(bytes), unpacked: bytes.byteLength }
+}
+
+/** A zip of `entries` as listed; with `zip64` the sizes and offsets are in the zip64 records alone. */
+function craft(entries: Crafted[], { zip64 = false, comment = '' } = {}): Uint8Array {
+  const parts: Buffer[] = []
+  const offsets: number[] = []
+  const starts: number[] = []
+  let length = 0
+  const push = (buffer: Buffer) => {
+    parts.push(buffer)
+    length += buffer.length
+  }
+  for (const [i, entry] of entries.entries()) {
+    const shared = entry.sameAs !== undefined && entry.sameAs !== i
+    offsets[i] = shared ? offsets[entry.sameAs!] : entry.within !== undefined ? starts[entry.within] : length
+    if (shared || entry.within !== undefined) continue
+    const local = Buffer.alloc(30)
+    local.writeUInt32LE(0x04034b50, 0)
+    local.writeUInt16LE(entry.method ?? 8, 8)
+    local.writeUInt16LE(entry.name.length, 26)
+    push(Buffer.concat([local, Buffer.from(entry.name)]))
+    starts[i] = length
+    push(Buffer.from(entry.data))
+  }
+  const directory = length
+  for (const [i, entry] of entries.entries()) {
+    const record = Buffer.alloc(46)
+    record.writeUInt32LE(0x02014b50, 0)
+    record.writeUInt16LE(entry.method ?? 8, 10)
+    record.writeUInt32LE(zip64 ? 0xffffffff : entry.data.byteLength, 20)
+    record.writeUInt32LE(zip64 ? 0xffffffff : entry.unpacked, 24)
+    record.writeUInt16LE(entry.name.length, 28)
+    record.writeUInt16LE(zip64 ? 28 : 0, 30)
+    record.writeUInt32LE(zip64 ? 0xffffffff : offsets[i], 42)
+    const extra = Buffer.alloc(zip64 ? 28 : 0)
+    if (zip64) {
+      extra.writeUInt16LE(1, 0)
+      extra.writeUInt16LE(24, 2)
+      extra.writeBigUInt64LE(BigInt(entry.unpacked), 4)
+      extra.writeBigUInt64LE(BigInt(entry.data.byteLength), 12)
+      extra.writeBigUInt64LE(BigInt(offsets[i]), 20)
+    }
+    push(Buffer.concat([record, Buffer.from(entry.name), extra]))
+  }
+  if (zip64) {
+    const end64 = Buffer.alloc(56)
+    end64.writeUInt32LE(0x06064b50, 0)
+    end64.writeBigUInt64LE(BigInt(entries.length), 32)
+    end64.writeBigUInt64LE(BigInt(directory), 48)
+    const locator = Buffer.alloc(20)
+    locator.writeUInt32LE(0x07064b50, 0)
+    locator.writeBigUInt64LE(BigInt(length), 8)
+    push(Buffer.concat([end64, locator]))
+  }
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(zip64 ? 0xffff : entries.length, 8)
+  end.writeUInt16LE(zip64 ? 0xffff : entries.length, 10)
+  end.writeUInt32LE(zip64 ? 0xffffffff : directory, 16)
+  end.writeUInt16LE(comment.length, 20)
+  push(Buffer.concat([end, Buffer.from(comment)]))
+  return new Uint8Array(Buffer.concat(parts))
+}
 
 /** One stored local entry of `dataLen` bytes, listed by `records` central directory records, each declaring size 0. */
 function sharedStoredEntry(records: number, dataLen: number): Uint8Array {
@@ -149,6 +290,10 @@ function findSignature(bytes: Uint8Array, signature: number): number {
 
 const db = vi.hoisted(() => ({
   file: null as null | { content_type: string; bytes: string },
+  fileError: null as null | { message: string },
+  /** Reads of activity_app_files, and how long one takes, ms. */
+  fileReads: 0,
+  fileDelay: 0,
   existing: null as null | { version: string | null; enabled: boolean; builtin: boolean },
   rpc: vi.fn(),
 }))
@@ -159,7 +304,12 @@ vi.mock('../../config/supabase.js', () => ({
       const chain = {
         select: () => chain,
         eq: () => chain,
-        maybeSingle: async () => ({ data: table === 'activity_app_files' ? db.file : db.existing, error: null }),
+        maybeSingle: async () => {
+          if (table !== 'activity_app_files') return { data: db.existing, error: null }
+          db.fileReads++
+          if (db.fileDelay) await new Promise((resolve) => setTimeout(resolve, db.fileDelay))
+          return db.fileError ? { data: null, error: db.fileError } : { data: db.file, error: null }
+        },
       }
       return chain
     },
@@ -189,6 +339,9 @@ function app() {
 
 beforeEach(() => {
   db.file = null
+  db.fileError = null
+  db.fileReads = 0
+  db.fileDelay = 0
   db.existing = null
   db.rpc.mockReset()
 })
@@ -203,6 +356,62 @@ describe('package files', () => {
     expect(res.headers['content-security-policy']).toBe("sandbox; default-src 'none'")
     expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin')
     expect(res.headers['cache-control']).toContain('immutable')
+  })
+
+  it('reads a file once for concurrent requests and keeps serving it', async () => {
+    // 20 reads of 4 MB counted apart are 80 MB, past the 64 MB cache.
+    const bytes = Buffer.alloc(4 * 1024 * 1024, 0x41)
+    const sha = sha256Hex(bytes)
+    db.file = { content_type: 'text/javascript; charset=utf-8', bytes: `\\x${bytes.toString('hex')}` }
+    db.fileDelay = 200
+    const server = app()
+    const path = `/activities/pkg/bulk/${sha}.js`
+    const statuses = await Promise.all(Array.from({ length: 20 }, async () => (await supertest(server).get(path)).status))
+    expect(statuses).toEqual(Array(20).fill(200))
+    expect(db.fileReads).toBe(1)
+    expect((await supertest(server).get(path)).status).toBe(200)
+    expect(db.fileReads).toBe(1)
+  })
+
+  it('keeps at most 64 MB of files, dropping the least recently used', async () => {
+    const server = app()
+    const paths: string[] = []
+    for (let i = 0; i < 18; i++) {
+      const bytes = Buffer.alloc(4 * 1024 * 1024, i)
+      db.file = { content_type: 'text/javascript; charset=utf-8', bytes: `\\x${bytes.toString('hex')}` }
+      paths.push(`/activities/pkg/lru/${sha256Hex(bytes)}.js`)
+      expect((await supertest(server).get(paths[i])).status).toBe(200)
+    }
+    db.fileReads = 0
+    expect((await supertest(server).get(paths[17])).status).toBe(200)
+    expect(db.fileReads).toBe(0)
+    expect((await supertest(server).get(paths[0])).status).toBe(200)
+    expect(db.fileReads).toBe(1)
+  })
+
+  it('answers 503 while the file cannot be read, and reads again after', async () => {
+    const bytes = Buffer.from('later')
+    const path = `/activities/pkg/tictac/${sha256Hex(bytes)}.js`
+    db.fileError = { message: 'database down' }
+    expect((await supertest(app()).get(path)).status).toBe(503)
+    db.fileError = null
+    db.file = { content_type: 'text/javascript; charset=utf-8', bytes: `\\x${bytes.toString('hex')}` }
+    expect((await supertest(app()).get(path)).status).toBe(200)
+  })
+
+  it('does not cache a file read while its package is removed', async () => {
+    const bytes = Buffer.from('removed')
+    const path = `/activities/pkg/going/${sha256Hex(bytes)}.js`
+    db.file = { content_type: 'text/javascript; charset=utf-8', bytes: `\\x${bytes.toString('hex')}` }
+    db.fileDelay = 100
+    const server = app()
+    const reading = supertest(server).get(path).then((res) => res.status)
+    await vi.waitFor(() => expect(db.fileReads).toBe(1))
+    db.rpc.mockResolvedValue({ data: true, error: null })
+    expect((await supertest(server).delete('/admin/activities/going')).status).toBe(200)
+    expect(await reading).toBe(200)
+    db.file = null
+    expect((await supertest(server).get(path)).status).toBe(404)
   })
 
   it.each(['/activities/pkg/tictac/app.js', '/activities/pkg/Tic/0.js', `/activities/pkg/tictac/${'a'.repeat(64)}.html`])('404s %s', async (path) => {

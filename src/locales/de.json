@@ -5783,7 +5783,9 @@
         "signalsPerMinute": "Anrufsignale pro Minute",
         "signalsHint": "Aufbau von Peer-to-Peer-Anrufen, Annehmen und Auflegen von DM-Anrufen, Anrufeffekte. Der Beitritt zu einem Anruf mit zehn Personen braucht etwa 45.",
         "ringsPerMinute": "Getätigte Anrufe pro Minute",
-        "ringsHint": "Jeder Anruf klingelt einmal. Auflegen wird nie verweigert."
+        "ringsHint": "Jeder Anruf klingelt einmal. Auflegen wird nie verweigert.",
+        "rolePicksPerMinute": "Rollenwahlen pro Minute",
+        "rolePicksHint": "Selbst wählbare Rollen nehmen und ablegen. Jede Änderung erreicht alle im Server."
       },
       "bots": {
         "title": "Bots",
@@ -9116,11 +9118,11 @@
     "saved": "Neue Mitglieder bekommen diese Rolle.",
     "cleared": "Neue Mitglieder bekommen keine Rolle mehr.",
     "tooHigh": "Du kannst nur eine Rolle unter deiner höchsten Rolle wählen.",
-    "saveFailed": "Die Rolle für neue Mitglieder konnte nicht gespeichert werden."
+    "saveFailed": "Die Rolle für neue Mitglieder konnte nicht gespeichert werden.",
+    "notOpen": "Diese Rolle gibt Berechtigungen, die @everyone nicht hat, oder steht über einer solchen Rolle. Neuen Mitgliedern kann sie nicht gegeben werden.",
+    "currentNotOpen": "Diese Rolle kann neuen Mitgliedern nicht mehr gegeben werden. Wähle eine andere."
   },
   "playTogether": {
-    "button": "Zusammen spielen",
-    "launcherTitle": "Zusammen spielen",
     "launcherSubtitle": "Starte eine Aktivität, der hier alle beitreten können",
     "loadingApps": "Aktivitäten werden geladen…",
     "noApps": "Auf dieser Instanz sind keine Aktivitäten eingeschaltet.",

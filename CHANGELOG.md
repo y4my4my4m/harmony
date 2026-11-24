@@ -27,35 +27,48 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   Supabase Vault. Self-host: `harmony update` sets this up. Instances that keep their credentials in
   `supabase/.env` work as before, and a self-host install that keeps providers apart from existing
   accounts keeps Discord apart too.
-- **Play together.** The **Activities** button (popcorn) in a DM, a group, a text channel or a
-  call starts a multiplayer activity everyone there can join from the notice it posts; nobody needs
-  to be in a call. In a call the activity takes the stage like a shared screen. The panel docks above the
-  messages at a height you drag, expands over them, and keeps running behind a corner card when you
-  open another conversation. A game ends when its last player selects **Leave**; one whose last player
-  only lost the connection waits a minute for them to come back. The first activity is **DrawinPhone**: write a prompt, draw the next
-  one, describe the drawing after that, then replay every chain together with reactions and
-  favourites. Activities run sandboxed with no access to your account or your messages, and talk
-  through a relay in the federation backend; instance admins turn each on or off in **Admin** →
+- **Play together.** **Activities** (popcorn) starts a multiplayer activity everyone there can join
+  from the notice it posts; nobody needs to be in a call. It is a button in a text channel's header
+  and in a call, and an entry of **More options** (⋮) in a DM or a group. In a call the activity
+  takes the stage like a shared screen. The panel docks above the messages at a height you drag,
+  expands over them, and keeps running behind a corner card when you open another conversation. A
+  game ends when its last player selects **Leave**; one whose last player only lost the connection
+  waits a minute for them to come back. The first activity is **DrawinPhone**: write a prompt, draw
+  the next one, describe the drawing after that, then replay every chain together with reactions and
+  favourites. In a text channel, starting or joining takes **Send Messages**, and a member timed out
+  in the server cannot play: the notice and the banner give the reason instead of **Join**, and a
+  member who loses the permission mid-game is removed within 30 seconds. A conversation with someone
+  who blocks you answers as any conversation you cannot play in. Activities run sandboxed with no
+  access to your account, your messages or the desktop app, open no network or WebRTC connections of
+  their own, and talk through a relay in the federation backend that limits connections per IPv4
+  address or IPv6 /64, sockets not yet signed in and bytes queued for slow readers; a slow avatar
+  address delays nobody's game. Instance admins turn each activity on or off in **Admin** →
   **Activities**. Developers: see the Activities SDK in the docs.
 - **Install activities.** **Admin** → **Activities** → **Install an activity** takes an activity
-  package (a `.zip`, uploaded or from an `https://` address), shows what it is and its SHA-256
-  before installing, installs it switched off, and later checks its address for updates or removes
-  it. The instance serves its own copy in the same sandbox as the built-ins. Installed activities
-  carry a **Third-party** label in the picker, on the Join banner and above the game.
+  package (a `.zip` of at most 32 entries and 6 MB unpacked, uploaded or from an `https://` address),
+  shows what it is and its SHA-256 before installing, installs it switched off, and later checks its
+  address for updates or removes it. The instance serves its own copy in the same sandbox as the
+  built-ins. Installed activities carry a **Third-party** label in the picker, on the Join banner and
+  above the game. They run on computers only: phones run the frame in the app's own web process,
+  where one that never yields would freeze the app.
 - **Roles members pick themselves.** In the role editor, **Members can pick this role** (with a group
   and a short description) lists a role in **Pick roles**, in the server menu and on your own profile
   card, where members take it and drop it with a tap. `/rolemenu` posts a role menu card in a channel
   that works the same way, also in end-to-end encrypted servers. Only roles that give nothing a
-  member could misuse can be picked; the editor says why a role cannot.
+  member could misuse can be picked; the editor says why a role cannot. An account changes its
+  roles at most 60 times a minute by default, set in **Admin** → **Anti-spam**. Role menus are
+  posted only with **Manage roles** and cannot be edited.
 - **Role for new members.** **Server settings** → **Roles** → **Role for new members** gives a role
-  to everyone who joins from then on.
+  to everyone who joins from then on. A role that has permissions @everyone lacks, or sits above one
+  that does, cannot be chosen and is not given; one stored by an earlier version is cleared.
 - **Bots can give roles and post files.** `PUT` and `DELETE /servers/{id}/members/{user}/roles/{role}`
   give a member a role or take it away, within the bot's **Manage roles** reach; the server audit log
   names the bot. `POST /channels/{id}/attachments` uploads a file (an edited image, a chart) that the
   bot then sends in a message or a slash-command reply; it needs the new **Attach files** permission,
   on by default, counts toward the server's stored-bot-files limit, and loses its location and camera
-  metadata like any upload. Message and reaction events now carry `server_id`, and the member list
-  shows each member's role IDs.
+  metadata like any upload. Three uploads of a bot run at once and ten more wait, and the instance's
+  upload limit applies behind the shipped proxies. Message and reaction events now carry `server_id`,
+  and the member list shows each member's role IDs.
 - **Matrix bridge.** Harmony works with the [Matrix bridge](https://github.com/y4my4my4m/harmony-matrix-bridge),
   an application service an instance operator runs beside a Matrix homeserver. Messages, replies,
   images and files cross both ways between a paired channel and Matrix room, in channels without
@@ -64,7 +77,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   mentions, the member list, reactions, notifications and their profile card. Harmony members appear
   in Matrix as their own Matrix users or through one shared bridge account, chosen per channel in
   **Server settings** → **Bridges** → **Matrix**. Server managers remove a Matrix person from the
-  bridge and erase what it relayed there, as for Discord people. (#197, ZaneH)
+  bridge and erase what it relayed there, as for Discord people. Matrix people's avatars count
+  toward the server's limit on stored bridge files, at most 1000 per bridge bot, and are deleted an
+  hour after the bridge is removed. On other instances' copies of the server, a Matrix person's
+  messages carry their name and picture; instances on 1.9.7 and older show them as a webhook's.
+  (#197, ZaneH)
 - **One Bridges page.** **Server settings** → **Bridges** holds the Discord and Matrix bridges on two
   tabs. Links to the former **Discord Bridge** page open the Discord tab.
 - **Matrix bridges are set up in the app.** **Server settings** → **Bridges** → **Matrix** pairs
@@ -75,21 +92,26 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Keep your messages off a bridge.** **Bridge privacy** in a server's menu stops its Discord or
   Matrix bridge, each on its own, from relaying your messages, edits, reactions and the bots' public
   answers to your slash commands. Deleting a message still reaches the bridge, so a copy relayed
-  before is removed too. The entry shows only in servers with a bridge, and the choice lasts when you
-  leave and rejoin. (#197, ZaneH)
-- **Discord history import through every bridge.** **Admin** → **Config** → **Discord bridge** →
-  **Discord history import** has a third choice, **All bridges**: besides bridges their server's
-  owner runs, the instance's Discord bot and the own-bot bridges the instance hosts can import. The
-  three choices are cards with a line each instead of a drop-down. Needs the bridge host 2.8.0.
+  before is removed too. The notice that a member who opted out started a thread is withheld, and
+  the bridge reads their thread's name as "Thread"; other people's replies there still cross. The
+  entry shows only in servers with a bridge, and the choice lasts when you leave and rejoin.
+  (#197, ZaneH)
+- **Discord history import through every bridge.** **Admin** → **Config** → **General** →
+  **Discord bridge** → **Discord history import** has a third choice, **All bridges**: besides
+  bridges their server's owner runs, the instance's Discord bot and the own-bot bridges the instance
+  hosts can import. The three choices are cards with a line each instead of a drop-down. Needs the
+  bridge host 2.8.0.
 - **Import private Discord channels from Harmony.** A pair whose Discord channel `@everyone` cannot
   read shows a lock. **Import all** and **Import history** name those channels and ask a second
   time before including them; left unticked, they are left out and the others start. On Discord,
   `/bridge import-history scope:all` still starts every channel the member can read in one command.
   The notice the bridge pins in each imported Discord channel no longer sends a push notification,
   and Discord's "pinned a message" line is removed (bridge 2.8.0).
-- **Self-host: uploads in an S3-compatible bucket.** `STORAGE_BACKEND=s3` with the `GLOBAL_S3_*`,
-  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `REGION` keys in `supabase/.env` keeps uploads in
-  Cloudflare R2, MinIO or AWS S3 instead of `supabase/volumes/storage`. Unset, storage stays on disk.
+- **Self-host: uploads in an S3-compatible bucket.** `STORAGE_BACKEND=s3` with the `STORAGE_S3_*`
+  keys (`BUCKET`, `ENDPOINT`, `REGION`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `FORCE_PATH_STYLE`) in
+  `supabase/.env` keeps uploads in Cloudflare R2, MinIO or AWS S3 instead of
+  `supabase/volumes/storage`. AWS variables exported in your shell never reach it. Unset, storage
+  stays on disk.
 
 ### Fixed
 
@@ -100,8 +122,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   filter counts read one stored statistics snapshot instead of many exact counts at once, which held
   every database connection and made other requests fail. **Overview** says when its figures were
   computed, counts accounts and posts of the last 24 hours, and shows chat servers active in the
-  last 30 days. A suspension made in the panel updates the counts at once. Totals over very large
-  tables are estimates, marked ≈.
+  last 30 days. A suspension made in the panel updates the counts at once. If a refresh fails, the
+  last figures stay, with their age. Totals over very large tables are estimates, marked ≈.
 - **Announcements show the emoji or icon their admin chose.** The **Icon** field takes an emoji, or
   info, warning, megaphone, maintenance, update or security; an emoji and `megaphone` showed the
   info icon in the pop-up, on **Today** and in **User settings** → **Announcements**.
@@ -115,18 +137,27 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   other stopped receiving reactions.
 - **DM call answers and hang-ups, and voice room effects, carry their real sender.** A participant
   can no longer answer, decline or end a call as someone else, or start an effect in another
-  member's name. Apps before 1.9.8 cannot answer or end DM calls with updated apps until they
+  member's name. Apps before 1.9.8 cannot answer or end DM calls on an updated instance until they
   update.
-- **Answering or declining a call from another instance on one device stops it ringing on your
-  others.**
+- **Answering or declining a call on one device stops it ringing on your others**, calls from other
+  instances included. Nobody else in the conversation can stop it for you, and a declined call no
+  longer reports "Missed call".
 - **Peer-to-peer calls carry their real sender.** Without LiveKit, call signals go through the
   database, which names the sender; no member can offer media or end connections as another. Apps
   before 1.9.8 cannot connect peer-to-peer calls on an updated instance until they update.
+- **Downloading a file no longer drops the call you are in.** On the web, following a file link makes
+  the browser announce that the page is leaving before it starts the download; calls took that as a
+  close. They end when the page really goes.
+- **A peer-to-peer call that cannot be joined releases the microphone.** A join that failed kept the
+  microphone open and the room's signals connected.
+- **Signing out during a call leaves it at once.** The leave was sent after the session ended and
+  refused, so others saw you until the connection timed out.
+- **A call ends when its session does, and the microphone with it.** Signing out in another tab, or a
+  session revoked from elsewhere, left a running call up in this tab with the microphone on, and the
+  other-tab case stayed on the page. The call closes at once and the page returns to sign-in.
 - **Rejoining a peer-to-peer call no longer leaves a second connection and doubled audio.**
 - **Peer-to-peer calls connect when two people join at the same moment.**
 - **A DM call whose join fails stops ringing at once**, with no "No answer" 30 s later.
-- **Answering or declining a call on one device stops it ringing on your others**, nobody else in
-  the conversation can stop it for you, and a declined call no longer reports "Missed call".
 - **Signing out leaves you offline.** A heartbeat during sign-out no longer showed the account
   online for up to 150 s.
 - **A two-factor code that verifies after the 30 s timeout finishes the sign-in properly**, for
@@ -160,7 +191,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   excerpts from bridged messages stay out of the logs.
 - **Discord people stay in their own channel's member list.** Leaving a bridged channel before its
   member list loaded put its Discord people in the list of the channel opened next, even in another
-  server, where they then came and went every minute.
+  server, where they then came and went every minute. A server opened next no longer shows the last
+  one's bridged people for a moment either, and a bot gateway that does not answer has 15 seconds.
+- **`@` suggests bridged people whichever bot bridges them.** A bridge bot that is private suggested
+  its people to its owner only.
+- **Add people in a conversation lists everyone in it.** Opened from the header of a group, the
+  picker listed nobody already there, and an account whose profile id differs from its sign-in id
+  was offered as someone to add.
+- **Files stored at the same time no longer pass a server's limit together.** Bot uploads and
+  mirrored Discord files claim their space before they are read, and release it when they fail.
 - **A reply shows a Discord or Matrix person in their own name colour.** A reply quoting a bridged
   person drew their name in Discord blurple whenever it appeared before the channel's member list
   loaded; it now takes their role colour when the list arrives, as their own message does.
@@ -169,14 +208,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `WEB_DOMAIN` setups, Shoot): new messages store the account itself and show it as
   `@maddy@understars.dev`, as Mastodon does, and mentions already sent, or of an account this
   instance has not met yet, are looked up when clicked instead of doing nothing.
-- **A Discord file added by an edit is stored even when the edit lands mid-download.** The mirror
-  worker dropped the message from its queue, so the new file kept a Discord link that expired after
-  about a day.
+- **A Discord file added by an edit is stored even when the edit lands mid-download**, instead of
+  keeping a Discord link that expires after about a day.
 - **One deleted Discord attachment no longer keeps a message's other files from being stored.** The
   others are stored at once; only the dead link waits for a re-sign.
 - **Mirroring Discord files no longer slows down as a server stores more of them.** The per-server
-  limit and the admin's "Storing Discord files" figure now read running totals instead of adding up
-  every stored file.
+  limit and the admin's "Storing Discord files" figure take the same time to read however many files
+  are stored.
 - **History import no longer leaves stray files** when a batch repeats a Discord message or fails
   partway.
 - **A Discord message relayed after the history import stored it now notifies.** The live copy
@@ -239,8 +277,6 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   matches already held the role.
 - **A reply typed into a notification is sent only as the account it was for.** Unsent replies
   survived sign-out and went out as whoever signed in next.
-- **Play together no longer tells a blocked account it is blocked.** A direct conversation with
-  someone who blocks you answers as any conversation you cannot play in.
 - **Calling someone who blocks you no longer ends your current call first.** From another call,
   Harmony says "Your call could not be placed." before asking to switch calls.
 - **A personal emoji's owner is shown to everyone.** An account its owner blocks saw no name, which
@@ -305,10 +341,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   server." whenever that instance kept the default name. It now names the instance's domain, as
   the invite dialog does.
 - **Uploads survive a dropped request.** An attachment, avatar, banner or server icon under 6 MB
-  went up in one request, and when that request failed on the network or stalled, the upload
-  failed with "Network error". It is now sent once more a second later, or once the device is back
-  online. When the first request had in fact been stored and only its answer was lost, the upload
-  completes. Some Firefox installs on Android lost such requests after their preflight.
+  whose request failed on the network or stalled ended in "Network error", as some did in Firefox on
+  Android. The request is now sent once more a second later, or once the device is back online, and
+  an upload the instance had stored, with only its answer lost, completes.
 - **Public NeoDB posts appear on imported profiles.** Posts fetched from an account's outbox
   now use the same visibility rules as incoming federation activities, recognizing NeoDB's
   compact `as:Public` audience instead of treating public posts as direct messages.
@@ -337,7 +372,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
-- **A quieter DM header.** A DM or group shows **Call**, **Search** and **More options** (⋯). A
+- **A quieter DM header.** A DM or group shows **Call**, **Search** and **More options** (⋮). A
   call starts with your camera off, and the call bar turns it on while it rings or after it is
   answered; **More options** holds **Add people**, **Start video call** for video from the first
   second, and **Activities**.
@@ -347,25 +382,27 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   SVG, XML and scripts are always stored that way, so nothing sent opens as a page. Size limits are
   unchanged.
 - **One Activities button in calls.** Watch or listen together and the games share one
-  **Activities** dialog behind the popcorn button: in a call on this instance's servers it offers a link or a Drive file to
-  watch together above the games; elsewhere it lists the games. The voice dock drops from 14
-  controls to 10 in three groups parted by separators (the call, what plays in it, the view):
-  **Participants**, **Spatial audio**, **Voice settings** and **Pop out call** sit under **More
-  options** (⋯).
-  Arrows pointing out open a larger view and arrows pointing in a smaller one, in the dock, the
-  minimized dock and the call view alike; the square corners mean full screen only, and floating
-  the dock has its own icon instead of Pop out's.
+  **Activities** dialog behind the popcorn button: in a call on this instance's servers it offers a
+  link or a Drive file to watch together above the games; elsewhere it lists the games. The voice
+  dock drops from 14 controls to 10 in three groups parted by separators (the call, what plays in
+  it, the view): **Participants**, **Spatial audio**, **Voice settings** and **Pop out call** sit
+  under **More options** (⋯). Arrows pointing out open a larger view and arrows pointing in a smaller
+  one, in the dock, the minimized dock and the call view alike; the square corners mean full screen
+  only, and floating the dock has its own icon instead of Pop out's.
 - **Discover communities shows more servers.** On both tabs the search and filters fold behind a
   **Search and filters** button and open folded; the tabs, the count and every active filter stay
   on screen, each filter a chip that clears it, and scrolling the list folds open controls. Other
   instances has one field: it filters the listed servers as you type, and a typed domain is offered
   as **Browse example.social** (or Enter); the known instances still filter by instance. Join sits
-  beside a server's icon. In a 1280×1000 window the sheet shows 4 whole cards on This instance and
-  12 on Other instances, where it showed 1 and 3; on a phone 2 and 4, where it showed 1 and 1.
+  beside a server's icon. A 1280×1000 window fits 4 whole cards on This instance and 12 on Other
+  instances; a phone fits 2 and 4.
 - **A group chat holds up to 10 people**, its creator included, as a Discord group DM. The picker
-  shows the spots left and stops at the tenth person; adding, rejoining or a group arriving from
-  another instance past 10 is refused with "This group is full". A group already larger keeps
-  its members and takes nobody new until it is below 10.
+  shows the spots left and stops at the tenth person; adding or rejoining past 10 is refused with
+  "This group is full". A group started on another instance arrives with everyone its message names.
+  A group already larger keeps its members and takes nobody new here until it is below 10.
+- **Docs and tests.** The docs cover the changes of 1.9.7, and this file has headings for 1.6.21,
+  1.9.5, 1.9.6 and 1.9.7 (#220, #221, impascab). The database test of busy sign-up days passes in
+  the first hour of a UTC day (#216, ROODAY).
 
 ### Security
 
@@ -373,16 +410,6 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   longer run the app's native commands. The Android WebView handed every embedded frame the same
   bridge to the app as Harmony's own page; the bridge now answers Harmony's page only. On a
   WebView too old for that, the app runs no activities and asks to update Android System WebView.
-- Activities: joining a text channel's game takes **Send Messages** there, as starting one did,
-  and a member timed out in the server cannot play in its channels; both see the game and the
-  reason instead of **Join**, and a member who loses the permission mid-game is removed within 30
-  seconds. Installing an activity package reads at most 32 zip entries and 6 MB as written: a
-  crafted zip of a few bytes could stall the federation backend for minutes or exhaust its memory.
-  The activity relay counts its per-address limits per IPv6 /64, caps sockets that have not signed
-  in, and caps bytes queued for slow readers across all connections. A slow avatar address no
-  longer holds the game for everyone. The activity frame loses the desktop app's message ports
-  before the activity runs. Installed packages run on computers only: phones run the frame in the
-  app's own web process, where one that never yields would freeze the app.
 
 ### Notes for self-hosters
 
@@ -390,9 +417,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   without pg_cron, opening the panel refreshes figures older than 15 minutes. Posts, messages and
   profiles are now vacuumed once 5% of their rows change. Nothing to do.
 - Discord history import also has **All bridges**: communities import through every bridge, the
-  instance's Discord bot included, set under **Admin** → **Config** → **Discord bridge** → **Discord
-  history import**. Imports through the instance bot and hosted own-bot bridges need the bridge host
-  2.8.0 (`harmony update`).
+  instance's Discord bot included, set under **Admin** → **Config** → **General** → **Discord
+  bridge** → **Discord history import**. Imports through the instance bot and hosted own-bot bridges
+  need the bridge host 2.8.0 (`harmony update`).
+- Behind your own reverse proxy, pass `/api/federation/activities/socket` as a WebSocket and
+  `/activities/` to the web container; `docs/self-host/activities.md` has the nginx locations. The
+  bundled Caddy passes both.
 - Peer-to-peer calls (instances without LiveKit) send their signals through the database, which
   names the sender. Apps before 1.9.8 cannot connect peer-to-peer calls on an updated instance, and
   cannot answer or end direct-message calls there, until they update; web tabs pick it up on reload.
@@ -1324,7 +1354,14 @@ Key features at this snapshot:
 - Tauri desktop app and web app from the same codebase
 - Self-hosting via Docker Compose; install script under `scripts/install.sh`
 
-[Unreleased]: https://github.com/y4my4my4m/harmony/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/y4my4my4m/harmony/compare/v1.9.7...HEAD
+[1.9.7]: https://github.com/y4my4my4m/harmony/compare/v1.9.6...v1.9.7
+[1.9.6]: https://github.com/y4my4my4m/harmony/compare/v1.9.5...v1.9.6
+[1.9.5]: https://github.com/y4my4my4m/harmony/compare/v1.6.21...v1.9.5
+[1.6.21]: https://github.com/y4my4my4m/harmony/compare/v1.6.7...v1.6.21
+[1.6.7]: https://github.com/y4my4my4m/harmony/compare/v1.6.2...v1.6.7
+[1.6.2]: https://github.com/y4my4my4m/harmony/compare/v1.6.1...v1.6.2
+[1.6.1]: https://github.com/y4my4my4m/harmony/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/y4my4my4m/harmony/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/y4my4my4m/harmony/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/y4my4my4m/harmony/compare/v1.1.0...v1.4.0

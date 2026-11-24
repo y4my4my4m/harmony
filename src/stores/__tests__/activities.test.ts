@@ -12,12 +12,13 @@ vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 
 
 const serverList = vi.hoisted(() => ({ rows: [] as unknown[] }))
 // The row get_voice_activity answers.
-const row = vi.hoisted(() => ({ activity: null as unknown, reads: 0 }))
+const row = vi.hoisted(() => ({ activity: null as unknown, reads: 0, gate: undefined as Promise<void> | undefined }))
 vi.mock('@/services/activities/activityService', async (load) => ({
   ...(await load<typeof import('@/services/activities/activityService')>()),
   getServerActivities: async () => serverList.rows,
   getActivity: async () => {
     row.reads++
+    await row.gate
     return { activity: row.activity, server_now: Date.now() }
   },
 }))
@@ -37,10 +38,31 @@ beforeEach(() => {
   vi.setSystemTime(2000)
   row.activity = null
   row.reads = 0
+  row.gate = undefined
 })
 afterEach(() => vi.useRealTimers())
 
 describe('activities store', () => {
+  it('reset forgets what the account saw, joined and hid, and an answer it was still waiting for', async () => {
+    const store = useActivitiesStore()
+    store.apply('ch-1', state(), true)
+    store.join()
+    store.hide('ch-1', true)
+    let release!: () => void
+    row.gate = new Promise<void>((resolve) => { release = resolve })
+    row.activity = state({ revision: 5 })
+    const pending = store.refresh('ch-1')
+
+    store.reset()
+    expect(store.byChannel).toEqual({})
+    expect(store.joined.size).toBe(0)
+    expect(store.hidden.size).toBe(0)
+
+    release()
+    await pending
+    expect(store.byChannel).toEqual({})
+  })
+
   it('applies a newer revision of the run it holds and ignores an older one', () => {
     const store = useActivitiesStore()
     expect(store.apply('ch-1', state({ revision: 3 }), true)).toBe(true)

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h, ref } from 'vue'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
-const { fetchUsers } = vi.hoisted(() => ({ fetchUsers: vi.fn() }))
+const { fetchUsers, installed } = vi.hoisted(() => ({ fetchUsers: vi.fn(), installed: { rows: [] as unknown[] } }))
 vi.mock('@/stores/useEmojiCache', () => ({ useEmojiCacheStore: () => ({ resolvedEmojis: {}, isInitialized: true, serverCaches: new Map() }) }))
 vi.mock('@/stores/useServerChannel', async () => {
   const { reactive } = await import('vue')
@@ -25,12 +25,12 @@ vi.mock('@/services/instanceConfig', () => ({
   refreshStoredInstance: async () => null,
 }))
 vi.mock('@/services/bridgedChannelUsersService', async original => ({ ...await original<typeof import('@/services/bridgedChannelUsersService')>(), fetchBridgedChannelUsers: fetchUsers }))
-// Every query answers one installed bridge bot.
+// Every query answers the installed bots.
 vi.mock('@/supabase', () => {
   const builder: any = new Proxy(() => builder, {
     get: (_target, prop) =>
       prop === 'then'
-        ? (resolve: (value: unknown) => void) => resolve({ data: [{ bot: { bot_type: 'bridge' } }], error: null })
+        ? (resolve: (value: unknown) => void) => resolve({ data: installed.rows, error: null })
         : builder,
     apply: () => builder,
   })
@@ -42,7 +42,14 @@ const member = (id = '@sam:example.org') => ({ id, source: 'matrix', username: '
 let wrapper: VueWrapper
 let auto: ReturnType<typeof useAutoSuggest>
 const text = ref('@sam')
-beforeEach(() => { setActivePinia(createPinia()); fetchUsers.mockReset(); text.value = '@sam'; useServerChannelStore().currentChannelId = 'channel' })
+const MATRIX_BOT = { bot: { bot_type: 'bot', bridge_platform: 'matrix' } }
+let servers = 0
+beforeEach(() => {
+  setActivePinia(createPinia()); fetchUsers.mockReset(); text.value = '@sam'
+  installed.rows = [MATRIX_BOT]
+  // The bridge bot check is cached per server for the whole file.
+  Object.assign(useServerChannelStore(), { currentServerId: `server-${++servers}`, currentChannelId: 'channel' })
+})
 afterEach(() => wrapper?.unmount())
 function open() {
   wrapper = mount(defineComponent({ setup() {
@@ -63,6 +70,25 @@ describe('bridged member mention picker', () => {
     expect(discord).toMatchObject({ display_name: 'Matrix Sam', username: 'sam', display_text: '@sam', isBridged: true, bridgeSource: 'discord' })
     auto.selectSuggestion(matrix)
     expect(text.value).toBe('<@matrix:%40sam%3Aexample.org> ')
+  })
+  it.each([
+    ['a Matrix bridge bot', [MATRIX_BOT]],
+    ['a Discord bridge bot', [{ bot: { bot_type: 'bridge', bridge_platform: null } }]],
+    ['a private bot of another member, whose row RLS hides', [{ bot: null }]],
+  ])('asks for bridged people on a server with only %s', async (_name, rows) => {
+    installed.rows = rows
+    fetchUsers.mockResolvedValue({ users: [member()] })
+    open(); await flushPromises()
+    expect(fetchUsers).toHaveBeenCalledExactlyOnceWith('channel')
+    expect(auto.suggestions.value.map(item => item.id)).toContain('matrix:@sam:example.org')
+  })
+  it.each([
+    ['no bot', []],
+    ['an ordinary bot', [{ bot: { bot_type: 'bot', bridge_platform: null } }]],
+  ])('asks for none on a server with %s', async (_name, rows) => {
+    installed.rows = rows
+    open(); await flushPromises()
+    expect(fetchUsers).not.toHaveBeenCalled()
   })
   it('keeps the Discord compact source token unchanged', async () => {
     fetchUsers.mockResolvedValue({ users: [{ ...member('123'), source: 'discord' }] })

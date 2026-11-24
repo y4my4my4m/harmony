@@ -392,10 +392,10 @@ const emit = defineEmits<{
 // Call state for THIS conversation. Another DM or a server voice channel
 // does not count: its buttons would otherwise read "End call" here and a
 // signal for this conversation would hang up the other call.
-const isInVoiceCall = computed(() =>
+const inCallOf = (conversationId: string) =>
   voiceStore.isConnectedOrJoining &&
-  dmConversationIdFromChannel(voiceStore.effectiveChannelId) === props.conversation.id
-)
+  dmConversationIdFromChannel(voiceStore.effectiveChannelId) === conversationId
+const isInVoiceCall = computed(() => inCallOf(props.conversation.id))
 const isInVideoCall = computed(() => isInVoiceCall.value && voiceStore.localState.isVideoEnabled)
 
 // Active call state for any DM (1:1 or group). Reading callStateVersion
@@ -564,6 +564,7 @@ let callSignalUnsubscribe: (() => void) | null = null
 
 const handleCallSignal = async (signal: CallSignal) => {
   if (!authStore.session?.user?.id) return
+  const conversation = props.conversation
 
   // Signal participant IDs and permission lookups key on
   // profile ids, not auth UUIDs; the rest of the call codebase resolves via
@@ -594,7 +595,7 @@ const handleCallSignal = async (signal: CallSignal) => {
     case 'end':
       stopCallerRinging()
       dmCallSignaling.handleRemoteSignal(signal)
-      if (isInVoiceCall.value) {
+      if (inCallOf(conversation.id)) {
         voiceStore.leaveVoiceChannel()
         toast.info('Call ended')
       }
@@ -613,7 +614,9 @@ const handleCallSignal = async (signal: CallSignal) => {
       stopCallerRinging()
       toast.info('User is busy')
       // A direct call has nobody else to ring: it ends instead of waiting out the timeout.
-      if (props.conversation.type !== 'group') await abandonOwnRing(currentUserId)
+      if (conversation.type !== 'group') {
+        await abandonOwnRing(currentUserId, conversation.id).catch(error => debug.warn('Cancelling a busy call failed:', error))
+      }
       break
       
     case 'timeout':
@@ -908,12 +911,13 @@ const handleCloseDM = () => {
 }
 
 const toggleVoiceCall = async () => {
+  const conversation = props.conversation
   try {
     if (isInVoiceCall.value) {
       stopCallerRinging()
-      if (dmCallSignaling.isFederatedCall(props.conversation.id)) {
+      if (dmCallSignaling.isFederatedCall(conversation.id)) {
         const profileId = await authContextService.getCurrentProfileId()
-        if (profileId) await dmCallSignaling.endFederatedCall(props.conversation.id, profileId)
+        if (profileId) await dmCallSignaling.endFederatedCall(conversation.id, profileId)
       }
       await voiceStore.leaveVoiceChannel()
     } else {
@@ -925,7 +929,7 @@ const toggleVoiceCall = async () => {
         return
       }
 
-      await startCall(profileId, 'voice')
+      await startCall(profileId, 'voice', conversation)
     }
   } catch (error) {
     debug.error('Error toggling voice call:', error)
@@ -936,11 +940,12 @@ const toggleVoiceCall = async () => {
 /**
  * Route per dmCallRoute; a peer still loading is resolved from its profile.
  * Refusals come before the switch-calls confirm, so a refused call leaves the
- * caller in its current voice channel.
+ * caller in its current voice channel. A call is of the `conversation` it was
+ * placed in, whichever the header shows by the time a step of it ends.
  */
-const startCall = async (profileId: string, callType: 'voice' | 'video') => {
-  let route = dmCallRoute(props.conversation)
-  const peer = props.conversation.type === 'group' ? null : props.conversation.other_user
+const startCall = async (profileId: string, callType: 'voice' | 'video', conversation: DMConversation) => {
+  let route = dmCallRoute(conversation)
+  const peer = conversation.type === 'group' ? null : conversation.other_user
   if (route === 'unknown' && peer?.id) {
     const { data } = await supabase.from('profiles').select('is_local').eq('id', peer.id).maybeSingle()
     route = data?.is_local === false ? 'federated' : 'local'
@@ -948,13 +953,13 @@ const startCall = async (profileId: string, callType: 'voice' | 'video') => {
 
   if (route === 'federated') {
     if (!(await leaveCurrentCallFor())) return
-    await startFederatedCall(profileId, callType)
+    await startFederatedCall(profileId, callType, conversation)
     return
   }
 
-  const receiverIds = getReceiverIds()
+  const receiverIds = localCallReceivers(conversation, profileId)
   if (receiverIds.length === 0) {
-    toast.error(props.conversation.type === 'group'
+    toast.error(conversation.type === 'group'
       ? 'No members on this instance to call. Group calls do not reach other instances.'
       : 'No participants to call')
     return
@@ -967,12 +972,12 @@ const startCall = async (profileId: string, callType: 'voice' | 'video') => {
     }
   }
   // An encrypted conversation's call this device cannot join rings no one.
-  if (!(await ensureCanJoinCall('dm', `dm-${props.conversation.id}`))) return
+  if (!(await ensureCanJoinCall('dm', `dm-${conversation.id}`))) return
   // In another call, a refusal comes before the switch, which leaves that call. Out of one,
   // placing the call answers the same with no extra request.
   if (peer?.id && voiceStore.isConnectedOrJoining) {
     try {
-      await dmCallSignaling.checkCallDeliverable(props.conversation.id)
+      await dmCallSignaling.checkCallDeliverable(conversation.id)
     } catch (error) {
       if (error instanceof CallUndeliverableError) {
         toast.error(t('dm.callUndeliverable'))
@@ -982,12 +987,16 @@ const startCall = async (profileId: string, callType: 'voice' | 'video') => {
     }
   }
   if (!(await leaveCurrentCallFor())) return
-  await startLocalCall(profileId, callType, receiverIds)
+  await startLocalCall(profileId, callType, receiverIds, conversation.id)
 }
 
-/** Rings only while this client's call is still unanswered and unrefused. */
-const ringIfStillRinging = () => {
-  if (!ringRefused && dmCallSignaling.getActiveCall(props.conversation.id)?.ringing) {
+/**
+ * Rings only while this client's call is still unanswered and unrefused, and its
+ * conversation shown: the answer that stops the jingle is heard there.
+ */
+const ringIfStillRinging = (conversationId: string) => {
+  if (props.conversation.id !== conversationId) return
+  if (!ringRefused && dmCallSignaling.getActiveCall(conversationId)?.ringing) {
     startCallerRinging()
   }
 }
@@ -996,24 +1005,24 @@ const ringIfStillRinging = () => {
  * Ends this client's unanswered call: leaving the room cancels the ring on
  * every receiver. Before the join starts there is no room to leave.
  */
-const abandonOwnRing = async (profileId: string) => {
-  const call = dmCallSignaling.getActiveCall(props.conversation.id)
+const abandonOwnRing = async (profileId: string, conversationId: string) => {
+  const call = dmCallSignaling.getActiveCall(conversationId)
   if (!call?.ringing || call.callerId !== profileId) return
   ringAbandoned = true
-  if (isInVoiceCall.value) {
+  if (inCallOf(conversationId)) {
     await voiceStore.leaveVoiceChannel()
   } else {
-    await dmCallSignaling.leaveCall(props.conversation.id, profileId)
+    await dmCallSignaling.leaveCall(conversationId, profileId)
   }
 }
 
-const startLocalCall = async (profileId: string, callType: 'voice' | 'video', receiverIds: string[]) => {
-  const dmChannelId = `dm-${props.conversation.id}`
+const startLocalCall = async (profileId: string, callType: 'voice' | 'video', receiverIds: string[], conversationId: string) => {
+  const dmChannelId = `dm-${conversationId}`
   
   ringRefused = false
   ringAbandoned = false
   try {
-    await dmCallSignaling.initiateCall(props.conversation.id, profileId, callType, receiverIds)
+    await dmCallSignaling.initiateCall(conversationId, profileId, callType, receiverIds)
   } catch (error) {
     // A block refuses the call as it refuses a message, in words that do not name a block.
     if (error instanceof CallUndeliverableError) {
@@ -1039,18 +1048,18 @@ const startLocalCall = async (profileId: string, callType: 'voice' | 'video', re
     if (callType === 'video') {
       await voiceStore.toggleVideo()
     }
-    ringIfStillRinging()
+    ringIfStillRinging(conversationId)
     voiceStore.isOverlayVisible = true
     debug.log(`${callType} call overlay opened for caller`)
   } else {
     toast.error(voiceStore.joinError || 'Failed to start call')
     // The ring ends with the call: receivers stop ringing, and no "No answer" follows.
-    await abandonOwnRing(profileId).catch(error => debug.warn('Cancelling the ring of a failed call failed:', error))
+    await abandonOwnRing(profileId, conversationId).catch(error => debug.warn('Cancelling the ring of a failed call failed:', error))
   }
 }
 
-const startFederatedCall = async (profileId: string, callType: 'voice' | 'video') => {
-  const otherUser = props.conversation.other_user
+const startFederatedCall = async (profileId: string, callType: 'voice' | 'video', conversation: DMConversation) => {
+  const otherUser = conversation.other_user
   let calleeFederatedId = otherUser?.federated_id
   if (!calleeFederatedId && otherUser?.id) {
     const { data } = await supabase.from('profiles').select('federated_id').eq('id', otherUser.id).maybeSingle()
@@ -1078,7 +1087,7 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
   let callInfo: Awaited<ReturnType<typeof dmCallSignaling.initiateFederatedCall>>
   try {
     callInfo = await dmCallSignaling.initiateFederatedCall(
-      props.conversation.id,
+      conversation.id,
       profileId,
       callerFederatedId,
       calleeFederatedId,
@@ -1104,19 +1113,20 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     if (callType === 'video') {
       await voiceStore.toggleVideo()
     }
-    ringIfStillRinging()
+    ringIfStillRinging(conversation.id)
     voiceStore.isOverlayVisible = true
     debug.log(`Federated ${callType} call initiated`)
   } else {
     toast.error(voiceStore.joinError || 'Failed to start call')
     // The ring ends on the backend, which tells the callee's instance; no "No answer" follows.
-    if (dmCallSignaling.getActiveCall(props.conversation.id)?.ringing) {
-      await dmCallSignaling.endFederatedCall(props.conversation.id, profileId)
+    if (dmCallSignaling.getActiveCall(conversation.id)?.ringing) {
+      await dmCallSignaling.endFederatedCall(conversation.id, profileId)
     }
   }
 }
 
 const joinActiveCall = async () => {
+  const conversation = props.conversation
   try {
     const profileId = await authContextService.getCurrentProfileId()
     if (!profileId) {
@@ -1124,10 +1134,10 @@ const joinActiveCall = async () => {
       return
     }
     
-    if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
+    if (conversation.type !== 'group' && conversation.other_user?.id) {
       const permissionCheck = await dmCallPermissions.canPlaceCall(
         profileId,
-        props.conversation.other_user.id
+        conversation.other_user.id
       )
       if (!permissionCheck.allowed) {
         toast.error(permissionCheck.message || 'Cannot join this call')
@@ -1135,7 +1145,7 @@ const joinActiveCall = async () => {
       }
     }
     
-    await joinConversationCall(props.conversation.id)
+    await joinConversationCall(conversation.id)
   } catch (error) {
     debug.error('Error joining call:', error)
     toast.error('Failed to join call')
@@ -1143,6 +1153,7 @@ const joinActiveCall = async () => {
 }
 
 const toggleVideoCall = async () => {
+  const conversation = props.conversation
   try {
     const profileId = await authContextService.getCurrentProfileId()
     if (!profileId) {
@@ -1150,8 +1161,8 @@ const toggleVideoCall = async () => {
       return
     }
     
-    if (!isInVoiceCall.value) {
-      await startCall(profileId, 'video')
+    if (!inCallOf(conversation.id)) {
+      await startCall(profileId, 'video', conversation)
     } else {
       await voiceStore.toggleVideo()
 
@@ -1164,8 +1175,6 @@ const toggleVideoCall = async () => {
     toast.error('Failed to toggle camera')
   }
 }
-
-const getReceiverIds = (): string[] => localCallReceivers(props.conversation, authStore.session?.user?.id)
 
 const stripShortcodes = (text: string): string => {
   if (!text) return text

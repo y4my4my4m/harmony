@@ -5779,7 +5779,9 @@
         "signalsPerMinute": "Call signals per minute",
         "signalsHint": "Setting up peer-to-peer calls, answering and hanging up DM calls, call effects. Joining a call of ten people takes about 45.",
         "ringsPerMinute": "Calls placed per minute",
-        "ringsHint": "Each call rings once. Hanging up is never refused."
+        "ringsHint": "Each call rings once. Hanging up is never refused.",
+        "rolePicksPerMinute": "Role picks per minute",
+        "rolePicksHint": "Taking and dropping self-assignable roles. Each change reaches everyone in the server."
       },
       "bots": {
         "title": "Bots",
@@ -9112,11 +9114,11 @@
     "saved": "New members will get this role.",
     "cleared": "New members no longer get a role.",
     "tooHigh": "You can only choose a role below your highest role.",
-    "saveFailed": "Couldn’t save the role for new members."
+    "saveFailed": "Couldn’t save the role for new members.",
+    "notOpen": "That role gives permissions @everyone lacks or sits above one that does, so it can’t be given to new members.",
+    "currentNotOpen": "This role can no longer be given to new members. Choose another."
   },
   "playTogether": {
-    "button": "Play together",
-    "launcherTitle": "Play together",
     "launcherSubtitle": "Start an activity everyone here can join",
     "loadingApps": "Loading activities…",
     "noApps": "No activities are turned on for this instance.",

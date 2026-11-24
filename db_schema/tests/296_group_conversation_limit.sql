@@ -1,12 +1,14 @@
--- Group conversations hold at most 10 active participants after 20261116100001.
+-- Group conversations hold at most 10 active participants after 20261116100001; a group started on
+-- another instance arrives whole, whatever its size.
 --
 --   u01..u12   local accounts c296, a month old and members of the fixture server: no new-account
 --              or stranger limit applies
 --   g          group made by u01 through create_group_conversation
 --   big        group of 12 that predates the limit
+--   r          account on another instance, starting groups there
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(15);
+SELECT plan(27);
 GRANT USAGE ON SCHEMA tests TO service_role;
 
 INSERT INTO auth.users (id, instance_id, aud, role, email)
@@ -92,12 +94,65 @@ SELECT throws_ok($q$INSERT INTO public.conversation_participants (conversation_i
                     VALUES ('c2962000-0000-0000-0000-000000000001', pg_temp.u(12), 'member')$q$,
                  'P0001'::char(5), 'GROUP_CONVERSATION_FULL:10', 'and admits nobody new');
 
--- Federated and direct conversations ----------------------------------------------------------------
+-- Groups started on another instance ----------------------------------------------------------------
+INSERT INTO public.profiles (id, username, display_name, is_local, domain, federated_id)
+VALUES ('c2963000-0000-0000-0000-000000000001', 'c296r', 'R', false, 'c296.example', 'https://c296.example/users/c296r');
 SET LOCAL role service_role;
-SELECT throws_ok(format($q$SELECT public.get_or_create_federated_group_conversation(%L, %L::uuid[], 'remote-c296')$q$,
-                        pg_temp.u(12), ARRAY(SELECT pg_temp.u(n) FROM generate_series(1, 10) n)),
-                 'P0001'::char(5), 'GROUP_CONVERSATION_FULL:10', 'a federated group of 11 is refused');
+SELECT set_config('tests.remote_group',
+                  public.get_or_create_federated_group_conversation(
+                      'c2963000-0000-0000-0000-000000000001', ARRAY(SELECT pg_temp.u(n) FROM generate_series(1, 11) n),
+                      'remote-c296')::text, true) <> '' AS made;
 RESET ROLE;
+SELECT is(pg_temp.active(current_setting('tests.remote_group')::uuid), 12, 'a group of 12 from another instance arrives whole');
+SET LOCAL role service_role;
+SELECT is(public.get_or_create_federated_group_conversation(
+              'c2963000-0000-0000-0000-000000000001', ARRAY[pg_temp.u(1)], 'remote-c296'),
+          current_setting('tests.remote_group')::uuid, 'its next message finds it');
+SELECT lives_ok(format($q$INSERT INTO public.conversation_participants (conversation_id, user_id, role)
+                          VALUES (%L, %L, 'member')$q$, current_setting('tests.remote_group'), pg_temp.u(12)),
+                'and takes another participant its host names');
+RESET ROLE;
+SELECT is(pg_temp.active(current_setting('tests.remote_group')::uuid), 13, 'past 10');
+
+SELECT tests.authenticate_as(pg_temp.auth(1));
+SELECT lives_ok(format($q$UPDATE public.conversation_participants SET left_at = now()
+                          WHERE conversation_id = %L AND user_id = %L$q$, current_setting('tests.remote_group'), pg_temp.u(1)),
+                'a member here leaves it');
+UPDATE public.conversation_participants SET left_at = NULL
+ WHERE conversation_id = current_setting('tests.remote_group')::uuid AND user_id = pg_temp.u(1);
+SELECT tests.clear_authentication();
+SELECT is(pg_temp.active(current_setting('tests.remote_group')::uuid), 12, 'and cannot rejoin it');
+SELECT tests.authenticate_as(pg_temp.auth(2));
+SELECT throws_ok(format($q$SELECT public.add_user_to_conversation(%L, %L)$q$, current_setting('tests.remote_group'), pg_temp.u(1)),
+                 'P0001'::char(5), 'GROUP_CONVERSATION_FULL:10', 'nor be added back by another member here');
+SELECT throws_ok(format($q$SELECT public.get_or_create_federated_group_conversation(%L, %L::uuid[], 'bypass-c296')$q$,
+                        pg_temp.u(2), ARRAY(SELECT pg_temp.u(n) FROM generate_series(1, 11) n)),
+                 '42501', NULL, 'a client does not call the federation''s function');
+SELECT tests.clear_authentication();
+SELECT throws_ok(format($q$INSERT INTO public.conversation_participants (conversation_id, user_id, role)
+                           VALUES (%L, %L, 'member')
+                           ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL$q$,
+                        current_setting('tests.remote_group'), pg_temp.u(1)),
+                 'P0001'::char(5), 'GROUP_CONVERSATION_FULL:10', 'nor does any other role add to it');
+
+-- A group created here stays limited for the service role too.
+UPDATE public.conversation_participants SET left_at = NULL
+ WHERE conversation_id = (SELECT id FROM g) AND user_id = pg_temp.u(2);
+SELECT is(pg_temp.active((SELECT id FROM g)), 10, 'the group of this instance is full again');
+SET LOCAL role service_role;
+SELECT throws_ok(format($q$INSERT INTO public.conversation_participants (conversation_id, user_id, role)
+                           VALUES (%L, %L, 'member')$q$, (SELECT id FROM g), pg_temp.u(12)),
+                 'P0001'::char(5), 'GROUP_CONVERSATION_FULL:10', 'the service role adds nobody to a full group of this instance');
+SELECT throws_ok(format($q$SELECT public.get_or_create_federated_group_conversation(%L, %L::uuid[], 'local-c296')$q$,
+                        pg_temp.u(12), ARRAY(SELECT pg_temp.u(n) FROM generate_series(1, 10) n)),
+                 'P0001'::char(5), 'GROUP_CONVERSATION_FULL:10', 'nor makes a group of 11 for an account here');
+RESET ROLE;
+
+-- The lock a count takes ------------------------------------------------------------------------------
+SELECT matches(pg_get_functiondef('public.enforce_group_conversation_limit()'::regprocedure), 'FOR NO KEY UPDATE',
+               'the count does not block the foreign key check of a message');
+
+-- Direct conversations --------------------------------------------------------------------------------
 INSERT INTO public.conversations (id, type, created_by)
 VALUES ('c2962000-0000-0000-0000-000000000002', 'direct', pg_temp.u(1));
 SELECT lives_ok($q$INSERT INTO public.conversation_participants (conversation_id, user_id, role)

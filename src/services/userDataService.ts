@@ -1027,7 +1027,7 @@ class UserDataService extends EventTarget {
         // A pending retry opens the replacement.
         if (state._presenceRetryTimer) return
         const delay = (state._presenceCloseBackoff ??= new ChannelCloseBackoff()).next()
-        console.warn(`[Realtime] server-presence:${serverId} closed by the server; rebuilding in ${Math.round(delay)} ms`)
+        debug.warn(`[Realtime] server-presence:${serverId} closed by the server; rebuilding in ${Math.round(delay)} ms`)
         state._presenceRetryTimer = setTimeout(() => {
           state._presenceRetryTimer = null
           if (!this.contexts.has(serverId)) return
@@ -1056,7 +1056,7 @@ class UserDataService extends EventTarget {
         missed = true
         // One app retry at a time; the rejoins realtime-js makes meanwhile neither re-arm nor count.
         if (state._presenceRetryTimer) return
-        console.error(`[Realtime] server-presence:${serverId} → ${status}`, err?.message)
+        debug.error(`[Realtime] server-presence:${serverId} → ${status}`, err?.message)
         const attempt = state._presenceRetryAttempt ?? 0
         state._presenceRetryAttempt = attempt + 1
         // The timer lives on the context so unsubscribing cancels it.

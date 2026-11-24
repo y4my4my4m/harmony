@@ -407,6 +407,24 @@ export class LiveKitWebRTCService {
   constructor() {
     this.loadAudioSettings();
     this.loadStreamQualitySettings();
+    this.setupPageLeave();
+  }
+
+  /**
+   * Leaves the room with the page, in place of Room's disconnectOnPageLeave, which also leaves on
+   * beforeunload: that fires for a navigation that becomes a download.
+   */
+  private setupPageLeave(): void {
+    const leave = (restorable: boolean) => {
+      if (!this.room) return;
+      const channelId = this.channelId;
+      void this.leaveChannel().then(() => {
+        // Resumed, the app shows a call that has ended.
+        if (restorable) this.emit('connection-lost', { channelId });
+      });
+    };
+    window.addEventListener('pagehide', (event) => leave(event.persisted));
+    document.addEventListener('freeze', () => leave(true));
   }
 
   /** @param resolution - 360, 480, 720, 1080, or -1 for source. */
@@ -441,13 +459,19 @@ export class LiveKitWebRTCService {
    * Room options shared by local and federated joins. Settings are re-read
    * so device and processing changes made while disconnected apply.
    */
-  private prepareRoomOptions(): { adaptiveStream: AdaptiveStreamSettings; dynacast: boolean; audioOutput?: { deviceId: string } } {
+  private prepareRoomOptions(): {
+    adaptiveStream: AdaptiveStreamSettings;
+    dynacast: boolean;
+    disconnectOnPageLeave: false;
+    audioOutput?: { deviceId: string };
+  } {
     this.loadAudioSettings();
     this.loadStreamQualitySettings();
     void remoteAudioMixer.setOutputDevice(this.selectedOutputDevice);
     return {
       adaptiveStream: adaptiveStreamSettings,
       dynacast: true,
+      disconnectOnPageLeave: false,
       ...(this.selectedOutputDevice ? { audioOutput: { deviceId: this.selectedOutputDevice } } : {}),
     };
   }
@@ -749,6 +773,8 @@ export class LiveKitWebRTCService {
 
     if (this.room) {
       this.leaving = true;
+      // Room.disconnect stops the captures once the server has the leave.
+      this.room.localParticipant?.trackPublications?.forEach((publication) => publication.track?.stop());
       try {
         await this.room.disconnect(true);
       } catch (e) {

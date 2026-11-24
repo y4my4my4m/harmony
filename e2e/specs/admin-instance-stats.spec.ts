@@ -4,7 +4,8 @@
 // itself (no request carries Prefer: count=exact); the cards show the snapshot's figures and when
 // it was computed. Refresh recomputes a snapshot older than a minute and reads a younger one. The
 // Federation and Users tabs read the same snapshot: their only exact counts are their lists' page
-// totals. Suspending and unsuspending an account moves the Users tab's Suspended count at once.
+// totals. Suspending and unsuspending an account moves the Users tab's Suspended count at once, and
+// the move stays when Overview and Users open again on a snapshot computed before it.
 
 import { test, expect, type Page, type Request } from '@playwright/test'
 import { adminClient, createUser, deleteUser, signIn, type SpecUser } from './harness'
@@ -152,11 +153,27 @@ test('Users tab reads its filter counts from the snapshot and moves them on susp
   await suspendDialog.getByRole('button', { name: 'Suspend' }).click()
   await expect(row.getByText('Suspended', { exact: true })).toBeVisible()
   await expect(filter('suspended')).toHaveText(`Suspended (${snapshot.users_suspended + 1})`)
+  expect(statsRequests(seen)).toHaveLength(1)
+
+  // Opening Overview, then Users again, reads the snapshot anew. Another spec may have it recomputed:
+  // its own figure then holds the suspension.
+  const onTab = async (name: string) => {
+    const answer = page.waitForResponse((r) => r.url().includes('/rest/v1/rpc/admin_instance_stats'))
+    await page.getByRole('tab', { name, exact: true }).click()
+    return (await answer).json()
+  }
+  await onTab('Overview')
+  await expect(page.getByTestId('admin-stat-users')).toBeVisible()
+  const reread = await onTab('Users')
+  const suspended = reread.computed_at === snapshot.computed_at ? snapshot.users_suspended + 1 : reread.users_suspended
+  await expect(filter('suspended')).toHaveText(`Suspended (${suspended})`)
+  await users.getByPlaceholder('Search users…').fill(member.username)
+  await expect(row.getByText('Suspended', { exact: true })).toBeVisible({ timeout: 15000 })
 
   await row.locator('.unsuspend-btn').click()
   await page.getByRole('alertdialog', { name: 'Unsuspend user' }).getByRole('button', { name: 'Unsuspend' }).click()
   await expect(row.getByText('Suspended', { exact: true })).toHaveCount(0)
-  await expect(filter('suspended')).toHaveText(`Suspended (${snapshot.users_suspended})`)
-  await expect(filter('all')).toHaveText(`All users (${snapshot.users_total})`)
-  expect(statsRequests(seen)).toHaveLength(1)
+  await expect(filter('suspended')).toHaveText(`Suspended (${suspended - 1})`)
+  await expect(filter('all')).toHaveText(`All users (${reread.users_total})`)
+  expect(statsRequests(seen)).toHaveLength(3)
 })

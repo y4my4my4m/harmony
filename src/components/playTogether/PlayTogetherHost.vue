@@ -9,6 +9,11 @@
   under menus and dialogs. Over the call view it carries data-a11y-persistent: the call view makes
   every other top-level element inert (utils/a11y/layers inertOthers), the game included.
 
+  A slot in the call pop-out window takes the frame into that window's activity container
+  (components/voice/callPopout.ts), where it stays, slot or not, until a slot in the app's window or
+  the pop-out's end brings it back. A frame loads again on a move between documents; the runtime
+  then gives the activity its session again and hears it in the window that shows it.
+
   The frame is sandboxed with allow-scripts and allow-pointer-lock only (no allow-same-origin): an
   opaque origin, no storage, no popups, no top navigation, no downloads, no modal dialogs. Its
   document is expected to load once per element: the element is keyed by session and retry, so a
@@ -17,7 +22,7 @@
   runtime and blanks the frame.
 -->
 <template>
-  <Teleport to="body">
+  <Teleport :to="frameTarget">
   <div
     v-if="joined"
     ref="hostEl"
@@ -65,7 +70,9 @@
       </template>
     </div>
   </div>
+  </Teleport>
 
+  <Teleport to="body">
   <aside
     v-if="joined && !store.slot"
     class="pt-mini"
@@ -102,6 +109,7 @@ import { useT } from '@/composables/useT'
 import { usePlayTogetherStore } from '@/stores/playTogether'
 import { activityFrameUrl } from '@/services/playTogether/catalog'
 import { styleRect } from '@/utils/appZoom'
+import { callPopout } from '@/components/voice/callPopout'
 
 const FRAME_Z = 20
 const LOAD_TIMEOUT_MS = 20_000
@@ -117,8 +125,14 @@ const layer = ref<number>(FRAME_Z)
 const frameKey = ref(0)
 const escaped = computed(() => store.view.escaped)
 const timedOut = ref(false)
+const inPopout = ref(false)
 let loadsExpected = 1
 let rafId = 0
+// Frames of the window that shows the slot: a hidden main window runs none.
+let rafView: Window = window
+// Where `layer` was read.
+let layerSlot: HTMLElement | null = null
+let layerDocument: Document | null = null
 let loadTimer: ReturnType<typeof setTimeout> | null = null
 
 const joined = computed(() => store.joined)
@@ -126,6 +140,7 @@ const label = computed(() => (joined.value ? store.appLabel(joined.value.app).na
 const frameSrc = computed(() => (joined.value && !escaped.value ? activityFrameUrl(joined.value.app) : 'about:blank'))
 const placed = computed(() => !!store.slot && !!rect.value)
 const onStage = computed(() => placed.value && layer.value > FRAME_Z)
+const frameTarget = computed(() => (inPopout.value && callPopout.activity) || 'body')
 
 const overlay = computed<null | 'loading' | 'reconnecting' | 'failed' | 'escaped'>(() => {
   if (escaped.value) return 'escaped'
@@ -144,7 +159,7 @@ const boxStyle = computed(() => {
 /** One above the outermost positioned ancestor of `el` with a z-index, else FRAME_Z. */
 function layerFor(el: HTMLElement): number {
   let z: number | null = null
-  for (let node: HTMLElement | null = el.parentElement; node && node !== document.body; node = node.parentElement) {
+  for (let node: HTMLElement | null = el.parentElement; node && node !== el.ownerDocument.body; node = node.parentElement) {
     const style = getComputedStyle(node)
     if (style.position !== 'static' && style.zIndex !== 'auto') {
       const value = Number(style.zIndex)
@@ -154,28 +169,50 @@ function layerFor(el: HTMLElement): number {
   return z === null ? FRAME_Z : z + 1
 }
 
+function stopTracking(): void {
+  try {
+    rafView.cancelAnimationFrame(rafId)
+  } catch {
+    // The pop-out window that ran the frame has closed.
+  }
+  rafView = window
+}
+
 function track(): void {
-  cancelAnimationFrame(rafId)
+  stopTracking()
   const step = () => {
     const slot = store.slot
+    if (slot?.isConnected) inPopout.value = slot.ownerDocument !== document && !!callPopout.window
+    else if (!callPopout.window) inPopout.value = false
     if (!slot || !slot.isConnected) {
       rect.value = null
       return
+    }
+    if (slot !== layerSlot || slot.ownerDocument !== layerDocument) {
+      layerSlot = slot
+      layerDocument = slot.ownerDocument
+      layer.value = layerFor(slot)
     }
     const r = styleRect(slot)
     const prev = rect.value
     if (!prev || prev.left !== r.left || prev.top !== r.top || prev.width !== r.width || prev.height !== r.height) {
       rect.value = { left: r.left, top: r.top, width: r.width, height: r.height }
     }
-    rafId = requestAnimationFrame(step)
+    rafView = slot.ownerDocument.defaultView ?? window
+    rafId = rafView.requestAnimationFrame(step)
   }
   step()
 }
 
-watch(() => store.slot, (slot) => {
-  if (slot) layer.value = layerFor(slot)
+watch(() => store.slot, () => {
+  layerSlot = null
   track()
 }, { immediate: true })
+
+// Post flush: the call view has moved to its other window.
+watch(() => callPopout.generation, track, { flush: 'post' })
+
+watch(inPopout, (value) => { store.inPopout = value }, { immediate: true })
 
 // Expanding raises the panel's z-index; post flush reads it after the panel re-renders.
 watch(() => store.mode, () => {
@@ -189,13 +226,28 @@ watch([onStage, hostEl], ([stage, el]) => {
 
 watch(frameEl, (el) => store.joined?.runtime.attachFrame(el))
 watch(() => store.joined, (current, previous) => {
-  if (current !== previous) {
-    timedOut.value = false
-    loadsExpected = 1
-    armLoadTimer()
-  }
+  if (current !== previous) startLoad()
   current?.runtime.attachFrame(frameEl.value)
 })
+
+// The frame posts to the window it is in.
+watch([() => store.joined, () => callPopout.generation], ([current]) => {
+  current?.runtime.listenIn(callPopout.window)
+}, { immediate: true })
+
+// The frame is about to move to the other window's document.
+watch(frameTarget, () => {
+  if (!store.joined || escaped.value) return
+  startLoad()
+  store.joined.runtime.frameReloaded()
+})
+
+/** The frame's document loads from its start: one load event is expected, within LOAD_TIMEOUT_MS. */
+function startLoad(): void {
+  timedOut.value = false
+  loadsExpected = 1
+  armLoadTimer()
+}
 
 function armLoadTimer(): void {
   if (loadTimer) clearTimeout(loadTimer)
@@ -216,15 +268,14 @@ function onLoad(): void {
 }
 
 function reload(): void {
-  timedOut.value = false
-  loadsExpected = 1
+  startLoad()
   frameKey.value++
   store.joined?.runtime.frameReloaded()
-  armLoadTimer()
 }
 
 onBeforeUnmount(() => {
-  cancelAnimationFrame(rafId)
+  stopTracking()
+  store.inPopout = false
   if (loadTimer) clearTimeout(loadTimer)
 })
 </script>

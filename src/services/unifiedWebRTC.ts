@@ -13,7 +13,7 @@ import {
   needsGainStage,
 } from './voice/micGain';
 import { SOUNDBOARD_P2P_EVENT } from './soundboard/protocol';
-import { relaysSignals, sendSignal as sendRoomSignal } from './signalRelay';
+import { SIGNAL_ACK_TIMEOUT_MS, relaysSignals, sendSignal as sendRoomSignal } from './signalRelay';
 import { DEFAULT_ICE_SERVERS, loadIceServers } from './voice/iceServers';
 import { speakingDetector } from './voice/speakingDetector';
 import { openRebuildingChannel, type RebuildingChannel } from './rebuildingChannel';
@@ -23,6 +23,8 @@ const RENEGOTIATION_STABLE_WAIT_MS = 10_000;
 const RELAY_BATCH_MESSAGES = 64;
 const RELAY_BATCH_BYTES = 48_000;
 const SIGNAL_JOIN_TIMEOUT_MS = 15_000;
+// Longest a leave waits for its queued signals (user-left) to be sent.
+const LEAVE_SEND_TIMEOUT_MS = 2_000;
 // After a resumed signalling topic: members answering the state request with no connection here get an offer.
 const RESYNC_WINDOW_MS = 10_000;
 
@@ -103,14 +105,22 @@ export class UnifiedWebRTCService {
   private channelId: string | null = null;
   private currentUserId: string | null = null;
   private signalChannel: RebuildingChannel | null = null;
+  // Ends a setupSignaling that is still waiting for its topic.
+  private cancelSignaling: (() => void) | null = null;
   private resyncUntil = 0;
   // This client's join, and each peer's latest (SignalingMessage.session).
   private sessionId = '';
   private peerSessions = new Map<string, string>();
   // Outgoing messages in order, one request in flight (signalRelay.sendSignal); a request carries
   // the run of messages queued meanwhile.
-  private signalQueue: Array<{ room: string; from: string; message: Omit<SignalingMessage, 'from'> }> = [];
+  private signalQueue: Array<{
+    room: string;
+    from: string;
+    channel: RebuildingChannel;
+    message: Omit<SignalingMessage, 'from'>;
+  }> = [];
   private signalFlushing = false;
+  private signalFlush: Promise<void> = Promise.resolve();
   private iceServers: RTCIceServer[] = [...DEFAULT_ICE_SERVERS];
 
   // Local media and state
@@ -395,6 +405,7 @@ export class UnifiedWebRTCService {
   }
   async joinChannel(channelId: string, userId: string, abortSignal?: AbortSignal): Promise<boolean> {
     debug.log('Joining voice channel:', channelId, 'as user:', userId);
+    let session = '';
     
     try {
       if (abortSignal?.aborted) {
@@ -412,7 +423,7 @@ export class UnifiedWebRTCService {
       this.channelId = channelId;
       this.currentUserId = userId;
       this.localMediaState.userId = userId;
-      this.sessionId = newSessionId();
+      session = this.sessionId = newSessionId();
       const iceServers = loadIceServers();
 
       // 1. Audio first - a voice channel always carries audio.
@@ -444,7 +455,7 @@ export class UnifiedWebRTCService {
       
       // 4. Announce presence, after state sync.
       setTimeout(() => {
-        if (!abortSignal?.aborted) {
+        if (!abortSignal?.aborted && this.sessionId === session) {
           this.broadcastMessage({
             type: 'user-joined',
             from: userId,
@@ -469,15 +480,18 @@ export class UnifiedWebRTCService {
         throw error; // Re-throw to propagate cancellation
       }
       debug.error('Failed to join channel:', error);
+      // A later join owns the service once it has its own session.
+      if (session && this.sessionId === session) await this.teardown(false);
       this.emit('error', error);
       return false;
     }
   }
 
-  async leaveChannel(): Promise<void> {
+  /** `silent`: nothing is sent, queued signals included. */
+  async leaveChannel({ silent = false }: { silent?: boolean } = {}): Promise<void> {
     debug.log('Leaving voice channel');
     
-    if (this.currentUserId && this.channelId) {
+    if (!silent && this.currentUserId && this.channelId) {
       this.broadcastMessage({
         type: 'user-left',
         from: this.currentUserId,
@@ -486,6 +500,28 @@ export class UnifiedWebRTCService {
       });
     }
     
+    const oldChannelId = this.channelId;
+    await this.teardown(!silent);
+    
+    this.emit('channel-left', { channelId: oldChannelId });
+  }
+
+  /**
+   * Releases everything a join opened: peers, tracks, topic, level monitoring. No event and no
+   * message; a second run finds nothing left. `sendQueued`: signals already queued still go out,
+   * and the topic, which a client broadcast needs, closes after them; otherwise they are dropped.
+   */
+  private async teardown(sendQueued: boolean): Promise<void> {
+    const signalChannel = this.signalChannel;
+    const audioContext = this.audioContext;
+    this.signalChannel = null;
+    this.audioContext = null;
+    this.channelId = null;
+    this.currentUserId = null;
+    this.cancelSignaling?.();
+    this.cancelSignaling = null;
+    if (!sendQueued) this.signalQueue = [];
+
     this.connections.forEach(conn => {
       this.cleanupRemoteAudio(conn);
       conn.peerConnection.close();
@@ -513,14 +549,9 @@ export class UnifiedWebRTCService {
     this.localMediaState.isVideoEnabled = false;
     this.localMediaState.isScreenSharing = false;
 
-    if (this.signalChannel) {
-      await this.signalChannel.close();
-      this.signalChannel = null;
-    }
-    
     // Cancel the RAF explicitly, symmetric with setup. The
     // loop also self-terminates next frame via the `else` branch in
-    // `updateLevel` once `audioContext` is null below; the explicit cancel
+    // `updateLevel` once `audioContext` is null; the explicit cancel
     // keeps that from being load-bearing.
     if (this.audioLevelRafId !== null) {
       cancelAnimationFrame(this.audioLevelRafId);
@@ -530,16 +561,21 @@ export class UnifiedWebRTCService {
       try { this.localAudioAnalyser.disconnect(); } catch { /* noop */ }
       this.localAudioAnalyser = null;
     }
-    if (this.audioContext) {
-      await this.audioContext.close();
-      this.audioContext = null;
-    }
-    
-    const oldChannelId = this.channelId;
-    this.channelId = null;
-    this.currentUserId = null;
-    
-    this.emit('channel-left', { channelId: oldChannelId });
+
+    const sent = sendQueued ? this.queuedSignalsSent() : Promise.resolve();
+    if (!relaysSignals()) await sent;
+    await Promise.all([sent, signalChannel?.close(), audioContext?.close()]);
+  }
+
+  /** Once the queue is empty, at the latest LEAVE_SEND_TIMEOUT_MS from now. */
+  private async queuedSignalsSent(): Promise<void> {
+    if (!this.signalFlushing) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      this.signalFlush,
+      new Promise<void>((resolve) => { timer = setTimeout(resolve, LEAVE_SEND_TIMEOUT_MS); }),
+    ]);
+    clearTimeout(timer);
   }
 
   async toggleVideo(): Promise<boolean> {
@@ -1193,10 +1229,15 @@ export class UnifiedWebRTCService {
       settle = (error) => (error ? reject(error) : resolve());
     });
     const timer = setTimeout(() => settle?.(new Error('Failed to setup signaling: no answer')), SIGNAL_JOIN_TIMEOUT_MS);
+    this.cancelSignaling = () => {
+      clearTimeout(timer);
+      settle?.(new DOMException('Connection cancelled', 'AbortError'));
+      settle = null;
+    };
 
     this.signalChannel = openRebuildingChannel({
       topic: `harmony-voice-${this.channelId}`,
-      config: { broadcast: { self: false } },
+      config: { broadcast: { self: false, ack: true } },
       bind: (channel) => {
         channel.on('broadcast', { event: 'signals' }, (payload) => {
           this.handleRelayed(payload.payload);
@@ -1266,6 +1307,9 @@ export class UnifiedWebRTCService {
 
   private async handleSignalingMessage(message: SignalingMessage): Promise<void> {
     const { type, from, to, data } = message;
+
+    // A topic being left still delivers.
+    if (!this.channelId) return;
     
     // Ignore our own messages
     if (from === this.currentUserId) return;
@@ -1351,7 +1395,7 @@ export class UnifiedWebRTCService {
     this.allUserStates.set(userId, mediaState);
 
     if (!sessioned || !this.connections.has(userId)) {
-      await this.createPeerConnection(userId, true); // We initiate since they just joined
+      await this.createPeerConnection(userId, true); // The member already in the call initiates.
     }
 
     this.emit('user-joined', { userId, mediaState });
@@ -1724,20 +1768,19 @@ export class UnifiedWebRTCService {
   private sendSignal(signal: SignalingMessage): void {
     if (!this.signalChannel || !this.channelId || !this.currentUserId) return;
     const { from: _sender, ...message } = { ...signal, session: this.sessionId };
-    this.signalQueue.push({ room: this.channelId, from: this.currentUserId, message });
-    void this.flushSignals();
+    this.signalQueue.push({ room: this.channelId, from: this.currentUserId, channel: this.signalChannel, message });
+    if (!this.signalFlushing) this.signalFlush = this.flushSignals();
   }
 
-  /** Sends the queue, one request at a time, each a run of one room. */
+  /** Sends the queue, one request at a time, each a run of one join's messages. */
   private async flushSignals(): Promise<void> {
-    if (this.signalFlushing) return;
     this.signalFlushing = true;
     try {
       while (this.signalQueue.length > 0) {
-        const { room, from } = this.signalQueue[0];
+        const { room, from, channel } = this.signalQueue[0];
         let count = 0;
         let bytes = 0;
-        while (count < this.signalQueue.length && count < RELAY_BATCH_MESSAGES && this.signalQueue[count].room === room) {
+        while (count < this.signalQueue.length && count < RELAY_BATCH_MESSAGES && this.signalQueue[count].channel === channel) {
           bytes += JSON.stringify(this.signalQueue[count].message).length;
           if (count > 0 && bytes > RELAY_BATCH_BYTES) break;
           count++;
@@ -1745,9 +1788,10 @@ export class UnifiedWebRTCService {
         const batch = this.signalQueue.splice(0, count).map((entry) => entry.message);
         try {
           await sendRoomSignal(`harmony-voice-${room}`, 'signals', { messages: batch },
-            () => batch.forEach((message) => this.broadcastSignal(from, message)));
+            () => this.broadcastSignals(channel, from, batch));
         } catch (error) {
           debug.warn('[P2P]', batch.length, 'signals refused:', (error as { message?: string })?.message ?? error);
+          this.emit('error', error);
         }
       }
     } finally {
@@ -1755,14 +1799,19 @@ export class UnifiedWebRTCService {
     }
   }
 
-  /** A message as its own client broadcast, as an instance without send_signal takes it. */
-  private broadcastSignal(from: string, message: Omit<SignalingMessage, 'from'>): void {
-    if (!this.signalChannel) return;
-    if (message.type === 'soundboard') {
-      void this.signalChannel.send({ type: 'broadcast', event: SOUNDBOARD_P2P_EVENT, payload: { from, message: message.data } });
-    } else {
-      void this.signalChannel.send({ type: 'broadcast', event: 'signal', payload: { ...message, from } });
-    }
+  /**
+   * Each message as its own client broadcast, as an instance without send_signal takes it. The
+   * first outcome that is not 'ok', else 'ok'.
+   */
+  private async broadcastSignals(
+    channel: RebuildingChannel,
+    from: string,
+    messages: Array<Omit<SignalingMessage, 'from'>>,
+  ): Promise<string> {
+    const outcomes = await Promise.all(messages.map((message) => channel.send(message.type === 'soundboard'
+      ? { type: 'broadcast', event: SOUNDBOARD_P2P_EVENT, payload: { from, message: message.data } }
+      : { type: 'broadcast', event: 'signal', payload: { ...message, from } }, { timeout: SIGNAL_ACK_TIMEOUT_MS })));
+    return outcomes.find((outcome) => outcome !== 'ok') ?? 'ok';
   }
 
   /**
@@ -1992,9 +2041,15 @@ export class UnifiedWebRTCService {
     }
   }
 
+  // beforeunload also fires for a navigation that becomes a download; pagehide only when the page goes.
   private setupCleanup(): void {
-    window.addEventListener('beforeunload', () => {
-      this.leaveChannel();
+    window.addEventListener('pagehide', (event) => {
+      if (!this.channelId) return;
+      const channelId = this.channelId;
+      void this.leaveChannel().then(() => {
+        // Restored from the back/forward cache, the app shows a call that has ended.
+        if (event.persisted) this.emit('connection-lost', { channelId });
+      });
     });
   }
 

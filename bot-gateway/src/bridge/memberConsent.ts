@@ -92,17 +92,25 @@ export function forgetBridgeConsent(): void {
 export interface ConsentSource {
   user_id?: string | null
   bot_id?: string | null
+  is_system?: boolean | null
   metadata?: unknown
 }
 
-/** The Harmony member a row speaks for: its author, or the invoker of a bot's interaction reply. */
+/**
+ * The Harmony member a row speaks for: its author, or the invoker of a bot's interaction reply. A
+ * system row has no author (messages_system_authorless): the member who acted is metadata.actor_id,
+ * or metadata.subject_id where a member's own join or leave names no actor.
+ */
 export function consentSubject(source: ConsentSource | null | undefined): string | null {
   if (!source) return null
   if (typeof source.user_id === 'string' && source.user_id) return source.user_id
   const metadata = source.metadata
-  if (!source.bot_id || !metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
-  const invoker = (metadata as { interaction?: { user_id?: unknown } }).interaction?.user_id
-  return typeof invoker === 'string' && invoker ? invoker : null
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
+  const fields = metadata as { interaction?: { user_id?: unknown }; actor_id?: unknown; subject_id?: unknown }
+  const member = source.is_system === true
+    ? fields.actor_id ?? fields.subject_id
+    : source.bot_id ? fields.interaction?.user_id : null
+  return typeof member === 'string' && member ? member : null
 }
 
 /**

@@ -278,7 +278,7 @@ export function useAutoSuggest(
     }, MEMBER_SEARCH_MS);
   };
   
-  // Discord users, fetched from bot-gateway.
+  // Bridged people, fetched from bot-gateway.
   const bridgedUsers = ref<BridgedChannelUser[]>([]);
   const bridgedUsersLoaded = ref(false);
   const bridgedUsersChannelId = ref<string | null>(null);
@@ -847,7 +847,8 @@ export function useAutoSuggest(
           .select(`
             bot:bots(
               id,
-              bot_type
+              bot_type,
+              bridge_platform
             )
           `)
           .eq('server_id', serverId)
@@ -860,13 +861,17 @@ export function useAutoSuggest(
           return false;
         }
         
-        const bridgeBots = (data || []).filter((perm: any) => perm.bot?.bot_type === 'bridge');
+        // Matrix bridge bots carry bridge_platform and no bot_type (20261117900001). RLS hides a
+        // private bot's row from members other than its owner: it may be a bridge, and the
+        // bridged-users endpoint answers for it.
+        const bridgeBots = (data || []).filter((perm: any) =>
+          !perm.bot || perm.bot.bot_type === 'bridge' || perm.bot.bridge_platform != null);
         const hasBridge = bridgeBots.length > 0;
         
         bridgeBotCheckCache.set(serverId, { hasBridge, timestamp: Date.now() });
         
         if (hasBridge) {
-          debug.log(`Server ${serverId} has ${bridgeBots.length} bridge bot(s)`);
+          debug.log(`Server ${serverId} may have ${bridgeBots.length} bridge bot(s)`);
         }
         return hasBridge;
       } catch (error) {

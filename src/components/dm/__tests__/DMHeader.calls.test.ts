@@ -223,6 +223,19 @@ describe('DMHeader outgoing call', () => {
     expect(dmCallSignaling.getActiveCall(CONV)?.ringing).toBe(true)
   })
 
+  it('a group call rings the other members, not the caller, whose profile id is not its sign-in id', async () => {
+    const member = (id: string) => ({ id, username: id, is_local: true })
+    wrapper = shallowMount(DMHeader, {
+      props: { conversation: { id: CONV, type: 'group', name: 'Group', participants: [member('me'), member('b'), member('c')] } as any },
+      global: { directives: { 'click-outside': {} } },
+    })
+    await settle()
+    await wrapper.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(rt.rpc).toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'initiate', p_receiver_ids: ['b', 'c'] }))
+  })
+
   it('a caller-side refusal places no call and plays no jingle', async () => {
     permissions.canPlaceCall.mockResolvedValue({ allowed: false, reason: 'blocked', message: 'You cannot call this user' })
     const header = mountHeader()
@@ -407,6 +420,50 @@ describe('DMHeader outgoing call', () => {
     expect(rt.rpc).not.toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'timeout' }))
     expect(rang()).toBe(false)
     off()
+  })
+
+  describe('with another conversation shown before the join ends', () => {
+    const OTHER = '22222222-2222-2222-2222-222222222222'
+    const startAndSwitch = async () => {
+      const header = mountHeader()
+      await settle()
+      await header.find('.voice-btn').trigger('click')
+      await settle()
+      expect(dmCallSignaling.getActiveCall(CONV)?.ringing).toBe(true)
+      await header.setProps({ conversation: { ...conversation, id: OTHER, other_user: { ...conversation.other_user, id: 'other' } } })
+      await settle()
+    }
+
+    it('a failed join cancels the ring of the call it was', async () => {
+      await startAndSwitch()
+      join.aborted = true
+      join.release?.()
+      await settle()
+
+      expect(rt.rpc).toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({
+        p_conversation_id: CONV, p_signal: 'end', p_receiver_ids: ['them'],
+      }))
+      expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    })
+
+    it('a failed join leaves a ring this client has in the conversation shown alone', async () => {
+      await startAndSwitch()
+      await dmCallSignaling.initiateCall(OTHER, 'me', 'voice', ['other'])
+      join.aborted = true
+      join.release?.()
+      await settle()
+
+      expect(dmCallSignaling.hasActiveCall(OTHER)).toBe(true)
+      expect(rt.rpc).not.toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({ p_conversation_id: OTHER, p_signal: 'end' }))
+    })
+
+    it('a join that succeeds plays no jingle there', async () => {
+      await startAndSwitch()
+      join.release?.()
+      await settle()
+      expect(rang()).toBe(false)
+      expect(dmCallSignaling.getActiveCall(CONV)?.ringing).toBe(true)
+    })
   })
 
   it('a federated call whose join fails is ended on the backend', async () => {

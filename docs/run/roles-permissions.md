@@ -103,7 +103,7 @@ Type `/rolemenu` in a channel (needs **Manage roles**) to post a role menu: choo
 
 ### Role for new members
 
-At the top of **Server settings** → **Roles**, **Role for new members** picks a role everyone who joins from then on gets, whether through an invite, the server directory or approval of a pending request. The owner and members already in the server keep their roles. `@everyone` and administrator roles cannot be chosen, and a member with **Manage roles** can choose only a role below their highest role. Servers you follow on another instance get their roles from that instance and have no such setting here.
+At the top of **Server settings** → **Roles**, **Role for new members** picks a role everyone who joins from then on gets, whether through an invite, the server directory or approval of a pending request. The owner and members already in the server keep their roles. `@everyone` and administrator roles cannot be chosen, nor a role that gives permissions `@everyone` lacks or sits above one that does, and a member with **Manage roles** can choose only a role below their highest role. If a role is given such permissions later, new members stop getting it; the setting shows a note. A role stored by an earlier version that would be refused was cleared. Servers you follow on another instance get their roles from that instance and have no such setting here.
 
 ### Delete a role
 

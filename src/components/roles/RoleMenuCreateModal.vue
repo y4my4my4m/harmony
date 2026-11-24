@@ -60,6 +60,8 @@ import RoleChipGroup from '@/components/roles/RoleChipGroup.vue'
 import { useServerRolesStore } from '@/stores/useServerRoles'
 import { useProfileStore } from '@/stores/useProfile'
 import { sendToTarget } from '@/stores/shared/sendToTarget'
+import { notifyModerationRejection } from '@/services/AutoModService'
+import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailure'
 import { pickableRoleGroups, selfAssignGroupNames } from '@/utils/selfAssignableRoles'
 import { roleMenuMessageParts } from '@/utils/roleMenu'
 import type { MessagePart } from '@/types'
@@ -103,7 +105,7 @@ async function submit() {
   posting.value = true
   try {
     const names = previewGroups.value.flatMap((g) => g.roles.map((r) => r.name))
-    const parts = roleMenuMessageParts(props.serverId, selectedGroup.value, title.value || t('roleMenu.defaultTitle'), names)
+    const parts = roleMenuMessageParts(props.serverId, selectedGroup.value, title.value, t('roleMenu.defaultTitle'), names)
     const outcome = await sendToTarget(
       { kind: 'channel', serverId: props.serverId, channelId: props.channelId },
       authorId,
@@ -112,8 +114,9 @@ async function submit() {
     )
     if (outcome === 'ok') emit('close')
     else if (outcome === 'failed') toast.error(t('roleMenu.postFailed'))
-  } catch {
-    toast.error(t('roleMenu.postFailed'))
+  } catch (error) {
+    if (notifyModerationRejection(error)) return
+    toast.error(classifySendFailure(error) === 'permission' ? permissionRefusalMessage(error) : t('roleMenu.postFailed'))
   } finally {
     posting.value = false
   }

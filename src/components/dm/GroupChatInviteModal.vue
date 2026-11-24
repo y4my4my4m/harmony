@@ -150,14 +150,14 @@
       </div>
 
       <!-- Existing Participants (for adding to existing conversation) -->
-      <div v-if="!isNewGroup && (existingParticipants?.length ?? 0) > 0" class="existing-participants-section">
+      <div v-if="!isNewGroup && others.length > 0" class="existing-participants-section">
         <div class="section-header">
-          <h3 class="section-title">Current participants ({{ existingParticipants?.length ?? 0 }})</h3>
+          <h3 class="section-title">Current participants ({{ members.length }})</h3>
         </div>
 
         <div class="participants-list">
           <div 
-            v-for="participant in (existingParticipants ?? [])"
+            v-for="participant in members"
             :key="participant.id"
             class="participant-item"
           >
@@ -213,7 +213,7 @@ import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { notifyModerationRejection } from '@/services/AutoModService'
 import { useDMStore } from '@/stores/useDM'
-import { useAuthStore } from '@/stores/auth'
+import { useUserData } from '@/composables/useUserData'
 import { useUserSearch, type UserSearchResult } from '@/composables/useUserSearch'
 import BaseModal from '@/components/common/BaseModal.vue'
 import Avatar from '@/components/common/Avatar.vue'
@@ -238,7 +238,7 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const dmStore = useDMStore()
-const authStore = useAuthStore()
+const { getCurrentUser } = useUserData()
 
 // State
 const selectedUsers = ref<DMUser[]>([])
@@ -251,16 +251,21 @@ const isPrivateGroup = ref(false)
 
 // Computed
 const isNewGroup = computed(() => !props.conversationId)
-const currentUserId = computed(() => authStore.session?.user?.id)
+// The profile id, as participants carry. It differs from the auth user id for some accounts.
+const currentUserId = computed(() => getCurrentUser.value?.id)
 
-// The viewer, everyone already in the conversation and everyone picked. Callers pass the
-// participants with or without the viewer.
-const memberCount = computed(() => {
-  const ids = new Set((props.existingParticipants ?? []).map((p) => p.id))
-  if (currentUserId.value) ids.delete(currentUserId.value)
-  return 1 + ids.size + selectedUsers.value.length
+// Callers pass the participants with or without the viewer.
+const others = computed(() => (props.existingParticipants ?? []).filter((p) => p.id !== currentUserId.value))
+const members = computed<DMUser[]>(() => {
+  const viewer = getCurrentUser.value
+  if (!viewer) return others.value
+  return [
+    { id: viewer.id, username: viewer.username, display_name: viewer.displayName, avatar_url: viewer.avatarUrl, is_local: true },
+    ...others.value,
+  ]
 })
-const spotsLeft = computed(() => Math.max(0, GROUP_CONVERSATION_LIMIT - memberCount.value))
+const spotsLeft = computed(() =>
+  Math.max(0, GROUP_CONVERSATION_LIMIT - 1 - others.value.length - selectedUsers.value.length))
 
 const {
   query: searchQuery,

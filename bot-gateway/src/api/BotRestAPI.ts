@@ -45,7 +45,7 @@ import { EmptyFileError, OverQuotaError, TooLargeError, storeBotUpload } from '.
 import { fileTypeOf, getUploadCeilingBytes } from '../utils/mirrorExternalMedia.js'
 import { BridgeFileError, decodedFileName, downloadBridgeFile, isDriveFilePath } from '../utils/bridgeFiles.js'
 import { type MatrixAuthor, bridgedMessageAuthor, matrixAuthor } from '../bridge/bridgeAuthors.js'
-import { bridgeChannelPlatform, consentSubject, relayAllowed, serverOfChannel } from '../bridge/memberConsent.js'
+import { type ConsentSource, bridgeChannelPlatform, consentSubject, relayAllowed, serverOfChannel } from '../bridge/memberConsent.js'
 import { BridgeAvatarQuotaError, bridgeAvatarBytes, nativeBridgeAvatar, storeBridgeAvatar } from '../utils/bridgeAvatar.js'
 import { MATRIX_ROOM_ID, matrixRoomBinding, matrixBridgeMembers, publicMatrixBridgeMembers } from '../bridge/matrixRooms.js'
 import { TTLCache } from '../utils/TTLCache.js'
@@ -100,12 +100,14 @@ function concurrencyLimit(limit: number) {
   return {
     async run<T>(task: () => Promise<T>): Promise<T> {
       if (active >= limit) await new Promise<void>(resolve => waiting.push(resolve))
-      active++
+      else active++
       try {
         return await task()
       } finally {
-        active--
-        waiting.shift()?.()
+        // A finished task's place passes to the next in line; a task started meanwhile gets no extra one.
+        const next = waiting.shift()
+        if (next) next()
+        else active--
       }
     },
   }
@@ -113,6 +115,45 @@ function concurrencyLimit(limit: number) {
 
 // GET bridge-files holds each file in memory, up to 50 MiB (MAX_BRIDGE_FILE_BYTES).
 const bridgeDownloads = concurrencyLimit(3)
+
+export class BusyError extends Error {}
+
+/**
+ * concurrencyLimit per key: at most `limit` tasks at once and `waitLimit` in line; one more is
+ * refused with BusyError.
+ */
+export function keyedConcurrencyLimit(limit: number, waitLimit: number) {
+  const keys = new Map<string, { tasks: ReturnType<typeof concurrencyLimit>; open: number }>()
+  return {
+    async run<T>(key: string, task: () => Promise<T>): Promise<T> {
+      const entry = keys.get(key) ?? { tasks: concurrencyLimit(limit), open: 0 }
+      if (entry.open >= limit + waitLimit) throw new BusyError('Too many at once')
+      entry.open++
+      keys.set(key, entry)
+      try {
+        return await entry.tasks.run(task)
+      } finally {
+        if (--entry.open === 0) keys.delete(key)
+      }
+    },
+  }
+}
+
+// An upload in progress holds a temp file of up to the instance's upload ceiling on the gateway's
+// disk; one in line is unread. 13 at once take the 10 files of one message.
+export const UPLOADS_PER_BOT = 3
+export const WAITING_UPLOADS_PER_BOT = 10
+const botUploads = keyedConcurrencyLimit(UPLOADS_PER_BOT, WAITING_UPLOADS_PER_BOT)
+const UPLOAD_RETRY_SECONDS = 5
+
+// Bodies express.json and express.urlencoded have read before the route, and multipart ones, which
+// wrap the file.
+function carriesNoFile(req: Request): boolean {
+  const type = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase()
+  return type === 'application/json' || type === 'application/x-www-form-urlencoded' || type.startsWith('multipart/')
+}
+const NO_FILE_BODY = { error: 'Send the file itself as the request body, with its own Content-Type' } as const
+
 // guard_bridge_author_optout (20261112600001): the relayed author opted out of the server's bridge.
 const BRIDGE_AUTHOR_OPTED_OUT = 'BRIDGE_AUTHOR_OPTED_OUT'
 const OPTED_OUT_BODY = { error: 'The author opted out of this bridge', code: BRIDGE_AUTHOR_OPTED_OUT } as const
@@ -200,6 +241,7 @@ interface ThreadRow {
   archived: boolean | null
   locked: boolean | null
   created_at: string
+  created_by: string | null
 }
 
 export { botContentParts, claimsBridgeAuthor, embedPart, typedMassMentionParts } from './messageContent.js'
@@ -558,7 +600,7 @@ export class BotRestAPI {
     if (!UUID_PATTERN.test(threadId)) return null
     const { data, error } = await supabase
       .from('threads')
-      .select('id, channel_id, parent_message_id, name, archived, locked, created_at')
+      .select('id, channel_id, parent_message_id, name, archived, locked, created_at, created_by')
       .eq('id', threadId)
       .maybeSingle()
     return error || !data ? null : (data as ThreadRow)
@@ -577,6 +619,24 @@ export class BotRestAPI {
     return (data as { id: string } | null)?.id ?? null
   }
 
+  /**
+   * The thread's name as this bot reads it. A bridge reader whose platform the thread's creator or
+   * the author of its starter message opted out of reads 'Thread', the title bot_create_thread gives
+   * an opted-out Discord author's thread: the replies of others still reach the bridge. Throws when
+   * the starter message cannot be read.
+   */
+  private async threadNameFor(thread: ThreadRow, botId: string): Promise<string> {
+    const { data: starter, error } = await supabase
+      .from('messages')
+      .select('user_id, bot_id, is_system, metadata')
+      .eq('id', thread.parent_message_id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    const sources = [{ user_id: thread.created_by }, ...(starter ? [starter] : [])]
+    const relayable = await this.relayableRows(botId, thread.channel_id, sources)
+    return relayable.length === sources.length ? thread.name : 'Thread'
+  }
+
   private async formatThread(thread: ThreadRow, botId: string) {
     const bridgeId = await this.bridgeIdFor(botId, thread.channel_id)
     let discordThreadId: string | null = null
@@ -593,7 +653,7 @@ export class BotRestAPI {
       id: thread.id,
       channel_id: thread.channel_id,
       parent_message_id: thread.parent_message_id,
-      name: thread.name,
+      name: await this.threadNameFor(thread, botId),
       archived: !!thread.archived,
       locked: !!thread.locked,
       created_at: thread.created_at,
@@ -1019,7 +1079,7 @@ export class BotRestAPI {
   }
 
   /** `rows` without those whose member opted out of this bot's bridge platform (memberConsent). */
-  private async relayableRows<T extends { user_id?: string | null; bot_id?: string | null; metadata?: unknown }>(
+  private async relayableRows<T extends ConsentSource>(
     botId: string,
     channelId: string,
     rows: T[],
@@ -1067,6 +1127,10 @@ export class BotRestAPI {
    * for a bot bound to the channel's Matrix room in a channel without end-to-end encryption.
    */
   private async uploadBridgeFile(req: BotRequest, res: Response) {
+    if (carriesNoFile(req)) {
+      req.resume()
+      return res.status(415).json({ ...NO_FILE_BODY })
+    }
     try {
       await this.requireMatrixFilesAccess(req.bot!.id, req.params.channelId)
     } catch (error) {
@@ -1135,7 +1199,7 @@ export class BotRestAPI {
       const { data, content_type } = req.body ?? {}
       const image = bridgeAvatarBytes(data, content_type)
       if (!image) return res.status(400).json({ error: 'Expected a base64 raster avatar, at most 1 MiB, with matching content_type' })
-      return res.json({ avatar_url: await storeBridgeAvatar(botId, image, content_type) })
+      return res.json({ avatar_url: await storeBridgeAvatar(botId, channelId, image, content_type) })
     } catch (error) {
       if (error instanceof BridgeAvatarQuotaError) return res.status(507).json({ error: error.message })
       return res.status(503).json({ error: 'Bridge avatar storage or registration unavailable' })
@@ -1295,7 +1359,7 @@ export class BotRestAPI {
 
       const { data: message, error: fetchError } = await supabase
         .from('messages')
-        .select('channel_id, metadata, bot_id, user_id')
+        .select('channel_id, metadata, bot_id, user_id, is_system')
         .eq('id', messageId)
         .single()
 
@@ -2657,11 +2721,11 @@ export class BotRestAPI {
    * interaction reply of this channel names it by (stripBotSuppliedPaths keeps its path).
    */
   private async uploadAttachment(req: BotRequest, res: Response) {
-    const contentType = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase()
-    if (contentType === 'application/json' || contentType.startsWith('multipart/') || contentType === 'application/x-www-form-urlencoded') {
+    if (carriesNoFile(req)) {
       req.resume()
-      return res.status(415).json({ error: 'Send the file itself as the request body, with its own Content-Type' })
+      return res.status(415).json({ ...NO_FILE_BODY })
     }
+    const contentType = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase()
     const rawName = typeof req.query.filename === 'string' ? req.query.filename : ''
     // The last path segment, without control characters, at most 255 characters.
     // eslint-disable-next-line no-control-regex -- strips C0 and DEL controls.
@@ -2671,9 +2735,9 @@ export class BotRestAPI {
 
   /**
    * Stores the request body as a file of the bot in the channel (storeBotUpload): send_messages
-   * and attach_files in the channel, the instance's upload ceiling, the server's bot-file quota.
-   * `fileTypes` 'image-or-file' answers video and audio as 'file' (harmony-matrix-bridge accepts
-   * only those two).
+   * and attach_files in the channel, the instance's upload ceiling, the server's bot-file quota,
+   * UPLOADS_PER_BOT of a bot at once. `fileTypes` 'image-or-file' answers video and audio as 'file'
+   * (harmony-matrix-bridge accepts only those two).
    */
   private async storeUpload(
     req: BotRequest,
@@ -2701,7 +2765,10 @@ export class BotRestAPI {
         return refuse(413, { error: 'File too large', max_bytes: ceiling })
       }
 
-      const stored = await storeBotUpload(req, { botId, channelId, fileName, contentType: contentType || undefined, ceiling })
+      const stored = await botUploads.run(botId, () => storeBotUpload(req, {
+        botId, channelId, fileName, contentType: contentType || undefined, ceiling,
+        declaredSize: Number.isFinite(declared) ? declared : undefined,
+      }))
       await this.logBotAction(botId, 'file_uploaded', { channel_id: channelId, path: stored.path, bytes: stored.bytes }, { channelId })
       const fileType = fileTypeOf(stored.contentType)
       res.status(201).json({
@@ -2717,6 +2784,10 @@ export class BotRestAPI {
       if (error instanceof TooLargeError) return refuse(413, { error: 'File too large', max_bytes: await getUploadCeilingBytes() })
       if (error instanceof EmptyFileError) return refuse(400, { error: 'The request body is empty' })
       if (error instanceof OverQuotaError) return refuse(507, { error: 'This server\'s storage for bot files is full' })
+      if (error instanceof BusyError) {
+        res.setHeader('Retry-After', String(UPLOAD_RETRY_SECONDS))
+        return refuse(429, { error: 'Too many uploads at once', retry_after: UPLOAD_RETRY_SECONDS })
+      }
       console.error('Bot upload failed:', error?.message || error)
       if (!res.headersSent) refuse(500, { error: 'Upload failed' })
     }

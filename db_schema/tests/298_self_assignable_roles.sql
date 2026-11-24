@@ -9,7 +9,7 @@
 --   above (6)                  self-assignable, no bits, above mod
 --   plain (1)                  not self-assignable
 --   adm   (900)                administrator, self-assignable
---   leaky (1)                  self-assignable, override allows MANAGE_MESSAGES
+--   leaky (2)                  self-assignable, override allows MANAGE_MESSAGES
 --   copy server                a copy (is_local_server false) with a self-assignable role
 BEGIN;
 SET LOCAL search_path = tests, public;
@@ -25,7 +25,7 @@ INSERT INTO public.server_roles (id, server_id, name, position, permissions, is_
   ('29800000-0000-0000-0000-000000000005', '55555555-0000-0000-0000-000000000005', 'above', 6, 0, false, false, true, NULL),
   ('29800000-0000-0000-0000-000000000006', '55555555-0000-0000-0000-000000000005', 'plain', 1, 0, false, false, false, NULL),
   ('29800000-0000-0000-0000-000000000007', '55555555-0000-0000-0000-000000000005', 'adm', 900, 1, false, true, true, NULL),
-  ('29800000-0000-0000-0000-000000000008', '55555555-0000-0000-0000-000000000005', 'leaky', 1, 0, false, false, true, NULL);
+  ('29800000-0000-0000-0000-000000000008', '55555555-0000-0000-0000-000000000005', 'leaky', 2, 0, false, false, true, NULL);
 INSERT INTO public.channel_permission_overrides (channel_id, target_type, role_id, allow_permissions, deny_permissions) VALUES
   ('66666666-0000-0000-0000-000000000006', 'role', '29800000-0000-0000-0000-000000000002', 2, 0),
   ('66666666-0000-0000-0000-000000000006', 'role', '29800000-0000-0000-0000-000000000008', 2097152, 0);

@@ -6,10 +6,12 @@
 // Covered: the editor toggle and group saved; the warning for a role with extra permissions; the
 // picker listing only pickable roles; a toggle reaching user_roles and back; the card's text part
 // stored beside it in plaintext channels and nothing readable in encrypted ones; the join role
-// applied by a real join and not to people already there.
+// applied by a real join and not to people already there; an untitled menu headed in each viewer's
+// language; a post the server refuses named by its missing permission, with nothing left behind.
 
 import { test, expect, type Page } from '@playwright/test'
 import {
+  addChannel,
   addMember,
   adminClient,
   composer,
@@ -198,6 +200,67 @@ test('/rolemenu posts a card a member toggles their roles from', async ({ browse
     await aliceContext.close()
     await ownerContext.close()
   }
+})
+
+test('an untitled role menu is headed in each viewer\'s language', async ({ browser }) => {
+  test.setTimeout(180_000)
+  const ownerContext = await browser.newContext()
+  const readerContext = await browser.newContext()
+  const reader = await createUser(admin, 'srf')
+  try {
+    await addMember(admin, reader, server.id)
+    const { error } = await admin.from('profiles').update({ locale: 'fr' }).eq('id', reader.id)
+    if (error) throw new Error(`reader locale: ${error.message}`)
+    const channelId = await addChannel(admin, server, 'untitled')
+
+    const ownerPage = await ownerContext.newPage()
+    await signIn(ownerPage, owner)
+    await openChannel(ownerPage, server.id, channelId)
+    await postRoleMenu(ownerPage, 'Colours', '')
+    await expect(messageList(ownerPage).getByTestId('role-menu-card')).toContainText('Pick your roles', { timeout: 30000 })
+    const { data: rows } = await admin.from('messages').select('content').eq('channel_id', channelId)
+    const content = rows?.[0]?.content as Array<Record<string, unknown>>
+    expect(content[0]).toEqual({ type: 'role_menu', serverId: server.id, group: 'Colours' })
+    expect(content[1]).toMatchObject({ type: 'text', text: expect.stringContaining('Pick your roles: ') })
+
+    const readerPage = await readerContext.newPage()
+    await signIn(readerPage, reader)
+    await openChannel(readerPage, server.id, channelId)
+    const card = messageList(readerPage).getByTestId('role-menu-card')
+    await expect(card.getByRole('heading')).toHaveText('Choisis tes rôles', { timeout: 30000 })
+  } finally {
+    await readerContext.close()
+    await ownerContext.close()
+    await deleteUser(admin, reader)
+  }
+})
+
+test('a role menu the server refuses says which permission is missing', async ({ page }) => {
+  test.setTimeout(120_000)
+  const channelId = await addChannel(admin, server, 'refused')
+  await signIn(page, owner)
+  await openChannel(page, server.id, channelId)
+  let inserts = 0
+  await page.route((url) => url.pathname.endsWith('/rest/v1/messages'), async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    inserts += 1
+    await route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: '42501', message: 'Missing permission: MANAGE_ROLES', details: null, hint: null }),
+    })
+  })
+  await composer(page).click()
+  await composer(page).pressSequentially('/rolemenu', { delay: 20 })
+  await page.keyboard.press('Enter')
+  const form = page.getByTestId('role-menu-create')
+  await expect(form).toBeVisible({ timeout: 15000 })
+  await form.getByTestId('role-menu-group').selectOption('Colours')
+  await page.getByTestId('role-menu-post').click()
+  await expect(page.locator('.Vue-Toastification__toast--error')).toHaveText(/Missing permission: MANAGE_ROLES/, { timeout: 15000 })
+  await expect(form).toBeVisible()
+  await expect(messageList(page).getByTestId('role-menu-card')).toHaveCount(0)
+  expect(inserts).toBe(1)
 })
 
 test('a role menu works in an end-to-end encrypted channel', async ({ browser }) => {

@@ -45,7 +45,7 @@ class EasterEggService {
     // Private: voice room access only, as harmony-voice-{room}. Reopened after a server close.
     this.channel = openRebuildingChannel({
       topic: this.channelName,
-      config: { broadcast: { self: true } },
+      config: { broadcast: { self: true, ack: true } },
       bind: (channel) => {
         channel
           .on('broadcast', { event: 'activate' }, (payload) => {

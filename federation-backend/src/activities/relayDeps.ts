@@ -12,6 +12,9 @@ import type { EndReason } from './protocol.js'
 const VERIFY_CACHE_MS = 30_000
 const VERIFY_CACHE_SIZE = 5_000
 
+/** GoTrue refuses a token with 401 or 403; auth-js reports a signed-out session as 400. */
+const REFUSED_TOKEN_STATUS = [400, 401, 403]
+
 type Verified = { profileId: string; expiresAt: number | null } | null
 
 export function supabaseRelayDeps(): RelayDeps {
@@ -31,13 +34,15 @@ export function supabaseRelayDeps(): RelayDeps {
 
   async function verifyWithGoTrue(token: string): Promise<Verified> {
     const { data: { user }, error } = await supabase.auth.getUser(token)
+    if (error && !REFUSED_TOKEN_STATUS.includes(error.status ?? 0)) throw new Error(`token check: ${error.message}`)
     if (error || !user || !meetsAssurance(user, token)) return null
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id')
       .eq('auth_user_id', user.id)
       .eq('is_local', true)
       .maybeSingle()
+    if (profileError) throw new Error(`token profile: ${profileError.message}`)
     if (!profile?.id) return null
     const exp = decodeClaims(token)?.exp
     return { profileId: profile.id as string, expiresAt: typeof exp === 'number' ? exp * 1000 : null }

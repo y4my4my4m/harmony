@@ -2,6 +2,7 @@ import { computed, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { roleService, type SelfAssignError } from '@/services/RoleService'
+import { notifyModerationRejection } from '@/services/AutoModService'
 import { useServerRolesStore } from '@/stores/useServerRoles'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useProfileStore } from '@/stores/useProfile'
@@ -105,7 +106,8 @@ export function useSelfAssignableRoles(serverId: Ref<string | null | undefined>,
       const result = await roleService.setMySelfAssignableRole(userId, id, roleId, on)
       if (!result.ok) {
         apply(!on)
-        toast.error(errorText(result.error))
+        // An account over account_role_picks_per_minute gets the wait in the message.
+        if (!notifyModerationRejection(result.cause)) toast.error(errorText(result.error))
       }
     } finally {
       const next = new Set(pending.value)

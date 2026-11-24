@@ -164,6 +164,7 @@ import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vu
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useAuthStore } from '@/stores/auth'
 import { usePlayTogetherStore } from '@/stores/playTogether'
+import { useActivityButton } from '@/components/activities/useActivityButton'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt.vue'
@@ -213,11 +214,11 @@ const ActivityHost = defineAsyncComponent(() => import('@/components/activities/
 const PlayTogetherHost = defineAsyncComponent(() => import('@/components/playTogether/PlayTogetherHost.vue'))
 const ActivitiesLauncher = defineAsyncComponent(() => import('@/components/activities/ActivitiesLauncher.vue'))
 const playTogether = usePlayTogetherStore()
-// A call's launcher opens in the call's pop-out window while the call view is there (UnifiedVoiceOverlay).
+// A call's launcher opens in the call view while that is shown, in its window (UnifiedVoiceOverlay).
+const callLauncherOpen = useActivityButton().visible
 const activitiesLauncherHere = computed(() => {
-  const target = playTogether.launcher?.target
-  if (!target) return false
-  return !(callPopout.window && target.kind === 'channel' && target.voice)
+  if (!playTogether.launcher) return false
+  return !(callLauncherOpen.value && (voiceStore.isOverlayVisible || callPopout.window))
 })
 // Mounted from the first open on, so its close transition plays.
 const { isOpen: themePanelOpen } = useThemeEditorPanel()

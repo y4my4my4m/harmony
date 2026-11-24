@@ -84,6 +84,8 @@ export const useActivitiesStore = defineStore('activities', () => {
   let clockAt = 0
   let pollTimer: ReturnType<typeof setTimeout> | null = null
   let pollChannel: string | null = null
+  // Bumped by reset(): an answer asked for before it belongs to another account.
+  let account = 0
 
   const voiceChannelId = computed(() => {
     const voice = useUnifiedVoiceChannelStore()
@@ -231,17 +233,20 @@ export const useActivitiesStore = defineStore('activities', () => {
   }
 
   async function refresh(channelId: string): Promise<void> {
+    const asked = account
     try {
       const result = await getActivity(channelId)
-      apply(channelId, result.activity, true)
+      if (asked === account) apply(channelId, result.activity, true)
     } catch {
       /* the next poll retries */
     }
   }
 
   async function refreshServer(serverId: string): Promise<void> {
+    const asked = account
     try {
       const list = await getServerActivities(serverId)
+      if (asked !== account) return
       // The call's own channel ends only from its own reads and broadcasts: a list requested
       // before its run started would end the run and forget the member's Join.
       for (const [id, a] of Object.entries(byChannel.value)) {
@@ -256,9 +261,11 @@ export const useActivitiesStore = defineStore('activities', () => {
   }
 
   async function run(work: () => Promise<{ activity: VoiceActivity | null }>, channelId: string): Promise<VoiceActivity | null> {
+    const asked = account
     busy.value = true
     try {
       const result = await work()
+      if (asked !== account) return null
       apply(channelId, result.activity, true)
       share(result.activity, channelId)
       return result.activity
@@ -426,10 +433,27 @@ export const useActivitiesStore = defineStore('activities', () => {
     schedulePoll()
   }
 
+  /** The account signed out: what it saw, joined and hid goes with it. Volume is the device's. */
+  function reset(): void {
+    account++
+    if (pollTimer) clearTimeout(pollTimer)
+    pollTimer = null
+    pollChannel = null
+    for (const pending of unconfirmed.values()) clearTimeout(pending.timer)
+    unconfirmed.clear()
+    dbRevision.clear()
+    distrusted.clear()
+    byChannel.value = {}
+    hidden.value = new Set()
+    joined.value = new Set()
+    status.value = { ready: false, playing: false, buffering: false, positionMs: 0, durationMs: 0, error: null }
+    busy.value = false
+  }
+
   return {
     byChannel, offsetMs, volume, muted, hidden, joined, slots, slot, status, busy,
     voiceChannelId, current, playingHere, waiting, invited, isHidden, join,
     serverTime, position, syncClock, apply, refresh, refreshServer, start, control, stop, togglePlay, seek,
-    itemEnded, receiveBroadcast, receivePeer, hide, setVolume, registerSlot, setStatus, enterCall,
+    itemEnded, receiveBroadcast, receivePeer, hide, setVolume, registerSlot, setStatus, enterCall, reset,
   }
 })

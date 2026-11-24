@@ -11,8 +11,11 @@
 -- admin_instance_stats()         Instance staff. Returns the snapshot as one JSON object, refreshing
 --                                it first when absent, older than 900 s, or older than 60 s with
 --                                p_refresh. Adds age_seconds, refreshing_elsewhere (the lock was
---                                busy) and db_connections (live). Moderators get no queue_* or db_*
---                                fields: those were admin-only before.
+--                                busy), refresh_failed and db_connections (live). A refresh that
+--                                raises, or meets the caller's statement_timeout, leaves the stored
+--                                snapshot to be returned; with none stored the error is the answer.
+--                                Moderators get no queue_* or db_* fields: those were admin-only
+--                                before.
 -- pg_cron job admin-instance-stats refreshes every 5 minutes where pg_cron exists.
 --
 -- Cost. Every count over a table that grows with use is an index-only scan or an index range:
@@ -249,6 +252,7 @@ DECLARE
     v_row   public.admin_instance_stats%ROWTYPE;
     v_age   numeric;
     v_busy  boolean := false;
+    v_failed boolean := false;
     v_out   jsonb;
 BEGIN
     IF NOT v_admin AND NOT public.is_current_user_admin_or_mod() THEN
@@ -258,17 +262,24 @@ BEGIN
     SELECT * INTO v_row FROM public.admin_instance_stats WHERE id;
     v_age := extract(epoch FROM clock_timestamp() - v_row.computed_at);
     IF v_row.id IS NULL OR v_age > 900 OR (p_refresh AND v_age > 60) THEN
-        IF public.refresh_admin_instance_stats() THEN
-            SELECT * INTO v_row FROM public.admin_instance_stats WHERE id;
-            v_age := extract(epoch FROM clock_timestamp() - v_row.computed_at);
-        ELSE
-            v_busy := true;
-        END IF;
+        BEGIN
+            v_busy := NOT public.refresh_admin_instance_stats();
+        -- OTHERS excludes query_canceled, the statement_timeout.
+        EXCEPTION WHEN query_canceled OR OTHERS THEN
+            IF v_row.id IS NULL THEN
+                RAISE;
+            END IF;
+            v_failed := true;
+            RAISE WARNING 'admin_instance_stats: refresh failed: % %', SQLSTATE, SQLERRM;
+        END;
+        SELECT * INTO v_row FROM public.admin_instance_stats WHERE id;
+        v_age := extract(epoch FROM clock_timestamp() - v_row.computed_at);
     END IF;
 
     v_out := (to_jsonb(v_row) - 'id') || jsonb_build_object(
         'age_seconds', floor(v_age),
         'refreshing_elsewhere', v_busy,
+        'refresh_failed', v_failed,
         'db_connections', (SELECT count(*) FROM pg_stat_activity a WHERE a.datname = current_database()));
     IF NOT v_admin THEN
         v_out := v_out - ARRAY['queue_pending', 'queue_delivered', 'queue_failed', 'db_size_bytes', 'db_connections'];

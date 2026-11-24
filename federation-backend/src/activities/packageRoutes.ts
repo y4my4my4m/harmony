@@ -40,18 +40,61 @@ const installLimit = createStrictKeyedLimit({
 /* Files                                                                                          */
 /* ---------------------------------------------------------------------------------------------- */
 
-const cache = new Map<string, { type: string; bytes: Buffer }>()
-let cacheBytes = 0
+interface CachedFile {
+  type: string
+  bytes: Buffer
+}
 
-function remember(key: string, value: { type: string; bytes: Buffer }): void {
+/** Least recently used first. */
+const cache = new Map<string, CachedFile>()
+let cacheBytes = 0
+/** Reads in flight, one per key. */
+const loading = new Map<string, Promise<CachedFile | null>>()
+
+function forget(key: string): void {
+  const entry = cache.get(key)
+  if (!entry) return
+  cache.delete(key)
+  cacheBytes -= entry.bytes.byteLength
+}
+
+function remember(key: string, value: CachedFile): void {
   if (value.bytes.byteLength > CACHE_MAX_BYTES / 4) return
+  forget(key)
   cache.set(key, value)
   cacheBytes += value.bytes.byteLength
-  while (cacheBytes > CACHE_MAX_BYTES) {
-    const [oldest, entry] = cache.entries().next().value!
-    cache.delete(oldest)
-    cacheBytes -= entry.bytes.byteLength
+  for (const oldest of cache.keys()) {
+    if (cacheBytes <= CACHE_MAX_BYTES) break
+    forget(oldest)
   }
+}
+
+/** A stored file, null for none; throws when it cannot be read. */
+async function readFile(appId: string, sha: string): Promise<CachedFile | null> {
+  const { data, error } = await getSupabaseClient()
+    .from('activity_app_files')
+    .select('content_type, bytes')
+    .eq('app_id', appId)
+    .eq('sha256', sha)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const bytes = decodeBytea(data?.bytes)
+  return data && bytes ? { type: data.content_type as string, bytes } : null
+}
+
+/** readFile, cached unless the package is removed meanwhile. */
+function loadFile(appId: string, sha: string): Promise<CachedFile | null> {
+  const key = `${appId}/${sha}`
+  const pending = loading.get(key)
+  if (pending) return pending
+  const load = readFile(appId, sha).then((file) => {
+    if (file && loading.get(key) === load) remember(key, file)
+    return file
+  }).finally(() => {
+    if (loading.get(key) === load) loading.delete(key)
+  })
+  loading.set(key, load)
+  return load
 }
 
 /** bytea as PostgREST returns it: `\x` and hex. */
@@ -71,30 +114,23 @@ packageFilesRouter.get('/pkg/:appId/:file', asyncHandler(async (req: Request, re
   }
   const [, sha] = match
   const key = `${appId}/${sha}`
-  let file = cache.get(key)
-  if (!file) {
-    const { data, error } = await getSupabaseClient()
-      .from('activity_app_files')
-      .select('content_type, bytes')
-      .eq('app_id', appId)
-      .eq('sha256', sha)
-      .maybeSingle()
-    if (error) {
-      logger.warn(`Activity package file ${key}: ${error.message}`)
-      res.status(503).end()
-      return
-    }
-    const bytes = decodeBytea(data?.bytes)
-    if (!data || !bytes) {
-      res.status(404).end()
-      return
-    }
-    file = { type: data.content_type as string, bytes }
-    remember(key, file)
-  } else {
+  let file = cache.get(key) ?? null
+  if (file) {
     // Most recently used last.
     cache.delete(key)
     cache.set(key, file)
+  } else {
+    try {
+      file = await loadFile(appId, sha)
+    } catch (error) {
+      logger.warn(`Activity package file ${key}: ${(error as Error).message}`)
+      res.status(503).end()
+      return
+    }
+    if (!file) {
+      res.status(404).end()
+      return
+    }
   }
   res.removeHeader('X-Frame-Options')
   res.setHeader('Content-Type', file.type)
@@ -250,10 +286,8 @@ adminActivitiesRouter.delete('/:id', asyncHandler(async (req: Request, res: Resp
     send(res, new RouteError(500, 'internal_error', error.message))
     return
   }
-  for (const key of [...cache.keys()]) if (key.startsWith(`${id}/`)) {
-    cacheBytes -= cache.get(key)!.bytes.byteLength
-    cache.delete(key)
-  }
+  for (const key of [...cache.keys()]) if (key.startsWith(`${id}/`)) forget(key)
+  for (const key of [...loading.keys()]) if (key.startsWith(`${id}/`)) loading.delete(key)
   if (!data) {
     res.status(404).json({ error: 'NOT_FOUND' })
     return

@@ -40,7 +40,7 @@ const welcome = (host = ALICE): RelayFrame => ({
   serverTime: Date.now(),
 })
 
-let frame: { contentWindow: { postMessage: (msg: Record<string, unknown>) => void } }
+let frame: { ownerDocument: Document; contentWindow: { postMessage: (msg: Record<string, unknown>) => void } }
 let posted: Array<Record<string, unknown>>
 let runtime: InstanceType<typeof ActivityRuntime>
 let view: RuntimeView
@@ -64,7 +64,7 @@ beforeEach(() => {
   sent.length = 0
   posted = []
   // happy-dom loads no frame documents: a stand-in window receives what the runtime posts.
-  frame = { contentWindow: { postMessage: (msg: Record<string, unknown>) => { posted.push(msg) } } }
+  frame = { ownerDocument: document, contentWindow: { postMessage: (msg: Record<string, unknown>) => { posted.push(msg) } } }
   view = { status: 'connecting', members: [], hostId: null, you: null, canEnd: false, final: null, frameReady: false, escaped: false }
   runtime = new ActivityRuntime({ id: 's1' } as ActivitySession, () => null, view, {
     locale: () => 'en',
@@ -204,6 +204,51 @@ describe('ActivityRuntime', () => {
       { hp: 1, t: 'saved', id: 2, ok: false },
       { hp: 1, t: 'saved', id: 3, ok: true },
     ])
+  })
+
+  it('hears the frame in the call pop-out window while it is there, and only then', async () => {
+    const popout = new EventTarget()
+    const fromPopout = (data: unknown) => {
+      const event = new MessageEvent('message', { data })
+      Object.defineProperty(event, 'source', { value: frame.contentWindow })
+      popout.dispatchEvent(event)
+    }
+    handlers.frame(welcome())
+    runtime.listenIn(popout as unknown as Window)
+    runtime.frameReloaded()
+    fromPopout({ hp: 1, t: 'ready', sdk: '1.0.0' })
+    await flush()
+    expect(posted.filter((m) => m.t === 'init')).toHaveLength(1)
+
+    runtime.listenIn(null)
+    fromPopout({ hp: 1, t: 'send', data: 'late' })
+    expect(sent).toEqual([])
+    fromFrame({ hp: 1, t: 'send', data: 'here' })
+    expect(sent).toEqual([{ op: 'send', data: 'here' }])
+  })
+
+  it('takes a Blob of the pop-out window, which is no instance of this one\'s, and reads focus there', async () => {
+    const save = vi.fn(async () => true)
+    runtime.destroy()
+    const other = { activeElement: null as unknown }
+    frame.ownerDocument = other as unknown as Document
+    other.activeElement = frame
+    runtime = new ActivityRuntime({ id: 's1' } as ActivitySession, () => null, view, {
+      locale: () => 'en', theme: () => ({ scheme: 'dark', accent: '#0EA5E9', reducedMotion: false }), visible: () => true,
+      notify: vi.fn(), leave: vi.fn(), save,
+    })
+    runtime.start()
+    runtime.attachFrame(frame as unknown as HTMLIFrameElement)
+    handlers.frame(welcome())
+    fromFrame({ hp: 1, t: 'ready', sdk: '1.0.0' })
+    const bytes = new Blob([PNG])
+    const foreign = {
+      type: 'image/png', size: bytes.size, [Symbol.toStringTag]: 'Blob',
+      slice: (start: number, end: number) => bytes.slice(start, end),
+    }
+    expect(foreign).not.toBeInstanceOf(Blob)
+    fromFrame({ hp: 1, t: 'save', id: 1, blob: foreign, name: 'page' })
+    await vi.waitFor(() => expect(save).toHaveBeenCalledWith(foreign, 'page.png'))
   })
 
   it('saves only while the frame has focus, spaced and counted', async () => {

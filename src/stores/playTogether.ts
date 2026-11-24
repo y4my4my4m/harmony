@@ -126,9 +126,13 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
   /* Sessions where this client looks --------------------------------------------------------- */
 
   const sessions = ref<Record<string, ActivitySession[]>>({})
+  // Bumped by reset(): an answer asked for before it belongs to another account.
+  let account = 0
 
   async function refresh(target: ActivityTarget): Promise<ActivitySession[]> {
+    const asked = account
     const list = await getSessions(target).catch(() => null)
+    if (asked !== account) return []
     if (list) sessions.value = { ...sessions.value, [targetKey(target)]: list }
     return list ?? sessions.value[targetKey(target)] ?? []
   }
@@ -149,9 +153,11 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
   const slot = computed(() => slots.value[0] ?? null)
   const launcher = ref<{ target: ActivityTarget; conversationType?: string | null } | null>(null)
   const pageVisible = ref(typeof document === 'undefined' || document.visibilityState === 'visible')
+  /** The frame is in the call's pop-out window (PlayTogetherHost), shown whatever the app's window is. */
+  const inPopout = ref(false)
   let lastNotify = 0
 
-  const visible = computed(() => !!slot.value && pageVisible.value)
+  const visible = computed(() => !!slot.value && (inPopout.value || pageVisible.value))
 
   function resetView(): void {
     Object.assign(view, { status: 'connecting', members: [], hostId: null, you: null, canEnd: false, final: null, frameReady: false, escaped: false })
@@ -168,14 +174,17 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
       toast.error(t(errorKey(refusal)))
       return false
     }
+    const asked = account
     try {
       const { session, existing } = await startSession(appId, target)
+      if (asked !== account) return false
       if (existing && session.app_id !== appId) {
         toast.info(t('playTogether.alreadyRunning', { name: session.app_name }))
       }
       sessions.value = { ...sessions.value, [targetKey(target)]: [session] }
       return join(session)
     } catch (error) {
+      if (asked !== account) return false
       toast.error(t(errorKey(error instanceof ActivityError ? error.code : 'UNKNOWN')))
       return false
     }
@@ -183,7 +192,9 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
 
   async function join(session: ActivitySession): Promise<boolean> {
     if (isJoined(session.id)) return true
+    const asked = account
     await loadApps()
+    if (asked !== account) return false
     const app = appById(session.app_id)
     if (!app || !app.enabled) {
       toast.error(t(errorKey('ACTIVITY_APP_UNAVAILABLE')))
@@ -241,7 +252,20 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
     resetView()
     void refresh(current.target)
     // The relay ends a session the leave emptied and then writes the row; read it again after.
-    setTimeout(() => { void refresh(current.target) }, LEAVE_REFRESH_MS)
+    const asked = account
+    setTimeout(() => { if (asked === account) void refresh(current.target) }, LEAVE_REFRESH_MS)
+  }
+
+  /** The account signed out: its sessions, its running game and an open launcher go with it. */
+  function reset(): void {
+    account++
+    appsPending = null
+    joined.value?.runtime.destroy()
+    joined.value = null
+    resetView()
+    mode.value = 'docked'
+    launcher.value = null
+    sessions.value = {}
   }
 
   function endForEveryone(): void {
@@ -336,12 +360,14 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
     panelHeight,
     slot,
     visible,
+    inPopout,
     launcher,
     isJoined,
     start,
     join,
     leave,
     endForEveryone,
+    reset,
     openLauncher,
     closeLauncher,
     refusalText,

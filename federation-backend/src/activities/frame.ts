@@ -10,9 +10,16 @@
  * with the instance's storage, and refuses every network connection (connect-src 'none'). Scripts,
  * styles, images, media and fonts load from the app's own folder, data: and blob: only;
  * frame-ancestors names the web app and the native apps.
+ *
+ * connect-src does not cover WebRTC, and Chromium 148, Firefox 150 and WebKit 26.4 recognize no CSP
+ * `webrtc` directive: the loader deletes the constructors before the activity runs. A nested
+ * document has its own and frame-src does not cover srcdoc, so a second policy (loaderCsp), which
+ * every script must pass too, takes inline scripts by the loader's hash and others only when a
+ * running script adds them: a nested document runs the loader or nothing. An about:blank child is
+ * another opaque origin.
  */
 
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { Router, type Request, type Response } from 'express'
 import config from '../config/index.js'
 import { corsOrigins } from '../config/nativeOrigins.js'
@@ -56,16 +63,15 @@ export function frameCsp(appId: string, nonce: string, packaged = false): string
   ].join('; ')
 }
 
-export function frameHtml(scriptSrc: string, nonce: string): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="referrer" content="no-referrer">
-<title>Harmony activity</title>
-<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent}</style>
-<script nonce="${nonce}">
+/** Its 'strict-dynamic' ignores the folder; Safari before 15.4 ignores 'strict-dynamic'. */
+export function loaderCsp(loader: string, folder: string): string {
+  const hash = createHash('sha256').update(loader).digest('base64')
+  return [`script-src 'sha256-${hash}' 'strict-dynamic' ${folder}`, 'worker-src blob:'].join('; ')
+}
+
+/** Text of the document's inline script. */
+export function frameLoader(scriptSrc: string): string {
+  return `
 (function () {
   if (window.parent === window || self.origin !== 'null') {
     document.documentElement.textContent = 'This activity runs inside Harmony.';
@@ -79,13 +85,27 @@ export function frameHtml(scriptSrc: string, nonce: string): string {
   // A desktop shell may run its bridge scripts in subframes too (wry on WebView2). Their
   // window.ipc and __TAURI_INTERNALS__ are non-configurable; the ports they call at send time,
   // window.chrome.webview and window.webkit.messageHandlers, are removed before the activity runs.
-  try { delete window.chrome; } catch (e) {}
-  try { delete window.webkit; } catch (e) {}
+  // The WebRTC constructors go with them: a peer connection tells its other end the player's address.
+  ['chrome', 'webkit', 'RTCPeerConnection', 'webkitRTCPeerConnection', 'mozRTCPeerConnection', 'RTCDataChannel'].forEach(function (name) {
+    try { delete window[name]; } catch (e) {}
+  });
   var script = document.createElement('script');
   script.src = ${JSON.stringify(scriptSrc).replace(/</g, '\\u003c')};
   document.head.appendChild(script);
 })();
-</script>
+`
+}
+
+export function frameHtml(loader: string, nonce: string): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Harmony activity</title>
+<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent}</style>
+<script nonce="${nonce}">${loader}</script>
 </head>
 <body></body>
 </html>
@@ -107,12 +127,14 @@ router.get('/frame/:appId', (req: Request, res: Response) => {
   res.removeHeader('Cross-Origin-Resource-Policy')
   res.removeHeader('Cross-Origin-Embedder-Policy')
   res.removeHeader('Origin-Agent-Cluster')
-  res.setHeader('Content-Security-Policy', frameCsp(appId, nonce, packaged))
+  const folder = appFolder(appId, packaged)
+  const loader = frameLoader(`${folder}${entry}`)
+  res.setHeader('Content-Security-Policy', [frameCsp(appId, nonce, packaged), loaderCsp(loader, folder)])
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), display-capture=(), usb=(), serial=(), hid=(), payment=(), clipboard-read=()')
   res.setHeader('Referrer-Policy', 'no-referrer')
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Cache-Control', 'no-store')
-  res.type('text/html').send(frameHtml(`${appFolder(appId, packaged)}${entry}`, nonce))
+  res.type('text/html').send(frameHtml(loader, nonce))
 })
 
 export default router

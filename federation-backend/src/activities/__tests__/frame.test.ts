@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import express from 'express'
 import helmet from 'helmet'
@@ -7,13 +8,18 @@ vi.mock('../../config/index.js', () => ({
   default: { INSTANCE_DOMAIN: 'harmony.test', APP_URL: 'https://harmony.test', CORS_ORIGIN: 'https://harmony.test' },
 }))
 
-const { default: router, frameCsp } = await import('../frame.js')
+const { default: router, frameCsp, frameLoader } = await import('../frame.js')
 
 function app() {
   const a = express()
   a.use(helmet())
   a.use('/activities', router)
   return a
+}
+
+/** A header's policies: Node joins repeated ones with a comma, as CSP itself separates them. */
+function policies(header: string): Array<Map<string, string>> {
+  return header.split(', ').map(directives)
 }
 
 function directives(csp: string): Map<string, string> {
@@ -31,7 +37,7 @@ describe('activity frame', () => {
     expect(res.headers['cache-control']).toBe('no-store')
     expect(res.headers['x-frame-options']).toBeUndefined()
 
-    const csp = directives(res.headers['content-security-policy'])
+    const [csp] = policies(res.headers['content-security-policy'])
     expect(csp.get('sandbox')).toBe('allow-scripts allow-pointer-lock')
     expect(csp.get('connect-src')).toBe("'none'")
     expect(csp.get('default-src')).toBe("'none'")
@@ -54,10 +60,37 @@ describe('activity frame', () => {
     const sha = 'a'.repeat(64)
     const res = await supertest(app()).get(`/activities/frame/tictac?source=package&entry=${sha}.js`)
     expect(res.status).toBe(200)
-    const csp = directives(res.headers['content-security-policy'])
+    const [csp] = policies(res.headers['content-security-policy'])
     expect(csp.get('script-src')).toMatch(/ https:\/\/harmony\.test\/api\/federation\/activities\/pkg\/tictac\/$/)
     expect(res.text).toContain(`"https://harmony.test/api/federation/activities/pkg/tictac/${sha}.js"`)
     expect((await supertest(app()).get('/activities/frame/tictac?source=package&entry=app.js')).status).toBe(400)
+  })
+
+  it('lets a nested document run the loader or nothing', async () => {
+    const res = await supertest(app()).get('/activities/frame/drawinphone?entry=app.1a2b3c4d.js')
+    const all = policies(res.headers['content-security-policy'])
+    expect(all).toHaveLength(2)
+    const inline = /<script nonce="[^"]+">([\s\S]*?)<\/script>/.exec(res.text)![1]
+    const sources = all[1].get('script-src')!.split(' ')
+    expect(sources).toContain(`'sha256-${createHash('sha256').update(inline).digest('base64')}'`)
+    expect(sources).toContain("'strict-dynamic'")
+    expect(sources.some((source) => source.startsWith("'nonce-") || source.startsWith("'unsafe"))).toBe(false)
+    // The first policy keeps 'strict-dynamic' within the app's folder.
+    expect(all[0].get('script-src')).not.toContain("'strict-dynamic'")
+    expect(all[1].get('worker-src')).toBe('blob:')
+  })
+
+  it('removes the WebRTC constructors and the shell ports before it adds the activity', () => {
+    const gone = ['chrome', 'webkit', 'RTCPeerConnection', 'webkitRTCPeerConnection', 'mozRTCPeerConnection', 'RTCDataChannel']
+    const window: Record<string, unknown> = { parent: { postMessage: () => {} }, addEventListener: () => {} }
+    for (const name of gone) window[name] = class {}
+    let left: string[] | null = null
+    const document = {
+      createElement: () => ({ src: '' }),
+      head: { appendChild: () => { left = gone.filter((name) => name in window) } },
+    }
+    new Function('window', 'self', 'document', frameLoader('https://harmony.test/activities/x/app.js'))(window, { origin: 'null' }, document)
+    expect(left).toEqual([])
   })
 
   it('uses a fresh nonce per response', async () => {

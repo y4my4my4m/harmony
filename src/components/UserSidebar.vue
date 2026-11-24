@@ -409,6 +409,7 @@ import {
   bridgedUserToProfileUser,
   type BridgedChannelUser,
   bridgedUserKey,
+  bridgedUserMatches,
   resolveBridgedUserColor,
 } from '@/services/bridgedChannelUsersService';
 import { useServerBots } from '@/composables/useServerBots';
@@ -854,10 +855,15 @@ const collapsedGroups = ref<Record<string, boolean>>({
   offline: false
 });
 
+// currentChannelId outlives a server switch; the channel list is swapped with the server.
+const openChannelId = computed(() => {
+  const id = serverChannelStore.currentChannelId;
+  return id && serverChannelStore.channels.some((c) => c.id === id) ? id : null;
+});
 const {
   users: bridgedUsers,
   hasBridge: channelHasBridge,
-} = useBridgedChannelUsers(() => serverChannelStore.currentChannelId);
+} = useBridgedChannelUsers(openChannelId, () => serverChannelStore.currentServerId);
 
 const { bots: serverBots } = useServerBots(() => serverChannelStore.currentServerId);
 
@@ -892,16 +898,9 @@ const filteredBridgedUsers = computed(() => {
   if (!channelHasBridge.value || bridgedUsers.value.length === 0) {
     return [];
   }
-  const query = searchQuery.value.trim().toLowerCase();
-  const sorted = [...bridgedUsers.value].sort((a, b) =>
-    (a.displayName || a.username).localeCompare(b.displayName || b.username),
-  );
-  if (!query) return sorted;
-  return sorted.filter((user) => {
-    const displayName = (user.displayName || '').toLowerCase();
-    const username = user.username.toLowerCase();
-    return displayName.includes(query) || username.includes(query) || user.id.toLowerCase().includes(query);
-  });
+  return bridgedUsers.value
+    .filter((user) => bridgedUserMatches(user, searchQuery.value))
+    .sort((a, b) => (a.displayName || a.username).localeCompare(b.displayName || b.username));
 });
 
 function getBridgedAvatarStatus(

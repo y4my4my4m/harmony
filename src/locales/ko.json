@@ -5783,7 +5783,9 @@
         "signalsPerMinute": "분당 통화 신호",
         "signalsHint": "P2P 통화 연결, DM 통화 응답과 종료, 통화 효과. 10명 통화에 참여하면 약 45개가 듭니다.",
         "ringsPerMinute": "분당 거는 통화 수",
-        "ringsHint": "통화마다 한 번 울립니다. 끊기는 거부되지 않습니다."
+        "ringsHint": "통화마다 한 번 울립니다. 끊기는 거부되지 않습니다.",
+        "rolePicksPerMinute": "분당 역할 선택 수",
+        "rolePicksHint": "스스로 고르는 역할을 받거나 내려놓는 횟수입니다. 변경은 서버의 모두에게 전달됩니다."
       },
       "bots": {
         "title": "봇",
@@ -9116,11 +9118,11 @@
     "saved": "새 멤버가 이 역할을 받습니다.",
     "cleared": "새 멤버는 더 이상 역할을 받지 않습니다.",
     "tooHigh": "내 최상위 역할보다 낮은 역할만 고를 수 있습니다.",
-    "saveFailed": "새 멤버 역할을 저장하지 못했습니다."
+    "saveFailed": "새 멤버 역할을 저장하지 못했습니다.",
+    "notOpen": "이 역할은 @everyone에 없는 권한을 주거나 그런 역할보다 위에 있어 새 멤버에게 줄 수 없습니다.",
+    "currentNotOpen": "이 역할은 더 이상 새 멤버에게 줄 수 없습니다. 다른 역할을 고르세요."
   },
   "playTogether": {
-    "button": "함께 플레이",
-    "launcherTitle": "함께 플레이",
     "launcherSubtitle": "여기 있는 모두가 참여할 수 있는 활동을 시작하세요",
     "loadingApps": "활동 불러오는 중…",
     "noApps": "이 인스턴스에서 켜진 활동이 없습니다.",

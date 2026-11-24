@@ -1,23 +1,32 @@
 /**
  * Bridged members in the member list: Discord and Matrix rows share one layout, one badge
- * and one grouping rule, in the whole list and in the windowed list of a large server.
+ * and one grouping rule, in the whole list and in the windowed list of a large server. They are
+ * those of the open channel, which belongs to the open server.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { toValue } from 'vue'
 import { shallowMount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
-const state = vi.hoisted(() => ({ windowed: false }))
+const state = vi.hoisted(() => ({
+  windowed: false,
+  channels: [] as Array<{ id: string }>,
+  asked: null as null | { channel: unknown; server: unknown },
+}))
 
 vi.mock('vue-i18n', async original => ({ ...await original<typeof import('vue-i18n')>(), useI18n: () => ({ t: (key: string, values?: Record<string, unknown>) => values?.platform ? `${key}:${values.platform}` : key, locale: { value: 'en' } }) }))
 vi.mock('vue-router', async original => ({ ...await original<typeof import('vue-router')>(), useRouter: () => ({ push: vi.fn() }), useRoute: () => ({ path: '/channels/server/channel', params: {} }) }))
-vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => ({ currentServerId: 'server', currentChannelId: 'channel', currentServer: { id: 'server', name: 'Club' } }) }))
+vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => ({ currentServerId: 'server', currentChannelId: 'channel', currentServer: { id: 'server', name: 'Club' }, channels: state.channels }) }))
 vi.mock('@/composables/useBridgedChannelUsers', async () => {
   const { ref } = await import('vue')
-  return { useBridgedChannelUsers: () => ({ hasBridge: ref(true), users: ref([
-    { id: '@sam:example.org', username: 'sam', displayName: 'Matrix Sam', avatarUrl: '', source: 'matrix' },
-    { id: '123', username: 'gus', displayName: 'Discord Gus', avatarUrl: '', source: 'discord', presenceStatus: 'online' },
-    { id: '456', username: 'dee', displayName: 'Discord Dee', avatarUrl: '', source: 'discord' },
-  ]) }) }
+  return { useBridgedChannelUsers: (channel: unknown, server: unknown) => {
+    state.asked = { channel, server }
+    return { hasBridge: ref(true), users: ref([
+      { id: '@sam:example.org', username: 'sam', displayName: 'Matrix Sam', avatarUrl: '', source: 'matrix' },
+      { id: '123', username: 'gus', displayName: 'Discord Gus', avatarUrl: '', source: 'discord', presenceStatus: 'online' },
+      { id: '456', username: 'dee', displayName: 'Discord Dee', avatarUrl: '', source: 'discord' },
+    ]) }
+  } }
 })
 vi.mock('@/composables/useServerBots', async () => { const { ref } = await import('vue'); return { useServerBots: () => ({ bots: ref([]) }) } })
 vi.mock('@/composables/useUserData', async original => {
@@ -60,7 +69,7 @@ const groupOf = (name: string) => {
   return null
 }
 
-beforeEach(() => { setActivePinia(createPinia()) })
+beforeEach(() => { setActivePinia(createPinia()); state.channels = [{ id: 'channel' }] })
 afterEach(() => wrapper?.unmount())
 
 describe.each([false, true])('bridged members (windowed: %s)', windowed => {
@@ -78,6 +87,19 @@ describe.each([false, true])('bridged members (windowed: %s)', windowed => {
     expect(wrapper.find('svg.discord-bridge-icon').exists()).toBe(false)
   })
 
+  it('finds people by name and by Matrix id, not by digits of a Discord id', async () => {
+    const search = wrapper.get('input')
+    const listed = () => wrapper.findAll('.bridged-user').map(item => item.text())
+    await search.setValue('5')
+    expect(listed()).toEqual([])
+    await search.setValue('example.org')
+    expect(listed()).toEqual([expect.stringContaining('Matrix Sam')])
+    await search.setValue('gus')
+    expect(listed()).toEqual([expect.stringContaining('Discord Gus')])
+    await search.setValue('456')
+    expect(listed()).toEqual([expect.stringContaining('Discord Dee')])
+  })
+
   it('groups a Matrix member like a Discord member without presence', () => {
     expect(groupOf('Matrix Sam')).toBe(groupOf('Discord Dee'))
     expect(groupOf('Discord Gus')).not.toBe(groupOf('Discord Dee'))
@@ -90,5 +112,19 @@ describe.each([false, true])('bridged members (windowed: %s)', windowed => {
     expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('show')).toBe(true)
     await row('Discord Gus').trigger('click')
     expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('user')).toMatchObject({ bridge_source: 'discord', id: 'discord:123' })
+  })
+})
+
+describe('the channel asked for', () => {
+  it('is the open channel', async () => {
+    await mountSidebar(false)
+    expect(toValue(state.asked!.channel as () => unknown)).toBe('channel')
+    expect(toValue(state.asked!.server as () => unknown)).toBe('server')
+  })
+
+  it('is none while the open channel still names one of the server left behind', async () => {
+    state.channels = []
+    await mountSidebar(false)
+    expect(toValue(state.asked!.channel as () => unknown)).toBeNull()
   })
 })

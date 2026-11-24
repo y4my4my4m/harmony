@@ -389,6 +389,7 @@ describe('GET /channels/:id/messages system notices', () => {
     routeTables({
       ...OPEN_CHANNEL_FIXTURES,
       channels: { data: { server_id: '00000000-0000-0000-0000-0000000000s1' }, error: null },
+      bots: { data: [{ id: BOT_ID, bot_type: null, bridge_platform: null }], error: null },
       messages: {
         data: [{
           id: 'n1', channel_id: CHANNEL_ID, user_id: null, bot_id: null, user: null, bot: null, is_system: true,

@@ -320,6 +320,8 @@ SELECT is_empty($q$
            'messages.a_messages_media_path_guard',
            'messages.a_messages_poll_guard',
            'messages.a_messages_reply_scope',
+           'messages.a_messages_role_menu_edit_guard',
+           'messages.a_messages_role_menu_guard',
            'messages.a_messages_room_guard',
            'messages.a_messages_rules_acceptance',
            'messages.a_messages_server_suspension_guard',

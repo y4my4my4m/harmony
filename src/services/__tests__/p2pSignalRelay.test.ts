@@ -117,14 +117,26 @@ describe('P2P signal relay', () => {
     await vi.waitFor(() => expect(rpc()).toHaveBeenCalledTimes(2));
   });
 
-  it('on an instance without send_signal, messages are client broadcasts', () => {
+  it('on an instance without send_signal, messages are client broadcasts', async () => {
     const { s } = joined();
     capabilities.relay = false;
+    rpc().mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'absent' } } as never);
+    s.signalChannel.send.mockResolvedValue('ok');
     s.sendDirectMessage(BOB, { type: 'answer', from: ALICE, data: {}, timestamp: 1 });
-    expect(rpc()).not.toHaveBeenCalled();
-    expect(s.signalChannel.send).toHaveBeenCalledWith({
+    await vi.waitFor(() => expect(s.signalChannel.send).toHaveBeenCalledWith({
       type: 'broadcast', event: 'signal', payload: { type: 'answer', from: ALICE, to: BOB, data: {}, timestamp: 1, session: '' },
-    });
+    }, { timeout: 5000 }));
+  });
+
+  it('signals nothing took are reported: an upgraded instance drops client broadcasts', async () => {
+    const { svc, s } = joined();
+    const errors: string[] = [];
+    svc.on('error', (e: Error) => errors.push(e.message));
+    capabilities.relay = false;
+    rpc().mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'absent' } } as never);
+    s.signalChannel.send.mockResolvedValue('timed out');
+    s.sendDirectMessage(BOB, { type: 'answer', from: ALICE, data: {}, timestamp: 1 });
+    await vi.waitFor(() => expect(errors).toEqual(['Signal not delivered: timed out']));
   });
 
   it('a member answers for itself: states it reports of others, or under another id, are not read', async () => {

@@ -279,7 +279,8 @@ export async function caseApInbound(ctx: ApInboundContext): Promise<void> {
       eq((await messagesOf(remoteOnly)).length, 0, 'a direct message naming no local account is stored nowhere')
       eq(await postByApId(remoteOnly), null, 'nor as a post')
 
-      // A group conversation holds 10 people: the peer, fx_audience and stored remote accounts.
+      // The peer, fx_audience and stored remote accounts. A group made here holds 10 people; one made
+      // elsewhere arrives with everyone it names.
       const members = Array.from({ length: 9 }, (_, i) => ({
         id: `fed00214-0000-0000-0000-0000000001${String(i).padStart(2, '0')}`,
         username: `fx_member${i}`,
@@ -298,8 +299,18 @@ export async function caseApInbound(ctx: ApInboundContext): Promise<void> {
         }, asPeer)
         return id
       }
-      eq((await messagesOf(await groupOf(10))).length, 1, 'a group message among 10 people starts a group')
-      eq((await messagesOf(await groupOf(11))).length, 0, 'one among 11 is refused: a group holds 10')
+      const peopleOf = async (apId: string) => {
+        const { data: message } = await db.from('messages').select('conversation_id').contains('metadata', { ap_id: apId }).maybeSingle()
+        const { data } = await db.from('conversation_participants').select('user_id')
+          .eq('conversation_id', message?.conversation_id ?? ELSEWHERE).is('left_at', null)
+        return data?.length
+      }
+      const ten = await groupOf(10)
+      eq((await messagesOf(ten)).length, 1, 'a group message among 10 people starts a group')
+      eq(await peopleOf(ten), 10, 'of 10')
+      const eleven = await groupOf(11)
+      eq((await messagesOf(eleven)).length, 1, 'one among 11 arrives too')
+      eq(await peopleOf(eleven), 11, 'with all 11')
 
       // The peer declares a followers collection whose path holds no `followers` segment.
       const { data: before } = await db.from('profiles').select('followers_url').eq('id', ctx.ids.remote).single()

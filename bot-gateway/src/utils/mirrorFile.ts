@@ -9,9 +9,10 @@ import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import { supabase, supabaseServiceKey, supabaseUrl } from '../config/supabase.js'
 import { MESSAGE_MEDIA_BUCKET, signMessageMediaPaths } from './messageMedia.js'
-import { extensionFrom, isAllowedSourceUrl, isAnimatedPng, mirrorAllows, referenceUrl } from './mirrorExternalMedia.js'
+import { extensionFrom, isAllowedSourceUrl, isAnimatedPng, referenceUrl } from './mirrorExternalMedia.js'
 import { sniffContainer, stripMediaFileInPlace, type SniffedContainer } from './stripMediaFile.js'
 import { IMAGE_MAX_BYTES, stripMediaBytes } from './stripMetadata.js'
+import { type Reservation, UploadReservation } from './uploadReservation.js'
 
 /** A link with less than this left is treated as expired: the download could not finish on it. */
 const MIN_LINK_LIFE_MS = 10 * 60 * 1000
@@ -43,7 +44,7 @@ export class EmptyFileError extends Error {
   }
 }
 
-/** The server's cap on mirrored files (bridge_mirror_allows) has no room for `bytes` more. */
+/** The server's cap on mirrored files (bridge_upload_reserve) has no room for `bytes` more. */
 export class OverQuotaError extends Error {
   constructor(readonly bytes: number) {
     super(`Server mirror limit reached (${bytes} bytes refused)`)
@@ -224,8 +225,8 @@ export interface MirrorFileOptions {
   /** Size Discord reported for the attachment, checked before any download. */
   knownSize?: number
   ceiling: number
-  /** The server's cap has room for `bytes` more. Default: mirrorAllows for the channel. */
-  allows?: (bytes: number) => Promise<boolean>
+  /** The claim on the server's cap. Default: an UploadReservation of the channel. */
+  reservation?: Reservation
   tmpDir?: string
   fetchImpl?: typeof fetch
 }
@@ -353,14 +354,26 @@ async function storeLocalFile(
   return { path: storagePath, url: url ?? referenceUrl(storagePath), contentType, bytes: size }
 }
 
+/** Claims `size` bytes in all unless as many are claimed; OverQuotaError when the server's cap refuses them. */
+function admitTo(reservation: Reservation) {
+  let admitted = -1
+  return async (size: number): Promise<void> => {
+    // bridge_upload_reserve takes a bigint: whole bytes, never negative.
+    const bytes = Math.max(0, Math.ceil(size))
+    if (bytes <= admitted) return
+    if (!(await reservation.claim(bytes))) throw new OverQuotaError(bytes)
+    admitted = bytes
+  }
+}
+
 /**
  * Streams a Discord CDN attachment through a temp file into the channel's room of message_media
  * as c/<channel id>/bridge/<bot id>/<uuid>.<ext>, without its location and camera metadata
  * (stripMetadata.ts). The strip and the stored type follow the file's leading bytes
  * (sniffContainer), not the declared type or name. Never holds a video in memory. TooLargeError
- * for anything over `ceiling`; OverQuotaError when the server's cap refuses the file, asked with
+ * for anything over `ceiling`; OverQuotaError when the server's cap refuses the file, claimed with
  * the known size before the download, with Content-Length before the body, and with the stored
- * size before the upload whenever that is the largest so far.
+ * size before the upload whenever that is the largest so far. The claim ends with the call.
  */
 export async function mirrorFileToStorage(
   sourceUrl: string,
@@ -369,15 +382,19 @@ export async function mirrorFileToStorage(
   if (!isAllowedSourceUrl(sourceUrl)) throw new Error('Refusing to mirror disallowed URL host')
   if (opts.knownSize !== undefined && opts.knownSize > opts.ceiling) throw new TooLargeError(opts.knownSize)
 
-  const allows = opts.allows ?? ((bytes: number) => mirrorAllows(opts.channelId, bytes))
-  let admitted = -1
-  // bridge_mirror_allows takes a bigint: whole bytes, never negative.
-  const admit = async (size: number) => {
-    const bytes = Math.max(0, Math.ceil(size))
-    if (bytes <= admitted) return
-    if (!(await allows(bytes))) throw new OverQuotaError(bytes)
-    admitted = bytes
+  const reservation = opts.reservation ?? new UploadReservation(opts.channelId)
+  try {
+    return await mirrorAdmitted(sourceUrl, opts, admitTo(reservation))
+  } finally {
+    await reservation.release()
   }
+}
+
+async function mirrorAdmitted(
+  sourceUrl: string,
+  opts: MirrorFileOptions,
+  admit: (size: number) => Promise<void>,
+): Promise<{ path: string; url: string; contentType: string; bytes: number }> {
   if (opts.knownSize !== undefined && Number.isFinite(opts.knownSize)) await admit(opts.knownSize)
 
   const fetchImpl = opts.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args))
@@ -423,15 +440,30 @@ export async function mirrorFileToStorage(
   }
 }
 
+/** Bytes claimed ahead of a body that declared no size. */
+const CLAIM_STEP_BYTES = 1024 * 1024
+
 /**
- * Writes `body` to `file`, TooLargeError past `ceiling` bytes. Unlike pipeline(), a refusal leaves
- * `body` undestroyed and draining, so the request it reads can still be answered (413).
+ * Writes `body` to `file`, TooLargeError past `ceiling` bytes. A body past `claimed` bytes is paused
+ * until `claim` admits the next step. Unlike pipeline(), a refusal leaves `body` undestroyed and
+ * draining, so the request it reads can still be answered (413). A body something else has read to
+ * its end, or whose request is gone, emits no further event and is refused at once;
+ * IncomingMessage.complete is true of a body received in full and still unread.
  */
-function writeLimited(body: Readable, file: string, ceiling: number): Promise<number> {
+function writeLimited(
+  body: Readable,
+  file: string,
+  ceiling: number,
+  claimed: number,
+  claim: (size: number) => Promise<void>,
+): Promise<number> {
+  if (body.readableEnded || body.destroyed) return Promise.reject(new Error('Upload body already read or closed'))
   return new Promise((resolve, reject) => {
     const out = createWriteStream(file)
     let size = 0
+    let ended = false
     let failed = false
+    let claiming: Promise<void> = Promise.resolve()
     const fail = (error: Error) => {
       if (failed) return
       failed = true
@@ -443,14 +475,24 @@ function writeLimited(body: Readable, file: string, ceiling: number): Promise<nu
     const onData = (chunk: Buffer) => {
       size += chunk.length
       if (size > ceiling) return fail(new TooLargeError(size))
-      if (!out.write(chunk)) {
-        body.pause()
-        out.once('drain', () => body.resume())
+      const waits: Promise<unknown>[] = []
+      if (size > claimed) {
+        claimed = Math.min(size + CLAIM_STEP_BYTES, ceiling)
+        waits.push(claiming = claim(claimed))
       }
+      if (!out.write(chunk)) waits.push(new Promise<void>((drained) => out.once('drain', () => drained())))
+      if (waits.length === 0) return
+      body.pause()
+      Promise.all(waits).then(() => { if (!failed) body.resume() }, fail)
     }
     body.on('data', onData)
-    body.once('end', () => { if (!failed) out.end() })
+    body.once('end', () => {
+      ended = true
+      // 'end' follows the last chunk even while the body is paused for its claim.
+      claiming.then(() => { if (!failed) out.end() }, fail)
+    })
     body.once('aborted', () => fail(new Error('Upload aborted')))
+    body.once('close', () => { if (!ended) fail(new Error('Upload aborted')) })
     body.once('error', fail)
     out.once('error', fail)
     out.once('close', () => { if (!failed) resolve(size) })
@@ -464,8 +506,10 @@ export interface BotUploadOptions {
   contentType?: string
   /** Largest body accepted, bytes; TooLargeError past it. */
   ceiling: number
-  /** The server's cap on bot-stored files, asked with the stored size (bridge_mirror_allows). */
-  allows?: (bytes: number) => Promise<boolean>
+  /** The request's Content-Length, which its body cannot pass; absent for a chunked body. */
+  declaredSize?: number
+  /** The claim on the server's cap. Default: an UploadReservation of the channel. */
+  reservation?: Reservation
   tmpDir?: string
 }
 
@@ -473,28 +517,32 @@ export interface BotUploadOptions {
  * A file a bot sends in a request body (POST /channels/:id/attachments), stored like a mirrored
  * attachment: c/<channel id>/bridge/<bot id>/<uuid>.<ext>, metadata stripped, typed by its
  * leading bytes, counted toward the server's cap (bridge_mirror_server_bytes) and removed by the
- * message_media sweep after a day when no message names it.
+ * message_media sweep after a day when no message names it. Its bytes are claimed before they are
+ * read: the declared size, or steps of CLAIM_STEP_BYTES. The claim ends with the call.
  */
 export async function storeBotUpload(
   body: Readable,
   opts: BotUploadOptions,
 ): Promise<{ path: string; url: string; contentType: string; bytes: number }> {
-  const allows = opts.allows ?? ((bytes: number) => mirrorAllows(opts.channelId, bytes))
-  const dir = await mkdtemp(join(opts.tmpDir ?? (process.env.BRIDGE_MIRROR_TMPDIR || tmpdir()), 'upload-'))
+  const reservation = opts.reservation ?? new UploadReservation(opts.channelId)
+  const admit = admitTo(reservation)
+  let dir: string | undefined
   try {
+    const declared = opts.declaredSize ?? 0
+    if (declared > 0) await admit(declared)
+    // sweepMirrorTemp takes mirror-* folders a killed gateway left.
+    dir = await mkdtemp(join(opts.tmpDir ?? (process.env.BRIDGE_MIRROR_TMPDIR || tmpdir()), 'mirror-upload-'))
     const file = join(dir, 'upload')
-    if ((await writeLimited(body, file, opts.ceiling)) === 0) throw new EmptyFileError()
+    if ((await writeLimited(body, file, opts.ceiling, declared, admit)) === 0) throw new EmptyFileError()
     const declaredType = opts.contentType || FALLBACK_CONTENT_TYPE
     return await storeLocalFile(file, {
       prefix: `c/${opts.channelId.toLowerCase()}/bridge/${opts.botId}`,
       declaredType,
       declaredExtension: extensionFrom(opts.fileName, declaredType, ''),
-      admit: async (size: number) => {
-        const bytes = Math.max(0, Math.ceil(size))
-        if (!(await allows(bytes))) throw new OverQuotaError(bytes)
-      },
+      admit,
     })
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    await reservation.release()
+    if (dir) await rm(dir, { recursive: true, force: true })
   }
 }

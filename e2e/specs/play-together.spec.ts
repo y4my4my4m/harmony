@@ -7,7 +7,7 @@
 // routeWebSocket() bridges the relay socket to it.
 
 import { test, expect, devices, type Browser, type BrowserContext, type FrameLocator, type Page } from '@playwright/test'
-import { addMember, adminClient, createUser, deleteUser, openChannel, seedServer, signIn, type SeededServer, type SpecUser } from './harness'
+import { addMember, adminClient, createUser, deleteUser, dismissAnnouncements, openChannel, seedServer, signIn, type SeededServer, type SpecUser } from './harness'
 import { startBackend, type Backend } from './backend'
 import JSZip from 'jszip'
 import { createHash } from 'node:crypto'
@@ -270,6 +270,26 @@ test('the activity frame runs in an opaque origin without storage or network', a
   expect(ports).toEqual({ chrome: 'undefined', webkit: 'undefined', sent: 'refused', bridged: false })
   expect(await a.page.evaluate(() => typeof (window as unknown as { chrome?: unknown }).chrome)).toBe('object')
 
+  // No WebRTC in the frame, and a document nested in it, which would have its own, runs neither an
+  // inline script under the loader's nonce nor the activity's script.
+  const nested = await frame.evaluate(async () => {
+    const heard: unknown[] = []
+    window.addEventListener('message', (event) => { if (event.source !== window.parent) heard.push(event.data) })
+    const nonce = document.querySelector<HTMLScriptElement>('script[nonce]')!.nonce
+    const src = document.querySelector<HTMLScriptElement>('script[src]')!.src
+    for (const script of [`<script nonce="${nonce}">parent.postMessage(typeof RTCPeerConnection, '*')</` + 'script>', `<script src="${src}"></` + 'script>']) {
+      const child = document.createElement('iframe')
+      child.srcdoc = script
+      const loaded = new Promise((resolve) => child.addEventListener('load', resolve))
+      document.body.appendChild(child)
+      await loaded
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    const w = window as unknown as Record<string, unknown>
+    return { rtc: ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel'].map((name) => typeof w[name]), heard }
+  })
+  expect(nested).toEqual({ rtc: ['undefined', 'undefined', 'undefined'], heard: [] })
+
   // An activity that navigates its own frame away is detached and the frame blanked.
   await frame.evaluate(() => { location.href = '/activities/index.json' })
   await expect(a.page.getByText('tried to leave its sandbox')).toBeVisible()
@@ -337,6 +357,97 @@ test('a call plays DrawinPhone on its stage, and the frame takes input over the 
   await expect(b.page.getByTestId('play-together-status')).toHaveText(/Ended/)
   await a.context.close()
   await b.context.close()
+})
+
+test('a game started in the call\'s pop-out runs in that window, and follows the call view back', async ({ browser }) => {
+  test.setTimeout(150_000)
+  const context = await browser.newContext({ serviceWorkers: 'block' })
+  // window.open in place of Document Picture-in-Picture, whose window Playwright does not report.
+  await context.addInitScript(() => { delete (window as unknown as { documentPictureInPicture?: unknown }).documentPictureInPicture })
+  const page = await context.newPage()
+  await backend.route(page)
+  // Bob starts this one: an account starts 6 games in 10 minutes, and Alice starts the rest.
+  await signIn(page, bob)
+  await openChannel(page, server.id, server.generalChannelId)
+  await enterCall(page, bob, true)
+  await expect(page.getByTestId('voice-overlay')).toBeVisible({ timeout: 15_000 })
+
+  const opened = page.waitForEvent('popup')
+  await page.getByTestId('voice-overlay').getByRole('button', { name: 'Pop out call' }).click()
+  const popup = await opened
+  await backend.route(popup)
+  await expect(popup.getByTestId('voice-overlay')).toBeVisible({ timeout: 15_000 })
+
+  /** The frame lies over the panel's slot in this window. */
+  const covers = async (p: Page) => {
+    const slot = await p.getByTestId('play-together-slot').boundingBox()
+    const box = await p.getByTestId('play-together-host').boundingBox()
+    return !!slot && !!box && Math.abs(slot.x - box.x) < 2 && Math.abs(slot.y - box.y) < 2 && Math.abs(slot.width - box.width) < 2
+  }
+
+  await test.step('the frame is in the pop-out\'s document, over its stage; nothing of it is in the main window', async () => {
+    await popup.getByTestId('overlay-activities-button').click()
+    await popup.getByTestId('play-together-app-drawinphone').click()
+    await expect(game(popup).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
+    await expect.poll(() => covers(popup), { timeout: 10_000 }).toBe(true)
+    await expectFrameOnTop(popup)
+    await expect(page.getByTestId('play-together-host')).toHaveCount(0)
+    await expect(page.getByTestId('play-together-mini')).toHaveCount(0)
+  })
+
+  const other = await open(browser, alice)
+  await test.step('it plays there: two people, the round started and a prompt written in the pop-out', async () => {
+    await openChannel(other.page, server.id, server.generalChannelId)
+    await enterCall(other.page, alice, true)
+    await other.page.locator('.voice-overlay').getByTestId('play-together-join').click()
+    await expect(game(popup).getByTestId('dp-player')).toHaveCount(2, { timeout: 30_000 })
+    await game(popup).getByTestId('dp-start').click()
+    await game(popup).getByTestId('dp-prompt-input').fill('a lighthouse on the moon')
+    await expect(game(other.page).getByTestId('dp-prompt-input')).toBeVisible()
+  })
+
+  await test.step('closing the pop-out brings the running game back over the main window\'s stage', async () => {
+    await popup.close()
+    await expect(page.getByTestId('voice-overlay')).toBeVisible({ timeout: 15_000 })
+    await expect(game(page).getByTestId('dp-prompt-input')).toBeVisible({ timeout: 30_000 })
+    await expect.poll(() => covers(page), { timeout: 10_000 }).toBe(true)
+    await expectFrameOnTop(page)
+    await expect(page.getByText('tried to leave its sandbox')).toHaveCount(0)
+  })
+
+  await test.step('opening the pop-out again takes it along', async () => {
+    const again = page.waitForEvent('popup')
+    await page.getByTestId('voice-overlay').getByRole('button', { name: 'Pop out call' }).click()
+    const second = await again
+    await backend.route(second)
+    await expect(second.getByTestId('voice-overlay')).toBeVisible({ timeout: 15_000 })
+    await expect(second.getByTestId('play-together-frame')).toHaveCount(1)
+    await expect(page.getByTestId('play-together-host')).toHaveCount(0)
+    await second.close()
+    await expect(page.getByTestId('play-together-frame')).toHaveCount(1)
+  })
+
+  await page.getByTestId('play-together-end').click()
+  await context.close()
+  await other.context.close()
+})
+
+test('an account that signs out in another tab has its launcher closed here', async ({ browser }) => {
+  test.setTimeout(120_000)
+  const a = await open(browser, bob)
+  const page = a.page
+  await page.goto(`/dm/${dm}`)
+  await openDmActivities(page)
+  await expect(page.getByTestId('activities-launcher')).toBeVisible()
+
+  const tab = await a.context.newPage()
+  await backend.route(tab)
+  await tab.goto('/settings/account')
+  await dismissAnnouncements(tab)
+  await tab.getByRole('button', { name: 'Log out' }).click()
+  await expect(tab).toHaveURL(/\/login/, { timeout: 30_000 })
+  await expect(page.getByTestId('activities-launcher')).toHaveCount(0, { timeout: 15_000 })
+  await a.context.close()
 })
 
 /** One stored local entry of `dataLen` bytes, listed by `records` central directory records declaring size 0. */
@@ -433,11 +544,11 @@ test('an admin installs an activity package, switches it on, and a member plays 
   await boss$.page.goto('/admin?tab=activities')
 
   // Crafted zips are refused at once: a zip64 end record claiming 2^32 - 1 entries, and one stored
-  // entry listed 40 times with a declared size of 0.
+  // entry listed 20 times with a declared size of 0.
   const error = boss$.page.getByTestId('activities-admin-error')
   await boss$.page.getByTestId('activities-admin-file').setInputFiles({ name: 'endless.zip', mimeType: 'application/zip', buffer: zip64Claiming(0xffffffff) })
   await expect(error).toContainText('32 zip entries', { timeout: 5_000 })
-  await boss$.page.getByTestId('activities-admin-file').setInputFiles({ name: 'copies.zip', mimeType: 'application/zip', buffer: sharedStoredEntry(40, 1024 * 1024) })
+  await boss$.page.getByTestId('activities-admin-file').setInputFiles({ name: 'copies.zip', mimeType: 'application/zip', buffer: sharedStoredEntry(20, 1024 * 1024) })
   await expect(error).toContainText('too large', { timeout: 5_000 })
 
   await boss$.page.getByTestId('activities-admin-file').setInputFiles({ name: 'tictac.zip', mimeType: 'application/zip', buffer: zip })

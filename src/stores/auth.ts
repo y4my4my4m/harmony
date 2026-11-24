@@ -8,11 +8,14 @@ import { userStorage } from '@/utils/userScopedStorage';
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup';
 
 let sessionRejectionSubscribed = false;
+let storedSessionFollowed = false;
 // Stores whose adopted sessions name the user-scoped storage account.
 const storageAccountFollowed = new WeakSet<object>();
 
 // mfa.verify bound, ms; without one, mobile clients spin forever.
 const MFA_VERIFY_TIMEOUT_MS = 30_000;
+// Bound on the leave of a call at sign-out, ms.
+const CALL_LEAVE_TIMEOUT_MS = 3_000;
 const TIMED_OUT = Symbol('timed out');
 
 // Bumped by login() and cancelPendingSignIn(): a verify answered after its timeout finishes
@@ -32,6 +35,27 @@ async function withVerifyTimeout<T>(verify: Promise<T>): Promise<T | typeof TIME
     ]);
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * Leaves the call or ends the join in progress, at most CALL_LEAVE_TIMEOUT_MS. Past it the end of
+ * the session closes the transport (unifiedVoiceChannel endCallWithSession).
+ */
+async function leaveCallForSignOut(): Promise<void> {
+  try {
+    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel');
+    const voiceStore = useUnifiedVoiceChannelStore();
+    if (!voiceStore.isConnectedOrJoining) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const outcome = await Promise.race([
+      voiceStore.leaveVoiceChannel(),
+      new Promise<typeof TIMED_OUT>((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), CALL_LEAVE_TIMEOUT_MS); }),
+    ]);
+    clearTimeout(timer);
+    if (outcome === TIMED_OUT) debug.warn('Leaving the call timed out on sign-out');
+  } catch (error) {
+    debug.error('Error leaving the call:', error);
   }
 }
 
@@ -351,6 +375,15 @@ export const useAuthStore = defineStore('auth', {
         onSessionRejected((reason) => { void this.handleSessionRejected(reason); });
       }
 
+      // A browser without BroadcastChannel hears no SIGNED_OUT of another tab.
+      if (!storedSessionFollowed && typeof window !== 'undefined') {
+        storedSessionFollowed = true;
+        const key = (supabase.auth as unknown as { storageKey?: string }).storageKey;
+        window.addEventListener('storage', (event) => {
+          if (key && event.key === key && event.newValue === null) void this.handleStoredSessionRemoved();
+        });
+      }
+
       supabase.auth.onAuthStateChange(async (event, session) => {
         const currentUserId = this.session?.user?.id;
         const newUserId = session?.user?.id;
@@ -360,10 +393,7 @@ export const useAuthStore = defineStore('auth', {
         if (currentUserId && newUserId === currentUserId) {
           // Same user - only handle actual logout or user data changes
           if (event === 'SIGNED_OUT') {
-            debug.log('Auth event: SIGNED_OUT');
-            this.isPasswordResetMode = false;
-            this.session = null;
-            this.cleanupNotificationSystem();
+            await this.handleSignedOut();
             return;
           }
           if (event === 'USER_UPDATED') {
@@ -394,14 +424,7 @@ export const useAuthStore = defineStore('auth', {
         }
         
         if (event === 'SIGNED_OUT') {
-          debug.log('Auth event: SIGNED_OUT');
-          this.isPasswordResetMode = false;
-          this.session = null;
-          if (currentUserId) {
-            await this.setUserOffline(currentUserId);
-          }
-          userStorage.clearCurrentUser();
-          this.cleanupNotificationSystem();
+          await this.handleSignedOut();
           return;
         }
         
@@ -433,6 +456,7 @@ export const useAuthStore = defineStore('auth', {
             await signOutAndForget();
             userStorage.clearCurrentUser();
             this.cleanupNotificationSystem();
+            if (currentUserId) await this.returnToSignIn();
             return;
           }
           
@@ -844,13 +868,48 @@ export const useAuthStore = defineStore('auth', {
     async handleSessionRejected(reason: 'session_revoked' | 'insufficient_aal') {
       if (!this.session || this._pendingMFAVerification || this.isPasswordResetMode) return;
       debug.warn(`PostgREST rejected the session: ${reason}`);
-      await signOutAndForget();
+      // Before GoTrue answers: a running call ends with it.
       this.session = null;
+      await signOutAndForget();
       this.cleanupOfflineHandlers();
       userStorage.clearCurrentUser();
       this.cleanupNotificationSystem();
+      await this.returnToSignIn({ reason });
+    },
+
+    /**
+     * The session is gone: SIGNED_OUT from this tab's auth client (logout(), a refused refresh) or
+     * another tab's. logout() has cleared the session by then and returns to sign-in itself, as the
+     * recovery view does once it has shown its outcome.
+     */
+    async handleSignedOut() {
+      debug.log('Auth event: SIGNED_OUT');
+      const signedInUserId = this.session?.user?.id;
+      const recovering = this.isPasswordResetMode || window.location.pathname === '/reset-password';
+      this.isPasswordResetMode = false;
+      this.session = null;
+      const offline = signedInUserId ? this.setUserOffline(signedInUserId) : undefined;
+      if (signedInUserId) this.cleanupOfflineHandlers();
+      userStorage.clearCurrentUser();
+      this.cleanupNotificationSystem();
+      if (signedInUserId && !recovering) await this.returnToSignIn();
+      await offline;
+    },
+
+    /** Another tab removed the stored session: its sign-out, unless a session is stored again. */
+    async handleStoredSessionRemoved() {
+      if (!this.session || this._pendingMFAVerification) return;
+      const { data } = await supabase.auth.getSession();
+      if (!data.session && this.session) await this.handleSignedOut();
+    },
+
+    /** Sign-in, with nothing of the account kept. The components unmount before the stores reset. */
+    async returnToSignIn(query?: Record<string, string>) {
       const { default: router } = await import('@/router');
-      await router.push({ path: '/login', query: { reason } });
+      void Promise.resolve(router.push(query ? { path: '/login', query } : '/login'))
+        .catch((error) => debug.warn('Return to sign-in failed:', error));
+      userStorage.clearCurrentUser();
+      await this.clearAccountState();
     },
 
     /** `captchaToken` answers the sign-up hook's check (src/utils/signupCaptcha.ts). */
@@ -885,9 +944,11 @@ export const useAuthStore = defineStore('auth', {
       // Queued sends die with the session that queued them.
       await resetOutbox();
 
-      // Both need the session: this device stops receiving the account's pushes and
-      // stops counting as viewing a channel. Each is bounded, so neither holds up sign-out.
+      // All need the session: the account leaves its call (send_signal and its DM rings refuse an
+      // anonymous caller), this device stops receiving its pushes and stops counting as viewing a
+      // channel. Each is bounded, so none holds up sign-out.
       await Promise.all([
+        leaveCallForSignOut(),
         import('@/composables/usePushNotifications')
           .then(({ usePushNotifications }) => usePushNotifications().detachForLogout())
           .catch((error) => debug.warn('Push detach failed:', error)),
@@ -903,15 +964,20 @@ export const useAuthStore = defineStore('auth', {
       // This device only; Settings > Sessions signs out the others.
       await signOutAndForget();
 
-      // Redirect to login BEFORE clearing stores so that components unmount
-      // before store resets trigger reactive watchers
-      const { default: router } = await import('@/router');
-      router.push('/login');
+      await this.returnToSignIn();
+    },
 
-      userStorage.clearCurrentUser();
-      
-      // Stores are cleared after navigation; order is irrelevant once
-      // components have unmounted.
+    /** Order is irrelevant once the components have unmounted. */
+    async clearAccountState() {
+      try {
+        const { dmCallSignaling } = await import('@/services/DMCallSignaling')
+        dmCallSignaling.cleanup()
+        const { globalDMCallListener } = await import('@/services/GlobalDMCallListener')
+        globalDMCallListener.cleanup()
+      } catch (error) {
+        debug.error('Error clearing DM calls:', error)
+      }
+
       try {
         const { useProfileStore } = await import('@/stores/useProfile')
         const profileStore = useProfileStore()
@@ -1146,6 +1212,8 @@ export const useAuthStore = defineStore('auth', {
           import('@/utils/remoteServerSync').then(({ resetRemoteServerSync }) => resetRemoteServerSync()),
           import('@/services/botCommandService').then(({ clearBotCommandCache }) => clearBotCommandCache()),
           import('@/stores/useBotInteractions').then(({ useBotInteractionsStore }) => useBotInteractionsStore().reset()),
+          import('@/stores/playTogether').then(({ usePlayTogetherStore }) => usePlayTogetherStore().reset()),
+          import('@/stores/activities').then(({ useActivitiesStore }) => useActivitiesStore().reset()),
         ]).catch(error => {
           debug.error('Error clearing account caches:', error);
         });

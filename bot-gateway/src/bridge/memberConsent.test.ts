@@ -52,6 +52,19 @@ describe('consentSubject', () => {
     expect(consentSubject({ user_id: null, bot_id: 'b', metadata: { matrix_user: { id: '@x:y' } } })).toBeNull()
     expect(consentSubject(null)).toBeNull()
   })
+
+  it('is the acting member of a system row, which has no author', () => {
+    const row = (metadata: unknown, is_system = true) => consentSubject({ user_id: null, bot_id: null, is_system, metadata })
+    expect(row({ type: 'thread_created', actor_id: 'alice', thread_name: 'secret' })).toBe('alice')
+    expect(row({ type: 'member_kick', actor_id: 'alice', subject_id: 'bob' })).toBe('alice')
+    expect(row({ type: 'member_leave', subject_id: 'bob' })).toBe('bob')
+    expect(row({ type: 'thread_created', actor_bot_id: 'b', discord_user: { id: '1' } })).toBeNull()
+    expect(row({ actor_id: 7 })).toBeNull()
+    expect(row(null)).toBeNull()
+    // Only a system row's metadata is the server's statement of who acted.
+    expect(row({ actor_id: 'alice' }, false)).toBeNull()
+    expect(consentSubject({ user_id: null, bot_id: 'b', metadata: { actor_id: 'alice' } })).toBeNull()
+  })
 })
 
 describe('consentingReaders', () => {

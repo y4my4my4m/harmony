@@ -124,6 +124,7 @@ import { useUserData } from '@/composables/useUserData'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useNotificationStore } from '@/stores/useNotification'
+import { conversationOthers } from '@/utils/groupConversation'
 import { debug } from '@/utils/debug'
 // `ChatComponent` owns the DM send + fallback flow so it can await the outcome
 // before clearing the input. This file forwards notifications only.
@@ -212,37 +213,7 @@ const currentDMUsername = computed(() => {
   return rawName ? stripShortcodes(rawName) : undefined
 })
 
-const existingParticipants = computed(() => {
-  const conversation = currentConversation.value
-  const currentUser = getCurrentUser.value
-  
-  if (!conversation?.other_user || !currentUser) return []
-  
-  // Participant data is derived from the conversation payload, not the
-  // conversation_participants table.
-  // `domain: null` plus optional fields don't match DMUser exactly; cast through any.
-  const conv = conversation as any
-  return [
-    {
-      id: currentUser.id,
-      username: currentUser.username || '',
-      display_name: currentUser.displayName,
-      avatar_url: currentUser.avatarUrl,
-      is_local: true,
-      domain: null,
-      handle: `@${currentUser.username}`
-    },
-    {
-      id: conv.other_user.id,
-      username: conv.other_user.username,
-      display_name: conv.other_user.display_name,
-      avatar_url: conv.other_user.avatar_url,
-      is_local: conv.other_user.is_local || false,
-      domain: conv.other_user.domain,
-      handle: conv.other_user.handle
-    }
-  ] as any
-})
+const existingParticipants = computed(() => conversationOthers(currentConversation.value))
 
 const loadMessages = async () => {
   const conversationId = route.params.conversationId as string

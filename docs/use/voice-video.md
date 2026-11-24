@@ -109,7 +109,7 @@ The menu notes "Only changes what you hear": nobody else is affected. Harmony re
 
 Click **Camera** in the call bar. Pick the camera, resolution and frame rate under **User settings** → **Voice & video** → **Video**. The defaults are 720p at 30 FPS.
 
-In a direct message, **Start video call** starts a call with your camera on.
+In a direct message, **Start video call**, under **More options** (**⋮**) in the conversation header, starts a call with your camera on. **Start voice call** starts with it off.
 
 ## Share your screen
 
@@ -221,7 +221,7 @@ Members from other Harmony instances are moderated the same way: their instance 
 ## Call someone from direct messages
 
 1. Open the conversation.
-2. Click **Start voice call** (the phone) or **Start video call** (the camera) in the conversation header.
+2. Click **Start voice call** (the phone) in the conversation header. The call starts with your camera off; **Camera** in the call bar turns it on while it rings or after it is answered. To start with the camera on, open **More options** (**⋮**) and choose **Start video call**.
 
 The other person sees **Incoming voice call** or **Incoming video call** with **Decline** and **Accept**; a video call also offers **Video** to answer with the camera on. **Minimize** shrinks the ring to a small card that keeps ringing. You hear a ringback tone while you wait.
 
@@ -229,7 +229,7 @@ If nobody answers within 30 seconds the call ends. The conversation records the 
 
 ### Group calls
 
-In a group conversation, the same buttons ring every member on your instance; they see "{name} started a voice call". Members on other instances are not rung. A call to someone on another instance is always one-to-one.
+In a group conversation, **Start voice call** and **Start video call** ring every member on your instance; they see "{name} started a voice call" or "{name} started a video call". Members on other instances are not rung. A call to someone on another instance is always one-to-one.
 
 ### When a call does not ring
 

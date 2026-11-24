@@ -111,8 +111,7 @@ In the channel sidebar, a server hosted elsewhere shows a globe icon and a **Hos
 
 Select **Harmony Portal**, the first button at the top of the server rail, to open **Discover communities**. It lists the public servers hosted on your instance:
 
-- **Search communities...** filters by name.
-- Category buttons narrow the list, starting with **All**.
+- **Search and filters** opens **Search communities**, which filters by name, and the category buttons, which narrow the list, starting with **All**. It opens folded. While it is folded, every active filter stays on screen as a chip that clears it.
 - **Featured communities**, picked by the people who run the instance, appear above **All communities**.
 - **Join** adds you to a server; **Open** switches to one you are already in.
 
@@ -120,9 +119,10 @@ The footer offers **Join by URL** for servers on other instances and **Create yo
 
 When your instance federates, the window has two tabs: **This instance**, the list above, and **Other instances**, the server directories of other Harmony instances. Arrow keys move between the tabs.
 
-1. The tab opens on the servers listed by every instance yours knows, most members first (each instance's three largest ahead of the rest), each with its icon, handle, description, member count and the instance that hosts it. **Filter servers** narrows them by name, topic or instance. **Load more** shows the next ones.
-2. To see one instance's directory, pick it under **Known instances**, or enter its domain under **Instance**, such as `example.social`, and select **Browse**. **All instances** returns to the merged list.
-3. **Join** opens **Join remote server** with that server filled in; see [Join a server on another instance](#join-a-server-on-another-instance). **Open** switches to a server you are already in.
+1. The tab opens on the servers listed by every instance yours knows, most members first (each instance's three largest ahead of the rest), each with its icon, handle, description, member count and the instance that hosts it. **Load more** shows the next ones.
+2. **Search and filters** opens one field, **Search servers or browse an instance**, and the **Known instances**. Typed text narrows the list by name, topic or instance.
+3. To see one instance's directory, pick it under **Known instances**, or type its domain, such as `example.social`, and select **Browse example.social** or press Enter. **All instances** returns to the merged list.
+4. **Join** opens **Join remote server** with that server filled in; see [Join a server on another instance](#join-a-server-on-another-instance). **Open** switches to a server you are already in.
 
 An instance that publishes no directory, does not answer, or is blocked on yours shows why in place of the list. In the merged list, a line under the count says how many instances did not answer.
 
@@ -183,7 +183,7 @@ Below the menu are the channels, grouped in categories. A `#` marks a text chann
 
 ### Chat area
 
-The header shows the channel name and description, with buttons for **Pinned messages**, **View all threads**, **Search messages**, **Member list** and **More options**. **More options** holds **Mark as read**, **Mute channel**, the channel's **Notification level** and **Notification settings**, plus **Edit channel** for members who manage channels. On a phone, pinned messages and threads move into **More options**.
+The header shows the channel name and description, with buttons for **Pinned messages**, **View all threads**, **Activities** ([Play together](/use/play-together)), **Search messages**, **Member list** and **More options**. **More options** holds **Mark as read**, **Mute channel**, the channel's **Notification level** and **Notification settings**, plus **Edit channel** for members who manage channels. On a phone, pinned messages and threads move into **More options**.
 
 The composer at the bottom sends messages. Everything about writing, replying, threads, polls and reactions is in [Messages and threads](/use/messages).
 
@@ -195,7 +195,7 @@ In a server of more than 1000 members, online status changes are not sent live: 
 
 ### Direct messages
 
-**Direct messages** in the rail opens the conversation list. **Start a new DM** searches for people by name, or by full handle such as `@user@domain.com` for someone on another instance. **Create group chat** starts a conversation with several people. Calls in direct messages are covered in [Voice and video](/use/voice-video).
+**Direct messages** in the rail opens the conversation list. **Start a new DM** searches for people by name, or by full handle such as `@user@domain.com` for someone on another instance. **Create group chat** starts a conversation with several people: a group holds up to 10, you included, and the picker shows the spots left. Calls in direct messages are covered in [Voice and video](/use/voice-video).
 
 ### Today
 

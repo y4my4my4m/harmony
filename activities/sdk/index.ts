@@ -320,6 +320,23 @@ class RoomImpl implements Room {
   }
 }
 
+/**
+ * A message of the embedding client. In a call's pop-out window the parent is that window, whose
+ * script runs in the app's realm: its messages carry the app's window as source, the pop-out's
+ * opener, and the app's origin, the pop-out's own (a Document Picture-in-Picture window has no
+ * opener).
+ */
+function fromClient(event: MessageEvent): boolean {
+  if (event.source === window.parent) return true
+  if (!event.source) return false
+  try {
+    if (event.source === window.parent.opener) return true
+  } catch {
+    // The opener is not readable.
+  }
+  return event.origin !== 'null' && event.origin === window.location.ancestorOrigins?.[0]
+}
+
 let pending: Promise<Room> | null = null
 
 /** Resolves once the embedding client has sent the session. One room per frame. */
@@ -336,7 +353,7 @@ export function connect(options: { timeoutMs?: number } = {}): Promise<Room> {
     }, options.timeoutMs ?? 15_000)
 
     window.addEventListener('message', (event: MessageEvent) => {
-      if (event.source !== window.parent) return
+      if (!fromClient(event)) return
       const msg = event.data as HostToFrame
       if (!msg || typeof msg !== 'object' || msg.hp !== PROTOCOL_VERSION || typeof msg.t !== 'string') return
       if (!room) {

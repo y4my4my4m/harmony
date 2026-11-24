@@ -37,6 +37,8 @@
 --                                    'initiate' and the federation backend's invite take one each
 --                                    (antispam_take_ring), a new call every 6 s. 'end' and 'timeout'
 --                                    are not counted: a cancel is never refused.
+--   account_role_picks_per_minute 60 set_my_self_assignable_role calls that pass its checks
+--                                    (20261116400001), taking and dropping a role on one count.
 -- antispam_take is the check-and-record of one limited write; antispam_write_guard calls it.
 --
 -- Clients of 1.9.7 and earlier broadcast on these topics themselves, and Realtime drops those sends:
@@ -58,7 +60,8 @@ SET LOCAL lock_timeout = '5s';
 
 ALTER TABLE public.automod_recent_activity DROP CONSTRAINT IF EXISTS automod_recent_activity_kind_check;
 ALTER TABLE public.automod_recent_activity ADD CONSTRAINT automod_recent_activity_kind_check
-    CHECK (kind IN ('message', 'post', 'reaction', 'follow', 'join', 'server', 'stranger_dm', 'signal', 'ring'));
+    CHECK (kind IN ('message', 'post', 'reaction', 'follow', 'join', 'server', 'stranger_dm', 'signal', 'ring',
+                    'role_pick'));
 
 CREATE OR REPLACE FUNCTION public.antispam_settings()
 RETURNS jsonb
@@ -75,6 +78,7 @@ AS $$
              "account_joins_per_hour": 60, "account_servers_per_hour": 10,
              "account_stranger_dms_per_hour": 30,
              "account_signals_per_minute": 300, "account_rings_per_minute": 10,
+             "account_role_picks_per_minute": 60,
              "bot_requests_per_minute": 600, "bridge_requests_per_minute": 3000,
              "federation_spam_mode": "flag", "federation_max_mentions": 15, "federation_new_actor_days": 7}'::jsonb
            || COALESCE((SELECT ic.config_value FROM public.instance_config ic
@@ -118,6 +122,7 @@ BEGIN
         'account_stranger_dms_per_hour', public.automod_int(s -> 'account_stranger_dms_per_hour', 30, 0, 100000),
         'account_signals_per_minute', public.automod_int(s -> 'account_signals_per_minute', 300, 0, 100000),
         'account_rings_per_minute', public.automod_int(s -> 'account_rings_per_minute', 10, 0, 100000),
+        'account_role_picks_per_minute', public.automod_int(s -> 'account_role_picks_per_minute', 60, 0, 100000),
         'bot_requests_per_minute', public.automod_int(s -> 'bot_requests_per_minute', 600, 0, 1000000),
         'bridge_requests_per_minute', public.automod_int(s -> 'bridge_requests_per_minute', 3000, 0, 1000000),
         'federation_spam_mode', s ->> 'federation_spam_mode',

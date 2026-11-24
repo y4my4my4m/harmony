@@ -11,7 +11,7 @@
  */
 
 import express, { Application } from 'express';
-import type { IncomingMessage, Server } from 'node:http';
+import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { isIP } from 'node:net';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -62,7 +62,7 @@ import publicPagesRouter from './publicPages/routes.js';
 import pushRelayRouter from './routes/pushRelay.js';
 import activityFrameRouter from './activities/frame.js';
 import { adminActivitiesRouter, packageFilesRouter } from './activities/packageRoutes.js';
-import { ActivityRelay } from './activities/relay.js';
+import { ActivityRelay, isRelayUpgrade } from './activities/relay.js';
 import { reapActivitySessions, supabaseRelayDeps } from './activities/relayDeps.js';
 import { documentCache, subscribeDocumentInvalidation } from './middleware/documentCache.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
@@ -245,7 +245,8 @@ export async function startServer(): Promise<void> {
   const app = createApp();
   const PORT = config.PORT;
 
-  const server = app.listen(PORT, () => {
+  // An Upgrade request the relay does not take is an ordinary request.
+  const server = createServer({ shouldUpgradeCallback: isRelayUpgrade }, app).listen(PORT, () => {
     logger.info(`Harmony Federation Server running on port ${PORT}`);
     logger.info(`Environment: ${config.NODE_ENV}`);
     logger.info(`Instance: ${config.INSTANCE_NAME} (${config.INSTANCE_DOMAIN})`);

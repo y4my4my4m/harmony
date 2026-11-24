@@ -40,9 +40,10 @@ vi.mock('@/supabase', () => ({
     auth: { getSession: async () => ({ data: { session: { access_token: 'jwt' } } }) },
   },
 }))
+const gate = vi.hoisted(() => ({ canReceiveCall: vi.fn() }))
 vi.mock('@/services/DMCallPermissions', () => ({
   dmCallPermissions: {
-    canReceiveCall: vi.fn(async () => ({ allowed: true })),
+    canReceiveCall: gate.canReceiveCall,
     getDeclineReasonMessage: () => 'Call declined',
   },
 }))
@@ -59,8 +60,9 @@ vi.mock('@/services/UserEventChannel', () => ({
 const toast = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn(), success: vi.fn(), warning: vi.fn() }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
 vi.mock('@/services/AuthContextService', () => ({ authContextService: { getCurrentProfileId: async () => 'me' } }))
+const users = vi.hoisted(() => ({ ensureUsersLoaded: vi.fn() }))
 vi.mock('@/services/userDataService', () => ({
-  userDataService: { ensureUsersLoaded: async () => {}, getUser: () => ({ displayName: 'Caller' }) },
+  userDataService: { ensureUsersLoaded: users.ensureUsersLoaded, getUser: () => ({ displayName: 'Caller' }) },
 }))
 vi.mock('@/utils/avatarUtils', () => ({ getAvatarUrl: (path: string) => path }))
 vi.mock('@/stores/unifiedVoiceChannel', () => ({
@@ -93,7 +95,16 @@ const ringing = () => globalDMCallListener.showIncomingCallModal.value
 
 afterAll(() => new Promise((resolve) => setTimeout(resolve, 150)))
 
+/** A promise held until `release` is called. */
+function held<T>(value: T) {
+  let release!: () => void
+  const promise = new Promise<T>((resolve) => { release = () => resolve(value) })
+  return { promise, release }
+}
+
 beforeEach(async () => {
+  gate.canReceiveCall.mockReset().mockResolvedValue({ allowed: true })
+  users.ensureUsersLoaded.mockReset().mockResolvedValue(undefined)
   globalDMCallListener.dismissIncomingCall()
   globalDMCallListener.cleanup()
   dmCallSignaling.cleanup()
@@ -153,6 +164,34 @@ describe('a ring answered on another device of the account', () => {
   })
 })
 
+describe('a ring answered elsewhere before it shows here', () => {
+  it('while the permission gate runs', async () => {
+    const check = held({ allowed: true })
+    gate.canReceiveCall.mockReturnValue(check.promise)
+    ring('initiate', OTHER_CONV)
+    await settle()
+    callSignal('accept', 'me', OTHER_CONV)
+    check.release()
+    await settle()
+    expect(globalDMCallListener.incomingCall.value?.conversationId).toBe(CONV)
+  })
+
+  it('while the caller\'s data loads', async () => {
+    const load = held(undefined)
+    users.ensureUsersLoaded.mockReturnValue(load.promise)
+    ring('initiate', OTHER_CONV)
+    await settle()
+    callSignal('accept', 'me', OTHER_CONV)
+    load.release()
+    await settle()
+    expect(globalDMCallListener.incomingCall.value?.conversationId).toBe(CONV)
+
+    ring('timeout', OTHER_CONV)
+    await settle()
+    expect(toast.info).not.toHaveBeenCalledWith('Missed call')
+  })
+})
+
 describe('a ring this client declined', () => {
   it('ends with no missed call', async () => {
     globalDMCallListener.markRingDeclined(CONV)
@@ -179,6 +218,17 @@ describe('a federated ring answered on another device of the account', () => {
     expect(globalDMCallListener.incomingCall.value?.conversationId).toBe(FED_CONV)
     userEvents.handlers['federated_call:answered']({ conversationId: FED_CONV, callId: 'call-1', outcome: 'accepted' })
     expect(ringing()).toBe(false)
+  })
+
+  it('never shows when another device answered while the permission gate ran', async () => {
+    const check = held({ allowed: true })
+    gate.canReceiveCall.mockReturnValue(check.promise)
+    await federatedRing()
+    userEvents.handlers['federated_call:answered']({ conversationId: FED_CONV, callId: 'call-1', outcome: 'accepted' })
+    check.release()
+    await settle()
+    expect(globalDMCallListener.incomingCall.value?.conversationId).toBe(CONV)
+    expect(dmCallSignaling.hasActiveCall(FED_CONV)).toBe(false)
   })
 
   it('leaves another conversation\'s ring alone', async () => {

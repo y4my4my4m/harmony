@@ -16,17 +16,6 @@ export function isAllowedSourceUrl(url: string): boolean {
   }
 }
 
-/**
- * bridge_mirror_allows: the server of `channelId` holds `bytes` more of mirrored files within
- * instance_config.bridge_mirror_server_limit_mb. Throws when the answer cannot be read, so a
- * failed read stores nothing.
- */
-export async function mirrorAllows(channelId: string, bytes: number): Promise<boolean> {
-  const { data, error } = await supabase.rpc('bridge_mirror_allows', { p_channel_id: channelId, p_bytes: bytes })
-  if (error) throw new Error(`bridge_mirror_allows failed: ${error.message}`)
-  return data === true
-}
-
 /** A message content array has at least one Discord-CDN file part (refresh candidate). */
 export function hasDiscordCdnFilePart(content: unknown): boolean {
   if (!Array.isArray(content)) return false

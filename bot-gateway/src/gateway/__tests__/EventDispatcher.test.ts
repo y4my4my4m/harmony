@@ -954,6 +954,21 @@ describe('member bridge opt-outs at event delivery', () => {
     expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual([OPEN_BOT])
   })
 
+  it('withholds the thread_created notice of a member who opted out, which has no author', async () => {
+    const notice = (actor: string) => ({
+      ...message(BRIDGED, 'notice'), id: `notice-${actor}`, user_id: null, bot_id: null, is_system: true,
+      metadata: { type: 'thread_created', actor_id: actor, thread_id: 't1', thread_name: 'private title' },
+    })
+    const d = dispatcher as any
+    await dispatcher.handleMessageCreate({ new: notice(OWNER_ID) })
+    await d.handleMessageUpdate({ new: notice(OWNER_ID) })
+    for (const type of ['MESSAGE_CREATE', 'MESSAGE_UPDATE']) expect(recipients(type, BRIDGED)).toEqual([OPEN_BOT])
+
+    sent = []
+    await dispatcher.handleMessageCreate({ new: notice('00000000-0000-0000-0000-0000000000a9') })
+    expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual([OPEN_BOT, SCOPED_BOT])
+  })
+
   it('sends deletes and reaction removals to every reader, without a consent lookup', async () => {
     const d = dispatcher as any
     await d.initializeChangeFeed()

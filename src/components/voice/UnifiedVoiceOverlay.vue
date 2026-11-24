@@ -468,8 +468,8 @@
     <!-- Spatial Audio Panel -->
     <SpatialAudioPanel :is-under-overlay="true" />
 
-    <!-- Popped out, the call's launcher opens in this window; App.vue renders it otherwise -->
-    <ActivitiesLauncher v-if="poppedOut && activityButton.visible.value" />
+    <!-- The call's launcher, above the call view and in its window; App.vue renders it otherwise -->
+    <ActivitiesLauncher v-if="callViewShown && activityButton.visible.value" />
 
     <!-- Confetti Effect -->
     <ConfettiEffect :is-active="easterEggState.isActive && easterEggState.type === 'rainbow-party'" />

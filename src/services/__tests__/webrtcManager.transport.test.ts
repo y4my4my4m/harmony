@@ -67,6 +67,49 @@ describe('webrtcManager transport selection', () => {
     expect(m.getLastJoinError()).toBe('Could not connect to the voice server: could not establish signal connection')
   })
 
+  it('a silent leave reaches the P2P service as one', async () => {
+    tokens.fetchLiveKitConfig.mockResolvedValue(unconfigured)
+    const m = await manager()
+    await m.joinChannel('c1', 'u1')
+    await m.leaveChannel({ silent: true })
+    expect(p2p.leaveChannel).toHaveBeenCalledWith({ silent: true })
+    expect(m.getActiveService()).toBeNull()
+  })
+
+  it('a failed join leaves its service: a later leave reaches no service', async () => {
+    tokens.fetchLiveKitConfig.mockResolvedValue(unconfigured)
+    p2p.joinChannel.mockResolvedValue(false)
+    const m = await manager()
+    let activeAtLeave: unknown = 'unset'
+    p2p.leaveChannel.mockImplementation(async () => { activeAtLeave = m.getActiveService() })
+    await expect(m.joinChannel('c1', 'u1')).resolves.toBe(false)
+    expect(p2p.leaveChannel).toHaveBeenCalledTimes(1)
+    // Its channel-left is not forwarded.
+    expect(activeAtLeave).toBeNull()
+    expect(m.getLastJoinError()).toBe('Could not connect to the call.')
+    await m.leaveChannel()
+    expect(p2p.leaveChannel).toHaveBeenCalledTimes(1)
+  })
+
+  it('a join that ends after a newer one started leaves the newer one alone', async () => {
+    tokens.fetchLiveKitConfig.mockResolvedValue(unconfigured)
+    let endFirst!: (ok: boolean) => void
+    p2p.joinChannel
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => { endFirst = resolve }))
+      .mockResolvedValueOnce(true)
+    const m = await manager()
+    const first = m.joinChannel('c1', 'u1')
+    await vi.waitFor(() => expect(p2p.joinChannel).toHaveBeenCalledTimes(1))
+    await m.leaveChannel()
+    await expect(m.joinChannel('c2', 'u1')).resolves.toBe(true)
+    p2p.leaveChannel.mockClear()
+    endFirst(false)
+    await expect(first).resolves.toBe(false)
+    expect(p2p.leaveChannel).not.toHaveBeenCalled()
+    expect(m.getActiveService()).toBe('p2p')
+    expect(m.getLastJoinError()).toBeNull()
+  })
+
   it('fails the join when the config cannot be fetched and none was seen before', async () => {
     tokens.fetchLiveKitConfig.mockResolvedValue(null)
     const m = await manager()

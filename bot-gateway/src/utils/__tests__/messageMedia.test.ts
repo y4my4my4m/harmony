@@ -56,7 +56,7 @@ beforeEach(() => {
   mocks.upload.mockReset()
   mocks.bucket.mockReset()
   mocks.from.mockReset()
-  // bridge_mirror_allows: the server cap has room.
+  // bridge_upload_reserve: the server cap has room.
   mocks.rpc.mockReset()
   mocks.rpc.mockResolvedValue({ data: true, error: null })
   mocks.createSignedUrls.mockImplementation(async (paths: string[]) => ({

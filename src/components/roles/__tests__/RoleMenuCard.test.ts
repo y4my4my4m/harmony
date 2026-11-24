@@ -93,6 +93,21 @@ describe('RoleMenuCard', () => {
     expect(mocks.toastError).toHaveBeenCalledWith('rolePicker.errors.notPickable')
   })
 
+  it('tells how long to wait when the server counted too many picks', async () => {
+    setUp()
+    mocks.setMySelfAssignableRole.mockResolvedValue({
+      ok: false,
+      error: 'UNKNOWN',
+      cause: { message: 'ANTISPAM_RATE_LIMITED:30', details: '{"kind":"role_pick","limit":60,"window_seconds":60}' },
+    })
+    const w = await render()
+    await chip(w, 'blue').trigger('click')
+    await flushPromises()
+    expect(chip(w, 'blue').attributes('aria-checked')).toBe('true')
+    expect(mocks.toastError).toHaveBeenCalledTimes(1)
+    expect(mocks.toastError.mock.calls[0][0]).not.toBe('rolePicker.errors.failed')
+  })
+
   it('offers nothing when shown in another server\'s channels', async () => {
     setUp('s2')
     const w = await render()

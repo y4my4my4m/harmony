@@ -1,7 +1,7 @@
 /**
  * UserManagement.vue filter counts: read from the statistics snapshot (one admin_instance_stats
  * request, no HEAD count), moved at once by a suspension here and by an admin:users-changed
- * event's UsersDelta from another tab.
+ * event's UsersDelta from another tab. A move stays when the tab opens again on the same snapshot.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -89,6 +89,24 @@ describe('UserManagement counts', () => {
     await flushPromises()
     expect(filterText(w)[3]).toBe('Suspended (3)')
     expect(getAdminInstanceStats).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a suspension made here when the tab is opened again', async () => {
+    const before = mount(UserManagement)
+    await flushPromises()
+    await before.find('.suspend-btn').trigger('click')
+    await flushPromises()
+    expect(filterText(before)[3]).toBe('Suspended (4)')
+    before.unmount()
+
+    getUsers.mockImplementation(async () => ({ users: [{ ...MEMBER, is_suspended: true }], total: 1 }))
+    const w = mount(UserManagement)
+    await flushPromises()
+    expect(getAdminInstanceStats).toHaveBeenCalledTimes(2)
+    expect(filterText(w)[3]).toBe('Suspended (4)')
+    await w.find('.unsuspend-btn').trigger('click')
+    await flushPromises()
+    expect(filterText(w)[3]).toBe('Suspended (3)')
   })
 
   it('applies the UsersDelta of an admin:users-changed event', async () => {

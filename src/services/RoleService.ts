@@ -768,11 +768,11 @@ class RoleService {
     serverId: string,
     roleId: string,
     on: boolean,
-  ): Promise<{ ok: true } | { ok: false; error: SelfAssignError }> {
+  ): Promise<{ ok: true } | { ok: false; error: SelfAssignError; cause?: unknown }> {
     const { error } = await supabase.rpc('set_my_self_assignable_role', { p_role_id: roleId, p_on: on })
     if (error) {
       debug.error('Failed to change a self-assignable role:', error)
-      return { ok: false, error: selfAssignErrorOf(error) }
+      return { ok: false, error: selfAssignErrorOf(error), cause: error }
     }
     this.userRolesCache.delete(`${userId}-${serverId}`)
     this.assignmentsCache.delete(serverId)

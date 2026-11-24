@@ -119,8 +119,11 @@ test('a second camera chosen before the first answers keeps one camera on', asyn
   // The later choice answers first, then the first camera.
   await answer(page)
   await page.evaluate(() => (window as unknown as { __firstAnswer: () => void }).__firstAnswer())
-  await expect.poll(async () => (await trackStates(page)).length, { timeout: 5000 }).toBe(2)
-  await page.waitForTimeout(500)
+  await expect.poll(() => trackStates(page), { timeout: 5000 }).toEqual(['live', 'ended'])
 
-  expect(await trackStates(page)).toEqual(['live', 'ended'])
+  // The preview plays the later choice, still on.
+  expect(await page.locator('video.preview-stream').evaluate((video: HTMLVideoElement) => {
+    const { tracks } = (window as unknown as ProbeWindow).__camera
+    return (video.srcObject as MediaStream | null)?.getVideoTracks().map((t) => [tracks.indexOf(t), t.readyState])
+  })).toEqual([[0, 'live']])
 })

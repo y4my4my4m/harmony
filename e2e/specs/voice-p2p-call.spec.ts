@@ -5,7 +5,10 @@
 // (20261124100002). A member who comes back without leaving gets one connection, not two. A DM
 // call whose join fails cancels its ring; a ring answered on one of the account's devices stops
 // on the others, the answer named by the database; a call past the account's ring limit rings no
-// one and says when the next one can.
+// one and says when the next one can. A join whose signalling topic never answers fails with the
+// microphone released. A file downloaded during a call leaves the call up, and signing out leaves
+// it at once. A session that ends elsewhere (signed out in another tab, revoked) ends the call here
+// with the microphone off and nothing sent. A callee with call notifications off declines.
 //
 // The stack runs no Realtime: a scripted server answers joins and heartbeats, delivers every row
 // the database writes to realtime.messages to the sockets that joined its topic, and relays a
@@ -21,8 +24,11 @@ import {
   adminClient,
   createUser,
   deleteUser,
+  dismissAnnouncements,
+  messageList,
   openChannel,
   seedServer,
+  sendMessage,
   signIn,
   type SeededServer,
   type SpecUser,
@@ -103,6 +109,10 @@ class ScriptedRealtime {
   private polling = false
   /** Broadcasts clients sent themselves, by topic. */
   readonly clientBroadcasts: Array<{ topic: string; event: string }> = []
+  /** Joins of topics this matches are never answered. */
+  unanswered: RegExp | null = null
+  /** Joins left unanswered, by topic. */
+  readonly ignoredJoins: string[] = []
 
   async start(): Promise<void> {
     this.since = await sql('SELECT now()::timestamp::text')
@@ -135,7 +145,9 @@ class ScriptedRealtime {
         ? { join_ref: parsed[0], ref: parsed[1], topic: parsed[2], event: parsed[3], payload: parsed[4] }
         : parsed
       const reply = () => this.send(socket, { topic: frame.topic, event: 'phx_reply', payload: { status: 'ok', response: {} }, ref: frame.ref, join_ref: frame.join_ref })
-      if (frame.event === 'phx_join') {
+      if (frame.event === 'phx_join' && this.unanswered?.test(frame.topic)) {
+        this.ignoredJoins.push(frame.topic)
+      } else if (frame.event === 'phx_join') {
         socket.joined.set(frame.topic, String(frame.ref))
         reply()
       } else if (frame.event === 'phx_leave') {
@@ -206,10 +218,32 @@ const recordPeerConnections = () => {
 const peerConnections = (page: Page) => page.evaluate(() => ((window as any).__peerConnections as Array<{ pc: RTCPeerConnection; config: RTCConfiguration }>)
   .map(({ pc, config }) => ({ connection: pc.connectionState, signaling: pc.signalingState, iceServers: config.iceServers ?? [] })))
 
-async function openAs(browser: Browser, realtime: ScriptedRealtime, user: SpecUser, livekitConfig = true): Promise<Page> {
+/** Every microphone capture the page opens. */
+const recordCaptures = () => {
+  const tracks: MediaStreamTrack[] = []
+  ;(window as any).__captures = tracks
+  const native = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+  navigator.mediaDevices.getUserMedia = async (constraints) => {
+    const stream = await native(constraints)
+    tracks.push(...stream.getTracks())
+    return stream
+  }
+}
+
+const captures = (page: Page) => page.evaluate(() => ((window as any).__captures as MediaStreamTrack[]).map((t) => t.readyState))
+
+/** `clock`: the page's timers are Playwright's, running at real speed until the test moves them. */
+async function openAs(
+  browser: Browser,
+  realtime: ScriptedRealtime,
+  user: SpecUser,
+  { livekitConfig = true, clock = false }: { livekitConfig?: boolean; clock?: boolean } = {},
+): Promise<Page> {
   const context = await browser.newContext()
   const page = await context.newPage()
+  if (clock) await page.clock.install()
   await page.addInitScript(recordPeerConnections)
+  await page.addInitScript(recordCaptures)
   await realtime.attach(page)
   await page.route('**/api/livekit/config*', (route) => (livekitConfig
     ? route.fulfill({ json: { enabled: false, mode: 'hybrid', wsUrl: null, allowFederatedVoice: true } })
@@ -356,7 +390,7 @@ test('a DM call whose join fails stops ringing at once, and no "No answer" follo
     await expect.poll(() => realtime.joinedBy(`dm-calls:${bob.id}`), { timeout: 30_000 }).toBe(1)
 
     // The voice server settings cannot be read: the caller's join fails after the ring went out.
-    const a = await openAs(browser, realtime, alice, false)
+    const a = await openAs(browser, realtime, alice, { livekitConfig: false, clock: true })
     await a.goto(`/dm/${conversation}`)
     await a.locator('[data-testid="dm-call"]').click()
     await expect(toast(a, /voice server settings could not be loaded|Failed to start call/)).toBeVisible({ timeout: 20_000 })
@@ -366,14 +400,253 @@ test('a DM call whose join fails stops ringing at once, and no "No answer" follo
       .toBe('initiate,end')
     await expect(b.getByTestId('incoming-call-modal')).toHaveCount(0, { timeout: 5_000 })
 
-    // Past the caller's 30 s ring timeout.
-    await a.waitForTimeout(32_000)
+    // Past the caller's 30 s ring timeout: the toast of a ring left running would be up.
+    await a.clock.runFor(32_000)
+    await a.waitForTimeout(500)
     await expect(toast(a, 'No answer')).toHaveCount(0)
     await expect(toast(b, 'Missed call')).toHaveCount(0)
     await a.context().close()
     await b.context().close()
   } finally {
     realtime.stop()
+  }
+})
+
+test('a P2P join whose topic never answers fails with the microphone released, and answers no one who joins later', async ({ browser }) => {
+  test.setTimeout(150_000)
+  const realtime = new ScriptedRealtime()
+  await realtime.start()
+  try {
+    const b = await openAs(browser, realtime, bob, { clock: true })
+    await openChannel(b, server.id, server.generalChannelId)
+    realtime.unanswered = new RegExp(`harmony-voice-${lounge}$`)
+
+    await test.step('Bob\'s join waits 15 s for its topic, then gives up', async () => {
+      await b.locator(`[data-nav-kind="channel"][data-nav-id="${lounge}"]`).click()
+      await expect.poll(() => realtime.ignoredJoins.length, { timeout: 30_000 }).toBeGreaterThan(0)
+      await expect.poll(() => captures(b), { timeout: 10_000 }).toContain('live')
+      await b.clock.runFor(16_000)
+      await expect(b.locator('[data-testid="dock-mute"]')).toHaveCount(0, { timeout: 15_000 })
+      await expect.poll(() => captures(b), { timeout: 10_000 }).toEqual(['ended'])
+    })
+
+    await test.step('Alice joins after it: Bob, whose topic answers now, sends her nothing', async () => {
+      realtime.unanswered = null
+      const since = await sql('SELECT now()::timestamp::text')
+      const a = await openAs(browser, realtime, alice)
+      await openChannel(a, server.id, server.generalChannelId)
+      await joinVoice(a, lounge)
+      await b.clock.runFor(15_000)
+      await a.waitForTimeout(3_000)
+      expect(await sql(`SELECT count(*) FROM realtime.messages WHERE topic = 'harmony-voice-${lounge}'
+                           AND payload->>'from' = '${bob.id}' AND inserted_at >= '${since}'`)).toBe('0')
+      expect(await peerConnections(b)).toEqual([])
+      expect(await peerConnections(a)).toEqual([])
+      await a.context().close()
+    })
+    await b.context().close()
+  } finally {
+    realtime.stop()
+  }
+})
+
+test('a file downloaded during a P2P call leaves the call up, and signing out leaves the call at once', async ({ browser }) => {
+  test.setTimeout(180_000)
+  const realtime = new ScriptedRealtime()
+  await realtime.start()
+  try {
+    const a = await openAs(browser, realtime, alice)
+    const b = await openAs(browser, realtime, bob)
+    for (const page of [a, b]) {
+      await openChannel(page, server.id, server.generalChannelId)
+      await dismissAnnouncements(page)
+      await joinVoice(page, lounge)
+    }
+    for (const page of [a, b]) {
+      await expect.poll(async () => (await peerConnections(page)).map((p) => p.connection), { timeout: 30_000 }).toContain('connected')
+    }
+
+    /** user-left signals of Bob's the database relayed to the lounge since `since`. */
+    const bobLeft = (since: string) => sql(`SELECT count(*) FROM realtime.messages m, jsonb_array_elements(m.payload->'messages') signal
+                                             WHERE m.topic = 'harmony-voice-${lounge}' AND m.payload->>'from' = '${bob.id}'
+                                               AND signal->>'type' = 'user-left' AND m.inserted_at >= '${since}'`)
+
+    await test.step('Bob downloads a file posted in the channel; the call stays connected', async () => {
+      const since = await sql('SELECT now()::timestamp::text')
+      await b.getByTestId('composer-file-input').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('call notes') })
+      await expect(b.getByTestId('file-preview-item').filter({ hasText: 'notes.txt' })).toContainText('Uploaded', { timeout: 20_000 })
+      await sendMessage(b, 'the notes')
+      const sent = messageList(b).locator('.message-item').filter({ hasText: 'the notes' })
+      await expect(sent.getByTestId('file-attachment-link')).toBeVisible({ timeout: 20_000 })
+      // Chromium fires beforeunload for the storage link before it turns into a download.
+      await b.evaluate(() => {
+        ;(window as any).__beforeunloads = 0
+        window.addEventListener('beforeunload', () => { (window as any).__beforeunloads++ })
+      })
+      const download = b.waitForEvent('download')
+      await sent.getByTestId('file-attachment-link').click()
+      expect((await download).suggestedFilename()).toBe('notes.txt')
+      expect(await b.evaluate(() => (window as any).__beforeunloads)).toBeGreaterThan(0)
+
+      await b.waitForTimeout(3_000)
+      await expect(b.locator('[data-testid="dock-mute"]')).toBeVisible()
+      for (const page of [a, b]) {
+        expect((await peerConnections(page)).map((p) => p.connection)).toEqual(['connected'])
+      }
+      expect(await captures(b)).toEqual(['live'])
+      expect(await bobLeft(since)).toBe('0')
+      await expect(row(a, bob)).toBeVisible()
+    })
+
+    await test.step('Bob signs out: Alice\'s connection to him closes on his user-left, not on a timeout', async () => {
+      const since = await sql('SELECT now()::timestamp::text')
+      await b.getByRole('region', { name: 'Your account' }).getByRole('button', { name: 'Settings' }).click()
+      await b.getByRole('button', { name: 'Log out' }).click()
+      await expect(b).toHaveURL(/\/login/, { timeout: 30_000 })
+      expect(await bobLeft(since)).toBe('1')
+      expect(await captures(b)).toEqual(['ended'])
+      await expect.poll(async () => (await peerConnections(a)).filter((p) => p.signaling !== 'closed').length, { timeout: 5_000 }).toBe(0)
+    })
+    await a.context().close()
+    await b.context().close()
+  } finally {
+    realtime.stop()
+  }
+})
+
+test('a session that ends elsewhere ends the call in this tab: microphone off, sign-in shown, nothing sent', async ({ browser }) => {
+  test.setTimeout(180_000)
+  const realtime = new ScriptedRealtime()
+  await realtime.start()
+  // An account of its own: its sessions are ended.
+  const carol = await createUser(admin, 'p2pd')
+  try {
+    await addMember(admin, carol, server.id)
+    const a = await openAs(browser, realtime, alice)
+    const c = await openAs(browser, realtime, carol)
+    await openChannel(a, server.id, server.generalChannelId)
+    await joinVoice(a, lounge)
+
+    /** What Carol's call would send: signals, rings, her row in the channel. */
+    const sent: string[] = []
+    c.on('request', (request) => {
+      if (/\/rpc\/(send_signal|ring_dm_call|touch_voice_participant)|\/voice_channel_participants\?/.test(request.url()) && request.method() !== 'GET') sent.push(request.url())
+    })
+
+    const enterCall = async () => {
+      await openChannel(c, server.id, server.generalChannelId)
+      await dismissAnnouncements(c)
+      await joinVoice(c, lounge)
+      await expect.poll(async () => (await peerConnections(c)).map((p) => p.connection), { timeout: 30_000 }).toContain('connected')
+      await expect.poll(() => captures(c), { timeout: 10_000 }).toEqual(['live'])
+      await expect.poll(async () => (await peerConnections(a)).filter((p) => p.connection === 'connected').length, { timeout: 30_000 }).toBe(1)
+      // Signals of the join are out.
+      await c.waitForTimeout(1_000)
+      await c.evaluate(() => { (window as unknown as { __samePage?: boolean }).__samePage = true })
+      sent.length = 0
+    }
+
+    /** Carol's page is out of the call, on sign-in, without a reload; Alice's connection to her ends. */
+    const expectOut = async (url: RegExp) => {
+      await expect.poll(() => captures(c), { timeout: 10_000 }).toEqual(['ended'])
+      await expect(c).toHaveURL(url, { timeout: 20_000 })
+      expect(await c.evaluate(() => (window as unknown as { __samePage?: boolean }).__samePage)).toBe(true)
+      expect((await peerConnections(c)).filter((p) => p.signaling !== 'closed')).toEqual([])
+      await expect(c.locator('[data-testid="dock-mute"]')).toHaveCount(0)
+      await expect(c.getByTestId('voice-overlay')).toHaveCount(0)
+      await expect(c.locator('[data-testid="auth-email"]')).toBeVisible()
+      await c.waitForTimeout(1_500)
+      expect(sent).toEqual([])
+      await expect.poll(async () => (await peerConnections(a)).filter((p) => p.connection === 'connected').length, { timeout: 30_000 }).toBe(0)
+    }
+
+    await test.step('signed out in another tab', async () => {
+      await enterCall()
+      const tab = await c.context().newPage()
+      await realtime.attach(tab)
+      await tab.goto('/settings/account')
+      await dismissAnnouncements(tab)
+      await tab.getByRole('button', { name: 'Log out' }).click()
+      await expect(tab).toHaveURL(/\/login/, { timeout: 30_000 })
+      await expectOut(/\/login$/)
+      await tab.close()
+    })
+
+    await test.step('revoked: the next refused request ends it, with the reason', async () => {
+      await signIn(c, carol)
+      await enterCall()
+      await sql(`DELETE FROM auth.sessions WHERE user_id = '${carol.id}'`)
+      await c.locator('[data-testid="message-input"] .rich-text-editor').click()
+      await c.keyboard.type('anyone here?')
+      await c.keyboard.press('Enter')
+      await expectOut(/\/login\?reason=session_revoked$/)
+    })
+    for (const page of [a, c]) await page.context().close()
+  } finally {
+    realtime.stop()
+    await deleteUser(admin, carol)
+  }
+})
+
+test('a callee with call notifications off declines at once, and a join that fails after the caller moved to another DM cancels its own ring', async ({ browser }) => {
+  test.setTimeout(150_000)
+  const realtime = new ScriptedRealtime()
+  await realtime.start()
+  const other = await admin.from('conversations').insert({ type: 'direct', created_by: alice.id }).select('id').single()
+  if (other.error) throw new Error(other.error.message)
+  try {
+    const third = await createUser(admin, 'p2pc')
+    try {
+      await admin.from('conversation_participants').insert([
+        { conversation_id: other.data.id, user_id: alice.id }, { conversation_id: other.data.id, user_id: third.id },
+      ])
+      const b = await openAs(browser, realtime, bob)
+      await b.goto('/dm')
+      await expect.poll(() => realtime.joinedBy(`dm-calls:${bob.id}`), { timeout: 30_000 }).toBe(1)
+      const a = await openAs(browser, realtime, alice)
+      await a.goto(`/dm/${conversation}`)
+
+      await test.step('call notifications off: the caller hears the decline, not 30 s of ringing', async () => {
+        const off = await admin.from('notification_preferences')
+          .update({ sound_voice_activity: false, desktop_notifications: false }).eq('user_id', bob.id)
+        if (off.error) throw new Error(off.error.message)
+        await a.locator('[data-testid="dm-call"]').click()
+        await expect(toast(a, 'Call declined')).toBeVisible({ timeout: 15_000 })
+        await expect(b.getByTestId('incoming-call-modal')).toHaveCount(0)
+        await a.getByTestId('voice-leave').click()
+        await admin.from('notification_preferences')
+          .update({ sound_voice_activity: true, desktop_notifications: true }).eq('user_id', bob.id)
+      })
+
+      await test.step('a join that fails with another DM open ends the ring it belongs to', async () => {
+        // The voice server settings answer 503 once the caller has moved on.
+        let fail!: () => void
+        const moved = new Promise<void>((resolve) => { fail = resolve })
+        await a.unroute('**/api/livekit/config*')
+        await a.route('**/api/livekit/config*', async (route) => {
+          await moved
+          await route.fulfill({ status: 503, json: { error: 'unavailable' } })
+        })
+        // A reload forgets the settings the first call fetched.
+        await a.goto(`/dm/${conversation}`)
+        const since = await sql('SELECT now()::timestamp::text')
+        await a.locator('[data-testid="dm-call"]').click()
+        await expect(b.getByTestId('incoming-call-modal')).toBeVisible({ timeout: 20_000 })
+        await a.locator(`a[href="/dm/${other.data.id}"]`).first().click()
+        await expect(a.getByRole('heading', { name: third.displayName })).toBeVisible({ timeout: 15_000 })
+        fail()
+        await expect(b.getByTestId('incoming-call-modal')).toHaveCount(0, { timeout: 15_000 })
+        await expect.poll(() => sql(`SELECT string_agg(payload->>'type', ',' ORDER BY inserted_at) FROM realtime.messages
+                                      WHERE topic = 'dm-calls:${bob.id}' AND event = 'incoming-call' AND inserted_at >= '${since}'`))
+          .toBe('initiate,end')
+      })
+      for (const page of [a, b]) await page.context().close()
+    } finally {
+      await deleteUser(admin, third)
+    }
+  } finally {
+    realtime.stop()
+    await admin.from('conversations').delete().eq('id', other.data.id)
   }
 })
 

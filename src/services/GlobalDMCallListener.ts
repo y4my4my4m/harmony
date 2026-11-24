@@ -42,8 +42,9 @@ class GlobalDMCallListenerService {
   // Auto-dismiss for rings whose caller died before sending cancel or timeout.
   private ringDismissTimer: ReturnType<typeof setTimeout> | null = null
   private readonly RING_DISMISS_MS = 45000
-  // Ring per conversation whose permission gate is in flight; end or timeout drops it.
-  private pendingRings = new Map<string, CallSignal>()
+  // Ring per conversation on its way to the popup (permission gate, caller data); an end, a timeout,
+  // a newer ring or an answer on another device drops it.
+  private pendingRings = new Map<string, object>()
   // Conversations whose ring was silenced by mute: no ringtone, popup or missed-call toast.
   private silencedRings = new Set<string>()
   // Rings this account answered or declined, here or on another device: their end is no missed call.
@@ -177,7 +178,10 @@ class GlobalDMCallListenerService {
       userEventChannel.on('federated_call:ended', (payload) => {
         debug.log('[Federated] Call ended:', payload)
         const event = payload as FederatedCallEvent
-        if (event.conversationId) this.silencedRings.delete(event.conversationId)
+        if (event.conversationId) {
+          this.pendingRings.delete(event.conversationId)
+          this.silencedRings.delete(event.conversationId)
+        }
         if (!event.conversationId || this.incomingCall.value?.conversationId === event.conversationId) {
           this.dismissIncomingCall()
         }
@@ -286,17 +290,18 @@ class GlobalDMCallListenerService {
 
     debug.log('Permission result:', permissionCheck)
 
-    // Cancelled, timed out or rung again while the gate ran.
+    // Cancelled, timed out, rung again or answered elsewhere while the gate ran.
     if (this.pendingRings.get(conversationId) !== signal) return
-    this.pendingRings.delete(conversationId)
 
     if (!permissionCheck.allowed) {
+      this.pendingRings.delete(conversationId)
       debug.log('Auto-declining:', permissionCheck.reason)
-      await dmCallSignaling.declineCall(
-        conversationId,
-        this.currentUserId,
-        permissionCheck.reason as any
-      )
+      try {
+        await dmCallSignaling.declineCall(conversationId, this.currentUserId, permissionCheck.reason)
+      } catch (error) {
+        // The caller's own timeout ends the ring.
+        debug.warn('Auto-decline not sent:', error)
+      }
       return
     }
 
@@ -310,6 +315,7 @@ class GlobalDMCallListenerService {
 
     if (permissionCheck.silent) {
       debug.log('Caller or conversation muted - ring silenced')
+      this.pendingRings.delete(conversationId)
       this.silencedRings.add(conversationId)
       return
     }
@@ -318,6 +324,9 @@ class GlobalDMCallListenerService {
     debug.log('Loading caller data...')
     const { userDataService } = await import('./userDataService')
     await userDataService.ensureUsersLoaded([signal.callerId])
+
+    if (this.pendingRings.get(conversationId) !== signal) return
+    this.pendingRings.delete(conversationId)
     
     const callerData = userDataService.getUser(signal.callerId)
     debug.log('Caller data loaded:', callerData?.displayName || callerData?.username)
@@ -364,6 +373,8 @@ class GlobalDMCallListenerService {
     roomName: string
   }): Promise<void> {
     if (!this.currentUserId) return
+    this.handledRings.delete(payload.conversationId)
+    this.pendingRings.set(payload.conversationId, payload)
 
     // Federated calls run the same permission gate as the local path, before
     // any UI or call-state side effect; without it any remote actor rings a
@@ -375,7 +386,10 @@ class GlobalDMCallListenerService {
       this.currentUserId,
       payload.conversationId,
     )
+    // Ended, rung again or answered elsewhere while the gate ran.
+    if (this.pendingRings.get(payload.conversationId) !== payload) return
     if (!permissionCheck.allowed) {
+      this.pendingRings.delete(payload.conversationId)
       debug.log(`[Federated] Auto-rejecting incoming call: ${permissionCheck.reason}`)
       return
     }
@@ -396,12 +410,16 @@ class GlobalDMCallListenerService {
 
     if (permissionCheck.silent) {
       debug.log('[Federated] Caller or conversation muted - ring silenced')
+      this.pendingRings.delete(payload.conversationId)
       this.silencedRings.add(payload.conversationId)
       return
     }
     this.silencedRings.delete(payload.conversationId)
 
     const { getAvatarUrl } = await import('@/utils/avatarUtils')
+
+    if (this.pendingRings.get(payload.conversationId) !== payload) return
+    this.pendingRings.delete(payload.conversationId)
 
     const incomingCallData: IncomingCallData = {
       callerId: payload.callerId,

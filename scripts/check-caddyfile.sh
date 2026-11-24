@@ -63,11 +63,27 @@ server {
         return 200 "media-cache $request_method $request_uri $http_accept\n";
     }
 }
+# bot-gateway: the body is read to its end before the answer.
+server {
+    listen 3002;
+    client_max_body_size 0;
+    location / {
+        proxy_pass http://127.0.0.1:3003;
+    }
+}
+server {
+    listen 127.0.0.1:3003;
+    client_max_body_size 0;
+    location / {
+        default_type text/plain;
+        return 200 "bot-gateway $request_method $request_uri $http_content_length\n";
+    }
+}
 EOF
 
 docker network create "$PREFIX-net" >/dev/null
 docker run -d --name "$PREFIX-stub" --network "$PREFIX-net" \
-  --network-alias federation-server --network-alias web \
+  --network-alias federation-server --network-alias web --network-alias bot-gateway \
   --network-alias supabase-kong --network-alias media-cache \
   -v "$WORK/stub.conf:/etc/nginx/conf.d/default.conf:ro" "$STUB_IMAGE" >/dev/null
 docker run -d --name "$PREFIX" --network "$PREFIX-net" --add-host "$DOMAIN:127.0.0.1" \
@@ -241,6 +257,30 @@ expect "$HTML" /threads               'SPA'
 expect "$HTML" /channels/00000000-0000-0000-0000-000000000005 'SPA'
 expect "$HTML" $THREAD/messages       'SPA'
 expect "$HTML" /activities            'SPA'
+
+log "request bodies"
+# A bot's file passes the site's 50 MB limit, which every other route keeps. Sent by curl of the
+# stub's image: busybox wget reads a --post-file as a string.
+docker exec "$PREFIX-stub" sh -c 'head -c 51000000 /dev/zero > /tmp/body'
+# expect_body <path> <status and first line of the body>
+expect_body() {
+  local got
+  got="$(docker exec "$PREFIX-stub" curl -sk -m 60 -w '\n%{http_code}' -H 'Content-Type: image/png' -H 'Expect:' \
+    --data-binary @/tmp/body --connect-to "$DOMAIN:443:$PREFIX:443" "https://$DOMAIN$1" 2>/dev/null)" || true
+  got="$(tail -1 <<<"$got") $(head -1 <<<"$got")"
+  if [ "${got% }" = "$2" ]; then
+    printf 'ok   %-28.28s %s -> %s\n' '51 MB body' "$1" "${got% }"
+  else
+    err "51 MB body $1: expected '$2', got '${got% }'"
+    FAILED=$((FAILED + 1))
+  fi
+}
+BOT_CHANNEL=/channels/00000000-0000-0000-0000-000000000008
+for r in 'attachments?filename=a.png' bridge-files; do
+  expect_body "/bot-gateway/api/v1$BOT_CHANNEL/$r" "200 bot-gateway POST /api/v1$BOT_CHANNEL/$r 51000000"
+done
+expect_body "/bot-gateway/api/v1$BOT_CHANNEL/messages" 413
+expect_body "/bot-gateway/api/v1$BOT_CHANNEL/bridge-avatar" 413
 
 log "db.<domain>: public storage reads through media-cache"
 # expect_db <wget args...> -- <path> <first line of the body>

@@ -8,7 +8,7 @@
 -- Sizes in bytes; 1 MB = 1048576.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(29);
+SELECT plan(32);
 
 UPDATE public.profiles SET is_admin = true WHERE id = '11111111-0000-0000-0000-000000000001';
 INSERT INTO public.channels (id, server_id, name, type)
@@ -143,6 +143,34 @@ SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is((public.bridge_mirror_status() ->> 'stored_bytes')::bigint, 2097152::bigint,
           'and leaves the status with server_1''s 2 MB');
 SELECT tests.clear_authentication();
+
+-- Transaction ids ---------------------------------------------------------------------------------
+-- The transaction id after the last one given out: an aborted subtransaction that wrote moves the
+-- snapshot's xmax past its own id.
+CREATE TEMP TABLE xid_probe (n int);
+CREATE FUNCTION pg_temp.next_xid() RETURNS bigint LANGUAGE plpgsql AS $$
+BEGIN
+    BEGIN
+        INSERT INTO xid_probe VALUES (1);
+        RAISE EXCEPTION 'undone';
+    EXCEPTION WHEN raise_exception THEN
+        NULL;
+    END;
+    RETURN txid_snapshot_xmax(txid_current_snapshot());
+END;
+$$;
+INSERT INTO storage.objects (bucket_id, name, metadata)
+SELECT 'message_media', format('c/66666666-0000-0000-0000-000000000006/bridge/bulk/%s.png', n), '{"size": 1024}'
+  FROM generate_series(1, 200) n;
+INSERT INTO storage.objects (bucket_id, name, metadata)
+SELECT 'message_media', format('c/31000000-0000-0000-0000-0000000000ff/bridge/bulk/%s.png', n), '{"size": 1024}'
+  FROM generate_series(1, 200) n;
+SELECT is(pg_temp.channel_bytes('66666666-0000-0000-0000-000000000006'), (2097152 + 204800)::bigint, '200 files are added');
+SELECT set_config('tests.xid_before', pg_temp.next_xid()::text, true) IS NOT NULL AS noted;
+DELETE FROM storage.objects WHERE bucket_id = 'message_media' AND name LIKE 'c/%/bridge/bulk/%';
+SELECT ok(pg_temp.next_xid() - current_setting('tests.xid_before')::bigint < 100,
+          'removing 400 files takes no transaction id per file');
+SELECT is(pg_temp.channel_bytes('66666666-0000-0000-0000-000000000006'), 2097152::bigint, 'and subtracts them all');
 
 SELECT * FROM finish();
 ROLLBACK;

@@ -101,6 +101,10 @@ export class Session {
       if (!restored && isPublicState(state)) this.core.settings = state.settings
       this.core.playAgain()
       this.publish({ send: [], state: true })
+    } else {
+      // The host asks no one: a frame loaded again (Retry, a move to the call's pop-out) holds no
+      // assignment and no reveal entries.
+      this.publish(this.core.sync(this.me))
     }
     // A submission sent to the previous host may not have reached it.
     if (this.pending) this.toHost(this.pending.msg)

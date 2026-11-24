@@ -5,7 +5,8 @@
 // lists only the platforms the server bridges and keeps the choice across a reload. On the Matrix
 // tab a manager with no bot of their own reads the setup steps and the guide link; the owner of a
 // bot installed in the server pairs channels of its channel list, sees each wait for a room and the
-// status card count them, and unpairs the bot.
+// status card count them, and unpairs the bot. On a server whose only bot bridges Matrix, '@'
+// suggests a Matrix person to the bot's owner and to a member its private row is hidden from.
 //
 // MATRIX_TAB_SHOTS=<directory> saves the Matrix tab empty, with the setup form, and paired, at 1440x900.
 
@@ -15,6 +16,7 @@ import {
   addChannel,
   addMember,
   adminClient,
+  composer,
   createUser,
   deleteUser,
   dismissAnnouncements,
@@ -358,4 +360,37 @@ test.describe('Matrix tab setup', () => {
       await expect.poll(bindings).toEqual([])
     })
   })
+})
+
+test.describe('a server bridged to Matrix only', () => {
+  let matrixServer: SeededServer
+
+  test.beforeAll(async () => {
+    matrixServer = await seedServer(admin, owner, `Matrix only ${owner.username.slice(-6)}`)
+    await addMember(admin, member, matrixServer.id)
+    await seedBot(`mxo_${owner.username}`, 'Matrix Bridge', { bot_type: 'bot', bridge_platform: 'matrix' }, matrixServer)
+  })
+
+  test.afterAll(async () => {
+    await admin.from('servers').delete().eq('id', matrixServer?.id ?? '')
+  })
+
+  for (const viewer of ['owner', 'member'] as const) {
+    test(`'@' suggests a Matrix person to the ${viewer}`, async ({ page }) => {
+      await page.route(`**/bot-gateway/bridged-users/${matrixServer.generalChannelId}`, (route) => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          has_bridge: true,
+          users: [{ id: '@sam:example.org', username: 'sam', displayName: 'Sam Matrix', avatarUrl: '', source: 'matrix' }],
+        }),
+      }))
+      await signIn(page, viewer === 'owner' ? owner : member)
+      await openChannel(page, matrixServer.id, matrixServer.generalChannelId)
+      await composer(page).click()
+      await composer(page).pressSequentially('@sam', { delay: 30 })
+      const person = page.locator('#auto-suggest-listbox .suggest-item').filter({ hasText: 'Sam Matrix' })
+      await expect(person).toHaveCount(1, { timeout: 15000 })
+    })
+  }
 })

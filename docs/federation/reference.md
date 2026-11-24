@@ -633,7 +633,7 @@ The channel collection serves every notice. Join, leave, kick and ban notices ar
 
 ### Bot, webhook and bridged message Note
 
-A message no member wrote (a bot's, a channel webhook's, or a Discord member's the bridge relays) has no actor of its own. The Group attributes it to itself and names the author in `harmony:author`:
+A message no member wrote (a bot's, a channel webhook's, or a Discord or Matrix person's a bridge relays) has no actor of its own. The Group attributes it to itself and names the author in `harmony:author`:
 
 ```json
 {
@@ -646,7 +646,9 @@ A message no member wrote (a bot's, a channel webhook's, or a Discord member's t
 }
 ```
 
-`kind` is `bot`, `webhook` or `bridge`. `id` is the bot's or webhook's UUID on the host, or `discord:<user id>` for a bridged member. `name` is at most 100 characters; `icon` is an `https` URL of at most 2048 characters, left out when the author has none; a bridged member adds `source: "discord"`.
+`kind` is `bot`, `webhook` or `bridge`. `id` is the bot's or webhook's UUID on the host, or `discord:<user id>` for a bridged Discord member. `name` is at most 100 characters; `icon` is an `https` URL of at most 2048 characters, left out when the author has none; a bridged Discord member adds `source: "discord"`.
+
+A bridged Matrix person is sent as `kind: "webhook"` with `source: "matrix"`, `bridgeId: "matrix:<Matrix ID>"` and an `id` of at most 128 characters (`matrix:<Matrix ID>`, or its first 63 characters, `:` and its SHA-256 in hex when longer). Harmony 1.9.8 and later reads it as a `bridge` author under `bridgeId`; Harmony 1.9.0 to 1.9.7, which accepts no other bridge than Discord, shows a webhook of that name and picture.
 
 The channel collection serves these Notes, and the Group delivers each live as its `Create`, an edit as its `Update` and a removal as its `Delete`, with `harmony:serverId` and `harmony:channelName` on the `Note`. A receiver honours `harmony:author` only on a `Note` attributed to, or a `Create` or `Update` sent by, the Group hosting the channel, never relayed. It stores the message with no account as its author and shows it under `name` and `icon`; it drops `icon` unless it is `https`, and a message naming a thread it lacks. A host before 1.9.0 does not send these messages.
 
@@ -859,7 +861,7 @@ Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person`
 | `harmony:voiceMessage` | Channel message `Note` | `{ duration, waveform }` of a voice message |
 | `harmony:sticker` | Direct message `Note` | The message's sticker; see [Stickers](#stickers) |
 | `harmony:system` | System notice `Note` | `{ type, subject, actor, actorName, reason, thread, threadName }`; see [System notice Note](#system-notice-note) |
-| `harmony:author` | Bot, webhook and bridged message `Note` | `{ kind, id, name, icon, source }`; see [Bot, webhook and bridged message Note](#bot-webhook-and-bridged-message-note) |
+| `harmony:author` | Bot, webhook and bridged message `Note` | `{ kind, id, name, icon, source, bridgeId }`; see [Bot, webhook and bridged message Note](#bot-webhook-and-bridged-message-note) |
 | `harmony:conversationType`, `harmony:conversationId` | Direct message `Note`, group conversation object | `"group"`; the sender's conversation UUID |
 | `harmony:updateType` | Group conversation `Update` | `name`, `icon` or `icon_removed` |
 | `ChatThread` (`harmony:ChatThread`) | Thread object | A thread; `autoArchiveDuration`, `messageCount`, `memberCount`, `lastMessageAt` map to `harmony:` terms |

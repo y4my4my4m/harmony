@@ -5783,7 +5783,9 @@
         "signalsPerMinute": "每分钟通话信令",
         "signalsHint": "建立点对点通话、接听和挂断私信通话、通话特效。加入一个十人通话约需 45 条。",
         "ringsPerMinute": "每分钟发起的通话",
-        "ringsHint": "每次通话响铃一次。挂断从不被拒绝。"
+        "ringsHint": "每次通话响铃一次。挂断从不被拒绝。",
+        "rolePicksPerMinute": "每分钟选择角色次数",
+        "rolePicksHint": "领取和放弃可自选角色。每次更改都会通知服务器内的所有人。"
       },
       "bots": {
         "title": "机器人",
@@ -9116,11 +9118,11 @@
     "saved": "新成员将获得此角色。",
     "cleared": "新成员将不再获得角色。",
     "tooHigh": "只能选择低于你最高角色的角色。",
-    "saveFailed": "无法保存新成员角色。"
+    "saveFailed": "无法保存新成员角色。",
+    "notOpen": "该角色拥有 @everyone 没有的权限，或位于此类角色之上，因此不能给予新成员。",
+    "currentNotOpen": "该角色已不能再给予新成员。请选择其他角色。"
   },
   "playTogether": {
-    "button": "一起玩",
-    "launcherTitle": "一起玩",
     "launcherSubtitle": "开始一个这里所有人都能加入的活动",
     "loadingApps": "正在加载活动…",
     "noApps": "此实例尚未开启任何活动。",

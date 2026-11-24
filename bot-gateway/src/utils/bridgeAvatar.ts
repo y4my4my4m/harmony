@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
+import { serverOfChannel } from '../bridge/memberConsent.js'
 import { supabase } from '../config/supabase.js'
 import { publicStorageUrl } from './messageMedia.js'
 import { stripMediaBytes } from './stripMetadata.js'
+import { UploadReservation } from './uploadReservation.js'
 
 export const MAX_BRIDGE_AVATAR_BYTES = 1024 * 1024
 
@@ -21,7 +23,7 @@ export function bridgeAvatarBytes(data: unknown, contentType: unknown): { bytes:
   return extension ? { bytes, extension } : null
 }
 
-/** A native avatar is fetched only from our configured storage, never its caller-supplied URL. */
+/** A native avatar is fetched from this instance's avatars bucket; a caller-supplied URL only names the object. */
 export async function nativeBridgeAvatar(avatar: string): Promise<{ data: string; content_type: string } | null> {
   let path = avatar.replace(/^\//, '')
   if (/^https?:\/\//i.test(avatar)) {
@@ -62,30 +64,49 @@ export async function nativeBridgeAvatar(avatar: string): Promise<{ data: string
   return null
 }
 
-// Distinct avatars one bridge bot keeps in the public avatars bucket (one per relayed person and look).
-export const MAX_BRIDGE_AVATARS = 5000
+// Avatars one bridge bot keeps across its servers: one per relayed author and picture, stored with
+// the author's first message. 1000 of 1 MiB are a fifth of the default server cap (5120 MiB). Past
+// it authors are relayed without a picture.
+export const MAX_BRIDGE_AVATARS = 1000
 
 export class BridgeAvatarQuotaError extends Error {}
 
+/** The folder of the avatars bucket holding a bridge bot's avatars for a server (bridge_avatar_usage). */
+export function bridgeAvatarFolder(botId: string, serverId: string): string {
+  return `bridges/${botId.toLowerCase()}/${serverId.toLowerCase()}`
+}
+
 /**
- * Stores a relayed person's avatar under bridges/<bot>/<sha256 of the stripped bytes>; the same
- * image is one object. A new image past MAX_BRIDGE_AVATARS of the bot throws BridgeAvatarQuotaError.
+ * Stores a relayed person's avatar under bridges/<bot>/<server>/<sha256 of the stripped bytes>; the
+ * same image is one object. A new image past MAX_BRIDGE_AVATARS of the bot, or past the cap of the
+ * channel's server on files bots and bridges store, throws BridgeAvatarQuotaError.
  */
-export async function storeBridgeAvatar(botId: string, image: { bytes: Buffer; extension: string }, contentType: string): Promise<string> {
+export async function storeBridgeAvatar(
+  botId: string,
+  channelId: string,
+  image: { bytes: Buffer; extension: string },
+  contentType: string,
+): Promise<string> {
+  const serverId = await serverOfChannel(channelId)
+  if (!serverId) throw new Error('Bridge avatar storage unavailable')
   const bytes = Buffer.from(await stripMediaBytes(image.bytes))
   const hash = createHash('sha256').update(bytes).digest('hex')
   const name = `${hash}.${image.extension}`
-  const path = `bridges/${botId}/${name}`
+  const folder = bridgeAvatarFolder(botId, serverId)
+  const path = `${folder}/${name}`
   const bucket = supabase.storage.from('avatars')
-  const { data: held, error: listError } = await bucket.list(`bridges/${botId}`, { limit: MAX_BRIDGE_AVATARS + 1, search: hash })
+  const { data: held, error: listError } = await bucket.list(folder, { limit: 10, search: hash })
   if (listError || !Array.isArray(held)) throw new Error('Bridge avatar storage unavailable')
   if (!held.some(object => object.name === name)) {
-    const { data: all, error: countError } = await bucket.list(`bridges/${botId}`, { limit: MAX_BRIDGE_AVATARS + 1 })
-    if (countError || !Array.isArray(all)) throw new Error('Bridge avatar storage unavailable')
-    if (all.length >= MAX_BRIDGE_AVATARS) throw new BridgeAvatarQuotaError('Bridge avatar limit reached')
+    const reservation = new UploadReservation(channelId, { botId, max: MAX_BRIDGE_AVATARS })
+    try {
+      if (!(await reservation.claim(bytes.length))) throw new BridgeAvatarQuotaError('Bridge avatar limit reached')
+      const { error } = await bucket.upload(path, bytes, { contentType, upsert: true, cacheControl: '86400' })
+      if (error) throw new Error('Bridge avatar storage unavailable')
+    } finally {
+      await reservation.release()
+    }
   }
-  const { error } = await bucket.upload(path, bytes, { contentType, upsert: true, cacheControl: '86400' })
-  if (error) throw new Error('Bridge avatar storage unavailable')
   const { data } = bucket.getPublicUrl(path)
   return publicStorageUrl(data.publicUrl)
 }

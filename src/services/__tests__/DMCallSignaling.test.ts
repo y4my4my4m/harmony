@@ -134,13 +134,30 @@ describe('local calls', () => {
 
   it('on an instance without send_signal, a signal opens the private topic, broadcasts and releases it', async () => {
     capabilities.relay = false
+    realtime.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST202', message: 'absent' } } as any)
     await dmCallSignaling.sendSignal(CONV, { type: 'decline', callerId: 'me', callType: 'voice', timestamp: 1, conversationId: CONV })
     expect(realtime.opened).toHaveLength(1)
     const { topic, opts, channel } = realtime.opened[0]
     expect(topic).toBe(`dm-call:${CONV}`)
     expect(opts.config.private).toBe(true)
+    // Realtime does not answer a broadcast its send policy refuses: the send asks for an answer.
+    expect(opts.config.broadcast).toEqual({ ack: true })
     expect(channel.sent[0]).toMatchObject({ type: 'broadcast', event: 'call-signal', payload: { type: 'decline' } })
     expect(channel.unsubscribe).toHaveBeenCalled()
+  })
+
+  it.each(['notifications_disabled', 'error'] as const)('a decline for %s, which send_signal does not take, is a plain decline', async (reason) => {
+    await dmCallSignaling.declineCall(CONV, 'me', reason)
+    expect(realtime.rpc).toHaveBeenCalledWith('send_signal', {
+      p_topic: `dm-call:${CONV}`, p_event: 'call-signal', p_payload: { type: 'decline', callType: 'voice', reason: undefined },
+    })
+  })
+
+  it('a decline that could not be sent still drops the ring here', async () => {
+    dmCallSignaling.registerRemoteCall(CONV, 'them', 'voice')
+    realtime.rpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'send_signal: invalid call signal' } } as any)
+    await expect(dmCallSignaling.declineCall(CONV, 'me')).rejects.toMatchObject({ code: '22023' })
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
   })
 })
 

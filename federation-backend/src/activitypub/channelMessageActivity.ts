@@ -16,7 +16,7 @@ import { federateContentParts, fileAttachmentsToAp } from '../utils/privateMedia
 import { withoutPollParts } from '../utils/polls.js';
 import { harmonyPollExtension, type FederatedPoll } from './messagePolls.js';
 import { HARMONY_NS } from './harmonyContext.js';
-import { HARMONY_AUTHOR, type GroupAuthor } from './groupAuthor.js';
+import { HARMONY_AUTHOR, wireGroupAuthor, type GroupAuthor } from './groupAuthor.js';
 
 /**
  * The Note id of a stored message: the id another instance sent it under (metadata.ap_id), else
@@ -148,7 +148,7 @@ export function channelMessageActivity(
       type: 'Note',
       id: messageUrl,
       attributedTo: authorApId,
-      ...(groupAuthor ? { [HARMONY_AUTHOR]: groupAuthor } : {}),
+      ...(groupAuthor ? { [HARMONY_AUTHOR]: wireGroupAuthor(groupAuthor) } : {}),
       content: contentHtml,
       'harmony:rawContent': federatedContent, // Send transformed content with absolute emoji URLs
       

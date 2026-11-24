@@ -16,8 +16,8 @@
  * The database row hears every membership change (activity_session_sync, debounced) and a heartbeat
  * every heartbeatMs; every readmitMs each member's token is checked and the member admitted again,
  * so signing out, leaving a conversation or call, losing a channel or the app being turned off
- * removes them within that time. A member whose admission fails ADMIT_FAILURES times in a row is
- * removed.
+ * removes them within that time. A member whose token or admission cannot be checked
+ * ADMIT_FAILURES times in a row is disconnected with UNAVAILABLE, which its client retries.
  *
  * Players: a joiner plays while fewer than max_players play, else spectates; spectators never host.
  * Outbound bytes are charged to the sender: a frame fanned out to n members costs n times its size.
@@ -72,7 +72,10 @@ export interface Admission {
 }
 
 export interface RelayDeps {
-  /** Local profile of a valid access token; expiresAt in epoch ms. */
+  /**
+   * Local profile of a valid access token, expiresAt in epoch ms; null for a refused one. Throws when
+   * the token cannot be checked.
+   */
   verifyToken(token: string): Promise<{ profileId: string; expiresAt: number | null } | null>
   admit(sessionId: string, profileId: string): Promise<Admission>
   sync(sessionId: string, members: string[], host: string | null): Promise<boolean>
@@ -171,10 +174,27 @@ export function addressKey(ip: string): string {
 }
 const STRIKE_WINDOW_MS = 10_000
 const ADMIT_FAILURES = 3
+/** Members of one session checked at a time on readmit. */
+const READMIT_CONCURRENCY = 8
 /** Profiles a session remembers (join order, member state) across reconnects. */
 const SEEN_LIMIT = 256
 /** How long an ended session id is refused, ms. */
 const DROPPED_MS = 10 * 60_000
+
+/** True for a request the relay upgrades. */
+export function isRelayUpgrade(req: IncomingMessage): boolean {
+  return RELAY_PATHS.includes((req.url ?? '').split('?')[0])
+}
+
+/**
+ * Answers an upgrade request over HTTP and closes its socket. Node removes its own listeners before
+ * 'upgrade': a reset here without one is an uncaught error, and the socket is half-open after end().
+ */
+function refuseUpgrade(socket: Duplex, status: string, headers = ''): void {
+  socket.on('error', () => socket.destroy())
+  socket.once('finish', () => socket.destroy())
+  socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n${headers}\r\n`)
+}
 
 class Timeout extends Error {}
 
@@ -250,6 +270,8 @@ class Session {
   syncTimer: ReturnType<typeof setTimeout> | null = null
   heartbeat: ReturnType<typeof setInterval> | null = null
   readmit: ReturnType<typeof setInterval> | null = null
+  /** A readmit pass is running. */
+  readmitting = false
 
   constructor(readonly info: SessionInfo) {}
 
@@ -307,31 +329,34 @@ export class ActivityRelay {
     this.pinger.unref?.()
   }
 
-  /** Takes upgrade requests for RELAY_PATHS; leaves every other upgrade to later listeners. */
+  /**
+   * Takes upgrade requests for RELAY_PATHS. A server created with `shouldUpgradeCallback:
+   * isRelayUpgrade` (Node 24.9) serves every other one as the ordinary request it also is; one that
+   * reaches this listener is refused with 400.
+   */
   attach(server: Server): void {
     server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
-      const path = (req.url ?? '').split('?')[0]
-      if (!RELAY_PATHS.includes(path)) return
-      this.handleUpgrade(req, socket, head)
+      if (isRelayUpgrade(req)) this.handleUpgrade(req, socket, head)
+      else refuseUpgrade(socket, '400 Bad Request')
     })
   }
 
   handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
     const origin = req.headers.origin
     if (origin && this.options.allowedOrigins && !this.options.allowedOrigins.includes(origin)) {
-      socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+      refuseUpgrade(socket, '403 Forbidden')
       return
     }
     const ip = addressKey(this.options.clientIp(req))
     let bucket = this.upgrades.get(ip)
     if (!bucket) this.upgrades.set(ip, (bucket = new Bucket(this.options.upgradesPerSecond, this.options.upgradeBurst, this.options.now())))
     if (!bucket.take(1, this.options.now())) {
-      socket.end('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\nRetry-After: 10\r\n\r\n')
+      refuseUpgrade(socket, '429 Too Many Requests', 'Retry-After: 10\r\n')
       return
     }
     if (this.connections.size >= this.options.maxConnections || (this.perIp.get(ip) ?? 0) >= this.options.maxConnectionsPerIp
       || this.pending >= this.options.maxPendingConnections || (this.pendingPerIp.get(ip) ?? 0) >= this.options.maxPendingPerAddress) {
-      socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nRetry-After: 10\r\n\r\n')
+      refuseUpgrade(socket, '503 Service Unavailable', 'Retry-After: 10\r\n')
       return
     }
     this.wss.handleUpgrade(req, socket, head, (ws) => this.accept(ws, ip))
@@ -780,34 +805,50 @@ export class ActivityRelay {
       .catch((error: Error) => this.options.log.warn(`activity relay: sync ${session.info.id} failed: ${error.message}`))
   }
 
+  /** One pass at a time: a tick that finds the previous one running is skipped. */
   private async readmitAll(session: Session): Promise<void> {
-    for (const [id, conn] of [...session.conns]) {
-      if (session.ended) return
-      let verified: Awaited<ReturnType<RelayDeps['verifyToken']>> | null = null
-      let admission: Admission | null = null
-      try {
-        verified = conn.token ? await within(this.deps.verifyToken(conn.token), this.options.depTimeoutMs) : null
-        if (verified && verified.profileId === id) {
-          admission = await within(this.deps.admit(session.info.id, id), this.options.depTimeoutMs)
-        }
-      } catch {
-        if (session.ended || session.conns.get(id) !== conn) continue
-        if (++conn.admitFailures >= ADMIT_FAILURES) this.expel(session, conn, id, 'UNAVAILABLE')
-        continue
+    if (session.readmitting) return
+    session.readmitting = true
+    try {
+      const queue = [...session.conns]
+      const worker = async () => {
+        for (let next = queue.shift(); next && !session.ended; next = queue.shift()) await this.readmitMember(session, next[0], next[1])
       }
-      if (session.ended || session.conns.get(id) !== conn) continue
-      if (!verified || verified.profileId !== id) {
-        this.send(conn, { op: 'error', code: 'UNAUTHORIZED', fatal: true })
-        this.removeMember(session, id, 'removed')
-        this.closeConn(conn, CLOSE.UNAUTHORIZED, 'unauthorized')
-        continue
-      }
-      conn.admitFailures = 0
-      if (admission!.refusal === 'ENDED') return this.endSession(session, 'ended', false)
-      if (admission!.refusal === 'ACTIVITY_APP_UNAVAILABLE') return this.endSession(session, 'disabled')
-      if (admission!.refusal) this.expel(session, conn, id, admission!.refusal)
-      else conn.canEnd = admission!.can_end === true
+      await Promise.all(Array.from({ length: READMIT_CONCURRENCY }, worker))
+    } finally {
+      session.readmitting = false
     }
+  }
+
+  private async readmitMember(session: Session, id: string, conn: Connection): Promise<void> {
+    let verified: Awaited<ReturnType<RelayDeps['verifyToken']>> | null = null
+    let admission: Admission | null = null
+    try {
+      verified = conn.token ? await within(this.deps.verifyToken(conn.token), this.options.depTimeoutMs) : null
+      if (verified && verified.profileId === id) {
+        admission = await within(this.deps.admit(session.info.id, id), this.options.depTimeoutMs)
+      }
+    } catch {
+      if (session.ended || session.conns.get(id) !== conn) return
+      if (++conn.admitFailures >= ADMIT_FAILURES) {
+        this.send(conn, { op: 'error', code: 'UNAVAILABLE', fatal: true })
+        this.removeMember(session, id, 'timeout')
+        this.closeConn(conn, CLOSE.UNAVAILABLE, 'unavailable')
+      }
+      return
+    }
+    if (session.ended || session.conns.get(id) !== conn) return
+    if (!verified || verified.profileId !== id) {
+      this.send(conn, { op: 'error', code: 'UNAUTHORIZED', fatal: true })
+      this.removeMember(session, id, 'removed')
+      this.closeConn(conn, CLOSE.UNAUTHORIZED, 'unauthorized')
+      return
+    }
+    conn.admitFailures = 0
+    if (admission!.refusal === 'ENDED') return this.endSession(session, 'ended', false)
+    if (admission!.refusal === 'ACTIVITY_APP_UNAVAILABLE') return this.endSession(session, 'disabled')
+    if (admission!.refusal) this.expel(session, conn, id, admission!.refusal)
+    else conn.canEnd = admission!.can_end === true
   }
 
   private expel(session: Session, conn: Connection, id: string, refusal: string): void {

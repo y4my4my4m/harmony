@@ -91,14 +91,16 @@ describe('P2P soundboard broadcasts', () => {
     expect(events).toEqual([]);
   });
 
-  it('broadcasts plays on the signalling channel of an instance without send_signal', () => {
+  it('broadcasts plays on the signalling channel of an instance without send_signal', async () => {
     const { svc } = service();
-    const send = vi.fn();
+    const send = vi.fn(async () => 'ok');
     (svc as any).signalChannel = { send };
     (svc as any).channelId = 'room-1';
     capabilities.relay = false;
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'absent' } } as never);
     svc.sendSoundboard(play);
-    expect(send).toHaveBeenCalledWith({ type: 'broadcast', event: 'soundboard', payload: { from: 'me', message: play } });
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith(
+      { type: 'broadcast', event: 'soundboard', payload: { from: 'me', message: play } }, { timeout: 5000 }));
   });
 
   it('relays plays through send_signal, and reports a relayed play under the database\'s sender', async () => {

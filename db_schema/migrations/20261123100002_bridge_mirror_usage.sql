@@ -89,15 +89,16 @@ BEGIN
 
     FOR i IN 1 .. coalesce(array_length(v_channels, 1), 0) LOOP
         CONTINUE WHEN v_deltas[i] = 0;
-        BEGIN
-            INSERT INTO public.bridge_mirror_usage AS u (channel_id, bytes)
-            VALUES (v_channels[i], v_deltas[i])
-            ON CONFLICT (channel_id) DO UPDATE
-               SET bytes = u.bytes + EXCLUDED.bytes, updated_at = now();
-        EXCEPTION WHEN foreign_key_violation THEN
-            -- No such channel: its objects count toward no server.
-            NULL;
-        END;
+        -- Objects of a channel that does not exist count toward no server. The row is locked as the
+        -- foreign key would lock it. A handler for the foreign key error would open a subtransaction
+        -- per object; a backend caches 64 subtransaction ids (PGPROC_MAX_CACHED_SUBXIDS) and a bulk
+        -- delete past that slows every snapshot on the instance.
+        PERFORM 1 FROM public.channels c WHERE c.id = v_channels[i] FOR KEY SHARE;
+        CONTINUE WHEN NOT FOUND;
+        INSERT INTO public.bridge_mirror_usage AS u (channel_id, bytes)
+        VALUES (v_channels[i], v_deltas[i])
+        ON CONFLICT (channel_id) DO UPDATE
+           SET bytes = u.bytes + EXCLUDED.bytes, updated_at = now();
     END LOOP;
     RETURN NULL;
 END;

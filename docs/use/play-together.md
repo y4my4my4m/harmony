@@ -10,7 +10,7 @@ Play together runs small multiplayer activities, such as the drawing game Drawin
 ## Start an activity
 
 1. Open a DM, a group or a text channel.
-2. Select **Activities** (the popcorn) in the header. On a phone it is in the **⋮** menu.
+2. In a text channel, select **Activities** (the popcorn) in the header, on a phone too. In a DM or a group, open **More options** (**⋮**) in the header and select **Activities**.
 3. Pick an activity.
 
 The activity opens in a panel above the messages, and a notice in the conversation tells everyone you started it, with a **Join** button.
@@ -36,7 +36,7 @@ Select **Join** on the notice in the conversation, or on the banner above the me
 
 The activity keeps running when you open another conversation: a card in the corner shows it, with **Return** and **Leave**.
 
-When the last player leaves, the activity ends after a minute. The notice in the conversation then shows how long it ran and how many played.
+When the last player selects **Leave**, the activity ends at once. When the last player only lost the connection, it waits a minute for them to come back. The notice in the conversation then shows how long it ran and how many played.
 
 ## DrawinPhone
 
