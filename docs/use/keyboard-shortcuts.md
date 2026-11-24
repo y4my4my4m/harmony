@@ -161,18 +161,17 @@ Starting a reply, pinning, unpinning and copying are announced to screen readers
 | Media viewer | `+` or `=` / `-` | Zoom a picture in or out. |
 | Media viewer | `0` | Reset a picture's zoom and rotation. |
 | Media viewer | Escape | Close the viewer. |
-| Media viewer | Double click | Zoom a fitted picture to 2.5 times about the pointer; on a zoomed or moved picture, return it to the fitted size and centre it. |
 | Crop and image editing dialogs | Arrow keys | Move the crop area. Hold Shift for larger steps. |
 | Crop and image editing dialogs | `+` or `=` / `-` | Zoom in or out. |
 | Crop and image editing dialogs | Enter | Apply. |
-
-In the media viewer, a picture zooms from a tenth of its fitted size up to five times it, or up to three times the picture's own size when that is larger. With a mouse, a drag moves the picture at any zoom, past its own edges too, and it stays where you leave it while the wheel zooms.
 | Crop and image editing dialogs | Escape | Cancel. |
 | Focal point picker | Arrow keys | Move the focal point. Hold Shift for larger steps. |
 | Voice message progress bar | Space or Enter | Play or pause. |
 | Voice message progress bar | Left or Down / Right or Up | Back or forward 5 seconds. |
 | Voice message progress bar | Page Down / Page Up | Back or forward a quarter of the message. |
 | Voice message progress bar | Home / End | Start or end. |
+
+In the media viewer, the keys, the wheel and the zoom buttons zoom a picture from a tenth of its fitted size up to five times it, or up to three times the picture's own size when that is larger. A double click on a fitted picture zooms it to 2.5 times about the pointer; on a zoomed, shrunk or moved picture it returns the picture to its fitted size, centred. With a mouse, a drag moves the picture at any zoom, past its edges too, and the wheel zooms without pulling it back; zooming out to the fitted size centres it.
 
 ## Voice and video
 

@@ -305,6 +305,8 @@ from `supabase/.env`. See [Supabase Studio](/self-host/monitoring#supabase-studi
 - [Email (SMTP)](/self-host/email), [OAuth sign-in](/self-host/oauth),
   [Voice and video](/self-host/voice), [Push notifications](/self-host/push),
   [Discord bridges](/self-host/discord-bridges): optional features.
+- [Activities](/self-host/activities): turning play-together activities on or off, and
+  what the proxy needs to carry them.
 - [Announcements](/self-host/announcements): writing announcements and where
   people read them.
 - [Emojis](/self-host/emojis): the instance's emoji library and importing emojis

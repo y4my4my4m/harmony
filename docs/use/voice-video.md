@@ -161,9 +161,7 @@ While an activity runs, the call bar shows a small player with its title, **Play
 | **End the activity**, **End for everyone** | Ends it for everyone. See [Who controls an activity](#who-controls-an-activity). |
 | **Leave** | Stops the player on your device only; the others keep playing. **Join** brings it back. |
 
-With the call view in **Full screen**, the player fills the screen. The call's controls, the activity's title, its controls and the queue float over it and hide while the pointer rests; moving the pointer brings them back. They stay while the pointer is over them or one of them has keyboard focus.
-
-What plays, the queue and the host come from the server. The others in the call can play, pause and seek only what is already playing, and only while they may control the activity.
+With the call view in **Full screen**, the player fills the screen. The call's controls, the participant strip, the activity's title, its controls and the queue float over it and hide 2.5 seconds after the pointer stops; moving the pointer or the keyboard focus brings them back. They stay while the pointer is over them or one of them has keyboard focus.
 
 If your browser blocks autoplay, the player shows **Click to play**.
 
@@ -181,11 +179,13 @@ Everyone in the call controls an activity unless its host restricts it. The host
 
 Ending an activity, or replacing it by starting another, belongs to the host whatever the setting, and to server members with **Move Members**, the server owner, and instance admins and moderators. Once the host leaves the call, anyone in it can end the activity.
 
+Your instance decides what plays, the queue and the host. Play, pause and seek from another person in the call apply only to what is already playing and only while that person may control the activity; one your instance does not confirm within 3 seconds gives way to the instance's state.
+
 ## Use spatial audio
 
 Spatial audio places each participant around you on a 2D map, so voices come from a direction and fade with distance. It changes only what you hear and is off until you turn it on.
 
-1. Click **Spatial audio** in the call bar.
+1. In the call bar, open **More options** (**⋯**) and click **Spatial audio**. In the call view, **Spatial audio** is a button of its own.
 2. Click **Off** in the panel header so it reads **On**.
 3. Drag avatars on the map to move people closer or farther. With the keyboard, focus an avatar and use the arrow keys; hold Shift to move farther.
 

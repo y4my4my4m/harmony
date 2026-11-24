@@ -114,10 +114,10 @@ Profiles, posts and hashtags have the addresses Mastodon uses, on your instance'
 |---|---|
 | `/@name` | A profile on this instance. Visitors who aren't signed in see its public page. |
 | `/@name@example.social` | A profile on another server, as this instance knows it. Visitors who aren't signed in see its public page: the profile and the public posts this instance has received, with a link to the account's own server. An account nobody here has looked up yet is not found until someone signed in opens it. |
-
-On public pages, posts show the link previews and GIFs stored with them, and a link to an image or video file shows that file. Opening a public page fetches nothing from other sites.
 | `/@name/ID`, `/@name@example.social/ID` | A post. **Copy link** in a post's menu copies this address. |
 | `/tags/tag` | A hashtag. |
+
+On public pages, posts show the link previews and GIFs stored with them, and a link to an image or video file shows that file. This instance fetches nothing from other servers when a visitor opens a public page.
 
 Earlier addresses, `/social/profile/…`, `/social/post/…` and `/social/hashtag/…`, open the same pages and change to the new address.
 
@@ -136,7 +136,7 @@ Open their profile and select **Follow**. The button then reads **Following**, a
 ### Follow someone on another server
 
 1. In the **Feed** header select **Search**. The **Search users** dialog opens.
-2. Type the full handle, such as `@alice@example.social`, and press Enter. Harmony looks the account up on its server. A display name or part of a username searches the accounts this instance already knows. A name with dots before the server works the same way, as Bluesky accounts bridged by Bridgy Fed (`@alice.bsky.social@bsky.brid.gy`) and Threads accounts have; such handles can be mentioned too.
+2. Type the full handle, such as `@alice@example.social`, and press Enter. Harmony looks the account up on its server. A display name or part of a username searches the accounts this instance already knows. A username with dots works the same way, as Bluesky accounts bridged by Bridgy Fed (`@alice.bsky.social@bsky.brid.gy`) and Threads accounts have, and such a handle can be mentioned.
 3. Select the account to open its profile, then select **Follow**.
 
 A follow of an account on another server shows **Requested** until that server accepts it. Selecting **Requested** withdraws the request; it reads **Cancel request** while you point at it.
