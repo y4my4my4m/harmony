@@ -90,6 +90,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- **A Discord bridge pair on a voice channel shows the channel's name.** The Discord bridge page
+  named a pair whose Harmony side is a voice channel's chat by its id; the form for a new pair still
+  offers text channels only. (#215, ROODAY)
 - **The admin panel no longer stalls the instance.** **Overview**, **Federation** and the **Users**
   filter counts read one stored statistics snapshot instead of many exact counts at once, which held
   every database connection and made other requests fail. **Overview** says when its figures were
