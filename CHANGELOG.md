@@ -8,6 +8,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+
 - **Limits on call signals and calls placed.** Each account may send 300 call signals and place 10
   calls a minute by default, calls to other instances included, set in **Admin** → **Anti-spam**. A
   call past the limit says when the next one can ring; hanging up is never refused.
@@ -55,33 +56,6 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   on by default, counts toward the server's stored-bot-files limit, and loses its location and camera
   metadata like any upload. Message and reaction events now carry `server_id`, and the member list
   shows each member's role IDs.
-- **Category permissions.** **Edit category** has a **Permissions** tab, as a channel does: the
-  **Private category** switch, then each role's channel permissions as **Deny**, **Inherit** or
-  **Allow**, voice included. Saving applies them to every channel synced with the category. Closing
-  with unsaved changes asks first.
-- **Moderators hear about new reports.** Each new report sends a notification to whoever handles
-  it: a server's owner and members with Manage Messages for a report about a message in their
-  server, the instance's admins and moderators for any other. It names the content and the reason,
-  never the reporter, and opens the queue. The admin panel's **Reports** tab, **Server settings** →
-  **Reports** and **Instance moderation** in **User settings** show how many wait. **Notify me about
-  new reports** at the top of the queue turns the notifications off.
-- **Custom emoji in announcements.** `:name:` in an announcement shows the instance's custom emoji
-  of that name, in the pop-up, on **Today** and in **User settings** → **Announcements**. Images with
-  an `https` address show too.
-- **Share any profile, and let anyone read it.** **Copy profile link** comes first in a profile's
-  **⋯** menu and copies its address on your instance, `/@name` or `/@name@other.server`. Visitors
-  who aren't signed in now see another server's account at that address: its profile and the public
-  posts your instance has received, with a link to its own server, instead of a sign-in page.
-- **Refresh profile** in another server's account's **⋯** menu reads the account from its server
-  now: a new name, avatar or bio shows at once. When that server can't be reached, the profile stays
-  as it was.
-- **Discord files are stored in the background.** With **Mirror to storage**, the gateway now also
-  stores the Discord files of messages already in Harmony, and files over 50 MB: the cap is the
-  instance's upload ceiling (`harmony config --upload-ceiling`). Large files are downloaded one at a
-  time through a temporary file. Expired links are refreshed through the bridge. **Instance admin** →
-  **Config** shows how many files are waiting, too large or failed, and the size stored. One server stores up to
-  5120 MB of them (**Stored Discord files per server (MB)** under **Discord history import**, `0`
-  for no limit); past it, further files keep their Discord links until the limit is raised.
 - **Matrix bridge.** Harmony works with the [Matrix bridge](https://github.com/y4my4my4m/harmony-matrix-bridge),
   an application service an instance operator runs beside a Matrix homeserver. Messages, replies,
   images and files cross both ways between a paired channel and Matrix room, in channels without
@@ -103,144 +77,6 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   answers to your slash commands. Deleting a message still reaches the bridge, so a copy relayed
   before is removed too. The entry shows only in servers with a bridge, and the choice lasts when you
   leave and rejoin. (#197, ZaneH)
-- **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
-  the `/` list in server channels and threads, fill in typed options (text, numbers, true or false,
-  choices, members, channels, roles) and the bot receives `INTERACTION_CREATE`. It answers within
-  5 seconds, or defers for up to 15 minutes, publicly ("Alice used /weather") or only to the member
-  who ran the command. Shapes follow Discord's; permissions are Harmony permission names. Not in
-  encrypted channels or direct messages. See the developer docs, Build → Slash commands.
-- **A captcha only when a sign-up looks automated.** Admins can turn on a sign-up check with
-  Cloudflare Turnstile or hCaptcha in **Admin** → **Invites** → **Sign-up check**. It appears for a
-  second account from the same network within an hour, an email domain new to the instance, or a
-  sign-up past a counting limit; most people never see it. It works in the apps too. Off until set up,
-  and asked only while **Apply sign-up limits** is on.
-- **Import emojis from other instances.** **Admin** → **Emojis** → **Import** lists the custom emojis
-  seen in posts and reactions from other instances, by instance and name. Pick one or many: each
-  image is copied to your instance and the emoji joins the instance emojis for everyone here, with
-  its licence and where it came from kept. A name already in use is offered under another name or
-  can be skipped; an existing emoji is never replaced. **Re-host** is now **Copy image to this
-  instance**: it only changes where an existing emoji's image is served from.
-- **Invite widgets for your website.** The invite dialog's **Add to your website** gives a badge,
-  a Markdown badge for READMEs and forums, a join button, a small icon and a card to frame. Each
-  shows the server's name and counts and links to the invite.
-- **Animate custom emoji** in **User settings** → **Appearance**. Off, animated emoji show their
-  first frame, on your screen only. **Reduce motion** does the same.
-- **Backslash escapes in messages.** `\*not italic\*`, `\@name`, `\#channel`, `\:emoji:`, `\> line`
-  and `\https://link` show as typed, and an escaped mention pings nobody. Inline code keeps its
-  backslashes.
-- **Discord bridge soundboard sync.** The Discord bridge can sync a server's
-  soundboard (`/bridge sync-sounds` in harmony-discord-bridge) through three
-  bot-gateway endpoints for the server's bridge bot: `GET
-  /servers/{id}/sounds`, `POST /servers/{id}/sounds/discord` and `DELETE
-  /servers/{id}/sounds/{soundId}`. The bridge deletes only sounds it imported:
-  a sound a member uploaded answers `403` `SOUND_NOT_LINKED`.
-- **Discord bridge sticker sync.** The same bridge bot can sync a server's
-  stickers through `GET /servers/{id}/stickers/discord` (the sticker limit and
-  the Discord-linked stickers, removed ones included), `POST
-  /servers/{id}/stickers/discord` (copies a PNG, APNG or GIF sticker from
-  Discord's CDN; Lottie stickers are refused with `422` `STICKER_FILE`) and
-  `DELETE /servers/{id}/stickers/{stickerId}`, which retires the sticker: it
-  leaves the picker and the list and no new message can use it, while old
-  messages keep showing it. The bridge retires only stickers it imported
-  (`403` `STICKER_NOT_LINKED` for a member's), and a server keeps the 60 retired
-  last. A message that names a removed or unknown sticker now answers `422`
-  `STICKER_REFUSED`.
-- **Discord bridge emoji sync.** The same bridge bot can sync a server's emoji
-  through `GET /servers/{id}/emojis/discord` (the server's emoji limit and its
-  Discord-linked emoji, removed ones included), an `update` flag on `POST
-  /servers/{id}/emojis/discord`, and `DELETE /servers/{id}/emojis/{emojiId}`.
-  The bridge removes only emoji it imported (`403` `EMOJI_NOT_LINKED` for a
-  member's, also one linked by name) and restores only emoji it removed (`403`
-  `EMOJI_REMOVED` for one a person removed); a server keeps the 500 it removed
-  last.
-- **Bot API: gateway capabilities.** `READY` and `GET /users/@me` carry
-  `capabilities`, the features this gateway has (`bridge_sound_sync`,
-  `bridge_emoji_sync`, `bridge_sticker_sync`, `bridge_history_import`,
-  `bridge_privacy`), so a bot can tell an older gateway without calling a
-  route that answers `404`.
-- **Import Discord history.** A Discord bridge you run yourself can copy a
-  paired channel's older messages, threads and pins into its Harmony channel,
-  with their original dates and Discord authors. Start it with **Import
-  history** or **Import all** in Server settings, Discord Bridge, or with
-  `/bridge import-history` in Discord (bridge 2.6.0 or later); each start asks
-  for a confirmation. Imported messages are quiet: no notifications, unread
-  counts, pings or federation, and a repeat or a restart never duplicates a
-  message. Reactions are not imported.
-  - It is off until the instance's admin turns it on (**Admin** → **Config** →
-    **Discord bridge** → **Discord history import**), and never runs through
-    the instance's Discord bot or a bot the instance runs for a community.
-  - Messages from people who have left the Discord server are skipped, the
-    bridge pins a notice in each Discord channel it imports, and a Discord
-    channel that `@everyone` cannot see is imported only when started on
-    Discord by someone who can see it.
-  - The instance limits how many imports run at once (1) and how many
-    messages each stores per minute (600), and with AutoMod's **Exempt bots**
-    off a server's blocking keyword, invite and link rules apply to imported
-    messages.
-- **Bridge privacy.** Discord members decide about their own messages with
-  `/bridge-privacy` on Discord: `opt-out` keeps them out of the Harmony server
-  from then on, live and imported, `erase` also deletes what the bridge
-  already brought, `opt-in` and `status` do what they say. Opting back in,
-  or a manager's **Restore**, brings later messages only: history import
-  leaves out what the member wrote before. It works with every kind of
-  bridge: the member list, mention suggestions and mentions leave out
-  opted-out members whatever a bridge sends. For someone who cannot run it, members with Manage Server
-  remove a Discord user by ID under **Server settings** → **Discord Bridge** →
-  **Bridge privacy**, where **Remove all bridged messages** clears the whole
-  server and stops its unfinished imports; instance admins have **Remove all Discord messages** for the
-  instance, which also turns Discord history import off. A long erase
-  finishes in the background, across restarts. Erasing on Harmony never
-  deletes anything on Discord.
-- **Bot API: bridge privacy and import limits.** `/bridge/v2/privacy` lists a
-  server's opted-out remote users and takes opt-out, opt-in and erase; a
-  relayed message or edit of an opted-out author answers `403`
-  `BRIDGE_AUTHOR_OPTED_OUT`. `/bridge/v2/config` carries `history_import` and
-  `privacy_version`. The import routes answer `403` `import_disabled` while
-  import is off, `429` `import_busy` and `import_rate_limited` with
-  `Retry-After`, and reject a message that cannot be stored alone (`rejected`
-  with `invalid`, `future_date`, `opted_out`, `before_opt_in`, `automod`) instead of failing its
-  batch. See the developer docs, Build → Writing a bridge.
-- **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
-  installs an instance on a blank Linux server: it checks the host (offering
-  Docker and a swap file), asks a few questions, checks DNS, starts the
-  stack, loads the database and creates the admin account. Re-running it is
-  safe.
-- **`harmony` command** for operators: `update`, `doctor`, `backup`,
-  `restore`, `status`, `logs`, `admin create | reset-password | invite`,
-  `registration open | invite | closed`, `config`.
-- **`harmony doctor`** checks DNS, certificates, containers, migrations, the
-  instance domain, federation through the public URL, the bot gateway, voice,
-  push, email, disk, memory, backup age and versions, each with a fix.
-- **Discord bridge hosting** on self-hosted instances: the `discord` profile
-  runs communities' bridges once hosting is enabled in Admin, Instance.
-- Prebuilt images on GHCR: `harmony-web`, `harmony-federation` and
-  `harmony-bot-gateway` for amd64 and arm64.
-- **Instance limits.** Ceilings on what one local account creates and how fast it writes, set in
-  the admin panel: servers (100) and bots (25) per account, and rates for messages, posts,
-  reactions, follows, server joins, new servers and conversations with strangers. Bots have an
-  overall REST ceiling (600 per minute; 3,000 for a linked Discord bridge). An admin can exempt an
-  account in **Users**. **Stored files across the instance** adds an optional Drive total.
-- **Following import.** **Account migration** takes Mastodon's `following_accounts.csv` or Harmony's
-  data export and follows the accounts on it in the background, with the result per account. Locked
-  and remote accounts get a request; blocks apply. Posts and likes are not imported, as on Mastodon.
-- **Copy your old profile.** After a confirmed move, the new account can copy the old one's display
-  name, bio, avatar, banner and profile fields. It is optional and asks before replacing anything.
-- **Who can start a conversation.** **Privacy** → **Direct messages**: everyone, server members and
-  people you follow, or only people you follow. It also applies to other instances.
-- **Sign-up limits.** Disposable email addresses and a sixth account on one inbox in 30 days are
-  refused. Disposable mail is also recognized by the mail server behind a domain, so a service's new
-  domains are refused too. Accounts per network and per domain in a day are counted, and refused only
-  if an admin turns that on, so a campus or office signing up together is not affected. An admin can
-  add domains, mail hosts, addresses and ranges to refuse, and list domains that are never limited.
-  **Admin** → **Invites** → **Sign-up limits**.
-- **Signups tab for staff.** **Admin** → **Signups** lists recent accounts with their email domain,
-  shows groups created together, and suspends or unsuspends a selection with one reason. Members can
-  report an account for username hoarding or trading.
-- **Delete accounts and free their usernames.** Administrators can delete selected accounts in
-  **Admin** → **Signups**. The usernames become free at once.
-- **Platform names are reserved.** New accounts and renames cannot take the names of 35 large
-  services and platforms, such as `discord`, `google`, `openai` and `twitch`. Accounts that already
-  hold one keep it.
 - **Discord history import through every bridge.** **Admin** → **Config** → **Discord bridge** →
   **Discord history import** has a third choice, **All bridges**: besides bridges their server's
   owner runs, the instance's Discord bot and the own-bot bridges the instance hosts can import. The
@@ -253,6 +89,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and Discord's "pinned a message" line is removed (bridge 2.8.0).
 
 ### Fixed
+
 - **Live updates come back on their own.** When the instance closed a live feed (an expired sign-in,
   for example), the server's channel list, members and statuses, voice channels, typing, incoming
   calls and timelines stayed closed until a reload; they now reopen within seconds and fetch what
@@ -482,6 +319,191 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   They now read as plaintext for every member holding the channel's keys, after sending, editing,
   reopening or unlocking encryption. The message a thread was started from showed its ciphertext
   in the full view, and in the panel once it refreshed; it is decrypted too. (#181, #217, ZaneH)
+
+### Changed
+
+- **A quieter DM header.** A DM or group shows **Call**, **Search** and **More options** (⋯). A
+  call starts with your camera off, and the call bar turns it on while it rings or after it is
+  answered; **More options** holds **Add people**, **Start video call** for video from the first
+  second, and **Activities**.
+- **Send any kind of file.** Chats and Drive take every file type, as Discord does: an APK, an
+  executable or a JSON file no longer stops at "isn't allowed". A type your instance's storage does
+  not serve as itself is stored as a download under its own name and shows as a file card; HTML,
+  SVG, XML and scripts are always stored that way, so nothing sent opens as a page. Size limits are
+  unchanged.
+- **One Activities button in calls.** Watch or listen together and the games share one
+  **Activities** dialog behind the popcorn button: in a call on this instance's servers it offers a link or a Drive file to
+  watch together above the games; elsewhere it lists the games. The voice dock drops from 14
+  controls to 10 in three groups parted by separators (the call, what plays in it, the view):
+  **Participants**, **Spatial audio**, **Voice settings** and **Pop out call** sit under **More
+  options** (⋯).
+  Arrows pointing out open a larger view and arrows pointing in a smaller one, in the dock, the
+  minimized dock and the call view alike; the square corners mean full screen only, and floating
+  the dock has its own icon instead of Pop out's.
+- **Discover communities shows more servers.** On both tabs the search and filters fold behind a
+  **Search and filters** button and open folded; the tabs, the count and every active filter stay
+  on screen, each filter a chip that clears it, and scrolling the list folds open controls. Other
+  instances has one field: it filters the listed servers as you type, and a typed domain is offered
+  as **Browse example.social** (or Enter); the known instances still filter by instance. Join sits
+  beside a server's icon. In a 1280×1000 window the sheet shows 4 whole cards on This instance and
+  12 on Other instances, where it showed 1 and 3; on a phone 2 and 4, where it showed 1 and 1.
+- **A group chat holds up to 10 people**, its creator included, as a Discord group DM. The picker
+  shows the spots left and stops at the tenth person; adding, rejoining or a group arriving from
+  another instance past 10 is refused with "This group is full". A group already larger keeps
+  its members and takes nobody new until it is below 10.
+
+### Security
+
+- Android: content embedded in the app (activities, YouTube and X posts, media players) can no
+  longer run the app's native commands. The Android WebView handed every embedded frame the same
+  bridge to the app as Harmony's own page; the bridge now answers Harmony's page only. On a
+  WebView too old for that, the app runs no activities and asks to update Android System WebView.
+- Activities: joining a text channel's game takes **Send Messages** there, as starting one did,
+  and a member timed out in the server cannot play in its channels; both see the game and the
+  reason instead of **Join**, and a member who loses the permission mid-game is removed within 30
+  seconds. Installing an activity package reads at most 32 zip entries and 6 MB as written: a
+  crafted zip of a few bytes could stall the federation backend for minutes or exhaust its memory.
+  The activity relay counts its per-address limits per IPv6 /64, caps sockets that have not signed
+  in, and caps bytes queued for slow readers across all connections. A slow avatar address no
+  longer holds the game for everyone. The activity frame loses the desktop app's message ports
+  before the activity runs. Installed packages run on computers only: phones run the frame in the
+  app's own web process, where one that never yields would freeze the app.
+
+### Notes for self-hosters
+
+- Discord history import also has **All bridges**: communities import through every bridge, the
+  instance's Discord bot included, set under **Admin** → **Config** → **Discord bridge** → **Discord
+  history import**. Imports through the instance bot and hosted own-bot bridges need the bridge host
+  2.8.0 (`harmony update`).
+- Peer-to-peer calls (instances without LiveKit) send their signals through the database, which
+  names the sender. Apps before 1.9.8 cannot connect peer-to-peer calls on an updated instance, and
+  cannot answer or end direct-message calls there, until they update; web tabs pick it up on reload.
+  LiveKit calls are unaffected.
+- Peer-to-peer calls use Google STUN and no TURN unless an admin sets servers in **Admin** →
+  **Config** → **Voice & video**; the public openrelay TURN relay is gone. Peers behind strict NATs
+  need the instance's own TURN: `docs/self-host/voice.md` sets up coturn in shared-secret mode,
+  which gives each account its own credentials.
+- An instance still named Harmony from an earlier install is named after its domain by
+  `harmony update`, which prints one line. A name set in the admin panel stays. To keep Harmony on
+  purpose, set it again in **Admin** → **Config** → **Branding**, or answer Harmony to `harmony config`.
+
+## [1.9.7] - 2026-11-15
+
+### Added
+
+- **Category permissions.** **Edit category** has a **Permissions** tab, as a channel does: the
+  **Private category** switch, then each role's channel permissions as **Deny**, **Inherit** or
+  **Allow**, voice included. Saving applies them to every channel synced with the category. Closing
+  with unsaved changes asks first.
+- **Moderators hear about new reports.** Each new report sends a notification to whoever handles
+  it: a server's owner and members with Manage Messages for a report about a message in their
+  server, the instance's admins and moderators for any other. It names the content and the reason,
+  never the reporter, and opens the queue. The admin panel's **Reports** tab, **Server settings** →
+  **Reports** and **Instance moderation** in **User settings** show how many wait. **Notify me about
+  new reports** at the top of the queue turns the notifications off.
+- **Custom emoji in announcements.** `:name:` in an announcement shows the instance's custom emoji
+  of that name, in the pop-up, on **Today** and in **User settings** → **Announcements**. Images with
+  an `https` address show too.
+- **Share any profile, and let anyone read it.** **Copy profile link** comes first in a profile's
+  **⋯** menu and copies its address on your instance, `/@name` or `/@name@other.server`. Visitors
+  who aren't signed in now see another server's account at that address: its profile and the public
+  posts your instance has received, with a link to its own server, instead of a sign-in page.
+- **Refresh profile** in another server's account's **⋯** menu reads the account from its server
+  now: a new name, avatar or bio shows at once. When that server can't be reached, the profile stays
+  as it was.
+- **Discord files are stored in the background.** With **Mirror to storage**, the gateway now also
+  stores the Discord files of messages already in Harmony, and files over 50 MB: the cap is the
+  instance's upload ceiling (`harmony config --upload-ceiling`). Large files are downloaded one at a
+  time through a temporary file. Expired links are refreshed through the bridge. **Instance admin** →
+  **Config** shows how many files are waiting, too large or failed, and the size stored. One server stores up to
+  5120 MB of them (**Stored Discord files per server (MB)** under **Discord history import**, `0`
+  for no limit); past it, further files keep their Discord links until the limit is raised.
+- **A captcha only when a sign-up looks automated.** Admins can turn on a sign-up check with
+  Cloudflare Turnstile or hCaptcha in **Admin** → **Invites** → **Sign-up check**. It appears for a
+  second account from the same network within an hour, an email domain new to the instance, or a
+  sign-up past a counting limit; most people never see it. It works in the apps too. Off until set up,
+  and asked only while **Apply sign-up limits** is on.
+- **Import emojis from other instances.** **Admin** → **Emojis** → **Import** lists the custom emojis
+  seen in posts and reactions from other instances, by instance and name. Pick one or many: each
+  image is copied to your instance and the emoji joins the instance emojis for everyone here, with
+  its licence and where it came from kept. A name already in use is offered under another name or
+  can be skipped; an existing emoji is never replaced. **Re-host** is now **Copy image to this
+  instance**: it only changes where an existing emoji's image is served from.
+- **Discord bridge soundboard sync.** The Discord bridge can sync a server's
+  soundboard (`/bridge sync-sounds` in harmony-discord-bridge) through three
+  bot-gateway endpoints for the server's bridge bot: `GET
+  /servers/{id}/sounds`, `POST /servers/{id}/sounds/discord` and `DELETE
+  /servers/{id}/sounds/{soundId}`. The bridge deletes only sounds it imported:
+  a sound a member uploaded answers `403` `SOUND_NOT_LINKED`.
+- **Discord bridge sticker sync.** The same bridge bot can sync a server's
+  stickers through `GET /servers/{id}/stickers/discord` (the sticker limit and
+  the Discord-linked stickers, removed ones included), `POST
+  /servers/{id}/stickers/discord` (copies a PNG, APNG or GIF sticker from
+  Discord's CDN; Lottie stickers are refused with `422` `STICKER_FILE`) and
+  `DELETE /servers/{id}/stickers/{stickerId}`, which retires the sticker: it
+  leaves the picker and the list and no new message can use it, while old
+  messages keep showing it. The bridge retires only stickers it imported
+  (`403` `STICKER_NOT_LINKED` for a member's), and a server keeps the 60 retired
+  last. A message that names a removed or unknown sticker now answers `422`
+  `STICKER_REFUSED`.
+- **Discord bridge emoji sync.** The same bridge bot can sync a server's emoji
+  through `GET /servers/{id}/emojis/discord` (the server's emoji limit and its
+  Discord-linked emoji, removed ones included), an `update` flag on `POST
+  /servers/{id}/emojis/discord`, and `DELETE /servers/{id}/emojis/{emojiId}`.
+  The bridge removes only emoji it imported (`403` `EMOJI_NOT_LINKED` for a
+  member's, also one linked by name) and restores only emoji it removed (`403`
+  `EMOJI_REMOVED` for one a person removed); a server keeps the 500 it removed
+  last.
+- **Bot API: gateway capabilities.** `READY` and `GET /users/@me` carry
+  `capabilities`, the features this gateway has (`bridge_sound_sync`,
+  `bridge_emoji_sync`, `bridge_sticker_sync`, `bridge_history_import`,
+  `bridge_privacy`), so a bot can tell an older gateway without calling a
+  route that answers `404`.
+- **Import Discord history.** A Discord bridge you run yourself can copy a
+  paired channel's older messages, threads and pins into its Harmony channel,
+  with their original dates and Discord authors. Start it with **Import
+  history** or **Import all** in Server settings, Discord Bridge, or with
+  `/bridge import-history` in Discord (bridge 2.6.0 or later); each start asks
+  for a confirmation. Imported messages are quiet: no notifications, unread
+  counts, pings or federation, and a repeat or a restart never duplicates a
+  message. Reactions are not imported.
+  - It is off until the instance's admin turns it on (**Admin** → **Config** →
+    **Discord bridge** → **Discord history import**), and never runs through
+    the instance's Discord bot or a bot the instance runs for a community.
+  - Messages from people who have left the Discord server are skipped, the
+    bridge pins a notice in each Discord channel it imports, and a Discord
+    channel that `@everyone` cannot see is imported only when started on
+    Discord by someone who can see it.
+  - The instance limits how many imports run at once (1) and how many
+    messages each stores per minute (600), and with AutoMod's **Exempt bots**
+    off a server's blocking keyword, invite and link rules apply to imported
+    messages.
+- **Bridge privacy.** Discord members decide about their own messages with
+  `/bridge-privacy` on Discord: `opt-out` keeps them out of the Harmony server
+  from then on, live and imported, `erase` also deletes what the bridge
+  already brought, `opt-in` and `status` do what they say. Opting back in,
+  or a manager's **Restore**, brings later messages only: history import
+  leaves out what the member wrote before. It works with every kind of
+  bridge: the member list, mention suggestions and mentions leave out
+  opted-out members whatever a bridge sends. For someone who cannot run it, members with Manage Server
+  remove a Discord user by ID under **Server settings** → **Discord Bridge** →
+  **Bridge privacy**, where **Remove all bridged messages** clears the whole
+  server and stops its unfinished imports; instance admins have **Remove all Discord messages** for the
+  instance, which also turns Discord history import off. A long erase
+  finishes in the background, across restarts. Erasing on Harmony never
+  deletes anything on Discord.
+- **Bot API: bridge privacy and import limits.** `/bridge/v2/privacy` lists a
+  server's opted-out remote users and takes opt-out, opt-in and erase; a
+  relayed message or edit of an opted-out author answers `403`
+  `BRIDGE_AUTHOR_OPTED_OUT`. `/bridge/v2/config` carries `history_import` and
+  `privacy_version`. The import routes answer `403` `import_disabled` while
+  import is off, `429` `import_busy` and `import_rate_limited` with
+  `Retry-After`, and reject a message that cannot be stored alone (`rejected`
+  with `invalid`, `future_date`, `opted_out`, `before_opt_in`, `automod`) instead of failing its
+  batch. See the developer docs, Build → Writing a bridge.
+
+### Fixed
+
 - **A Discord reply to a message that is gone arrives without the reply.** A reply relayed
   from Discord to a message erased or purged on Harmony was dropped (`500`); it is now sent
   without the reply link, as Discord shows it. A bot naming a message of another channel gets
@@ -549,7 +571,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   feed of the tab: the open conversation or channel, the conversation list, notifications, typing,
   voice channels and the channel list. They stayed closed after the renewal went through, until
   another chat was opened or the app reloaded. The app now keeps its current sign-in until the
-  renewal succeeds, and every live feed closed this way opens again with the next renewal.
+  renewal succeeds, and a conversation, channel or notification feed closed this way opens again
+  with the next renewal.
 - **Other tabs stayed half signed in after a sign-out on a bad connection.** When signing out could
   not reach the server, the other open tabs and windows were not told: they kept showing the
   account while every live feed and request went out signed out, until a reload. They now sign out
@@ -591,9 +614,99 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   when someone opens it and the stored copy is over a day old, as Mastodon and Misskey do. Profiles
   found by search also keep the instance's shared inbox and the account's creation date, which the
   spam checks use as its age.
+
+### Changed
+
+- **The member list loads as you scroll**, as on Discord. A server of more than 200 members shows
+  its groups and their counts at once and fills in the members near what you see; searching the list,
+  `@` suggestions, the kick and ban picker, `from:` in message search and the member pickers of roles,
+  private categories and bot commands ask the server, so any member can be found by name. The app no
+  longer reads every member of every server at start-up. In a server of more than 1000 members,
+  others' presence updates within about 20 seconds.
+- **Your own status shows at once in the member list**, in a server of any size: online, away or busy
+  where you chose, and **Offline** while you are invisible, as others see you.
+- **Emoticons convert as on Discord.** The set is Discord's: `:')` is 🥲, `:'D` 😂, `8-)` 😎, `O:)` 😇,
+  `>:(` 😠, `]:)` 😈, `,:)` 😅, `;(` 😭, `:*` 😗, `:s` 😒, with the `=` and nose variants of each.
+  `:D` is 😄 and `:(` is 😦, as Discord has them. `:p`, `xD` and `:/` still convert.
+- **Emoji names follow Discord where they differed.** `:sunglasses:` is 😎, `:dog:` 🐶, `:cat:` 🐱,
+  `:kiss:` 💋, `:umbrella:` ☔, `:snowman:` ⛄, `:pencil:` 📝, `:calendar:` 📆, `:satellite:` 📡,
+  `:train:` 🚋, `:post_office:` 🏣, and `:tiger:`, `:horse:`, `:cow:`, `:pig:`, `:camel:`, `:mouse:`,
+  `:rabbit:` and `:whale:` are the animal's face. The emoji that held those names answer to
+  `:dark_sunglasses:`, `:dog2:`, `:cat2:`, `:couplekiss:`, `:umbrella2:`, `:snowman2:`, `:pencil2:`,
+  `:date:`, `:satellite_orbital:`, `:train2:` and the like. A message that holds one of the 19
+  names as typed text shows the other emoji now.
+- **Group conversations take messages from someone you blocked**, collapsed for you as in Discord.
+  One member's block used to stop that person writing in the whole group.
+- **Bot API:** importing a Discord emoji through the bridge now respects the server's emoji limit
+  (`409` with `"code": "EMOJI_LIMIT"`) and name uniqueness (`409` with `"code": "EMOJI_NAME_TAKEN"`).
+- **Drag and shrink images in the media viewer.** With a mouse, an image moves under a drag at any
+  zoom, past its own edges too, and stays where you leave it while you zoom with the wheel. The
+  wheel, the zoom-out button and the **-** key now go on below the fitted size, down to a tenth of
+  it. Zooming out from a close-up stops at the fitted size and centres the image; a double click
+  does the same from anywhere. A tall screenshot or other image shown small now zooms up to three
+  times its real size, and the wheel zooms smoothly on a trackpad.
+
+### Notes for self-hosters
+
+- Discord history import is off after the upgrade. To let communities import through bridges they
+  run themselves, turn it on under **Admin** → **Config** → **Discord bridge** → **Discord history
+  import**, and read the notes shown there first. The same section holds the import limits.
+
+## [1.9.6] - 2026-11-10
+
+### Fixed
+
 - **The message field no longer locks after switching servers.** A switch could leave "You do not
   have permission to send messages in this channel" in place of the field until a reload, on 1.9.5
   instances.
+
+## [1.9.5] - 2026-11-10
+
+### Added
+
+- **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
+  the `/` list in server channels and threads, fill in typed options (text, numbers, true or false,
+  choices, members, channels, roles) and the bot receives `INTERACTION_CREATE`. It answers within
+  5 seconds, or defers for up to 15 minutes, publicly ("Alice used /weather") or only to the member
+  who ran the command. Shapes follow Discord's; permissions are Harmony permission names. Not in
+  encrypted channels or direct messages. See the developer docs, Build → Slash commands.
+- **Invite widgets for your website.** The invite dialog's **Add to your website** gives a badge,
+  a Markdown badge for READMEs and forums, a join button, a small icon and a card to frame. Each
+  shows the server's name and counts and links to the invite.
+- **Animate custom emoji** in **User settings** → **Appearance**. Off, animated emoji show their
+  first frame, on your screen only. **Reduce motion** does the same.
+- **Backslash escapes in messages.** `\*not italic\*`, `\@name`, `\#channel`, `\:emoji:`, `\> line`
+  and `\https://link` show as typed, and an escaped mention pings nobody. Inline code keeps its
+  backslashes.
+- **Instance limits.** Ceilings on what one local account creates and how fast it writes, set in
+  the admin panel: servers (100) and bots (25) per account, and rates for messages, posts,
+  reactions, follows, server joins, new servers and conversations with strangers. Bots have an
+  overall REST ceiling (600 per minute; 3,000 for a linked Discord bridge). An admin can exempt an
+  account in **Users**. **Stored files across the instance** adds an optional Drive total.
+- **Following import.** **Account migration** takes Mastodon's `following_accounts.csv` or Harmony's
+  data export and follows the accounts on it in the background, with the result per account. Locked
+  and remote accounts get a request; blocks apply. Posts and likes are not imported, as on Mastodon.
+- **Copy your old profile.** After a confirmed move, the new account can copy the old one's display
+  name, bio, avatar, banner and profile fields. It is optional and asks before replacing anything.
+- **Who can start a conversation.** **Privacy** → **Direct messages**: everyone, server members and
+  people you follow, or only people you follow. It also applies to other instances.
+- **Sign-up limits.** Disposable email addresses and a sixth account on one inbox in 30 days are
+  refused. Disposable mail is also recognized by the mail server behind a domain, so a service's new
+  domains are refused too. Accounts per network and per domain in a day are counted, and refused only
+  if an admin turns that on, so a campus or office signing up together is not affected. An admin can
+  add domains, mail hosts, addresses and ranges to refuse, and list domains that are never limited.
+  **Admin** → **Invites** → **Sign-up limits**.
+- **Signups tab for staff.** **Admin** → **Signups** lists recent accounts with their email domain,
+  shows groups created together, and suspends or unsuspends a selection with one reason. Members can
+  report an account for username hoarding or trading.
+- **Delete accounts and free their usernames.** Administrators can delete selected accounts in
+  **Admin** → **Signups**. The usernames become free at once.
+- **Platform names are reserved.** New accounts and renames cannot take the names of 35 large
+  services and platforms, such as `discord`, `google`, `openai` and `twitch`. Accounts that already
+  hold one keep it.
+
+### Fixed
+
 - **Live updates no longer stop for a whole instance.** Realtime allowed 200 connected clients, 100
   channel joins and 100 messages per second across an instance. Past those, new clients got no live
   updates, a restart could keep disconnecting everyone, and live messages stopped for up to a minute:
@@ -654,57 +767,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
-- **A quieter DM header.** A DM or group shows **Call**, **Search** and **More options** (⋯). A
-  call starts with your camera off, and the call bar turns it on while it rings or after it is
-  answered; **More options** holds **Add people**, **Start video call** for video from the first
-  second, and **Activities**.
-- **Send any kind of file.** Chats and Drive take every file type, as Discord does: an APK, an
-  executable or a JSON file no longer stops at "isn't allowed". A type your instance's storage does
-  not serve as itself is stored as a download under its own name and shows as a file card; HTML,
-  SVG, XML and scripts are always stored that way, so nothing sent opens as a page. Size limits are
-  unchanged.
-- **One Activities button in calls.** Watch or listen together and the games share one
-  **Activities** dialog behind the popcorn button: in a call on this instance's servers it offers a link or a Drive file to
-  watch together above the games; elsewhere it lists the games. The voice dock drops from 14
-  controls to 10 in three groups parted by separators (the call, what plays in it, the view):
-  **Participants**, **Spatial audio**, **Voice settings** and **Pop out call** sit under **More
-  options** (⋯).
-  Arrows pointing out open a larger view and arrows pointing in a smaller one, in the dock, the
-  minimized dock and the call view alike; the square corners mean full screen only, and floating
-  the dock has its own icon instead of Pop out's.
-- **Discover communities shows more servers.** On both tabs the search and filters fold behind a
-  **Search and filters** button and open folded; the tabs, the count and every active filter stay
-  on screen, each filter a chip that clears it, and scrolling the list folds open controls. Other
-  instances has one field: it filters the listed servers as you type, and a typed domain is offered
-  as **Browse example.social** (or Enter); the known instances still filter by instance. Join sits
-  beside a server's icon. In a 1280×1000 window the sheet shows 4 whole cards on This instance and
-  12 on Other instances, where it showed 1 and 3; on a phone 2 and 4, where it showed 1 and 1.
-- **A group chat holds up to 10 people**, its creator included, as a Discord group DM. The picker
-  shows the spots left and stops at the tenth person; adding, rejoining or a group arriving from
-  another instance past 10 is refused with "This group is full". A group already larger keeps
-  its members and takes nobody new until it is below 10.
-- **The member list loads as you scroll**, as on Discord. A server of more than 200 members shows
-  its groups and their counts at once and fills in the members near what you see; searching the list,
-  `@` suggestions, the kick and ban picker, `from:` in message search and the member pickers of roles,
-  private categories and bot commands ask the server, so any member can be found by name. The app no
-  longer reads every member of every server at start-up. In a server of more than 1000 members,
-  others' presence updates within about 20 seconds.
-- **Your own status shows at once in the member list**, in a server of any size: online, away or busy
-  where you chose, and **Offline** while you are invisible, as others see you.
-- **Emoticons convert as on Discord.** The set is Discord's: `:')` is 🥲, `:'D` 😂, `8-)` 😎, `O:)` 😇,
-  `>:(` 😠, `]:)` 😈, `,:)` 😅, `;(` 😭, `:*` 😗, `:s` 😒, with the `=` and nose variants of each.
-  `:D` is 😄 and `:(` is 😦, as Discord has them. `:p`, `xD` and `:/` still convert.
-- **Emoji names follow Discord where they differed.** `:sunglasses:` is 😎, `:dog:` 🐶, `:cat:` 🐱,
-  `:kiss:` 💋, `:umbrella:` ☔, `:snowman:` ⛄, `:pencil:` 📝, `:calendar:` 📆, `:satellite:` 📡,
-  `:train:` 🚋, `:post_office:` 🏣, and `:tiger:`, `:horse:`, `:cow:`, `:pig:`, `:camel:`, `:mouse:`,
-  `:rabbit:` and `:whale:` are the animal's face. The emoji that held those names answer to
-  `:dark_sunglasses:`, `:dog2:`, `:cat2:`, `:couplekiss:`, `:umbrella2:`, `:snowman2:`, `:pencil2:`,
-  `:date:`, `:satellite_orbital:`, `:train2:` and the like. A message that holds one of the 19
-  names as typed text shows the other emoji now.
-- **Group conversations take messages from someone you blocked**, collapsed for you as in Discord.
-  One member's block used to stop that person writing in the whole group.
-- **Bot API:** importing a Discord emoji through the bridge now respects the server's emoji limit
-  (`409` with `"code": "EMOJI_LIMIT"`) and name uniqueness (`409` with `"code": "EMOJI_NAME_TAKEN"`).
+
 - **Bot API:** message text over the instance's length limit answers `400` on create and edit, in
   place of `500`.
 - **Bot API:** a message history read returns at most 100 messages and a member list at most 1000;
@@ -713,51 +776,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   together, up to 3000 a minute.
 - **The self-host data API runs PostgREST v14.18**, in place of v12.2.12. CI now tests the same
   version self-hosted instances run.
-- **Drag and shrink images in the media viewer.** With a mouse, an image moves under a drag at any
-  zoom, past its own edges too, and stays where you leave it while you zoom with the wheel. The
-  wheel, the zoom-out button and the **-** key now go on below the fitted size, down to a tenth of
-  it. Zooming out from a close-up stops at the fitted size and centres the image; a double click
-  does the same from anywhere. A tall screenshot or other image shown small now zooms up to three
-  times its real size, and the wheel zooms smoothly on a trackpad.
 - **Newer self-host services:** storage-api v1.90.0, whose resumable uploads fail cleanly when a
   connection dies mid-write, Realtime v2.153.6, imgproxy v4.0.22, and with log collection on,
   Logflare 1.50.15 and Vector 0.53.0.
 
 ### Security
+
 - Federation, API routes and database functions check what a request acts on, not only who sent
   it. Update to this release.
-- Android: content embedded in the app (activities, YouTube and X posts, media players) can no
-  longer run the app's native commands. The Android WebView handed every embedded frame the same
-  bridge to the app as Harmony's own page; the bridge now answers Harmony's page only. On a
-  WebView too old for that, the app runs no activities and asks to update Android System WebView.
-- Activities: joining a text channel's game takes **Send Messages** there, as starting one did,
-  and a member timed out in the server cannot play in its channels; both see the game and the
-  reason instead of **Join**, and a member who loses the permission mid-game is removed within 30
-  seconds. Installing an activity package reads at most 32 zip entries and 6 MB as written: a
-  crafted zip of a few bytes could stall the federation backend for minutes or exhaust its memory.
-  The activity relay counts its per-address limits per IPv6 /64, caps sockets that have not signed
-  in, and caps bytes queued for slow readers across all connections. A slow avatar address no
-  longer holds the game for everyone. The activity frame loses the desktop app's message ports
-  before the activity runs. Installed packages run on computers only: phones run the frame in the
-  app's own web process, where one that never yields would freeze the app.
 
 ### Notes for self-hosters
-- Peer-to-peer calls (instances without LiveKit) send their signals through the database, which
-  names the sender. Apps before 1.9.8 cannot connect peer-to-peer calls on an updated instance, and
-  cannot answer or end direct-message calls there, until they update; web tabs pick it up on reload.
-  LiveKit calls are unaffected.
-- Peer-to-peer calls use Google STUN and no TURN unless an admin sets servers in **Admin** →
-  **Config** → **Voice & video**; the public openrelay TURN relay is gone. Peers behind strict NATs
-  need the instance's own TURN: `docs/self-host/voice.md` sets up coturn in shared-secret mode,
-  which gives each account its own credentials.
-- An instance still named Harmony from an earlier install is named after its domain by
-  `harmony update`, which prints one line. A name set in the admin panel stays. To keep Harmony on
-  purpose, set it again in **Admin** → **Config** → **Branding**, or answer Harmony to `harmony config`.
-- Discord history import is off after the upgrade. To let communities import through bridges they
-  run themselves, or through every bridge including the instance's Discord bot, turn it on under
-  **Admin** → **Config** → **Discord bridge** → **Discord history import**, and read the notes shown
-  there first. The same section holds the import limits. Imports through the instance bot and
-  hosted own-bot bridges need the bridge host 2.8.0 (`harmony update`).
+
 - Supabase Studio is off unless you choose it. An install that never chose has it removed by
   `harmony update`, which prints one line; `harmony studio on` brings it back.
 - Sign-up limits and the auth service's per-address limits read the client's address from
@@ -781,6 +810,29 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   writing as a normal account or a v1 or non-Discord bridge can reach them: raise the limit under
   **Anti-spam**, or exempt the account in **Users**.
 - Clients can no longer insert into `public.bots`. `create_bot` is the way to make a bot.
+
+## [1.6.21] - 2026-10-08
+
+### Added
+
+- **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
+  installs an instance on a blank Linux server: it checks the host (offering
+  Docker and a swap file), asks a few questions, checks DNS, starts the
+  stack, loads the database and creates the admin account. Re-running it is
+  safe.
+- **`harmony` command** for operators: `update`, `doctor`, `backup`,
+  `restore`, `status`, `logs`, `admin create | reset-password | invite`,
+  `registration open | invite | closed`, `config`.
+- **`harmony doctor`** checks DNS, certificates, containers, migrations, the
+  instance domain, federation through the public URL, the bot gateway, voice,
+  push, email, disk, memory, backup age and versions, each with a fix.
+- **Discord bridge hosting** on self-hosted instances: the `discord` profile
+  runs communities' bridges once hosting is enabled in Admin, Instance.
+- Prebuilt images on GHCR: `harmony-web`, `harmony-federation` and
+  `harmony-bot-gateway` for amd64 and arm64.
+
+### Notes for self-hosters
+
 - `self-host/` runs Harmony's services from `ghcr.io/y4my4my4m/harmony-*`
   images instead of building them: `HARMONY_VERSION` in `.env` follows the
   checkout (`X.Y.Z` on a release tag, `edge` on master). `HARMONY_BUILD=1
