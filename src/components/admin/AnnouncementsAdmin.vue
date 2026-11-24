@@ -21,7 +21,7 @@
       <textarea v-model="announcementForm.content" class="cyber-input" rows="4" placeholder="Announcement content"></textarea>
     </div>
     <div class="form-row">
-      <label>Icon (emoji or name: info, warning, megaphone)</label>
+      <label>Icon (an emoji, or info, warning, megaphone, maintenance, update, security)</label>
       <input v-model="announcementForm.icon" class="cyber-input" placeholder="info" />
     </div>
     <div class="form-row">
@@ -77,8 +77,8 @@
     <div v-for="a in announcements" :key="a.id" class="announcement-item">
       <div class="announcement-meta">
         <span class="announcement-icon">
-          <Icon v-if="announcementIconName(a.icon)" :name="announcementIconName(a.icon)!" :size="18" />
-          <template v-else>{{ a.icon }}</template>
+          <template v-if="announcementIcon(a.icon).emoji">{{ announcementIcon(a.icon).emoji }}</template>
+          <Icon v-else :name="announcementIcon(a.icon).name!" :size="18" />
         </span>
         <span class="announcement-title">{{ a.title }}</span>
         <span v-if="a.is_pinned" class="badge">Pinned</span>
@@ -109,6 +109,7 @@ import { ref, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
+import { announcementIcon } from '@/utils/announcementIcon'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
@@ -179,19 +180,6 @@ const loadAnnouncements = async () => {
 }
 
 
-
-const ANNOUNCEMENT_ICONS: Record<string, string> = {
-  info: 'info',
-  warning: 'alert-triangle',
-  megaphone: 'megaphone',
-}
-
-// Named icons map to Icon names; a short string is an emoji and renders as text (null).
-const announcementIconName = (icon: string | undefined): string | null => {
-  if (!icon) return 'megaphone'
-  if (ANNOUNCEMENT_ICONS[icon]) return ANNOUNCEMENT_ICONS[icon]
-  return icon.length <= 2 ? null : 'megaphone'
-}
 
 const saveAnnouncement = async () => {
   if (!announcementForm.value.title || !announcementForm.value.content) return

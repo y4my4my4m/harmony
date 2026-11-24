@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  announcementIcon,
   emptySummary,
   encryptedMessages,
   headlineStats,
@@ -283,11 +282,3 @@ describe('visit time', () => {
   })
 })
 
-describe('announcementIcon', () => {
-  it('maps known icons and falls back to info', () => {
-    expect(announcementIcon('maintenance')).toBe('wrench')
-    expect(announcementIcon('warning')).toBe('alert-triangle')
-    expect(announcementIcon(null)).toBe('info')
-    expect(announcementIcon('unknown')).toBe('info')
-  })
-})

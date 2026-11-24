@@ -90,6 +90,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- **Announcements show the emoji or icon their admin chose.** The **Icon** field takes an emoji, or
+  info, warning, megaphone, maintenance, update or security; an emoji and `megaphone` showed the
+  info icon in the pop-up, on **Today** and in **User settings** → **Announcements**.
 - **Live updates come back on their own.** When the instance closed a live feed (an expired sign-in,
   for example), the server's channel list, members and statuses, voice channels, typing, incoming
   calls and timelines stayed closed until a reload; they now reopen within seconds and fetch what
