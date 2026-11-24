@@ -5,7 +5,8 @@
  */
 
 import { debug } from '@/utils/debug'
-import { supabase } from '@/supabase'
+import { openRebuildingChannel, type RebuildingChannel } from '@/services/rebuildingChannel'
+import { sendSignal } from '@/services/signalRelay'
 
 export type EasterEggType = 'rainbow-party' | 'retro-game' | 'power-up' | 'megaman'
 
@@ -25,7 +26,7 @@ class EasterEggService {
   }
 
   private listeners: Set<(state: EasterEggState) => void> = new Set()
-  private channel: ReturnType<typeof supabase.channel> | null = null
+  private channel: RebuildingChannel | null = null
   private channelName: string | null = null
 
   /**
@@ -41,32 +42,26 @@ class EasterEggService {
     this.channelName = `easter-egg:${channelId}`
     debug.log('[EasterEgg] Initializing for channel:', channelId)
 
-    // Private: voice room access only, as harmony-voice-{room}.
-    this.channel = supabase.channel(this.channelName, {
-      config: {
-        private: true,
-        broadcast: { self: true },
+    // Private: voice room access only, as harmony-voice-{room}. Reopened after a server close.
+    this.channel = openRebuildingChannel({
+      topic: this.channelName,
+      config: { broadcast: { self: true } },
+      bind: (channel) => {
+        channel
+          .on('broadcast', { event: 'activate' }, (payload) => {
+            const { type, userId: activatorId } = payload.payload as {
+              type: EasterEggType
+              userId: string
+            }
+            debug.log('[EasterEgg] Received activation:', type, 'from', activatorId)
+            this.activate(type, activatorId, false) // Don't broadcast again
+          })
+          .on('broadcast', { event: 'deactivate' }, () => {
+            debug.log('[EasterEgg] Received deactivation')
+            this.deactivate(false) // Don't broadcast again
+          })
       },
     })
-
-    this.channel
-      .on('broadcast', { event: 'activate' }, (payload) => {
-        const { type, userId: activatorId } = payload.payload as {
-          type: EasterEggType
-          userId: string
-        }
-        debug.log('[EasterEgg] Received activation:', type, 'from', activatorId)
-        this.activate(type, activatorId, false) // Don't broadcast again
-      })
-      .on('broadcast', { event: 'deactivate' }, () => {
-        debug.log('[EasterEgg] Received deactivation')
-        this.deactivate(false) // Don't broadcast again
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          debug.log('[EasterEgg] Channel subscribed')
-        }
-      })
   }
 
   /**
@@ -88,14 +83,7 @@ class EasterEggService {
 
     this.notifyListeners()
 
-    // Broadcast to other participants
-    if (broadcast && this.channel) {
-      this.channel.send({
-        type: 'broadcast',
-        event: 'activate',
-        payload: { type, userId },
-      })
-    }
+    if (broadcast) this.send('activate', { type }, { type, userId })
   }
 
   /**
@@ -117,14 +105,20 @@ class EasterEggService {
 
     this.notifyListeners()
 
-    // Broadcast to other participants
-    if (broadcast && this.channel) {
-      this.channel.send({
-        type: 'broadcast',
-        event: 'deactivate',
-        payload: {},
-      })
-    }
+    if (broadcast) this.send('deactivate', {}, {})
+  }
+
+  /**
+   * To the room's other members: through send_signal, which names the member, or as `legacy`
+   * broadcast on an instance without it.
+   */
+  private send(event: 'activate' | 'deactivate', payload: Record<string, unknown>, legacy: Record<string, unknown>): void {
+    const channel = this.channel
+    const topic = this.channelName
+    if (!channel || !topic?.startsWith('easter-egg:')) return
+    void sendSignal(topic as `easter-egg:${string}`, event, payload,
+      () => channel.send({ type: 'broadcast', event, payload: legacy }))
+      .catch((error) => debug.warn('[EasterEgg]', event, 'refused:', error))
   }
 
   /**
@@ -171,7 +165,7 @@ class EasterEggService {
    */
   cleanup(): void {
     if (this.channel) {
-      this.channel.unsubscribe()
+      void this.channel.close()
       this.channel = null
     }
     this.channelName = null

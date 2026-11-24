@@ -145,7 +145,7 @@ export default defineConfig({
     activities(),
     // Only preload critical chunks, not route chunks (saves ~500KB+ on initial load)
     selectivePreload({
-      alwaysPreload: ['index', 'vendor', 'vue-vendor', 'supabase-vendor', 'crypto-vendor'],
+      alwaysPreload: ['index', 'vendor', 'vue-vendor', 'supabase-vendor'],
       neverPreload: [/^view-/], // Don't preload route chunks
     }),
   ],
@@ -181,7 +181,6 @@ export default defineConfig({
     },
     include: [
       'simple-peer',
-      '@privacyresearch/libsignal-protocol-typescript',  // Browser-compatible Signal Protocol
     ],
     exclude: []
   },
@@ -218,9 +217,6 @@ export default defineConfig({
             }
             if (id.includes('node_modules/@supabase/')) {
               return 'supabase-vendor'
-            }
-            if (id.includes('node_modules/@privacyresearch/')) {
-              return 'crypto-vendor'
             }
             // Other node_modules needed on first load. Packages reached only
             // through dynamic imports (vuedraggable, qrcode, date-fns, tauri

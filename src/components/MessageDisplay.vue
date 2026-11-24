@@ -379,6 +379,8 @@
               :encrypted="item.message.encrypted || false"
               :decrypted="item.message.decrypted || false"
               :unrecoverable="item.message.decryption_unrecoverable || false"
+              :decryption-error="item.message.decryption_error"
+              :replayed="item.message.decryption_replayed || false"
               :sender-verified="item.message?.sender_verified"
               :can-decrypt="canDecryptMessages"
               :can-edit-attachments="canEditAttachments(item.message)"
@@ -422,6 +424,8 @@
               :encrypted="item.message.encrypted || false"
               :decrypted="item.message.decrypted || false"
               :unrecoverable="item.message.decryption_unrecoverable || false"
+              :decryption-error="item.message.decryption_error"
+              :replayed="item.message.decryption_replayed || false"
               :sender-verified="item.message?.sender_verified"
               :can-decrypt="canDecryptMessages"
               :can-edit-attachments="canEditAttachments(item.message)"
@@ -1316,6 +1320,9 @@ const refreshCanDecrypt = async () => {
 // The timestamp lock explains WHY a message is still encrypted instead of a
 // generic "you cannot decrypt this".
 const encryptionLockTooltip = (message: any): string => {
+  if (message.decryption_error === 'forged') {
+    return t('messageA11y.encrypted.forgedHint');
+  }
   if (message.decryption_unrecoverable) {
     return "This message can't be decrypted: it was encrypted before your current encryption identity was created (e.g. before a key reset), and the key that could unlock it no longer exists on this account.";
   }
@@ -4127,6 +4134,7 @@ const handleDecryptMessage = async (message: Message) => {
     const messageForDecryption = {
       id: messageToDecrypt.id,
       is_pinned: messageToDecrypt.is_pinned,
+      created_at: messageToDecrypt.created_at,
       content: messageToDecrypt.content,
       channel_id: messageToDecrypt.channel_id || props.channelId || '',
       conversation_id: messageToDecrypt.conversation_id || props.conversationId || '',
@@ -4156,6 +4164,8 @@ const handleDecryptMessage = async (message: Message) => {
         encrypted: false,
         decrypted: true,
         sender_verified: senderVerified,
+        decryption_error: undefined,
+        decryption_replayed: !Array.isArray(decryptResult) && decryptResult.replayed === true,
       };
       
       if (props.channelId || messageToDecrypt.channel_id) {

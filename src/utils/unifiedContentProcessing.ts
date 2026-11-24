@@ -45,7 +45,7 @@ const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 const emojiShortcodeRegex = new RegExp(`:(${DISCORD_EMOJI_TOKEN_INNER}|${EMOJI_SHORTCODE_INNER}):`, 'g');
 
 // Hoisted to module scope; these helpers run per-segment per message, so a
-// fresh RegExp per call is hot-path waste (BUGS.md Pattern P-β, review M4).
+// fresh RegExp per call is hot-path waste (BUGS.md P-β).
 // Stateful 'g' patterns require a lastIndex reset at each call site.
 const MENTION_REGEX = createHandleRegex();
 const URL_PRESCAN_REGEX = URL_TOKEN_REGEX;

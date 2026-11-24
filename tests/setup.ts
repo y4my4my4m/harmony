@@ -72,6 +72,7 @@ vi.mock('@/supabase', () => ({
       subscribe: vi.fn().mockReturnValue({ status: 'SUBSCRIBED' }),
       unsubscribe: vi.fn(),
     }),
+    removeChannel: vi.fn().mockResolvedValue('ok'),
   },
 }))
 

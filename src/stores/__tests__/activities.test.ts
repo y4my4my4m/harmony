@@ -6,7 +6,7 @@ vi.mock('@/services/instanceConfig', () => ({ apiUrl: (p: string) => p, getStore
 const voice = { isConnected: true, effectiveChannelId: 'ch-1', currentChannelId: 'ch-1' }
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => voice }))
 vi.mock('@/services/webrtcManager', () => ({ webrtcManager: { sendActivity: vi.fn() } }))
-// The member's profile id; their auth user id differs, as it may (BUGS.md, pattern A).
+// The member's profile id; it differs from their auth user id.
 vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profile: { id: 'me' } }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'auth-me' } } }) }))
 

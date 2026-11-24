@@ -1,4 +1,7 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const capabilities = vi.hoisted(() => ({ relay: true }));
+vi.mock('@/services/instanceCapabilities', () => ({ hasCapability: (name: string) => name === 'signal-relay' && capabilities.relay }));
 
 vi.mock('livekit-client', () => ({
   setLogLevel: () => {},
@@ -10,6 +13,7 @@ vi.mock('livekit-client', () => ({
 import { LiveKitWebRTCService, loadLiveKit } from '../livekitWebRTC';
 import { UnifiedWebRTCService } from '../unifiedWebRTC';
 import { SOUNDBOARD_TOPIC, buildSoundboardMessage } from '../soundboard/protocol';
+import { supabase } from '@/supabase';
 
 const SERVER = '55555555-0000-0000-0000-000000000005';
 const BOB = '22222222-0000-0000-0000-000000000002';
@@ -61,6 +65,8 @@ describe('LiveKit soundboard data', () => {
 });
 
 describe('P2P soundboard broadcasts', () => {
+  beforeEach(() => { capabilities.relay = true; });
+
   function service() {
     const svc = new UnifiedWebRTCService();
     const events: unknown[] = [];
@@ -85,11 +91,32 @@ describe('P2P soundboard broadcasts', () => {
     expect(events).toEqual([]);
   });
 
-  it('broadcasts plays on the signalling channel', () => {
+  it('broadcasts plays on the signalling channel of an instance without send_signal', () => {
     const { svc } = service();
     const send = vi.fn();
     (svc as any).signalChannel = { send };
+    (svc as any).channelId = 'room-1';
+    capabilities.relay = false;
     svc.sendSoundboard(play);
     expect(send).toHaveBeenCalledWith({ type: 'broadcast', event: 'soundboard', payload: { from: 'me', message: play } });
+  });
+
+  it('relays plays through send_signal, and reports a relayed play under the database\'s sender', async () => {
+    const { svc, events } = service();
+    const send = vi.fn();
+    const rpc = vi.mocked(supabase.rpc).mockResolvedValue({ data: null, error: null } as never);
+    (svc as any).signalChannel = { send };
+    (svc as any).channelId = 'room-1';
+    svc.sendSoundboard(play);
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalled());
+    expect(send).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith('send_signal', {
+      p_topic: 'harmony-voice-room-1',
+      p_event: 'signals',
+      p_payload: { messages: [{ type: 'soundboard', data: play, timestamp: expect.any(Number), session: expect.any(String) }] },
+    });
+
+    (svc as any).handleRelayed({ from: BOB, messages: [{ type: 'soundboard', from: 'me', data: play }] });
+    expect(events).toEqual([{ userId: BOB, message: play, granted: null, externalGranted: null }]);
   });
 });

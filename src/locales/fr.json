@@ -1334,7 +1334,11 @@
       "lost": "Message chiffré qui ne peut plus être déchiffré",
       "decrypt": "Message chiffré. Déchiffrer",
       "decrypting": "Déchiffrement du message chiffré",
-      "locked": "Message chiffré. Déverrouillez le chiffrement dans Paramètres, Confidentialité et chiffrement, pour le lire."
+      "locked": "Message chiffré. Déverrouillez le chiffrement dans Paramètres, Confidentialité et chiffrement, pour le lire.",
+      "forged": "Message masqué : sa signature ne correspond pas à son expéditeur",
+      "forgedHint": "La signature de ce message chiffré ne se vérifie pas avec la clé de son expéditeur. Il a été modifié ou ne vient pas de la personne indiquée ; il n'est donc pas déchiffré.",
+      "replayed": "Répété",
+      "replayedHint": "Ce message répète un message chiffré antérieur du même expéditeur. Le serveur a enregistré un message deux fois, ce qui peut afficher un ancien message à un autre endroit."
     },
     "spoiler": {
       "hidden": "Spoiler, masqué. Activez pour l'afficher",
@@ -5544,6 +5548,10 @@
       "newDeviceLabel": "Nouvel appareil ?",
       "newDeviceReminder": "{label} Connectez-vous dessus et choisissez {another}, puis scannez son code depuis cet appareil. Vos messages se déverrouillent sans saisir la clé de récupération.",
       "rememberNeed": "Vous en aurez besoin si vous perdez l'accès à tous vos appareils connectés ou effacez les données de votre navigateur."
+    },
+    "keyShareFailed": {
+      "title": "Certains membres ne pourront peut-être pas lire votre message",
+      "body": "La clé pour le lire n'a pas atteint {count} membre. Son application la redemandera à l'ouverture du message. | La clé pour le lire n'a pas atteint {count} membres. Leurs applications la redemanderont à l'ouverture du message."
     }
   },
   "admin": {
@@ -5771,7 +5779,11 @@
         "strangerDmsPerHour": "Nouvelles conversations avec des inconnus par heure",
         "strangerDmsHint": "Un inconnu ne suit pas le compte, ne partage aucun serveur avec lui et n'a aucune conversation avec lui.",
         "newStrangerDmsPerHour": "Idem, pour les nouveaux comptes",
-        "newStrangerDmsHint": "Compte aussi les personnes qui partagent seulement un serveur avec le nouveau compte : rejoindre un serveur public donne accès à tous ses membres."
+        "newStrangerDmsHint": "Compte aussi les personnes qui partagent seulement un serveur avec le nouveau compte : rejoindre un serveur public donne accès à tous ses membres.",
+        "signalsPerMinute": "Signaux d'appel par minute",
+        "signalsHint": "Établir les appels pair à pair, répondre aux appels en MP et raccrocher, effets d'appel. Rejoindre un appel de dix personnes en demande environ 45.",
+        "ringsPerMinute": "Appels passés par minute",
+        "ringsHint": "Chaque appel sonne une fois. Raccrocher n'est jamais refusé."
       },
       "bots": {
         "title": "Bots",
@@ -9222,5 +9234,31 @@
     "thirdParty": "Tierce",
     "desktopOnly": "Ordinateur uniquement",
     "thirdPartyNotice": "Activité tierce, installée par cette instance. Harmony ne vous demande jamais votre mot de passe dans une activité."
+  },
+  "adminVoiceIce": {
+    "title": "Appels pair à pair : STUN et TURN",
+    "intro": "Sans LiveKit, les appels de cette instance relient les appareils directement. Les serveurs STUN donnent à chaque appareil son adresse publique ; un serveur TURN relaie l'audio et la vidéo des appareils qui ne peuvent pas se joindre, par exemple derrière un NAT ou un pare-feu strict.",
+    "stunDefault": "Utiliser les serveurs STUN par défaut",
+    "stunDefaultHint": "{urls}. Les appels envoient l'adresse de chaque participant à ces serveurs.",
+    "stunUrls": "Serveurs STUN",
+    "stunUrlsHint": "Une URL par ligne, comme stun:turn.example.com:3478. Vide : aucun serveur STUN.",
+    "turnUrls": "Serveurs TURN",
+    "turnUrlsHint": "Une URL par ligne, comme turn:turn.example.com:3478 ou turns:turn.example.com:5349. Vide : aucun serveur TURN.",
+    "turnAuth": "Identifiants TURN",
+    "turnAuthSecret": "Secret partagé",
+    "turnAuthSecretHint": "Le static-auth-secret de coturn (use-auth-secret). Chaque appel reçoit ses propres identifiants, valables un jour.",
+    "turnAuthPassword": "Nom d'utilisateur et mot de passe",
+    "username": "Nom d'utilisateur TURN",
+    "secret": "Secret partagé",
+    "password": "Mot de passe TURN",
+    "secretKept": "Enregistré. Laissez vide pour le conserver.",
+    "invalidStun": "Pas une URL STUN : {url}",
+    "invalidTurn": "Pas une URL TURN : {url}",
+    "needsUsername": "Un serveur TURN avec mot de passe demande un nom d'utilisateur.",
+    "needsSecret": "Les serveurs TURN demandent un secret partagé ou un mot de passe.",
+    "save": "Enregistrer",
+    "saved": "Serveurs ICE enregistrés",
+    "saveFailed": "Les serveurs ICE n'ont pas pu être enregistrés.",
+    "loadFailed": "Les serveurs ICE n'ont pas pu être chargés."
   }
 }

@@ -1334,7 +1334,11 @@
       "lost": "Mensaje cifrado que ya no se puede descifrar",
       "decrypt": "Mensaje cifrado. Descifrar",
       "decrypting": "Descifrando el mensaje cifrado",
-      "locked": "Mensaje cifrado. Desbloquea el cifrado en Ajustes, Privacidad y cifrado, para leerlo."
+      "locked": "Mensaje cifrado. Desbloquea el cifrado en Ajustes, Privacidad y cifrado, para leerlo.",
+      "forged": "Mensaje oculto: su firma no coincide con su remitente",
+      "forgedHint": "La firma de este mensaje cifrado no se verifica con la clave de su remitente. Fue alterado o no es de la persona que indica, así que no se descifra.",
+      "replayed": "Repetido",
+      "replayedHint": "Este mensaje repite un mensaje cifrado anterior del mismo remitente. El servidor guardó un mensaje dos veces, lo que puede mostrar un mensaje antiguo en otro lugar."
     },
     "spoiler": {
       "hidden": "Spoiler, oculto. Actívalo para mostrarlo",
@@ -5544,6 +5548,10 @@
       "newDeviceLabel": "¿Dispositivo nuevo?",
       "newDeviceReminder": "{label} Inicia sesión en él y elige {another}, luego escanea su código desde este dispositivo. Tus mensajes se desbloquean sin escribir la clave de recuperación.",
       "rememberNeed": "La necesitarás si pierdes el acceso a todos tus dispositivos con sesión iniciada o borras los datos del navegador."
+    },
+    "keyShareFailed": {
+      "title": "Es posible que algunos miembros no puedan leer tu mensaje",
+      "body": "La clave para leerlo no llegó a {count} miembro. Su app la volverá a pedir al abrir el mensaje. | La clave para leerlo no llegó a {count} miembros. Sus apps la volverán a pedir al abrir el mensaje."
     }
   },
   "admin": {
@@ -5771,7 +5779,11 @@
         "strangerDmsPerHour": "Conversaciones nuevas con desconocidos por hora",
         "strangerDmsHint": "Un desconocido no sigue a la cuenta, no comparte ningún servidor con ella y no tiene ninguna conversación con ella.",
         "newStrangerDmsPerHour": "Lo mismo, para cuentas nuevas",
-        "newStrangerDmsHint": "También cuenta a quienes solo comparten un servidor con la cuenta nueva: unirse a un servidor público da acceso a todos sus miembros."
+        "newStrangerDmsHint": "También cuenta a quienes solo comparten un servidor con la cuenta nueva: unirse a un servidor público da acceso a todos sus miembros.",
+        "signalsPerMinute": "Señales de llamada por minuto",
+        "signalsHint": "Establecer llamadas punto a punto, contestar y colgar llamadas de MD, efectos de llamada. Unirse a una llamada de diez personas requiere unas 45.",
+        "ringsPerMinute": "Llamadas realizadas por minuto",
+        "ringsHint": "Cada llamada suena una vez. Colgar nunca se rechaza."
       },
       "bots": {
         "title": "Bots",
@@ -9222,5 +9234,31 @@
     "thirdParty": "De terceros",
     "desktopOnly": "Solo ordenador",
     "thirdPartyNotice": "Actividad de terceros, instalada por esta instancia. Harmony nunca te pide la contraseña dentro de una actividad."
+  },
+  "adminVoiceIce": {
+    "title": "Llamadas punto a punto: STUN y TURN",
+    "intro": "Sin LiveKit, las llamadas de esta instancia conectan de dispositivo a dispositivo. Los servidores STUN indican a cada dispositivo su dirección pública; un servidor TURN retransmite el audio y el vídeo de los dispositivos que no pueden alcanzarse, por ejemplo tras un NAT o un cortafuegos estricto.",
+    "stunDefault": "Usar los servidores STUN predeterminados",
+    "stunDefaultHint": "{urls}. Las llamadas envían la dirección de cada participante a estos servidores.",
+    "stunUrls": "Servidores STUN",
+    "stunUrlsHint": "Una URL por línea, como stun:turn.example.com:3478. Vacío: ningún servidor STUN.",
+    "turnUrls": "Servidores TURN",
+    "turnUrlsHint": "Una URL por línea, como turn:turn.example.com:3478 o turns:turn.example.com:5349. Vacío: ningún servidor TURN.",
+    "turnAuth": "Credenciales TURN",
+    "turnAuthSecret": "Secreto compartido",
+    "turnAuthSecretHint": "El static-auth-secret de coturn (use-auth-secret). Cada llamada recibe sus propias credenciales, válidas durante un día.",
+    "turnAuthPassword": "Usuario y contraseña",
+    "username": "Usuario TURN",
+    "secret": "Secreto compartido",
+    "password": "Contraseña TURN",
+    "secretKept": "Guardado. Déjalo vacío para conservarlo.",
+    "invalidStun": "No es una URL STUN: {url}",
+    "invalidTurn": "No es una URL TURN: {url}",
+    "needsUsername": "Los servidores TURN con contraseña necesitan un usuario.",
+    "needsSecret": "Los servidores TURN necesitan un secreto compartido o una contraseña.",
+    "save": "Guardar",
+    "saved": "Servidores ICE guardados",
+    "saveFailed": "No se pudieron guardar los servidores ICE.",
+    "loadFailed": "No se pudieron cargar los servidores ICE."
   }
 }

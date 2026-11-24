@@ -48,7 +48,7 @@
           <h3 class="group-title">{{ $t('admin.antiSpam.accounts.title') }}</h3>
           <p class="setting-hint">{{ $t('admin.antiSpam.accounts.hint') }}</p>
           <div class="settings-grid">
-            <label v-for="field in ACCOUNT_LIMITS" :key="field.key" class="setting">
+            <label v-for="field in accountLimits" :key="field.key" class="setting">
               <span class="setting-label">{{ $t(field.label) }}</span>
               <input v-model.number="draft[field.key]" type="number" min="0" :data-testid="`antispam-${field.key}`" class="cyber-input" />
               <span v-if="field.hint" class="setting-hint">{{ $t(field.hint) }}</span>
@@ -187,6 +187,13 @@ const ACCOUNT_LIMITS = [
   { key: 'account_stranger_dms_per_hour', label: 'admin.antiSpam.accounts.strangerDmsPerHour', hint: 'admin.antiSpam.accounts.strangerDmsHint' },
   { key: 'new_account_stranger_dms_per_hour', label: 'admin.antiSpam.accounts.newStrangerDmsPerHour', hint: 'admin.antiSpam.accounts.newStrangerDmsHint' },
 ] as const
+
+// Limits on calls (20261124100001), on an instance that relays call signals.
+const CALL_LIMITS = [
+  { key: 'account_signals_per_minute', label: 'admin.antiSpam.accounts.signalsPerMinute', hint: 'admin.antiSpam.accounts.signalsHint' },
+  { key: 'account_rings_per_minute', label: 'admin.antiSpam.accounts.ringsPerMinute', hint: 'admin.antiSpam.accounts.ringsHint' },
+] as const
+const accountLimits = [...ACCOUNT_LIMITS, ...(hasCapability('signal-relay') ? CALL_LIMITS : [])]
 
 const saved = ref<InstanceAntiSpamSettings | null>(null)
 const draft = ref<InstanceAntiSpamSettings | null>(null)

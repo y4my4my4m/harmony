@@ -230,6 +230,28 @@ test('an account with the address the provider verifies signs in as itself', asy
   expect(user?.identities?.map((i) => i.provider).sort()).toEqual([PROVIDER, 'email'].sort())
 })
 
+// The callback adopts the session itself. Before 1.9.8 it named no account for user-scoped
+// storage: settings changed before the next reload went under a name every account on the
+// device shares, and the reload, reading the account's own, lost them.
+test('a provider sign-in keeps a setting changed before the next reload', async ({ page }) => {
+  test.setTimeout(120_000)
+  await signInAtProvider(page, linked.email)
+  await expect(page).toHaveURL(/\/chat/, { timeout: 30000 })
+  await dismissAnnouncements(page)
+
+  await page.evaluate(() => {
+    const root = document.querySelector('#app') as unknown as { __vue_app__: { config: { globalProperties: { $router: { push(path: string): Promise<unknown> } } } } }
+    return root.__vue_app__.config.globalProperties.$router.push('/settings/advanced')
+  })
+  const developerMode = page.getByRole('switch', { name: 'Developer mode' })
+  await expect(developerMode).toHaveAttribute('aria-checked', 'false', { timeout: 30000 })
+  await developerMode.click()
+  await expect(developerMode).toHaveAttribute('aria-checked', 'true')
+
+  await page.reload()
+  await expect(page.getByRole('switch', { name: 'Developer mode' })).toHaveAttribute('aria-checked', 'true', { timeout: 30000 })
+})
+
 test('a provider kept apart gives the address of an account a separate account', async ({ page }) => {
   test.setTimeout(120_000)
   const username = `apartoidc${RUN}`.toLowerCase()

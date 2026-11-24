@@ -9,17 +9,17 @@ For self-hosting / federation guides, see [docs/](./docs/).
 
 ## Now (security & data integrity)
 
-These ship before anything else. Each has a corresponding entry in `BUGS.md`.
+These ship before anything else. Nothing is open.
 
-1. **Validate the last third-party fetch** (`BUGS.md` H15).
-   ActivityPub fetches, including the NodeInfo `href` followed by `instanceProbe`, go through `safeFetch`. `KlipyService` fetches an `imageUrl` taken from the Klipy API response with a raw `fetch()` and no address check.
-
-*(WebRTC media-key agreement, the legacy Signal setup wizard, init/migration parity and HTTP-signature replay were resolved in July 2026, recovery-code MFA in November 2026; `messages` left the Realtime publication in 1.8.7. See `BUGS.md`.)*
+*(WebRTC media-key agreement, the legacy Signal setup wizard, init/migration parity and HTTP-signature replay were resolved in July 2026, recovery-code MFA in November 2026; `messages` left the Realtime publication in 1.8.7; the last unguarded third-party fetch (Klipy images) and the call-signal sender checks in 1.9.8.)*
 
 ## Next (correctness & UX)
 
-2. **DM call decline and busy teardown** (`BUGS.md` H7).
+2. **DM call decline and busy teardown.**
    The ring is app-wide and the 30 s timeout leaves the room (`GlobalDMCallListener`). A decline still only shows a toast, so the caller waits out the timeout; `handleRemoteSignal` has no `decline` or `busy` case, and the busy teardown (`abandonOwnRing`) runs only while `DMHeader` is mounted.
+
+3. **DM call membership the server records (1.9.9).**
+   Who is in a direct-message call comes from Realtime presence on `dm-call:<conversation>`, whose key the client chooses, so a participant can show another as joined (`BUGS.md` L21). A `dm_call_participants` table readable by participants, join, heartbeat (about 20 s) and leave RPCs, a pg_cron sweep that announces rows unseen for about 60 s as left, and a trigger broadcasting membership on `dm-call:`; `DMCallSignaling` reads membership from them instead of presence, and `can_track_on_topic` drops `dm-call:`.
 
 4. **Warn before posting a sign-in link.**
    Invitation and password-reset links carry a single-use token: whoever opens one first can claim the account, and a self-hoster pasted one into a public support channel. The composer recognises Harmony and GoTrue sign-in links (`/auth/v1/verify?token=…`, `/reset-password?…token_hash=…`) in any message and asks before sending, with "Send anyway" and a short explanation; a link already posted shows a muted "sign-in link" hint instead of a preview.
@@ -28,7 +28,7 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 
 *(Self-assignable roles, role menus and the role for new members are built in 1.9.8.)*
 
-*(Discord bridge issues, including mention resolution (`BUGS.md` H41, H42), are tracked in [harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge).)*
+*(Discord bridge issues, including mention resolution, are tracked in [harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge).)*
 
 ## Later (scale & polish)
 
@@ -79,7 +79,8 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 
 Scoped for discussion; nothing here is committed. Each item names the public specification it depends on and the condition for shipping.
 
-- **Interoperable end-to-end encryption (MLS).** Messaging Layer Security (RFC 9420) for direct and group conversations, following the W3C Social Web CG draft [Messaging Layer Security in ActivityPub](https://swicg.github.io/activitypub-e2ee/), including conversations with people on other instances and other fediverse software. The protocol is chosen per conversation, advertised through the actor's `keyPackages`, and never downgraded silently. The current scheme stays for existing rooms and channels. Ships behind a flag until the draft stabilises and interoperability with another implementation is shown. Before that, the open encryption items in `BUGS.md` are fixed.
+- **Interoperable end-to-end encryption (MLS).** Messaging Layer Security (RFC 9420) for direct and group conversations, following the W3C Social Web CG draft [Messaging Layer Security in ActivityPub](https://swicg.github.io/activitypub-e2ee/), including conversations with people on other instances and other fediverse software. The protocol is chosen per conversation, advertised through the actor's `keyPackages`, and never downgraded silently. The current scheme stays for existing rooms and channels. Ships behind a flag until the draft stabilises and interoperability with another implementation is shown. MLS credentials bind each member's signing key, replacing Megolm's server-held signing keys (`BUGS.md` H11), and a message key deleted after one use rejects replays on every device (`BUGS.md` M6).
+- **Encrypted ActivityPub signing keys.** `user_private_keys.private_key` holds each local actor's PEM in plain text, as Mastodon's `accounts.private_key` does, so every database dump carries them (`BUGS.md` M36). Envelope encryption under a key the instance generates and keeps outside the database, created on upgrade with no operator step, with rotation and a documented backup of that key.
 - **Bluesky through Bridgy Fed.** A per-account setting, off by default, that opts public posts into [Bridgy Fed](https://fed.brid.gy/docs). Chat, direct messages and non-public posts are never bridged.
 - **Matrix bridge parity.** The [Matrix bridge](https://github.com/y4my4my4m/harmony-matrix-bridge) relays messages, replies and files of channels without end-to-end encryption. Remaining, as the Discord bridge has them: edits, deletions and reactions in both directions, threads, a privacy command for Matrix people (Discord's `/bridge-privacy`), pairing from **Server settings** → **Bridges** instead of the operator's configuration, and encrypted rooms.
 - **Platform-neutral ids for synced emoji, sounds and stickers.** `emojis.discord_emoji_id`, `server_sounds.discord_sound_id` and `stickers.discord_sticker_id` name one platform. With asset sync for a second bridge (Matrix), each becomes a platform and remote id pair, as `bridge_remote_optouts` is keyed. No client reads the three columns: the change is in the database and bot-gateway, and the bridge API field names stay, so released bridges keep working.
@@ -102,7 +103,7 @@ Scoped for discussion; nothing here is committed. Each item names the public spe
 
 ## Performance hot spots
 
-The full performance breakdown is in `BUGS.md` ("Performance addendum").
+The performance notes (`P-α` … `P-η`) are in `BUGS.md`.
 
 - **Bot-gateway message ingest** - 1 s `setInterval` poll on `messages` should switch to `NOTIFY` / Supabase Realtime, falling back to polling only when the subscription is unhealthy (`P-γ`).
 

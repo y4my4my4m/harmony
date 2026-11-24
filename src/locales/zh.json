@@ -1334,7 +1334,11 @@
       "lost": "已无法解密的加密消息",
       "decrypt": "加密消息。解密",
       "decrypting": "正在解密加密消息",
-      "locked": "加密消息。请在“设置”的“隐私与加密”中解锁加密后阅读。"
+      "locked": "加密消息。请在“设置”的“隐私与加密”中解锁加密后阅读。",
+      "forged": "消息已隐藏：签名与发送者不符",
+      "forgedHint": "此加密消息的签名无法用发送者的密钥验证。它已被篡改，或并非来自所示的发送者，因此不会解密。",
+      "replayed": "重复",
+      "replayedHint": "此消息重复了同一发送者之前的一条加密消息。服务器将同一条消息存储了两次，可能使旧消息出现在新的位置。"
     },
     "spoiler": {
       "hidden": "剧透，已隐藏。激活以显示",
@@ -5544,6 +5548,10 @@
       "newDeviceLabel": "新设备？",
       "newDeviceReminder": "{label}在该设备上登录并选择“{another}”，然后用此设备扫描其代码。无需输入恢复密钥即可解锁您的消息。",
       "rememberNeed": "如果您无法访问所有已登录的设备，或清除了浏览器数据，就需要用到它。"
+    },
+    "keyShareFailed": {
+      "title": "部分成员可能无法阅读你的消息",
+      "body": "有 {count} 位成员未收到阅读此消息的密钥。他们打开消息时，应用会再次请求密钥。"
     }
   },
   "admin": {
@@ -5771,7 +5779,11 @@
         "strangerDmsPerHour": "每小时与陌生人的新会话数",
         "strangerDmsHint": "陌生人是指未关注该账户、没有共同服务器且没有会话的人。",
         "newStrangerDmsPerHour": "新账户的上述限制",
-        "newStrangerDmsHint": "仅与新账户共享服务器的人也会计入：加入公开服务器即可联系到所有成员。"
+        "newStrangerDmsHint": "仅与新账户共享服务器的人也会计入：加入公开服务器即可联系到所有成员。",
+        "signalsPerMinute": "每分钟通话信令",
+        "signalsHint": "建立点对点通话、接听和挂断私信通话、通话特效。加入一个十人通话约需 45 条。",
+        "ringsPerMinute": "每分钟发起的通话",
+        "ringsHint": "每次通话响铃一次。挂断从不被拒绝。"
       },
       "bots": {
         "title": "机器人",
@@ -9222,5 +9234,31 @@
     "thirdParty": "第三方",
     "desktopOnly": "仅限电脑",
     "thirdPartyNotice": "此第三方活动由本实例安装。Harmony 绝不会在活动内要求你输入密码。"
+  },
+  "adminVoiceIce": {
+    "title": "点对点通话：STUN 与 TURN",
+    "intro": "未配置 LiveKit 时，本实例的通话在设备之间直接连接。STUN 服务器告诉每台设备它的公网地址；TURN 服务器为彼此无法直连的设备（例如位于严格的 NAT 或防火墙之后）中继媒体。",
+    "stunDefault": "使用默认 STUN 服务器",
+    "stunDefaultHint": "{urls}。通话会把每位参与者的地址发送给这些服务器。",
+    "stunUrls": "STUN 服务器",
+    "stunUrlsHint": "每行一个 URL，例如 stun:turn.example.com:3478。留空表示不使用 STUN 服务器。",
+    "turnUrls": "TURN 服务器",
+    "turnUrlsHint": "每行一个 URL，例如 turn:turn.example.com:3478 或 turns:turn.example.com:5349。留空表示不使用 TURN 服务器。",
+    "turnAuth": "TURN 凭据",
+    "turnAuthSecret": "共享密钥",
+    "turnAuthSecretHint": "coturn 的 static-auth-secret（use-auth-secret）。每次通话获得各自的凭据，有效期一天。",
+    "turnAuthPassword": "用户名和密码",
+    "username": "TURN 用户名",
+    "secret": "共享密钥",
+    "password": "TURN 密码",
+    "secretKept": "已保存。留空则保持不变。",
+    "invalidStun": "不是 STUN URL：{url}",
+    "invalidTurn": "不是 TURN URL：{url}",
+    "needsUsername": "使用密码的 TURN 服务器需要用户名。",
+    "needsSecret": "TURN 服务器需要共享密钥或密码。",
+    "save": "保存",
+    "saved": "ICE 服务器已保存",
+    "saveFailed": "无法保存 ICE 服务器。",
+    "loadFailed": "无法加载 ICE 服务器。"
   }
 }

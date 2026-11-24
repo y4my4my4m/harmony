@@ -2,7 +2,9 @@
  * User-Scoped LocalStorage Service
  * 
  * Ensures localStorage data is isolated per user to prevent data leakage
- * when switching between accounts.
+ * when switching between accounts. With nobody signed in, nothing is read or
+ * written: a name without an account would be shared by every account on the
+ * device, and the next one to sign in would read what the last one left.
  * 
  * Usage:
  *   import { userStorage } from '@/utils/userScopedStorage'
@@ -76,10 +78,19 @@ class UserScopedStorage {
   private warnedKeys = new Set<string>() // Track which keys have been warned about
 
   /**
-   * Initialize and set current user from stored session
+   * Initialize and set current user from stored session. Values older clients
+   * wrote under the instance-global name with nobody signed in are removed.
    */
   initialize(): void {
     try {
+      const shared = `${STORAGE_PREFIX}${SCOPE_SEGMENT}`
+      const stale: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key?.startsWith(shared) && !key.startsWith(`${shared}user_`)) stale.push(key)
+      }
+      stale.forEach(key => localStorage.removeItem(key))
+
       const storedUserId = localStorage.getItem(USER_ID_KEY)
       if (storedUserId) {
         this.currentUserId = storedUserId
@@ -163,18 +174,14 @@ class UserScopedStorage {
     }
   }
 
-  /**
-   * Get a user- AND instance-scoped key
-   */
-  private getUserKey(key: string): string {
+  /** User- and instance-scoped key; null with nobody signed in. */
+  private getUserKey(key: string): string | null {
     if (!this.currentUserId) {
-      // If no user is set, use an instance-global key (still per-instance).
-      // Only warn once per key to avoid excessive logs
       if (!this.warnedKeys.has(key)) {
-        debug.warn('Using instance-global localStorage key (no user set):', key)
+        debug.warn('User-scoped storage refused with nobody signed in:', key)
         this.warnedKeys.add(key)
       }
-      return `${STORAGE_PREFIX}${SCOPE_SEGMENT}${key}`
+      return null
     }
     return `${STORAGE_PREFIX}${SCOPE_SEGMENT}user_${this.currentUserId}_${key}`
   }
@@ -183,11 +190,8 @@ class UserScopedStorage {
    * Legacy (pre-instance-scoping) key for the same logical key. Used as a
    * read fallback so existing users keep their settings after this rolls out.
    */
-  private getLegacyKey(key: string): string {
-    if (!this.currentUserId) {
-      return `${STORAGE_PREFIX}${key}`
-    }
-    return `${USER_DATA_PREFIX}${this.currentUserId}_${key}`
+  private getLegacyKey(userId: string, key: string): string {
+    return `${USER_DATA_PREFIX}${userId}_${key}`
   }
 
   /**
@@ -196,6 +200,7 @@ class UserScopedStorage {
   setItem(key: string, value: string): void {
     try {
       const userKey = this.getUserKey(key)
+      if (!userKey) return
       localStorage.setItem(userKey, value)
     } catch (error) {
       debug.error(`Failed to set localStorage item ${key}:`, error)
@@ -209,24 +214,23 @@ class UserScopedStorage {
   getItem(key: string): string | null {
     try {
       const userKey = this.getUserKey(key)
+      if (!userKey || !this.currentUserId) return null
       const value = localStorage.getItem(userKey)
       if (value !== null) return value
 
       // One-time migration: an existing user upgrading to instance-scoped keys
       // still has their data under the legacy (non-scoped) key. Adopt it so the
       // first read after deploy doesn't look like a reset.
-      const legacyKey = this.getLegacyKey(key)
-      if (legacyKey !== userKey) {
-        const legacyValue = localStorage.getItem(legacyKey)
-        if (legacyValue !== null) {
-          try {
-            localStorage.setItem(userKey, legacyValue)
-            localStorage.removeItem(legacyKey)
-          } catch {
-            /* best-effort migration */
-          }
-          return legacyValue
+      const legacyKey = this.getLegacyKey(this.currentUserId, key)
+      const legacyValue = localStorage.getItem(legacyKey)
+      if (legacyValue !== null) {
+        try {
+          localStorage.setItem(userKey, legacyValue)
+          localStorage.removeItem(legacyKey)
+        } catch {
+          /* best-effort migration */
         }
+        return legacyValue
       }
       return null
     } catch (error) {
@@ -241,6 +245,7 @@ class UserScopedStorage {
   removeItem(key: string): void {
     try {
       const userKey = this.getUserKey(key)
+      if (!userKey) return
       localStorage.removeItem(userKey)
     } catch (error) {
       debug.error(`Failed to remove localStorage item ${key}:`, error)

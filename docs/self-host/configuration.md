@@ -47,8 +47,10 @@ The admin panel is **User settings** → **Instance admin**
 (`https://chat.example.com/admin`). Its **Config** tab has the sub-tabs
 **General**, **Federation**, **Branding**, **Authentication**,
 **Voice & video** and **Uploads**. Their values live in
-`public.instance_config`, except those of **Voice & video**, which live in
-`public.instance_webrtc_settings`.
+`public.instance_config`, except the call mode, LiveKit URL and stage size of
+**Voice & video**, which live in `public.instance_webrtc_settings`. Its STUN
+and TURN servers for peer-to-peer calls are `voice_*` keys of
+`instance_config`; see [Peer-to-peer calls](/self-host/voice#peer-to-peer-calls).
 
 Some settings exist both as a variable and in the database:
 
@@ -119,6 +121,8 @@ Limits on what one local account creates and how fast it writes, on by default o
 | **Servers created per hour** | `account_servers_per_hour` | `10` |
 | **New conversations with strangers per hour** | `account_stranger_dms_per_hour` | `30` |
 | **Same, for new accounts**, also counting people who share only a server with the account | `new_account_stranger_dms_per_hour` | `5` |
+| **Call signals per minute**: peer-to-peer call setup, DM call answers and hang-ups, call effects | `account_signals_per_minute` | `300` |
+| **Calls placed per minute**, to this instance and to others; hanging up is never refused | `account_rings_per_minute` | `10` |
 | **Requests per minute, per bot** | `bot_requests_per_minute` | `600` |
 | **Requests per minute, per linked Discord bridge** | `bridge_requests_per_minute` | `3000` |
 | **An account counts as new for (hours)** | `new_account_hours` | `24` |

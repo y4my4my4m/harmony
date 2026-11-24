@@ -141,6 +141,8 @@ export interface InstanceAntiSpamSettings {
   account_joins_per_hour: number
   account_servers_per_hour: number
   account_stranger_dms_per_hour: number
+  account_signals_per_minute: number
+  account_rings_per_minute: number
   bot_requests_per_minute: number
   bridge_requests_per_minute: number
   federation_spam_mode: 'off' | 'flag' | 'hold' | 'reject'

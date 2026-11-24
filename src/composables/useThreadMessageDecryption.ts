@@ -61,6 +61,8 @@ export function useThreadMessageDecryption(
       decrypted: readable.decrypted ?? false,
       sender_verified: readable.sender_verified,
       decryption_unrecoverable: readable.decryption_unrecoverable,
+      decryption_error: readable.decryption_error,
+      decryption_replayed: readable.decryption_replayed,
       encryption_metadata: row.encryption_metadata,
     }
   }
@@ -76,8 +78,12 @@ export function useThreadMessageDecryption(
     if (disposed || thread()?.id !== shown.id) return
     results.forEach((result, index) => {
       const original = index < rows.length ? rows[index] : parent!
-      // Unchanged failures are left in place; a failure that became unrecoverable is shown so.
-      if (!result.decrypted && result.decryption_unrecoverable === original.decryption_unrecoverable) return
+      // Unchanged failures are left in place; a failure that became unrecoverable or changed kind is shown so.
+      if (
+        !result.decrypted
+        && result.decryption_unrecoverable === original.decryption_unrecoverable
+        && result.decryption_error === original.decryption_error
+      ) return
       if (original === parent) {
         if (shown.parent_message === parent) shown.parent_message = result
         return

@@ -104,8 +104,8 @@ if (config.bridge.hostSecret && config.bridge.hostSecret.length < MIN_HOST_SECRE
 //
 // These require a valid Supabase user JWT. `/bridged-users` additionally
 // requires the caller to be a member of the channel's server; unauthenticated
-// access allowed enumeration of connected bots and of bridged Discord users
-// for arbitrary channel IDs. See BUGS.md C4.
+// access enumerates connected bots and bridged Discord users for arbitrary
+// channel IDs.
 
 /**
  * Validates the Supabase user JWT in `Authorization: Bearer <token>`.

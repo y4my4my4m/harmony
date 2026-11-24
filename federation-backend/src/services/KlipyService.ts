@@ -17,6 +17,7 @@
 
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
+import { safeFetch } from '../utils/ssrfProtection.js';
 
 export type GifKind = 'trending' | 'search';
 
@@ -582,7 +583,9 @@ async function extractGeneratedImage(
 
   if (!imageUrl) return null;
 
-  const imgRes = await fetch(imageUrl, { headers: { 'User-Agent': userAgent } });
+  // The URL is Klipy's response data; addresses are checked per hop. Plain http is kept
+  // as accepted above.
+  const imgRes = await safeFetch(imageUrl, { headers: { 'User-Agent': userAgent }, allowPlainHttp: true });
   if (!imgRes.ok) {
     throw new Error(`Failed to download generated emoji (${imgRes.status})`);
   }

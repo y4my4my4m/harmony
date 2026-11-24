@@ -913,8 +913,11 @@ export class ActivityProcessor {
 
         let replyRefused = false;
         if (object.inReplyTo) {
-          const replyResult = await this.resolveReplyChain(object.inReplyTo);
-          if (await this.actorReachesPost(replyResult.parentPostId, normalizeActor(activity.actor))) {
+          const visited = new Set([object.id, ownNoteUrl(object)].filter((u): u is string => typeof u === 'string'));
+          const replyResult = await this.resolveReplyChain(object.inReplyTo, 0, visited);
+          if (replyResult.cycle) {
+            replyRefused = true;
+          } else if (await this.actorReachesPost(replyResult.parentPostId, normalizeActor(activity.actor))) {
             parentPostId = replyResult.parentPostId;
             conversationRootId = replyResult.conversationRootId;
           } else {
@@ -1165,9 +1168,14 @@ export class ActivityProcessor {
     return reaches;
   }
 
-  private static async resolveReplyChain(inReplyToRef: string, depth = 0): Promise<{
+  /**
+   * `visited` holds the AP ids, urls and post ids of the chain walked so far. A post has one
+   * parent, so a ref already in it closes a cycle: the walk stops and reports `cycle`.
+   */
+  private static async resolveReplyChain(inReplyToRef: string, depth = 0, visited = new Set<string>()): Promise<{
     parentPostId: string | null;
     conversationRootId: string | null;
+    cycle?: boolean;
   }> {
     const supabase = getSupabaseClient();
 
@@ -1177,6 +1185,10 @@ export class ActivityProcessor {
     if (depth >= this.MAX_REPLY_CHAIN_DEPTH) {
       logger.warn(`Reply chain too deep (>=${this.MAX_REPLY_CHAIN_DEPTH}), stopping resolution`);
       return { parentPostId: null, conversationRootId: null };
+    }
+    if (visited.has(inReplyToRef)) {
+      logger.warn(`Reply chain cycle at ${inReplyToRef}, stopping resolution`);
+      return { parentPostId: null, conversationRootId: null, cycle: true };
     }
 
     let parentPost = null;
@@ -1216,7 +1228,7 @@ export class ActivityProcessor {
       // budget (otherwise mutual recursion could exceed MAX_DEPTH).
       if (!parentPost) {
         logger.info(`Parent post not found locally, fetching: ${inReplyToRef}`);
-        parentPost = await this.fetchAndCreateRemotePost(inReplyToRef, depth + 1);
+        parentPost = await this.fetchAndCreateRemotePost(inReplyToRef, depth + 1, visited);
       }
     }
 
@@ -1224,6 +1236,8 @@ export class ActivityProcessor {
       logger.warn(`Could not resolve parent post: ${inReplyToRef}`);
       return { parentPostId: null, conversationRootId: null };
     }
+    visited.add(inReplyToRef);
+    visited.add(parentPost.id);
 
     if (parentPost.conversation_root_id) {
       return {
@@ -1240,7 +1254,7 @@ export class ActivityProcessor {
     }
 
     // Parent is also a reply - in_reply_to is always a UUID (DB column), recurse
-    const parentResult = await this.resolveReplyChain(parentPost.in_reply_to, depth + 1);
+    const parentResult = await this.resolveReplyChain(parentPost.in_reply_to, depth + 1, visited);
     
     if (parentResult.conversationRootId && !parentPost.conversation_root_id) {
       await supabase
@@ -1338,7 +1352,7 @@ export class ActivityProcessor {
    * Whether freshly imported or already cached, orphaned local replies whose
    * `metadata.in_reply_to_ap_url` points at this post's ap_id are re-linked.
    */
-  public static async fetchAndCreateRemotePost(postUrl: string, depth = 0): Promise<{
+  public static async fetchAndCreateRemotePost(postUrl: string, depth = 0, visited = new Set<string>()): Promise<{
     id: string;
     in_reply_to: string | null;
     conversation_root_id: string | null;
@@ -1384,7 +1398,13 @@ export class ActivityProcessor {
         };
       }
 
-      // BUGS.md H15: postUrl comes from inbox-supplied AP objects (attacker-
+      if (visited.has(postUrl)) {
+        logger.warn(`Reply chain cycle at ${postUrl}, not fetching`);
+        return null;
+      }
+      visited.add(postUrl);
+
+      // postUrl comes from inbox-supplied AP objects (attacker-
       // influenced); fetchApDocument goes through safeFetch.
       const remoteObject = await fetchAuthoritativeDocument(postUrl, (u) => this.fetchApDocument(u));
       if (!remoteObject) {
@@ -1392,7 +1412,7 @@ export class ActivityProcessor {
         return null;
       }
 
-      return await this.storeRemotePost(remoteObject, depth, postUrl);
+      return await this.storeRemotePost(remoteObject, depth, postUrl, visited);
     } catch (error) {
       logger.warn(`Error fetching remote post ${postUrl}:`, error);
       return null;
@@ -1405,7 +1425,12 @@ export class ActivityProcessor {
    * URL already looked up as absent. Refused when its host is blocked, or its author is on
    * another host or suspended.
    */
-  public static async storeRemotePost(fetchedObject: any, depth = 0, checkedUrl?: string): Promise<{
+  public static async storeRemotePost(
+    fetchedObject: any,
+    depth = 0,
+    checkedUrl?: string,
+    visited = new Set<string>(),
+  ): Promise<{
     id: string;
     in_reply_to: string | null;
     conversation_root_id: string | null;
@@ -1485,8 +1510,12 @@ export class ActivityProcessor {
       let conversationRootId: string | null = null;
       let replyRefused = false;
       if (remoteObject.inReplyTo) {
-        const replyResult = await this.resolveReplyChain(remoteObject.inReplyTo, depth);
-        if (await this.actorReachesPost(replyResult.parentPostId, authorUrl)) {
+        visited.add(apId);
+        visited.add(apUrl);
+        const replyResult = await this.resolveReplyChain(remoteObject.inReplyTo, depth, visited);
+        if (replyResult.cycle) {
+          replyRefused = true;
+        } else if (await this.actorReachesPost(replyResult.parentPostId, authorUrl)) {
           resolvedInReplyTo = replyResult.parentPostId;
           conversationRootId = replyResult.conversationRootId;
         } else {
@@ -1494,9 +1523,10 @@ export class ActivityProcessor {
         }
       }
 
-      // The parent AP url is always stamped in metadata, even when resolution
-      // failed (parent server unreachable). The client-side ancestor walker
-      // retries from this hint.
+      // The parent AP url is stamped in metadata even when resolution failed (parent server
+      // unreachable); the client-side ancestor walker retries from this hint. A refused parent
+      // is not stamped. Nor is a parent that closes a cycle: relinkPendingChildren would link
+      // this post under its own descendant.
       const metadata: Record<string, any> = isQuestion ? { ...questionPollMetadata(remoteObject) } : {};
       if (remoteObject.inReplyTo && !replyRefused) {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
@@ -1587,7 +1617,7 @@ export class ActivityProcessor {
    *
    * Every branch verifies `activity.actor` owns the object being modified
    * before writing. Without the guard a remote signer can Update another
-   * actor's profile or edit any post by URL (BUGS.md C2).
+   * actor's profile or edit any post by URL.
    */
   private static async processUpdate(activity: any): Promise<void> {
     const object = activity.object;
@@ -1845,8 +1875,7 @@ export class ActivityProcessor {
    * Delete activity.
    *
    * Verifies `activity.actor` owns the object before soft-deleting. Without
-   * the guard any signed remote actor can delete any post or message by URL
-   * (BUGS.md C2).
+   * the guard any signed remote actor can delete any post or message by URL.
    */
   private static async processDelete(activity: any): Promise<void> {
     const object = activity.object;
@@ -2354,7 +2383,7 @@ export class ActivityProcessor {
     if (!originalPost) {
       logger.info(`Original post not found locally, attempting to fetch: ${objectUrl}`);
       try {
-        // BUGS.md H15: objectUrl is from inbox payload (attacker-influenced).
+        // objectUrl is from inbox payload (attacker-influenced).
         const remotePost = await fetchAuthoritativeDocument(objectUrl, (u) => this.fetchApDocument(u));
 
         if (remotePost && isBoostableVisibility(this.determineVisibility(remotePost))) {
@@ -3843,7 +3872,7 @@ export class ActivityProcessor {
       logger.info(`Force refreshing profile for ${actorUrl}`);
     }
 
-    // BUGS.md H15: actorUrl is attacker-influenced (from inbox or Follow
+    // actorUrl is attacker-influenced (from inbox or Follow
     // activity); safeFetch handles SSRF, redirect re-validation, and timeout.
     try {
       // The stored profile is keyed by the document's own id. The document

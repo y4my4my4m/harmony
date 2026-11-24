@@ -47,6 +47,7 @@ type UserEventType =
   | 'federated_voice:token' | 'federated_voice:rejected'
   // Federated DM call signalling (VoiceActivityHandler).
   | 'federated_call:incoming' | 'federated_call:accepted' | 'federated_call:rejected' | 'federated_call:ended'
+  | 'federated_call:answered'
   // A DM partner's presence change (presence_publish).
   | 'presence:update'
   // A conversation partner's profile change (broadcast_profile_change, 20261118200001).

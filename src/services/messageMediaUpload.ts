@@ -137,7 +137,7 @@ export function resetMessageMediaUploads(): void {
 }
 
 /**
- * Client-side pre-upload gate (BUGS.md H28): the bucket's size limit, checked before the whole
+ * Client-side pre-upload gate: the bucket's size limit, checked before the whole
  * upload instead of after it. Any type is accepted; storedContentType decides how it is served.
  */
 export async function validateChatUpload(file: Blob): Promise<void> {

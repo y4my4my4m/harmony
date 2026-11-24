@@ -633,7 +633,7 @@ class AdminService {
     details?: Record<string, any>;
   }): Promise<void> {
     try {
-      // BUGS.md Pattern A: `admin_audit_log.admin_id` references
+      // `admin_audit_log.admin_id` references
       // `profiles(id)`, not auth.users(id). Resolve to the profile id before
       // insert; an auth UUID yields a broken FK and wrong attribution.
       const { authContextService } = await import('@/services/AuthContextService');
@@ -1303,9 +1303,8 @@ class AdminService {
 
   async checkAdminPermissions(userId: string): Promise<boolean> {
     try {
-      // BUGS.md Pattern A: callers (router admin guard, AdminPanel.vue) pass
-      // `authStore.session?.user?.id`, the auth.users UUID, not `profiles.id`.
-      // Match on `auth_user_id`; filtering on `id` matches zero rows.
+      // `userId` is the auth.users UUID, not `profiles.id`. Match on
+      // `auth_user_id`; filtering on `id` matches zero rows.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_admin')
@@ -1323,8 +1322,7 @@ class AdminService {
 
   async checkModeratorPermissions(userId: string): Promise<boolean> {
     try {
-      // BUGS.md Pattern A, as in checkAdminPermissions: callers pass the
-      // auth.users UUID, so the filter is on `auth_user_id`.
+      // `userId` is the auth.users UUID, so the filter is on `auth_user_id`.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_moderator')
@@ -1342,8 +1340,8 @@ class AdminService {
 
   async checkAdminOrModPermissions(userId: string): Promise<boolean> {
     try {
-      // BUGS.md Pattern A: callers pass either the auth UUID or the profile
-      // id. Matching both avoids a false-negative permission check.
+      // `userId` is either the auth UUID or the profile id; the filter
+      // matches both.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_admin, is_moderator')

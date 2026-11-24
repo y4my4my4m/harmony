@@ -36,6 +36,8 @@
           :encrypted="message.encrypted || false"
           :decrypted="message.decrypted || false"
           :unrecoverable="message.decryption_unrecoverable || false"
+          :decryption-error="message.decryption_error"
+          :replayed="message.decryption_replayed || false"
           :sender-verified="message.sender_verified"
           :media-hidden="mediaHidden"
         />

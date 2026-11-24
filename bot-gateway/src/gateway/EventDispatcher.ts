@@ -57,7 +57,7 @@ function reactionRow(r: ReactionRow): ReactionRow {
   }
 }
 
-// BUGS.md PC1: without these caches each handled message costs two extra DB
+// Without these caches each handled message costs two extra DB
 // queries (channel → server, then server → bot permissions), across three
 // handlers (create/update/delete), on top of the polling baseline.
 //
@@ -539,13 +539,13 @@ export class EventDispatcher {
     console.log(`Dispatched ${type} to ${botIds.length} bots`)
   }
 
-  // Cached lookups (BUGS.md PC1)
+  // Cached lookups
 
   /**
    * Resolves a channel's server_id. Cached for 1 hour; channels rarely move
    * between servers.
    *
-   * Caching semantics (BUGS.md H3):
+   * Caching semantics:
    * - Channel found with server_id: cached.
    * - PGRST116 "no rows": `null` cached, so deleted/orphan channels stop
    *   re-querying.
@@ -943,7 +943,7 @@ export class EventDispatcher {
     const cached = this.authorCache.get(cacheKey)
     if (cached !== undefined) return cached
 
-    // BUGS.md H3: cache only on clean responses or a definitive
+    // Cache only on clean responses or a definitive
     // "row not found" (PGRST116). A transient error must not poison the
     // cache for the full 10 min TTL.
     if (userId) {

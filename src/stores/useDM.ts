@@ -148,7 +148,7 @@ export const useDMStore = defineStore('dm', () => {
   })
   
   const getSortedConversations = computed(() => {
-    // BUGS.md H35: sort a copy. Sorting `conversations.value` in place mutates
+    // Sort a copy. Sorting `conversations.value` in place mutates
     // store state from inside a getter, reordering the source array on every
     // read.
     return [...conversations.value].sort((a, b) => {
@@ -1745,7 +1745,7 @@ export const useDMStore = defineStore('dm', () => {
         }
       )
 
-      // BUGS.md H34: the stale-conversation guard covers pagination as well as
+      // The stale-conversation guard covers pagination as well as
       // the initial load. Without it, switching DMs mid-fetch prepends
       // conversation A's history into conversation B's messages and cache.
       if (signal?.aborted) {
@@ -2843,7 +2843,7 @@ export const useDMStore = defineStore('dm', () => {
       }
     })
 
-    // BUGS.md #4: the DB broadcasts `unread:change` on `user:{profileId}`
+    // The DB broadcasts `unread:change` on `user:{profileId}`
     // whenever an `unread_messages_view` row changes. The DM sidebar reads this
     // store, not `useUnreadCounts`, so it must listen here. Patching
     // `unread_count` and `last_activity` updates the sidebar and its sort order

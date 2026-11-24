@@ -205,7 +205,7 @@ export async function resolveRemoteAccount(username: string, domain: string): Pr
 
     // Step 2: Fetch the Actor
     logger.info(`Fetching actor: ${resolved.actorUrl}`);
-    // BUGS.md H15: the actor URL comes from the remote webfinger response.
+    // The actor URL comes from the remote webfinger response.
     // safeFetch re-validates the URL/DNS and follows redirects manually.
     // The profile is upserted under the document's own id, so the document
     // must be served from its own id (fetchAuthoritativeDocument), own its
@@ -658,7 +658,7 @@ router.post(
       return res.status(400).json({ error: 'url is required' });
     }
 
-    // SSRF gate (BUGS.md H13): reject internal/private targets before any
+    // SSRF gate: reject internal/private targets before any
     // fetch. safeFetch re-validates downstream, but failing here returns a
     // clean 400 instead of leaking timing/behavior differences.
     try {
@@ -779,7 +779,7 @@ router.post(
 
     const supabase = getSupabaseClient();
 
-    // SSRF gate (BUGS.md H14): caller-supplied URLs are never fetched. The
+    // SSRF gate: caller-supplied URLs are never fetched. The
     // outbox URL must match the stored profile row, reducing client input to
     // a confirmation of server-known state.
     const { data: profileRow } = await supabase
@@ -1527,7 +1527,7 @@ async function _fetchRemotePostReactionsImpl(
     // at the URL the post names, or at `${ap_id}/likes`, where Pleroma, Akkoma, GoToSocial,
     // Friendica, Pixelfed and Harmony serve it.
     //
-    // BUGS.md H15: postApId is attacker-influenced (inbox / remote feed);
+    // postApId is attacker-influenced (inbox / remote feed);
     // every outbound call goes through safeFetch for SSRF protection.
     const apHeaders = {
       'Accept': 'application/activity+json, application/ld+json',
@@ -2201,7 +2201,7 @@ async function fetchRemotePostReplies(
     logger.info(`Misskey API returned no replies, trying standard ActivityPub...`);
   }
 
-  // BUGS.md H15: postApId is attacker-influenced; every request goes through safeFetch.
+  // postApId is attacker-influenced; every request goes through safeFetch.
   let noteStatus = 0;
   const note = await fetchAuthoritativeDocument(postApId, (url) => fetchSignedDocument(url, (status) => { noteStatus = status; }));
   if (!note) {

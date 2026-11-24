@@ -20,7 +20,7 @@ interface SelectivePreloadOptions {
 
 export function selectivePreload(options: SelectivePreloadOptions = {}): Plugin {
   const {
-    alwaysPreload = ['index', 'vendor', 'vue-vendor', 'supabase-vendor', 'crypto-vendor'],
+    alwaysPreload = ['index', 'vendor', 'vue-vendor', 'supabase-vendor'],
     neverPreload = [/^view-/],
     routeChunkPattern = /^view-/
   } = options

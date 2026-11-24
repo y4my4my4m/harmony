@@ -589,14 +589,14 @@ export class LiveKitWebRTCService {
       earlyMic?.then(t => t.stop()).catch(() => {});
       if (error instanceof DOMException && error.name === 'AbortError') {
         debug.log('[LiveKit] Connection cancelled');
-        // BUGS.md H23: cancellation paths call `leaveChannel()` inline, so
+        // Cancellation paths call `leaveChannel()` inline, so
         // teardown is already done by the time this catch runs. Non-AbortError
         // failures below still need explicit cleanup so a half-constructed
         // Room and its listeners don't leak.
         throw error;
       }
       debug.error('[LiveKit] Failed to join channel:', error);
-      // BUGS.md H23: the Room is constructed and its listeners registered
+      // The Room is constructed and its listeners registered
       // BEFORE `room.connect()` is awaited, so a connect failure would leave
       // both alive and accumulating across retries. Tear down before
       // returning.
@@ -965,7 +965,7 @@ export class LiveKitWebRTCService {
 
       return this.localMediaState.isScreenSharing;
     } catch (error) {
-      // BUGS.md #8: dismissing the screen-share picker makes the capture
+      // Dismissing the screen-share picker makes the capture
       // throw after spatial-audio listeners have already flipped audio
       // routing for the expected share. Emitting lets listeners re-derive
       // the routing so the dry and wet paths do not both play.

@@ -603,7 +603,8 @@ test('a presence broadcast moves a member the client had not loaded', async ({ p
     const { supabase } = await import('/src/supabase.ts' as string)
     const channel = supabase.getChannels().find((c: { topic: string }) => c.topic.endsWith(`server-presence:${serverId}`))
     if (!channel) return false
-    channel._trigger('broadcast', {
+    // realtime-js 2.119: incoming events dispatch through the Phoenix channel it wraps.
+    channel.channelAdapter.channel.trigger('broadcast', {
       type: 'broadcast',
       event: 'presence_event',
       payload: { type: 'presence:update', user_id: userId, online: true, status: 1, is_mobile: false },

@@ -17,9 +17,8 @@ const POST_AUTHOR_EMBED = `author:profiles!posts_author_id_fkey(${POST_AUTHOR_CO
 // Inner join: a filter on author.* drops the posts whose author does not match.
 const POST_AUTHOR_EMBED_INNER = `author:profiles!posts_author_id_fkey!inner(${POST_AUTHOR_COLUMNS})`;
 import type { 
-  Post, 
-  Follow, 
-  PostInteraction, 
+  Post,
+  PostInteraction,
   FederatedUser, 
   TimelineOptions,
   TimelinePost,
@@ -709,8 +708,7 @@ export class ActivityPubService {
 
   // Soft delete; the Delete activity is emitted by a database trigger.
   async deletePost(postId: string): Promise<void> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
+    const profileId = await this.getCurrentUserProfileId();
 
     const { data: originalPost, error: fetchError } = await supabase
       .from('posts')
@@ -719,7 +717,7 @@ export class ActivityPubService {
         author:profiles(username, domain, is_local)
       `)
       .eq('id', postId)
-      .eq('author_id', user.id)
+      .eq('author_id', profileId)
       .single();
 
     if (fetchError || !originalPost) {
@@ -739,64 +737,6 @@ export class ActivityPubService {
   }
 
   // FOLLOW MANAGEMENT
-
-  // Follow activity is emitted by a database trigger.
-  async followUser(targetUserId: string): Promise<Follow> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    if (user.id === targetUserId) {
-      throw new Error('Cannot follow yourself');
-    }
-
-    const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
-    
-    const follow = {
-      follower_id: user.id,
-      following_id: targetUserId,
-      ap_id: ap_id,
-      status: 'accepted', // Locked accounts are not supported; all follows auto-accept.
-      is_local: true, // Overwritten by a database trigger.
-      metadata: {}
-    };
-
-    const { data, error } = await supabase
-      .from('follows')
-      .insert(follow)
-      .select(`
-        *,
-        follower:profiles!follows_follower_id_fkey (
-          id, username, display_name, domain, avatar_url, is_local
-        ),
-        following:profiles!follows_following_id_fkey (
-          id, username, display_name, domain, avatar_url, is_local
-        )
-      `)
-      .single();
-
-    if (error) {
-      if (error.code === '23505') {
-        throw new Error('Already following this user');
-      }
-      throw error;
-    }
-
-    return data as Follow;
-  }
-
-  // Undo activity is emitted by a database trigger.
-  async unfollowUser(targetUserId: string): Promise<void> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    const { error } = await supabase
-      .from('follows')
-      .delete()
-      .eq('follower_id', user.id)
-      .eq('following_id', targetUserId);
-
-    if (error) throw error;
-  }
 
   async getFollowers(userId: string, options: TimelineOptions = {}): Promise<FederatedUser[]> {
     const limit = options.limit || 20;
@@ -897,59 +837,15 @@ export class ActivityPubService {
       })) || []) as unknown as FederatedUser[];
   }
 
-  // Accepted follows only; PGRST116 (no rows) reads as false.
-  async isFollowing(targetUserId: string): Promise<boolean> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) return false;
-
-    const { data, error } = await supabase
-      .from('follows')
-      .select('id')
-      .eq('follower_id', user.id)
-      .eq('following_id', targetUserId)
-      .eq('status', 'accepted')
-      .single();
-
-    if (error && error.code !== 'PGRST116') throw error;
-    return !!data;
-  }
-
   // POST INTERACTIONS
 
-  async toggleFavorite(postId: string): Promise<{ favorited: boolean; interaction?: PostInteraction }> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
-
-    // maybeSingle: zero rows is the common case, not an error.
-    const { data: existing, error: existingError } = await supabase
-      .from('post_interactions')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('post_id', postId)
-      .eq('interaction_type', 'favorite')
-      .maybeSingle();
-
-    if (existingError && existingError.code !== 'PGRST116') {
-      throw existingError;
-    }
-
-    if (existing) {
-      await this.unfavoritePost(postId);
-      return { favorited: false };
-    } else {
-      const interaction = await this.favoritePost(postId);
-      return { favorited: true, interaction };
-    }
-  }
-
   async favoritePost(postId: string): Promise<PostInteraction> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
+    const profileId = await this.getCurrentUserProfileId();
 
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
-    
+
     const interaction = {
-      user_id: user.id,
+      user_id: profileId,
       post_id: postId,
       interaction_type: 'favorite' as const,
       ap_id: ap_id,
@@ -974,13 +870,12 @@ export class ActivityPubService {
   }
 
   async unfavoritePost(postId: string): Promise<void> {
-    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
-    if (!user) throw new Error('User not authenticated');
+    const profileId = await this.getCurrentUserProfileId();
 
     const { error } = await supabase
       .from('post_interactions')
       .delete()
-      .eq('user_id', user.id)
+      .eq('user_id', profileId)
       .eq('post_id', postId)
       .eq('interaction_type', 'favorite');
 

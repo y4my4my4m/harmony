@@ -793,7 +793,7 @@ function getProfileUrl(user: FederatedUser | User | null): string {
 // Computed properties
 //
 // `props.user.id` is a PROFILE id; `authStore.session.user.id` is the
-// Supabase AUTH user id. The two are different UUIDs (BUGS.md Pattern A).
+// Supabase AUTH user id. The two are different UUIDs.
 // Identity checks compare against the cached current-user profile id from
 // userDataService (kept in sync by useUserData), which is reactive and
 // id-correct.

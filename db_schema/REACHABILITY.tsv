@@ -59,12 +59,14 @@ admin_update_supporter	definer	boolean	authenticated+service_role	client	rpc in 
 admin_update_webhook_settings	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_upload_limits	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/UploadLimitsAdmin.vue
 aggregate_hourly_metrics	definer	integer	service_role	client	rpc in federation-backend/src/services/PerformanceMonitor.ts
-antispam_account_exempt	definer	boolean	service_role	client, policy, trigger	called by antispam_check_local_author, antispam_write_guard, check_and_increment_bot_rate_limit, +5
+antispam_account_exempt	definer	boolean	service_role	client, policy, trigger	called by antispam_check_local_author, antispam_take, check_and_increment_bot_rate_limit, +5
 antispam_check_local_author	definer	boolean	service_role	trigger	called by antispam_post_guard, automod_check_message
-antispam_int	invoker	integer	service_role	client, trigger	called by antispam_check_local_author, antispam_write_guard, check_and_increment_bot_rate_limit, +2
+antispam_int	invoker	integer	service_role	client, trigger	called by antispam_check_local_author, antispam_take, check_and_increment_bot_rate_limit, +2
 antispam_post_guard	definer	trigger	service_role	trigger	trigger public.posts BEFORE INSERT/UPDATE (trg_antispam_post_guard)
-antispam_rate_check	definer	void	service_role	client, trigger	called by antispam_check_local_author, antispam_write_guard, dm_start_guard
-antispam_settings	definer	jsonb	service_role	client, trigger	called by antispam_check_local_author, antispam_write_guard, check_and_increment_bot_rate_limit, +4
+antispam_rate_check	definer	void	service_role	client, trigger	called by antispam_check_local_author, antispam_take, dm_start_guard
+antispam_settings	definer	jsonb	service_role	client, trigger	called by antispam_check_local_author, antispam_take, check_and_increment_bot_rate_limit, +4
+antispam_take	definer	void	service_role	client, trigger	called by antispam_take_ring, antispam_write_guard, send_signal
+antispam_take_ring	definer	void	service_role	client	rpc in federation-backend/src/routes/livekit.ts
 antispam_write_guard	definer	trigger	service_role	trigger	trigger public.follows BEFORE INSERT (z_follows_rate_limit), public.post_interactions BEFORE INSERT (z_post_interactions_rate_limit), public.reactions BEFORE INSERT (z_reactions_rate_limit), +2
 apply_account_move	invoker	uuid	service_role	client	called by begin_account_move, record_remote_account_move
 apply_category_permissions	definer	void	service_role	client, trigger	called by channel_inherits_category_permissions, set_category_permissions, sync_channel_permissions
@@ -270,6 +272,7 @@ can_manage_sticker	definer	boolean	service_role	client	called by delete_sticker,
 can_see_sticker	definer	boolean	anon+authenticated+service_role	policy	policy public.stickers SELECT on stickers_select_visible
 can_send_to_topic	definer	boolean	authenticated+service_role	policy	policy realtime.messages INSERT on authenticated_users_can_send
 can_subscribe_to_topic	definer	boolean	anon+authenticated+service_role	policy	policy realtime.messages SELECT on authenticated_users_can_receive
+can_track_on_topic	definer	boolean	authenticated+service_role	policy	policy realtime.messages INSERT on authenticated_users_can_send
 can_view_channel	definer	boolean	service_role	client, policy, trigger	rpc in federation-backend/src/services/ServerDiscoveryService.ts
 can_write_sticker_object	definer	boolean	authenticated+service_role	policy	policy storage.objects DELETE on Sticker writers delete stickers, storage.objects INSERT on Sticker writers upload stickers, storage.objects SELECT on Sticker writers read stickers
 cancel_device_pairing_request	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
@@ -1030,6 +1033,7 @@ seed_channel_encryption_settings	definer	void	service_role	client, trigger	calle
 self_assign_refusal	definer	text	service_role	client	called by set_my_self_assignable_role
 send_notification	definer	uuid[]	service_role	client, trigger	called by handle_channel_message_notifications, handle_message_federation, handle_newcomer_first_message, +4
 send_notification_to_user	definer	uuid	service_role	client, trigger	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
+send_signal	definer	void	authenticated+service_role	client	rpc in src/services/signalRelay.ts
 server_audit_attribute_bot	definer	trigger	service_role	trigger	trigger public.bot_audit_log AFTER INSERT (z_bot_audit_log_server_audit)
 server_audit_bots	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (z_bot_server_permissions_audit)
 server_audit_categories	definer	trigger	service_role	trigger	trigger public.channel_categories AFTER INSERT/DELETE (z_channel_categories_audit), public.channel_categories AFTER UPDATE (z_channel_categories_audit_update)
@@ -1276,6 +1280,7 @@ voice_grants_on_owner_change	definer	trigger	service_role	trigger	trigger public
 voice_grants_on_server_encryption	definer	trigger	service_role	trigger	trigger public.server_encryption_settings AFTER INSERT/UPDATE (z_server_encryption_voice_grants)
 voice_grants_on_server_roles	definer	trigger	service_role	trigger	trigger public.server_roles AFTER DELETE STATEMENT (z_server_roles_voice_grants_delete), public.server_roles AFTER UPDATE STATEMENT (z_server_roles_voice_grants_update)
 voice_grants_on_user_roles	definer	trigger	service_role	trigger	trigger public.user_roles AFTER DELETE STATEMENT (z_user_roles_voice_grants_delete), public.user_roles AFTER INSERT STATEMENT (z_user_roles_voice_grants_insert), public.user_roles AFTER UPDATE STATEMENT (z_user_roles_voice_grants_update)
+voice_ice_servers	definer	jsonb	authenticated+service_role	client	rpc in src/services/voice/iceServers.ts
 voice_leave_on_membership_end	definer	trigger	service_role	trigger	trigger public.user_servers AFTER DELETE/UPDATE (z_user_servers_leave_voice)
 voice_leave_on_timeout	definer	trigger	service_role	trigger	trigger public.server_member_timeouts AFTER INSERT/UPDATE (z_member_timeouts_leave_voice)
 voice_member_federates	definer	boolean	service_role	client, trigger	called by voice_moderation_federate, voice_remove_member

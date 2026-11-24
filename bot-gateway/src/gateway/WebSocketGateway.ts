@@ -293,8 +293,7 @@ export class WebSocketGateway {
           case 6: // REGISTER_BRIDGE_DATA
             if (botConnection) {
               // Fire-and-forget: registration is best-effort caching, and an
-              // unhandled rejection crashes the gateway worker (BUGS.md M47,
-              // unhandled rejection policy).
+              // unhandled rejection crashes the gateway worker.
               this.handleBridgeDataRegistration(botConnection, payload.d).catch(err => {
                 console.error('Error handling bridge data registration:', err)
               })
@@ -608,7 +607,7 @@ export class WebSocketGateway {
   /**
    * Handles Discord registration and explicitly platform-bound Matrix member snapshots.
    *
-   * BUGS.md H40: `harmonyChannelId`s from the bot are untrusted. For each one,
+   * `harmonyChannelId`s from the bot are untrusted. For each one,
    * `channels.server_id` is resolved, the bot must have an active
    * `bot_server_permissions` row for that server, and must see the channel
    * (botCanSeeChannel); channels failing the check are dropped from the

@@ -710,6 +710,7 @@ harmony auth remove-provider authentik</code></pre>
         Save changes
       </button>
     </fieldset>
+    <VoiceIceSettings v-if="configTab === 'webrtc' && hasCapability('signal-relay')" />
   </div>
 </div>
 </template>
@@ -727,6 +728,7 @@ import Icon from '@/components/common/Icon.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import NewcomerAlertsDefault from '@/components/admin/NewcomerAlertsDefault.vue'
 import UploadLimitsAdmin from '@/components/admin/UploadLimitsAdmin.vue'
+import VoiceIceSettings from '@/components/admin/VoiceIceSettings.vue'
 import OAuthProvidersAdmin from '@/components/admin/OAuthProvidersAdmin.vue'
 import BridgeAdminSection from '@/components/settings/discord-bridge/BridgeAdminSection.vue'
 import { adminService } from '@/services/AdminService'

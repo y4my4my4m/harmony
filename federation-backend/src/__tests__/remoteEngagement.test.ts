@@ -560,3 +560,38 @@ describe('POST /lookup-user', () => {
     expect(requested).toEqual([])
   })
 })
+
+describe('reply chain cycles', () => {
+  const A = `${AUTHOR}/statuses/80`
+  const B = `${AUTHOR}/statuses/81`
+  const C = `${AUTHOR}/statuses/82`
+  const note = (id: string, inReplyTo: string) =>
+    ({ id, type: 'Note', attributedTo: AUTHOR, inReplyTo, to: [PUBLIC], content: `<p>${id}</p>` })
+  const stored = (id: string) => tables.posts.find((p) => p.ap_id === id)!
+
+  it('fetches each post of a two-post cycle once and stores no in_reply_to loop', async () => {
+    docs[A] = note(A, B)
+    docs[B] = note(B, A)
+
+    expect(await ActivityProcessor.fetchAndCreateRemotePost(A)).not.toBeNull()
+
+    expect(requested.filter((u) => u === A)).toHaveLength(1)
+    expect(requested.filter((u) => u === B)).toHaveLength(1)
+    expect(stored(A).in_reply_to).toBe(stored(B).id)
+    expect(stored(B).in_reply_to).toBeNull()
+    expect(stored(B).metadata.in_reply_to_ap_url).toBeUndefined()
+  })
+
+  it('stops a three-post cycle at the post that closes it', async () => {
+    docs[A] = note(A, B)
+    docs[B] = note(B, C)
+    docs[C] = note(C, A)
+
+    expect(await ActivityProcessor.fetchAndCreateRemotePost(A)).not.toBeNull()
+
+    expect(requested.filter((u) => [A, B, C].includes(u))).toHaveLength(3)
+    expect(stored(A).in_reply_to).toBe(stored(B).id)
+    expect(stored(B).in_reply_to).toBe(stored(C).id)
+    expect(stored(C).in_reply_to).toBeNull()
+  })
+})

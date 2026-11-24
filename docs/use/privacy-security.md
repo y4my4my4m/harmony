@@ -168,7 +168,10 @@ Some features do not work in encrypted channels and conversations: polls, webhoo
 - A status line under the message box: "End-to-end encrypted" when you can read and send. "This channel is end-to-end encrypted. Unlock encryption to read and send messages." with **Unlock** when your device has not unlocked your keys yet. "This channel is end-to-end encrypted. Set up encryption to read and send messages." with **Set up now** when you have no keys.
 - Messages your device cannot read yet show as scrambled characters; click one to retry ("Click to decrypt").
 - A message encrypted with a key your account no longer has stays scrambled, with a lock, and cannot be recovered.
+- "Message hidden: its signature does not match its sender" in place of a message whose signature fails against its sender's key: it was altered, or it is not from the person it names. It is not decrypted.
+- **Repeated** next to a message whose encryption repeats an earlier message from the same sender: the server stored one message twice. The earlier one carries no mark.
 - **Unverified author** next to a message that decrypted but whose sender's device signature could not be checked.
+- After you send, "Some members may not be able to read your message" when the message's key could not be delivered to every member. The message is sent; a member without the key asks for it when they open the message, and you or another member holding it can answer.
 
 ### Unlock encryption on a new device
 

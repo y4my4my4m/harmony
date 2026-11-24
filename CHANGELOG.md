@@ -8,6 +8,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Limits on call signals and calls placed.** Each account may send 300 call signals and place 10
+  calls a minute by default, calls to other instances included, set in **Admin** → **Anti-spam**. A
+  call past the limit says when the next one can ring; hanging up is never refused.
+- **Admins choose the STUN and TURN servers of peer-to-peer calls** in **Admin** → **Config** →
+  **Voice & video**: STUN and TURN URLs, with coturn shared-secret credentials minted per account
+  (valid 24 h) or one fixed username and password. Peer-to-peer calls carry the instance's choice
+  instead of a hard-coded list.
 - **Sign in with Discord.** **Continue with Discord** joins Google, Twitch and GitHub on the sign-in
   and registration pages. A first sign-in starts the profile with the Discord display name, avatar
   and username. Three or more sign-in buttons sit two to a row under the provider's name, so the
@@ -246,6 +253,59 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and Discord's "pinned a message" line is removed (bridge 2.8.0).
 
 ### Fixed
+- **Live updates come back on their own.** When the instance closed a live feed (an expired sign-in,
+  for example), the server's channel list, members and statuses, voice channels, typing, incoming
+  calls and timelines stayed closed until a reload; they now reopen within seconds and fetch what
+  changed meanwhile. On a slow connection a reconnect could also lose every live feed for good.
+- **Thread replies sent during a connection drop appear on their own.** An open thread, in the panel
+  or as a page, showed them only after it was reopened.
+- **Live reactions on a post shown twice keep updating.** When one copy of the post closed, the
+  other stopped receiving reactions.
+- **DM call answers and hang-ups, and voice room effects, carry their real sender.** A participant
+  can no longer answer, decline or end a call as someone else, or start an effect in another
+  member's name. Apps before 1.9.8 cannot answer or end DM calls with updated apps until they
+  update.
+- **Answering or declining a call from another instance on one device stops it ringing on your
+  others.**
+- **Peer-to-peer calls carry their real sender.** Without LiveKit, call signals go through the
+  database, which names the sender; no member can offer media or end connections as another. Apps
+  before 1.9.8 cannot connect peer-to-peer calls on an updated instance until they update.
+- **Rejoining a peer-to-peer call no longer leaves a second connection and doubled audio.**
+- **Peer-to-peer calls connect when two people join at the same moment.**
+- **A DM call whose join fails stops ringing at once**, with no "No answer" 30 s later.
+- **Answering or declining a call on one device stops it ringing on your others**, nobody else in
+  the conversation can stop it for you, and a declined call no longer reports "Missed call".
+- **Signing out leaves you offline.** A heartbeat during sign-out no longer showed the account
+  online for up to 150 s.
+- **A two-factor code that verifies after the 30 s timeout finishes the sign-in properly**, for
+  password and provider sign-ins alike, instead of leaving the app half signed in.
+- **Settings changed right after a provider sign-in survive a reload.** On a shared device, nothing
+  is stored while signed out, and the next account no longer opens at the previous account's last
+  server and channel.
+- **Closing voice settings, or switching cameras, before the camera starts no longer leaves the
+  camera on.**
+- **Spatial audio positions end with the call, and the spatial audio on/off setting is each
+  account's own.**
+- **Removing an attachment keeps the other previews with their files**, and keyboard focus moves to
+  the next Remove button.
+- **The voice channel easter egg keeps working after Realtime closes its channel.**
+- **A message whose key could not reach every member says so.** When the encryption key of a sent
+  message cannot be shared with some members, even after a retry, the sender is told they may not be
+  able to read it yet. The message is still sent.
+- **A forged encrypted message shows as forged.** A message whose signature does not match its
+  sender reads "Message hidden", instead of looking like a message waiting for its key.
+- **An encrypted message the server stored twice is marked Repeated.** The later copy carries the
+  badge.
+- **Signing out cancels a key backup still scheduled.**
+- **Discord handles that match nobody on Harmony keep their domain.** `@user@host` typed in Discord
+  arrives as written instead of as `@user`. (bridge 2.8.0)
+- **A reply chain that loops back on itself stops at the repeat.** Remote posts replying to each
+  other are fetched once each instead of up to ten times.
+- **The `backfill-posts` maintenance script no longer restores removed posts.** It skips deleted
+  posts and rewrites content only from the same post, served from its own id, by its stored author.
+- **Generated emoji images download through the same address checks as other server fetches.**
+- **The bot gateway no longer logs bot messages' metadata.** Discord names, avatars and reply
+  excerpts from bridged messages stay out of the logs.
 - **Discord people stay in their own channel's member list.** Leaving a bridged channel before its
   member list loaded put its Discord people in the list of the channel opened next, even in another
   server, where they then came and went every minute.
@@ -489,8 +549,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   feed of the tab: the open conversation or channel, the conversation list, notifications, typing,
   voice channels and the channel list. They stayed closed after the renewal went through, until
   another chat was opened or the app reloaded. The app now keeps its current sign-in until the
-  renewal succeeds, and a conversation, channel or notification feed closed this way opens again
-  with the next renewal.
+  renewal succeeds, and every live feed closed this way opens again with the next renewal.
 - **Other tabs stayed half signed in after a sign-out on a bad connection.** When signing out could
   not reach the server, the other open tabs and windows were not told: they kept showing the
   account while every live feed and request went out signed out, until a reload. They now sign out
@@ -683,6 +742,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   app's own web process, where one that never yields would freeze the app.
 
 ### Notes for self-hosters
+- Peer-to-peer calls (instances without LiveKit) send their signals through the database, which
+  names the sender. Apps before 1.9.8 cannot connect peer-to-peer calls on an updated instance, and
+  cannot answer or end direct-message calls there, until they update; web tabs pick it up on reload.
+  LiveKit calls are unaffected.
+- Peer-to-peer calls use Google STUN and no TURN unless an admin sets servers in **Admin** →
+  **Config** → **Voice & video**; the public openrelay TURN relay is gone. Peers behind strict NATs
+  need the instance's own TURN: `docs/self-host/voice.md` sets up coturn in shared-secret mode,
+  which gives each account its own credentials.
 - An instance still named Harmony from an earlier install is named after its domain by
   `harmony update`, which prints one line. A name set in the admin panel stays. To keep Harmony on
   purpose, set it again in **Admin** → **Config** → **Branding**, or answer Harmony to `harmony config`.

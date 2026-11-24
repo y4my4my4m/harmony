@@ -152,7 +152,7 @@ vi.mock('@/components/dm/GroupSettingsModal.vue', () => stub('GroupSettingsModal
 vi.mock('@/components/search/MessageSearchModal.vue', () => stub('MessageSearchModal'))
 
 import DMHeader from '../DMHeader.vue'
-import { dmCallSignaling } from '@/services/DMCallSignaling'
+import { CallRingLimitedError, dmCallSignaling } from '@/services/DMCallSignaling'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 
 const CONV = '11111111-1111-1111-1111-111111111111'
@@ -385,6 +385,88 @@ describe('DMHeader outgoing call', () => {
 
     expect(toast.info).not.toHaveBeenCalledWith('No answer')
     expect(voice.leaveVoiceChannel).not.toHaveBeenCalled()
+  })
+
+  it('a join that fails cancels its ring: receivers are told, and no "No answer" follows', async () => {
+    const timedOut = vi.fn()
+    const off = dmCallSignaling.onRingTimeout(timedOut)
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+    expect(dmCallSignaling.getActiveCall(CONV)?.ringing).toBe(true)
+    join.aborted = true
+    join.release?.()
+    await settle()
+
+    expect(toast.error).toHaveBeenCalledWith('Failed to start call')
+    expect(rt.rpc).toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'end', p_receiver_ids: ['them'] }))
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    await (dmCallSignaling as any).handleCallTimeout(CONV)
+    expect(timedOut).not.toHaveBeenCalled()
+    expect(rt.rpc).not.toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'timeout' }))
+    expect(rang()).toBe(false)
+    off()
+  })
+
+  it('a federated call whose join fails is ended on the backend', async () => {
+    const fed = { ...conversation, other_user: { ...conversation.other_user, is_local: false, federated_id: 'https://remote.example/users/them' } }
+    const single = vi.spyOn(rt.query, 'single').mockResolvedValue({ data: { federated_id: 'https://harmony.test/users/me', username: 'me' }, error: null })
+    const initiate = vi.spyOn(dmCallSignaling, 'initiateFederatedCall').mockImplementation(async (conversationId: string) => {
+      ;(dmCallSignaling as any).setActiveCall(conversationId, {
+        conversationId, channelId: 'federated-dm-x', callType: 'voice', callerId: 'me', receiverIds: [],
+        participants: ['me'], allParticipants: ['me'], startedAt: new Date(), ringing: true, isFederated: true,
+      })
+      return { roomName: `federated-dm-${conversationId}-1`, callId: 'c1' } as any
+    })
+    const end = vi.spyOn(dmCallSignaling, 'endFederatedCall').mockResolvedValue()
+    wrapper = shallowMount(DMHeader, { props: { conversation: fed }, global: { directives: { 'click-outside': {} } } })
+    await settle()
+    await wrapper.find('.voice-btn').trigger('click')
+    await settle()
+    join.aborted = true
+    join.release?.()
+    await settle()
+
+    expect(toast.error).toHaveBeenCalledWith('Failed to start call')
+    expect(end).toHaveBeenCalledWith(CONV, 'me')
+    single.mockRestore()
+    initiate.mockRestore()
+    end.mockRestore()
+  })
+
+  const LIMITED = { message: 'ANTISPAM_RATE_LIMITED:30', code: 'P0001', hint: 'Limit reached: account_rings_per_minute.',
+    details: '{"kind": "ring", "limit": 10, "window_seconds": 60}' }
+
+  it('a call past the ring limit says when the next can ring, and joins nothing', async () => {
+    rt.rpc.mockImplementation(async (name: string) => (name === 'ring_dm_call'
+      ? { data: null, error: LIMITED } : rt.rpcResult(name)) as any)
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error.mock.calls[0][0]).not.toBe('Failed to start call')
+    expect(useUnifiedVoiceChannelStore().joinVoiceChannel).not.toHaveBeenCalled()
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    expect(rang()).toBe(false)
+  })
+
+  it('a federated call past the ring limit says so too', async () => {
+    const fed = { ...conversation, other_user: { ...conversation.other_user, is_local: false, federated_id: 'https://remote.example/users/them' } }
+    const single = vi.spyOn(rt.query, 'single').mockResolvedValue({ data: { federated_id: 'https://harmony.test/users/me', username: 'me' }, error: null })
+    const initiate = vi.spyOn(dmCallSignaling, 'initiateFederatedCall').mockRejectedValue(new CallRingLimitedError(LIMITED))
+    wrapper = shallowMount(DMHeader, { props: { conversation: fed }, global: { directives: { 'click-outside': {} } } })
+    await settle()
+    await wrapper.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error.mock.calls[0][0]).not.toMatch(/Failed to/)
+    expect(useUnifiedVoiceChannelStore().joinVoiceChannel).not.toHaveBeenCalled()
+    single.mockRestore()
+    initiate.mockRestore()
   })
 
   it('a busy answer after the join stops the jingle and leaves the call', async () => {

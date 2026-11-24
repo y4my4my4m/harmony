@@ -293,8 +293,9 @@ import { getAvatarUrl } from '@/utils/avatarUtils'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
-import { CallUndeliverableError, dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
+import { CallRingLimitedError, CallUndeliverableError, dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
 import { dmCallPermissions } from '@/services/DMCallPermissions'
+import { notifyModerationRejection } from '@/services/AutoModService'
 import { dmCallRoute, localCallReceivers } from '@/services/dmCallRouting'
 import { authContextService } from '@/services/AuthContextService'
 import { getInstanceDomain } from '@/services/instanceConfig'
@@ -386,7 +387,6 @@ const emit = defineEmits<{
   'toggle-voice-panel': []
   'group-updated': []
   'add-user': []
-  'incoming-call': [payload: { callerId: string, callType: 'voice' | 'video', conversationId: string }]
 }>()
 
 // Call state for THIS conversation. Another DM or a server voice channel
@@ -540,7 +540,7 @@ const initializePresenceTracking = async () => {
 /**
  * Stop tracking presence for a previously-subscribed user.
  *
- * BUGS.md H30: on conversation switch the watcher fires after props are
+ * On conversation switch the watcher fires after props are
  * updated, so defaulting to `props.conversation.other_user?.id` unsubscribes
  * the new user (a noop) and leaks the old user's subscription. Callers in
  * `watch()` paths must pass `oldUserId` explicitly; the unmount path uses the
@@ -565,7 +565,7 @@ let callSignalUnsubscribe: (() => void) | null = null
 const handleCallSignal = async (signal: CallSignal) => {
   if (!authStore.session?.user?.id) return
 
-  // BUGS.md Pattern A: signal participant IDs and permission lookups key on
+  // Signal participant IDs and permission lookups key on
   // profile ids, not auth UUIDs; the rest of the call codebase resolves via
   // `authContextService.getCurrentProfileId()`. An auth UUID here breaks
   // self-signal suppression, the `canReceiveCall` row lookup (block/DND/mute
@@ -581,34 +581,9 @@ const handleCallSignal = async (signal: CallSignal) => {
 
   // Own signals raise no notification.
   if (signal.callerId === currentUserId) return
-  
+
+  // Rings arrive on dm-calls:{profile} through ring_dm_call (GlobalDMCallListener), never here.
   switch (signal.type) {
-    case 'initiate': {
-      const permissionCheck = await dmCallPermissions.canReceiveCall(
-        signal.callerId,
-        currentUserId,
-        signal.conversationId
-      )
-
-      if (!permissionCheck.allowed) {
-        debug.log('Auto-declining call:', permissionCheck.reason)
-        await dmCallSignaling.declineCall(
-          signal.conversationId,
-          currentUserId,
-          permissionCheck.reason as any
-        )
-        return
-      }
-      if (permissionCheck.silent) return
-
-      emit('incoming-call', {
-        callerId: signal.callerId,
-        callType: signal.callType,
-        conversationId: signal.conversationId
-      })
-      break
-    }
-      
     case 'join':
     case 'accept':
     case 'leave':
@@ -1045,6 +1020,11 @@ const startLocalCall = async (profileId: string, callType: 'voice' | 'video', re
       toast.error(t('dm.callUndeliverable'))
       return
     }
+    // Past account_rings_per_minute: the refusal says when the next call can ring.
+    if (error instanceof CallRingLimitedError) {
+      notifyModerationRejection(error)
+      return
+    }
     throw error
   }
 
@@ -1064,6 +1044,8 @@ const startLocalCall = async (profileId: string, callType: 'voice' | 'video', re
     debug.log(`${callType} call overlay opened for caller`)
   } else {
     toast.error(voiceStore.joinError || 'Failed to start call')
+    // The ring ends with the call: receivers stop ringing, and no "No answer" follows.
+    await abandonOwnRing(profileId).catch(error => debug.warn('Cancelling the ring of a failed call failed:', error))
   }
 }
 
@@ -1093,13 +1075,22 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
   const callerFederatedId = myProfile.federated_id || `https://${getInstanceDomain()}/users/${myProfile.username}`
 
   ringRefused = false
-  const callInfo = await dmCallSignaling.initiateFederatedCall(
-    props.conversation.id,
-    profileId,
-    callerFederatedId,
-    calleeFederatedId,
-    callType
-  )
+  let callInfo: Awaited<ReturnType<typeof dmCallSignaling.initiateFederatedCall>>
+  try {
+    callInfo = await dmCallSignaling.initiateFederatedCall(
+      props.conversation.id,
+      profileId,
+      callerFederatedId,
+      calleeFederatedId,
+      callType
+    )
+  } catch (error) {
+    if (error instanceof CallRingLimitedError) {
+      notifyModerationRejection(error)
+      return
+    }
+    throw error
+  }
 
   if (!callInfo) {
     toast.error('Failed to initiate federated call')
@@ -1118,6 +1109,10 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     debug.log(`Federated ${callType} call initiated`)
   } else {
     toast.error(voiceStore.joinError || 'Failed to start call')
+    // The ring ends on the backend, which tells the callee's instance; no "No answer" follows.
+    if (dmCallSignaling.getActiveCall(props.conversation.id)?.ringing) {
+      await dmCallSignaling.endFederatedCall(props.conversation.id, profileId)
+    }
   }
 }
 

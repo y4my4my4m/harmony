@@ -1334,7 +1334,11 @@
       "lost": "復号できなくなった暗号化メッセージ",
       "decrypt": "暗号化メッセージ。復号する",
       "decrypting": "暗号化メッセージを復号中",
-      "locked": "暗号化メッセージ。読むには「設定」の「プライバシーと暗号化」で暗号化のロックを解除してください。"
+      "locked": "暗号化メッセージ。読むには「設定」の「プライバシーと暗号化」で暗号化のロックを解除してください。",
+      "forged": "メッセージを非表示：署名が送信者と一致しません",
+      "forgedHint": "この暗号化メッセージの署名は送信者の鍵で検証できません。改ざんされたか、表示されている送信者からのものではないため、復号されません。",
+      "replayed": "重複",
+      "replayedHint": "このメッセージは同じ送信者の以前の暗号化メッセージの繰り返しです。サーバーが同じメッセージを二重に保存したため、古いメッセージが別の場所に表示されている可能性があります。"
     },
     "spoiler": {
       "hidden": "ネタバレ、非表示。操作すると表示",
@@ -5544,6 +5548,10 @@
       "newDeviceLabel": "新しいデバイスですか？",
       "newDeviceReminder": "{label} そのデバイスでサインインして {another} を選び、このデバイスでコードをスキャンしてください。リカバリーキーを入力せずにメッセージのロックが解除されます。",
       "rememberNeed": "サインイン済みのすべてのデバイスにアクセスできなくなった場合や、ブラウザのデータを消去した場合に必要になります。"
+    },
+    "keyShareFailed": {
+      "title": "一部のメンバーはこのメッセージを読めない可能性があります",
+      "body": "{count} 人のメンバーに読むための鍵が届きませんでした。メッセージを開くと、アプリが鍵を再度要求します。"
     }
   },
   "admin": {
@@ -5771,7 +5779,11 @@
         "strangerDmsPerHour": "1時間あたりの知らない人との新しい会話数",
         "strangerDmsHint": "知らない人とは、そのアカウントをフォローしておらず、共通のサーバーも会話もない人です。",
         "newStrangerDmsPerHour": "新しいアカウントの場合",
-        "newStrangerDmsHint": "新しいアカウントとサーバーを共有しているだけの人も数えます。公開サーバーに参加すれば全メンバーに連絡できるためです。"
+        "newStrangerDmsHint": "新しいアカウントとサーバーを共有しているだけの人も数えます。公開サーバーに参加すれば全メンバーに連絡できるためです。",
+        "signalsPerMinute": "1 分あたりの通話シグナル",
+        "signalsHint": "P2P 通話の接続、DM 通話の応答と終了、通話エフェクト。10 人の通話への参加で約 45 回。",
+        "ringsPerMinute": "1 分あたりの発信数",
+        "ringsHint": "発信ごとに 1 回鳴ります。通話の終了は拒否されません。"
       },
       "bots": {
         "title": "ボット",
@@ -9222,5 +9234,31 @@
     "thirdParty": "サードパーティ",
     "desktopOnly": "パソコンのみ",
     "thirdPartyNotice": "このインスタンスがインストールしたサードパーティのアクティビティです。Harmony がアクティビティ内でパスワードを求めることはありません。"
+  },
+  "adminVoiceIce": {
+    "title": "P2P 通話：STUN と TURN",
+    "intro": "LiveKit がない場合、このインスタンスの通話は端末どうしで直接つながります。STUN サーバーは各端末に公開アドレスを知らせ、TURN サーバーは厳しい NAT やファイアウォールの内側など、互いに届かない端末のメディアを中継します。",
+    "stunDefault": "既定の STUN サーバーを使う",
+    "stunDefaultHint": "{urls}。通話では各参加者のアドレスがこれらのサーバーに送られます。",
+    "stunUrls": "STUN サーバー",
+    "stunUrlsHint": "1 行に 1 つの URL（例：stun:turn.example.com:3478）。空欄なら STUN サーバーを使いません。",
+    "turnUrls": "TURN サーバー",
+    "turnUrlsHint": "1 行に 1 つの URL（例：turn:turn.example.com:3478、turns:turn.example.com:5349）。空欄なら TURN サーバーを使いません。",
+    "turnAuth": "TURN の認証情報",
+    "turnAuthSecret": "共有シークレット",
+    "turnAuthSecretHint": "coturn の static-auth-secret（use-auth-secret）。通話ごとに 1 日有効な認証情報を発行します。",
+    "turnAuthPassword": "ユーザー名とパスワード",
+    "username": "TURN ユーザー名",
+    "secret": "共有シークレット",
+    "password": "TURN パスワード",
+    "secretKept": "保存済み。空欄のままなら変更しません。",
+    "invalidStun": "STUN の URL ではありません：{url}",
+    "invalidTurn": "TURN の URL ではありません：{url}",
+    "needsUsername": "パスワード方式の TURN サーバーにはユーザー名が必要です。",
+    "needsSecret": "TURN サーバーには共有シークレットかパスワードが必要です。",
+    "save": "保存",
+    "saved": "ICE サーバーを保存しました",
+    "saveFailed": "ICE サーバーを保存できませんでした。",
+    "loadFailed": "ICE サーバーを読み込めませんでした。"
   }
 }

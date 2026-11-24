@@ -1383,7 +1383,11 @@
       "lost": "Encrypted message that can no longer be decrypted",
       "decrypt": "Encrypted message. Decrypt",
       "decrypting": "Decrypting the encrypted message",
-      "locked": "Encrypted message. Unlock encryption in Settings, Privacy and encryption, to read it."
+      "locked": "Encrypted message. Unlock encryption in Settings, Privacy and encryption, to read it.",
+      "forged": "Message hidden: its signature does not match its sender",
+      "forgedHint": "This encrypted message's signature does not verify against its sender's key. It was altered, or it is not from the person it names, so it is not decrypted.",
+      "replayed": "Repeated",
+      "replayedHint": "This message repeats an earlier encrypted message from the same sender. The server stored one message twice, which can show an old message in a new place."
     },
     "spoiler": {
       "hidden": "Spoiler, hidden. Activate to reveal",
@@ -5540,6 +5544,10 @@
       "newDeviceLabel": "New device?",
       "newDeviceReminder": "{label} Sign in there and choose {another}, then scan its code from this device. Your messages unlock without typing the recovery key.",
       "rememberNeed": "You'll need it if you lose access to all your signed-in devices or clear your browser data."
+    },
+    "keyShareFailed": {
+      "title": "Some members may not be able to read your message",
+      "body": "The key to read it did not reach {count} member. Their app asks for it again when they open the message. | The key to read it did not reach {count} members. Their apps ask for it again when they open the message."
     }
   },
   "admin": {
@@ -5767,7 +5775,11 @@
         "strangerDmsPerHour": "New conversations with strangers per hour",
         "strangerDmsHint": "A stranger does not follow the account, shares no server with it and has no conversation with it.",
         "newStrangerDmsPerHour": "Same, for new accounts",
-        "newStrangerDmsHint": "Also counts people who share only a server with the new account: joining a public server reaches every member."
+        "newStrangerDmsHint": "Also counts people who share only a server with the new account: joining a public server reaches every member.",
+        "signalsPerMinute": "Call signals per minute",
+        "signalsHint": "Setting up peer-to-peer calls, answering and hanging up DM calls, call effects. Joining a call of ten people takes about 45.",
+        "ringsPerMinute": "Calls placed per minute",
+        "ringsHint": "Each call rings once. Hanging up is never refused."
       },
       "bots": {
         "title": "Bots",
@@ -9218,5 +9230,31 @@
     "thirdParty": "Third-party",
     "desktopOnly": "Computer only",
     "thirdPartyNotice": "Third-party activity, installed by this instance. Harmony never asks for your password inside an activity."
+  },
+  "adminVoiceIce": {
+    "title": "Peer-to-peer calls: STUN and TURN",
+    "intro": "Without LiveKit, calls on this instance connect device to device. STUN servers tell each device its public address; a TURN server relays the media of devices that cannot reach each other, such as behind strict NATs or firewalls.",
+    "stunDefault": "Use the default STUN servers",
+    "stunDefaultHint": "{urls}. Calls send each participant's address to these servers.",
+    "stunUrls": "STUN servers",
+    "stunUrlsHint": "One URL per line, such as stun:turn.example.com:3478. Empty: no STUN server.",
+    "turnUrls": "TURN servers",
+    "turnUrlsHint": "One URL per line, such as turn:turn.example.com:3478 or turns:turn.example.com:5349. Empty: no TURN server.",
+    "turnAuth": "TURN credentials",
+    "turnAuthSecret": "Shared secret",
+    "turnAuthSecretHint": "coturn's static-auth-secret (use-auth-secret). Each call gets its own credentials, valid for a day.",
+    "turnAuthPassword": "Username and password",
+    "username": "TURN username",
+    "secret": "Shared secret",
+    "password": "TURN password",
+    "secretKept": "Stored. Leave empty to keep it.",
+    "invalidStun": "Not a STUN URL: {url}",
+    "invalidTurn": "Not a TURN URL: {url}",
+    "needsUsername": "TURN servers with a password need a username.",
+    "needsSecret": "TURN servers need a shared secret or a password.",
+    "save": "Save",
+    "saved": "ICE servers saved",
+    "saveFailed": "The ICE servers could not be saved.",
+    "loadFailed": "The ICE servers could not be loaded."
   }
 }

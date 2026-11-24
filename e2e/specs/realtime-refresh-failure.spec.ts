@@ -4,8 +4,8 @@
 //    keeps the stored session and retries; getSession() meanwhile returns no session. The page's
 //    Realtime topics stay joined on the member's token through a heartbeat and a socket drop, and
 //    once the refresh succeeds the structure topic delivers a channel created after it.
-// 2. Realtime is handed the anon key: the open channel's message topic and the user topic close,
-//    their rejoin is refused. The next refresh's member token joins both again without a reload,
+// 2. Realtime is handed the anon key: every private topic of the page closes, and the rejoin of
+//    each is refused. The next refresh's member token joins all of them again without a reload,
 //    and a message sent after it reaches the open channel.
 // 3. Another tab signs out and its logout request fails, so the stored session is removed without
 //    auth-js. This tab signs out as well: its sidebar and user panel go, and its own topics join
@@ -247,16 +247,24 @@ test('topics refused on the anon key join again on the next member token', async
   test.setTimeout(180_000)
   const fake = await TokenCheckingRealtime.attach(page)
   const messages = `realtime:channel-messages-${server.generalChannelId}`
-  const user = `realtime:user:${member.id}`
+  const topics = [
+    `realtime:user:${member.id}`,
+    `realtime:dm-calls:${member.id}`,
+    `realtime:server-structure:${server.id}`,
+    `realtime:server-presence:${server.id}`,
+    `realtime:voice-channels:${server.id}`,
+    messages,
+    `realtime:typing:channel:${server.generalChannelId}`,
+  ]
 
-  await test.step('open a server channel: its message and user topics join', async () => {
+  await test.step('open a server channel: its private topics join', async () => {
     await signIn(page, member)
     await openChannel(page, server.id, server.generalChannelId)
-    await expect.poll(() => [messages, user].filter((t) => !fake.joined.has(t)), { timeout: 30_000 }).toEqual([])
+    await expect.poll(() => topics.filter((t) => !fake.joined.has(t)), { timeout: 30_000 }).toEqual([])
   })
 
   const anonAt = Date.now()
-  await test.step('Realtime is handed the anon key: both topics close and their rejoin is refused', async () => {
+  await test.step('Realtime is handed the anon key: every topic closes and its rejoin is refused', async () => {
     // What supabase-js 2.84 `_getAccessToken` answers while a refresh fails on the network. The
     // token callback answers it too until the refresh below, or a heartbeat (25 s) would hand
     // Realtime the member token before the rejoin.
@@ -268,20 +276,24 @@ test('topics refused on the anon key join again on the next member token', async
       realtime.accessToken = async () => anon
       await realtime.setAuth(anon)
     })
-    await expect.poll(() => [messages, user].filter((t) => fake.joined.has(t)), { timeout: 15_000 }).toEqual([])
-    await expect.poll(() => fake.rejectedSince(anonAt).filter((r) => r.startsWith('join')).length, { timeout: 15_000 }).toBeGreaterThan(0)
+    await expect.poll(() => topics.filter((t) => fake.joined.has(t)), { timeout: 15_000 }).toEqual([])
+    // Closed topics are opened again after 5 s plus up to half again; that join is refused.
+    const refused = () => new Set(fake.rejectedSince(anonAt).filter((r) => r.startsWith('join')).map((r) => r.split(' ')[1]))
+    await expect.poll(() => topics.filter((t) => !refused().has(t)), { timeout: 20_000 }).toEqual([])
   })
 
-  await test.step('the next refresh hands out a member token: both topics join on it', async () => {
+  await test.step('the next refresh hands out a member token: every topic joins on it', async () => {
     await page.evaluate(async () => {
       const { supabase } = await import('/src/supabase.ts')
       ;(supabase.realtime as any).accessToken = (window as any).__realtimeTokenCallback
       const { error } = await supabase.auth.refreshSession()
       if (error) throw error
     })
-    await expect.poll(() => [messages, user].filter((t) => !fake.joined.has(t)), { timeout: 15_000 }).toEqual([])
-    const joins = fake.tokens.filter((f) => f.kind === 'join' && f.at >= anonAt && f.topic === messages)
-    expect(subOf(joins[joins.length - 1].token)).toBe(member.id)
+    await expect.poll(() => topics.filter((t) => !fake.joined.has(t)), { timeout: 15_000 }).toEqual([])
+    for (const topic of topics) {
+      const joins = fake.tokens.filter((f) => f.kind === 'join' && f.at >= anonAt && f.topic === topic)
+      expect(subOf(joins[joins.length - 1].token), topic).toBe(member.id)
+    }
   })
 
   await test.step('a message sent after it reaches the open channel', async () => {

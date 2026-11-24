@@ -619,8 +619,7 @@ class WebRTCManagerService implements WebRTCManager {
   }
   
   // LIVE REACTIONS
-  // LiveKit data only: the P2P transport has no data channel, and its
-  // signalling broadcast carries an unauthenticated sender.
+  // LiveKit data only: the P2P transport has no data channel.
 
   sendLiveReaction(payload: Uint8Array): boolean {
     return this.activeService === 'livekit' && livekitWebRTC.sendLiveReaction(payload);

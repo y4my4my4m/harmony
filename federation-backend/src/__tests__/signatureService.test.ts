@@ -158,7 +158,7 @@ describe('SignatureService', () => {
     })
 
     it('rejects same-domain cross-user signature in strict mode (default)', () => {
-      // Regression for BUGS.md C1: a legitimate signer on a host must not be
+      // A legitimate signer on a host must not be
       // able to claim activity.actor for any *other* user on the same host.
       expect(
         SignatureService.verifyActorMatch(

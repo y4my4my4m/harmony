@@ -115,6 +115,12 @@
         class="unverified-author-badge"
         title="This message was decrypted but the sender's identity could not be cryptographically verified. The sender may be running an older client, or the message may have been tampered with."
       >Unverified author</span>
+      <span
+        v-if="decrypted && replayed"
+        class="unverified-author-badge replayed-badge"
+        data-testid="message-replayed"
+        :title="t('messageA11y.encrypted.replayedHint')"
+      >{{ t('messageA11y.encrypted.replayed') }}</span>
       <!-- Parts render in groups: a quote holding a link, mention or emoji is one blockquote
            around its text pieces and parts (utils/inlineMarkdownRuns); every other group is
            its parts alone. -->
@@ -146,10 +152,21 @@
         >
           <!-- Encrypted glyphs -->
           <template v-if="encrypted && !decrypted">
+            <!-- Signature does not verify against the sender's key: not decrypted, not
+                 retryable, set apart from a message waiting for its key. -->
+            <span
+              v-if="decryptionError === 'forged'"
+              class="encrypted-no-decrypt encrypted-forged"
+              data-testid="message-forged"
+              :title="t('messageA11y.encrypted.forgedHint')"
+            >
+              <Icon name="alert-triangle" :size="14" class="forged-icon" aria-hidden="true" />
+              <span>{{ t('messageA11y.encrypted.forged') }}</span>
+            </span>
             <!-- Permanently unrecoverable: encrypted with a key that no longer
                  exists. No click-to-decrypt - retrying would never succeed. -->
             <span
-              v-if="unrecoverable"
+              v-else-if="unrecoverable"
               class="encrypted-no-decrypt encrypted-unrecoverable encrypted-glyphs"
               title="This message was encrypted with a previous key that no longer exists on this account, so it can't be decrypted."
             >
@@ -842,7 +859,7 @@
 import { defineComponent, watch, ref, nextTick, reactive, onMounted, onUpdated, onUnmounted, computed, shallowRef, effectScope, type EffectScope } from 'vue';
 import type { PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { EmbedPayload, MessagePart, FileContent } from '@/types';
+import type { DecryptionErrorKind, EmbedPayload, MessagePart, FileContent } from '@/types';
 import { coalesceInlineContentForMarkdown, extractFileParts } from '@/utils/messageContentUtils';
 import { withUnmatchedMentionsAsText } from '@/utils/unmatchedMentions';
 import AutoSuggest from '@/components/AutoSuggest.vue';
@@ -1009,6 +1026,16 @@ export default defineComponent({
     unrecoverable: {
       type: Boolean,
       default: false
+    },
+    /** Why decryption failed (Message.decryption_error). */
+    decryptionError: {
+      type: String as PropType<DecryptionErrorKind | undefined>,
+      default: undefined,
+    },
+    /** Decrypted, and an earlier message of another id holds its session index (Message.decryption_replayed). */
+    replayed: {
+      type: Boolean,
+      default: false,
     },
     /**
      * Megolm v2 sender-binding verification result.
@@ -3105,5 +3132,19 @@ a.channel-mention {
 .encrypted-unrecoverable .unrecoverable-lock {
   margin-right: 4px;
   opacity: 0.8;
+}
+
+.encrypted-forged {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 45%, transparent);
+  border-radius: 4px;
+  cursor: help;
 }
 </style>

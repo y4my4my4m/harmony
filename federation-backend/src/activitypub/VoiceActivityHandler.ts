@@ -285,10 +285,11 @@ export class VoiceActivityHandler {
   /**
    * Call event on the party's private user:{profileId} channel, as
    * `federated_call:{event}`. Only its owner subscribes or sends there.
+   * 'answered' tells the party's own devices that one of them took or refused the ring.
    */
-  private static async notifyCallParty(
+  static async notifyCallParty(
     profileId: string,
-    event: 'incoming' | 'accepted' | 'rejected' | 'ended',
+    event: 'incoming' | 'accepted' | 'rejected' | 'ended' | 'answered',
     payload: Record<string, unknown>,
   ): Promise<void> {
     const { error } = await getSupabaseClient().rpc('broadcast_user_event', {

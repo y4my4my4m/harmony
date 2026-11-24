@@ -67,6 +67,11 @@ export const CAPABILITIES = [
   // Server members by range, search and id: get_server_member_list, search_server_members,
   // get_server_member_roles, get_server_role_member_counts and server_member_stats (20261113100001).
   'member-directory',
+  // Call signals through send_signal, which names the sender: harmony-voice-<room>,
+  // dm-call:<conversation> and easter-egg:<room> take no client broadcast (20261124100001);
+  // voice_ice_servers names the instance's STUN and TURN servers (20261124100002). An app on an older
+  // instance broadcasts its signals itself.
+  'signal-relay',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

@@ -54,7 +54,6 @@
     "set-version": "node scripts/set-version.mjs"
   },
   "dependencies": {
-    "@privacyresearch/libsignal-protocol-typescript": "^0.0.16",
     "@supabase/supabase-js": "^2.84.0",
     "@tanstack/vue-virtual": "^3.13.21",
     "@tauri-apps/api": "3.0.0-alpha.2",
@@ -134,6 +133,7 @@
     "vue-tsc": "^2.2.12"
   },
   "overrides": {
-    "minimatch": "^9.0.7"
+    "minimatch": "^9.0.7",
+    "@supabase/realtime-js": "2.119.0"
   }
 }

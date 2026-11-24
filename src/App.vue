@@ -282,7 +282,7 @@ onMounted(() => {
   // Haptic feedback for interactive elements: exactly one delegated click
   // listener, resolving the strongest matching pattern and returning after the
   // first hit. Per-selector listeners would fire several triggers on one tap
-  // and accumulate across remounts (H44). Removed on unmount.
+  // and accumulate across remounts. Removed on unmount.
   const hapticSelectors: Array<{ selector: string; pattern: string }> = [
     { selector: '.card-interactive', pattern: 'medium' },
     { selector: 'a[href]', pattern: 'selection' },

@@ -847,3 +847,25 @@ describe('PATCH /messages/:id/content-silent never replaces a mirrored part', ()
     expect(res.status).toBe(200)
   })
 })
+
+describe('send logging', () => {
+  it('logs nothing of a bridged message\'s metadata', async () => {
+    seed()
+    const metadata = {
+      bridge_source: 'discord',
+      discord_message_id: '500000000000000001',
+      discord_author: { id: '400000000000000009', username: 'private-handle', avatar_url: 'https://cdn.discordapp.com/avatars/4/a.png' },
+      reply_excerpt: 'a quoted private line',
+    }
+    await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: [{ type: 'text', text: 'hi' }], metadata })
+
+    const logged = [console.log, console.info, console.debug]
+      .flatMap((fn) => vi.isMockFunction(fn) ? fn.mock.calls : [])
+      .flat()
+      .map((arg) => typeof arg === 'string' ? arg : JSON.stringify(arg))
+      .join('\n')
+    for (const secret of ['private-handle', 'cdn.discordapp.com', 'a quoted private line', '400000000000000009']) {
+      expect(logged).not.toContain(secret)
+    }
+  })
+})

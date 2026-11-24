@@ -8,6 +8,32 @@ import { userStorage } from '@/utils/userScopedStorage';
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup';
 
 let sessionRejectionSubscribed = false;
+// Stores whose adopted sessions name the user-scoped storage account.
+const storageAccountFollowed = new WeakSet<object>();
+
+// mfa.verify bound, ms; without one, mobile clients spin forever.
+const MFA_VERIFY_TIMEOUT_MS = 30_000;
+const TIMED_OUT = Symbol('timed out');
+
+// Bumped by login() and cancelPendingSignIn(): a verify answered after its timeout finishes
+// the sign-in only while the attempt it belongs to is current.
+let signInAttempt = 0;
+// A verify that outlived its timeout. Its session is adopted through verify2FA's late path,
+// not by the MFA_CHALLENGE_VERIFIED handler.
+let lateVerify: Promise<void> | null = null;
+
+/** The verify's outcome, or TIMED_OUT; the timer ends with the race. */
+async function withVerifyTimeout<T>(verify: Promise<T>): Promise<T | typeof TIMED_OUT> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      verify,
+      new Promise<typeof TIMED_OUT>((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), MFA_VERIFY_TIMEOUT_MS); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** Drops queued sends. Imported on use: the outbox store imports this one. */
 async function resetOutbox(): Promise<void> {
@@ -77,7 +103,7 @@ export const useAuthStore = defineStore('auth', {
      * to AAL1 (~24h default). That distinguishes "long session whose MFA
      * grace period expired" (safe - keep the user logged in per
      * docs/contribute/architecture.md#two-factor-enforcement) from "fresh AAL1 mid-login that never
-     * completed MFA" (unsafe - must reject, BUGS.md C11/M64).
+     * completed MFA" (unsafe - must reject).
      */
     getAMR(session: Session | null): string[] {
       if (!session) return [];
@@ -169,6 +195,19 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     async initializeAuth() {
+      // An adopted session names the user-scoped storage account, whichever path adopted it
+      // (OAuth callback, MFA verification, token events): with no account, user-scoped values
+      // are neither read nor written. A recovery session is not a sign-in.
+      if (!storageAccountFollowed.has(this)) {
+        storageAccountFollowed.add(this);
+        this.$subscribe((_mutation, state) => {
+          const userId = state.session?.user?.id;
+          if (userId && !state.isPasswordResetMode && userStorage.getCurrentUser() !== userId) {
+            userStorage.setCurrentUser(userId);
+          }
+        }, { flush: 'sync', detached: true });
+      }
+
       // PERFORMANCE: reuse a recently fetched session instead of calling getSession() again
       const now = Date.now()
       if (this._sessionCacheTimestamp && (now - this._sessionCacheTimestamp) < this._sessionCacheTimeout) {
@@ -177,8 +216,7 @@ export const useAuthStore = defineStore('auth', {
         if (!session) {
           // No cached session: fetch, and validate before adopting even on
           // a cache hit. Otherwise a tab picks up an AAL1 session written
-          // by another tab between cache refreshes and skips MFA entirely
-          // (BUGS.md C11 / M64).
+          // by another tab between cache refreshes and skips MFA entirely.
           const { data: getSessionData } = await supabase.auth.getSession()
           const refetched = getSessionData.session
           if (refetched) {
@@ -368,6 +406,7 @@ export const useAuthStore = defineStore('auth', {
         }
         
         if (event === 'MFA_CHALLENGE_VERIFIED') {
+          if (lateVerify) return;
           debug.log('MFA challenge verified - allowing session through');
           this.session = session;
           if (session?.user?.id) {
@@ -434,7 +473,7 @@ export const useAuthStore = defineStore('auth', {
             const alreadyValidated = this._mfaValidatedForSession === session.access_token
             const isValid = alreadyValidated || (await this.validateSessionForMFA(session))
             if (!isValid) {
-              debug.warn('INITIAL_SESSION blocked: AAL1 session with MFA enabled (BUGS.md C11)')
+              debug.warn('INITIAL_SESSION blocked: AAL1 session with MFA enabled')
               await signOutAndForget()
               this.session = null
               this.cleanupNotificationSystem()
@@ -472,7 +511,7 @@ export const useAuthStore = defineStore('auth', {
           }
           const isValid = await this.validateSessionForMFA(session);
           if (!isValid) {
-            debug.warn(`${event} blocked: AAL1 session with MFA enabled (BUGS.md C11)`)
+            debug.warn(`${event} blocked: AAL1 session with MFA enabled`)
             await signOutAndForget()
             this.session = null
             return
@@ -564,6 +603,7 @@ export const useAuthStore = defineStore('auth', {
       // AAL1 session survives, listFactors finds the factor, and the flow
       // below either routes to the MFA modal or finalizes the session.
       this._pendingMFAVerification = true;
+      signInAttempt++;
 
       try {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -655,20 +695,26 @@ export const useAuthStore = defineStore('auth', {
      */
     async cancelPendingSignIn() {
       this._pendingMFAVerification = false;
+      signInAttempt++;
       await signOutAndForget();
       this.session = null;
     },
 
     async verify2FA(factorId: string, challengeId: string, code: string) {
+      const attempt = signInAttempt;
       try {
         // GoTrue expires a challenge after five minutes; a code typed after that is
         // checked against a fresh challenge instead of failing the sign-in.
-        const verifyOnce = (id: string) => {
-          // 30s timeout race; without it mobile clients spin forever
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('MFA verification timed out. Please try logging in again.')), 30000),
-          );
-          return Promise.race([supabase.auth.mfa.verify({ factorId, challengeId: id, code }), timeoutPromise]);
+        const verifyOnce = async (id: string): Promise<{ data: unknown; error: unknown }> => {
+          const verify = supabase.auth.mfa.verify({ factorId, challengeId: id, code });
+          const outcome = await withVerifyTimeout(verify);
+          if (outcome !== TIMED_OUT) return outcome;
+          // GoTrue stores the session and emits MFA_CHALLENGE_VERIFIED before mfa.verify resolves.
+          if (this.session && this.getAAL(this.session) === 'aal2') {
+            return { data: { session: this.session }, error: null };
+          }
+          this.adoptLateVerify(verify, attempt);
+          throw new Error('MFA verification timed out. Please try logging in again.');
         };
 
         let { data: verifyData, error: verifyError } = await verifyOnce(challengeId);
@@ -702,6 +748,30 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         this._pendingMFAVerification = false;
       }
+    },
+
+    /**
+     * A verify answered after its timeout. GoTrue stores its aal2 session regardless; it
+     * finishes the sign-in while that attempt is current and no other sign-in finished. After
+     * a cancel, the cancel's local sign-out runs after the verify on GoTrue's auth lock and
+     * ends that session; a new login() replaces it in storage.
+     */
+    adoptLateVerify(verify: Promise<{ error: unknown }>, attempt: number) {
+      const late: Promise<void> = verify
+        .then(async ({ error }) => {
+          if (lateVerify === late) lateVerify = null;
+          if (error || attempt !== signInAttempt || this.session) return;
+          const { data } = await supabase.auth.getSession();
+          const session = data.session;
+          if (!session || this.getAAL(session) !== 'aal2' || attempt !== signInAttempt || this.session) return;
+          await this.finalizeSignIn(session);
+          debug.log('2FA verified after the timeout - session upgraded to AAL2');
+        })
+        .catch((error) => {
+          if (lateVerify === late) lateVerify = null;
+          debug.warn('Late MFA verification not adopted:', error);
+        });
+      lateVerify = late;
     },
 
     /**
@@ -870,7 +940,7 @@ export const useAuthStore = defineStore('auth', {
         const activityPubStore = useActivityPubStore()
         activityPubStore.cleanupRealtimeSubscriptions()
         activityPubStore.clearTimelineCache()
-        // BUGS.md Pattern B / #3 v2: typed store action. `bookmarks` is
+        // Typed store action. `bookmarks` is
         // `TimelinePost[]`, not an object with `.posts`. See
         // `resetUserRelationshipState` for the fields it covers.
         activityPubStore.resetUserRelationshipState()
@@ -879,10 +949,9 @@ export const useAuthStore = defineStore('auth', {
       }
 
       try {
-        // BUGS.md Pattern B / #1: voice channel state lives under a global
-        // localStorage key. Uncleared, the next user on a shared device
-        // auto-reconnects to the previous user's channel. Force-leave
-        // before clearing the saved state.
+        // Uncleared voice channel state auto-reconnects the next user on a
+        // shared device to the previous user's channel. Force-leave before
+        // clearing the saved state.
         const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
         const voiceStore = useUnifiedVoiceChannelStore()
         if (voiceStore.isConnected) {
@@ -895,7 +964,7 @@ export const useAuthStore = defineStore('auth', {
       }
 
       try {
-        // BUGS.md Pattern B / #4: reactions Maps and the 30 s reconcile
+        // Reactions Maps and the 30 s reconcile
         // interval leak across user sessions in the same tab unless
         // stopped. `$dispose` on useReactions clears the interval and any
         // pending reconcile timeouts.
@@ -909,7 +978,7 @@ export const useAuthStore = defineStore('auth', {
       }
 
       try {
-        // BUGS.md Pattern B / #4 v2: `usePostReactionsStore` is a setup
+        // `usePostReactionsStore` is a setup
         // store, so Pinia's `$reset()` throws ("does not implement
         // $reset"). Its `$dispose` clears the Maps, Sets, and pending
         // reconcile timeouts.
@@ -923,7 +992,7 @@ export const useAuthStore = defineStore('auth', {
       }
 
       try {
-        // BUGS.md Pattern B / #5 + M11: cleanupBroadcastHandlers also clears
+        // cleanupBroadcastHandlers also clears
         // the DND check `setInterval`, which would otherwise fire against a
         // stale store after logout.
         const { useNotificationStore } = await import('@/stores/useNotification')
@@ -1002,7 +1071,7 @@ export const useAuthStore = defineStore('auth', {
       }
 
       try {
-        // BUGS.md H50: permission/role caches are module-level, outside
+        // Permission/role caches are module-level, outside
         // Pinia state. Uncleared, the previous user's permission map leaks
         // to the next user on a shared device.
         const { clearAllPermissionCaches } = await import('@/composables/useServerPermissions')

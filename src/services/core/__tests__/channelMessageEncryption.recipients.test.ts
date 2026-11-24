@@ -17,6 +17,8 @@ const { service } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/services/encryption/MegolmMessageEncryptionService', () => ({ megolmMessageEncryptionService: service }))
+const { noticeKeyShareFailures } = vi.hoisted(() => ({ noticeKeyShareFailures: vi.fn() }))
+vi.mock('@/services/encryption/keyShareNotice', () => ({ noticeKeyShareFailures }))
 
 import { encryptChannelContent } from '../channelMessageEncryption'
 
@@ -33,6 +35,7 @@ beforeEach(() => {
   vi.mocked(supabase.from).mockReset()
   service.roomRecipients.mockReset()
   service.encryptMessage.mockClear()
+  noticeKeyShareFailures.mockClear()
 })
 
 describe('encryptChannelContent recipients', () => {
@@ -51,5 +54,16 @@ describe('encryptChannelContent recipients', () => {
     expect(supabase.from).toHaveBeenCalledWith('user_servers')
     expect(range).toHaveBeenCalledTimes(1)
     expect(service.encryptMessage).toHaveBeenCalledWith(params.content, 'chan', ['a', 'me'])
+  })
+
+  it('tell the sender how many members the session key did not reach', async () => {
+    service.roomRecipients.mockResolvedValue(['a', 'b'])
+    service.encryptMessage.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'ciphertext' }], encryption_metadata: {}, key_share_failures: 2,
+    } as any)
+    const payload = await encryptChannelContent(params)
+    expect(noticeKeyShareFailures).toHaveBeenCalledWith(2)
+    expect(payload).not.toHaveProperty('key_share_failures')
+    expect(payload.encryption_metadata).not.toHaveProperty('key_share_failures')
   })
 })

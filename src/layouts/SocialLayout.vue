@@ -479,7 +479,7 @@ onMounted(() => {
   void fundingStore.load()
 })
 
-// BUGS.md H32: realtime subscriptions are app-scoped and torn down by
+// Realtime subscriptions are app-scoped and torn down by
 // `auth.logout()` via the auth store, not on route change. Calling
 // `cleanupRealtimeSubscriptions()` on unmount here strips every ActivityPub
 // broadcast handler off the userEventChannel, and most non-social routes never

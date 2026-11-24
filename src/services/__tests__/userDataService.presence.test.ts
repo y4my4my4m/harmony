@@ -89,6 +89,19 @@ vi.mock('@/services/UserEventChannel', () => ({
 vi.mock('@/services/ActivityTracker', () => ({ activityTracker: new EventTarget() }))
 vi.mock('@/services/unifiedEmojiService', () => ({ loadEmojiData: vi.fn(), isLoaded: { value: true } }))
 vi.mock('@/utils/clientDeviceId', () => ({ getClientDeviceId: () => 'tab-1' }))
+const tokens = vi.hoisted(() => ({ current: 'member-1', listeners: new Set<(token: string) => void>() }))
+vi.mock('@/services/realtimeMemberToken', () => ({
+  currentRealtimeToken: () => tokens.current,
+  onMemberToken: (listener: (token: string) => void) => {
+    tokens.listeners.add(listener)
+    return () => tokens.listeners.delete(listener)
+  },
+}))
+/** What auth does on TOKEN_REFRESHED / SIGNED_IN once Realtime holds the token. */
+const handOut = (token: string) => {
+  tokens.current = token
+  for (const listener of [...tokens.listeners]) listener(token)
+}
 vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
 import { userDataService } from '@/services/userDataService'
@@ -212,6 +225,36 @@ describe('server presence channel errors', () => {
     }
   })
 
+  it('opens a refused channel again on another member token, not on the one it was refused on', async () => {
+    vi.useFakeTimers()
+    try {
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      fail(REFUSAL)
+      handOut(tokens.current)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(opened()).toHaveLength(1)
+
+      handOut('member-2')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(opened()).toHaveLength(2)
+      expect(opened()[1].removed).toBe(false)
+
+      db.calls.length = 0
+      opened()[1].status!('SUBSCRIBED')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(db.calls.some((c: any) => c.fn === 'get_presence')).toBe(true)
+
+      // Left meanwhile: no context, nothing to open.
+      fail(REFUSAL)
+      await userDataService.unsubscribeFromContext('server-1')
+      handOut('member-3')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(opened()).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('opens the channel again when the user comes back to a refused server', async () => {
     vi.useFakeTimers()
     try {
@@ -291,6 +334,75 @@ describe('server presence channel errors', () => {
       fail('timeout')
       await vi.advanceTimersByTimeAsync(5_000)
       expect(opened()).toHaveLength(4)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('server presence channel closed by the server', () => {
+  const opened = () => db.channels.filter((c) => c.topic === 'server-presence:server-1')
+
+  it('opens a new channel after the backoff and re-reads presence once it is back', async () => {
+    vi.useFakeTimers()
+    try {
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      opened()[0].status!('SUBSCRIBED')
+      opened()[0].status!('CLOSED')
+      await vi.advanceTimersByTimeAsync(4_999)
+      expect(opened()).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(2_501)
+      expect(opened()).toHaveLength(2)
+
+      db.calls.length = 0
+      opened()[1].status!('SUBSCRIBED')
+      expect(db.calls.some((c) => c.fn === 'get_presence')).toBe(true)
+
+      // The first channel's late callbacks are ignored.
+      opened()[0].status!('CLOSED')
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(opened()).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retries TIMED_OUT as it retries CHANNEL_ERROR', async () => {
+    vi.useFakeTimers()
+    try {
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      opened()[0].status!('TIMED_OUT')
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(opened()).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('opens nothing once the server is left', async () => {
+    vi.useFakeTimers()
+    try {
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      opened()[0].status!('CLOSED')
+      await userDataService.unsubscribeFromContext('server-1')
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(opened()).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('takes the CLOSED its own unsubscribe reports as no server close', async () => {
+    vi.useFakeTimers()
+    try {
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      const ch = opened()[0]
+      const unsubscribe = vi.fn(async () => { ch.status!('CLOSED'); return 'ok' })
+      ;((userDataService as any).contexts.get('server-1').channel).unsubscribe = unsubscribe
+      await userDataService.unsubscribeFromContext('server-1')
+      expect(unsubscribe).toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(opened()).toHaveLength(1)
     } finally {
       vi.useRealTimers()
     }

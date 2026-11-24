@@ -16,6 +16,7 @@ import {
   forgetChannelEncryption,
 } from '@/services/ChannelEncryptionService'
 import { mediaRoom, messageMediaPathsIn } from '@/services/privateMedia'
+import { noticeKeyShareFailures } from '@/services/encryption/keyShareNotice'
 
 /**
  *   setup        the sender has no encryption keys
@@ -169,6 +170,7 @@ export async function encryptChannelContent(params: {
     if (!recipientIds.includes(params.senderId)) recipientIds.push(params.senderId)
 
     const encrypted = await service.encryptMessage(params.content, params.channelId, recipientIds)
+    noticeKeyShareFailures(encrypted.key_share_failures)
     return {
       content: withPlaintextMentions(encrypted.content, params.content),
       encryption_metadata: encrypted.encryption_metadata,

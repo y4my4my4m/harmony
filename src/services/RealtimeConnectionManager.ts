@@ -124,14 +124,14 @@ interface ManagedSubscription {
    * Set whenever a subscription becomes disconnected for any reason
    * (CHANNEL_ERROR / TIMED_OUT / CLOSED / `forceReconnect[All]` triggered by
    * `online` / `visibilitychange`). Cleared when the next SUBSCRIBED event
-   * fires `onReconnected`. Required for gap-fill correctness (BUGS.md C13):
+   * fires `onReconnected`. Required for gap-fill correctness:
    * `forceReconnect()` zeroes `retryCount` before reconnecting, so a
    * `retryCount > 0` test misses every wake-from-sleep / network-restore gap.
    */
   pendingGapFill: boolean
   /**
    * `removeChannel()` drives the CLOSED status callback synchronously:
-   * `unsubscribe()` sets the channel state to `leaving`, so `_canPush()` is
+   * `unsubscribe()` sets the channel state to `leaving`, so `canPush()` is
    * false and the leave push resolves inline.
    */
   tearingDown: boolean
@@ -311,14 +311,14 @@ class RealtimeConnectionManagerService {
     const { channelName } = config
     
     if (this.subscriptions.has(channelName)) {
-      // BUGS.md H29: a name collision tears the channel down and rebuilds it.
+      // A name collision tears the channel down and rebuilds it.
       // Replacing `managedSub.config` in place does not work:
       // `connectTableSubscription` closes over a local `config` reference, so
       // the handlers stay bound to the old config, and the Supabase channel
       // still carries the old filter/table targets. Collisions are logged
       // loudly so they surface in dev/staging.
       debug.warn(
-        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding with the new caller's handlers (BUGS.md H29). Callers should use unique channel names.`,
+        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding with the new caller's handlers. Callers should use unique channel names.`,
       )
       this.unsubscribe(channelName)
     }
@@ -357,9 +357,8 @@ class RealtimeConnectionManagerService {
     const { channelName } = config
 
     if (this.subscriptions.has(channelName)) {
-      // See BUGS.md H29 in subscribeToTable() for context.
       debug.warn(
-        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding (BUGS.md H29).`,
+        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding.`,
       )
       this.unsubscribe(channelName)
     }
@@ -406,9 +405,8 @@ class RealtimeConnectionManagerService {
     const { channelName } = config
     
     if (this.subscriptions.has(channelName)) {
-      // See BUGS.md H29 in subscribeToTable() for context.
       debug.warn(
-        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding (BUGS.md H29).`,
+        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding.`,
       )
       this.unsubscribe(channelName)
     }
@@ -444,9 +442,8 @@ class RealtimeConnectionManagerService {
     const { channelName } = config
     
     if (this.subscriptions.has(channelName)) {
-      // See BUGS.md H29 in subscribeToTable() for context.
       debug.warn(
-        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding (BUGS.md H29).`,
+        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding.`,
       )
       this.unsubscribe(channelName)
     }
@@ -728,7 +725,7 @@ class RealtimeConnectionManagerService {
     
     switch (status) {
       case 'SUBSCRIBED': {
-        // BUGS.md C13: gap-fill fires whenever this subscription was
+        // Gap-fill fires whenever this subscription was
         // disconnected and is back up, by any route (retry, forceReconnect,
         // forceReconnectAll). Keyed off pendingGapFill, not `retryCount > 0`:
         // forceReconnect*() zeroes retryCount before reconnecting.
@@ -963,7 +960,7 @@ class RealtimeConnectionManagerService {
     
     debug.log(`RealtimeManager: Force reconnecting ${channelName}`)
 
-    // BUGS.md C13: a forced reconnect (online / visibility / health-check)
+    // A forced reconnect (online / visibility / health-check)
     // implies events were missed while disconnected. Flag gap-fill before
     // zeroing retryCount so the SUBSCRIBED handler fires `onReconnected`.
     managedSub.pendingGapFill = true

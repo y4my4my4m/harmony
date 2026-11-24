@@ -188,6 +188,8 @@
                     :encrypted="thread.parent_message.encrypted || false"
                     :decrypted="thread.parent_message.decrypted || false"
                     :unrecoverable="thread.parent_message.decryption_unrecoverable || false"
+                    :decryption-error="thread.parent_message.decryption_error"
+                    :replayed="thread.parent_message.decryption_replayed || false"
                     :media-hidden="mediaHidden"
                   />
                 </div>
@@ -303,7 +305,7 @@ import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { isVideoMessageUrl } from '@/utils/klipyAttribution'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 import { routeMessageEvent, type MessageEventHandlers } from '@/stores/shared/realtimeMessageEvent'
-import { useThreadsStore, mergeFreshThreadMessages, landThreadReply } from '@/stores/useThreads'
+import { useThreadsStore, mergeFreshThreadMessages, landThreadReply, fillThreadGap } from '@/stores/useThreads'
 import { usePinsStore } from '@/stores/usePins'
 import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
@@ -1076,9 +1078,33 @@ const setupRealtimeSubscription = () => {
   threadSubscription.value = realtimeConnectionManager.subscribeBroadcast({
     channelName,
     broadcasts: [{ event: 'message_event', handler: (payload) => routeMessageEvent(payload, handlers) }],
+    // Replies sent while the topic was down reach no transport.
+    onReconnected: () => fillReplyGap(),
   })
 
   debug.log(`Subscribed to thread messages: ${channelName}`)
+}
+
+/** Lands the replies a Realtime gap kept from the list. A refresh in flight reads them itself. */
+const fillReplyGap = async () => {
+  const threadId = thread.value?.id
+  if (!threadId || refreshInFlight) return
+  try {
+    const gap = await fillThreadGap(
+      () => (thread.value?.id === threadId ? messages.value : null),
+      (options) => threadService.getThreadMessages(threadId, options),
+    )
+    if (!gap) return
+    messages.value = gap.messages
+    if (gap.hasMore !== undefined) hasMore.value = gap.hasMore
+    for (const reply of gap.added) threadService.addMessageToCache(threadId, reply)
+    if (gap.added.length) {
+      await nextTick()
+      scrollToBottom()
+    }
+  } catch (error) {
+    debug.warn('Thread gap fill failed:', error)
+  }
 }
 
 const cleanupReactionsSubscription = () => {

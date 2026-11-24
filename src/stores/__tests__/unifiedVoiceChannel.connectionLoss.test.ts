@@ -28,7 +28,7 @@ vi.mock('@/services/voice/voiceAudioContext', () => ({ closeVoiceAudioContext: v
 vi.mock('@/services/VoiceSettingsService', () => ({ VoiceSettingsService: {}, normalizeOutputVolume: (v: number) => v }))
 vi.mock('@/services/spatialAudio', () => ({ spatialAudioService: {} }))
 vi.mock('@/services/DMCallSignaling', () => ({ dmCallSignaling: {} }))
-vi.mock('@/stores/spatialAudio', () => ({ useSpatialAudioStore: () => ({}) }))
+vi.mock('@/stores/spatialAudio', () => ({ useSpatialAudioStore: () => ({ reset: () => {} }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({}) }))
 vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profile: null }) }))
 vi.mock('@/stores/useServerUsers', () => ({ useServerUsersStore: () => serverUsers }))

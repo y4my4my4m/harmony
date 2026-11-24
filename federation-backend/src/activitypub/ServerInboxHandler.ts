@@ -47,7 +47,7 @@ const PERM_KICK_MEMBERS = 9n;
 
 // The server inbox authenticates the sender but permits same-domain delegation.
 // Each mutating handler gates on the actor's own standing: owner, member, role,
-// or object ownership. See BUGS.md server-inbox authz.
+// or object ownership.
 
 export async function resolveActorProfileId(supabase: any, actorUrl: string): Promise<string | null> {
   if (!actorUrl) return null;

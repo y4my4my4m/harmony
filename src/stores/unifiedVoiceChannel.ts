@@ -1975,7 +1975,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           channelName: this.currentChannelName,
           timestamp: Date.now()
         };
-        // BUGS.md Pattern B / item #2: `userStorage` scopes the key to the
+        // `userStorage` scopes the key to the
         // current user. An unscoped `localStorage` key survives logout, so on
         // a shared device the next user auto-reconnects to the previous
         // user's voice channel.
@@ -2035,6 +2035,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       userStorage.removeItem('voiceChannelState');
       userStorage.removeItem('active-voice-session');
       this._spatialMicTrackIds = {};
+      useSpatialAudioStore().reset();
       this.stopVoiceSessionHeartbeat();
       debug.log('Cleared voice channel state');
     },
@@ -2091,6 +2092,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     async initializeSpatialAudio(userId: string): Promise<void> {
       try {
         const spatialStore = useSpatialAudioStore();
+        spatialStore.loadEnabled();
         
         await spatialAudioService.initialize();
         spatialAudioService.setListener(userId);
@@ -2164,7 +2166,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         return;
       }
 
-      // BUGS.md #8: screen-share lifecycle paths (such as dismissing the
+      // Screen-share lifecycle paths (such as dismissing the
       // browser picker mid-flight) can re-enable the dry `<audio>` playback,
       // which then plays alongside the spatial graph. Dry mute is re-asserted
       // here so the two never overlap.

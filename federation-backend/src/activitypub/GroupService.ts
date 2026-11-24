@@ -1082,7 +1082,7 @@ router.post(
         }
         logger.warn(`Accepting invalid signature on server inbox (REQUIRE_VALID_SIGNATURES=false)`);
       } else if (verification.actorUrl) {
-        // Strict match, as on the user inbox (BUGS.md C1). Every handler here
+        // Strict match, as on the user inbox. Every handler here
         // treats `activity.actor` as the member acting; same-domain
         // delegation would let any user on a host act as any other user on
         // it. Harmony peers sign server-inbox deliveries with the actor's key.

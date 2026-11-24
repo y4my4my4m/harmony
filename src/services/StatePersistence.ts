@@ -29,8 +29,7 @@ interface ApplicationState {
   isRestoring: boolean
 }
 
-const STORAGE_KEY = 'app-state' // Will be prefixed with user ID by userStorage
-const STATE_VERSION = '1.2.0'
+const STORAGE_KEY = 'app-state'
 
 const DEFAULT_STATE: PersistedState = {
   lastServerId: null,
@@ -65,20 +64,35 @@ const DEFAULT_APP_STATE: ApplicationState = {
 class StatePersistenceService {
   private state: PersistedState = defaultState()
   private appState: ApplicationState = { ...DEFAULT_APP_STATE }
-  private isLoaded = false
+  private loaded = false
+  // The account the state was read for; null when read with nobody signed in.
+  private loadedFor: string | null = null
   private loadingPromise: Promise<void> | null = null
   
   private saveTimeout: NodeJS.Timeout | null = null
   private pendingSave = false
 
+  /** Loaded, and for the account signed in now. */
+  private get isLoaded(): boolean {
+    return this.loaded && this.loadedFor === userStorage.getCurrentUser()
+  }
+
+  private set isLoaded(value: boolean) {
+    this.loaded = value
+  }
+
   /**
-   * Initialize and load persisted state with version migration
+   * Loads the signed-in account's persisted state, again whenever the account changed since the
+   * last load; fields missing from an older payload take their defaults.
    */
   async initialize(): Promise<void> {
-    if (this.loadingPromise) {
+    const account = userStorage.getCurrentUser()
+    if (this.loadingPromise && this.loadedFor === account) {
       return this.loadingPromise
     }
 
+    this.loadedFor = account
+    this.loaded = false
     this.loadingPromise = this._initialize()
     return this.loadingPromise
   }
@@ -100,7 +114,7 @@ class StatePersistenceService {
         }
         
         this.state = { ...defaultState(), ...parsed }
-        debug.log('Loaded persisted state (v' + STATE_VERSION + '):', this.state)
+        debug.log('Loaded persisted state:', this.state)
       } else {
         debug.log('No persisted state found, using defaults')
         this.state = defaultState()
@@ -148,6 +162,8 @@ class StatePersistenceService {
    * Save current state to localStorage with error handling
    */
   private async saveState(): Promise<void> {
+    // Another account's state is never written under this one's name.
+    if (userStorage.getCurrentUser() !== this.loadedFor) return
     try {
       const stateToSave = {
         ...this.state,
@@ -212,8 +228,11 @@ class StatePersistenceService {
     await this.saveState()
   }
 
-    async cleanup(): Promise<void> {
-    // Force save any pending changes
+  /**
+   * Sign-out: the state is dropped and the next account reads its own. A pending change is
+   * written only while its account is still the signed-in one.
+   */
+  async cleanup(): Promise<void> {
     if (this.pendingSave) {
       await this.forceSave()
     }
@@ -222,6 +241,12 @@ class StatePersistenceService {
       clearTimeout(this.saveTimeout)
       this.saveTimeout = null
     }
+    this.pendingSave = false
+    this.state = defaultState()
+    this.appState = { ...DEFAULT_APP_STATE }
+    this.loaded = false
+    this.loadedFor = null
+    this.loadingPromise = null
   }
 
   /**

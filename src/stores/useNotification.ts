@@ -352,8 +352,7 @@ export const useNotificationStore = defineStore('notification', {
 
     /**
      * Single-pass projection of `notifications` into every counter the UI
-     * reads. Replaces 5+ `filter().length` getters that each scanned the
-     * full array (BUGS.md PC5).
+     * reads.
      *
      * Parameterized counts (per-channel, per-server, per-conversation) are
      * Maps, so callers do an O(1) lookup instead of an O(n) scan. Recomputed
@@ -400,11 +399,9 @@ export const useNotificationStore = defineStore('notification', {
           if (isDM) unreadDMs++
           // A channel at level 'all' badges every message, as a mention does.
           if (isMention || n.type === 'channel_message') {
-            // Legacy getters used `||` between top-level and nested forms,
-            // so a notification carrying both `data.channel_id = X` and
-            // `data.location.channel_id = Y` (X !== Y) counted for both.
-            // Bumping both keys when they differ preserves that; `??` would
-            // count only one. BUGS.md M3.
+            // A notification carrying both `data.channel_id = X` and
+            // `data.location.channel_id = Y` (X !== Y) counts for both
+            // channels; `??` would count only one.
             const cid = n.data?.channel_id
             const cidLoc = n.data?.location?.channel_id
             if (cid) bumpMap(unreadChannelMentions, cid)
@@ -903,7 +900,7 @@ export const useNotificationStore = defineStore('notification', {
       }
 
       const profileId = await this.getProfileId(userId)
-      debug.log('Setting up dual-mode notification handlers for profile:', profileId)
+      debug.log('Setting up broadcast notification handlers for profile:', profileId)
 
       // Broadcast handlers: best-effort, low latency.
       if (!_unsubNewNotification) {
@@ -1129,7 +1126,7 @@ export const useNotificationStore = defineStore('notification', {
         document.removeEventListener('visibilitychange', _onVisibility)
         _onVisibility = null
       }
-      // BUGS.md M11: clearing `_dndInterval` here stops the DND check from
+      // Clearing `_dndInterval` here stops the DND check from
       // firing after logout / store reset.
       if (_dndInterval) {
         clearInterval(_dndInterval)
@@ -1534,7 +1531,7 @@ export const useNotificationStore = defineStore('notification', {
           updated_at: new Date().toISOString(),
         }
 
-        // BUGS.md H1: setupDndCheck early-returns when dnd_enabled is false,
+        // setupDndCheck early-returns when dnd_enabled is false,
         // so it must be re-invoked on every preference change to (re)start
         // the interval on enable and stop it on disable. Without this a DND
         // toggle in another tab leaves this tab's check dead until reload.
@@ -1559,7 +1556,7 @@ export const useNotificationStore = defineStore('notification', {
         if (!this.preferences) return
 
         const previousPreferences = { ...this.preferences }
-        // BUGS.md H1: dnd_enabled flips start/stop the interval;
+        // dnd_enabled flips start/stop the interval;
         // dnd_start_time / dnd_end_time changes require re-evaluating
         // `isQuietHours` immediately.
         const dndFieldsChanged =

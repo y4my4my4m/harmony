@@ -1334,7 +1334,11 @@
       "lost": "Verschlüsselte Nachricht, die sich nicht mehr entschlüsseln lässt",
       "decrypt": "Verschlüsselte Nachricht. Entschlüsseln",
       "decrypting": "Verschlüsselte Nachricht wird entschlüsselt",
-      "locked": "Verschlüsselte Nachricht. Entsperre die Verschlüsselung unter Einstellungen, Privatsphäre und Verschlüsselung, um sie zu lesen."
+      "locked": "Verschlüsselte Nachricht. Entsperre die Verschlüsselung unter Einstellungen, Privatsphäre und Verschlüsselung, um sie zu lesen.",
+      "forged": "Nachricht ausgeblendet: Ihre Signatur passt nicht zum Absender",
+      "forgedHint": "Die Signatur dieser verschlüsselten Nachricht lässt sich mit dem Schlüssel des Absenders nicht bestätigen. Sie wurde verändert oder stammt nicht von der genannten Person und wird daher nicht entschlüsselt.",
+      "replayed": "Wiederholt",
+      "replayedHint": "Diese Nachricht wiederholt eine frühere verschlüsselte Nachricht desselben Absenders. Der Server hat eine Nachricht doppelt gespeichert, wodurch eine alte Nachricht an neuer Stelle erscheinen kann."
     },
     "spoiler": {
       "hidden": "Spoiler, verborgen. Aktivieren zum Aufdecken",
@@ -5544,6 +5548,10 @@
       "newDeviceLabel": "Neues Gerät?",
       "newDeviceReminder": "{label} Melde dich dort an, wähle {another} und scanne dann seinen Code mit diesem Gerät. Deine Nachrichten werden entsperrt, ohne dass du den Wiederherstellungsschlüssel eingeben musst.",
       "rememberNeed": "Du brauchst ihn, wenn du den Zugriff auf alle angemeldeten Geräte verlierst oder deine Browserdaten löschst."
+    },
+    "keyShareFailed": {
+      "title": "Einige Mitglieder können deine Nachricht möglicherweise nicht lesen",
+      "body": "Der Schlüssel zum Lesen hat {count} Mitglied nicht erreicht. Die App fragt erneut danach, wenn die Nachricht geöffnet wird. | Der Schlüssel zum Lesen hat {count} Mitglieder nicht erreicht. Ihre Apps fragen erneut danach, wenn sie die Nachricht öffnen."
     }
   },
   "admin": {
@@ -5771,7 +5779,11 @@
         "strangerDmsPerHour": "Neue Unterhaltungen mit Fremden pro Stunde",
         "strangerDmsHint": "Fremde folgen dem Konto nicht, teilen keinen Server mit ihm und haben keine Unterhaltung mit ihm.",
         "newStrangerDmsPerHour": "Dasselbe für neue Konten",
-        "newStrangerDmsHint": "Zählt auch Personen, die nur einen Server mit dem neuen Konto teilen: Wer einem öffentlichen Server beitritt, erreicht alle Mitglieder."
+        "newStrangerDmsHint": "Zählt auch Personen, die nur einen Server mit dem neuen Konto teilen: Wer einem öffentlichen Server beitritt, erreicht alle Mitglieder.",
+        "signalsPerMinute": "Anrufsignale pro Minute",
+        "signalsHint": "Aufbau von Peer-to-Peer-Anrufen, Annehmen und Auflegen von DM-Anrufen, Anrufeffekte. Der Beitritt zu einem Anruf mit zehn Personen braucht etwa 45.",
+        "ringsPerMinute": "Getätigte Anrufe pro Minute",
+        "ringsHint": "Jeder Anruf klingelt einmal. Auflegen wird nie verweigert."
       },
       "bots": {
         "title": "Bots",
@@ -9222,5 +9234,31 @@
     "thirdParty": "Drittanbieter",
     "desktopOnly": "Nur Computer",
     "thirdPartyNotice": "Aktivität eines Drittanbieters, von dieser Instanz installiert. Harmony fragt innerhalb einer Aktivität nie nach deinem Passwort."
+  },
+  "adminVoiceIce": {
+    "title": "Peer-to-Peer-Anrufe: STUN und TURN",
+    "intro": "Ohne LiveKit verbinden sich Anrufe auf dieser Instanz direkt von Gerät zu Gerät. STUN-Server teilen jedem Gerät seine öffentliche Adresse mit; ein TURN-Server leitet die Medien von Geräten weiter, die einander nicht erreichen, etwa hinter strikten NATs oder Firewalls.",
+    "stunDefault": "Standard-STUN-Server verwenden",
+    "stunDefaultHint": "{urls}. Anrufe senden die Adresse jedes Teilnehmers an diese Server.",
+    "stunUrls": "STUN-Server",
+    "stunUrlsHint": "Eine URL pro Zeile, etwa stun:turn.example.com:3478. Leer: kein STUN-Server.",
+    "turnUrls": "TURN-Server",
+    "turnUrlsHint": "Eine URL pro Zeile, etwa turn:turn.example.com:3478 oder turns:turn.example.com:5349. Leer: kein TURN-Server.",
+    "turnAuth": "TURN-Zugangsdaten",
+    "turnAuthSecret": "Gemeinsames Geheimnis",
+    "turnAuthSecretHint": "static-auth-secret von coturn (use-auth-secret). Jeder Anruf erhält eigene Zugangsdaten, einen Tag lang gültig.",
+    "turnAuthPassword": "Benutzername und Passwort",
+    "username": "TURN-Benutzername",
+    "secret": "Gemeinsames Geheimnis",
+    "password": "TURN-Passwort",
+    "secretKept": "Gespeichert. Leer lassen, um es zu behalten.",
+    "invalidStun": "Keine STUN-URL: {url}",
+    "invalidTurn": "Keine TURN-URL: {url}",
+    "needsUsername": "TURN-Server mit Passwort brauchen einen Benutzernamen.",
+    "needsSecret": "TURN-Server brauchen ein gemeinsames Geheimnis oder ein Passwort.",
+    "save": "Speichern",
+    "saved": "ICE-Server gespeichert",
+    "saveFailed": "Die ICE-Server konnten nicht gespeichert werden.",
+    "loadFailed": "Die ICE-Server konnten nicht geladen werden."
   }
 }

@@ -301,7 +301,7 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
   globalDMCallListener.dismissIncomingCall()
   voiceStore.isOverlayVisible = true
 
-  // BUGS.md Pattern A: `dmCallSignaling.acceptCall` / `declineCall` and the
+  // `dmCallSignaling.acceptCall` / `declineCall` and the
   // signaling channel key participants on PROFILE ids, not auth UUIDs. Passing
   // an auth UUID corrupts `activeCalls.participants` and breaks teardown.
   let currentUserId: string
@@ -383,7 +383,7 @@ const handleGlobalCallDecline = async () => {
 
   if (!authStore.session?.user?.id) return
 
-  // Profile id, not auth UUID; see Pattern A note in handleGlobalCallAccept.
+  // Profile id, not auth UUID; see handleGlobalCallAccept.
   let currentUserId: string
   try {
     const { authContextService } = await import('@/services/AuthContextService')
@@ -403,6 +403,7 @@ const handleGlobalCallDecline = async () => {
       )
     } else {
       // Local: Supabase Realtime.
+      globalDMCallListener.markRingDeclined(incomingCall.conversationId)
       await dmCallSignaling.declineCall(incomingCall.conversationId, currentUserId)
     }
   } catch (error) {
@@ -872,10 +873,6 @@ const initializeBackgroundData = async (userId: string, _strategy: any) => {
     const { useUserData } = await import('@/composables/useUserData')
     const userData = useUserData()
     await userData.initializeBackgroundFeatures()
-    
-    // Session heartbeat gates push notifications on active sessions.
-    const { initializeSessionHeartbeat } = await import('@/composables/useViewContext')
-    await initializeSessionHeartbeat(userId)
     
     const typingService = await import('@/services/TypingIndicatorService')
     await typingService.typingIndicatorService.initialize()

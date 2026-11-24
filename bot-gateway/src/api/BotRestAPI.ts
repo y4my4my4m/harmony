@@ -754,9 +754,6 @@ export class BotRestAPI {
       const { channelId } = req.params
       const { content, embeds, reply_to, metadata, thread_id } = req.body
       const botId = req.bot!.id
-      
-      console.log(`Bot ${req.bot!.username} (${botId}) attempting to send message to channel ${channelId}`)
-      console.log(`Received metadata:`, JSON.stringify(metadata, null, 2))
 
       const result = await this.createBotMessage(botId, channelId, { content, embeds, reply_to, metadata, thread_id })
       if (!result.ok) return res.status(result.status).json(result.body)
@@ -1489,7 +1486,7 @@ export class BotRestAPI {
       return { ok: false, status: 404, body: { error: 'Message not found' }, failure: 'failed' }
     }
 
-    // BUGS.md H38: editing one's own message requires only `send_messages`.
+    // Editing one's own message requires only `send_messages`.
     // Bridge bots hold `send_messages` alone, so gating on `manage_messages`
     // breaks Discord edit-sync. The ownership check above guarantees the bot
     // is the author. `deleteMessage` mirrors this: `manage_messages` is

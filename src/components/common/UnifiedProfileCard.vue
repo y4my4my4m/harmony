@@ -247,7 +247,7 @@ const isFederatedUser = (user: User | FederatedUser): user is FederatedUser => {
 // Computed properties
 //
 // props.user.id is a profile id but authStore.session.user.id is the
-// Supabase auth user id - they are different UUIDs (BUGS.md Pattern A).
+// Supabase auth user id - they are different UUIDs.
 // Compare against the cached current-user profile id so cards on your
 // own profile correctly hide "Send Message" / "Follow" actions.
 const isCurrentUser = computed(() => {
@@ -394,7 +394,7 @@ const handleMessage = async () => {
   try {
     // create_or_get_direct_conversation expects profile ids on both sides.
     // An auth UUID fails the RPC's participant check and lands the user on
-    // /dm instead of the new conversation (BUGS.md Pattern A).
+    // /dm instead of the new conversation.
     const { authContextService } = await import('@/services/AuthContextService')
     const currentProfileId = await authContextService.getCurrentProfileId()
     if (!currentProfileId) {

@@ -36,7 +36,8 @@ import {
 } from '@/services/emojiShortcodeResolver'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { hasCapability } from '@/services/instanceCapabilities'
-import { channelRetryDelay, isChannelRefusal } from '@/utils/realtimeRefusal'
+import { ChannelCloseBackoff, channelRetryDelay, isChannelRefusal } from '@/utils/realtimeRefusal'
+import { currentRealtimeToken, onMemberToken } from '@/services/realtimeMemberToken'
 
 const EMOJI_SHORTCODE_TEST_REGEX = createShortcodeRegex()
 
@@ -97,7 +98,9 @@ class UserDataService extends EventTarget {
   private presenceOffs: Array<() => void> = []
   private presenceAccessToken: string | null = null
   private presenceAuthUnsub: (() => void) | null = null
-  
+  // Rebuilds server-presence topics refused on a token other than the one handed out.
+  private presenceTokenOff: (() => void) | null = null
+
   // In-flight subscribeToContext calls; a second caller awaits the first.
   private pendingSubscriptions = new Map<string, Promise<void>>()
   
@@ -123,6 +126,9 @@ class UserDataService extends EventTarget {
   private heartbeatTimer: NodeJS.Timeout | null = null
   // presence_offline sent for this tab, or in flight: its device row is gone until the next heartbeat.
   private presenceOfflineSent = false
+  // Set by goOffline: nothing is published until cleanup.
+  private presenceEnded = false
+  private presencePublishes = new Set<Promise<void>>()
   // The status the last successful publish carried; null before the first.
   private lastPublishedStatus: UserStatus | null = null
   private heartbeatFailures = 0
@@ -555,8 +561,8 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Starts this tab's presence. The unload hook is installed first (BUGS.md
-   * H31 v2): a tab closed during start-up still reaches it.
+   * Starts this tab's presence. The unload hook is installed first: a tab
+   * closed during start-up still reaches it.
    */
   private async setupGlobalPresence(): Promise<void> {
     if (!this.currentUserId) return
@@ -597,7 +603,14 @@ class UserDataService extends EventTarget {
   }
 
   /** This tab's presence: the chosen status, or offline for UserStatus.Offline. */
-  private async publishPresence(): Promise<void> {
+  private publishPresence(): Promise<void> {
+    if (this.presenceEnded) return Promise.resolve()
+    const run = this.sendPresence()
+    this.presencePublishes.add(run)
+    return run.finally(() => this.presencePublishes.delete(run))
+  }
+
+  private async sendPresence(): Promise<void> {
     if (!this.currentUserId) return
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
@@ -645,9 +658,19 @@ class UserDataService extends EventTarget {
     }
   }
 
-  /** Ends this tab's presence, for sign-out. */
+  /**
+   * Ends this tab's presence, for sign-out. A heartbeat landing after presence_offline would
+   * list the device again until presence_sweep; heartbeats stop first, and one in flight is
+   * answered before presence_offline is sent.
+   */
   async goOffline(): Promise<void> {
     if (!this.currentUserId) return
+    this.presenceEnded = true
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer)
+      this.heartbeatTimer = null
+    }
+    await Promise.allSettled([...this.presencePublishes])
     const { error } = await supabase.rpc('presence_offline', { p_device_id: getClientDeviceId() })
     if (error) debug.warn('presence_offline failed:', error.message)
   }
@@ -928,7 +951,8 @@ class UserDataService extends EventTarget {
    * read as going offline, and a peer could track another member's key.
    * Online/offline comes from the database (presence_heartbeat, get_presence).
    *
-   * BUGS.md C14 retry behaviour for `CHANNEL_ERROR` is preserved.
+   * `CHANNEL_ERROR` and `TIMED_OUT` retry. A server close (CLOSED) ends the
+   * channel: realtime-js does not rejoin it.
    */
   private async setupServerPresence(serverId: string, isRetry = false): Promise<void> {
     const channelName = `server-presence:${serverId}`
@@ -988,6 +1012,7 @@ class UserDataService extends EventTarget {
       if (status === 'SUBSCRIBED') {
         console.log(`[Realtime] server-presence:${serverId} → SUBSCRIBED`)
         state._presenceRetryAttempt = 0
+        ;(state._presenceCloseBackoff ??= new ChannelCloseBackoff()).joined()
         if (state._presenceRetryTimer) {
           clearTimeout(state._presenceRetryTimer)
           state._presenceRetryTimer = null
@@ -997,7 +1022,20 @@ class UserDataService extends EventTarget {
           void this.fetchPresence([...ctx.userIds])
           this.emitEvent('presence-event', { contextId: serverId, resync: true })
         }
-      } else if (status === 'CHANNEL_ERROR') {
+      } else if (status === 'CLOSED') {
+        ctx.channel = undefined
+        // A pending retry opens the replacement.
+        if (state._presenceRetryTimer) return
+        const delay = (state._presenceCloseBackoff ??= new ChannelCloseBackoff()).next()
+        console.warn(`[Realtime] server-presence:${serverId} closed by the server; rebuilding in ${Math.round(delay)} ms`)
+        state._presenceRetryTimer = setTimeout(() => {
+          state._presenceRetryTimer = null
+          if (!this.contexts.has(serverId)) return
+          this.setupServerPresence(serverId, true).catch(retryErr => {
+            debug.error(`[Realtime] server-presence:${serverId} retry failed:`, retryErr)
+          })
+        }, delay)
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         // Refused: not a member of the server, or the instance lacks the read policy.
         if (isChannelRefusal(err)) {
           console.warn(`[Realtime] server-presence:${serverId} refused; not retrying`, err?.message)
@@ -1008,6 +1046,8 @@ class UserDataService extends EventTarget {
           }
           state._presenceRetryAttempt = 0
           state._presenceRefused = true
+          state._presenceRefusedToken = currentRealtimeToken()
+          this.presenceTokenOff ??= onMemberToken((token) => this.retryRefusedPresence(token))
           supabase.removeChannel(channel).catch((removeErr) => {
             debug.warn(`[Realtime] failed to remove refused server-presence:${serverId} channel:`, removeErr)
           })
@@ -1016,7 +1056,7 @@ class UserDataService extends EventTarget {
         missed = true
         // One app retry at a time; the rejoins realtime-js makes meanwhile neither re-arm nor count.
         if (state._presenceRetryTimer) return
-        console.error(`[Realtime] server-presence:${serverId} → CHANNEL_ERROR`, err?.message)
+        console.error(`[Realtime] server-presence:${serverId} → ${status}`, err?.message)
         const attempt = state._presenceRetryAttempt ?? 0
         state._presenceRetryAttempt = attempt + 1
         // The timer lives on the context so unsubscribing cancels it.
@@ -1032,7 +1072,20 @@ class UserDataService extends EventTarget {
       }
     })
   }
-  
+
+  /** Rebuilds each server-presence topic refused on a token other than `token`. */
+  private retryRefusedPresence(token: string): void {
+    for (const [serverId, context] of this.contexts) {
+      const state = context as any
+      if (context.type !== 'server' || context.channel || !state._presenceRefused) continue
+      if (state._presenceRefusedToken === token) continue
+      state._presenceRefused = false
+      this.setupServerPresence(serverId, true).catch(err => {
+        debug.error(`[Realtime] server-presence:${serverId} retry failed:`, err)
+      })
+    }
+  }
+
   private async handleServerMemberJoin(serverId: string, payload: any): Promise<void> {
     const newUserId = payload.new.user_id
     debug.log(`New member joined server ${serverId}:`, newUserId)
@@ -1728,7 +1781,7 @@ class UserDataService extends EventTarget {
   async unsubscribeFromContext(contextId: string): Promise<void> {
     const context = this.contexts.get(contextId)
     if (context) {
-      // BUGS.md C14 v2: the retry timer attached in `setupServerPresence`'s
+      // The retry timer attached in `setupServerPresence`'s
       // CHANNEL_ERROR branch is cancelled here too. A pending retry would
       // otherwise resurrect the channel after teardown; the in-timer
       // `this.contexts.has` guard keeps that correct, but the timer still
@@ -1737,8 +1790,11 @@ class UserDataService extends EventTarget {
         clearTimeout((context as any)._presenceRetryTimer)
         ;(context as any)._presenceRetryTimer = null
       }
-      if (context.channel) {
-        await context.channel.unsubscribe()
+      // Detached first: unsubscribe() reports CLOSED inline.
+      const channel = context.channel
+      context.channel = undefined
+      if (channel) {
+        await channel.unsubscribe()
       }
     }
 
@@ -1918,6 +1974,7 @@ class UserDataService extends EventTarget {
       this.statusExpirySweep = null
     }
     this.presenceOfflineSent = false
+    this.presenceEnded = false
     this.lastPublishedStatus = null
 
     if (this.customStatusExpiryTimer) {
@@ -1926,14 +1983,16 @@ class UserDataService extends EventTarget {
     }
     
     // Unsubscribes every context and cancels pending presence-error retry
-    // timers (BUGS.md C14 v2; see unsubscribeFromContext).
+    // timers (see unsubscribeFromContext).
     for (const context of this.contexts.values()) {
       if ((context as any)._presenceRetryTimer) {
         clearTimeout((context as any)._presenceRetryTimer)
         ;(context as any)._presenceRetryTimer = null
       }
-      if (context.channel) {
-        await context.channel.unsubscribe()
+      const channel = context.channel
+      context.channel = undefined
+      if (channel) {
+        await channel.unsubscribe()
       }
     }
     
@@ -1943,9 +2002,9 @@ class UserDataService extends EventTarget {
     this.presenceAuthUnsub = null
     this.presenceAccessToken = null
 
-    // Clears the pagehide hook installed by `setupGlobalPresence`
-    // (BUGS.md H31). Otherwise a logout followed by a tab close calls
-    // untrack against a torn-down service. The next sign-in re-installs it.
+    // Clears the pagehide hook installed by `setupGlobalPresence`.
+    // Otherwise a logout followed by a tab close calls untrack against a
+    // torn-down service. The next sign-in re-installs it.
     if (typeof window !== 'undefined' && (window as any).__harmonyPresenceCleanup) {
       delete (window as any).__harmonyPresenceCleanup
     }

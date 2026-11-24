@@ -23,7 +23,7 @@ export interface CallPermissionCheck {
   allowed: boolean
   /**
    * Why the call was disallowed. `'error'` means a block lookup failed (DB /
-   * RLS / network); inbound calls fail closed. See BUGS.md H4.
+   * RLS / network); inbound calls fail closed.
    */
   reason?: 'blocked' | 'busy' | 'dnd' | 'notifications_disabled' | 'error'
   message?: string
@@ -79,8 +79,8 @@ class DMCallPermissionService {
       return { allowed: true }
     } catch (error) {
       debug.error('Error checking call permissions:', error)
-      // BUGS.md H4: inbound calls fail closed. Failing open on a DB/RLS error
-      // let blocked users be rung anyway.
+      // Inbound calls fail closed; failing open on a DB/RLS error rings
+      // blocked users.
       return {
         allowed: false,
         reason: 'error',

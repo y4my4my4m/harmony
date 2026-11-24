@@ -26,9 +26,15 @@ vi.mock('../activitypub/DeliveryQueue.js', () => ({ DeliveryQueue: { sendToInbox
 
 type Row = Record<string, any>
 let tables: Record<string, Row[]> = {}
+const rpcCalls: Array<[string, any]> = []
+let rpcErrors: Record<string, any> = {}
 
 function fakeSupabase() {
   return {
+    async rpc(name: string, args: any) {
+      rpcCalls.push([name, args])
+      return { data: null, error: rpcErrors[name] ?? null }
+    },
     from(table: string) {
       const filters: Array<(row: Row) => boolean> = []
       let op: 'select' | 'update' = 'select'
@@ -93,6 +99,8 @@ const ROOM = `federated-dm-${CONV}-1`
 const TOKEN = { token: 'REMOTE-TOKEN', wsUrl: 'wss://livekit.mastodon.test', roomName: ROOM }
 
 beforeEach(() => {
+  rpcCalls.length = 0
+  rpcErrors = {}
   vi.mocked(DeliveryQueue.sendToInbox).mockReset()
   requestCallToken.mockReset().mockResolvedValue(TOKEN)
   tables = {
@@ -157,6 +165,26 @@ describe('federated-call/accept and reject', () => {
     const res = await as('alice-auth')('/federated-call/accept', { conversationId: CONV, callerFederatedId: BOB })
     expect(res.status).toBe(404)
     expect(call().status).toBe('pending')
+  })
+
+  // The ring shows on every device of the account; the one that answers tells the others.
+  it('an accept tells the acceptor\'s own devices the ring was answered', async () => {
+    await as('alice-auth')('/federated-call/accept', { conversationId: CONV, callerFederatedId: BOB })
+    expect(rpcCalls).toContainEqual(['broadcast_user_event', {
+      p_user_id: 'alice-id',
+      p_payload: { type: 'federated_call:answered', conversationId: CONV, callId: 'call-1', outcome: 'accepted' },
+    }])
+  })
+
+  it('a reject tells them too; a refused answer tells nobody', async () => {
+    await as('eve-auth')('/federated-call/reject', { conversationId: CONV, callerFederatedId: BOB })
+    await as('eve-auth')('/federated-call/accept', { conversationId: CONV, callerFederatedId: BOB })
+    expect(rpcCalls.filter(([, args]) => args.p_payload?.type === 'federated_call:answered')).toEqual([])
+    await as('alice-auth')('/federated-call/reject', { conversationId: CONV, callerFederatedId: BOB })
+    expect(rpcCalls).toContainEqual(['broadcast_user_event', {
+      p_user_id: 'alice-id',
+      p_payload: { type: 'federated_call:answered', conversationId: CONV, callId: 'call-1', outcome: 'rejected' },
+    }])
   })
 
   it('only the invited recipient rejects', async () => {
@@ -248,5 +276,26 @@ describe('federated-call/invite', () => {
   it('refuses across a block', async () => {
     tables.user_blocks.push({ blocker_id: 'bob-id', blocked_user_id: 'alice-id', expires_at: null })
     expect((await as('alice-auth')('/federated-call/invite', body())).status).toBe(403)
+  })
+
+  // account_rings_per_minute (20261124100001): one count with ring_dm_call, taken through
+  // antispam_take_ring.
+  it('takes a ring of the caller\'s account', async () => {
+    await as('alice-auth')('/federated-call/invite', body())
+    expect(rpcCalls).toContainEqual(['antispam_take_ring', { p_caller: 'alice-id' }])
+  })
+
+  it('a call past the ring limit is refused, named, before anything rings', async () => {
+    tables.federated_voice_calls = []
+    rpcErrors.antispam_take_ring = {
+      message: 'ANTISPAM_RATE_LIMITED:30', code: 'P0001', hint: 'Limit reached: account_rings_per_minute.',
+      details: '{"kind": "ring", "limit": 10, "window_seconds": 60}',
+    }
+    const res = await as('alice-auth')('/federated-call/invite', body())
+    expect(res.status).toBe(429)
+    expect(res.body).toMatchObject({ message: 'ANTISPAM_RATE_LIMITED:30', hint: 'Limit reached: account_rings_per_minute.' })
+    expect(JSON.parse(res.body.details)).toEqual({ kind: 'ring', limit: 10, window_seconds: 60 })
+    expect(DeliveryQueue.sendToInbox).not.toHaveBeenCalled()
+    expect(tables.federated_voice_calls).toEqual([])
   })
 })

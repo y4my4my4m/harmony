@@ -240,6 +240,8 @@
                         :encrypted="displayParentMessage.encrypted || false"
                         :decrypted="displayParentMessage.decrypted || false"
                         :unrecoverable="displayParentMessage.decryption_unrecoverable || false"
+                        :decryption-error="displayParentMessage.decryption_error"
+                        :replayed="displayParentMessage.decryption_replayed || false"
                         :media-hidden="mediaHidden"
                       />
                     </div>
@@ -369,6 +371,7 @@ import {
   isOptimisticThreadId,
   mergeFreshThreadMessages,
   landThreadReply,
+  fillThreadGap,
   type StoredThread,
 } from '@/stores/useThreads'
 import { getRandomId } from '@/stores/shared/optimisticMessages'
@@ -1531,9 +1534,33 @@ const setupRealtimeSubscription = () => {
   threadSubscription.value = realtimeConnectionManager.subscribeBroadcast({
     channelName,
     broadcasts: [{ event: 'message_event', handler: (payload) => routeMessageEvent(payload, handlers) }],
+    // Replies sent while the topic was down reach no transport.
+    onReconnected: () => fillReplyGap(),
   })
 
   debug.log(`Subscribed to thread messages: ${channelName}`)
+}
+
+/** Lands the replies a Realtime gap kept from the list. A refresh in flight reads them itself. */
+const fillReplyGap = async () => {
+  const threadId = thread.value?.id
+  if (!threadId || isOptimisticThreadId(threadId) || refreshInFlight) return
+  try {
+    const gap = await fillThreadGap(
+      () => (thread.value?.id === threadId ? messages.value : null),
+      (options) => threadService.getThreadMessages(threadId, options),
+    )
+    if (!gap) return
+    messages.value = gap.messages
+    if (gap.hasMore !== undefined) hasMore.value = gap.hasMore
+    for (const reply of gap.added) threadService.addMessageToCache(threadId, reply)
+    if (gap.added.length) {
+      await nextTick()
+      scrollToBottom()
+    }
+  } catch (error) {
+    debug.warn('Thread gap fill failed:', error)
+  }
 }
 
 // Watch for visibility changes

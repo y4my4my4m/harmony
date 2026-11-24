@@ -1334,7 +1334,11 @@
       "lost": "더 이상 복호화할 수 없는 암호화된 메시지",
       "decrypt": "암호화된 메시지. 복호화",
       "decrypting": "암호화된 메시지를 복호화하는 중",
-      "locked": "암호화된 메시지. 읽으려면 설정의 개인정보 및 암호화에서 암호화를 잠금 해제하세요."
+      "locked": "암호화된 메시지. 읽으려면 설정의 개인정보 및 암호화에서 암호화를 잠금 해제하세요.",
+      "forged": "메시지 숨김: 서명이 보낸 사람과 일치하지 않습니다",
+      "forgedHint": "이 암호화된 메시지의 서명이 보낸 사람의 키로 확인되지 않습니다. 변조되었거나 표시된 사람이 보낸 것이 아니므로 복호화하지 않습니다.",
+      "replayed": "반복됨",
+      "replayedHint": "이 메시지는 같은 보낸 사람의 이전 암호화 메시지를 반복합니다. 서버가 메시지 하나를 두 번 저장하여 오래된 메시지가 다른 위치에 표시될 수 있습니다."
     },
     "spoiler": {
       "hidden": "스포일러, 숨겨짐. 실행하면 표시",
@@ -5544,6 +5548,10 @@
       "newDeviceLabel": "새 기기인가요?",
       "newDeviceReminder": "{label} 그 기기에서 로그인하고 {another}를 선택한 다음 이 기기로 코드를 스캔하세요. 복구 키를 입력하지 않아도 메시지 잠금이 해제됩니다.",
       "rememberNeed": "로그인된 모든 기기에 접근할 수 없게 되거나 브라우저 데이터를 지우면 필요합니다."
+    },
+    "keyShareFailed": {
+      "title": "일부 멤버가 메시지를 읽지 못할 수 있습니다",
+      "body": "{count}명의 멤버에게 메시지를 읽을 키가 전달되지 않았습니다. 메시지를 열면 앱이 키를 다시 요청합니다."
     }
   },
   "admin": {
@@ -5771,7 +5779,11 @@
         "strangerDmsPerHour": "시간당 낯선 사람과의 새 대화 수",
         "strangerDmsHint": "낯선 사람은 해당 계정을 팔로우하지 않고, 함께 있는 서버도 대화도 없는 사람입니다.",
         "newStrangerDmsPerHour": "새 계정의 경우",
-        "newStrangerDmsHint": "새 계정과 서버만 함께 있는 사람도 셉니다. 공개 서버에 가입하면 모든 멤버에게 연락할 수 있기 때문입니다."
+        "newStrangerDmsHint": "새 계정과 서버만 함께 있는 사람도 셉니다. 공개 서버에 가입하면 모든 멤버에게 연락할 수 있기 때문입니다.",
+        "signalsPerMinute": "분당 통화 신호",
+        "signalsHint": "P2P 통화 연결, DM 통화 응답과 종료, 통화 효과. 10명 통화에 참여하면 약 45개가 듭니다.",
+        "ringsPerMinute": "분당 거는 통화 수",
+        "ringsHint": "통화마다 한 번 울립니다. 끊기는 거부되지 않습니다."
       },
       "bots": {
         "title": "봇",
@@ -9222,5 +9234,31 @@
     "thirdParty": "서드파티",
     "desktopOnly": "컴퓨터 전용",
     "thirdPartyNotice": "이 인스턴스가 설치한 서드파티 활동입니다. Harmony는 활동 안에서 비밀번호를 묻지 않습니다."
+  },
+  "adminVoiceIce": {
+    "title": "P2P 통화: STUN과 TURN",
+    "intro": "LiveKit이 없으면 이 인스턴스의 통화는 기기끼리 직접 연결됩니다. STUN 서버는 각 기기에 공개 주소를 알려 주고, TURN 서버는 엄격한 NAT나 방화벽 뒤처럼 서로 닿지 않는 기기의 미디어를 중계합니다.",
+    "stunDefault": "기본 STUN 서버 사용",
+    "stunDefaultHint": "{urls}. 통화하면 각 참가자의 주소가 이 서버로 전송됩니다.",
+    "stunUrls": "STUN 서버",
+    "stunUrlsHint": "한 줄에 URL 하나(예: stun:turn.example.com:3478). 비워 두면 STUN 서버를 쓰지 않습니다.",
+    "turnUrls": "TURN 서버",
+    "turnUrlsHint": "한 줄에 URL 하나(예: turn:turn.example.com:3478, turns:turn.example.com:5349). 비워 두면 TURN 서버를 쓰지 않습니다.",
+    "turnAuth": "TURN 인증 정보",
+    "turnAuthSecret": "공유 비밀",
+    "turnAuthSecretHint": "coturn의 static-auth-secret(use-auth-secret). 통화마다 하루 동안 유효한 인증 정보를 발급합니다.",
+    "turnAuthPassword": "사용자 이름과 비밀번호",
+    "username": "TURN 사용자 이름",
+    "secret": "공유 비밀",
+    "password": "TURN 비밀번호",
+    "secretKept": "저장됨. 비워 두면 그대로 유지됩니다.",
+    "invalidStun": "STUN URL이 아닙니다: {url}",
+    "invalidTurn": "TURN URL이 아닙니다: {url}",
+    "needsUsername": "비밀번호 방식의 TURN 서버에는 사용자 이름이 필요합니다.",
+    "needsSecret": "TURN 서버에는 공유 비밀이나 비밀번호가 필요합니다.",
+    "save": "저장",
+    "saved": "ICE 서버를 저장했습니다",
+    "saveFailed": "ICE 서버를 저장하지 못했습니다.",
+    "loadFailed": "ICE 서버를 불러오지 못했습니다."
   }
 }

@@ -10,10 +10,7 @@
  *   - A symbolic string → looked up in `xs|sm|md|lg|xl`.
  *   - Anything else     → falls back to `fallback`.
  *
- * Previously the wrappers used `Number(size)` blindly. `Number("sm")` is
- * `NaN`, which broke icon rendering whenever a caller passed a symbolic
- * size - a real possibility given the wrappers' props were typed
- * `number | string`. See BUGS.md for the report.
+ * `Number(size)` alone is wrong for symbolic sizes: `Number("sm")` is `NaN`.
  */
 export function resolveIconSize(
   size: number | string | undefined | null,

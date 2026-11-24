@@ -9,13 +9,16 @@
 
 import { ref, watch } from 'vue'
 import { supabase } from '@/supabase'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { dmCallPermissions } from './DMCallPermissions'
 import { userEventChannel } from './UserEventChannel'
 import { dmCallSignaling, type CallSignal, type FederatedCallEvent } from './DMCallSignaling'
 import { authContextService } from './AuthContextService'
+import { openRebuildingChannel, type RebuildingChannel } from './rebuildingChannel'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
+
+/** Answers to a ring: one from any device of the account stops the ring on the others. */
+const OWN_ANSWERS: ReadonlySet<CallSignal['type']> = new Set(['accept', 'join', 'decline', 'busy'])
 
 export interface IncomingCallData {
   callerId: string
@@ -33,7 +36,7 @@ export interface IncomingCallData {
 }
 
 class GlobalDMCallListenerService {
-  private userChannel: RealtimeChannel | null = null
+  private userChannel: RebuildingChannel | null = null
   private federatedOff: (() => void) | null = null
   private currentUserId: string | null = null
   // Auto-dismiss for rings whose caller died before sending cancel or timeout.
@@ -43,6 +46,8 @@ class GlobalDMCallListenerService {
   private pendingRings = new Map<string, CallSignal>()
   // Conversations whose ring was silenced by mute: no ringtone, popup or missed-call toast.
   private silencedRings = new Set<string>()
+  // Rings this account answered or declined, here or on another device: their end is no missed call.
+  private handledRings = new Set<string>()
   private ringTimeoutOff: (() => void) | null = null
   // Per conversation, the wait for the join of an answer whose ring already ended.
   private lostAnswerWatches = new Map<string, () => void>()
@@ -95,7 +100,7 @@ class GlobalDMCallListenerService {
     }
     
     if (this.userChannel) {
-      this.userChannel.unsubscribe()
+      void this.userChannel.close()
       this.userChannel = null
     }
 
@@ -114,10 +119,9 @@ class GlobalDMCallListenerService {
     debug.log(`Channel: ${channelName}`)
     debug.log(`================================================`)
     
-    this.userChannel = supabase.channel(channelName, { config: { private: true } })
-    
-    this.userChannel
-      .on('broadcast', { event: 'incoming-call' }, (payload) => {
+    this.userChannel = openRebuildingChannel({
+      topic: channelName,
+      bind: (channel) => channel.on('broadcast', { event: 'incoming-call' }, (payload) => {
         const signal = payload.payload as CallSignal
         debug.log('======== CALL SIGNAL RECEIVED ========')
         debug.log('Type:', signal.type)
@@ -128,15 +132,22 @@ class GlobalDMCallListenerService {
         
         this.handleCallSignal(signal)
       })
-      .subscribe((status) => {
-        debug.log(`Global call channel status: ${status}`)
-        if (status === 'SUBSCRIBED') {
-          debug.log('==========================================')
-          debug.log('GLOBAL CALL LISTENER READY!')
-          debug.log('You can now receive calls from ANYWHERE')
-          debug.log('==========================================')
-        }
-      })
+        // This account's answers, from send_signal (20261124100001): the database names the sender,
+        // and only it writes here. Presence and conversation-topic broadcasts are not read for this.
+        .on('broadcast', { event: 'call-signal' }, (payload) => {
+          const signal = payload.payload as Partial<CallSignal> | null
+          if (signal?.callerId === this.currentUserId && typeof signal?.conversationId === 'string'
+              && signal.type !== undefined && OWN_ANSWERS.has(signal.type)) {
+            this.ringHandledElsewhere(signal.conversationId)
+          }
+        }),
+      onSubscribed: () => {
+        debug.log('==========================================')
+        debug.log('GLOBAL CALL LISTENER READY!')
+        debug.log('You can now receive calls from ANYWHERE')
+        debug.log('==========================================')
+      },
+    })
 
     // Federation backend sends remote-instance call events on the private user
     // channel; only this user subscribes or sends there.
@@ -157,6 +168,11 @@ class GlobalDMCallListenerService {
         dmCallSignaling.handleFederatedCallEvent('rejected', payload as FederatedCallEvent)
         void this.leaveFederatedRoom(payload as FederatedCallEvent)
         useToast().info('Call declined')
+      }),
+      // One of this account's devices took or refused a federated ring (federation backend).
+      userEventChannel.on('federated_call:answered', (payload) => {
+        const conversationId = (payload as { conversationId?: unknown } | null)?.conversationId
+        if (typeof conversationId === 'string') this.ringHandledElsewhere(conversationId)
       }),
       userEventChannel.on('federated_call:ended', (payload) => {
         debug.log('[Federated] Call ended:', payload)
@@ -191,6 +207,7 @@ class GlobalDMCallListenerService {
     switch (signal.type) {
       case 'initiate':
         this.lostAnswerWatches.get(signal.conversationId)?.()
+        this.handledRings.delete(signal.conversationId)
         this.pendingRings.set(signal.conversationId, signal)
         await this.handleIncomingCall(signal.conversationId, signal)
         break
@@ -222,6 +239,7 @@ class GlobalDMCallListenerService {
         debug.log(`Call ${signal.type} - dismissing incoming call modal`)
         this.pendingRings.delete(signal.conversationId)
         const silenced = this.silencedRings.delete(signal.conversationId)
+        const handled = this.handledRings.delete(signal.conversationId)
         // The ring ends only while the caller saw no answer: an answer from
         // this client crossed it in flight.
         const answered = !!dmCallSignaling.getActiveCall(signal.conversationId)?.participants.includes(this.currentUserId)
@@ -229,7 +247,7 @@ class GlobalDMCallListenerService {
         this.dismissIncomingCall(signal.conversationId)
         if (answered) {
           void this.endLostAnswer(signal.conversationId)
-        } else if (signal.type === 'timeout' && !silenced) {
+        } else if (signal.type === 'timeout' && !silenced && !handled) {
           // info routes to the corner toast; warn would go top-center.
           toast.info('Missed call')
         }
@@ -347,11 +365,11 @@ class GlobalDMCallListenerService {
   }): Promise<void> {
     if (!this.currentUserId) return
 
-    // BUGS.md H5: federated calls run the same permission gate as the local
-    // path, before any UI or call-state side effect. Skipping it let any
-    // remote actor ring a blocked / DND user. No federation-side decline
-    // channel exists, so a denial (busy included) only suppresses the local
-    // ring and the caller's own timeout ends the call.
+    // Federated calls run the same permission gate as the local path, before
+    // any UI or call-state side effect; without it any remote actor rings a
+    // blocked / DND user. No federation-side decline channel exists, so a
+    // denial (busy included) only suppresses the local ring and the caller's
+    // own timeout ends the call.
     const permissionCheck = await dmCallPermissions.canReceiveCall(
       payload.callerId,
       this.currentUserId,
@@ -462,6 +480,25 @@ class GlobalDMCallListenerService {
     }
   }
 
+  /**
+   * Another device of this account answered, declined or joined: the ring stops here, a ring
+   * still passing its permission gate never shows, and its end is no missed call.
+   */
+  private ringHandledElsewhere(conversationId: string): void {
+    const ringing = this.incomingCall.value?.conversationId === conversationId
+    const pending = this.pendingRings.delete(conversationId)
+    const silenced = this.silencedRings.delete(conversationId)
+    if (!ringing && !pending && !silenced) return
+    debug.log('Ring answered on another device - dismissing:', conversationId)
+    this.handledRings.add(conversationId)
+    this.dismissIncomingCall(conversationId)
+  }
+
+  /** This client declined the ring: its end is no missed call. */
+  markRingDeclined(conversationId: string): void {
+    this.handledRings.add(conversationId)
+  }
+
   /** With a conversation id, dismisses only the ring of that conversation. */
   dismissIncomingCall(conversationId?: string): void {
     if (conversationId && this.incomingCall.value && this.incomingCall.value.conversationId !== conversationId) return
@@ -480,7 +517,7 @@ class GlobalDMCallListenerService {
   cleanup(): void {
     debug.log('Cleaning up global call listener')
     if (this.userChannel) {
-      this.userChannel.unsubscribe()
+      void this.userChannel.close()
       this.userChannel = null
     }
     this.federatedOff?.()
@@ -491,6 +528,7 @@ class GlobalDMCallListenerService {
     this.currentUserId = null
     this.pendingRings.clear()
     this.silencedRings.clear()
+    this.handledRings.clear()
     this.incomingCall.value = null
     this.showIncomingCallModal.value = false
   }

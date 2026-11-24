@@ -7,7 +7,7 @@ let bound = false
 
 /**
  * The token realtime-js sends with joins and `access_token` pushes (`RealtimeClient.accessTokenValue`,
- * realtime-js 2.84). Empty when none is set.
+ * realtime-js 2.119). Empty when none is set.
  */
 export function currentRealtimeToken(): string {
   return String((supabase as any).realtime?.accessTokenValue ?? '')

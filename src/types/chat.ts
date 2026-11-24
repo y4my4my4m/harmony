@@ -702,6 +702,15 @@ export interface ReactionActor {
   avatar_url?: string;
   metadata?: Reaction['metadata'];
 }
+
+/**
+ * Why an encrypted message did not decrypt.
+ *   forged       its signature does not verify against the sender's signing key, or is absent
+ *   missing_key  the session key is not held; a key request may bring it
+ *   other        anything else, including a sender key that cannot be read or is revoked
+ */
+export type DecryptionErrorKind = 'forged' | 'missing_key' | 'other';
+
 export interface Message {
   id: string;
   created_at: Date;
@@ -724,12 +733,18 @@ export interface Message {
    * "permanently unavailable" state instead of a retryable glyph.
    */
   decryption_unrecoverable?: boolean;
+  /** Client-side: why decryption failed; absent once decrypted. */
+  decryption_error?: DecryptionErrorKind;
+  /**
+   * Client-side: a decrypted message whose (session, message index) an earlier-sent message of
+   * another id holds. One ciphertext stored twice; the copy is authentic but out of place.
+   */
+  decryption_replayed?: boolean;
   /**
    * Client-side verification flag for cryptographic sender binding (Megolm v2).
    *  - `true`  → signature verified against the sender's published signing key.
-   *  - `false` → signature missing (legacy v1), or the sender has no signing key
-   *              on record. UI shows an "unverified author" indicator.
-   *  - absent  → message never went through decryption (plaintext message).
+   *  - `false` → decrypted, sender not verified. UI shows an "unverified author" indicator.
+   *  - absent  → plaintext, or decryption failed (see decryption_error).
    */
   sender_verified?: boolean;
   encryption_metadata?: {

@@ -248,7 +248,8 @@ test('the call settings panel: None when there is no microphone, Default before 
     })
   }, { serverId: server.id, channelId: loungeId, selfId: user.id })
 
-  await page.getByRole('region', { name: 'Voice connection' }).getByRole('button', { name: 'Voice settings' }).click()
+  await page.getByRole('region', { name: 'Voice connection' }).getByRole('button', { name: 'More options' }).click()
+  await page.getByRole('menuitem', { name: 'Voice settings' }).click()
   const panel = page.getByRole('dialog', { name: 'Voice & video settings' })
   await expect(panel).toBeVisible({ timeout: 15000 })
   await expect(shown(input(panel))).toHaveText('None')
