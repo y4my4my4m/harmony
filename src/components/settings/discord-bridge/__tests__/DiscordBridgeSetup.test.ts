@@ -234,6 +234,23 @@ describe('DiscordBridgeSetup — existing bridge', () => {
     expect(w.find('[data-testid="status-title"]').text()).toBe('Bridge is online')
   })
 
+  it('names a pair on a voice channel, and still offers only text channels for a new pair', async () => {
+    installBackend(
+      tables({
+        discord_bridges: [healthyBridge({ discord_guild_id: '900' })],
+        discord_bridge_channels: [makePair({ harmony_channel_id: 'h-voice' })],
+      }),
+    )
+    const w = mountSetup()
+    await flushPromises()
+    const row = w.find('[data-testid="pair-row"]')
+    expect(row.text()).toContain('#Lounge')
+    expect(row.text()).not.toContain('h-voice')
+    const options = w.findAll('[data-testid="select-harmony"] option').map((o) => o.text())
+    expect(options).not.toContain('#Lounge')
+    expect(options).toContain('#general')
+  })
+
   it('warns that an old v1 bridge would relay twice alongside the new one', async () => {
     installBackend(
       tables({

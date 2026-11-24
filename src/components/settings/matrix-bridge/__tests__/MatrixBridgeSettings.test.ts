@@ -10,7 +10,7 @@ const api = vi.hoisted(() => ({
   setMatrixBridgeSenderMode: vi.fn(),
   configureMatrixBridge: vi.fn(),
   unconfigureMatrixBridge: vi.fn(),
-  fetchServerTextChannels: vi.fn(),
+  fetchServerChannels: vi.fn(),
   confirm: vi.fn(),
 }))
 vi.mock('../matrixBridgeApi', async (importOriginal) => ({
@@ -23,7 +23,7 @@ vi.mock('../matrixBridgeApi', async (importOriginal) => ({
 }))
 vi.mock('@/components/settings/discord-bridge/bridgeApi', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  fetchServerTextChannels: api.fetchServerTextChannels,
+  fetchServerChannels: api.fetchServerChannels,
 }))
 vi.mock('@/composables/useConfirmDialog', () => ({ useConfirmDialog: () => ({ confirm: api.confirm }) }))
 vi.mock('@/stores/useProfile', async () => {
@@ -66,7 +66,7 @@ const PrivacyPanel = { name: 'BridgePrivacyPanel', props: ['serverId', 'platform
 function given({ pairs = [pair] as unknown, installs = [myBot] as unknown, channels = CHANNELS as unknown } = {}) {
   api.fetchServerMatrixBridges.mockResolvedValue(pairs)
   api.fetchOwnedBotInstalls.mockResolvedValue(installs)
-  api.fetchServerTextChannels.mockResolvedValue(channels)
+  api.fetchServerChannels.mockResolvedValue(channels)
 }
 const mountSettings = () => mount(MatrixBridgeSettings, {
   props: { serverId: 'server' },
@@ -166,6 +166,13 @@ describe('setup from the empty state', () => {
     expect(document.activeElement).toBe(pairsHeading().element)
     expect(byTest('matrix-setup').exists()).toBe(false)
     expect(byTest('matrix-status-waiting').text()).toBe('1')
+  })
+
+  it('offers text channels only: a voice channel the loader returns is not in the form', async () => {
+    await open({ pairs: [], channels: [...CHANNELS, { id: 'c-lounge', name: 'lounge', categoryName: null, voice: true }] })
+    const form = byTest('matrix-setup')
+    expect(form.find('[data-channel="c-lounge"]').exists()).toBe(false)
+    expect(form.findAll('input[type="checkbox"]')).toHaveLength(3)
   })
 
   it('keeps the form and says why when the server refuses', async () => {

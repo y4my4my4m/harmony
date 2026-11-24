@@ -122,7 +122,7 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import BridgePrivacyPanel from '@/components/settings/discord-bridge/BridgePrivacyPanel.vue'
-import { fetchServerTextChannels } from '@/components/settings/discord-bridge/bridgeApi'
+import { fetchServerChannels } from '@/components/settings/discord-bridge/bridgeApi'
 import type { HarmonyChannelOption } from '@/utils/discordBridgeSetup'
 import MatrixBridgeGuide from './MatrixBridgeGuide.vue'
 import MatrixBridgePairs from './MatrixBridgePairs.vue'
@@ -214,17 +214,18 @@ async function load(): Promise<boolean> {
   editing.value = false
   loading.value = true
   const profileId = profile.profileId
-  const [pairs, owned, textChannels] = await Promise.allSettled([
+  const [pairs, owned, serverChannels] = await Promise.allSettled([
     fetchServerMatrixBridges(props.serverId),
     profileId ? fetchOwnedBotInstalls(props.serverId, profileId) : Promise.resolve([]),
-    fetchServerTextChannels(props.serverId),
+    fetchServerChannels(props.serverId),
   ])
   if (request !== revision) return false
   if (pairs.status === 'fulfilled') rows.value = pairs.value
   else error.value = 'loadError'
-  if (owned.status === 'fulfilled' && textChannels.status === 'fulfilled') {
+  if (owned.status === 'fulfilled' && serverChannels.status === 'fulfilled') {
     installs.value = owned.value
-    channels.value = textChannels.value
+    // The setup form pairs text channels only.
+    channels.value = serverChannels.value.filter(channel => !channel.voice)
   } else {
     setupError.value = true
   }
