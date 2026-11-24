@@ -87,6 +87,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `/bridge import-history scope:all` still starts every channel the member can read in one command.
   The notice the bridge pins in each imported Discord channel no longer sends a push notification,
   and Discord's "pinned a message" line is removed (bridge 2.8.0).
+- **Self-host: uploads in an S3-compatible bucket.** `STORAGE_BACKEND=s3` with the `GLOBAL_S3_*`,
+  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `REGION` keys in `supabase/.env` keeps uploads in
+  Cloudflare R2, MinIO or AWS S3 instead of `supabase/volumes/storage`. Unset, storage stays on disk.
 
 ### Fixed
 
