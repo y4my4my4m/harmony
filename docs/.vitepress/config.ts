@@ -82,6 +82,8 @@ const sidebar: DefaultTheme.Sidebar = {
         { text: 'Push notifications', link: '/self-host/push' },
         { text: 'Discord bridges', link: '/self-host/discord-bridges' },
         { text: 'Activities', link: '/self-host/activities' },
+        { text: 'Announcements', link: '/self-host/announcements' },
+        { text: 'Emojis', link: '/self-host/emojis' },
         { text: 'Stickers', link: '/self-host/stickers' },
         { text: 'Sign-up limits', link: '/self-host/signup-limits' },
       ],
