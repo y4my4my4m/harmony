@@ -57,5 +57,6 @@ The self-hosting guide lives under [Self-host](./self-host/index.md).
 | Look up a `harmony` command or a `harmony doctor` check | [harmony CLI](./self-host/cli.md) |
 | Set up email, sign-in providers, voice or push | [Configuration reference](./self-host/configuration.md) |
 | Host Discord bridges | [Discord bridges](./self-host/discord-bridges.md) |
+| Host Matrix bridges | [Matrix bridges](./self-host/matrix-bridges.md) |
 | Run behind your own reverse proxy | [Manual Docker Compose](./self-host/docker-compose.md#behind-another-reverse-proxy) |
 | Fix a problem | [Troubleshooting](./self-host/troubleshooting.md) |

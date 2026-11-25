@@ -11,7 +11,7 @@
 #   ./harmony admin create   # the instance admin
 #
 # Updates: ./harmony update. Optional services are compose profiles (voice,
-# bots, discord, and logs for Supabase's log collection in supabase-overrides.yml);
+# bots, discord, matrix, and logs for Supabase's log collection in supabase-overrides.yml);
 # configure.sh lists the enabled ones in COMPOSE_PROFILES in .env.
 #
 # Harmony's own services run published images. HARMONY_BUILD=1 configure.sh
@@ -235,6 +235,33 @@ services:
     profiles: [discord]
 
   # ---------------------------------------------------------------------------
+  # Matrix bridge hosting (profile: matrix, needs bots)
+  # ---------------------------------------------------------------------------
+  # Runs the Matrix bridges of communities, and the instance's own, once an admin
+  # offers them. BRIDGE_HOST_SECRET equals the gateway's MATRIX_BRIDGE_HOST_SECRET
+  # (bot-gateway.env). A homeserver reaches an application service on 9009, served
+  # at https://DOMAIN/matrix-appservice/. Its image versions separately from Harmony.
+  matrix-bridge-host:
+    image: ${MATRIX_BRIDGE_REGISTRY:-ghcr.io/y4my4my4m}/harmony-matrix-bridge:${MATRIX_BRIDGE_VERSION:-1}
+    container_name: harmony-matrix-bridge-host
+    restart: unless-stopped
+    env_file:
+      # Written by configure.sh only with Matrix bridge hosting enabled.
+      - path: ./matrix-bridge.env
+        required: false
+    environment:
+      BRIDGE_MODE: host
+      HARMONY_URL: http://bot-gateway:3002
+      HARMONY_PUBLIC_URL: https://${DOMAIN}
+    volumes:
+      - matrix-bridge-data:/data
+    depends_on:
+      - bot-gateway
+    networks:
+      - default
+    profiles: [matrix]
+
+  # ---------------------------------------------------------------------------
   # LiveKit voice/video (profile: voice)
   # ---------------------------------------------------------------------------
   # Signalling (7880) goes through Caddy at LIVEKIT_DOMAIN. Media uses the
@@ -265,6 +292,7 @@ volumes:
   redis-data:
   media-cache-data:
   discord-bridge-data:
+  matrix-bridge-data:
 
 networks:
   default:

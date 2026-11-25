@@ -36,6 +36,11 @@
 #                                   without an argument, whether it runs
 #   harmony studio [on | off]       Supabase Studio, the database UI; off by default;
 #                                   without an argument, whether it runs
+#   harmony bridges                 the chat bridges this instance runs for its communities
+#   harmony bridges add discord | matrix | both
+#                                   start one (turns the bot gateway on)
+#   harmony bridges remove discord | matrix [--delete-data] [--yes]
+#                                   stop one; communities' settings stay
 #   harmony version
 #
 # Each command is a thin layer over the scripts beside this file.
@@ -46,7 +51,7 @@ SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 # shellcheck source=lib.sh
 source "$(dirname "$SELF")/lib.sh"
 
-usage() { sed -n '2,41p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,46p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 need_config() { [[ -f "$ENV_FILE" ]] || die "not installed yet: $SELF_HOST_DIR/harmony install"; }
 
@@ -144,17 +149,29 @@ cmd_config() {
 		*) die "unknown argument: $1 (harmony help)" ;;
 	esac
 	interactive || die "harmony config asks questions; for scripted changes run: HARMONY_...=... bash configure.sh --non-interactive"
-	local before_profiles after_profiles before_hosts after_hosts svc profile unchosen=false name_unchosen=false
+	reconfigure ask
+	ok "Configuration applied. Check it: harmony doctor"
+}
+
+# Runs configure.sh, asking its questions (ask) or keeping every answer the environment does not
+# give (keep), and applies the change: containers of a profile turned off, images, the stack, the
+# API's name in the database, the registration mode.
+reconfigure() {
+	local before_profiles after_profiles before_hosts after_hosts pair svc profile unchosen=false name_unchosen=false
 	analytics_unchosen && unchosen=true
 	instance_name_unchosen && name_unchosen=true
 	before_profiles="$(env_get "$ENV_FILE" COMPOSE_PROFILES)"
 	before_hosts="$(env_get "$ENV_FILE" DOMAIN) $(env_get "$ENV_FILE" DB_DOMAIN)"
-	bash "$SELF_HOST_DIR/configure.sh" < /dev/tty
+	if [[ "$1" == ask ]]; then
+		bash "$SELF_HOST_DIR/configure.sh" < /dev/tty
+	else
+		bash "$SELF_HOST_DIR/configure.sh" --non-interactive < /dev/null
+	fi
 	after_profiles="$(env_get "$ENV_FILE" COMPOSE_PROFILES)"
 	after_hosts="$(env_get "$ENV_FILE" DOMAIN) $(env_get "$ENV_FILE" DB_DOMAIN)"
 	if $unchosen && [[ ",$after_profiles," != *",logs,"* ]]; then analytics_default_off; fi
 	# A disabled profile's container outlives `up -d`; remove it.
-	for pair in livekit:voice bot-gateway:bots discord-bridge-host:discord analytics:logs vector:logs; do
+	for pair in livekit:voice bot-gateway:bots discord-bridge-host:discord matrix-bridge-host:matrix analytics:logs vector:logs; do
 		svc="${pair%%:*}"; profile="${pair##*:}"
 		if [[ ",$before_profiles," == *",$profile,"* && ",$after_profiles," != *",$profile,"* ]]; then
 			info "Removing $svc (profile $profile turned off)"
@@ -162,7 +179,8 @@ cmd_config() {
 		fi
 	done
 	info "Applying..."
-	compose pull --quiet --ignore-pull-failures >/dev/null 2>&1 || true
+	# keep: images already here stay at the version the database is migrated for; up -d pulls a missing one.
+	if [[ "$1" == ask ]]; then compose pull --quiet --ignore-pull-failures >/dev/null 2>&1 || true; fi
 	compose up -d
 	# instance_config.storage_origin follows DB_DOMAIN.
 	if [[ "$before_hosts" != "$after_hosts" ]]; then
@@ -175,7 +193,170 @@ cmd_config() {
 	if bash "$SELF_HOST_DIR/admin.sh" has-admin; then
 		bash "$SELF_HOST_DIR/admin.sh" registration
 	fi
-	ok "Configuration applied. Check it: harmony doctor"
+}
+
+# Chat bridges the instance runs: a compose profile and its service, started through configure.sh.
+# Communities are offered them by the admin panel's switches (instance_config).
+bridge_on() { [[ ",$(env_get "$ENV_FILE" COMPOSE_PROFILES)," == *",$1,"* ]]; }
+
+bridge_label() { case "$1" in discord) printf Discord ;; matrix) printf Matrix ;; esac; }
+
+# "'key', 'key'": the instance_config switches that offer communities their own account or bot run
+# here, and the instance's.
+bridge_switches() {
+	case "$1" in
+		discord) printf "'discord_bridge_hosting_enabled', 'discord_bridge_instance_bot_enabled'" ;;
+		matrix) printf "'matrix_bridge_hosting_enabled', 'matrix_bridge_instance_enabled'" ;;
+	esac
+}
+
+# "own instance": bridges communities run on the host. Empty when the database is down.
+bridge_counts() {
+	db_sql 2>/dev/null <<SQL || true
+SELECT count(*) FILTER (WHERE mode = 'hosted') || ' ' || count(*) FILTER (WHERE mode = 'instance')
+  FROM public.${1}_bridges;
+SQL
+}
+
+# "own instance", each true or false: what the admin panel offers communities.
+bridge_offers() {
+	db_sql 2>/dev/null <<SQL || true
+SELECT COALESCE(bool_or(config_key LIKE '%_hosting_enabled' AND config_value #>> '{}' = 'true'), false)
+       || ' ' || COALESCE(bool_or(config_key NOT LIKE '%_hosting_enabled' AND config_value #>> '{}' = 'true'), false)
+  FROM public.instance_config
+ WHERE config_key IN ($(bridge_switches "$1"));
+SQL
+}
+
+bridge_offer_at() { printf 'Instance admin, Config, General, %s bridge' "$(bridge_label "$1")"; }
+
+# What a community connects and what the instance has, as the admin panel words them.
+bridge_own() { case "$1" in discord) printf 'own bot' ;; matrix) printf 'own account' ;; esac; }
+bridge_shared() { case "$1" in discord) printf "this instance's bot" ;; matrix) printf "this instance's bridge" ;; esac; }
+
+bridge_status() {
+	local platform="$1" label counts offers
+	label="$(bridge_label "$platform")"
+	if ! bridge_on "$platform"; then
+		printf '%s: off. harmony bridges add %s runs it for your communities.\n' "$label" "$platform"
+		return
+	fi
+	if [[ -n "$(svc_id "$platform-bridge-host")" ]]; then
+		printf '%s: on.\n' "$label"
+	else
+		printf '%s: on, but %s-bridge-host is not running: harmony logs %s-bridge-host\n' "$label" "$platform" "$platform"
+	fi
+	counts="$(bridge_counts "$platform")"; offers="$(bridge_offers "$platform")"
+	[[ -z "$counts" ]] || printf '  Run here:  %s with a community'"'"'s %s, %s with %s\n' "${counts% *}" "$(bridge_own "$platform")" "${counts#* }" "$(bridge_shared "$platform")"
+	if [[ -n "$offers" ]]; then
+		printf '  Offered:   %s %s, %s %s (%s)\n' "$(bridge_own "$platform")" "$(yes_or_no "${offers% *}")" \
+			"$(bridge_shared "$platform")" "$(yes_or_no "${offers#* }")" "$(bridge_offer_at "$platform")"
+	fi
+}
+yes_or_no() { if [[ "$1" == true ]]; then printf yes; else printf no; fi; }
+
+bridges_status() {
+	if bridge_on bots; then
+		printf 'Bot gateway: on. Bots need it, and so do bridges people run themselves.\n'
+	else
+		printf 'Bot gateway: off. Nobody can run a bot or a bridge; harmony bridges add, or harmony config, turns it on.\n'
+	fi
+	bridge_status discord
+	bridge_status matrix
+}
+
+bridges_add() {
+	local usage="usage: harmony bridges add discord | matrix | both" platform platforms answer=() missing=false
+	[[ $# -eq 1 ]] || die "$usage"
+	case "$1" in
+		discord|matrix) platforms="$1" ;;
+		both) platforms="discord matrix" ;;
+		*) die "$usage" ;;
+	esac
+	for platform in $platforms; do
+		if bridge_on "$platform" && [[ -n "$(svc_id "$platform-bridge-host")" ]]; then
+			ok "The $(bridge_label "$platform") bridge host already runs."
+			continue
+		fi
+		missing=true
+		answer+=("HARMONY_$(printf '%s' "$platform" | tr '[:lower:]' '[:upper:]')=y")
+		info "Starting the $(bridge_label "$platform") bridge host..."
+	done
+	if $missing; then
+		bridge_on bots || info "The bot gateway is turned on with it."
+		(export HARMONY_BOTS=y "${answer[@]}"; reconfigure keep)
+		ok "The bridge host runs."
+	fi
+	for platform in $platforms; do
+		info "Communities see the $(bridge_label "$platform") bridge once you offer it in $(bridge_offer_at "$platform"):"
+		info "their $(bridge_own "$platform") run here, or $(bridge_shared "$platform"), whose credentials go there too."
+	done
+}
+
+bridges_remove() {
+	local usage="usage: harmony bridges remove discord | matrix [--delete-data] [--yes]"
+	local delete=false sure=false counts own=0 instance=0 platform="${1:-}" label volume
+	case "$platform" in discord|matrix) shift ;; *) die "$usage" ;; esac
+	label="$(bridge_label "$platform")"; volume="harmony_$platform-bridge-data"
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--delete-data) delete=true ;;
+			--yes) sure=true ;;
+			*) die "unknown argument: $1 (harmony help)" ;;
+		esac
+		shift
+	done
+	if ! bridge_on "$platform" && ! $delete; then
+		ok "The $label bridge host is off."
+		return
+	fi
+	counts="$(bridge_counts "$platform")"
+	[[ -z "$counts" ]] || { own="${counts% *}"; instance="${counts#* }"; }
+	if [[ -z "$counts" ]]; then
+		warn "the database does not answer, so how many communities' bridges stop is not known"
+	elif (( own + instance > 0 )); then
+		warn "$((own + instance)) communities' bridges stop: $own with their $(bridge_own "$platform"), $instance with $(bridge_shared "$platform")"
+	fi
+	$delete && warn "--delete-data deletes the bridge host's volume: $(bridge_volume_holds "$platform"), which cannot be recovered"
+	if ! $sure && { $delete || [[ -z "$counts" ]] || (( own + instance > 0 )); }; then
+		interactive || die "nothing was changed: add --yes to remove it without being asked"
+		ask_yn "Remove the $label bridge host?" n || die "nothing was changed"
+	fi
+	# Off in the panel too: an offer without a host takes communities through a setup that cannot finish.
+	db_sql >/dev/null 2>&1 <<SQL || warn "the offers in $(bridge_offer_at "$platform") were not turned off; turn them off there"
+UPDATE public.instance_config SET config_value = 'false'::jsonb, updated_at = now()
+ WHERE config_key IN ($(bridge_switches "$platform"));
+SQL
+	if bridge_on "$platform"; then
+		(export "HARMONY_$(printf '%s' "$platform" | tr '[:lower:]' '[:upper:]')=n"; reconfigure keep)
+	fi
+	if $delete; then
+		docker volume rm "$volume" >/dev/null || die "the host is removed, but its volume was not: docker volume rm $volume"
+		ok "The $label bridge host and its data are removed."
+	else
+		ok "The $label bridge host is removed; its data stays."
+	fi
+	info "Communities keep their bridges' settings: harmony bridges add $platform, then $(bridge_offer_at "$platform")."
+	bridge_on bots && info "The bot gateway stays on for bots and bridges people run themselves; harmony config turns it off."
+	return 0
+}
+bridge_volume_holds() {
+	case "$1" in
+		discord) printf 'its emoji map and state' ;;
+		matrix) printf 'which Matrix event is which Harmony message, so edits and deletions of earlier messages no longer cross' ;;
+	esac
+}
+
+cmd_bridges() {
+	need_config
+	local action="${1:-}"
+	[[ $# -gt 0 ]] && shift
+	case "$action" in
+		"") bridges_status ;;
+		add) bridges_add "$@" ;;
+		remove) bridges_remove "$@" ;;
+		*) die "usage: harmony bridges [add discord | matrix | both, remove discord | matrix [--delete-data] [--yes]]" ;;
+	esac
 }
 
 # Supabase log collection: ENABLE_ANALYTICS and the `logs` profile in .env. Off removes the
@@ -283,6 +464,7 @@ case "$cmd" in
 	config) cmd_config "$@" ;;
 	analytics) cmd_analytics "$@" ;;
 	studio) cmd_studio "$@" ;;
+	bridges) cmd_bridges "$@" ;;
 	version) git -C "$REPO_DIR" describe --tags --always 2>/dev/null; env_get "$ENV_FILE" HARMONY_VERSION ;;
 	-h|--help|help|"") usage ;;
 	*) die "unknown command: $cmd (harmony help)" ;;

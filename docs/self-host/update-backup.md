@@ -109,8 +109,8 @@ HARMONY_REGISTRY=ghcr.io/<owner> HARMONY_REMOTE=<fork remote> harmony update --v
 ```
 
 `HARMONY_REGISTRY` stays in `.env` until set again; `HARMONY_REGISTRY=ghcr.io/y4my4my4m`
-returns to the upstream images. `DISCORD_BRIDGE_REGISTRY` does the same for the
-bridge image, published by the bridge repository's own workflow.
+returns to the upstream images. `DISCORD_BRIDGE_REGISTRY` and `MATRIX_BRIDGE_REGISTRY` do the
+same for the bridge images, published by each bridge repository's own workflow.
 
 ### When an update stops
 
@@ -185,7 +185,7 @@ writes `self-host/backups/YYYYmmdd-HHMMSS/`, readable only by its owner:
 |---|---|
 | `database.dump` | The whole database in `pg_dump` custom format: accounts and sign-in, storage metadata, and all of Harmony's data |
 | `roles.sql` | The database roles, with their password hashes, grants and settings (`pg_dumpall --globals-only`) |
-| `config.tar` | `.env`, `federation.env`, `bot-gateway.env`, `discord-bridge.env`, `livekit.yaml` and `supabase/.env` (those that exist), and `supabase/pgsodium_root.key`, the key Supabase Vault encrypts its secrets with |
+| `config.tar` | `.env`, `federation.env`, `bot-gateway.env`, `discord-bridge.env`, `matrix-bridge.env`, `livekit.yaml` and `supabase/.env` (those that exist), and `supabase/pgsodium_root.key`, the key Supabase Vault encrypts its secrets with |
 | `storage.tar` | Uploaded files (`supabase/volumes/storage`) with their extended attributes, where Supabase Storage keeps each file's content type. Absent with `--no-storage` |
 | `manifest` | `created`, `commit`, `version`, `domain`, `supabase_ref`, `migration` (the newest applied) and `contents` |
 

@@ -100,6 +100,7 @@ guard keeps seeing the public address for its own domain.
 | Caddy's certificates and state | volumes `caddy-data`, `caddy-config` |
 | Redis | volume `redis-data` |
 | Discord bridge host | volume `discord-bridge-data` |
+| Matrix bridge host | volume `matrix-bridge-data` |
 | Sign-in provider credentials for the auth service | volume `auth-config`, written by `federation-server`; the database holds the source |
 
 ### Build Harmony's images yourself

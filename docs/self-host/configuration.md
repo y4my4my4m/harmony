@@ -32,6 +32,7 @@ so do `harmony config` and `harmony update`.
 | `federation.env` | `federation-server`, `federation-worker` | Always |
 | `bot-gateway.env` | `bot-gateway` | With bots on |
 | `discord-bridge.env` | `discord-bridge-host` | With Discord bridge hosting on |
+| `matrix-bridge.env` | `matrix-bridge-host` | With Matrix bridge hosting on |
 | `livekit.yaml` | `livekit` | With voice on; kept once it exists |
 | `supabase/.env` | The Supabase stack, including the sign-in service (`auth`), and `supabase-overrides.yml` | Always |
 
@@ -125,7 +126,7 @@ Limits on what one local account creates and how fast it writes, on by default o
 | **Calls placed per minute**, to this instance and to others; hanging up is never refused | `account_rings_per_minute` | `10` |
 | **Role picks per minute**: taking and dropping self-assignable roles | `account_role_picks_per_minute` | `60` |
 | **Requests per minute, per bot** | `bot_requests_per_minute` | `600` |
-| **Requests per minute, per linked Discord bridge** | `bridge_requests_per_minute` | `3000` |
+| **Requests per minute, per linked Discord or Matrix bridge** | `bridge_requests_per_minute` | `3000` |
 | **An account counts as new for (hours)** | `new_account_hours` | `24` |
 | **Messages per minute**, new accounts | `new_account_messages_per_minute` | `20` on a new install, else `0` |
 | **Posts per hour**, new accounts | `new_account_posts_per_hour` | `20` on a new install, else `0` |
@@ -282,8 +283,9 @@ docker compose up -d
 | `HARMONY_DB_DOMAIN` | API name; default the configured one, else `db.DOMAIN` |
 | `HARMONY_LIVEKIT_DOMAIN` | LiveKit name; default the configured one, else `live.DOMAIN` |
 | `HARMONY_VOICE` | `y` or `n`: LiveKit voice and video |
-| `HARMONY_BOTS` | `y` or `n`: the bot gateway |
-| `HARMONY_DISCORD` | `y` or `n`: Discord bridge hosting; `y` turns bots on |
+| `HARMONY_BOTS` | `y` or `n`: the bot gateway; `y` on a new install |
+| `HARMONY_DISCORD` | `y` or `n`: run Discord bridges for your communities; `y` turns bots on. `harmony bridges add discord` and `remove discord` set it |
+| `HARMONY_MATRIX` | `y` or `n`: run Matrix bridges for your communities; `y` turns bots on. `harmony bridges add matrix` and `remove matrix` set it |
 | `HARMONY_ANALYTICS` | `y` or `n`: Supabase's log collection, Logflare and vector; see [Log collection](/self-host/#log-collection) |
 | `HARMONY_REGISTRATION` | `open`, `invite` or `closed` |
 | `HARMONY_SMTP_HOST` | SMTP server. Unset keeps the current email settings |
@@ -294,6 +296,7 @@ docker compose up -d
 | `HARMONY_BUILD` | `1` builds Harmony's images from the checkout; `0` returns to published images |
 | `HARMONY_REGISTRY` | Where Harmony's images come from. Default `ghcr.io/y4my4my4m`; a fork that publishes its own (see [Forks](update-backup.md#forks)): `ghcr.io/<owner>`, lower case |
 | `DISCORD_BRIDGE_REGISTRY` | The same for the Discord bridge image |
+| `MATRIX_BRIDGE_REGISTRY` | The same for the Matrix bridge image |
 | `HARMONY_HTTP_PORT`, `HARMONY_HTTPS_PORT` | `[address:]port` Caddy publishes for 80 and 443 |
 | `SUPABASE_REF` | Commit, tag or branch of the upstream Supabase stack, used by `--refresh-supabase` |
 
@@ -314,7 +317,7 @@ is a mounted file, so a change to it needs `docker compose restart livekit`.
 `configure.sh` runs again on every `harmony config` and `harmony update`. It
 keeps every key it finds, adds missing ones, and never regenerates a secret.
 The answers in `.env` (`DOMAIN`, `INSTANCE_NAME`, `ADMIN_EMAIL`,
-`ENABLE_VOICE`, `ENABLE_BOTS`, `ENABLE_DISCORD_BRIDGE`, `ENABLE_ANALYTICS`, `REGISTRATION`,
+`ENABLE_VOICE`, `ENABLE_BOTS`, `ENABLE_DISCORD_BRIDGE`, `ENABLE_MATRIX_BRIDGE`, `ENABLE_ANALYTICS`, `REGISTRATION`,
 `HARMONY_HTTP_PORT`, `HARMONY_HTTPS_PORT`) default to their current values,
 so a hand edit of them stays and takes effect on the next run. The keys below
 are recomputed on every run, and a hand edit of them is lost:
@@ -332,7 +335,8 @@ are recomputed on every run, and a hand edit of them is lost:
 | `federation.env` | `LIVEKIT_URL`, `LIVEKIT_PUBLIC_URL` | Removed while voice is off |
 | `bot-gateway.env` | `SUPABASE_SERVICE_ROLE_KEY` | `supabase/.env` |
 | `bot-gateway.env` | `INTERNAL_API_SECRET` | `federation.env` |
-| `bot-gateway.env` | `BRIDGE_HOST_SECRET` | `discord-bridge.env`; removed while hosting is off |
+| `bot-gateway.env` | `BRIDGE_HOST_SECRET` | `discord-bridge.env`; removed while Discord bridge hosting is off |
+| `bot-gateway.env` | `MATRIX_BRIDGE_HOST_SECRET` | `BRIDGE_HOST_SECRET` of `matrix-bridge.env`; removed while Matrix bridge hosting is off |
 | `supabase/.env` | `SMTP_*` | The email answers, when email is configured in that run |
 
 Values derived from the domain (`INSTANCE_DOMAIN`, `API_BASE_URL`,
@@ -395,17 +399,20 @@ by hand; see [OAuth sign-in](/self-host/oauth).
 | `CADDY_TLS` | `internal` | An email address: Let's Encrypt certificates with that contact. `internal`: Caddy's local CA, for LAN installs |
 | `CADDY_TRUSTED_PROXIES` | empty | A proxy with a public address in front of Caddy, space-separated CIDRs. Proxies on private addresses and Cloudflare's edges are built in. See [the client address](/self-host/signup-limits#client-address) |
 | `ENABLE_VOICE` | `false` | `true` defines the LiveKit site in Caddy. `configure.sh` adds the `voice` profile and the LiveKit URLs |
-| `ENABLE_BOTS` | `false` | `configure.sh` adds the `bots` profile and writes `bot-gateway.env`; `harmony doctor` checks the gateway |
-| `ENABLE_DISCORD_BRIDGE` | `false` | `configure.sh` adds the `discord` profile and writes `discord-bridge.env` |
+| `ENABLE_BOTS` | `true` on a new install | `configure.sh` adds the `bots` profile and writes `bot-gateway.env`; `harmony doctor` checks the gateway |
+| `ENABLE_DISCORD_BRIDGE` | `false` | `configure.sh` adds the `discord` profile and writes `discord-bridge.env`. `harmony bridges` sets it |
+| `ENABLE_MATRIX_BRIDGE` | `false` | `configure.sh` adds the `matrix` profile and writes `matrix-bridge.env`. `harmony bridges` sets it |
 | `ENABLE_ANALYTICS` | `false`, also on an instance configured before the key existed | `configure.sh` adds the `logs` profile: Supabase's log collection, `analytics` (Logflare) and `vector`. `harmony analytics on\|off` sets it. Absent, `harmony update`, `harmony install` and `harmony config` write `false`, remove both containers and delete the logs they stored |
 | `ENABLE_STUDIO` | `false`, also on an instance configured before the key existed | `configure.sh` adds the `studio` profile: `studio` and `meta`. `harmony studio on` or `off` sets it. `HARMONY_STUDIO=y` or `n` sets it for `configure.sh` |
 | `REGISTRATION` | `open` | `open`, `invite` or `closed`. `harmony registration` without an argument applies it |
-| `COMPOSE_PROFILES` | from `ENABLE_*` | Read by Docker Compose: the optional services (`voice`, `bots`, `discord`, `logs`, `studio`) `docker compose up -d` starts |
+| `COMPOSE_PROFILES` | from `ENABLE_*` | Read by Docker Compose: the optional services (`voice`, `bots`, `discord`, `matrix`, `logs`, `studio`) `docker compose up -d` starts |
 | `COMPOSE_FILE` | unset | `docker-compose.yml:docker-compose.build.yml` after `HARMONY_BUILD=1`: images are built from the checkout |
 | `HARMONY_VERSION` | `edge` | Tag of the `harmony-*` images (from `HARMONY_REGISTRY`). Rewritten by every `configure.sh` run; `harmony update --version` changes it |
 | `DISCORD_BRIDGE_VERSION` | `2` | Tag of the Discord bridge image, versioned separately from Harmony |
+| `MATRIX_BRIDGE_VERSION` | `1` | Tag of the Matrix bridge image, versioned separately from Harmony |
 | `HARMONY_REGISTRY` | unset (`ghcr.io/y4my4my4m`) | Registry path of the `harmony-*` images. Written only when it differs from the default; `HARMONY_REGISTRY=ghcr.io/y4my4my4m bash configure.sh --non-interactive` removes it |
 | `DISCORD_BRIDGE_REGISTRY` | unset (`ghcr.io/y4my4my4m`) | Registry path of the Discord bridge image |
+| `MATRIX_BRIDGE_REGISTRY` | unset (`ghcr.io/y4my4my4m`) | Registry path of the Matrix bridge image |
 | `HARMONY_HTTP_PORT` | `80` | `[address:]port` Caddy publishes for port 80 |
 | `HARMONY_HTTPS_PORT` | `443` | `[address:]port` Caddy publishes for 443/tcp and 443/udp |
 | `HARMONY_KEEP_UPDATE_BACKUPS` | `5` | Update backups `harmony update` keeps of each kind; `0` keeps all ([Delete old backups](/self-host/update-backup#delete-old-backups)) |
@@ -688,6 +695,7 @@ The gateway stops at start without `SUPABASE_URL` and
 | `WS_IDENTIFY_TIMEOUT_MS` | `30000` | Time a new gateway connection has to identify, clamped to 1000-60000 ms; past it the connection closes with `4003` |
 | `WS_REVALIDATE_INTERVAL_MS` | `30000` | Interval at which open connections are checked against their bot and token, clamped to 1000-60000 ms |
 | `BRIDGE_HOST_SECRET` | unset | Shared secret of the Discord bridge host; under 32 characters, hosting stays off. Must equal the one in `discord-bridge.env` |
+| `MATRIX_BRIDGE_HOST_SECRET` | unset | Shared secret of the Matrix bridge host; under 32 characters, hosting stays off. Must equal `BRIDGE_HOST_SECRET` in `matrix-bridge.env` |
 | `BRIDGE_CONFIG_POLL_MS` | `5000` | Interval of the bridge configuration poll, clamped to 1000-60000 ms |
 
 ## Discord bridge host
@@ -698,6 +706,16 @@ gateway's. `docker-compose.yml` sets the host's other variables itself:
 `HARMONY_PUBLIC_URL=https://DOMAIN`. The image comes from the
 [bridge repository](https://github.com/y4my4my4m/harmony-discord-bridge);
 [Discord bridges](/self-host/discord-bridges) covers hosting it.
+
+## Matrix bridge host
+
+`self-host/matrix-bridge.env` holds `BRIDGE_HOST_SECRET`, equal to the
+gateway's `MATRIX_BRIDGE_HOST_SECRET`. `docker-compose.yml` sets
+`BRIDGE_MODE=host`, `HARMONY_URL=http://bot-gateway:3002` and
+`HARMONY_PUBLIC_URL=https://DOMAIN`. Caddy passes
+`https://DOMAIN/matrix-appservice/` to it, for homeservers. The image comes
+from the [bridge repository](https://github.com/y4my4my4m/harmony-matrix-bridge);
+[Matrix bridges](/self-host/matrix-bridges) covers hosting it.
 
 ## LiveKit
 

@@ -25,8 +25,9 @@
 #   HARMONY_ADMIN_PASSWORD    default: generated, shown once (reveal_secret, lib.sh)
 #   HARMONY_INSTANCE_NAME     default: the domain (Harmony draws a warning)
 #   HARMONY_VOICE             y|n, default y (LiveKit; live.DOMAIN, 7881/tcp, 7882/udp)
-#   HARMONY_BOTS              y|n, default n (bot gateway)
+#   HARMONY_BOTS              y|n, default y on a new install (bot gateway)
 #   HARMONY_DISCORD           y|n, default n (Discord bridge hosting; implies bots)
+#   HARMONY_MATRIX            y|n, default n (Matrix bridge hosting; implies bots)
 #   HARMONY_ANALYTICS         y|n, default n (Supabase log collection: Logflare + vector),
 #                             also on an install configured before the question existed:
 #                             n there removes it and deletes the logs it stored
@@ -362,16 +363,37 @@ questions() {
 	cur="$(yn "${HARMONY_VOICE:-$(env_get "$ENV_FILE" ENABLE_VOICE)}" y)"
 	if ask_yn "Enable voice and video?" "$cur"; then VOICE=y; else VOICE=n; fi
 
-	info "The bot gateway runs bots and Discord bridges."
-	cur="$(yn "${HARMONY_BOTS:-$(env_get "$ENV_FILE" ENABLE_BOTS)}" n)"
-	truthy "${HARMONY_DISCORD:-}" && cur=y
-	if ask_yn "Enable bots?" "$cur"; then BOTS=y; else BOTS=n; fi
-	DISCORD=n
-	if truthy "$BOTS"; then
-		info "Discord bridge hosting: communities paste their Discord bot token in Harmony and this server"
-		info "runs their bridge. Without it they run the bridge themselves."
-		cur="$(yn "${HARMONY_DISCORD:-$(env_get "$ENV_FILE" ENABLE_DISCORD_BRIDGE)}" n)"
-		if ask_yn "Host Discord bridges on this server?" "$cur"; then DISCORD=y; fi
+	info "A chat bridge run here connects your communities' channels with another chat platform;"
+	info "without one they run their own. 'harmony bridges' adds or removes one later."
+	off=false
+	if [[ -n "${HARMONY_BOTS:-}" ]] && ! truthy "$HARMONY_BOTS" && ! truthy "${HARMONY_DISCORD:-}" && ! truthy "${HARMONY_MATRIX:-}"; then
+		off=true
+	fi
+	case "$(bridge_default "${HARMONY_DISCORD:-}" ENABLE_DISCORD_BRIDGE $off) $(bridge_default "${HARMONY_MATRIX:-}" ENABLE_MATRIX_BRIDGE $off)" in
+		"y y") cur=both ;;
+		"y n") cur=discord ;;
+		"n y") cur=matrix ;;
+		*) cur=none ;;
+	esac
+	DISCORD=n; MATRIX=n
+	while :; do
+		ask BRIDGES "Which bridges should this instance run? (none / discord / matrix / both)" "$cur"
+		case "$(printf '%s' "$BRIDGES" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
+			none) break ;;
+			discord) DISCORD=y; break ;;
+			matrix) MATRIX=y; break ;;
+			both) DISCORD=y; MATRIX=y; break ;;
+		esac
+		warn "answer none, discord, matrix or both"
+	done
+	if truthy "$DISCORD" || truthy "$MATRIX"; then
+		BOTS=y
+	else
+		info "The bot gateway runs bots, and the bridges people run themselves; about 45 MB of RAM when idle."
+		# On for a new install; one configured before ENABLE_BOTS existed keeps what it ran.
+		if [[ -z "$(env_get "$ENV_FILE" DOMAIN)" || -f "$BOT_ENV" ]]; then cur=y; else cur=n; fi
+		cur="$(yn "${HARMONY_BOTS:-$(env_get "$ENV_FILE" ENABLE_BOTS)}" "$cur")"
+		if ask_yn "Enable bots?" "$cur"; then BOTS=y; else BOTS=n; fi
 	fi
 
 	echo
@@ -512,11 +534,22 @@ smtp_shown() {
 	[[ -n "$h" && "$h" != supabase-mail ]] && echo "$h" || echo "not set up"
 }
 
+bridges_shown() {
+	case "$DISCORD$MATRIX" in yy) echo "Discord, Matrix" ;; yn) echo Discord ;; ny) echo Matrix ;; *) echo none ;; esac
+}
+
+# y or n: the answer, else what .env holds, n when bots were answered off.
+bridge_default() { # ANSWER ENV_KEY OFF
+	local v="$1"
+	[[ -n "$v" ]] || { $3 || v="$(env_get "$ENV_FILE" "$2")"; }
+	if truthy "$v"; then echo y; else echo n; fi
+}
+
 summary_of_answers() {
 	echo
 	info "Settings"
 	printf '   %-14s %s\n' "URL" "https://$DOMAIN" "API" "https://$DB_DOMAIN" "Admin" "${ADMIN_USERNAME:-existing} <$ADMIN_EMAIL>" \
-		"Name" "$INSTANCE_NAME" "Voice" "$VOICE" "Bots" "$BOTS" "Discord host" "$DISCORD" \
+		"Name" "$INSTANCE_NAME" "Voice" "$VOICE" "Bots" "$BOTS" "Bridges" "$(bridges_shown)" \
 		"Log collection" "$ANALYTICS" \
 		"Email (SMTP)" "$(smtp_shown)" \
 		"Registration" "$REGISTRATION" "TLS" "$( [[ $TLS == internal ]] && echo "internal CA" || echo "Let's Encrypt")" \
@@ -530,7 +563,7 @@ summary_of_answers() {
 install_stack() {
 	echo
 	export HARMONY_DOMAIN="$DOMAIN" HARMONY_ADMIN_EMAIL="$ADMIN_EMAIL" HARMONY_INSTANCE_NAME="$INSTANCE_NAME" \
-		HARMONY_TLS="$TLS" HARMONY_VOICE="$VOICE" HARMONY_BOTS="$BOTS" HARMONY_DISCORD="$DISCORD" \
+		HARMONY_TLS="$TLS" HARMONY_VOICE="$VOICE" HARMONY_BOTS="$BOTS" HARMONY_DISCORD="$DISCORD" HARMONY_MATRIX="$MATRIX" \
 		HARMONY_ANALYTICS="$ANALYTICS" \
 		HARMONY_REGISTRATION="$REGISTRATION" HARMONY_HTTP_PORT="$HTTP_PORT" HARMONY_HTTPS_PORT="$HTTPS_PORT" \
 		HARMONY_DB_DOMAIN="$DB_DOMAIN" HARMONY_LIVEKIT_DOMAIN="$LIVEKIT_DOMAIN"

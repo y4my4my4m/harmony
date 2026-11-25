@@ -42,6 +42,7 @@ when installed as root):
 | `harmony auth providers \| add-provider \| remove-provider` | sign-in through your own OAuth/OIDC provider (Authentik, Keycloak, ...) |
 | `harmony config` | change the install answers and apply them |
 | `harmony analytics [on\|off [--delete-logs]]` | Supabase's log collection (Logflare and vector, profile `logs`); off unless chosen |
+| `harmony bridges [add\|remove discord\|matrix]` | the chat bridges this instance runs for its communities; none unless chosen |
 
 ## Files
 
@@ -61,12 +62,13 @@ when installed as root):
 | `federation.env` | configure.sh | federation backend: Supabase keys, Redis, VAPID and LiveKit keys, internal secret |
 | `bot-gateway.env` | configure.sh | bot gateway (bots enabled) |
 | `discord-bridge.env` | configure.sh | bridge host secret (Discord bridge hosting enabled) |
+| `matrix-bridge.env` | configure.sh | bridge host secret (Matrix bridge hosting enabled) |
 | `livekit.yaml` | configure.sh | LiveKit (voice enabled) |
 | `supabase/` | configure.sh | upstream Supabase `docker/` at the pinned commit; `supabase/.env` holds its secrets, SMTP and auth settings; `supabase/volumes/` the database and uploads |
 | `backups/` | harmony backup, update | backups |
 
 `.env`, `federation.env`, `bot-gateway.env`, `discord-bridge.env`,
-`livekit.yaml` and `supabase/.env` hold the only copy of the instance's
+`matrix-bridge.env`, `livekit.yaml` and `supabase/.env` hold the only copy of the instance's
 secrets. `harmony backup` saves them with the database.
 
 ## Images
@@ -111,18 +113,18 @@ server from that page).
 
 Offering it takes the `discord` profile and a switch in the app:
 
-1. Answer yes to bots and to Discord bridge hosting in `harmony install` or
-   `harmony config` (non-interactive: `HARMONY_BOTS=y HARMONY_DISCORD=y`).
+1. Run `harmony bridges add discord`, or answer `discord` to the bridge question of
+   `harmony install` or `harmony config` (non-interactive: `HARMONY_DISCORD=y`).
    `configure.sh` generates `BRIDGE_HOST_SECRET` into `bot-gateway.env` and
    `discord-bridge.env`, and the `discord-bridge-host` service starts
    (`ghcr.io/y4my4my4m/harmony-discord-bridge:${DISCORD_BRIDGE_VERSION:-2}`,
    `BRIDGE_MODE=host`, reaching the gateway at `http://bot-gateway:3002`).
-2. In Harmony, Admin, Instance, "Discord bridge", "Let communities bring
-   their own bot": turn on "Run communities' own bots" and set the maximum
+2. In Harmony, Instance admin, Config, General, "Discord bridge", "Let communities
+   bring their own bot": turn on "Run communities' own bots" and set the maximum
    number of hosted bridges.
 
 The instance's Discord bot needs the same service, bridge 2.1.0 or later, and
-a Discord application set up in Admin, Instance, "This instance's Discord bot"
+a Discord application set up in the same place, "This instance's Discord bot"
 (the steps are on that page; the OAuth2 redirect is
 `https://<domain>/bot-gateway/bridge/v2/discord/callback`, built from
 `INSTANCE_DOMAIN` in `bot-gateway.env`). The host runs it on one Discord

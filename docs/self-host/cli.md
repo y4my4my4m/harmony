@@ -39,6 +39,9 @@ harmony config
 harmony config --upload-ceiling [SIZE]
 harmony analytics [on | off [--delete-logs]]
 harmony studio [on | off]
+harmony bridges
+harmony bridges add discord | matrix | both
+harmony bridges remove discord | matrix [--delete-data] [--yes]
 harmony version
 harmony help
 ```
@@ -242,6 +245,7 @@ server's own port only.
 | `realtime` | always | A WebSocket upgrade at `wss://db.DOMAIN/realtime/v1/websocket` answers 101, on the server and, without internal TLS, through the public name | FAIL with the status on the server: 503, Realtime is down (`harmony logs realtime`); 401, `SUPABASE_ANON_KEY` differs from Kong's. FAIL through the public name only: with no answer, DNS, the firewall (80/443) or NAT, as for the federation checks; with another status, a proxy in front must pass WebSocket upgrades |
 | `bot-gateway` | bots on | `/bot-gateway/health` reports `"status": "ok"` through the public URL | FAIL: `harmony logs bot-gateway` |
 | `discord` | Discord bridge hosting on | `BRIDGE_HOST_SECRET` is at least 32 characters and equal in `bot-gateway.env` and `discord-bridge.env`; `discord-bridge-host` runs | FAIL: `bash configure.sh --non-interactive`, then `docker compose up -d`; `harmony logs discord-bridge-host` |
+| `matrix` | Matrix bridge hosting on | `MATRIX_BRIDGE_HOST_SECRET` in `bot-gateway.env` is at least 32 characters and equal to `BRIDGE_HOST_SECRET` in `matrix-bridge.env`; `matrix-bridge-host` runs | FAIL: `bash configure.sh --non-interactive`, then `docker compose up -d`; `harmony logs matrix-bridge-host` |
 | `livekit` | voice on | `livekit.yaml` exists and holds `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` of `federation.env`; `LIVEKIT_URL` and `LIVEKIT_PUBLIC_URL` are set; `/api/livekit/health` reports healthy | FAIL for a key mismatch: delete `self-host/livekit.yaml`, run `bash configure.sh --non-interactive`, `docker compose up -d`. Otherwise `harmony logs livekit` |
 | `signalling` | voice on | `https://live.DOMAIN` answers 200 | FAIL: `harmony logs caddy`; `harmony logs livekit` |
 | `media tcp` | voice on | A TCP connection to the published 7881 on the public address | WARN: open 7881/tcp in the firewall and at the provider; test from another machine with `nc -vz ADDRESS 7881` |
@@ -347,7 +351,7 @@ stops). Without a service, all of them.
 
 | Argument or option | Effect |
 |---|---|
-| `service` | A Compose service: `caddy`, `web`, `federation-server`, `federation-worker`, `redis`, `livekit`, `bot-gateway`, `discord-bridge-host`, `db`, `auth`, `rest`, `realtime`, `storage`, `imgproxy`, `kong`, `meta`, `studio`, `analytics`, `vector` |
+| `service` | A Compose service: `caddy`, `web`, `federation-server`, `federation-worker`, `redis`, `livekit`, `bot-gateway`, `discord-bridge-host`, `matrix-bridge-host`, `db`, `auth`, `rest`, `realtime`, `storage`, `imgproxy`, `kong`, `meta`, `studio`, `analytics`, `vector` |
 | `federation` | `federation-server` and `federation-worker` |
 | `supabase` | `db`, `auth`, `rest`, `realtime`, `storage` and `kong` |
 | `-n N` | Lines of history per service, default 200 |
@@ -561,15 +565,15 @@ defaults, and applies them:
 | Admin email | Let's Encrypt and Web Push contact |
 | Public HTTPS via Let's Encrypt? | `y`: public DNS and ports 80/443 reachable. `n`: Caddy's local CA |
 | Enable voice/video? | LiveKit; needs the `live.` record, UDP 7882 and TCP 7881 |
-| Enable the bot gateway? | Bots and Discord bridges |
-| Host Discord bridges for your communities? | Asked with bots on |
+| Which bridges should this instance run? | `none`, `discord`, `matrix` or `both`; a bridge turns the bot gateway on. See [harmony bridges](#harmony-bridges) |
+| Enable the bot gateway? | Asked with `none`. Bots, and bridges people run themselves |
 | Run Supabase log collection? | Logflare and vector; see [Log collection](/self-host/#log-collection) |
 | Registration | `open`, `invite` or `closed` |
 | Configure outgoing email (SMTP) now? | Then SMTP host, port, username, password (empty keeps the current one) and sender address |
 
 Then it removes the container of each service turned off (`livekit`,
-`bot-gateway`, `discord-bridge-host`, `analytics`, `vector`), pulls images, runs
-`docker compose up -d`, and re-applies the registration policy when an admin
+`bot-gateway`, `discord-bridge-host`, `matrix-bridge-host`, `analytics`, `vector`), pulls images,
+runs `docker compose up -d`, and re-applies the registration policy when an admin
 exists. It ends with `Configuration applied. Check it: harmony doctor`.
 
 It needs a terminal; without one it stops with `harmony config asks
@@ -642,6 +646,29 @@ database. Turn it on when you need it and off afterwards. Harmony does not use
 Studio or `meta`: the app, the federation backend and every `harmony` command
 work without them.
 
+## harmony bridges
+
+```text
+harmony bridges
+harmony bridges add discord | matrix | both
+harmony bridges remove discord | matrix [--delete-data] [--yes]
+```
+
+The chat bridges this instance runs for its communities. Without an argument it prints
+whether the bot gateway and each bridge host run, how many communities' bridges run there,
+and which of them the admin panel offers. It needs no terminal, except that `remove` asks
+before it stops communities' bridges.
+
+| Command or option | Effect |
+|---|---|
+| `add discord`, `add matrix`, `add both` | Turns the bot gateway on if it is off, writes the host's secret and starts `discord-bridge-host`, `matrix-bridge-host`, or both. Images already present are not updated. Communities see a bridge once you offer it in **User settings** → **Instance admin** → **Config** → **General**, under **Discord bridge** or **Matrix bridge**; see [Hosting Discord bridges](/self-host/discord-bridges) and [Hosting Matrix bridges](/self-host/matrix-bridges) |
+| `remove discord`, `remove matrix` | Says how many communities' bridges stop and asks, turns that bridge's two offers in the admin panel off, and removes the container and its secret. Communities keep their bridges' settings, and the host's volume stays. The other bridge and the bot gateway stay on |
+| `--delete-data` | With `remove`: also deletes the host's volume, `harmony_discord-bridge-data` or `harmony_matrix-bridge-data` |
+| `--yes` | With `remove`: does not ask. Without a terminal, `remove` needs it when communities' bridges run there, when the database does not answer, and with `--delete-data` |
+
+Bots and the bridges people run themselves need the bot gateway alone: `harmony config`,
+or `HARMONY_BOTS=y` for `configure.sh`.
+
 ## harmony version
 
 ```text
@@ -678,7 +705,7 @@ there (`cd /opt/harmony/self-host`) for steps the command does not expose.
 bash configure.sh [--non-interactive | --refresh-supabase]
 ```
 
-Writes `.env`, `federation.env`, `bot-gateway.env`, `discord-bridge.env`,
+Writes `.env`, `federation.env`, `bot-gateway.env`, `discord-bridge.env`, `matrix-bridge.env`,
 `livekit.yaml` and `supabase/.env`, and fetches the upstream Supabase stack
 into `supabase/` when it is absent. It never starts or touches the running
 stack; `docker compose up -d` applies its changes.
@@ -699,7 +726,7 @@ built-in sign-in provider without an entry in `PROVIDER_LINKING_DOMAINS` gets
 
 | Environment variable | Effect |
 |---|---|
-| `HARMONY_DOMAIN`, `HARMONY_INSTANCE_NAME`, `HARMONY_ADMIN_EMAIL`, `HARMONY_TLS`, `HARMONY_VOICE`, `HARMONY_BOTS`, `HARMONY_DISCORD`, `HARMONY_ANALYTICS`, `HARMONY_REGISTRATION`, `HARMONY_DB_DOMAIN`, `HARMONY_LIVEKIT_DOMAIN`, `HARMONY_SMTP_HOST`, `HARMONY_SMTP_PORT`, `HARMONY_SMTP_USER`, `HARMONY_SMTP_PASS`, `HARMONY_SMTP_SENDER` | Answers, as for the [installer](/self-host/install#scripted-installs); each defaults to the configured value. SMTP changes only when `HARMONY_SMTP_HOST` is set |
+| `HARMONY_DOMAIN`, `HARMONY_INSTANCE_NAME`, `HARMONY_ADMIN_EMAIL`, `HARMONY_TLS`, `HARMONY_VOICE`, `HARMONY_BOTS`, `HARMONY_DISCORD`, `HARMONY_MATRIX`, `HARMONY_ANALYTICS`, `HARMONY_REGISTRATION`, `HARMONY_DB_DOMAIN`, `HARMONY_LIVEKIT_DOMAIN`, `HARMONY_SMTP_HOST`, `HARMONY_SMTP_PORT`, `HARMONY_SMTP_USER`, `HARMONY_SMTP_PASS`, `HARMONY_SMTP_SENDER` | Answers, as for the [installer](/self-host/install#scripted-installs); each defaults to the configured value. SMTP changes only when `HARMONY_SMTP_HOST` is set |
 | `HARMONY_VERSION` | Image tag; default from the checkout: `X.Y.Z` at tag `vX.Y.Z`, otherwise `edge` |
 | `HARMONY_BUILD` | `1` builds Harmony's images from the checkout (`docker-compose.build.yml`); `0` returns to published images |
 | `HARMONY_HTTP_PORT`, `HARMONY_HTTPS_PORT` | `[address:]port` Caddy publishes for 80 and 443 |

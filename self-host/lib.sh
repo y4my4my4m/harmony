@@ -9,6 +9,7 @@ SB_ENV="$SELF_HOST_DIR/supabase/.env"
 FED_ENV="$SELF_HOST_DIR/federation.env"
 BOT_ENV="$SELF_HOST_DIR/bot-gateway.env"
 BRIDGE_ENV="$SELF_HOST_DIR/discord-bridge.env"
+MATRIX_ENV="$SELF_HOST_DIR/matrix-bridge.env"
 BACKUP_DIR="$SELF_HOST_DIR/backups"
 COMPOSE_MIN=2.24.4
 RELEASES_API="https://api.github.com/repos/y4my4my4m/harmony/releases/latest"

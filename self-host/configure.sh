@@ -2,7 +2,7 @@
 # =============================================================================
 # Harmony self-host configurator
 # =============================================================================
-# Writes .env, federation.env, bot-gateway.env, discord-bridge.env,
+# Writes .env, federation.env, bot-gateway.env, discord-bridge.env, matrix-bridge.env,
 # livekit.yaml and supabase/.env, and provisions the upstream Supabase Docker
 # stack into supabase/. install.sh runs it; it neither starts nor touches the
 # running stack.
@@ -27,8 +27,9 @@
 #   HARMONY_ADMIN_EMAIL     Let's Encrypt contact and Web Push (VAPID) contact
 #   HARMONY_TLS             acme | internal
 #   HARMONY_VOICE           y | n   (LiveKit voice/video)
-#   HARMONY_BOTS            y | n   (bot gateway)
+#   HARMONY_BOTS            y | n   (bot gateway; y on a new install)
 #   HARMONY_DISCORD         y | n   (Discord bridge hosting; implies bots)
+#   HARMONY_MATRIX          y | n   (Matrix bridge hosting; implies bots)
 #   HARMONY_ANALYTICS       y | n   (Supabase log collection, Logflare + vector:
 #                                   profile logs; default n, also on an install
 #                                   configured before this answer existed)
@@ -49,6 +50,7 @@
 #                           ghcr.io/y4my4my4m; a fork's, e.g. ghcr.io/<owner>
 #                           (images.yml publishes there with PUBLISH_IMAGES=true)
 #   DISCORD_BRIDGE_REGISTRY the same for the Discord bridge image
+#   MATRIX_BRIDGE_REGISTRY  the same for the Matrix bridge image
 #   HARMONY_HTTP_PORT       [address:]port Caddy publishes for 80 (default 80)
 #   HARMONY_HTTPS_PORT      [address:]port Caddy publishes for 443 (default 443)
 #   HARMONY_DB_DOMAIN       API name (sign-in, data, uploads, realtime), default
@@ -91,6 +93,7 @@ SB_ENV="$SUPABASE_DIR/.env"
 FED_ENV="$SCRIPT_DIR/federation.env"
 BOT_ENV="$SCRIPT_DIR/bot-gateway.env"
 BRIDGE_ENV="$SCRIPT_DIR/discord-bridge.env"
+MATRIX_ENV="$SCRIPT_DIR/matrix-bridge.env"
 LIVEKIT_YAML="$SCRIPT_DIR/livekit.yaml"
 LIVEKIT_EXAMPLE="$REPO_DIR/webrtc/livekit.yaml.example"
 DB_DATA_DIR="$SUPABASE_DIR/volumes/db/data"
@@ -266,8 +269,10 @@ ADMIN_EMAIL_DEFAULT="$(env_get "$ENV_FILE" ADMIN_EMAIL)"
 VOICE_DEFAULT="$(env_get "$ENV_FILE" ENABLE_VOICE)"
 [[ -n "$VOICE_DEFAULT" ]] || VOICE_DEFAULT="$(env_get "$ENV_FILE" VITE_ENABLE_VOICE)"
 BOTS_DEFAULT="$(env_get "$ENV_FILE" ENABLE_BOTS)"
-[[ -n "$BOTS_DEFAULT" || ! -f "$BOT_ENV" ]] || BOTS_DEFAULT=true
+# On for a new install; one configured before ENABLE_BOTS existed keeps what it ran.
+if [[ -z "$BOTS_DEFAULT" ]] && [[ -z "$OLD_DOMAIN" || -f "$BOT_ENV" ]]; then BOTS_DEFAULT=true; fi
 DISCORD_DEFAULT="$(env_get "$ENV_FILE" ENABLE_DISCORD_BRIDGE)"
+MATRIX_DEFAULT="$(env_get "$ENV_FILE" ENABLE_MATRIX_BRIDGE)"
 ANALYTICS_DEFAULT="$(env_get "$ENV_FILE" ENABLE_ANALYTICS)"
 # Configured without ENABLE_ANALYTICS: log collection runs unasked (lib.sh analytics_unchosen).
 ANALYTICS_UNCHOSEN=false
@@ -365,17 +370,49 @@ if [[ "$(yes_no "$TLS_CHOICE")" == true ]]; then CADDY_TLS="$ADMIN_EMAIL"; else 
 
 prompt VOICE_CHOICE "Enable voice/video (LiveKit; needs $LIVEKIT_DOMAIN in DNS, UDP 7882 and TCP 7881 open)?" "${HARMONY_VOICE:-$( [[ "$(yes_no "${VOICE_DEFAULT:-n}")" == true ]] && echo y || echo n)}"
 ENABLE_VOICE="$(yes_no "$VOICE_CHOICE")"
-prompt BOTS_CHOICE "Enable the bot gateway (bots, Discord bridge)?" "${HARMONY_BOTS:-$( [[ "$(yes_no "${BOTS_DEFAULT:-n}")" == true ]] && echo y || echo n)}"
-ENABLE_BOTS="$(yes_no "$BOTS_CHOICE")"
-
-ENABLE_DISCORD_BRIDGE=false
-if $ENABLE_BOTS || [[ "$(yes_no "${HARMONY_DISCORD:-n}")" == true ]]; then
-	prompt DISCORD_CHOICE "Host Discord bridges for your communities (they paste their Discord bot token in Harmony)?" "${HARMONY_DISCORD:-$( [[ "$(yes_no "${DISCORD_DEFAULT:-n}")" == true ]] && echo y || echo n)}"
-	ENABLE_DISCORD_BRIDGE="$(yes_no "$DISCORD_CHOICE")"
+# The bridges run here (none | discord | matrix | both). HARMONY_DISCORD and HARMONY_MATRIX answer;
+# HARMONY_BOTS=n without a y to either turns the bridges off with the gateway they run on.
+BRIDGES_OFF=false
+if [[ -n "${HARMONY_BOTS:-}" && "$(yes_no "$HARMONY_BOTS")" != true &&
+	"$(yes_no "${HARMONY_DISCORD:-n}")" != true && "$(yes_no "${HARMONY_MATRIX:-n}")" != true ]]; then
+	BRIDGES_OFF=true
 fi
-if $ENABLE_DISCORD_BRIDGE && ! $ENABLE_BOTS; then
-	warn "Discord bridge hosting runs on the bot gateway; enabling bots"
+bridge_default() { # ANSWER STORED
+	if [[ -n "$1" ]]; then yes_no "$1"
+	elif $BRIDGES_OFF; then echo false
+	else yes_no "${2:-n}"; fi
+}
+if $INTERACTIVE; then
+	echo
+	info "A chat bridge run here connects your communities' channels with another chat platform;"
+	info "without one they run their own. 'harmony bridges' changes it later."
+fi
+case "$(bridge_default "${HARMONY_DISCORD:-}" "$DISCORD_DEFAULT") $(bridge_default "${HARMONY_MATRIX:-}" "$MATRIX_DEFAULT")" in
+	"true true") BRIDGES_DEFAULT=both ;;
+	"true false") BRIDGES_DEFAULT=discord ;;
+	"false true") BRIDGES_DEFAULT=matrix ;;
+	*) BRIDGES_DEFAULT=none ;;
+esac
+ENABLE_DISCORD_BRIDGE=false
+ENABLE_MATRIX_BRIDGE=false
+while :; do
+	prompt BRIDGES_CHOICE "Which bridges should this instance run? (none / discord / matrix / both)" "$BRIDGES_DEFAULT"
+	case "$(trim "$BRIDGES_CHOICE" | lower)" in
+		none) break ;;
+		discord) ENABLE_DISCORD_BRIDGE=true; break ;;
+		matrix) ENABLE_MATRIX_BRIDGE=true; break ;;
+		both) ENABLE_DISCORD_BRIDGE=true; ENABLE_MATRIX_BRIDGE=true; break ;;
+	esac
+	warn "answer none, discord, matrix or both"
+done
+if $ENABLE_DISCORD_BRIDGE || $ENABLE_MATRIX_BRIDGE; then
+	if [[ -n "${HARMONY_BOTS:-}" && "$(yes_no "${HARMONY_BOTS:-n}")" != true ]]; then
+		warn "bridges run on the bot gateway; enabling bots"
+	fi
 	ENABLE_BOTS=true
+else
+	prompt BOTS_CHOICE "Enable the bot gateway (bots, and bridges people run themselves)?" "${HARMONY_BOTS:-$( [[ "$(yes_no "${BOTS_DEFAULT:-n}")" == true ]] && echo y || echo n)}"
+	ENABLE_BOTS="$(yes_no "$BOTS_CHOICE")"
 fi
 
 if $INTERACTIVE; then
@@ -464,6 +501,7 @@ registry_answer() { # VAR: the answer, else .env, else the default; no trailing 
 }
 HARMONY_REGISTRY="$(registry_answer HARMONY_REGISTRY)"
 DISCORD_BRIDGE_REGISTRY="$(registry_answer DISCORD_BRIDGE_REGISTRY)"
+MATRIX_BRIDGE_REGISTRY="$(registry_answer MATRIX_BRIDGE_REGISTRY)"
 
 HTTP_PORT="${HARMONY_HTTP_PORT:-$(env_get "$ENV_FILE" HARMONY_HTTP_PORT)}"; HTTP_PORT="${HTTP_PORT:-80}"
 HTTPS_PORT="${HARMONY_HTTPS_PORT:-$(env_get "$ENV_FILE" HARMONY_HTTPS_PORT)}"; HTTPS_PORT="${HTTPS_PORT:-443}"
@@ -475,6 +513,7 @@ PROFILES=""
 $ENABLE_VOICE && PROFILES="voice"
 $ENABLE_BOTS && PROFILES="${PROFILES:+$PROFILES,}bots"
 $ENABLE_DISCORD_BRIDGE && PROFILES="${PROFILES:+$PROFILES,}discord"
+$ENABLE_MATRIX_BRIDGE && PROFILES="${PROFILES:+$PROFILES,}matrix"
 $ENABLE_ANALYTICS && PROFILES="${PROFILES:+$PROFILES,}logs"
 $ENABLE_STUDIO && PROFILES="${PROFILES:+$PROFILES,}studio"
 
@@ -589,6 +628,8 @@ fi
 # The gateway refuses a host secret under 32 characters.
 BRIDGE_HOST_SECRET="$(env_get "$BRIDGE_ENV" BRIDGE_HOST_SECRET)"
 [[ ${#BRIDGE_HOST_SECRET} -ge 32 ]] || BRIDGE_HOST_SECRET="$(rand_hex 32)"
+MATRIX_BRIDGE_HOST_SECRET="$(env_get "$MATRIX_ENV" BRIDGE_HOST_SECRET)"
+[[ ${#MATRIX_BRIDGE_HOST_SECRET} -ge 32 ]] || MATRIX_BRIDGE_HOST_SECRET="$(rand_hex 32)"
 
 # =============================================================================
 # supabase/.env
@@ -726,13 +767,14 @@ env_set     "$ENV_FILE" CADDY_TLS "$CADDY_TLS"
 env_set     "$ENV_FILE" ENABLE_VOICE "$ENABLE_VOICE"
 env_set     "$ENV_FILE" ENABLE_BOTS "$ENABLE_BOTS"
 env_set     "$ENV_FILE" ENABLE_DISCORD_BRIDGE "$ENABLE_DISCORD_BRIDGE"
+env_set     "$ENV_FILE" ENABLE_MATRIX_BRIDGE "$ENABLE_MATRIX_BRIDGE"
 env_set     "$ENV_FILE" ENABLE_ANALYTICS "$ENABLE_ANALYTICS"
 env_set     "$ENV_FILE" ENABLE_STUDIO "$ENABLE_STUDIO"
 env_set     "$ENV_FILE" REGISTRATION "$REGISTRATION"
 # Read by docker compose itself: `docker compose up -d` starts these profiles.
 env_set     "$ENV_FILE" COMPOSE_PROFILES "$PROFILES"
 env_set     "$ENV_FILE" HARMONY_VERSION "$HARMONY_VERSION"
-for reg in HARMONY_REGISTRY DISCORD_BRIDGE_REGISTRY; do
+for reg in HARMONY_REGISTRY DISCORD_BRIDGE_REGISTRY MATRIX_BRIDGE_REGISTRY; do
 	if [[ "${!reg}" == "$DEFAULT_REGISTRY" ]]; then
 		[[ -z "$(env_get "$ENV_FILE" "$reg")" ]] || env_del "$ENV_FILE" "$reg"
 	else
@@ -823,6 +865,12 @@ if $ENABLE_BOTS; then
 	else
 		env_del "$BOT_ENV" BRIDGE_HOST_SECRET
 	fi
+	# The same for the host routes of /bridge/v2/matrix.
+	if $ENABLE_MATRIX_BRIDGE; then
+		env_set "$BOT_ENV" MATRIX_BRIDGE_HOST_SECRET "$MATRIX_BRIDGE_HOST_SECRET"
+	else
+		env_del "$BOT_ENV" MATRIX_BRIDGE_HOST_SECRET
+	fi
 	chmod 600 "$BOT_ENV"
 	ok "self-host/bot-gateway.env"
 fi
@@ -835,6 +883,16 @@ if $ENABLE_DISCORD_BRIDGE; then
 	env_set "$BRIDGE_ENV" BRIDGE_HOST_SECRET "$BRIDGE_HOST_SECRET"
 	chmod 600 "$BRIDGE_ENV"
 	ok "self-host/discord-bridge.env"
+fi
+
+# =============================================================================
+# matrix-bridge.env
+# =============================================================================
+if $ENABLE_MATRIX_BRIDGE; then
+	[[ -f "$MATRIX_ENV" ]] || { env_touch "$MATRIX_ENV"; printf '# Written by configure.sh; re-running it keeps existing values.\n' >> "$MATRIX_ENV"; }
+	env_set "$MATRIX_ENV" BRIDGE_HOST_SECRET "$MATRIX_BRIDGE_HOST_SECRET"
+	chmod 600 "$MATRIX_ENV"
+	ok "self-host/matrix-bridge.env"
 fi
 
 # =============================================================================

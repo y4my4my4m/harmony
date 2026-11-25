@@ -29,10 +29,11 @@ pulled in with `include:` and adjusted by `self-host/supabase-overrides.yml`.
 | `livekit` | `harmony-livekit` | voice on | Voice and video server; publishes 7881/tcp and 7882/udp for media |
 | `bot-gateway` | `harmony-bot-gateway` | bots on | Bot REST API and WebSocket gateway (port 3002), served at `/bot-gateway/` |
 | `discord-bridge-host` | `harmony-discord-bridge-host` | Discord bridge hosting on | Runs the Discord bridges communities host on this instance; image `ghcr.io/y4my4my4m/harmony-discord-bridge`, versioned separately (`DISCORD_BRIDGE_VERSION`, default `2`) |
+| `matrix-bridge-host` | `harmony-matrix-bridge-host` | Matrix bridge hosting on | Runs the Matrix bridges communities host on this instance, and this instance's own; image `ghcr.io/y4my4my4m/harmony-matrix-bridge`, versioned separately (`MATRIX_BRIDGE_VERSION`, default `1`) |
 
-Voice, bots and Discord bridge hosting are Compose profiles (`voice`,
-`bots`, `discord`); `COMPOSE_PROFILES` in `self-host/.env` lists the enabled
-ones, and the installer and `harmony config` set it.
+Voice, bots and bridge hosting are Compose profiles (`voice`,
+`bots`, `discord`, `matrix`); `COMPOSE_PROFILES` in `self-host/.env` lists the enabled
+ones, and the installer, `harmony config` and `harmony bridges` set it.
 
 The Supabase containers:
 
@@ -268,6 +269,7 @@ that make up an instance, under `/opt/harmony/self-host/`:
 | `federation.env` | Federation backend: Supabase keys, Redis, push (VAPID) and LiveKit keys |
 | `bot-gateway.env` | Bot gateway, with bots on |
 | `discord-bridge.env` | Discord bridge host secret, with Discord bridge hosting on |
+| `matrix-bridge.env` | Matrix bridge host secret, with Matrix bridge hosting on |
 | `livekit.yaml` | LiveKit, with voice on |
 | `supabase/.env` | Supabase: database password, JWT secret, SMTP, sign-up and OAuth settings |
 | `supabase/volumes/db/data` | The database |
@@ -304,7 +306,8 @@ from `supabase/.env`. See [Supabase Studio](/self-host/monitoring#supabase-studi
   files and their keys.
 - [Email (SMTP)](/self-host/email), [OAuth sign-in](/self-host/oauth),
   [Voice and video](/self-host/voice), [Push notifications](/self-host/push),
-  [Discord bridges](/self-host/discord-bridges): optional features.
+  [Discord bridges](/self-host/discord-bridges),
+  [Matrix bridges](/self-host/matrix-bridges): optional features.
 - [Activities](/self-host/activities): turning play-together activities on or off, and
   what the proxy needs to carry them.
 - [Announcements](/self-host/announcements): writing announcements and where

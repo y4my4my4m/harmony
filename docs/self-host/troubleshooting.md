@@ -175,7 +175,7 @@ and `configure.sh --refresh-supabase` run it, and it prints
 `… files and directories the containers read made readable to them (o+r)`
 when it changes some. Other files keep their modes. The secret files,
 `.env`, `federation.env`, `bot-gateway.env`, `discord-bridge.env`,
-`livekit.yaml` and `supabase/.env`, stay 0600: each run that writes one
+`matrix-bridge.env`, `livekit.yaml` and `supabase/.env`, stay 0600: each run that writes one
 sets that mode. `self-host/backups/` is 0700.
 
 Postgres runs the init scripts only when it creates the database. A

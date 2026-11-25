@@ -37,7 +37,7 @@ curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/
 ```
 
 The installer puts Harmony in `/opt/harmony`, asks for the domain, the admin
-account and the optional services (voice, bots, Discord bridge hosting, email),
+account and the optional services (voice, bots, chat bridges, email),
 and runs the whole instance in Docker from prebuilt images: the app, Supabase,
 the federation server and worker, Redis, and Caddy with automatic HTTPS. The
 host (x86_64 or arm64) needs Docker Engine with Compose 2.24.4 or later and

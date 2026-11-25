@@ -10,7 +10,7 @@
 #   database.dump     pg_dump -Fc of the whole database (auth, storage, Harmony)
 #   roles.sql         pg_dumpall --globals-only: the roles, with their password
 #                     hashes, grants and settings
-#   config.tar        .env, federation.env, bot-gateway.env, discord-bridge.env,
+#   config.tar        .env, federation.env, bot-gateway.env, discord-bridge.env, matrix-bridge.env,
 #                     livekit.yaml, supabase/.env, and supabase/pgsodium_root.key
 #                     (the key Supabase Vault secrets are encrypted with)
 #   storage.tar       uploaded files (supabase/volumes/storage) with their
@@ -29,7 +29,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 DB_DATA_DIR="$SELF_HOST_DIR/supabase/volumes/db/data"
 STORAGE_DIR="$SELF_HOST_DIR/supabase/volumes/storage"
-CONFIG_FILES=(.env federation.env bot-gateway.env discord-bridge.env livekit.yaml supabase/.env)
+CONFIG_FILES=(.env federation.env bot-gateway.env discord-bridge.env matrix-bridge.env livekit.yaml supabase/.env)
 PGSODIUM_KEY=/etc/postgresql-custom/pgsodium_root.key
 
 # storage_tar ARGS...: GNU tar with user.* xattrs, as root, in the database

@@ -171,10 +171,11 @@ describe('configure.sh under umask 077', () => {
     HARMONY_VOICE: 'y',
     HARMONY_BOTS: 'y',
     HARMONY_DISCORD: 'y',
+    HARMONY_MATRIX: 'y',
     HARMONY_REGISTRATION: 'open',
   })
   const at = (p: string) => mode(join(co, 'self-host', p))
-  const SECRETS = ['.env', 'federation.env', 'bot-gateway.env', 'discord-bridge.env', 'livekit.yaml', 'supabase/.env']
+  const SECRETS = ['.env', 'federation.env', 'bot-gateway.env', 'discord-bridge.env', 'matrix-bridge.env', 'livekit.yaml', 'supabase/.env']
 
   it('provisions supabase/ readable to the containers and writes the secrets 0600', () => {
     const r = configure('--non-interactive')

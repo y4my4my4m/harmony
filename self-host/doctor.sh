@@ -55,6 +55,7 @@ INTERNAL_TLS=false; [[ "$TLS" == internal ]] && INTERNAL_TLS=true
 VOICE=false; truthy "$(env_get "$ENV_FILE" ENABLE_VOICE)" && VOICE=true
 BOTS=false; truthy "$(env_get "$ENV_FILE" ENABLE_BOTS)" && BOTS=true
 DISCORD=false; truthy "$(env_get "$ENV_FILE" ENABLE_DISCORD_BRIDGE)" && DISCORD=true
+MATRIX=false; truthy "$(env_get "$ENV_FILE" ENABLE_MATRIX_BRIDGE)" && MATRIX=true
 VERSION="$(env_get "$ENV_FILE" HARMONY_VERSION)"
 
 # Local entry point: HARMONY_HTTPS_PORT is [address:]port.
@@ -643,7 +644,19 @@ check_services() {
 		elif [[ -z "$(svc_id discord-bridge-host)" ]]; then
 			report FAIL discord "discord-bridge-host is not running" "docker compose up -d; harmony logs discord-bridge-host"
 		else
-			report OK discord "bridge host running; enable hosting in Admin, Instance"
+			report OK discord "bridge host running; communities see it once offered in Instance admin, Config, General"
+		fi
+	fi
+
+	if $MATRIX; then
+		local m1 m2
+		m1="$(env_get "$BOT_ENV" MATRIX_BRIDGE_HOST_SECRET)"; m2="$(env_get "$MATRIX_ENV" BRIDGE_HOST_SECRET)"
+		if [[ ${#m1} -lt 32 || "$m1" != "$m2" ]]; then
+			report FAIL matrix "MATRIX_BRIDGE_HOST_SECRET in bot-gateway.env is not BRIDGE_HOST_SECRET in matrix-bridge.env" "bash configure.sh --non-interactive, then docker compose up -d"
+		elif [[ -z "$(svc_id matrix-bridge-host)" ]]; then
+			report FAIL matrix "matrix-bridge-host is not running" "docker compose up -d; harmony logs matrix-bridge-host"
+		else
+			report OK matrix "bridge host running; communities see it once offered in Instance admin, Config, General"
 		fi
 	fi
 

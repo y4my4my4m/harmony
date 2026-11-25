@@ -81,6 +81,7 @@ const sidebar: DefaultTheme.Sidebar = {
         { text: 'Voice and video', link: '/self-host/voice' },
         { text: 'Push notifications', link: '/self-host/push' },
         { text: 'Discord bridges', link: '/self-host/discord-bridges' },
+        { text: 'Matrix bridges', link: '/self-host/matrix-bridges' },
         { text: 'Activities', link: '/self-host/activities' },
         { text: 'Announcements', link: '/self-host/announcements' },
         { text: 'Emojis', link: '/self-host/emojis' },
