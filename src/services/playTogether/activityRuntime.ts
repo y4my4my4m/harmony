@@ -15,10 +15,12 @@ import {
   type HostToFrame,
   type Json,
   type MemberInfo,
+  type NameEmoji,
   type RelayFrame,
   type SessionInfo,
   type ThemeInfo,
   type WireMember,
+  type WireNamePart,
 } from '../../../activities/sdk/protocol'
 
 /**
@@ -26,10 +28,12 @@ import {
  *
  * Frame messages are accepted only from the frame's own window, checked against the protocol's
  * shapes and sizes and rate-limited before they reach the relay; the frame never sees the token.
- * Relay frames reach the frame in order through one promise chain, each member with its avatar as a
- * Blob (the frame's CSP refuses remote images). Avatars are fetched when a member arrives and a
- * delivery waits AVATAR_WAIT_MS at most, so one slow avatar URL holds no one's game. The runtime mirrors members, host, state and, while
- * this client hosts, the store, so a reloaded frame gets the full picture again with `init`.
+ * Relay frames reach the frame in order through one promise chain, each member with its avatar and
+ * the custom emojis of its name as Blobs (the frame's CSP refuses remote images). Images are fetched
+ * when a member arrives and a delivery waits AVATAR_WAIT_MS at most, so one slow URL holds no one's
+ * game; images that arrive later reach the frame in a `profile` message. The runtime mirrors
+ * members, host, state and, while this client hosts, the store, so a reloaded frame gets the full
+ * picture again with `init`.
  *
  * Nothing is posted to a frame before it reports `ready`. When the frame's document is left (the
  * loader's `gone`, or a load the host did not start), the runtime detaches for good: whatever
@@ -157,11 +161,53 @@ async function fetchAvatar(url: string): Promise<Blob | null> {
   }
 }
 
-/** avatarBlob, or null once AVATAR_WAIT_MS passes; the fetch carries on into the cache. */
-function avatarWithin(url: string | null): Promise<Blob | null> {
+/** `pending`'s value, or settled false and value null once `ms` passes; `pending` carries on. */
+async function within<T>(pending: Promise<T>, ms: number): Promise<{ value: T | null; settled: boolean }> {
   let timer: ReturnType<typeof setTimeout> | undefined
-  const late = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), AVATAR_WAIT_MS) })
-  return Promise.race([avatarBlob(url), late]).finally(() => clearTimeout(timer))
+  const late = new Promise<{ value: null; settled: false }>((resolve) => {
+    timer = setTimeout(() => resolve({ value: null, settled: false }), ms)
+  })
+  try {
+    return await Promise.race([pending.then((value) => ({ value, settled: true })), late])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const SHORTCODE = /:([a-zA-Z0-9_+-]+):/g
+
+type NameRun = { text: string } | { emoji: string; url: string }
+
+/** `name` in order as text runs and the custom emojis of `emojis` it holds as :shortcodes:. */
+export function splitName(name: string, emojis: NameEmoji[]): NameRun[] {
+  const urls = new Map(emojis.map((e) => [e.name, e.url]))
+  const runs: NameRun[] = []
+  const text = (value: string) => {
+    if (!value) return
+    const last = runs[runs.length - 1]
+    if (last && 'text' in last) last.text += value
+    else runs.push({ text: value })
+  }
+  let at = 0
+  for (const match of name.matchAll(SHORTCODE)) {
+    const url = urls.get(match[1])
+    if (!url) continue
+    text(name.slice(at, match.index))
+    runs.push({ emoji: match[1], url })
+    at = match.index! + match[0].length
+  }
+  text(name.slice(at))
+  return runs
+}
+
+/** The display name without its custom emojis, spaces collapsed; the username when nothing is left. */
+export function plainName(member: Pick<MemberInfo, 'name' | 'username' | 'nameEmojis'>): string {
+  const plain = splitName(member.name, member.nameEmojis ?? [])
+    .map((run) => ('text' in run ? run.text : ' '))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return plain || member.username || member.name
 }
 
 /** A message heard in the pop-out window carries that window's Blob, no instance of this one's. */
@@ -190,6 +236,8 @@ export class ActivityRuntime {
   private lastSaveAt = -Infinity
   // The call's pop-out window while there is one.
   private otherWindow: Window | null = null
+  // Members with images still arriving after their delivery.
+  private following = new Set<string>()
   private readonly onWindowMessage = (event: MessageEvent) => this.fromFrame(event)
 
   constructor(
@@ -281,7 +329,7 @@ export class ActivityRuntime {
         this.view.you = frame.you.id
         this.view.canEnd = frame.canEnd
         this.members = new Map(frame.members.map((m) => [m.id, m]))
-        for (const m of frame.members) void avatarBlob(this.avatarUrl(m))
+        for (const m of frame.members) this.prefetch(m)
         this.state = frame.state
         this.store = new Map(Object.entries(frame.store ?? {}))
         this.view.hostId = frame.host
@@ -293,7 +341,7 @@ export class ActivityRuntime {
       case 'join':
         this.members.set(frame.member.id, frame.member)
         this.syncMembers()
-        void avatarBlob(this.avatarUrl(frame.member))
+        this.prefetch(frame.member)
         this.enqueue(async () => this.post({ hp: PROTOCOL_VERSION, t: 'join', member: await this.wire(frame.member) }))
         return
       case 'leave':
@@ -451,11 +499,45 @@ export class ActivityRuntime {
   }
 
   private async wire(member: MemberInfo): Promise<WireMember> {
-    return { ...member, avatarBlob: await avatarWithin(this.avatarUrl(member)) }
+    const runs = splitName(member.name, member.nameEmojis ?? [])
+    const avatar = avatarBlob(this.avatarUrl(member))
+    const images = runs.map((run) => ('emoji' in run ? avatarBlob(run.url) : null))
+    const pending = [avatar, ...images.filter((image): image is Promise<Blob | null> => image !== null)]
+    const waited = await Promise.all(pending.map((image) => within(image, AVATAR_WAIT_MS)))
+    const late = pending.filter((_, i) => !waited[i].settled)
+    if (late.length) this.followLate(member.id, late)
+    let next = 1
+    const nameParts: WireNamePart[] = runs.map((run) => ('emoji' in run ? { emoji: run.emoji, image: waited[next++].value } : { text: run.text }))
+    const { nameEmojis: _emojis, ...rest } = member
+    return { ...rest, name: plainName(member), nameParts, avatarBlob: waited[0].value }
+  }
+
+  /** Starts the member's image fetches into the cache before its delivery. */
+  private prefetch(member: MemberInfo): void {
+    void avatarBlob(this.avatarUrl(member))
+    for (const run of splitName(member.name, member.nameEmojis ?? [])) if ('emoji' in run) void avatarBlob(run.url)
+  }
+
+  /** Once `late` settles with an image, the frame gets the member's avatar and name emojis again. */
+  private followLate(id: string, late: Promise<Blob | null>[]): void {
+    if (this.following.has(id)) return
+    this.following.add(id)
+    void Promise.all(late).then((images) => {
+      this.following.delete(id)
+      if (!images.some(Boolean)) return
+      this.enqueue(async () => {
+        const member = this.members.get(id)
+        if (!member || !this.frameInitialized) return
+        const wire = await this.wire(member)
+        this.post({ hp: PROTOCOL_VERSION, t: 'profile', id, name: wire.name, nameParts: wire.nameParts, avatarBlob: wire.avatarBlob })
+      })
+    })
   }
 
   private syncMembers(): void {
-    this.view.members = [...this.members.values()].sort((a, b) => a.joinedAt - b.joinedAt).map((m) => ({ ...m }))
+    this.view.members = [...this.members.values()]
+      .sort((a, b) => a.joinedAt - b.joinedAt)
+      .map((m) => ({ ...m, name: plainName(m) }))
   }
 
   private enqueue(task: () => void | Promise<void>): void {

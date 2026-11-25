@@ -7,7 +7,7 @@
 // routeWebSocket() bridges the relay socket to it.
 
 import { test, expect, devices, type Browser, type BrowserContext, type FrameLocator, type Page } from '@playwright/test'
-import { addMember, adminClient, createUser, deleteUser, dismissAnnouncements, openChannel, seedServer, signIn, type SeededServer, type SpecUser } from './harness'
+import { addMember, adminClient, createUser, deleteUser, dismissAnnouncements, openChannel, seedServer, signIn, userClient, type SeededServer, type SpecUser } from './harness'
 import { startBackend, type Backend } from './backend'
 import JSZip from 'jszip'
 import { createHash } from 'node:crypto'
@@ -214,6 +214,58 @@ test('two people play DrawinPhone in a DM, then the starter ends it', async ({ b
 
   await a.context.close()
   await b.context.close()
+})
+
+// A 1x1 PNG.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
+
+test('a player\'s name emoji and an avatar slower than the delivery reach the other player\'s game', async ({ browser }) => {
+  test.setTimeout(150_000)
+  const emoji = `pt${Date.now().toString(36)}`
+  const { data: row } = await must('emoji', admin.from('emojis').insert({ name: emoji, url: `/e2e-emoji/${emoji}.png`, scope: 'instance' }).select('id').single())
+  const { data: before } = await must('profile', admin.from('profiles').select('display_name, avatar_url').eq('id', alice.id).single())
+  const aliceClient = await userClient(alice)
+  // display_name_emojis is derived on a write by the account itself.
+  await must('name', aliceClient.from('profiles').update({ display_name: `Alice :${emoji}: !`, avatar_url: '/e2e-avatar/alice.png' }).eq('id', alice.id))
+  try {
+    const a = await open(browser, alice)
+    const b = await open(browser, bob)
+    for (const page of [a.page, b.page]) {
+      await page.route('**/e2e-emoji/**', (route) => route.fulfill({ body: PNG, headers: { 'content-type': 'image/png', 'cache-control': 'no-store' } }))
+      // Past the 400 ms a delivery waits for an avatar.
+      await page.route('**/e2e-avatar/**', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        await route.fulfill({ body: PNG, headers: { 'content-type': 'image/png', 'cache-control': 'no-store' } }).catch(() => {})
+      })
+    }
+
+    await a.page.goto(`/dm/${dm}`)
+    await openDmActivities(a.page)
+    await a.page.getByTestId('play-together-app-drawinphone').click()
+    await expect(game(a.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
+
+    await b.page.goto(`/dm/${dm}`)
+    const banner = b.page.getByTestId('play-together-banner-text')
+    await expect(banner.locator('img.display-name-emoji')).toHaveCount(1, { timeout: 30_000 })
+    await expect(banner).not.toContainText(`:${emoji}:`)
+    await b.page.getByTestId('activity-system-join').last().click()
+    await expect(game(b.page).getByTestId('dp-player')).toHaveCount(2, { timeout: 30_000 })
+
+    const host = game(b.page).getByTestId('dp-player').filter({ hasText: 'Alice' })
+    await expect(host.locator('img.name-emoji')).toHaveAttribute('alt', `:${emoji}:`)
+    await expect(host).not.toContainText(`:${emoji}:`)
+    await expect(game(b.page).locator('.waiting-host img.name-emoji')).toHaveCount(1)
+    await expect(host.locator('.avatar img')).toHaveCount(1, { timeout: 15_000 })
+    await expect(host.locator('.avatar img')).toHaveAttribute('src', /^blob:/)
+
+    await a.page.getByTestId('play-together-end').click()
+    await expect(game(b.page).getByTestId('dp-ended')).toBeVisible({ timeout: 15_000 })
+    await a.context.close()
+    await b.context.close()
+  } finally {
+    await admin.from('profiles').update({ display_name: before!.display_name, avatar_url: before!.avatar_url }).eq('id', alice.id)
+    await admin.from('emojis').delete().eq('id', row!.id)
+  }
 })
 
 test('the activity frame runs in an opaque origin without storage or network', async ({ browser }) => {

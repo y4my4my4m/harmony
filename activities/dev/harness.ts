@@ -160,7 +160,7 @@ class FakeRelay {
   }
 
   private wire(p: Player): WireMember {
-    return { id: p.id, name: p.name, username: p.name.toLowerCase(), avatarUrl: null, joinedAt: p.joinedAt, spectator: false, state: p.state, avatarBlob: p.avatar }
+    return { id: p.id, name: p.name, username: p.name.toLowerCase(), avatarUrl: null, joinedAt: p.joinedAt, spectator: false, state: p.state, avatarBlob: p.avatar, nameParts: [{ text: p.name }] }
   }
 
   private storeObject(): Record<string, Json> {

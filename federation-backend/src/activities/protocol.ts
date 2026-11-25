@@ -23,11 +23,22 @@ export type SessionContext = 'direct' | 'group' | 'channel' | 'voice'
 
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
 
+/** A custom emoji of a display name: `:name:` in it, drawn from `url`. */
+export interface NameEmoji {
+  name: string
+  url: string
+}
+
+/** Most name emojis a member carries. */
+export const NAME_EMOJIS_MAX = 16
+
 export interface MemberInfo {
   id: string
+  /** Display name as stored, custom emojis as :shortcodes:. */
   name: string
   username: string
   avatarUrl: string | null
+  nameEmojis: NameEmoji[]
   joinedAt: number
   spectator: boolean
   state: Json

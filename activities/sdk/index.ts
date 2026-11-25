@@ -25,16 +25,30 @@ import {
   type FrameToHost,
   type HostToFrame,
   type Json,
+  type NamePart,
   type RelayErrorCode,
   type SendTarget,
   type SessionInfo,
   type ThemeInfo,
   type WireMember,
+  type WireNamePart,
 } from './protocol'
 
 export * from './protocol'
 
 export const SDK_VERSION = '1.0.0'
+
+function toNameParts(parts: WireNamePart[] | undefined): NamePart[] {
+  return (parts ?? []).map((part) => ('emoji' in part
+    ? { emoji: part.emoji, src: part.image ? URL.createObjectURL(part.image) : null }
+    : { text: part.text }))
+}
+
+/** Revokes the object URLs a member's avatar and name emojis were given. */
+function releaseUrls(member: Pick<FrameMember, 'avatar' | 'nameParts'>): void {
+  if (member.avatar) URL.revokeObjectURL(member.avatar)
+  for (const part of member.nameParts ?? []) if ('src' in part && part.src) URL.revokeObjectURL(part.src)
+}
 
 export interface RoomEvents {
   /** A member connected. */
@@ -47,7 +61,7 @@ export interface RoomEvents {
   message: (from: FrameMember | undefined, data: Json, fromId: string) => void
   /** The host replaced the shared state. */
   state: (state: Json, from: string) => void
-  /** A member replaced its public state. */
+  /** A member replaced its public state, or its avatar or name emojis arrived. */
   member: (member: FrameMember) => void
   /** The session ended for everyone. */
   ended: (reason: EndReason) => void
@@ -229,7 +243,8 @@ class RoomImpl implements Room {
         break
       case 'join': {
         const member = this.toMember(msg.member)
-        this.memberMap.get(member.id)?.avatar && URL.revokeObjectURL(this.memberMap.get(member.id)!.avatar!)
+        const previous = this.memberMap.get(member.id)
+        if (previous) releaseUrls(previous)
         this.memberMap.set(member.id, member)
         this.emit('join', member)
         break
@@ -239,7 +254,7 @@ class RoomImpl implements Room {
         if (!member) break
         this.memberMap.delete(msg.id)
         this.emit('leave', member, msg.reason)
-        if (member.avatar) setTimeout(() => URL.revokeObjectURL(member.avatar!), 60_000)
+        setTimeout(() => releaseUrls(member), 60_000)
         break
       }
       case 'host': {
@@ -260,6 +275,17 @@ class RoomImpl implements Room {
         const member = this.memberMap.get(msg.id)
         if (!member) break
         member.state = msg.state
+        this.emit('member', member)
+        break
+      }
+      case 'profile': {
+        const member = this.memberMap.get(msg.id)
+        if (!member) break
+        const previous = { avatar: member.avatar, nameParts: member.nameParts }
+        member.name = msg.name
+        member.nameParts = toNameParts(msg.nameParts)
+        member.avatar = msg.avatarBlob ? URL.createObjectURL(msg.avatarBlob) : null
+        releaseUrls(previous)
         this.emit('member', member)
         break
       }
@@ -292,7 +318,7 @@ class RoomImpl implements Room {
   }
 
   private replace(members: WireMember[], host: string, state: Json, store: Record<string, Json> | undefined, clockOffset: number): void {
-    for (const old of this.memberMap.values()) if (old.avatar) URL.revokeObjectURL(old.avatar)
+    for (const old of this.memberMap.values()) releaseUrls(old)
     this.memberMap = new Map(members.map((m) => [m.id, this.toMember(m)]))
     this.hostId = host
     this.state = state
@@ -301,8 +327,8 @@ class RoomImpl implements Room {
   }
 
   private toMember(wire: WireMember): FrameMember {
-    const { avatarBlob, ...rest } = wire
-    return { ...rest, avatar: avatarBlob ? URL.createObjectURL(avatarBlob) : null }
+    const { avatarBlob, nameParts, ...rest } = wire
+    return { ...rest, nameParts: toNameParts(nameParts), avatar: avatarBlob ? URL.createObjectURL(avatarBlob) : null }
   }
 
   private emit(event: keyof RoomEvents, ...args: unknown[]): void {

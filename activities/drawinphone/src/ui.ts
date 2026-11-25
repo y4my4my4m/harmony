@@ -4,9 +4,9 @@
  * inputs keep focus and drawings keep their canvas while ticks and timers move.
  */
 
-import type { Room, ThemeInfo } from '../../sdk'
+import type { NamePart, Room, ThemeInfo } from '../../sdk'
 import { DRAW_SECONDS, REACTIONS, TEXT_MAX, WRITE_SECONDS, entryKey, type Assign, type Award, type Entry, type PublicState } from './game'
-import { avatar, clear, h, icon, ICONS } from './dom'
+import { avatar, clear, h, icon, ICONS, nameNode, withNode } from './dom'
 import { Editor } from './editor'
 import { translator, type Key } from './i18n'
 import { decodeOpsSafe, LOGICAL_H, LOGICAL_W } from './ops'
@@ -183,6 +183,11 @@ export class App {
     return this.room.member(id)?.name ?? s?.names[id] ?? '…'
   }
 
+  /** The member's name with its custom emojis; the plain name of one who left. */
+  private memberLabel(id: string, s: PublicState | null): HTMLElement {
+    return nameNode(this.room.member(id)?.nameParts, this.memberName(id, s))
+  }
+
   private memberAvatar(id: string, s: PublicState | null, size = 36): HTMLElement {
     const m = this.room.member(id)
     return avatar(this.memberName(id, s), id, m?.avatar ?? null, size)
@@ -230,7 +235,7 @@ export class App {
           m.id === room.me.id ? h('span', { class: 'badge' }, t('you')) : null)
         list.appendChild(h('li', { class: 'player', testid: 'dp-player' },
           avatar(m.name, m.id, m.avatar, 40),
-          h('span', { class: 'player-info' }, h('span', { class: 'player-name' }, m.name), badges.childNodes.length ? badges : null)))
+          h('span', { class: 'player-info' }, h('span', { class: 'player-name' }, nameNode(m.nameParts, m.name)), badges.childNodes.length ? badges : null)))
       }
       count.textContent = `${members.length}/16`
       modeSelect.value = s.settings.mode
@@ -245,7 +250,7 @@ export class App {
         note.textContent = members.length < 2 ? t('needMore') : members.length < 4 ? t('best') : ''
         if (note.textContent) footer.append(note)
       } else {
-        footer.append(h('p', { class: 'muted waiting-host' }, h('span', { class: 'pulse', 'aria-hidden': 'true' }), t('waitHost', { name: this.memberName(room.hostId, s) })))
+        footer.append(h('p', { class: 'muted waiting-host' }, h('span', { class: 'pulse', 'aria-hidden': 'true' }), withNode((name) => t('waitHost', { name }), this.memberLabel(room.hostId, s))))
       }
     }
     return { key: 'lobby', el, update }
@@ -434,7 +439,7 @@ export class App {
   private entryCard(chain: number, step: number, entry: Entry, latest: boolean, s: PublicState): HTMLElement {
     const t = this.t
     const card = h('article', { class: `entry${latest ? ' is-latest' : ''}`, testid: 'dp-album-entry' })
-    const who = h('div', { class: 'entry-who' }, this.memberAvatar(entry.by, s, 28), h('span', {}, this.memberName(entry.by, s)))
+    const who = h('div', { class: 'entry-who' }, this.memberAvatar(entry.by, s, 28), h('span', {}, this.memberLabel(entry.by, s)))
     if (entry.filled) who.appendChild(h('span', { class: 'badge badge--soft' }, t('skipped')))
     card.appendChild(who)
     if (entry.kind === 'text') {
@@ -474,7 +479,8 @@ export class App {
     save.addEventListener('click', async () => {
       const s = session.state
       if (!s?.reveal) return
-      const blob = await chainImage(s, s.reveal.chain, (step) => session.entry(s.reveal!.chain, step), (id) => this.memberName(id, s), t)
+      const label = (id: string): Label => ({ text: this.memberName(id, s), parts: this.room.member(id)?.nameParts })
+      const blob = await chainImage(s, s.reveal.chain, (step) => session.entry(s.reveal!.chain, step), label, t)
       const ok = blob ? await room.saveImage(blob, `drawinphone-${this.memberName(s.players[s.reveal.chain], s).replace(/[^\w-]+/g, '_')}.png`) : false
       this.toast(ok ? t('saved') : t('saveFailed'), ok ? 'info' : 'warn')
     })
@@ -489,7 +495,8 @@ export class App {
       if (!s?.reveal) return
       const { chain, upto } = s.reveal
       const owner = s.players[chain]
-      title.textContent = t('chainOf', { name: this.memberName(owner, s) })
+      clear(title)
+      title.append(withNode((name) => t('chainOf', { name }), this.memberLabel(owner, s)))
       sub.textContent = t('chainProgress', { n: chain + 1, total: s.players.length })
       for (let step = 0; step <= upto; step++) {
         const key = entryKey(chain, step)
@@ -518,7 +525,7 @@ export class App {
         ;(auto.querySelector('input') as HTMLInputElement).checked = s.reveal.auto
         footer.append(auto, next)
       } else {
-        footer.append(h('p', { class: 'muted small' }, t('presenting', { name: this.memberName(room.hostId, s) })))
+        footer.append(h('p', { class: 'muted small' }, withNode((name) => t('presenting', { name }), this.memberLabel(room.hostId, s))))
       }
     }
     return { key: 'reveal', el, update }
@@ -543,7 +550,7 @@ export class App {
       for (const award of awards) grid.appendChild(this.awardCard(award, s))
       clear(footer)
       if (room.isHost) footer.append(h('button', { type: 'button', class: 'primary big', testid: 'dp-play-again', onclick: () => session.hostPlayAgain() }, icon([...ICONS.replay], 18), t('playAgain')))
-      else footer.append(h('p', { class: 'muted waiting-host' }, h('span', { class: 'pulse', 'aria-hidden': 'true' }), t('waitAgain', { name: this.memberName(room.hostId, s) })))
+      else footer.append(h('p', { class: 'muted waiting-host' }, h('span', { class: 'pulse', 'aria-hidden': 'true' }), withNode((name) => t('waitAgain', { name }), this.memberLabel(room.hostId, s))))
     }
     return { key: 'over', el, update }
   }
@@ -558,7 +565,7 @@ export class App {
     const card = h('article', { class: `award award--${award.id}` },
       h('div', { class: 'award-emoji', 'aria-hidden': 'true' }, emoji),
       h('h2', {}, t(`award_${award.id}` as Key)),
-      h('div', { class: 'award-who' }, this.memberAvatar(award.player, s, 32), h('strong', {}, this.memberName(award.player, s))),
+      h('div', { class: 'award-who' }, this.memberAvatar(award.player, s, 32), h('strong', {}, this.memberLabel(award.player, s))),
       h('p', { class: 'muted small' }, value))
     if (award.chain !== undefined && award.step !== undefined) {
       const entry = this.session.entry(award.chain, award.step)
@@ -569,12 +576,59 @@ export class App {
   }
 }
 
+/** A member's name for the PNG: plain text, and the parts with custom emojis while the member is here. */
+interface Label {
+  text: string
+  parts: NamePart[] | undefined
+}
+
+const SLOT = '\u0000'
+
+function loadImage(src: string): Promise<HTMLImageElement | null> {
+  const img = new Image()
+  img.src = src
+  return img.decode().then(() => img, () => null)
+}
+
+/**
+ * Draws `label` from (x, baseline y) in the context's font: text runs with fillText, custom emojis
+ * as `size`-pixel squares from `images`, a missing one as :name:. Returns the x after it.
+ */
+function drawLabel(ctx: CanvasRenderingContext2D, label: Label, x: number, y: number, size: number, images: Map<string, HTMLImageElement | null>): number {
+  const parts: NamePart[] = label.parts?.length ? label.parts : [{ text: label.text }]
+  for (const part of parts) {
+    const image = 'src' in part && part.src ? images.get(part.src) : null
+    if (image) {
+      const side = Math.round(size * 1.15)
+      ctx.drawImage(image, x, y - side * 0.82, side, side)
+      x += side + 2
+    } else {
+      const text = 'text' in part ? part.text : `:${part.emoji}:`
+      ctx.fillText(text, x, y)
+      x += ctx.measureText(text).width
+    }
+  }
+  return x
+}
+
+/** `format(slot)` drawn with `label` where the slot was. */
+function drawFormat(ctx: CanvasRenderingContext2D, format: (slot: string) => string, label: Label, x: number, y: number, size: number, images: Map<string, HTMLImageElement | null>): void {
+  const pieces = format(SLOT).split(SLOT)
+  ctx.fillText(pieces[0], x, y)
+  x += ctx.measureText(pieces[0]).width
+  for (const piece of pieces.slice(1)) {
+    x = drawLabel(ctx, label, x, y, size, images)
+    ctx.fillText(piece, x, y)
+    x += ctx.measureText(piece).width
+  }
+}
+
 /** One chain as a PNG: title band, then each entry, text as a bubble and drawings at 600 x 450. */
 async function chainImage(
   s: PublicState,
   chain: number,
   entryAt: (step: number) => Entry | undefined,
-  name: (id: string) => string,
+  name: (id: string) => Label,
   t: ReturnType<typeof translator>,
 ): Promise<Blob | null> {
   const W = 760
@@ -587,6 +641,11 @@ async function chainImage(
     if (e) entries.push(e)
   }
   if (!entries.length) return null
+  const srcs = new Set<string>()
+  for (const id of [s.players[chain], ...entries.map((e) => e.by)]) {
+    for (const part of name(id).parts ?? []) if ('src' in part && part.src) srcs.add(part.src)
+  }
+  const images = new Map(await Promise.all([...srcs].map(async (src) => [src, await loadImage(src)] as const)))
   const heights = entries.map((e) => 34 + (e.kind === 'drawing' ? DRAW_H : 72) + 24)
   const H = 110 + heights.reduce((a, b) => a + b, 0) + 30
   const canvas = document.createElement('canvas')
@@ -604,7 +663,7 @@ async function chainImage(
   ctx.fillText('DRAWINPHONE', PAD, 46)
   ctx.fillStyle = '#ffffff'
   ctx.font = font(28, 800)
-  ctx.fillText(t('chainOf', { name: name(s.players[chain]) }), PAD, 84)
+  drawFormat(ctx, (slot) => t('chainOf', { name: slot }), name(s.players[chain]), PAD, 84, 28, images)
   let y = 110
   const scratch = document.createElement('canvas')
   scratch.width = VIEW_W
@@ -612,7 +671,7 @@ async function chainImage(
   for (const entry of entries) {
     ctx.fillStyle = 'rgba(255,255,255,0.75)'
     ctx.font = font(15)
-    ctx.fillText(name(entry.by), PAD, y + 22)
+    drawLabel(ctx, name(entry.by), PAD, y + 22, 15, images)
     y += 34
     if (entry.kind === 'drawing') {
       drawOps(scratch.getContext('2d')!, decodeOpsSafe(entry.ops))

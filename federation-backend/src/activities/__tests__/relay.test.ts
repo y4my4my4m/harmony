@@ -3,7 +3,7 @@ import { connect, type AddressInfo } from 'node:net'
 import type { Duplex } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WebSocket from 'ws'
-import { ActivityRelay, addressKey, isRelayUpgrade, type Admission, type RelayDeps, type RelayOptions } from '../relay.js'
+import { ActivityRelay, addressKey, isRelayUpgrade, nameEmojis, type Admission, type RelayDeps, type RelayOptions } from '../relay.js'
 import { CLOSE, MESSAGE_MAX_BYTES, type RelayFrame } from '../protocol.js'
 
 const SESSION = '0a0a0a0a-0000-4000-8000-000000000001'
@@ -16,6 +16,14 @@ const ERIN = '55555555-0000-4000-8000-000000000005'
 const FRED = '66666666-0000-4000-8000-000000000006'
 
 const NAMES: Record<string, string> = { [ALICE]: 'alice', [BOB]: 'bob', [CAROL]: 'carol', [DAVE]: 'dave', [ERIN]: 'erin', [FRED]: 'fred' }
+const ALICE_EMOJIS = [
+  { name: 'cat', url: 'https://emoji.test/cat.png', id: 'e1' },
+  { name: 'bad name', url: 'https://emoji.test/x.png' },
+  { name: 'js', url: 'javascript:alert(1)' },
+  { name: 'proto', url: '//elsewhere.test/x.png' },
+  'cow',
+  { name: 'dog', url: '/storage/dog.png' },
+]
 
 interface Fake extends RelayDeps {
   refusals: Map<string, string>
@@ -66,7 +74,13 @@ function fakeDeps(): Fake {
       if (refusal) return { refusal }
       return {
         session: { id: session, app_id: 'drawinphone', context: 'direct', started_by: ALICE, max_players: fake.maxPlayers, min_players: 2 },
-        member: { id: profileId, username: NAMES[profileId], display_name: NAMES[profileId].toUpperCase(), avatar_url: null },
+        member: {
+          id: profileId,
+          username: NAMES[profileId],
+          display_name: NAMES[profileId].toUpperCase(),
+          avatar_url: null,
+          display_name_emojis: profileId === ALICE ? ALICE_EMOJIS : undefined,
+        },
         can_end: fake.canEnd.has(profileId),
       }
     },
@@ -176,11 +190,22 @@ afterEach(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()))
 })
 
+describe('nameEmojis', () => {
+  it('keeps entries with a shortcode name and an http(s) or root-relative url, at most 16', () => {
+    expect(nameEmojis(null)).toEqual([])
+    expect(nameEmojis('[]')).toEqual([])
+    expect(nameEmojis(ALICE_EMOJIS)).toEqual([{ name: 'cat', url: 'https://emoji.test/cat.png' }, { name: 'dog', url: '/storage/dog.png' }])
+    const many = Array.from({ length: 20 }, (_, i) => ({ name: `e${i}`, url: `https://emoji.test/${i}` }))
+    expect(nameEmojis(many)).toHaveLength(16)
+  })
+})
+
 describe('activity relay: joining', () => {
   it('welcomes the first member as host and tells it about the second', async () => {
     const a = await join(ALICE)
     expect(a.welcome.host).toBe(ALICE)
     expect(a.welcome.you).toMatchObject({ id: ALICE, name: 'ALICE', username: 'alice', spectator: false })
+    expect(a.welcome.you.nameEmojis).toEqual([{ name: 'cat', url: 'https://emoji.test/cat.png' }, { name: 'dog', url: '/storage/dog.png' }])
     expect(a.welcome.store).toEqual({})
     expect(a.welcome.canEnd).toBe(true)
     expect(a.welcome.session).toMatchObject({ id: SESSION, appId: 'drawinphone', maxPlayers: 8, minPlayers: 2 })
@@ -189,6 +214,7 @@ describe('activity relay: joining', () => {
     expect(b.welcome.host).toBe(ALICE)
     expect(b.welcome.store).toBeUndefined()
     expect(b.welcome.members.map((m) => m.id)).toEqual([ALICE, BOB])
+    expect(b.welcome.members.map((m) => m.nameEmojis.length)).toEqual([2, 0])
     expect((await a.client.next('join')).member.id).toBe(BOB)
 
     await sleep(40)

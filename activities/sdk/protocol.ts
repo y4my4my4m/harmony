@@ -39,11 +39,22 @@ export type SessionContext = 'direct' | 'group' | 'channel' | 'voice'
 
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
 
+/** A custom emoji of a display name: `:name:` in it, drawn from `url`. */
+export interface NameEmoji {
+  name: string
+  url: string
+}
+
+/** Most name emojis a member carries. */
+export const NAME_EMOJIS_MAX = 16
+
 export interface MemberInfo {
   id: string
+  /** Display name as stored, custom emojis as :shortcodes:. */
   name: string
   username: string
   avatarUrl: string | null
+  nameEmojis: NameEmoji[]
   /** Relay clock, ms. */
   joinedAt: number
   /** Joined while the session already held max_players players. */
@@ -116,7 +127,17 @@ export type RelayFrame =
 /* Frame <-> client                                                                               */
 /* ---------------------------------------------------------------------------------------------- */
 
-export interface FrameMember extends MemberInfo {
+/**
+ * A display name in order: text, and custom emojis with an object URL inside the frame. `src` is
+ * null while the image is on its way or when it failed; show `:emoji:` then.
+ */
+export type NamePart = { text: string } | { emoji: string; src: string | null }
+
+export interface FrameMember extends Omit<MemberInfo, 'nameEmojis'> {
+  /** Display name as plain text: custom emojis left out, Unicode emoji kept. */
+  name: string
+  /** The display name with its custom emojis, for activities that draw them. */
+  nameParts: NamePart[]
   /** An object URL inside the frame, made from the client's avatar image; null without one. */
   avatar: string | null
 }
@@ -146,8 +167,13 @@ export type FrameToHost = Tagged & (
   | { t: 'gone' }
 )
 
-/** Members carry `avatarBlob`; the SDK turns it into FrameMember.avatar. */
-export type WireMember = MemberInfo & { avatarBlob: Blob | null }
+export type WireNamePart = { text: string } | { emoji: string; image: Blob | null }
+
+/**
+ * Members carry `avatarBlob` and the images of `nameParts`; the SDK turns them into object URLs.
+ * `name` is plain text, as FrameMember.name.
+ */
+export type WireMember = Omit<MemberInfo, 'nameEmojis'> & { avatarBlob: Blob | null; nameParts: WireNamePart[] }
 
 export type HostToFrame = Tagged & (
   | {
@@ -171,6 +197,8 @@ export type HostToFrame = Tagged & (
   | { t: 'message'; from: string; data: Json }
   | { t: 'state'; state: Json; from: string }
   | { t: 'member'; id: string; state: Json }
+  /** A member's avatar or name emojis that arrived after the member was delivered. */
+  | { t: 'profile'; id: string; name: string; nameParts: WireNamePart[]; avatarBlob: Blob | null }
   | { t: 'ended'; reason: EndReason }
   | { t: 'error'; code: RelayErrorCode; message?: string }
   | { t: 'clock'; clockOffset: number }

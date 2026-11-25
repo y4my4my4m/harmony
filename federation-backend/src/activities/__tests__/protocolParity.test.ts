@@ -27,6 +27,7 @@ describe('activity protocol parity', () => {
     'RATE_BYTES_PER_SECOND',
     'RATE_BYTES_BURST',
     'RELAY_FRAME_MAX_BYTES',
+    'NAME_EMOJIS_MAX',
   ] as const)('%s matches the SDK', (name) => {
     expect(relay[name]).toBe(sdkConstant(name))
   })

@@ -92,7 +92,7 @@ room.send({ type: 'ready' }, 'host')
 | Member | Description |
 | --- | --- |
 | `session` | `{ id, appId, context, startedBy, maxPlayers, minPlayers }`; `context` is `direct`, `group`, `channel` or `voice`. |
-| `me`, `members`, `member(id)` | Connected members in join order: `{ id, name, username, avatar, joinedAt, spectator, state }`. `avatar` is an object URL or null. |
+| `me`, `members`, `member(id)` | Connected members in join order: `{ id, name, nameParts, username, avatar, joinedAt, spectator, state }`. `name` is plain text: custom emojis are left out, Unicode emoji stay. `nameParts` is the display name in order, `{ text }` and `{ emoji, src }`, where `src` is an object URL or null while the image is on its way or when it failed; show `:emoji:` for a null one. `avatar` is an object URL or null. |
 | `hostId`, `isHost` | The host. |
 | `canEnd` | This member may end the session for everyone: the starter, or a channel member with **Manage messages**. |
 | `state` | The shared state. |
@@ -120,7 +120,7 @@ room.send({ type: 'ready' }, 'host')
 | `host` | `hostId, previousHostId` |
 | `message` | `from, data, fromId` |
 | `state` | `state, fromId` |
-| `member` | `member` (its `state` changed) |
+| `member` | `member` (its `state` changed, or its avatar or name emojis arrived after it joined) |
 | `resync` | After a reconnect: members, host, state and store were replaced. |
 | `ended` | `reason`: `host_ended`, `empty`, `disabled`, `idle` or `ended` |
 | `error` | `code, message?` for a refused send (`NOT_HOST`, `TOO_LARGE`, `STORE_FULL`, `RATE_LIMITED`) |

@@ -18,7 +18,7 @@ vi.mock('../relayConnection', () => ({
   },
 }))
 
-import { ActivityRuntime, SAVE_INTERVAL_MS, SAVE_MAX_PER_SESSION, type RuntimeView } from '../activityRuntime'
+import { ActivityRuntime, SAVE_INTERVAL_MS, SAVE_MAX_PER_SESSION, plainName, splitName, type RuntimeView } from '../activityRuntime'
 import type { ActivitySession } from '../sessions'
 
 const ALICE = 'a1'
@@ -335,6 +335,11 @@ describe('ActivityRuntime avatars', () => {
       calls.push(url)
       if (url.endsWith('/hang')) return new Promise<Response>(() => {})
       if (url.endsWith('/gone')) return Promise.resolve(new Response('missing', { status: 404 }))
+      // Past AVATAR_WAIT_MS (400 ms): the delivery goes without them.
+      if (url.endsWith('/slow-avatar') || url.endsWith('/slow-emoji')) {
+        return new Promise<Response>((resolve) => setTimeout(() => resolve(new Response(PNG, { status: 200, headers: { 'content-type': 'image/png' } })), 700))
+      }
+      if (url.endsWith('/slow-fail')) return new Promise<Response>((resolve) => setTimeout(() => resolve(new Response('x', { status: 404 })), 700))
       return Promise.resolve(new Response(PNG, { status: 200, headers: { 'content-type': 'image/png' } }))
     }) as typeof fetch
   })
@@ -368,5 +373,71 @@ describe('ActivityRuntime avatars', () => {
       handlers.frame({ op: 'leave', id: 'gone', reason: 'left' } as RelayFrame)
     }
     expect(calls.filter((u) => u.endsWith('/gone'))).toHaveLength(1)
+  })
+
+  async function joined(m: ReturnType<typeof member> & { nameEmojis?: Array<{ name: string; url: string }> }) {
+    withAvatars()
+    fromFrame({ hp: 1, t: 'ready', sdk: '1.0.0' })
+    handlers.frame(welcome())
+    await vi.waitFor(() => expect(posted.some((p) => p.t === 'init')).toBe(true))
+    handlers.frame({ op: 'join', member: m } as RelayFrame)
+    await vi.waitFor(() => expect(posted.some((p) => p.t === 'join')).toBe(true), { timeout: 2000 })
+    return posted.find((p) => p.t === 'join') as { member: { name: string; nameParts: unknown[]; avatarBlob: Blob | null } }
+  }
+
+  it('sends an avatar that arrives after the delivery in a profile message', async () => {
+    const join = await joined(member('slow-avatar', 3))
+    expect(join.member.avatarBlob).toBeNull()
+    await vi.waitFor(() => expect(posted.some((p) => p.t === 'profile')).toBe(true), { timeout: 3000 })
+    const profile = posted.find((p) => p.t === 'profile') as { id: string; avatarBlob: Blob | null }
+    expect(profile.id).toBe('slow-avatar')
+    expect(profile.avatarBlob).toBeInstanceOf(Blob)
+  })
+
+  it('sends the display name in parts, its custom emojis as images, and the name as plain text', async () => {
+    const join = await joined({
+      ...member('emoji-name', 3),
+      name: 'Ann :wave: :nope:!',
+      nameEmojis: [{ name: 'wave', url: 'https://emoji.example/wave' }],
+    })
+    expect(join.member.name).toBe('Ann :nope:!')
+    expect(join.member).not.toHaveProperty('nameEmojis')
+    expect(join.member.nameParts).toEqual([{ text: 'Ann ' }, { emoji: 'wave', image: expect.any(Blob) }, { text: ' :nope:!' }])
+    expect(view.members.find((m) => m.id === 'emoji-name')?.name).toBe('Ann :nope:!')
+  })
+
+  it('sends a name emoji that arrives late in a profile message, and none for an image that fails late', async () => {
+    const join = await joined({
+      ...member('late-emoji', 3),
+      name: ':late: Bo :broken:',
+      nameEmojis: [{ name: 'late', url: 'https://emoji.example/slow-emoji' }, { name: 'broken', url: 'https://emoji.example/slow-fail' }],
+    })
+    expect(join.member.nameParts).toEqual([{ emoji: 'late', image: null }, { text: ' Bo ' }, { emoji: 'broken', image: null }])
+    await vi.waitFor(() => expect(posted.some((p) => p.t === 'profile')).toBe(true), { timeout: 3000 })
+    const profile = posted.find((p) => p.t === 'profile') as { name: string; nameParts: unknown[] }
+    expect(profile.name).toBe('Bo')
+    expect(profile.nameParts).toEqual([{ emoji: 'late', image: expect.any(Blob) }, { text: ' Bo ' }, { emoji: 'broken', image: null }])
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(posted.filter((p) => p.t === 'profile')).toHaveLength(1)
+  })
+})
+
+describe('splitName and plainName', () => {
+  const emojis = [{ name: 'cat', url: 'https://e/cat' }, { name: 'dog_2', url: 'https://e/dog' }]
+
+  it('splits out only the shortcodes with an emoji, merging the text between', () => {
+    expect(splitName(':cat::dog_2: x :cow: :cat:', emojis)).toEqual([
+      { emoji: 'cat', url: 'https://e/cat' },
+      { emoji: 'dog_2', url: 'https://e/dog' },
+      { text: ' x :cow: ' },
+      { emoji: 'cat', url: 'https://e/cat' },
+    ])
+    expect(splitName('plain 🙂', [])).toEqual([{ text: 'plain 🙂' }])
+  })
+
+  it('leaves the custom emojis out of the plain name, the username for a name of emojis only', () => {
+    expect(plainName({ name: 'Spartzy :cat: !', username: 'sp', nameEmojis: emojis })).toBe('Spartzy !')
+    expect(plainName({ name: ':cat: :dog_2:', username: 'sp', nameEmojis: emojis })).toBe('sp')
+    expect(plainName({ name: 'No emojis :cat:', username: 'x', nameEmojis: [] })).toBe('No emojis :cat:')
   })
 })

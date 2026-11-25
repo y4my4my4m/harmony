@@ -33,6 +33,7 @@ import {
   CLOSE,
   MEMBER_STATE_MAX_BYTES,
   MESSAGE_MAX_BYTES,
+  NAME_EMOJIS_MAX,
   PROTOCOL_VERSION,
   RATE_BYTES_BURST,
   RATE_BYTES_PER_SECOND,
@@ -48,6 +49,7 @@ import {
   type EndReason,
   type Json,
   type MemberInfo,
+  type NameEmoji,
   type RelayErrorCode,
   type RelayFrame,
   type SessionContext,
@@ -69,7 +71,13 @@ export interface AdmittedSession {
 export interface Admission {
   refusal?: string
   session?: AdmittedSession
-  member?: { id: string; username: string | null; display_name: string | null; avatar_url: string | null }
+  member?: {
+    id: string
+    username: string | null
+    display_name: string | null
+    avatar_url: string | null
+    display_name_emojis?: unknown
+  }
   can_end?: boolean
 }
 
@@ -299,6 +307,26 @@ class Session {
   storeSnapshot(): Record<string, Json> {
     return Object.fromEntries([...this.store].map(([key, entry]) => [key, entry.value]))
   }
+}
+
+const EMOJI_NAME = /^[a-zA-Z0-9_+-]{1,64}$/
+
+/**
+ * activity_session_admit's display_name_emojis as name emojis: entries with a shortcode name and an
+ * http(s) or root-relative url of at most 2048 characters, the first NAME_EMOJIS_MAX of them.
+ */
+export function nameEmojis(raw: unknown): NameEmoji[] {
+  if (!Array.isArray(raw)) return []
+  const out: NameEmoji[] = []
+  for (const entry of raw) {
+    if (out.length >= NAME_EMOJIS_MAX) break
+    if (!entry || typeof entry !== 'object') continue
+    const { name, url } = entry as { name?: unknown; url?: unknown }
+    if (typeof name !== 'string' || !EMOJI_NAME.test(name)) continue
+    if (typeof url !== 'string' || url.length > 2048 || !/^(https?:\/\/|\/(?!\/))/i.test(url)) continue
+    out.push({ name, url })
+  }
+  return out
 }
 
 function byteLength(text: string): number {
@@ -595,6 +623,7 @@ export class ActivityRelay {
       name: admission.member.display_name || admission.member.username || 'Member',
       username: admission.member.username ?? '',
       avatarUrl: admission.member.avatar_url,
+      nameEmojis: nameEmojis(admission.member.display_name_emojis),
       joinedAt: seen?.joinedAt ?? now,
       spectator,
       state: seen?.state ?? null,

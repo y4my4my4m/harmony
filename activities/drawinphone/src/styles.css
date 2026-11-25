@@ -288,6 +288,8 @@ h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacin
 
 .player-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .player-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+/* Custom emojis in display names, sized to the line as the app draws them. */
+.name-emoji { display: inline-block; height: 1.25em; width: auto; max-width: 2.5em; vertical-align: -0.3em; margin: 0 0.05em; object-fit: contain; }
 .player-badges { display: flex; gap: 4px; }
 .count { font-weight: 600; color: var(--muted); }
 

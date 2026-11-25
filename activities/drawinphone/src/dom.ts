@@ -1,5 +1,7 @@
 /** Minimal DOM building. */
 
+import type { NamePart } from '../../sdk'
+
 type Child = Node | string | number | null | undefined | false
 type Attrs = Record<string, string | number | boolean | null | undefined | EventListener>
 
@@ -93,4 +95,30 @@ export function avatar(name: string, id: string, src: string | null, size = 36):
   if (src) el.appendChild(h('img', { src, alt: '', draggable: 'false' }))
   else el.textContent = (name.trim()[0] ?? '?').toUpperCase()
   return el
+}
+
+/** A display name: its text, and its custom emojis as images; one without an image reads :name:. */
+export function nameNode(parts: NamePart[] | null | undefined, fallback: string): HTMLElement {
+  const el = h('span', { class: 'name' })
+  if (!parts?.length) {
+    el.textContent = fallback
+    return el
+  }
+  for (const part of parts) {
+    if ('text' in part) el.appendChild(document.createTextNode(part.text))
+    else if (part.src) el.appendChild(h('img', { class: 'name-emoji', src: part.src, alt: `:${part.emoji}:`, title: `:${part.emoji}:`, draggable: 'false' }))
+    else el.appendChild(document.createTextNode(`:${part.emoji}:`))
+  }
+  return el
+}
+
+const SLOT = '\u0000'
+
+/** `format(slot)` as nodes, `node` where the slot was; the text alone when the format drops it. */
+export function withNode(format: (slot: string) => string, node: Node): DocumentFragment {
+  const fragment = document.createDocumentFragment()
+  const pieces = format(SLOT).split(SLOT)
+  append(fragment, pieces[0])
+  for (const piece of pieces.slice(1)) append(fragment, node, piece)
+  return fragment
 }

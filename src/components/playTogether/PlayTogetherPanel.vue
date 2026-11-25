@@ -102,7 +102,22 @@
         size="xs"
       />
     </div>
-    <span class="pt-banner__text">{{ bannerText }}</span>
+    <span class="pt-banner__text" data-testid="play-together-banner-text">
+      <i18n-t
+        v-if="bannerFirst"
+        :keypath="running.members.length === 1 ? 'playTogether.bannerOne' : 'playTogether.bannerMany'"
+        :plural="running.members.length - 1"
+        scope="global"
+        tag="span"
+      >
+        <template #name>
+          <DisplayName :user-id="bannerFirst.id" :fallback="bannerFirst.display_name || bannerFirst.username || ''" />
+        </template>
+        <template #n>{{ running.members.length - 1 }}</template>
+        <template #app>{{ bannerApp }}</template>
+      </i18n-t>
+      <template v-else>{{ t('playTogether.bannerEmpty', { app: bannerApp }) }}</template>
+    </span>
     <span v-if="runningApp?.source === 'package'" class="pt-chip" data-testid="play-together-banner-third-party">{{ t('playTogether.thirdParty') }}</span>
     <span v-if="running.refusal" class="pt-banner__refusal" data-testid="play-together-refusal">{{ store.refusalText(running.refusal) }}</span>
     <button
@@ -119,6 +134,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import Icon from '@/components/common/Icon.vue'
 import { useT } from '@/composables/useT'
 import { PANEL_MIN_HEIGHT, usePlayTogetherStore } from '@/stores/playTogether'
@@ -163,16 +179,12 @@ const statusText = computed(() => {
   }
 })
 
-const bannerText = computed(() => {
+const bannerApp = computed(() => {
   const session = running.value
   if (!session) return ''
-  const app = runningApp.value ? store.appLabel(runningApp.value).name : session.app_name
-  const first = session.members[0]
-  const name = first?.display_name || first?.username || ''
-  if (!first) return t('playTogether.bannerEmpty', { app })
-  if (session.members.length === 1) return t('playTogether.bannerOne', { name, app })
-  return t('playTogether.bannerMany', { name, n: session.members.length - 1, app }, session.members.length - 1)
+  return runningApp.value ? store.appLabel(runningApp.value).name : session.app_name
 })
+const bannerFirst = computed(() => running.value?.members[0])
 
 const panelStyle = computed(() => {
   if (props.stage) return undefined
