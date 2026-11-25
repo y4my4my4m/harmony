@@ -430,6 +430,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Security
 
+- Channel permissions: a member who manages a channel's permissions can no longer move an
+  override from one role or member to another. Moving one onto their own role or onto themselves
+  handed them permissions they lack, such as Manage Messages given to a moderator role. An override
+  now keeps its role or member; giving permissions to someone else adds a new override, which
+  allows only permissions its author holds.
 - Android: content embedded in the app (activities, YouTube and X posts, media players) can no
   longer run the app's native commands. The Android WebView handed every embedded frame the same
   bridge to the app as Harmony's own page; the bridge now answers Harmony's page only. On a
