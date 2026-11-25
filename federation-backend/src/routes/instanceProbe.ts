@@ -54,7 +54,7 @@ async function probeNodeinfo(domain: string): Promise<{ result: InstanceProbeRes
 
     if (!nodeinfoUrl) return null;
 
-    // BUGS.md H16: nodeinfoUrl is a `href` returned by the remote
+    // nodeinfoUrl is a `href` returned by the remote
     // well-known endpoint - attacker-controlled. safeFetch re-validates
     // the resolved IP per hop. Signed for instances in authorized fetch mode.
     const nodeinfoResponse = await SignatureService.signedApFetch(nodeinfoUrl, {
@@ -158,7 +158,7 @@ async function probeActivityPubActor(domain: string): Promise<InstanceProbeResul
         (l: any) => l.rel === 'self' && l.type === 'application/activity+json'
       );
       if (actorLink?.href) {
-        // BUGS.md H16: actorLink.href is from the remote webfinger response.
+        // actorLink.href is from the remote webfinger response.
         const actorResp = await SignatureService.signedApFetch(actorLink.href, {
           headers: { Accept: 'application/activity+json, application/ld+json' },
           timeoutMs: PROBE_TIMEOUT,

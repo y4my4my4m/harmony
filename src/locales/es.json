@@ -1,4 +1,175 @@
 {
+  "bridgeSource": {
+    "from": "Conectado desde {platform}",
+    "profile": {
+      "joinedServer": "Se unió al servidor",
+      "memberSince": "En {platform} desde",
+      "status": "Estado",
+      "roles": "Rol | Roles",
+      "copyId": "Copiar ID de {platform}",
+      "copied": "Copiado"
+    }
+  },
+  "matrixBridge": {
+    "title": "Puente de Matrix",
+    "description": "Conecta canales de este servidor con salas de Matrix. Los mensajes enviados en un lado aparecen en el otro, con el nombre de quien los envió.",
+    "loading": "Cargando puentes de Matrix…",
+    "reload": "Recargar",
+    "loadError": "No se pudo cargar la configuración del puente de Matrix. Recarga para intentarlo de nuevo.",
+    "saveError": "No se pudo confirmar el cambio. Recarga para ver la configuración actual.",
+    "status": {
+      "none": "Sin configurar",
+      "connected": "Conectado a Matrix",
+      "waiting": "Esperando salas de Matrix",
+      "problem": "Requiere atención",
+      "line": {
+        "none": "Ningún canal de este servidor está conectado a Matrix todavía.",
+        "connected": "Cada canal conectado tiene una sala de Matrix.",
+        "waiting": "{count} canal espera a que el puente conecte una sala de Matrix. | {count} canales esperan a que el puente conecte una sala de Matrix.",
+        "problem": "{count} canal conectado no se está puenteando. Su tarjeta, más abajo, explica cómo arreglarlo. | {count} canales conectados no se están puenteando. Sus tarjetas, más abajo, explican cómo arreglarlo."
+      },
+      "facts": {
+        "bot": "Bot del puente | Bots del puente",
+        "paired": "Canales conectados",
+        "rooms": "Conectados a una sala",
+        "waiting": "Esperando una sala",
+        "stopped": "Sin puentear"
+      },
+      "unseen": "Harmony no puede saber si el servicio del puente está en marcha. Para comprobarlo, envía un mensaje en un canal conectado y búscalo en Matrix."
+    },
+    "pairs": {
+      "title": "Canales conectados",
+      "listLabel": "Canales conectados con Matrix",
+      "empty": "Todavía no hay ningún canal conectado con Matrix.",
+      "harmony": "Harmony",
+      "matrix": "Matrix",
+      "waitingRoom": "Esperando a que el puente conecte una sala",
+      "badge": {
+        "connected": "Conectado",
+        "waiting": "Esperando una sala",
+        "stopped": "Sin puentear"
+      },
+      "waitingFix": "El puente conecta una sala en cuanto este canal está en su configuración: pide a quien gestiona el puente que lo añada. Ya puedes elegir cómo aparecen los miembros.",
+      "stoppedFix": "{bot} ya no puede puentear #{channel}: el bot está desactivado, perdió «Leer mensajes» o «Enviar mensajes», o #{channel} salió de su lista de canales. Arréglalo en Configuración del servidor → Configuración avanzada → Bots del servidor.",
+      "via": "A través de {bot}",
+      "senderMode": "Cómo aparecen los miembros de Harmony en Matrix",
+      "mode": {
+        "ghost": "Como sus propios usuarios de Matrix (recomendado)",
+        "relay": "A través de una cuenta compartida del puente"
+      },
+      "modeHint": {
+        "ghost": "Cada miembro aparece en la sala con su propio nombre e imagen.",
+        "relay": "Cada mensaje sale de la cuenta del puente, con el nombre del miembro delante."
+      },
+      "saving": "Guardando…",
+      "edit": "Cambiar canales conectados",
+      "notOwner": "Solo quien es dueño de {bot} puede cambiar qué canales puentea. Aun así puedes elegir cómo aparecen los miembros o desconectarlo."
+    },
+    "modes": {
+      "title": "Cómo funcionan las dos opciones",
+      "ghost": "Como sus propios usuarios de Matrix: el puente crea un usuario de Matrix para cada miembro de Harmony que puede ver el canal, con su nombre e imagen, y la gente en Matrix los menciona con el autocompletado de {'@'} de siempre. Esto requiere que el espacio de nombres de usuarios del puente esté registrado en el servidor doméstico de Matrix y que la cuenta del puente pueda invitar gente a la sala. Si falta algo, el puente informa de un error; no cambia por su cuenta a la cuenta compartida.",
+      "relay": "A través de una cuenta compartida del puente: cada mensaje sale de la cuenta del puente con el nombre del autor delante, y no se crean usuarios de Matrix. La gente en Matrix menciona a un miembro de Harmony escribiendo !mention y su nombre de usuario exacto.",
+      "future": "Un cambio solo afecta a los mensajes nuevos. Los mensajes ya puenteados se quedan como están.",
+      "verify": "Guardar aquí no demuestra que el puente haya aplicado el cambio: comprueba un mensaje nuevo en la sala de Matrix."
+    },
+    "setup": {
+      "title": "Conectar canales con Matrix",
+      "editTitle": "Cambiar canales conectados",
+      "lead": "Elige el bot que hace funcionar tu puente de Matrix y los canales que puentea. Cada canal recibe su sala de Matrix en cuanto está en la configuración del puente.",
+      "bot": "Bot del puente",
+      "channels": "Canales para puentear",
+      "notAllowed": "No está en la lista de canales de {bot}",
+      "notAllowedHelp": "Un canal en gris no está en la lista de canales de {bot}. Para añadirlo, abre Configuración del servidor → Configuración avanzada → Bots del servidor, elige Canales junto a {bot} y márcalo.",
+      "noChannels": "Este servidor no tiene canales de texto que puedas ver.",
+      "pickOne": "Elige al menos un canal.",
+      "pickOneEdit": "Elige al menos un canal. Para dejar de puentearlos todos, usa Desconectar más abajo.",
+      "save": "Conectar canales",
+      "saveEdit": "Guardar canales",
+      "saving": "Guardando…",
+      "cancel": "Cancelar",
+      "saved": "{count} canal está conectado con Matrix. | {count} canales están conectados con Matrix."
+    },
+    "guide": {
+      "title": "Configurar un puente de Matrix",
+      "lead": "Para conectar canales aquí necesitas un bot propio que haga funcionar el puente de Matrix y que esté en este servidor.",
+      "steps": {
+        "service": "Quien gestiona esta instancia de Harmony configura el servicio del puente de Matrix y lo registra en el servidor doméstico de Matrix. Pregúntale si aún no está en marcha.",
+        "bot": "Crea un bot para el puente en {place} y entrega su token a quien gestiona el puente.",
+        "install": "Añade el bot a este servidor en {place}. Dale «Leer mensajes» y «Enviar mensajes»; luego, en Canales, elige «Canales seleccionados» y marca los canales que quieras puentear.",
+        "pair": "Vuelve aquí para conectar esos canales."
+      },
+      "places": {
+        "myBots": "Configuración de usuario → Mis bots",
+        "serverBots": "Configuración del servidor → Configuración avanzada → Bots del servidor"
+      },
+      "link": "Leer la guía del puente de Matrix",
+      "newTab": "(se abre en una pestaña nueva)",
+      "blockedTitle": "Tu bot en este servidor aún no puede puentear: | Tus bots en este servidor aún no pueden puentear:",
+      "blockedItem": "{bot}: {reason}",
+      "block": {
+        "bot_inactive": "está desactivado. Actívalo en Configuración de usuario → Mis bots.",
+        "install_inactive": "está desactivado en este servidor. Vuelve a añadirlo en Configuración del servidor → Configuración avanzada → Bots del servidor.",
+        "read_send": "necesita «Leer mensajes» y «Enviar mensajes». Dáselos en Permisos, en Configuración del servidor → Configuración avanzada → Bots del servidor.",
+        "all_channels": "puede usar todos los canales, y un puente necesita una lista. En Canales, en Configuración del servidor → Configuración avanzada → Bots del servidor, elige «Canales seleccionados».",
+        "no_channels": "su lista de canales no tiene ningún canal de texto. Marca algunos en Canales, en Configuración del servidor → Configuración avanzada → Bots del servidor."
+      }
+    },
+    "unpair": {
+      "title": "Desconectar de Matrix",
+      "lead": "Al desconectar un bot, deja de puentear todos sus canales de aquí. Los mensajes ya puenteados se quedan en ambos lados.",
+      "item": "{bot}: {count} canal | {bot}: {count} canales",
+      "button": "Desconectar",
+      "label": "Desconectar {bot} de Matrix",
+      "confirmTitle": "¿Desconectar {bot}?",
+      "confirmMessage": "{bot} dejará de puentear {count} canal con Matrix. Los mensajes ya puenteados se quedan. Pide también a quien gestiona el puente que quite la sala de su configuración. | {bot} dejará de puentear {count} canales con Matrix. Los mensajes ya puenteados se quedan. Pide también a quien gestiona el puente que quite las salas de su configuración.",
+      "done": "{bot} está desconectado de Matrix."
+    },
+    "errors": {
+      "discordBot": "Este bot hace funcionar un puente de Discord, así que no puede puentear Matrix también. Usa otro bot.",
+      "allowlist": "Un canal elegido ya no está en la lista de canales del bot. Recarga y vuelve a elegir.",
+      "install": "El bot está desactivado, o le faltan «Leer mensajes», «Enviar mensajes» o una lista de canales en este servidor.",
+      "permission": "Solo quien es dueño del bot, con «Gestionar servidor» en este servidor, puede conectar sus canales.",
+      "save": "No se pudieron guardar los canales conectados. Recarga e inténtalo de nuevo.",
+      "unpair": "No se pudo desconectar el bot. Recarga e inténtalo de nuevo.",
+      "installs": "No se pudieron cargar tus bots, así que ahora no se pueden conectar canales desde aquí. Recarga para intentarlo de nuevo."
+    },
+    "privacy": {
+      "lead": "Quita aquí a un usuario de Matrix para borrar todo lo que el puente de este servidor trajo de él y dejar de traer sus mensajes.",
+      "idLabel": "ID de usuario de Matrix",
+      "idHelp": "El ID completo de Matrix, por ejemplo {'@'}sam:example.org.",
+      "idInvalid": "Un ID de usuario de Matrix tiene la forma {'@'}nombre:servidor.",
+      "removeConfirm": "¿Borrar todos los mensajes, archivos y reacciones que este puente trajo del usuario de Matrix {id} y dejar de traer los suyos? No se puede deshacer.",
+      "listTitle": "{count} usuario de Matrix excluido | {count} usuarios de Matrix excluidos",
+      "source": {
+        "self": "Se excluyó en Matrix"
+      },
+      "restoreLabel": "Volver a traer al usuario de Matrix {id}",
+      "alsoSelf": "También se excluyó en Matrix",
+      "purgeLead": "Quita todo lo que el puente de este servidor trajo de Matrix: mensajes, archivos y reacciones. Los mensajes escritos en Harmony se quedan.",
+      "purgeConfirm": "¿Borrar todos los mensajes, archivos y reacciones traídos de Matrix a este servidor? No se puede deshacer."
+    }
+  },
+  "bridges": {
+    "navLabel": "Puentes",
+    "title": "Puentes",
+    "intro": "Los puentes conectan canales de este servidor con canales y salas de otras plataformas de chat. Los mensajes enviados en un lado aparecen en el otro, con el nombre y la foto de quien los envía.",
+    "tabs": {
+      "discord": "Discord",
+      "matrix": "Matrix"
+    }
+  },
+  "bridgePrivacy": {
+    "title": "Privacidad de los puentes",
+    "description": "Impide que los puentes reenvíen tus futuros mensajes de este servidor a otras plataformas.",
+    "scope": "Solo se aplica a los puentes de este servidor. No elimina copias remotas existentes ni cambia lo que otros bots pueden leer.",
+    "optOut": "No reenviar mis mensajes a {platform}",
+    "none": "Ahora mismo ningún puente reenvía mensajes de este servidor.",
+    "loading": "Cargando privacidad de los puentes",
+    "saving": "Guardando…",
+    "loadError": "No se pudo cargar tu ajuste de privacidad. Inténtalo de nuevo.",
+    "saveError": "No se pudo confirmar el cambio. Recarga para comprobar el ajuste actual.",
+    "retry": "Reintentar"
+  },
   "common": {
     "save": "Guardar",
     "cancel": "Cancelar",
@@ -111,6 +282,7 @@
       "google": "Continuar con Google",
       "twitch": "Continuar con Twitch",
       "github": "Continuar con GitHub",
+      "discord": "Continuar con Discord",
       "custom": "Continuar con {name}"
     },
     "callback": {
@@ -318,12 +490,17 @@
     "back": "Atrás",
     "findNextFavoriteServer": "Encuentra tu próximo servidor favorito",
     "searchCommunities": "Buscar comunidades...",
+    "searchCommunitiesLabel": "Buscar comunidades",
     "categories": "Categorías",
     "clearCategoryFilter": "Borrar filtro de categoría",
     "searchingFor": "Buscando \"{query}\"",
     "categoryLabel": "Categoría: {category}",
     "communitiesFound": "{total} comunidades encontradas",
     "communitiesOfTotal": "{filtered} de {total} comunidades",
+    "searchAndFilters": "Búsqueda y filtros",
+    "activeFilters": "Filtros activos",
+    "removeFilter": "Quitar filtro",
+    "queryChip": "«{query}»",
     "loadingCommunities": "Cargando comunidades...",
     "findingBestServers": "Buscando los mejores servidores para ti",
     "failedToLoadCommunities": "No se pudieron cargar las comunidades",
@@ -730,7 +907,16 @@
         "removeMember": "No se pudo quitar al miembro del rol",
         "addMember": "No se pudo añadir al miembro al rol",
         "reorder": "No se pudieron reordenar los roles"
-      }
+      },
+      "selfAssignable": "Los miembros pueden elegir este rol",
+      "selfAssignableDesc": "Aparece en «Elegir roles» y en los menús de roles, para que los miembros se lo pongan y se lo quiten.",
+      "selfAssignGroup": "Grupo",
+      "selfAssignGroupPlaceholder": "p. ej. Colores, Pronombres, Notificaciones",
+      "selfAssignNote": "Descripción corta",
+      "selfAssignNotePlaceholder": "Se muestra bajo el rol al elegir",
+      "selfAssignWarnGrants": "Los miembros no pueden elegir este rol mientras tenga permisos que {'@'}everyone no tiene. Quítalos en la pestaña Permisos.",
+      "selfAssignWarnRank": "Los miembros no pueden elegir este rol mientras esté por encima de un rol con permisos extra. Muévelo por debajo de todos los roles de moderación.",
+      "selfAssignWarnAdmin": "Los miembros no pueden elegir roles de administrador."
     },
     "privacy": {
       "federatedMembers": "{count} miembro federado en este servidor | {count} miembros federados en este servidor",
@@ -1148,7 +1334,11 @@
       "lost": "Mensaje cifrado que ya no se puede descifrar",
       "decrypt": "Mensaje cifrado. Descifrar",
       "decrypting": "Descifrando el mensaje cifrado",
-      "locked": "Mensaje cifrado. Desbloquea el cifrado en Ajustes, Privacidad y cifrado, para leerlo."
+      "locked": "Mensaje cifrado. Desbloquea el cifrado en Ajustes, Privacidad y cifrado, para leerlo.",
+      "forged": "Mensaje oculto: su firma no coincide con su remitente",
+      "forgedHint": "La firma de este mensaje cifrado no se verifica con la clave de su remitente. Fue alterado o no es de la persona que indica, así que no se descifra.",
+      "replayed": "Repetido",
+      "replayedHint": "Este mensaje repite un mensaje cifrado anterior del mismo remitente. El servidor guardó un mensaje dos veces, lo que puede mostrar un mensaje antiguo en otro lugar."
     },
     "spoiler": {
       "hidden": "Spoiler, oculto. Actívalo para mostrarlo",
@@ -1487,6 +1677,8 @@
     "conversationDismissed": "Conversación descartada. Volverá a aparecer con un mensaje nuevo.",
     "failedToDismissConversation": "No se pudo descartar la conversación",
     "noUsersFound": "No se encontraron usuarios",
+    "groupSpotsLeft": "Queda {count} plaza | Quedan {count} plazas",
+    "groupFull": "Este grupo está lleno: un grupo admite hasta {count} personas.",
     "call": "Llamar",
     "videoCall": "Videollamada",
     "voiceCall": "Llamada de voz",
@@ -1563,7 +1755,8 @@
       "leaveFailed": "No se pudo salir del grupo",
       "deleted": "Grupo eliminado",
       "deleteFailed": "No se pudo eliminar el grupo"
-    }
+    },
+    "callUndeliverable": "No se pudo realizar tu llamada."
   },
   "user": {
     "panelToggle": "Tu cuenta y controles de voz",
@@ -1646,9 +1839,9 @@
       "compactMode": "Modo compacto",
       "compactModeDesc": "Muestra más mensajes con espaciado reducido.",
       "bridgeSourceBadge": "Indicador de origen del puente",
-      "bridgeSourceBadgeDesc": "Cómo muestran su origen los mensajes puenteados (p. ej. desde Discord) junto al nombre del autor.",
+      "bridgeSourceBadgeDesc": "Cómo muestran su origen junto a su nombre las personas de plataformas puenteadas como Discord y Matrix.",
       "bridgeSourceBadgeIcon": "Icono de la plataforma",
-      "bridgeSourceBadgeText": "Etiqueta de texto (DISCORD)",
+      "bridgeSourceBadgeText": "Etiqueta de texto (DISCORD, MATRIX)",
       "floatingVideo": "Reproductor de video flotante",
       "floatingVideoDesc": "Los videos en reproducción flotan en la esquina al desplazarse. Funciona con YouTube y videos nativos.",
       "videoPlayer": "Reproductor de vídeo",
@@ -3270,8 +3463,13 @@
       "voiceCall": "Llamada de voz",
       "videoCall": "Videollamada",
       "groupCreated": "Grupo creado",
-      "membersAdded": "Miembros añadidos"
-    }
+      "membersAdded": "Miembros añadidos",
+      "activity": "Actividad"
+    },
+    "activityStarted": "{actor} inició {app}.",
+    "activityEnded": "{actor} inició {app}: {players} jugadores, {duration}.",
+    "activityEndedAlone": "{actor} inició {app}: {duration}.",
+    "activityFallback": "una actividad"
   },
   "time": {
     "now": "ahora",
@@ -3474,10 +3672,10 @@
       "tabsLabel": "Dónde buscar",
       "thisInstance": "Esta instancia",
       "otherInstances": "Otras instancias",
-      "domainLabel": "Instancia",
-      "domainPlaceholder": "example.social",
-      "domainHint": "Escribe el dominio de otra instancia de Harmony o elige una conocida.",
-      "browse": "Explorar",
+      "searchLabel": "Buscar servidores o explorar una instancia",
+      "searchPlaceholder": "Nombre, tema o dominio de instancia",
+      "browseDomain": "Explorar {domain}",
+      "browseAction": "Explorar una instancia",
       "knownInstances": "Instancias conocidas",
       "loading": "Leyendo el directorio de {domain}…",
       "serversOn": "{count} servidor en {domain} | {count} servidores en {domain}",
@@ -3488,6 +3686,7 @@
       "members": "{count} miembro | {count} miembros",
       "join": "Unirse",
       "loadMore": "Cargar más",
+      "loadMoreFailed": "No se pudieron cargar más servidores. Inténtalo de nuevo.",
       "errorTitle": "No se pudo explorar esa instancia",
       "noDirectoryTitle": "Sin directorio de servidores",
       "invalidDomain": "Escribe el dominio de una instancia, como example.social.",
@@ -3499,8 +3698,6 @@
       "unreachable": "{domain} no respondió. Inténtalo más tarde.",
       "failed": "Algo salió mal. Inténtalo de nuevo.",
       "allInstances": "Todas las instancias",
-      "filterLabel": "Filtrar servidores",
-      "filterPlaceholder": "Nombre, tema o instancia",
       "loadingAdvertised": "Leyendo los directorios de las instancias conocidas…",
       "advertisedStats": "{count} servidor en {instances} | {count} servidores en {instances}",
       "instanceCount": "{count} instancia | {count} instancias",
@@ -3509,8 +3706,9 @@
       "advertisedFailed": "{count} instancia no respondió, así que sus servidores no aparecen. | {count} instancias no respondieron, así que sus servidores no aparecen.",
       "noMatchTitle": "Ningún servidor coincide",
       "noMatch": "Ningún servidor de una instancia conocida coincide con «{query}».",
+      "noMatchOn": "Ningún servidor de {domain} coincide con «{query}».",
       "advertisedEmptyTitle": "Aún no hay servidores incluidos",
-      "advertisedEmpty": "Aquí aparecen los servidores que sus dueños incluyen en la federación. Ninguna instancia que esta conoce incluye uno todavía: explora otra instancia por su dominio arriba.",
+      "advertisedEmpty": "Aquí aparecen los servidores que sus dueños incluyen en la federación. Ninguna instancia que esta conoce incluye uno todavía: explora otra instancia por su dominio.",
       "hostedOn": "Alojado en {instance}",
       "advertisedErrorTitle": "No se pudieron leer las instancias conocidas"
     },
@@ -3868,7 +4066,7 @@
       "bot": "Estándar",
       "botHint": "Se conecta con su token y actúa a través del gateway y la REST API.",
       "bridge": "Puente",
-      "bridgeHint": "Retransmite mensajes entre Harmony y otra plataforma. Para Discord, usa mejor Configuración del servidor → Puente de Discord: crea y gestiona su propio bot."
+      "bridgeHint": "Retransmite mensajes entre Harmony y otra plataforma. Para Discord, usa mejor Configuración del servidor → Puentes → Discord: crea y gestiona su propio bot."
     },
     "usernameErrors": {
       "tooShort": "Usa al menos 3 caracteres.",
@@ -4014,7 +4212,11 @@
       },
       "manage_roles": {
         "label": "Gestionar roles",
-        "description": "Crear, editar y eliminar roles por debajo del rol más alto de quien lo instaló, con los permisos que tiene."
+        "description": "Crear, editar, eliminar y asignar a miembros roles por debajo del rol más alto de quien lo instaló, con los permisos que tiene."
+      },
+      "attach_files": {
+        "label": "Adjuntar archivos",
+        "description": "Subir imágenes y otros archivos para publicarlos en los canales donde puede enviar mensajes."
       }
     },
     "commands": {
@@ -4616,7 +4818,8 @@
     },
     "timedOut": "Tienes tiempo fuera en este servidor hasta {time} y no puedes enviar mensajes, reaccionar ni iniciar hilos.",
     "antispam": {
-      "rateLimited": "Lo estás haciendo demasiado rápido. Inténtalo de nuevo en {seconds} s.",
+      "rateLimited": "Lo estás haciendo demasiado rápido. Inténtalo de nuevo en {wait}.",
+      "strangerConversations": "Las conversaciones nuevas con personas que no conoces están limitadas a {count} por hora. Inténtalo de nuevo en {wait}.",
       "linksBlocked": "Las cuentas nuevas aún no pueden publicar enlaces.",
       "strangerMentions": "Las cuentas nuevas pueden mencionar como máximo a {count} personas que no las siguen.",
       "serverLimit": "Una cuenta puede poseer como máximo {count} servidores en esta instancia.",
@@ -4771,7 +4974,10 @@
       "expires_at": "Caduca",
       "temporary": "Membresía temporal",
       "messages_deleted": "Mensajes eliminados",
-      "federation_discoverable": "Descubrible en la federación"
+      "federation_discoverable": "Descubrible en la federación",
+      "self_assignable": "Elegible por los miembros",
+      "self_assign_group": "Grupo de elección",
+      "self_assign_note": "Descripción de elección"
     },
     "value": {
       "none": "ninguno",
@@ -5342,6 +5548,10 @@
       "newDeviceLabel": "¿Dispositivo nuevo?",
       "newDeviceReminder": "{label} Inicia sesión en él y elige {another}, luego escanea su código desde este dispositivo. Tus mensajes se desbloquean sin escribir la clave de recuperación.",
       "rememberNeed": "La necesitarás si pierdes el acceso a todos tus dispositivos con sesión iniciada o borras los datos del navegador."
+    },
+    "keyShareFailed": {
+      "title": "Es posible que algunos miembros no puedan leer tu mensaje",
+      "body": "La clave para leerlo no llegó a {count} miembro. Su app la volverá a pedir al abrir el mensaje. | La clave para leerlo no llegó a {count} miembros. Sus apps la volverán a pedir al abrir el mensaje."
     }
   },
   "admin": {
@@ -5456,6 +5666,53 @@
       "maxPersonalStickers": "Stickers personales por usuario",
       "maxPersonalStickersHint": "De 0 a 100. 0, el valor predeterminado, desactiva los stickers personales."
     },
+    "signInProviders": {
+      "title": "Proveedores de inicio de sesión",
+      "lead": "Inicio de sesión con Google, Twitch, GitHub o Discord. Crea una aplicación OAuth en el proveedor con la URL de retorno de abajo y pega aquí su ID de cliente y su secreto. El servicio de inicio de sesión los aplica en unos 15 segundos, sin reiniciar.",
+      "loadFailed": "No se pudo cargar la configuración de los proveedores de inicio de sesión.",
+      "writerOff": "El servicio de inicio de sesión de esta instancia no toma credenciales de aquí: su servidor de federación no tiene HARMONY_AUTH_CONFIG_DIR. Ponlas en el entorno del servicio de inicio de sesión, como explica la guía de autoalojamiento sobre el inicio de sesión OAuth.",
+      "writerStopped": "El servidor de federación aplicó la configuración de inicio de sesión por última vez el {time} y ahora no está en marcha. Los cambios hechos aquí esperan a que vuelva.",
+      "writerError": "El servidor de federación no pudo aplicar la configuración de inicio de sesión: {error}",
+      "callback": "URL de retorno (redirección) que debes registrar en cada proveedor:",
+      "copy": "Copiar",
+      "copied": "URL de retorno copiada",
+      "copyFailed": "No se pudo copiar. Selecciona la URL y cópiala a mano.",
+      "showButton": "En la página de inicio de sesión",
+      "showButtonLabel": "Mostrar {provider} en la página de inicio de sesión",
+      "clientId": "ID de cliente",
+      "secret": "Secreto de cliente",
+      "secretSaved": "Guardado. Escribe uno nuevo para reemplazarlo.",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "clear": "Quitar",
+      "clearTitle": "¿Quitar el inicio de sesión con {provider}?",
+      "clearMessage": "Se borran el ID de cliente y el secreto y se desactiva el inicio de sesión con {provider}. Las cuentas creadas con {provider} entran de otra forma hasta que se vuelva a configurar.",
+      "saved": "Credenciales de {provider} guardadas",
+      "cleared": "Credenciales de {provider} quitadas",
+      "saveFailed": "No se pudieron guardar las credenciales de {provider}.",
+      "buttonsSaved": "Página de inicio de sesión actualizada",
+      "buttonsFailed": "No se pudo actualizar la página de inicio de sesión.",
+      "status": {
+        "active": "Activo",
+        "applying": "Aplicando…",
+        "hidden": "Apagado: oculto en la página de inicio de sesión",
+        "server": "Configurado en el servidor",
+        "unset": "Sin configurar",
+        "unknown": "Estado desconocido"
+      },
+      "problem": {
+        "clientId": "Un ID de cliente solo lleva letras, dígitos y . _ ~ + / = -.",
+        "discordId": "El ID de cliente de Discord es el ID de la aplicación: de 17 a 20 dígitos.",
+        "secret": "Un secreto de cliente tiene de 8 a 512 letras, dígitos y caracteres . _ ~ + / = -.",
+        "needBoth": "Escribe un ID de cliente y un secreto de cliente."
+      },
+      "where": {
+        "google": "Consola de Google Cloud, APIs y servicios, Credenciales: un ID de cliente OAuth de tipo aplicación web.",
+        "twitch": "Consola de desarrolladores de Twitch, Applications: registra una aplicación.",
+        "github": "GitHub, Settings, Developer settings, OAuth Apps: una nueva OAuth App.",
+        "discord": "Discord Developer Portal, tu aplicación, OAuth2: el Client ID y el secreto que muestra Reset Secret."
+      }
+    },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "Máximo de reacciones por persona en una publicación",
@@ -5522,7 +5779,13 @@
         "strangerDmsPerHour": "Conversaciones nuevas con desconocidos por hora",
         "strangerDmsHint": "Un desconocido no sigue a la cuenta, no comparte ningún servidor con ella y no tiene ninguna conversación con ella.",
         "newStrangerDmsPerHour": "Lo mismo, para cuentas nuevas",
-        "newStrangerDmsHint": "También cuenta a quienes solo comparten un servidor con la cuenta nueva: unirse a un servidor público da acceso a todos sus miembros."
+        "newStrangerDmsHint": "También cuenta a quienes solo comparten un servidor con la cuenta nueva: unirse a un servidor público da acceso a todos sus miembros.",
+        "signalsPerMinute": "Señales de llamada por minuto",
+        "signalsHint": "Establecer llamadas punto a punto, contestar y colgar llamadas de MD, efectos de llamada. Unirse a una llamada de diez personas requiere unas 45.",
+        "ringsPerMinute": "Llamadas realizadas por minuto",
+        "ringsHint": "Cada llamada suena una vez. Colgar nunca se rechaza.",
+        "rolePicksPerMinute": "Elecciones de rol por minuto",
+        "rolePicksHint": "Tomar y dejar roles autoasignables. Cada cambio llega a todos en el servidor."
       },
       "bots": {
         "title": "Bots",
@@ -5795,7 +6058,6 @@
     }
   },
   "discordBridge": {
-    "navLabel": "Puente de Discord",
     "title": "Puente de Discord",
     "intro": "Un puente conecta canales de este servidor con canales de un servidor de Discord. Los mensajes enviados en un lado aparecen en el otro, con el nombre y la foto de quien los envía.",
     "loading": "Cargando el puente de Discord…",
@@ -6043,6 +6305,7 @@
       "listLabel": "Canales conectados",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "Privado en Discord",
       "ok": "Funciona",
       "discordGone": "Canal de Discord no encontrado",
       "discordGoneFix": "El bot ya no encuentra este canal de Discord: se ha borrado o el bot ha perdido el acceso. Elimina el par o vuelve a dar acceso al bot.",
@@ -6346,7 +6609,7 @@
       "managed": "Este bot es el puente de Discord de {server}. Se configura y gestiona allí; aquí no hay nada que ajustar.",
       "aServer": "uno de tus servidores",
       "openSettings": "Abrir la configuración del puente",
-      "unmanaged": "Los puentes de Discord se configuran en los ajustes de un servidor: Configuración del servidor → Puente de Discord. Esa página crea y gestiona el bot del puente por ti, así que no tienes que crear uno aquí.",
+      "unmanaged": "Los puentes de Discord se configuran en los ajustes de un servidor: Configuración del servidor → Puentes → Discord. Esa página crea y gestiona el bot del puente por ti, así que no tienes que crear uno aquí.",
       "legacyTitle": "Configuración manual del puente antiguo (v1)",
       "legacyLead": "Solo para el programa antiguo harmony-discord-bridge, que lee un archivo de configuración.",
       "harmonyPermissions": "Añade este bot al servidor con Leer mensajes y Enviar mensajes (y Gestionar canales para /bridge clone-server).",
@@ -6356,7 +6619,7 @@
     },
     "adminSection": {
       "title": "Puente de Discord",
-      "lead": "Las comunidades conectan un servidor de Discord en Configuración del servidor → Puente de Discord. Ofréceles el bot de esta instancia, deja que traigan el suyo, o ambas cosas. Ejecutar el puente en un ordenador propio siempre es posible."
+      "lead": "Las comunidades conectan un servidor de Discord en Configuración del servidor → Puentes → Discord. Ofréceles el bot de esta instancia, deja que traigan el suyo, o ambas cosas. Ejecutar el puente en un ordenador propio siempre es posible."
     },
     "admin": {
       "title": "Dejar que las comunidades traigan su propio bot",
@@ -6430,7 +6693,7 @@
       "clearConfirm": "¿Quitar las credenciales del bot? Las comunidades vinculadas dejan de estar conectadas hasta que se configure un bot de nuevo. Sus puentes y pares de canales se conservan.",
       "cancel": "Cancelar",
       "enable": "Ofrecer este bot a las comunidades",
-      "enableHint": "Quienes administran servidores ven primero «Usar el bot de esta instancia» en Configuración del servidor → Puente de Discord.",
+      "enableHint": "Quienes administran servidores ven primero «Usar el bot de esta instancia» en Configuración del servidor → Puentes → Discord.",
       "enableNeedsConfig": "Guarda primero el Application ID, el client secret y el token del bot.",
       "presence": "Sincronización de presencia",
       "presenceHint": "Solicita el intent Presence de Discord para cada servidor vinculado, para que las comunidades puedan mostrar quién está en línea. Solo se envían los cambios de estado. Actívalo solo mientras el intent Presence esté activado en el Developer Portal; a partir de 100 servidores, Discord tiene que aprobarlo.",
@@ -6454,6 +6717,9 @@
       "cancel": "Cancelar",
       "cancelLabel": "Cancelar la importación de #{channel}",
       "cancelling": "Cancelando…",
+      "stopNow": "Detener ahora",
+      "stopNowLabel": "Detener ahora la importación de #{channel}",
+      "stopNowHint": "El puente se detiene en su siguiente paso. Si está desconectado, «Detener ahora» termina la importación aquí.",
       "waiting": "En espera",
       "running": "Importando… {percent} %",
       "runningUnknown": "Importando…",
@@ -6480,7 +6746,7 @@
         "channel_encrypted": "el canal ahora está cifrado",
         "import_disabled": "se desactivó la importación de historial",
         "pair_not_importable": "el par ya no trae mensajes de Discord a Harmony",
-        "discord_approval_required": "el canal de Discord es privado: inicia su importación en Discord con /bridge import-history",
+        "discord_approval_required": "el canal de Discord es privado: vuelve a iniciarlo incluyendo los canales privados, o ejecuta una vez /bridge import-history scope:All bridged channels en Discord",
         "discord_channel_unsupported": "el canal de Discord no es un canal de texto",
         "discord_access_lost": "el puente ya no puede leer el canal de Discord",
         "bridge_stalled": "el puente dejó de avanzar",
@@ -6492,6 +6758,7 @@
         "encrypted": "Los canales cifrados no pueden importar historial"
       },
       "needsUpdate": "Actualiza el puente a la versión 2.6.0 o posterior para importar historial",
+      "needsUpdateHosted": "El servicio de puentes de esta instancia necesita la versión 2.8.0 o posterior para importar el historial. Un administrador de la instancia lo actualiza.",
       "mirrorNote": "Los archivos importados se copian en el almacenamiento de esta instancia.",
       "consent": {
         "title": "¿Importar el historial de {count} canal? | ¿Importar el historial de {count} canales?",
@@ -6499,11 +6766,14 @@
         "skips": "Se omiten los mensajes de quienes salieron del servidor de Discord. Cualquier persona en Discord puede excluir los suyos, o borrarlos, con /bridge-privacy.",
         "notice": "El puente fija un aviso en cada canal de Discord cuando empieza su importación.",
         "confirm": "Administro este servidor de Discord o actúo con el acuerdo de sus administradores.",
+        "privateTitle": "Privado en Discord: {channels} | Privados en Discord: {channels}",
+        "privateLead": "{'@'}everyone no puede leer su historial en Discord. Si no los incluyes, se omiten.",
+        "privateConfirm": "Incluir este canal privado: puedo leerlo en Discord, o sus administradores están de acuerdo. | Incluir estos canales privados: puedo leerlos en Discord, o sus administradores están de acuerdo.",
         "start": "Iniciar importación"
       },
       "unavailable": {
         "instance_off": "La importación de historial está desactivada en esta instancia.",
-        "bridge_mode": "La importación de historial solo está disponible para un puente que ejecutas tú, con tu propia aplicación de Discord."
+        "bridge_mode": "En esta instancia, la importación del historial solo está disponible para puentes que el propietario del servidor ejecuta con su propia aplicación de Discord."
       },
       "authorsSkipped": "{count} omitido (el autor salió o se excluyó) | {count} omitidos (los autores salieron o se excluyeron)",
       "automodSkipped": "{count} bloqueado por AutoMod | {count} bloqueados por AutoMod"
@@ -6537,17 +6807,30 @@
     },
     "importAdmin": {
       "title": "Importación de historial de Discord",
-      "lead": "Permite que un servidor copie los mensajes antiguos de sus canales de Discord a Harmony, mediante un puente que su propietario ejecuta con su propia aplicación de Discord. Nunca mediante el bot de Discord de esta instancia ni un bot que esta instancia ejecute.",
+      "lead": "Permite que un servidor copie a Harmony los mensajes antiguos de sus canales de Discord a través de su puente. Elige qué puentes pueden hacerlo.",
       "loadFailed": "No se pudieron cargar los ajustes de importación de historial.",
       "mode": "Importación de historial",
-      "modeOff": "Desactivada",
-      "modeSelfRun": "Puentes autogestionados",
-      "modeHint": "Desactivada rechaza toda importación, también las que ya están en curso.",
-      "warningTitle": "Antes de activarlo",
+      "modes": {
+        "off": {
+          "label": "Desactivado",
+          "hint": "Ningún servidor importa. Las importaciones en curso se detienen."
+        },
+        "self_run": {
+          "label": "Puentes propios",
+          "hint": "Puentes que el propietario de un servidor ejecuta con su propia aplicación de Discord."
+        },
+        "all": {
+          "label": "Todos los puentes",
+          "hint": "También el bot de Discord de esta instancia y los puentes con bot propio alojados aquí."
+        }
+      },
+      "modeHint": "Se guarda en cuanto eliges.",
+      "warningTitle": "Mientras la importación esté activada",
       "warningAuthors": "Quienes escribieron esos mensajes no pidieron la copia. Se omiten los autores que salieron del servidor de Discord, y los miembros excluyen o borran sus mensajes con /bridge-privacy.",
       "warningRequests": "Las solicitudes de borrado del contenido de esta instancia te llegan a ti. Los administradores de un servidor quitan a un usuario de Discord en Configuración del servidor, Puente de Discord; Quitar todos los mensajes de Discord, abajo, vacía todos los servidores.",
       "warningQuiet": "Los mensajes importados no envían notificaciones, cuentan como leídos y no se federan. Pasan por las reglas de palabras, invitaciones y enlaces de AutoMod del servidor cuando sus bots no están exentos.",
       "warningStorage": "Con «Mirror to storage», los archivos importados se copian al almacenamiento de esta instancia, hasta el límite por servidor de abajo.",
+      "warningInstanceBot": "Las importaciones a través del bot de Discord de esta instancia leen Discord con tu aplicación de Discord: según los términos para desarrolladores de Discord, tú, su propietario, respondes por ellas.",
       "maxRunning": "Importaciones simultáneas",
       "maxRunningHint": "En toda la instancia. Las demás esperan su turno. 0 es sin límite.",
       "messagesPerMinute": "Mensajes por minuto, por importación",
@@ -6748,7 +7031,7 @@
       "clearSearch": "Borrar búsqueda",
       "found": "{count} miembro encontrado | {count} miembros encontrados",
       "group": "{title}, {count} miembro | {title}, {count} miembros",
-      "discord": "Miembro del puente de Discord",
+      "bridged": "Miembro del puente de {platform}",
       "instanceAdmin": "administrador de la instancia",
       "instanceMod": "moderador de la instancia",
       "searchHint": "Nombre o nombre de usuario",
@@ -7501,6 +7784,9 @@
   },
   "activities": {
     "title": "Ver o escuchar juntos",
+    "launcherTitle": "Actividades",
+    "launcherSubtitleCall": "Ver, escuchar o jugar juntos en esta llamada",
+    "playHeading": "Jugar",
     "addTitle": "Añadir a la actividad",
     "lede": "Todos en la llamada reproducen lo mismo en el mismo momento. Pega un enlace de YouTube, SoundCloud o Spotify, un enlace a un archivo de video o audio, o elige uno de tu Drive.",
     "linkPlaceholder": "Pega un enlace",
@@ -8795,5 +9081,186 @@
       "unsuspended": "Suspensión levantada en {count} cuenta | Suspensión levantada en {count} cuentas",
       "deleted": "{count} cuenta eliminada | {count} cuentas eliminadas"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "Elegir roles",
+    "title": "Elige tus roles",
+    "intro": "Toca un rol para tomarlo y tócalo otra vez para quitártelo. Los cambios se aplican al instante.",
+    "empty": "Este servidor aún no tiene roles para elegir.",
+    "otherRoles": "Otros roles",
+    "cardButton": "Elegir roles",
+    "errors": {
+      "notMember": "Únete al servidor para elegir sus roles.",
+      "notLocal": "Los roles de este servidor se eligen en su instancia de origen.",
+      "unavailable": "Ese rol ya no se puede elegir.",
+      "notPickable": "Ese rol da permisos, así que no se puede elegir. Pídeselo a la moderación.",
+      "failed": "No se pudo cambiar tu rol. Inténtalo de nuevo."
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "Elige tus roles",
+    "otherServer": "Este menú de roles pertenece a otro servidor.",
+    "empty": "Aquí aún no hay roles para elegir.",
+    "hint": "Toca un rol para tomarlo y tócalo otra vez para quitártelo.",
+    "createTitle": "Publicar un menú de roles",
+    "noRoles": "Aún no se puede elegir ningún rol. En Ajustes del servidor → Roles, activa primero «Los miembros pueden elegir este rol» en un rol.",
+    "group": "Roles que se ofrecen",
+    "allGroups": "Todos los roles elegibles",
+    "titleLabel": "Título",
+    "preview": "Vista previa",
+    "post": "Publicar",
+    "postFailed": "No se pudo publicar el menú de roles."
+  },
+  "joinRole": {
+    "title": "Rol para nuevos miembros",
+    "description": "Todos los que se unan a partir de ahora reciben este rol. Los miembros actuales conservan sus roles.",
+    "none": "Ninguno",
+    "saved": "Los nuevos miembros recibirán este rol.",
+    "cleared": "Los nuevos miembros ya no reciben un rol.",
+    "tooHigh": "Solo puedes elegir un rol por debajo de tu rol más alto.",
+    "saveFailed": "No se pudo guardar el rol para nuevos miembros.",
+    "notOpen": "Ese rol da permisos que {'@'}everyone no tiene o está por encima de uno que los da, así que no se puede dar a los miembros nuevos.",
+    "currentNotOpen": "Este rol ya no se puede dar a los miembros nuevos. Elige otro."
+  },
+  "playTogether": {
+    "launcherSubtitle": "Inicia una actividad a la que todos aquí pueden unirse",
+    "loadingApps": "Cargando actividades…",
+    "noApps": "Esta instancia no tiene actividades activadas.",
+    "sandboxNote": "Las actividades se ejecutan aisladas: no ven tu cuenta, tus mensajes ni nada fuera del juego.",
+    "players": "{min}–{max} jugadores",
+    "playing": "{n} jugando | {n} jugando",
+    "join": "Unirse",
+    "open": "Abrir",
+    "leave": "Salir",
+    "close": "Cerrar",
+    "expand": "Ampliar",
+    "collapse": "Reducir",
+    "resize": "Cambiar el tamaño de la actividad",
+    "endForEveryone": "Terminar para todos",
+    "hostName": "{name} (anfitrión)",
+    "return": "Volver",
+    "retry": "Reintentar",
+    "loading": "Cargando {name}…",
+    "loadFailed": "{name} no se cargó.",
+    "reconnecting": "Reconectando…",
+    "escaped": "{name} intentó salir de su entorno aislado y se detuvo.",
+    "youArePlaying": "Estás jugando",
+    "joinTheCall": "Únete a la llamada para jugar",
+    "alreadyRunning": "{name} ya está en marcha aquí, así que te uniste.",
+    "openedElsewhere": "Esta actividad está abierta ahora en otra ventana.",
+    "bannerOne": "{name} está jugando a {app}",
+    "bannerMany": "{name} y {n} persona más están jugando a {app} | {name} y {n} personas más están jugando a {app}",
+    "bannerEmpty": "{app} está en marcha aquí",
+    "status": {
+      "connecting": "Conectando…",
+      "reconnecting": "Reconectando…",
+      "ended": "Terminada"
+    },
+    "errors": {
+      "ACTIVITY_APP_UNAVAILABLE": "Esta actividad no está disponible en esta instancia.",
+      "ACTIVITY_CONTEXT_UNSUPPORTED": "Esta actividad no puede ejecutarse aquí.",
+      "ACTIVITY_RATE_LIMITED": "Has iniciado muchas actividades. Inténtalo de nuevo en unos minutos.",
+      "NOT_FOUND": "No puedes jugar aquí.",
+      "SERVER_NOT_LOCAL": "Las actividades solo funcionan en servidores alojados en esta instancia.",
+      "CHANNEL_TYPE": "Las actividades funcionan en canales de texto y de voz.",
+      "NOT_IN_CALL": "Únete a la llamada para jugar.",
+      "CANNOT_SEND": "No puedes enviar mensajes en este canal.",
+      "MEMBER_TIMED_OUT": "Estás aislado temporalmente en este servidor.",
+      "WEBVIEW_OUTDATED": "Actualiza Android System WebView para jugar actividades.",
+      "PACKAGE_DESKTOP_ONLY": "Esta actividad se juega en Harmony en un ordenador.",
+      "NOT_LOCAL_ACCOUNT": "Solo las cuentas de esta instancia pueden jugar aquí.",
+      "ENDED": "Esa actividad ha terminado.",
+      "FULL": "Esta actividad está llena.",
+      "UNSUPPORTED_VERSION": "Actualiza Harmony para jugar a esta actividad.",
+      "UNKNOWN": "Algo salió mal con la actividad."
+    },
+    "admin": {
+      "tab": "Actividades",
+      "title": "Jugar juntos",
+      "intro": "Actividades que los miembros pueden iniciar en MD, MD de grupo, canales de texto y llamadas. Desactivar una termina sus sesiones en curso.",
+      "none": "No hay actividades instaladas.",
+      "toggle": "Ofrecer {name}",
+      "enabled": "Actividad activada",
+      "disabled": "Actividad desactivada",
+      "context": {
+        "direct": "MD",
+        "group": "MD de grupo",
+        "channel": "Canales de texto",
+        "voice": "Canales de voz"
+      },
+      "safetyTitle": "Cómo se aíslan las actividades",
+      "safety": {
+        "sandbox": "Cada actividad se ejecuta en un marco aislado con su propio origen opaco: no puede leer la sesión de la cuenta, su almacenamiento, sus mensajes ni la página que la rodea.",
+        "network": "Su política de contenido rechaza solicitudes de red, ventanas emergentes, formularios y marcos, y solo carga archivos de su propia carpeta; un marco que navega a otra página se detiene.",
+        "relay": "Los jugadores se comunican a través del relé de esta instancia, que verifica a cada miembro, limita el tamaño y la frecuencia de los mensajes y no guarda datos del juego tras la sesión.",
+        "members": "Solo los miembros de la conversación o del canal pueden unirse; quien la abandone, salga de la llamada o cierre sesión sale del juego en menos de 30 segundos."
+      },
+      "package": "Paquete",
+      "checkUpdate": "Buscar actualización",
+      "remove": "Quitar",
+      "removeConfirm": "¿Quitar definitivamente?",
+      "installTitle": "Instalar una actividad",
+      "installIntro": "Sube un paquete de actividad (.zip) o indica su dirección HTTPS. Verás qué es antes de instalar nada.",
+      "chooseZip": "Elegir un .zip",
+      "or": "o",
+      "urlLabel": "Dirección del paquete",
+      "preview": "Vista previa",
+      "replaces": "reemplaza la v{version}",
+      "id": "ID",
+      "playersLabel": "Jugadores",
+      "runsIn": "Funciona en",
+      "size": "Tamaño",
+      "from": "Origen",
+      "trustWarning": "Esta actividad ejecuta código de su autor en los dispositivos de tus miembros, dentro del entorno aislado. Instala solo actividades en las que confíes, como harías con un bot.",
+      "update": "Actualizar",
+      "install": "Instalar",
+      "cancel": "Cancelar",
+      "updated": "Actividad actualizada",
+      "installed": "Actividad instalada, desactivada",
+      "removed": "Actividad quitada",
+      "errors": {
+        "NOT_A_ZIP": "No es un archivo zip.",
+        "TOO_LARGE": "El paquete es demasiado grande (6 MB como máximo, 5 MB el script, 256 KB el icono).",
+        "UNEXPECTED_FILE": "El paquete contiene un archivo distinto de manifest.json, el script y el icono.",
+        "MISSING_FILE": "Falta un archivo que nombra el manifiesto.",
+        "BAD_MANIFEST": "manifest.json no es válido.",
+        "BAD_ENTRY": "El script está vacío o no es texto.",
+        "BAD_ICON": "El icono no es el SVG, PNG o WebP que dice ser.",
+        "BUILTIN_ID": "Una actividad integrada ya usa este ID.",
+        "TOO_MANY_PACKAGES": "Esta instancia ya tiene 50 paquetes.",
+        "PACKAGE_CHANGED": "El paquete de esa dirección cambió desde la vista previa. Vuelve a previsualizarlo.",
+        "FETCH_FAILED": "No se pudo descargar el paquete.",
+        "BAD_URL": "Usa una dirección https://."
+      }
+    },
+    "thirdParty": "De terceros",
+    "desktopOnly": "Solo ordenador",
+    "thirdPartyNotice": "Actividad de terceros, instalada por esta instancia. Harmony nunca te pide la contraseña dentro de una actividad."
+  },
+  "adminVoiceIce": {
+    "title": "Llamadas punto a punto: STUN y TURN",
+    "intro": "Sin LiveKit, las llamadas de esta instancia conectan de dispositivo a dispositivo. Los servidores STUN indican a cada dispositivo su dirección pública; un servidor TURN retransmite el audio y el vídeo de los dispositivos que no pueden alcanzarse, por ejemplo tras un NAT o un cortafuegos estricto.",
+    "stunDefault": "Usar los servidores STUN predeterminados",
+    "stunDefaultHint": "{urls}. Las llamadas envían la dirección de cada participante a estos servidores.",
+    "stunUrls": "Servidores STUN",
+    "stunUrlsHint": "Una URL por línea, como stun:turn.example.com:3478. Vacío: ningún servidor STUN.",
+    "turnUrls": "Servidores TURN",
+    "turnUrlsHint": "Una URL por línea, como turn:turn.example.com:3478 o turns:turn.example.com:5349. Vacío: ningún servidor TURN.",
+    "turnAuth": "Credenciales TURN",
+    "turnAuthSecret": "Secreto compartido",
+    "turnAuthSecretHint": "El static-auth-secret de coturn (use-auth-secret). Cada llamada recibe sus propias credenciales, válidas durante un día.",
+    "turnAuthPassword": "Usuario y contraseña",
+    "username": "Usuario TURN",
+    "secret": "Secreto compartido",
+    "password": "Contraseña TURN",
+    "secretKept": "Guardado. Déjalo vacío para conservarlo.",
+    "invalidStun": "No es una URL STUN: {url}",
+    "invalidTurn": "No es una URL TURN: {url}",
+    "needsUsername": "Los servidores TURN con contraseña necesitan un usuario.",
+    "needsSecret": "Los servidores TURN necesitan un secreto compartido o una contraseña.",
+    "save": "Guardar",
+    "saved": "Servidores ICE guardados",
+    "saveFailed": "No se pudieron guardar los servidores ICE.",
+    "loadFailed": "No se pudieron cargar los servidores ICE."
   }
 }

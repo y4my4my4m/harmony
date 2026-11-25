@@ -88,7 +88,7 @@ export function validateExternalUrl(urlString: string, opts: { allowPlainHttp?: 
     throw new Error(`Invalid URL: ${urlString}`);
   }
 
-  // BUGS.md L12: plain http is only acceptable for local development
+  // Plain http is only acceptable for local development
   // (federating with a dockerized peer). In production it invites
   // downgrade/MITM of fetched actors and posts.
   // Link previews read public page metadata and pass `allowPlainHttp`; addresses are

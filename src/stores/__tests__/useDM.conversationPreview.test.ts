@@ -89,6 +89,8 @@ describe('conversation list without get_user_conversations', () => {
     await store.fetchUserConversationsMetadata('me', 'lazy')
 
     const preview = store.conversations[0].last_message as any
+    // A delete matches the preview by id.
+    expect(preview.id).toBe('sys-1')
     expect(preview.is_system).toBe(true)
     expect(systemEventPreviewKey(preview.metadata)).toBe('dm.missedCall')
   })

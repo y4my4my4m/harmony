@@ -142,10 +142,10 @@ describe('RemoteServerInviteCard', () => {
     expect(remoteInviteCard).not.toHaveBeenCalled()
   })
 
-  it('draws a server shut to other instances as closed', async () => {
-    const wrapper = await render({ status: 'closed', instance: { name: 'Peer Harmony', icon: null } })
+  it('draws a server shut to other instances as closed, naming the host by domain', async () => {
+    const wrapper = await render({ status: 'closed', instance: { name: 'Harmony', icon: null } })
     expect(wrapper.find('.error-title').text()).toBe('Closed to other instances')
-    expect(wrapper.find('.error-message').text()).toBe('Only people on Peer Harmony can join this server.')
+    expect(wrapper.find('.error-message').text()).toBe('Only people on peer.example can join this server.')
   })
 
   it('draws an unreadable snapshot as invalid', async () => {

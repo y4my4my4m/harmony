@@ -47,16 +47,19 @@ The admin panel is **User settings** → **Instance admin**
 (`https://chat.example.com/admin`). Its **Config** tab has the sub-tabs
 **General**, **Federation**, **Branding**, **Authentication**,
 **Voice & video** and **Uploads**. Their values live in
-`public.instance_config`, except those of **Voice & video**, which live in
-`public.instance_webrtc_settings`.
+`public.instance_config`, except the call mode, LiveKit URL and stage size of
+**Voice & video**, which live in `public.instance_webrtc_settings`. Its STUN
+and TURN servers for peer-to-peer calls are `voice_*` keys of
+`instance_config`; see [Peer-to-peer calls](/self-host/voice#peer-to-peer-calls).
 
 Some settings exist both as a variable and in the database:
 
 | Setting | Variable | Database | Which applies |
 |---|---|---|---|
-| Instance name | `INSTANCE_NAME` | `instance_config.instance_name` | `bootstrap.sh` copies the variable into a new database; afterwards the admin panel's name applies. The web app shows the variable until the instance settings load. The federation backend reports the variable in `/health` and `/instance-info`, and uses it in NodeInfo only when the database has no name |
+| Instance name | `INSTANCE_NAME` | `instance_config.instance_name` | `bootstrap.sh` copies the variable into a new database; afterwards the admin panel's name applies. The web app shows the variable until the instance settings load. The federation backend reports the variable in `/health` and `/instance-info`, and uses it in NodeInfo and on the instance actor only when the database name is blank, the domain when both are. `harmony update` names an instance still called Harmony by an earlier installer after its domain, in both places, unless `INSTANCE_NAME_CHOSEN=true` marks Harmony as chosen |
 | Domain | `DOMAIN` | `instance_config.domain` | Both must be the same. `bootstrap.sh` sets the database value on a new database; `harmony doctor` fails when they differ |
 | OAuth buttons | `ENABLED_OAUTH_PROVIDERS` | `instance_config.oauth_providers` | The database list when it names at least one provider, else the variable. See [OAuth sign-in](/self-host/oauth) |
+| Credentials of Google, GitHub, Twitch and Discord | `<PROVIDER>_ENABLED`, `<PROVIDER>_CLIENT_ID`, `<PROVIDER>_SECRET` in `supabase/.env` | `auth_provider_credentials` (secret in Vault) | The database, per provider, once **Authentication** saved one: the federation server renders it into the auth service's `--config-dir`. See [OAuth sign-in](/self-host/oauth#set-it-up-in-the-admin-panel) |
 | Buttons of your own sign-in providers | none | `instance_config.custom_oauth_providers` | The database. `harmony auth add-provider` and `remove-provider` write it; **Authentication** lists it read-only. See [Your own identity provider](/self-host/oauth#your-own-identity-provider) |
 | Terms and privacy links | `TERMS_URL`, `PRIVACY_URL` | `instance_config.terms_url`, `privacy_url` | The database value, empty included, once the instance settings load. A new database holds empty values, so set the links in **Config** → **Branding** |
 | Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env`. Sign-up follows `DISABLE_SIGNUP`; NodeInfo announces `open_registration`. The admin panel's **Invites** states the first and notes when the second differs |
@@ -118,6 +121,9 @@ Limits on what one local account creates and how fast it writes, on by default o
 | **Servers created per hour** | `account_servers_per_hour` | `10` |
 | **New conversations with strangers per hour** | `account_stranger_dms_per_hour` | `30` |
 | **Same, for new accounts**, also counting people who share only a server with the account | `new_account_stranger_dms_per_hour` | `5` |
+| **Call signals per minute**: peer-to-peer call setup, DM call answers and hang-ups, call effects | `account_signals_per_minute` | `300` |
+| **Calls placed per minute**, to this instance and to others; hanging up is never refused | `account_rings_per_minute` | `10` |
+| **Role picks per minute**: taking and dropping self-assignable roles | `account_role_picks_per_minute` | `60` |
 | **Requests per minute, per bot** | `bot_requests_per_minute` | `600` |
 | **Requests per minute, per linked Discord bridge** | `bridge_requests_per_minute` | `3000` |
 | **An account counts as new for (hours)** | `new_account_hours` | `24` |
@@ -191,7 +197,10 @@ disagree.
 
 The web app sends a file over 6 MB in 6 MB pieces through storage's
 resumable (TUS) endpoint, so Caddy's 50 MB request body limit and
-Cloudflare's 100 MB do not bound the size of a file.
+Cloudflare's 100 MB do not bound the size of a file. A bot sends a file in
+one request to the bot gateway: Caddy passes it on whatever its size, the
+gateway refuses one over the ceiling, and Cloudflare's 100 MB does apply in
+front of a proxied `DOMAIN`.
 
 Larger files cost storage. On the file backend they fill the disk under
 `supabase/volumes/storage`. On Cloudflare R2 or another S3-compatible store
@@ -267,7 +276,7 @@ docker compose up -d
 | Variable | Answer |
 |---|---|
 | `HARMONY_DOMAIN` | Public domain |
-| `HARMONY_INSTANCE_NAME` | Display name |
+| `HARMONY_INSTANCE_NAME` | Name the app and other servers show; default the domain |
 | `HARMONY_ADMIN_EMAIL` | Let's Encrypt contact and Web Push (VAPID) contact |
 | `HARMONY_TLS` | `acme` (Let's Encrypt) or `internal` (Caddy's local CA) |
 | `HARMONY_DB_DOMAIN` | API name; default the configured one, else `db.DOMAIN` |
@@ -366,9 +375,10 @@ database role. Both files override some backend variables themselves
 `FEDERATION_LISTENER_URL`).
 
 The self-host stack's `supabase-overrides.yml` maps the OAuth variables onto
-the sign-in service. A Supabase stack without it needs the
-`GOTRUE_EXTERNAL_*` settings added to its `auth` service by hand; see
-[OAuth sign-in](/self-host/oauth).
+the sign-in service and starts it with `--config-dir` on the `auth-config`
+volume, which `federation-server` writes from the admin panel. A Supabase stack
+without it needs the `GOTRUE_EXTERNAL_*` settings added to its `auth` service
+by hand; see [OAuth sign-in](/self-host/oauth).
 
 ## Self-host .env
 
@@ -379,7 +389,8 @@ the sign-in service. A Supabase stack without it needs the
 | `DOMAIN` | required | Public domain of the app. Caddy serves it; the web container receives it as `DOMAIN` and as `APP_URL` (`https://DOMAIN`) |
 | `DB_DOMAIN` | `db.DOMAIN` | Host of the Supabase API (Kong) behind Caddy. The web container receives `https://DB_DOMAIN` as `SUPABASE_URL` |
 | `LIVEKIT_DOMAIN` | `live.DOMAIN` | Host of LiveKit signalling; Caddy defines it only with `ENABLE_VOICE=true` |
-| `INSTANCE_NAME` | `Harmony` | Display name passed to the web container. `configure.sh` copies it to `federation.env` and uses it as the email sender name |
+| `INSTANCE_NAME` | `DOMAIN` | Name passed to the web container. `configure.sh` copies it to `federation.env` and uses it as the email sender name |
+| `INSTANCE_NAME_CHOSEN` | unset | `true` when `INSTANCE_NAME` is Harmony by choice; `configure.sh` writes it with that answer and removes it otherwise. Without it, `harmony update` and `harmony config` replace Harmony with the domain |
 | `ADMIN_EMAIL` | none | `configure.sh` writes it to `VAPID_SUBJECT`, and to `CADDY_TLS` with public TLS. The `harmony admin` commands offer it as the default address |
 | `CADDY_TLS` | `internal` | An email address: Let's Encrypt certificates with that contact. `internal`: Caddy's local CA, for LAN installs |
 | `CADDY_TRUSTED_PROXIES` | empty | A proxy with a public address in front of Caddy, space-separated CIDRs. Proxies on private addresses and Cloudflare's edges are built in. See [the client address](/self-host/signup-limits#client-address) |
@@ -399,7 +410,7 @@ the sign-in service. A Supabase stack without it needs the
 | `HARMONY_HTTPS_PORT` | `443` | `[address:]port` Caddy publishes for 443/tcp and 443/udp |
 | `HARMONY_KEEP_UPDATE_BACKUPS` | `5` | Update backups `harmony update` keeps of each kind; `0` keeps all ([Delete old backups](/self-host/update-backup#delete-old-backups)) |
 | `SUPABASE_ANON_KEY` | required | Supabase anon key for the web container; copied from `supabase/.env` |
-| `ENABLED_OAUTH_PROVIDERS` | empty | Comma-separated OAuth buttons (`google`, `github`, `twitch`) for the web container |
+| `ENABLED_OAUTH_PROVIDERS` | empty | Comma-separated OAuth buttons (`google`, `github`, `twitch`, `discord`) for the web container |
 | `TERMS_URL`, `PRIVACY_URL` | empty | Legal links for the web container; see the table above for which value applies |
 | `STATUS_URL` | empty | Service status page (an Uptime Kuma status page, for example) linked under the sign-in form and in Settings; no link when empty |
 | `REDIS_PASSWORD` | generated | Redis password (`requirepass`) |
@@ -425,9 +436,10 @@ values.
 | `ENABLE_EMAIL_AUTOCONFIRM` | `true` without SMTP, `false` with | `false` makes new accounts confirm their address by email |
 | `STUDIO_DEFAULT_PROJECT` | instance name | Project name in Studio |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_ADMIN_EMAIL`, `SMTP_SENDER_NAME` | from the email answers | Outgoing email. See [Email (SMTP)](/self-host/email) |
-| `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET`, and the same for `GITHUB` and `TWITCH` | not written | OAuth providers, mapped by `supabase-overrides.yml`. See [OAuth sign-in](/self-host/oauth) |
-| `PROVIDER_LINKING_DOMAINS` | `github=github,google=google,twitch=twitch` while `ENABLE_EMAIL_AUTOCONFIRM=true` (`configure.sh`, for each built-in provider without an entry); `harmony auth add-provider` adds `custom:ID=custom:ID` per provider | Sign-in providers that never join an existing account by its address, as comma-separated `provider=domain` pairs (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`); `PROVIDER=default` joins by address. `harmony auth linking` sets a built-in provider's entry. A value that is not such pairs stops the sign-in service from starting. See [Existing accounts](/self-host/oauth#existing-accounts) and [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
+| `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET`, and the same for `GITHUB`, `TWITCH` and `DISCORD` | not written | OAuth providers, mapped by `supabase-overrides.yml`. See [OAuth sign-in](/self-host/oauth) |
+| `PROVIDER_LINKING_DOMAINS` | `discord=discord,github=github,google=google,twitch=twitch` while `ENABLE_EMAIL_AUTOCONFIRM=true` (`configure.sh`, for each built-in provider without an entry); `harmony auth add-provider` adds `custom:ID=custom:ID` per provider | Sign-in providers that never join an existing account by its address, as comma-separated `provider=domain` pairs (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`); `PROVIDER=default` joins by address. `harmony auth linking` sets a built-in provider's entry. A value that is not such pairs stops the sign-in service from starting. See [Existing accounts](/self-host/oauth#existing-accounts) and [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
 | `FILE_SIZE_LIMIT` | not written; `harmony config --upload-ceiling` writes it | Largest file storage accepts, bytes, resumable uploads included; `52428800` when absent (`supabase-overrides.yml`). See [Upload limits](#upload-limits) |
+| `STORAGE_BACKEND`, `STORAGE_S3_BUCKET`, `STORAGE_S3_ENDPOINT`, `STORAGE_S3_REGION`, `STORAGE_S3_FORCE_PATH_STYLE`, `STORAGE_S3_ACCESS_KEY_ID`, `STORAGE_S3_SECRET_ACCESS_KEY` | not written | Where uploads live: `file` (the default) under `supabase/volumes/storage`, or `s3` in the named bucket of an S3-compatible store (Cloudflare R2, MinIO, AWS). For R2: `STORAGE_S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com` and `STORAGE_S3_REGION=auto`; `STORAGE_S3_FORCE_PATH_STYLE` is `true` unless set. The storage container gets the keys that are set, under the names storage reads (`GLOBAL_S3_*`, `AWS_*`, `REGION`), and no `AWS_*` or `REGION` variable of the shell that runs Compose; an endpoint, key or path style left out leaves what a `docker-compose.override.yml` of your own gives, its `env_file` included. `harmony doctor` warns when storage runs with `s3` and without a bucket or keys. Switching backends moves no files. `harmony backup` archives `supabase/volumes/storage` only, so a bucket needs its own backup |
 | `RATE_LIMIT_EMAIL_SENT` | not written; the stack reads it as `100` | Mail per hour for the whole instance while email confirmation is on. Keep it under your SMTP provider's limit. See [Sign-up limits](/self-host/signup-limits#email-budget) |
 | `GOTRUE_IMAGE` | `configure.sh` | The sign-in service's image: the Supabase stack's own `supabase/gotrue` image from `v2.197.0` on, otherwise `supabase/gotrue:v2.197.0`. A newer image set by hand stays |
 | `STORAGE_IMAGE` | `configure.sh` | The storage service's image: the Supabase stack's own `supabase/storage-api` image from `v1.90.0` on, otherwise `supabase/storage-api:v1.90.0`. A newer image set by hand stays. See [Storage and realtime versions](#storage-and-realtime-versions) |
@@ -565,9 +577,10 @@ process and names the variable.
 | `CORS_ORIGIN` | `http://localhost:5173` | Comma-separated browser origins allowed to call the backend. The origins of the desktop and Android apps are always allowed |
 | `TRUST_PROXY` | `loopback, uniquelocal` | Express `trust proxy`: peers trusted to name the client in `X-Real-IP`, on which rate limits key |
 | `LOG_LEVEL` | `info` | `error`, `warn`, `info` or `debug` |
-| `INSTANCE_NAME` | `Harmony` | Name in `/health` and `/instance-info`, and in NodeInfo when the database has none |
+| `INSTANCE_NAME` | `Harmony` | Name in `/health` and `/instance-info`, and in NodeInfo and on the instance actor when the database name is blank; the domain when this is blank too |
 | `INSTANCE_DESCRIPTION` | `A federated social platform` | NodeInfo description when the database has none |
-| `PUBLIC_SUPABASE_URL` | `SUPABASE_URL` | Public Supabase URL: storage URLs sent to other instances and the `supabaseUrl` in `/instance-info`. Set it whenever `SUPABASE_URL` is an internal address |
+| `PUBLIC_SUPABASE_URL` | `SUPABASE_URL` | Public Supabase URL: storage URLs sent to other instances and the `supabaseUrl` in `/instance-info`. Set it whenever `SUPABASE_URL` is an internal address. Base of the redirect URI written for the sign-in providers of the admin panel |
+| `HARMONY_AUTH_CONFIG_DIR` | unset; `/var/lib/harmony-auth` in the self-host stack | Directory the federation server (`FEDERATION_MODE` server or unified) writes the sign-in provider credentials of **Authentication** into, as `50-harmony-oauth.env`, mode `0600`; the auth service reads it as `--config-dir`. Unset: the admin panel cannot set credentials |
 | `VERSION` | the release (`1.8.10`) | Version reported by `/health`, `/instance-info`, NodeInfo and the outgoing `User-Agent` |
 | `APP_URL` | `https://INSTANCE_DOMAIN` | Origin of the web app. Invitation links from the admin panel land on its `/reset-password?invite=1` |
 

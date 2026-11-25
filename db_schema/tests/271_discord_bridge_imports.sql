@@ -181,11 +181,11 @@ SELECT ok((SELECT state = 'cancelled' AND finished_at IS NOT NULL AND thread_cur
                   '{"state":"cancelled","thread_cursor":null}')),
           'running to cancelled once cancel_requested; finished_at set and a null clears a cursor');
 
-SELECT ok(NOT has_function_privilege('authenticated', 'public.discord_bridge_import_start_internal(uuid, text[], text, uuid, jsonb)', 'EXECUTE')
+SELECT ok(NOT has_function_privilege('authenticated', 'public.discord_bridge_import_start_internal(uuid, text[], text, uuid, jsonb, boolean)', 'EXECUTE')
           AND NOT has_function_privilege('authenticated', 'public.discord_bridge_import_update(uuid, uuid, jsonb)', 'EXECUTE')
           AND NOT has_function_privilege('authenticated', 'public.discord_bridge_import_cancel_internal(uuid, uuid)', 'EXECUTE')
-          AND NOT has_function_privilege('anon', 'public.discord_bridge_import_start(uuid, uuid[])', 'EXECUTE')
-          AND has_function_privilege('authenticated', 'public.discord_bridge_import_start(uuid, uuid[])', 'EXECUTE')
+          AND NOT has_function_privilege('anon', 'public.discord_bridge_import_start(uuid, uuid[], boolean)', 'EXECUTE')
+          AND has_function_privilege('authenticated', 'public.discord_bridge_import_start(uuid, uuid[], boolean)', 'EXECUTE')
           AND has_function_privilege('service_role', 'public.discord_bridge_import_update(uuid, uuid, jsonb)', 'EXECUTE'),
           'clients call the two app RPCs only; the gateway functions are service_role');
 

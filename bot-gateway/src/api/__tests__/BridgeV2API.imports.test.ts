@@ -372,6 +372,50 @@ describe('Bridge v2 import endpoints', () => {
       expect(rpcCalls('bridge_mirror_unreferenced').map((c) => c.p_paths)).toEqual([[mirrorPath]])
     })
 
+    it('prepares a Discord id carried twice once and answers the later copy skipped', async () => {
+      const mirrorPath = (name: string) => `c/${GENERAL}/bridge/${BOT_ID}/${name}.png`
+      mocks.applyPolicy.mockImplementation(async (parts: any[]) => ({
+        parts: parts.map((p) => (p.type === 'file' ? { ...p, url: 'https://harmony.test/m', path: mirrorPath(p.name) } : p)),
+        deferred: false,
+      }))
+      rpcHandlers.bridge_import_messages = (args) => ({
+        data: { inserted: args.p_messages.map((m: any) => ({ discord_message_id: m.discord_message_id, id: 'row-1' })), skipped: [] },
+        error: null,
+      })
+      rpcHandlers.bridge_mirror_unreferenced = () => ({ data: [], error: null })
+      const file = (name: string) => ({ type: 'file', url: CDN, name })
+      const res = await post([message({ content: [file('first')] }), message({ content: [file('second')] })])
+      expect(res.status).toBe(200)
+      expect(mocks.applyPolicy).toHaveBeenCalledTimes(1)
+      expect(rpcCalls('bridge_import_messages')[0].p_messages.map((m: any) => m.content[0].path)).toEqual([mirrorPath('first')])
+      expect(res.body.inserted).toEqual([{ discord_message_id: M1, id: 'row-1' }])
+      expect(res.body.skipped).toEqual([M1])
+      expect(rpcCalls('bridge_mirror_unreferenced')).toEqual([])
+    })
+
+    it('removes the files mirrored for the batch when a preparation throws, once every other one settled', async () => {
+      const mirrorPath = (name: string) => `c/${GENERAL}/bridge/${BOT_ID}/${name}.png`
+      mocks.applyPolicy.mockImplementation(async (parts: any[]) => {
+        const name = parts.find((p) => p.type === 'file')?.name
+        if (name === 'bad') throw new Error('mention lookup failed')
+        // The last one of the group finishes after the failure.
+        if (name === 'f6') await new Promise((resolve) => setTimeout(resolve, 20))
+        return {
+          parts: parts.map((p) => (p.type === 'file' ? { ...p, url: 'https://harmony.test/m', path: mirrorPath(p.name) } : p)),
+          deferred: false,
+        }
+      })
+      rpcHandlers.bridge_mirror_unreferenced = () => ({ data: [], error: null })
+      const names = ['f0', 'f1', 'f2', 'f3', 'f4', 'bad', 'f6']
+      const res = await post(names.map((name, i) => message({
+        discord_message_id: String(700 + i), content: [{ type: 'file', url: CDN, name }],
+      })))
+      expect(res.status).toBe(500)
+      expect(rpcCalls('bridge_import_messages')).toEqual([])
+      expect(rpcCalls('bridge_mirror_unreferenced').map((c) => c.p_paths))
+        .toEqual([['f0', 'f1', 'f2', 'f3', 'f4', 'f6'].map(mirrorPath)])
+    })
+
     it('writes user and role mentions as text', async () => {
       rpcHandlers.bridge_import_messages = () => ({ data: { inserted: [], skipped: [], rejected: [] }, error: null })
       await post([message({ content: [
@@ -586,28 +630,42 @@ describe('Bridge v2 import endpoints', () => {
       expect(notObject.status).toBe(400)
       expect(notObject.body.code).toBe('invalid_thread')
     })
+
+    // The code is the one every bridge release skips a thread on; the reason is new.
+    it('answers a thread a person deleted with invalid_thread and reason thread_deleted, not import_not_running', async () => {
+      rpcHandlers.bridge_import_thread = () => rpcError('thread_deleted', '55000', thread.discord_thread_id)
+      const res = await post(thread)
+      expect(res.status).toBe(400)
+      expect(res.body).toEqual({ code: 'invalid_thread', reason: 'thread_deleted' })
+    })
   })
 
   describe('POST replies/link', () => {
     const post = () => supertest(makeApp()).post(`/bridge/v2/imports/${IMPORT_ID}/replies/link`).set(auth)
 
-    it('returns linked, and a NULL result is 409 import_not_running', async () => {
-      rpcHandlers.bridge_import_link_replies = () => ({ data: 3, error: null })
+    it('links page by page until the last and answers the total', async () => {
+      const pages = [{ linked: 2, done: false }, { linked: 0, done: false }, { linked: 1, done: true }]
+      rpcHandlers.bridge_import_link_replies_page = () => ({ data: pages.shift(), error: null })
       const res = await post()
       expect(res.status).toBe(200)
       expect(res.body).toEqual({ linked: 3 })
-      expect(rpcCalls('bridge_import_link_replies')).toEqual([{ p_bot_id: BOT_ID, p_import_id: IMPORT_ID }])
+      expect(rpcCalls('bridge_import_link_replies_page')).toEqual(
+        Array(3).fill({ p_bot_id: BOT_ID, p_import_id: IMPORT_ID, p_limit: 2000 }))
+      expect(rpcCalls('bridge_import_link_replies')).toEqual([])
+    })
 
-      rpcHandlers.bridge_import_link_replies = () => ({ data: null, error: null })
-      const failed = await post()
-      expect(failed.status).toBe(409)
-      expect(failed.body.code).toBe('import_not_running')
+    it('answers 409 import_not_running when a page finds the job stopped', async () => {
+      const pages: unknown[] = [{ linked: 2, done: false }, { not_running: true, state: 'cancelled' }]
+      rpcHandlers.bridge_import_link_replies_page = () => ({ data: pages.shift(), error: null })
+      const res = await post()
+      expect(res.status).toBe(409)
+      expect(res.body.code).toBe('import_not_running')
     })
 
     it('maps import_not_running (55000) to 409 and an unexpected error to 500', async () => {
-      rpcHandlers.bridge_import_link_replies = () => rpcError('import_not_running', '55000')
+      rpcHandlers.bridge_import_link_replies_page = () => rpcError('import_not_running', '55000')
       expect((await post()).status).toBe(409)
-      rpcHandlers.bridge_import_link_replies = () => rpcError('boom', 'XX000')
+      rpcHandlers.bridge_import_link_replies_page = () => rpcError('boom', 'XX000')
       expect((await post()).status).toBe(500)
     })
   })

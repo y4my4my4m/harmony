@@ -26,6 +26,7 @@ import {
 } from '@/services/conversationEncryption'
 import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
 import { mediaRoom, messageMediaPathsIn } from '@/services/privateMedia'
+import { noticeKeyShareFailures } from '@/services/encryption/keyShareNotice'
 import { beginHistoryView, historyCutoff, historyViewBegun, recordHistoryCutoff } from '@/services/channelHistoryCutoff'
 
 export interface SendMessageData {
@@ -308,6 +309,7 @@ export class CoreMessageService {
 
         // Megolm session key is conversation-wide; room id is the conversation id.
         const encryptedData = await encryptionService.encryptMessage(content, conversationId, recipientIds)
+        noticeKeyShareFailures(encryptedData.key_share_failures)
         debug.log(`DM encrypted with Megolm (session: ${encryptedData.encryption_metadata.session_id?.substring(0, 8)}...)`)
         return {
           content: encryptedData.content,
@@ -415,6 +417,7 @@ export class CoreMessageService {
           }
 
           const encryptedData = await encryptionService.encryptMessage(newContent, originalMessage.conversation_id, recipientIds)
+          noticeKeyShareFailures(encryptedData.key_share_failures)
           finalContent = encryptedData.content
           encrypted = true
           encryptionMetadata = encryptedData.encryption_metadata

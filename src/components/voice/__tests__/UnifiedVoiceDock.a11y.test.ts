@@ -12,6 +12,13 @@ const h = vi.hoisted(() => ({ store: null as any, storage: new Map<string, strin
 // __esModule lets defineAsyncComponent unwrap the mocked module to its default.
 const { stub } = vi.hoisted(() => ({ stub: (name: string) => ({ __esModule: true, default: { name, render: () => null } }) }))
 
+vi.mock('@/stores/playTogether', () => ({
+  usePlayTogetherStore: () => ({
+    appsFor: () => [], loadApps: async () => {}, openLauncher: () => {}, joined: null, launcher: null,
+    sessionIn: () => null, refresh: async () => [], registerSlot: () => {}, unregisterSlot: () => {},
+    view: { members: [], status: 'connecting' }, mode: 'docked', panelHeight: 480,
+  }),
+}))
 vi.mock('@/stores/activities', () => ({
   useActivitiesStore: () => ({ current: null, playingHere: false, launcherOpen: false, launcherAnchor: null }),
 }))
@@ -21,7 +28,7 @@ vi.mock('@/components/activities/useActivityButton', () => ({
     anchor: { value: null }, toggle: () => {}, close: () => {},
   }),
 }))
-vi.mock('@/components/activities/ActivityLauncher.vue', () => ({ default: { name: 'ActivityLauncher', render: () => null } }))
+vi.mock('@/components/activities/ActivitiesLauncher.vue', () => ({ default: { name: 'ActivitiesLauncher', render: () => null } }))
 vi.mock('@/components/activities/ActivityDockCard.vue', () => ({ default: { name: 'ActivityDockCard', render: () => null } }))
 vi.mock('@/components/activities/ActivityStage.vue', () => ({ default: { name: 'ActivityStage', render: () => null } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -245,15 +252,27 @@ describe('UnifiedVoiceDock accessibility', () => {
     expect(button(wrapper, 'mini-deafen').attributes('aria-label')).toBe('voice.deafen')
   })
 
-  it('names the participants disclosure and ties it to its panel', async () => {
+  it('opens participants from the More menu and ties the item to its panel', async () => {
     h.store = makeStore([member('bob')])
     wrapper = await mountDock()
-    const toggle = wrapper.find('.participants-btn')
-    expect(toggle.attributes('aria-expanded')).toBe('false')
-    await toggle.trigger('click')
+    const more = button(wrapper, 'dock-more')
+    expect(more.attributes('aria-haspopup')).toBe('menu')
+    expect(more.attributes('aria-expanded')).toBe('false')
+    await more.trigger('click')
     await flushPromises()
-    expect(toggle.attributes('aria-expanded')).toBe('true')
-    const panelId = toggle.attributes('aria-controls')
+    expect(more.attributes('aria-expanded')).toBe('true')
+    const item = document.querySelector<HTMLElement>('[data-testid="dock-more-participants"]')!
+    expect(item.getAttribute('role')).toBe('menuitemcheckbox')
+    expect(item.getAttribute('aria-checked')).toBe('false')
+    item.click()
+    await flushPromises()
+    expect(document.querySelector('[data-testid="dock-more-menu"]')).toBeNull()
+
+    await more.trigger('click')
+    await flushPromises()
+    const reopened = document.querySelector<HTMLElement>('[data-testid="dock-more-participants"]')!
+    expect(reopened.getAttribute('aria-checked')).toBe('true')
+    const panelId = reopened.getAttribute('aria-controls')
     expect(panelId).toBeTruthy()
     expect(document.getElementById(panelId!)).not.toBeNull()
   })

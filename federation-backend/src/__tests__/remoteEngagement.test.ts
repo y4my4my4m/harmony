@@ -40,6 +40,8 @@ let nextId = 1
 /** Errors the next inserts answer with, in order. */
 let insertErrors: Array<{ code: string; message: string }> = []
 let inserts = 0
+/** Holds the answer of the next read: what it read stays as it was when it began. */
+let nextRead: { began: () => void; until: Promise<void> } | null = null
 
 const DEFAULTS: Record<string, Row> = {
   posts: { is_deleted: false, in_reply_to: null, metadata: {} },
@@ -96,7 +98,15 @@ function fakeSupabase() {
         ilike() { return builder },
         order() { return builder },
         limit(n: number) { cap = n; return builder },
-        maybeSingle() { return Promise.resolve({ data: run()[0] ?? null, error: null }) },
+        maybeSingle() {
+          const row = run()[0]
+          const held = nextRead
+          nextRead = null
+          const answer = { data: row ? { ...row } : null, error: null }
+          if (!held) return Promise.resolve(answer)
+          held.began()
+          return held.until.then(() => answer)
+        },
         single() {
           const rows = run()
           return Promise.resolve(rows.length === 1 ? { data: rows[0], error: null } : { data: null, error: { message: 'no rows' } })
@@ -337,6 +347,23 @@ describe('POST /fetch-replies with async', () => {
     expect(repliesOf('post-1')).toHaveLength(2)
   })
 
+  it('never answers done with the counts from before the crawl, when it ends while the status reads them', async () => {
+    const release = hold(PAGE_OTHERS)
+    expect((await start({ force: true })).body.status).toBe('started')
+    let letGo!: () => void
+    let begun!: () => void
+    const reading = new Promise<void>((resolve) => { begun = resolve })
+    nextRead = { began: begun, until: new Promise<void>((resolve) => { letGo = resolve }) }
+    const answer = status().then((res) => res.body)
+    await reading
+    release()
+    await settle()
+    letGo()
+    const body = await answer
+    expect(body.status).toMatch(/^(running|done)$/)
+    if (body.status === 'done') expect(body.replies_fetched_at).toBe(FRESH)
+  })
+
   it('answers done with the result when the crawl ends within the wait', async () => {
     const res = await start({ force: true })
     expect(res.body).toMatchObject({ status: 'done', result: { outcome: 'ok', found: 4, stored: 2 } })
@@ -558,5 +585,40 @@ describe('POST /lookup-user', () => {
     expect(res.body.user.remote_posts_count).toBe(10)
     expect(res.body.backfilling).toBe(false)
     expect(requested).toEqual([])
+  })
+})
+
+describe('reply chain cycles', () => {
+  const A = `${AUTHOR}/statuses/80`
+  const B = `${AUTHOR}/statuses/81`
+  const C = `${AUTHOR}/statuses/82`
+  const note = (id: string, inReplyTo: string) =>
+    ({ id, type: 'Note', attributedTo: AUTHOR, inReplyTo, to: [PUBLIC], content: `<p>${id}</p>` })
+  const stored = (id: string) => tables.posts.find((p) => p.ap_id === id)!
+
+  it('fetches each post of a two-post cycle once and stores no in_reply_to loop', async () => {
+    docs[A] = note(A, B)
+    docs[B] = note(B, A)
+
+    expect(await ActivityProcessor.fetchAndCreateRemotePost(A)).not.toBeNull()
+
+    expect(requested.filter((u) => u === A)).toHaveLength(1)
+    expect(requested.filter((u) => u === B)).toHaveLength(1)
+    expect(stored(A).in_reply_to).toBe(stored(B).id)
+    expect(stored(B).in_reply_to).toBeNull()
+    expect(stored(B).metadata.in_reply_to_ap_url).toBeUndefined()
+  })
+
+  it('stops a three-post cycle at the post that closes it', async () => {
+    docs[A] = note(A, B)
+    docs[B] = note(B, C)
+    docs[C] = note(C, A)
+
+    expect(await ActivityProcessor.fetchAndCreateRemotePost(A)).not.toBeNull()
+
+    expect(requested.filter((u) => [A, B, C].includes(u))).toHaveLength(3)
+    expect(stored(A).in_reply_to).toBe(stored(B).id)
+    expect(stored(B).in_reply_to).toBe(stored(C).id)
+    expect(stored(C).in_reply_to).toBeNull()
   })
 })

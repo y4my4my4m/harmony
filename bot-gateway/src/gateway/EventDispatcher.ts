@@ -4,6 +4,16 @@ import { TTLCache } from '../utils/TTLCache.js'
 import { OutgoingWebhookRoutes, OUTGOING_WEBHOOK_REFRESH_MS } from './outgoingWebhooks.js'
 import { withSignedMessageMedia } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
+import { bridgedMessageAuthor } from '../bridge/bridgeAuthors.js'
+import { bridgeMappingOf } from '../bridge/bridgeMapping.js'
+import {
+  type ConsentSource,
+  consentSubjects,
+  consentingReaders,
+  namedThreadId,
+  threadNameWithheldFrom,
+  withoutThreadName,
+} from '../bridge/memberConsent.js'
 import { absoluteEmojiUrl, isAnimatedEmojiUrl, isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import {
   type EveryoneLayer,
@@ -55,7 +65,7 @@ function reactionRow(r: ReactionRow): ReactionRow {
   }
 }
 
-// BUGS.md PC1: without these caches each handled message costs two extra DB
+// Without these caches each handled message costs two extra DB
 // queries (channel → server, then server → bot permissions), across three
 // handlers (create/update/delete), on top of the polling baseline.
 //
@@ -241,10 +251,40 @@ export class EventDispatcher {
     this.webhookRefreshInterval = this.schedulePoll('webhook-routes', OUTGOING_WEBHOOK_REFRESH_MS, () => this.webhooks.refresh())
   }
 
-  /** Sends an event to its reading bots' connections and queues it for the webhooks taking it. */
-  private async dispatch(type: string, serverId: string, channelId: string | null, botIds: string[], d: Record<string, unknown>) {
-    if (botIds.length > 0) this.gateway.sendToMultipleBots(botIds, { op: 0, t: type, d })
-    await this.webhooks.enqueue(type, serverId, channelId, botIds, d)
+  /**
+   * Sends an event to its reading bots' connections and queues it for the webhooks taking it. The
+   * readers in `reduced` get its `d` instead.
+   */
+  private async dispatch(
+    type: string,
+    serverId: string,
+    channelId: string | null,
+    botIds: string[],
+    d: Record<string, unknown>,
+    reduced: { readers: ReadonlySet<string>; d: Record<string, unknown> } | null = null,
+  ) {
+    const full = reduced ? botIds.filter(id => !reduced.readers.has(id)) : botIds
+    if (full.length > 0) this.gateway.sendToMultipleBots(full, { op: 0, t: type, d })
+    await this.webhooks.enqueue(type, serverId, channelId, full, d)
+    if (!reduced || full.length === botIds.length) return
+    const rest = botIds.filter(id => reduced.readers.has(id))
+    this.gateway.sendToMultipleBots(rest, { op: 0, t: type, d: reduced.d })
+    await this.webhooks.enqueue(type, serverId, channelId, rest, reduced.d, true)
+  }
+
+  /** Of `readers`, those a thread_created notice reaches without its thread's name; none for any other row. */
+  private async threadNameWithheld(message: ConsentSource, readers: string[], serverId: string, channelId: string): Promise<ReadonlySet<string>> {
+    const threadId = namedThreadId(message)
+    if (threadId === null) return new Set()
+    return (await threadNameWithheldFrom(readers, serverId, channelId, [threadId])).get(threadId)!
+  }
+
+  /** MESSAGE_CREATE or MESSAGE_UPDATE of a row, to `botIds`. */
+  private async dispatchMessage(type: 'MESSAGE_CREATE' | 'MESSAGE_UPDATE', message: any, serverId: string, botIds: string[]) {
+    const d = await this.formatMessage(message, serverId)
+    const withheld = await this.threadNameWithheld(message, botIds, serverId, message.channel_id)
+    await this.dispatch(type, serverId, message.channel_id, botIds, d,
+      withheld.size > 0 ? { readers: withheld, d: { ...d, metadata: withoutThreadName(message).metadata } } : null)
   }
 
   // Members and moderation
@@ -399,6 +439,7 @@ export class EventDispatcher {
       .gt('created_at', twentyFourHoursAgo)
       .order('created_at', { ascending: false })
       .limit(5000)
+      .returns<ReactionRow[]>()
 
     if (reactions) {
       for (const r of reactions) {
@@ -418,6 +459,7 @@ export class EventDispatcher {
         .gt('created_at', this.lastReactionTimestamp.toISOString())
         .order('created_at', { ascending: true })
         .limit(100)
+        .returns<Array<ReactionRow & { created_at: string }>>()
 
       if (error) {
         console.error('Error polling reactions:', error)
@@ -500,7 +542,11 @@ export class EventDispatcher {
     const serverId = await this.resolveServerId(channelId)
     if (!channelId || !serverId) return
 
-    const botIds = await this.resolveReaders(serverId, channelId)
+    // A removal reaches every reader: a bridge that relayed the reaction removes its copy.
+    const readers = await this.resolveReaders(serverId, channelId)
+    const botIds = type === 'MESSAGE_REACTION_ADD'
+      ? await consentingReaders(readers, serverId, channelId, reaction.user_id ? [reaction.user_id] : [])
+      : readers
     if (botIds.length === 0 && !this.webhooks.wants(type, serverId, botIds)) return
 
     // { id, name, url, animated }. A custom emoji has its emojis row's id, name and absolute url.
@@ -521,6 +567,7 @@ export class EventDispatcher {
     await this.dispatch(type, serverId, channelId, botIds, {
       reaction_id: reaction.id,
       message_id: reaction.message_id,
+      server_id: serverId,
       channel_id: reaction.channel_id,
       user_id: reaction.user_id ?? null,
       bot_id: reaction.bot_id ?? null,
@@ -530,13 +577,13 @@ export class EventDispatcher {
     console.log(`Dispatched ${type} to ${botIds.length} bots`)
   }
 
-  // Cached lookups (BUGS.md PC1)
+  // Cached lookups
 
   /**
    * Resolves a channel's server_id. Cached for 1 hour; channels rarely move
    * between servers.
    *
-   * Caching semantics (BUGS.md H3):
+   * Caching semantics:
    * - Channel found with server_id: cached.
    * - PGRST116 "no rows": `null` cached, so deleted/orphan channels stop
    *   re-querying.
@@ -749,7 +796,10 @@ export class EventDispatcher {
         if (this.deletedIds.get(row.id)) return
         this.deletedIds.set(row.id, true)
         await this.handleMessageDelete({
-          old: { id: row.id, channel_id: row.channel_id, thread_id: row.thread_id ?? null, metadata: row.metadata },
+          old: {
+            id: row.id, channel_id: row.channel_id, thread_id: row.thread_id ?? null,
+            user_id: row.user_id, bot_id: row.bot_id, is_system: row.is_system, metadata: row.metadata,
+          },
         })
       } else {
         await this.handleMessageUpdate({ new: row, old: { id: row.id } })
@@ -774,7 +824,7 @@ export class EventDispatcher {
    * MESSAGE_DELETE for a row removed through the bot REST API. A hard-deleted row leaves nothing
    * in the change feed, so the caller passes what it read before the delete.
    */
-  async messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown }) {
+  async messageHardDeleted(message: ConsentSource & { id: string; channel_id: string | null; thread_id: string | null }) {
     if (this.deletedIds.get(message.id)) return
     this.deletedIds.set(message.id, true)
     await this.handleMessageDelete({ old: message })
@@ -851,7 +901,7 @@ export class EventDispatcher {
       return
     }
     
-    const botIds = await this.resolveReaders(serverId, message.channel_id)
+    const botIds = await consentingReaders(await this.resolveReaders(serverId, message.channel_id), serverId, message.channel_id, consentSubjects(message))
     
     console.log(`Found ${botIds.length} bots that can read channel ${message.channel_id} in server ${serverId}`);
     
@@ -859,7 +909,7 @@ export class EventDispatcher {
       return
     }
     
-    await this.dispatch('MESSAGE_CREATE', serverId, message.channel_id, botIds, await this.formatMessage(message, serverId))
+    await this.dispatchMessage('MESSAGE_CREATE', message, serverId, botIds)
     
     console.log(`Dispatched MESSAGE_CREATE to ${botIds.length} bots:`, botIds)
   }
@@ -877,10 +927,11 @@ export class EventDispatcher {
     const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) return
     
-    const botIds = await this.resolveReaders(serverId, message.channel_id, message.created_at)
+    const botIds = await consentingReaders(
+      await this.resolveReaders(serverId, message.channel_id, message.created_at), serverId, message.channel_id, consentSubjects(message))
     if (botIds.length === 0 && !this.webhooks.wants('MESSAGE_UPDATE', serverId, botIds)) return
     
-    await this.dispatch('MESSAGE_UPDATE', serverId, message.channel_id, botIds, await this.formatMessage(message, serverId))
+    await this.dispatchMessage('MESSAGE_UPDATE', message, serverId, botIds)
     
     console.log(`Dispatched MESSAGE_UPDATE to ${botIds.length} bots`)
   }
@@ -910,11 +961,20 @@ export class EventDispatcher {
       return
     }
     
-    await this.dispatch('MESSAGE_DELETE', serverId, message.channel_id, botIds, {
+    // A delete reaches every reader. One the row itself, or its thread's name, is withheld from gets
+    // the mapping alone: metadata also holds link previews, a thread's name, a removal's reason.
+    const readable = new Set(await consentingReaders(botIds, serverId, message.channel_id, consentSubjects(message)))
+    const unnamed = await this.threadNameWithheld(message, botIds, serverId, message.channel_id)
+    const d = {
       id: message.id,
+      server_id: serverId,
       channel_id: message.channel_id,
       thread_id: message.thread_id ?? null,
       metadata: message.metadata
+    }
+    await this.dispatch('MESSAGE_DELETE', serverId, message.channel_id, botIds, d, {
+      readers: new Set(botIds.filter(id => !readable.has(id) || unnamed.has(id))),
+      d: { ...d, metadata: bridgeMappingOf(message.metadata) },
     })
     
     console.log(`Dispatched MESSAGE_DELETE to ${botIds.length} bots`)
@@ -932,7 +992,7 @@ export class EventDispatcher {
     const cached = this.authorCache.get(cacheKey)
     if (cached !== undefined) return cached
 
-    // BUGS.md H3: cache only on clean responses or a definitive
+    // Cache only on clean responses or a definitive
     // "row not found" (PGRST116). A transient error must not poison the
     // cache for the full 10 min TTL.
     if (userId) {
@@ -991,21 +1051,9 @@ export class EventDispatcher {
 
   /** `serverId` is the channel's server; author.nickname is resolved in it. */
   private async formatMessage(message: any, serverId: string | null) {
-    let author = null
+    let author = bridgedMessageAuthor(message)
 
-    // Discord-bridged messages carry the original user's profile inline; no DB hit.
-    if (message.bot_id && message.metadata?.discord_user) {
-      const discordUser = message.metadata.discord_user
-      author = {
-        id: discordUser.id,
-        username: discordUser.username,
-        display_name: discordUser.display_name,
-        avatar: discordUser.avatar_url, // Discord URLs are already complete
-        nickname: null,
-        bot: false, // Treat as regular user for display
-        discord_user: true
-      }
-    } else if (message.bot_id && typeof message.metadata?.webhook?.name === 'string') {
+    if (!author && message.bot_id && typeof message.metadata?.webhook?.name === 'string') {
       // A channel webhook's message names its shown author; execute_channel_webhook writes it.
       const webhook = message.metadata.webhook
       author = {
@@ -1017,7 +1065,7 @@ export class EventDispatcher {
         bot: true,
         webhook: true,
       }
-    } else if (message.user_id || message.bot_id) {
+    } else if (!author && (message.user_id || message.bot_id)) {
       const entry = await this.resolveAuthor(message.user_id ?? null, message.bot_id ?? null)
       if (entry) {
         author = {
@@ -1033,6 +1081,7 @@ export class EventDispatcher {
     
     return {
       id: message.id,
+      server_id: serverId,
       channel_id: message.channel_id,
       thread_id: message.thread_id ?? null,
       author,

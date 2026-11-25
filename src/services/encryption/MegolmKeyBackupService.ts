@@ -839,13 +839,24 @@ export class MegolmKeyBackupService {
     return () => this.keyReceivedCallbacks.delete(callback)
   }
 
-  cleanup(): void {
-    for (const unsub of this.broadcastUnsubs) unsub()
-    this.broadcastUnsubs = []
-    this.keyReceivedCallbacks.clear()
+  /**
+   * Drops the state of one unlock: the scheduled backup, held relayed keys and request
+   * bookkeeping. Realtime handlers and key-received callbacks stay for a later unlock in this
+   * page. Fulfilled requests whose keys were held are read again by the next unlock's sweep.
+   */
+  lock(): void {
+    if (this.autoBackupTimer) clearTimeout(this.autoBackupTimer)
+    this.autoBackupTimer = null
     this.pendingRequests.clear()
     this.refusals.clear()
     this.relayedKeys.clear()
+  }
+
+  cleanup(): void {
+    this.lock()
+    for (const unsub of this.broadcastUnsubs) unsub()
+    this.broadcastUnsubs = []
+    this.keyReceivedCallbacks.clear()
   }
 
   // BACKUP OPERATIONS

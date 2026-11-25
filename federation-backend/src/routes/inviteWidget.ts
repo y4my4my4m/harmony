@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
+import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { invitePageLimiter } from '../middleware/rateLimit.js';
 import { loadInvitePreview, type InvitePreviewResult } from '../services/invitePreview.js';
 import { badgeStyle, renderInviteBadge, renderInviteCard, widgetTheme } from '../services/inviteWidgets.js';
+import { cachedInstanceName } from '../utils/instanceName.js';
 
 const router = Router();
 
@@ -39,8 +41,8 @@ router.get(
   '/widget/invite/:code/badge.svg',
   invitePageLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    const result = await loadInvitePreview(req.params.code);
-    const svg = renderInviteBadge(result.status === 'valid' ? result.preview : null, {
+    const [result, name] = await Promise.all([loadInvitePreview(req.params.code), cachedInstanceName(getSupabaseClient())]);
+    const svg = renderInviteBadge(result.status === 'valid' ? result.preview : null, name, {
       theme: widgetTheme(req.query.theme),
       style: badgeStyle(req.query.style),
       lang: req.query.lang,
@@ -57,8 +59,8 @@ router.get(
   '/widget/invite/:code',
   invitePageLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    const result = await loadInvitePreview(req.params.code);
-    const html = renderInviteCard(result.status === 'valid' ? result.preview : null, {
+    const [result, name] = await Promise.all([loadInvitePreview(req.params.code), cachedInstanceName(getSupabaseClient())]);
+    const html = renderInviteCard(result.status === 'valid' ? result.preview : null, name, {
       theme: widgetTheme(req.query.theme),
       lang: req.query.lang,
     });

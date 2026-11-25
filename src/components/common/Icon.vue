@@ -153,7 +153,7 @@ import {
   Folder, FolderOpen, FolderPlus, FolderInput, HardDrive, Film, Hourglass, CirclePlay, Pause,
   SkipForward, ListMusic, Tv, Radio, Disc3, CloudUpload, ArrowUpDown, ListVideo, Popcorn, Undo2,
   FileArchive, FileAudio, FileVideo, FileImage, Crown, ImageOff, Sticker, MapPin, MapPinOff,
-  Quote,
+  Quote, Move,
 } from 'lucide-vue-next'
 
 const ICON_MAP: Record<string, Component> = {
@@ -352,6 +352,7 @@ const ICON_MAP: Record<string, Component> = {
   'picture-in-picture': PictureInPicture2,
   'tag': Tag,
   'gamepad': Gamepad2,
+  'move': Move,
   'cpu': Cpu,
   'palette': Palette,
   'graduation-cap': GraduationCap,

@@ -40,6 +40,13 @@ const rt = vi.hoisted(() => {
   return { channels, make, query, rpcResult, rpc: vi.fn(rpcResult) }
 })
 
+vi.mock('@/stores/playTogether', () => ({
+  usePlayTogetherStore: () => ({
+    appsFor: () => [], loadApps: async () => {}, openLauncher: () => {}, joined: null, launcher: null,
+    sessionIn: () => null, refresh: async () => [], registerSlot: () => {}, unregisterSlot: () => {},
+    view: { members: [], status: 'connecting' }, mode: 'docked', panelHeight: 480,
+  }),
+}))
 vi.mock('@/supabase', () => ({
   supabase: {
     channel: (topic: string) => rt.make(topic),
@@ -145,7 +152,7 @@ vi.mock('@/components/dm/GroupSettingsModal.vue', () => stub('GroupSettingsModal
 vi.mock('@/components/search/MessageSearchModal.vue', () => stub('MessageSearchModal'))
 
 import DMHeader from '../DMHeader.vue'
-import { dmCallSignaling } from '@/services/DMCallSignaling'
+import { CallRingLimitedError, dmCallSignaling } from '@/services/DMCallSignaling'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 
 const CONV = '11111111-1111-1111-1111-111111111111'
@@ -216,6 +223,19 @@ describe('DMHeader outgoing call', () => {
     expect(dmCallSignaling.getActiveCall(CONV)?.ringing).toBe(true)
   })
 
+  it('a group call rings the other members, not the caller, whose profile id is not its sign-in id', async () => {
+    const member = (id: string) => ({ id, username: id, is_local: true })
+    wrapper = shallowMount(DMHeader, {
+      props: { conversation: { id: CONV, type: 'group', name: 'Group', participants: [member('me'), member('b'), member('c')] } as any },
+      global: { directives: { 'click-outside': {} } },
+    })
+    await settle()
+    await wrapper.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(rt.rpc).toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'initiate', p_receiver_ids: ['b', 'c'] }))
+  })
+
   it('a caller-side refusal places no call and plays no jingle', async () => {
     permissions.canPlaceCall.mockResolvedValue({ allowed: false, reason: 'blocked', message: 'You cannot call this user' })
     const header = mountHeader()
@@ -226,6 +246,23 @@ describe('DMHeader outgoing call', () => {
     expect(toast.error).toHaveBeenCalledWith('You cannot call this user')
     expect(useUnifiedVoiceChannelStore().joinVoiceChannel).not.toHaveBeenCalled()
     expect(rt.rpc).not.toHaveBeenCalledWith('ring_dm_call', expect.anything())
+    expect(rang()).toBe(false)
+  })
+
+  it('a call the server refuses for a block rings no one, joins nothing and says it was not placed', async () => {
+    rt.rpc.mockImplementation(async (name: string) => (name === 'start_dm_call_message'
+      ? { data: null, error: { message: 'DM_UNDELIVERABLE', code: 'P0001', hint: 'This message could not be delivered.' } }
+      : rt.rpcResult(name)) as any)
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error.mock.calls[0][0]).toMatch(/dm\.callUndeliverable|could not be placed/)
+    expect(useUnifiedVoiceChannelStore().joinVoiceChannel).not.toHaveBeenCalled()
+    expect(rt.rpc).not.toHaveBeenCalledWith('ring_dm_call', expect.anything())
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
     expect(rang()).toBe(false)
   })
 
@@ -249,12 +286,57 @@ describe('DMHeader outgoing call', () => {
     const header = mountHeader()
     await settle()
     await header.find('.voice-btn').trigger('click')
-    await header.find('.video-btn').trigger('click')
+    await header.find('[data-testid="dm-more"]').trigger('click')
+    await header.find('[data-testid="dm-menu-video"]').trigger('click')
     await settle()
 
     expect(permissions.canPlaceCall).toHaveBeenCalledTimes(2)
     expect(callSwitch.leaveCurrentCallFor).not.toHaveBeenCalled()
     expect(useUnifiedVoiceChannelStore().leaveVoiceChannel).not.toHaveBeenCalled()
+  })
+
+  it('in another call, a call refused for a block is refused before the switch and the caller stays', async () => {
+    const voice = useUnifiedVoiceChannelStore() as any
+    voice.isConnected = true
+    voice.currentChannelId = 'voice-elsewhere'
+    rt.rpc.mockImplementation(async (name: string) => (name === 'check_dm_call'
+      ? { data: null, error: { message: 'DM_UNDELIVERABLE', code: 'P0001', hint: 'This message could not be delivered.' } }
+      : rt.rpcResult(name)) as any)
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(rt.rpc).toHaveBeenCalledWith('check_dm_call', { p_conversation_id: CONV })
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error.mock.calls[0][0]).toMatch(/dm\.callUndeliverable|could not be placed/)
+    expect(callSwitch.leaveCurrentCallFor).not.toHaveBeenCalled()
+    expect(voice.leaveVoiceChannel).not.toHaveBeenCalled()
+    expect(rt.rpc).not.toHaveBeenCalledWith('start_dm_call_message', expect.anything())
+  })
+
+  it('in another call, a deliverable call is checked, then switches and rings', async () => {
+    const voice = useUnifiedVoiceChannelStore() as any
+    voice.isConnected = true
+    voice.currentChannelId = 'voice-elsewhere'
+    const order: string[] = []
+    callSwitch.leaveCurrentCallFor.mockImplementation(async () => { order.push('switch'); return true })
+    rt.rpc.mockImplementation(async (name: string) => { order.push(name); return rt.rpcResult(name) })
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(order.slice(0, 3)).toEqual(['check_dm_call', 'switch', 'start_dm_call_message'])
+  })
+
+  it('out of a call, placing the call is the only check', async () => {
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+    expect(rt.rpc).not.toHaveBeenCalledWith('check_dm_call', expect.anything())
+    expect(rt.rpc).toHaveBeenCalledWith('start_dm_call_message', expect.anything())
   })
 
   it('an allowed call asks to switch calls after the pre-check, before ringing', async () => {
@@ -316,6 +398,132 @@ describe('DMHeader outgoing call', () => {
 
     expect(toast.info).not.toHaveBeenCalledWith('No answer')
     expect(voice.leaveVoiceChannel).not.toHaveBeenCalled()
+  })
+
+  it('a join that fails cancels its ring: receivers are told, and no "No answer" follows', async () => {
+    const timedOut = vi.fn()
+    const off = dmCallSignaling.onRingTimeout(timedOut)
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+    expect(dmCallSignaling.getActiveCall(CONV)?.ringing).toBe(true)
+    join.aborted = true
+    join.release?.()
+    await settle()
+
+    expect(toast.error).toHaveBeenCalledWith('Failed to start call')
+    expect(rt.rpc).toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'end', p_receiver_ids: ['them'] }))
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    await (dmCallSignaling as any).handleCallTimeout(CONV)
+    expect(timedOut).not.toHaveBeenCalled()
+    expect(rt.rpc).not.toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'timeout' }))
+    expect(rang()).toBe(false)
+    off()
+  })
+
+  describe('with another conversation shown before the join ends', () => {
+    const OTHER = '22222222-2222-2222-2222-222222222222'
+    const startAndSwitch = async () => {
+      const header = mountHeader()
+      await settle()
+      await header.find('.voice-btn').trigger('click')
+      await settle()
+      expect(dmCallSignaling.getActiveCall(CONV)?.ringing).toBe(true)
+      await header.setProps({ conversation: { ...conversation, id: OTHER, other_user: { ...conversation.other_user, id: 'other' } } })
+      await settle()
+    }
+
+    it('a failed join cancels the ring of the call it was', async () => {
+      await startAndSwitch()
+      join.aborted = true
+      join.release?.()
+      await settle()
+
+      expect(rt.rpc).toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({
+        p_conversation_id: CONV, p_signal: 'end', p_receiver_ids: ['them'],
+      }))
+      expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    })
+
+    it('a failed join leaves a ring this client has in the conversation shown alone', async () => {
+      await startAndSwitch()
+      await dmCallSignaling.initiateCall(OTHER, 'me', 'voice', ['other'])
+      join.aborted = true
+      join.release?.()
+      await settle()
+
+      expect(dmCallSignaling.hasActiveCall(OTHER)).toBe(true)
+      expect(rt.rpc).not.toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({ p_conversation_id: OTHER, p_signal: 'end' }))
+    })
+
+    it('a join that succeeds plays no jingle there', async () => {
+      await startAndSwitch()
+      join.release?.()
+      await settle()
+      expect(rang()).toBe(false)
+      expect(dmCallSignaling.getActiveCall(CONV)?.ringing).toBe(true)
+    })
+  })
+
+  it('a federated call whose join fails is ended on the backend', async () => {
+    const fed = { ...conversation, other_user: { ...conversation.other_user, is_local: false, federated_id: 'https://remote.example/users/them' } }
+    const single = vi.spyOn(rt.query, 'single').mockResolvedValue({ data: { federated_id: 'https://harmony.test/users/me', username: 'me' }, error: null })
+    const initiate = vi.spyOn(dmCallSignaling, 'initiateFederatedCall').mockImplementation(async (conversationId: string) => {
+      ;(dmCallSignaling as any).setActiveCall(conversationId, {
+        conversationId, channelId: 'federated-dm-x', callType: 'voice', callerId: 'me', receiverIds: [],
+        participants: ['me'], allParticipants: ['me'], startedAt: new Date(), ringing: true, isFederated: true,
+      })
+      return { roomName: `federated-dm-${conversationId}-1`, callId: 'c1' } as any
+    })
+    const end = vi.spyOn(dmCallSignaling, 'endFederatedCall').mockResolvedValue()
+    wrapper = shallowMount(DMHeader, { props: { conversation: fed }, global: { directives: { 'click-outside': {} } } })
+    await settle()
+    await wrapper.find('.voice-btn').trigger('click')
+    await settle()
+    join.aborted = true
+    join.release?.()
+    await settle()
+
+    expect(toast.error).toHaveBeenCalledWith('Failed to start call')
+    expect(end).toHaveBeenCalledWith(CONV, 'me')
+    single.mockRestore()
+    initiate.mockRestore()
+    end.mockRestore()
+  })
+
+  const LIMITED = { message: 'ANTISPAM_RATE_LIMITED:30', code: 'P0001', hint: 'Limit reached: account_rings_per_minute.',
+    details: '{"kind": "ring", "limit": 10, "window_seconds": 60}' }
+
+  it('a call past the ring limit says when the next can ring, and joins nothing', async () => {
+    rt.rpc.mockImplementation(async (name: string) => (name === 'ring_dm_call'
+      ? { data: null, error: LIMITED } : rt.rpcResult(name)) as any)
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error.mock.calls[0][0]).not.toBe('Failed to start call')
+    expect(useUnifiedVoiceChannelStore().joinVoiceChannel).not.toHaveBeenCalled()
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    expect(rang()).toBe(false)
+  })
+
+  it('a federated call past the ring limit says so too', async () => {
+    const fed = { ...conversation, other_user: { ...conversation.other_user, is_local: false, federated_id: 'https://remote.example/users/them' } }
+    const single = vi.spyOn(rt.query, 'single').mockResolvedValue({ data: { federated_id: 'https://harmony.test/users/me', username: 'me' }, error: null })
+    const initiate = vi.spyOn(dmCallSignaling, 'initiateFederatedCall').mockRejectedValue(new CallRingLimitedError(LIMITED))
+    wrapper = shallowMount(DMHeader, { props: { conversation: fed }, global: { directives: { 'click-outside': {} } } })
+    await settle()
+    await wrapper.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error.mock.calls[0][0]).not.toMatch(/Failed to/)
+    expect(useUnifiedVoiceChannelStore().joinVoiceChannel).not.toHaveBeenCalled()
+    single.mockRestore()
+    initiate.mockRestore()
   })
 
   it('a busy answer after the join stops the jingle and leaves the call', async () => {

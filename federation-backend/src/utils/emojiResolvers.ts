@@ -109,9 +109,31 @@ export async function resolveOutboundEmoji(
   return formatEmojiForFederation(emoji, customEmojiContent, targetDomain);
 }
 
+/** profile.federation_metadata as an object with the two emoji lists replaced. */
+function setProfileEmojiLists(
+  profile: any,
+  displayNameEmojis: Array<{ name: string; url: string; id?: string }>,
+  bioEmojis: Array<{ name: string; url: string; id?: string }>,
+): void {
+  let meta: any = profile.federation_metadata;
+  if (typeof meta === 'string') {
+    try {
+      meta = JSON.parse(meta);
+    } catch {
+      meta = null;
+    }
+  }
+  meta = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {};
+  meta.display_name_emojis = displayNameEmojis;
+  meta.bio_emojis = bioEmojis;
+  profile.federation_metadata = meta;
+}
+
 /**
  * Resolve emoji shortcodes in a local user's display_name and bio
- * so that profileToActor() can include proper AP Emoji tags.
+ * so that profileToActor() can include proper AP Emoji tags. Both lists are replaced, empty
+ * included: a stored list (derive_display_name_emojis) may name an emoji the text no longer
+ * shows or that was removed since.
  */
 export async function resolveLocalProfileEmojis(profile: any, supabase?: any): Promise<void> {
   const db = supabase || getSupabaseClient();
@@ -119,7 +141,10 @@ export async function resolveLocalProfileEmojis(profile: any, supabase?: any): P
   const shortcodeRegex = /:([a-zA-Z0-9_+-]+):/g;
   const matches = [...fieldsToScan.matchAll(shortcodeRegex)];
 
-  if (matches.length === 0) return;
+  if (matches.length === 0) {
+    setProfileEmojiLists(profile, [], []);
+    return;
+  }
 
   const shortcodes = [...new Set(matches.map(m => m[1]))];
 
@@ -175,17 +200,6 @@ export async function resolveLocalProfileEmojis(profile: any, supabase?: any): P
     }
   }
 
-  if (displayNameEmojis.length > 0 || bioEmojis.length > 0) {
-    const existingMeta = profile.federation_metadata
-      ? (typeof profile.federation_metadata === 'string'
-        ? JSON.parse(profile.federation_metadata)
-        : profile.federation_metadata)
-      : {};
-
-    existingMeta.display_name_emojis = displayNameEmojis;
-    existingMeta.bio_emojis = bioEmojis;
-    profile.federation_metadata = existingMeta;
-
-    logger.debug(`Resolved ${displayNameEmojis.length} display name + ${bioEmojis.length} bio emojis for ${profile.username}`);
-  }
+  setProfileEmojiLists(profile, displayNameEmojis, bioEmojis);
+  logger.debug(`Resolved ${displayNameEmojis.length} display name + ${bioEmojis.length} bio emojis for ${profile.username}`);
 }

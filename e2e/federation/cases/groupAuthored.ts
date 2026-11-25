@@ -7,13 +7,17 @@
 //     Group; the proxy caches them with no profile and no bot, the author in
 //     metadata.remote_author (a bridged person also as discord_user);
 //   - the Group's live Create is stored the same way and its Update edits it; the same Note
-//     signed by a member is not stored.
+//     signed by a member is not stored;
+//   - a Matrix person, sent as a webhook with bridgeId, is stored as a bridge author under the
+//     whole Matrix ID.
 //
 // Hosted here (the private server, the peer's user an accepted member):
 //   - a bot's message is queued; the channel collection serves it attributedTo the Group with
 //     the bot's name in harmony:author, never /users/undefined;
 //   - the federation job delivers it to the peer's instance as the Group's Create, signed with
-//     the key the Group publishes.
+//     the key the Group publishes;
+//   - a Matrix bridge bot's message (metadata.matrix_user) is served and delivered under the Matrix
+//     person's name, as a webhook that Harmony before 1.9.8 takes.
 //
 // The BullMQ worker is not part of this harness: the job handler is called as the worker would.
 
@@ -57,9 +61,12 @@ export async function caseGroupAuthored(ctx: SystemEventsContext): Promise<void>
   // Hosted by the peer: backfill through the proxy.
   const hookNote = crypto.randomUUID()
   const bridgedNote = crypto.randomUUID()
+  const matrixNote = crypto.randomUUID()
+  const mxid = `@${'s'.repeat(200)}:example.org`
   peer.extraChannelItems = [
     groupNote(hookNote, hook, 'deployed 1.9.0'),
     groupNote(bridgedNote, { kind: 'bridge', id: 'discord:4242', name: 'Dana', source: 'discord' }, 'hi from Discord'),
+    groupNote(matrixNote, { kind: 'webhook', id: 'matrix:@cut', name: 'Sam', source: 'matrix', bridgeId: `matrix:${mxid}` }, 'hi from Matrix'),
   ]
   try {
     const res = await ctx.get(`${localUrl}/channels/${ids.remoteChannel}/messages`, {
@@ -81,6 +88,9 @@ export async function caseGroupAuthored(ctx: SystemEventsContext): Promise<void>
     const bridged = await row(bridgedNote)
     eq(bridged?.metadata?.discord_user?.display_name, 'Dana', 'a bridged person is stored as the bridge stores one')
     eq(bridged?.metadata?.bridge_source, 'discord', 'with its source')
+    const matrix = (await row(matrixNote))?.metadata
+    eq(JSON.stringify([matrix?.remote_author?.kind, matrix?.remote_author?.id, matrix?.remote_author?.name, matrix?.bridge_source]),
+      JSON.stringify(['bridge', `matrix:${mxid}`, 'Sam', 'matrix']), 'a Matrix person is stored as a bridge author under the whole Matrix ID')
   } finally {
     peer.extraChannelItems = []
   }
@@ -176,4 +186,50 @@ export async function caseGroupAuthored(ctx: SystemEventsContext): Promise<void>
   }
   eq((await db.from('messages').select('federation_status').eq('id', message.id).single()).data?.federation_status,
     'completed', 'and the message is marked federated')
+
+  // A Matrix person's message, relayed by a Matrix bridge bot of the hosted channel.
+  const { data: bridgeBot, error: bridgeError } = await db.from('bots').insert({
+    username: `rtmx${crypto.randomUUID().slice(0, 8)}`, display_name: 'Matrix Bridge', owner_id: ids.alice, is_public: false, bridge_platform: 'matrix',
+  }).select('id').single()
+  assert(!bridgeError && bridgeBot, 'a Matrix bridge bot of fx_alice\'s', bridgeError?.message)
+  if (!bridgeBot) return
+  const install = await db.from('bot_server_permissions').insert({
+    bot_id: bridgeBot.id, server_id: ids.hostedServer, installed_by: ids.alice, allowed_channel_ids: [ids.hostedChannel],
+  })
+  assert(!install.error, 'installed in the hosted server', install.error?.message)
+  const bound = await db.from('bridge_channels').insert({ bot_id: bridgeBot.id, channel_id: ids.hostedChannel, platform: 'matrix' })
+  assert(!bound.error, 'bound to the hosted channel', bound.error?.message)
+  const { data: relayed, error: relayedError } = await db.from('messages').insert({
+    channel_id: ids.hostedChannel, bot_id: bridgeBot.id, content: [{ type: 'text', text: 'a Matrix person speaks' }],
+    metadata: { matrix_user: { id: mxid, username: 'sam', display_name: 'Sam' }, bridge_source: 'matrix', bot: true, created_via: 'bot_api' },
+  }).select('id').single()
+  assert(!relayedError && relayed, 'the bridge bot relays a Matrix person\'s message', relayedError?.message)
+  if (!relayed) return
+
+  // As Harmony 1.9.7 reads it (parseGroupAuthor of v1.9.7): a bridge author is discord:, an id is cut at 128.
+  const readableBefore198 = (a: any) => ['bot', 'webhook', 'bridge'].includes(a?.kind) && typeof a.name === 'string' && a.name.length > 0
+    && typeof a.id === 'string' && a.id.length > 0 && a.id.length <= 128 && (a.kind !== 'bridge' || a.id.startsWith('discord:'))
+  const relayedId = `https://${instanceDomain}/messages/${relayed.id}`
+  const mxPage = await ctx.get(pageUrl, ctx.signedGetHeaders(pageUrl, peer.key.privateKey, `${peer.actorUrl}#main-key`))
+  const mxServed = (mxPage.json?.orderedItems ?? []).find((n: any) => n.id === relayedId)?.['harmony:author']
+  eq(mxServed?.name, 'Sam', 'the channel collection names the Matrix person, not the bridge bot')
+  eq(mxServed?.bridgeId, `matrix:${mxid}`, 'under the whole Matrix ID')
+  assert(readableBefore198(mxServed), 'in a form Harmony before 1.9.8 takes', JSON.stringify(mxServed))
+
+  const m = peer.captured.length
+  await handleChannelMessageFederation({
+    message_id: relayed.id, channel_id: ids.hostedChannel, server_id: ids.hostedServer,
+    channel_name: channel?.name ?? 'general', author_id: null,
+  })
+  const mxDelivered = await poll(async () => peer.captured.slice(m).find((c) => {
+    const body = JSON.parse(c.raw.toString('utf-8'))
+    return body.type === 'Create' && body.object?.id === relayedId
+  }))
+  assert(mxDelivered, 'the Matrix person\'s message reaches the peer\'s instance live')
+  if (mxDelivered) {
+    const author = JSON.parse(mxDelivered.raw.toString('utf-8')).object?.['harmony:author']
+    eq(author?.name, 'Sam', 'naming the Matrix person')
+    eq(author?.bridgeId, `matrix:${mxid}`, 'with the whole Matrix ID')
+    assert(readableBefore198(author), 'in a form Harmony before 1.9.8 takes', JSON.stringify(author))
+  }
 }

@@ -13,3 +13,26 @@ export function isChannelRefusal(err: unknown): boolean {
 export function channelRetryDelay(attempt: number): number {
   return Math.min(5000 * 2 ** Math.max(0, attempt), 60_000)
 }
+
+// A close after holding the channel this long, ms, starts the backoff over. The events limit holds
+// for up to 60 s and closes a channel on its next delivery, so a rejoin can close again at once.
+const CHANNEL_STABLE_MS = 30_000
+// Fraction of the delay added at random. One flood closes the channel on every viewer's socket.
+const CHANNEL_CLOSE_JITTER = 0.5
+
+/** Rebuild delays of one closed topic: channelRetryDelay plus jitter. */
+export class ChannelCloseBackoff {
+  private attempt = 0
+  private joinedAt: number | null = null
+
+  joined(now: number = Date.now()): void {
+    this.joinedAt = now
+  }
+
+  next(now: number = Date.now()): number {
+    if (this.joinedAt !== null && now - this.joinedAt >= CHANNEL_STABLE_MS) this.attempt = 0
+    this.joinedAt = null
+    const delay = channelRetryDelay(this.attempt++)
+    return delay + delay * CHANNEL_CLOSE_JITTER * Math.random()
+  }
+}

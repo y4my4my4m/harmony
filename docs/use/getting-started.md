@@ -35,11 +35,11 @@ To switch instances later, sign out. The login screen of the app shows a bar wit
 
 If the instance publishes terms of service or a privacy policy, links to them appear under the form.
 
-### Sign up with Google, Twitch or GitHub
+### Sign up with Google, Twitch, GitHub or Discord
 
-When the instance operator has enabled them, buttons appear above the email form: **Continue with Google**, **Continue with Twitch** and **Continue with GitHub**. Only providers the operator turned on are shown, and an instance with none shows only the email form. Operators enable them as described in [OAuth sign-in providers](/self-host/oauth).
+When the instance operator has enabled them, buttons appear above the email form: **Continue with Google**, **Continue with Twitch**, **Continue with GitHub** and **Continue with Discord**. Only providers the operator turned on are shown, and an instance with none shows only the email form. Operators enable them as described in [OAuth sign-in providers](/self-host/oauth).
 
-Signing in with a provider for the first time creates your account. The profile form then starts with the name and picture from that provider and a suggested username, all of which you can change before continuing.
+Signing in with a provider for the first time creates your account. The profile form then starts with the name and picture from that provider and a suggested username, all of which you can change before continuing. With Discord, that is your Discord display name, avatar and username.
 
 ### Instances that limit registration
 
@@ -111,8 +111,7 @@ In the channel sidebar, a server hosted elsewhere shows a globe icon and a **Hos
 
 Select **Harmony Portal**, the first button at the top of the server rail, to open **Discover communities**. It lists the public servers hosted on your instance:
 
-- **Search communities...** filters by name.
-- Category buttons narrow the list, starting with **All**.
+- **Search and filters** opens **Search communities**, which filters by name, and the category buttons, which narrow the list, starting with **All**. It opens folded. While it is folded, every active filter stays on screen as a chip that clears it.
 - **Featured communities**, picked by the people who run the instance, appear above **All communities**.
 - **Join** adds you to a server; **Open** switches to one you are already in.
 
@@ -120,11 +119,16 @@ The footer offers **Join by URL** for servers on other instances and **Create yo
 
 When your instance federates, the window has two tabs: **This instance**, the list above, and **Other instances**, the server directories of other Harmony instances. Arrow keys move between the tabs.
 
-1. The tab opens on the servers listed by every instance yours knows, most members first (each instance's three largest ahead of the rest), each with its icon, handle, description, member count and the instance that hosts it. **Filter servers** narrows them by name, topic or instance. **Load more** shows the next ones.
-2. To see one instance's directory, pick it under **Known instances**, or enter its domain under **Instance**, such as `example.social`, and select **Browse**. **All instances** returns to the merged list.
-3. **Join** opens **Join remote server** with that server filled in; see [Join a server on another instance](#join-a-server-on-another-instance). **Open** switches to a server you are already in.
+1. The tab opens on the servers listed by every instance yours knows, most members first (each instance's three largest ahead of the rest), each with its icon, handle, description, member count and the instance that hosts it. **Load more** shows the next ones.
+2. **Search and filters** opens one field, **Search servers or browse an instance**, and the **Known instances**. Typed text narrows the list by name, topic or instance.
+3. To see one instance's directory, pick it under **Known instances**, or type its domain, such as `example.social`, and select **Browse example.social** or press Enter. **All instances** returns to the merged list.
+4. **Join** opens **Join remote server** with that server filled in; see [Join a server on another instance](#join-a-server-on-another-instance). **Open** switches to a server you are already in.
 
 An instance that publishes no directory, does not answer, or is blocked on yours shows why in place of the list. In the merged list, a line under the count says how many instances did not answer.
+
+### Pick your roles
+
+Some servers let you choose roles for yourself, such as a colour, pronouns or notification roles. Open the server menu (the server name above the channels) and choose **Pick roles**, or open your own profile card and choose **Pick roles** under your roles. Tap a role to take it and tap it again to drop it. A server may also post a role menu in a channel that works the same way.
 
 ## Find your way around
 
@@ -179,17 +183,23 @@ Below the menu are the channels, grouped in categories. A `#` marks a text chann
 
 ### Chat area
 
-The header shows the channel name and description, with buttons for **Pinned messages**, **View all threads**, **Search messages**, **Member list** and **More options**. **More options** holds **Mark as read**, **Mute channel**, the channel's **Notification level** and **Notification settings**, plus **Edit channel** for members who manage channels. On a phone, pinned messages and threads move into **More options**.
+The header shows the channel name and description, with buttons for **Pinned messages**, **View all threads**, **Activities** ([Play together](/use/play-together)), **Search messages**, **Member list** and **More options**. **More options** holds **Mark as read**, **Mute channel**, the channel's **Notification level** and **Notification settings**, plus **Edit channel** for members who manage channels. On a phone, pinned messages and threads move into **More options**.
 
 The composer at the bottom sends messages. Everything about writing, replying, threads, polls and reactions is in [Messages and threads](/use/messages).
 
+### Member list
+
+The member list groups a server's members by role and online status, with each group's count. A server of up to 200 members loads its whole list at once. In a larger server the groups and counts show at once and members load as you scroll. **Search members** above the list, `@` suggestions, the kick and ban dialogs and the member pickers of roles and private categories find any member by name, however large the server.
+
+In a server of more than 1000 members, online status changes are not sent live: the list is read again every 20 seconds while it is on screen.
+
 ### Direct messages
 
-**Direct messages** in the rail opens the conversation list. **Start a new DM** searches for people by name, or by full handle such as `@user@domain.com` for someone on another instance. **Create group chat** starts a conversation with several people. Calls in direct messages are covered in [Voice and video](/use/voice-video).
+**Direct messages** in the rail opens the conversation list. **Start a new DM** searches for people by name, or by full handle such as `@user@domain.com` for someone on another instance. **Create group chat** starts a conversation with several people: a group holds up to 10, you included, and the picker shows the spots left. Calls in direct messages are covered in [Voice and video](/use/voice-video).
 
 ### Today
 
-Today is a digest of what happened since your last visit: mentions and replies, unread direct messages and channels, threads you are part of, who is live in voice, and posts from people you follow. Select the sun icon in the server rail to open it.
+Today is a digest of what happened since your last visit: mentions and replies, unread direct messages and channels, threads you are part of, who is live in voice, and posts from people you follow. Select the sun icon in the server rail to open it. At the top it shows up to 3 unread [announcements](/self-host/announcements#where-people-read-it) from your instance's admins, pinned ones first; **Dismiss** marks one read. Every announcement stays listed in **User settings** → **Announcements**.
 
 Today is a beta feature and is on unless you turn it off. The switch is **Today dashboard** under **User settings** → **Advanced** → **Beta features**. The choice is stored per device, so a phone and a desktop each keep their own.
 

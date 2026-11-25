@@ -7,7 +7,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import BridgeChannelPairs from '../BridgeChannelPairs.vue'
 import { bridgeSupportsImport, importPercent, isImportablePair } from '../importProgress'
 import type { ImportJob } from '../bridgeApi'
-import { GUILD_ID, healthyBridge, iconStub, installBackend, makeI18n, makePair, missingKeys, rpcCalls } from './bridgeTestKit'
+import { GUILD_ID, SNAPSHOT, healthyBridge, iconStub, installBackend, makeI18n, makePair, missingKeys, rpcCalls } from './bridgeTestKit'
 
 const { toast } = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
@@ -118,7 +118,7 @@ describe('BridgeChannelPairs import controls', () => {
     await w.get('[data-testid="import-start"]').trigger('click')
     await agree(w)
     await flushPromises()
-    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'] }])
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'], p_include_private: false }])
     expect(w.emitted('changed')).toHaveLength(1)
   })
 
@@ -147,20 +147,38 @@ describe('BridgeChannelPairs import controls', () => {
     expect((w.get('[data-testid="import-consent-check"]').element as HTMLInputElement).checked).toBe(false)
   })
 
-  it('says why import is unavailable: the instance switch is off, or the bridge is not self-run', async () => {
-    for (const importMode of ['off', null, undefined]) {
-      const off = mountPairs({ importMode: importMode as string | null })
-      expect(off.get('[data-testid="import-unavailable"]').text()).toBe('History import is turned off on this instance.')
-      expect(off.find('[data-testid="import-start"]').exists()).toBe(false)
-      expect(off.find('[data-testid="import-toolbar"]').exists()).toBe(false)
+  it('says why import is unavailable: the instance switch is off, or self_run meets a bridge that is not self-run', async () => {
+    for (const importMode of ['off', null, undefined, 'everything']) {
+      for (const mode of ['self', 'instance'] as const) {
+        const off = mountPairs({ importMode: importMode as string | null, bridge: healthyBridge({ bridge_version: '2.8.0', discord_guild_id: GUILD_ID, mode }) })
+        expect(off.get('[data-testid="import-unavailable"]').text()).toBe('History import is turned off on this instance.')
+        expect(off.find('[data-testid="import-start"]').exists()).toBe(false)
+        expect(off.find('[data-testid="import-toolbar"]').exists()).toBe(false)
+      }
     }
     for (const mode of ['instance', 'hosted'] as const) {
-      const other = mountPairs({ bridge: healthyBridge({ bridge_version: '2.6.0', discord_guild_id: GUILD_ID, mode }) })
+      const other = mountPairs({ bridge: healthyBridge({ bridge_version: '2.8.0', discord_guild_id: GUILD_ID, mode }) })
       expect(other.get('[data-testid="import-unavailable"]').attributes('data-reason')).toBe('bridge_mode')
-      expect(other.get('[data-testid="import-unavailable"]').text()).toContain('a bridge you run yourself')
+      expect(other.get('[data-testid="import-unavailable"]').text()).toContain("their server's owner runs")
       expect(other.find('[data-testid="import-start"]').exists()).toBe(false)
     }
     expect(mountPairs().find('[data-testid="import-unavailable"]').exists()).toBe(false)
+  })
+
+  it('all lets the instance bot and hosted bridges import from bridge 2.8.0 on', async () => {
+    for (const mode of ['instance', 'hosted', 'self'] as const) {
+      const w = mountPairs({ importMode: 'all', bridge: healthyBridge({ bridge_version: '2.8.0', discord_guild_id: GUILD_ID, mode }) })
+      expect(w.find('[data-testid="import-unavailable"]').exists()).toBe(false)
+      await w.get('[data-testid="import-start"]').trigger('click')
+      await agree(w)
+      await flushPromises()
+    }
+    expect(rpcCalls('discord_bridge_import_start')).toHaveLength(3)
+
+    const old = mountPairs({ importMode: 'all', bridge: healthyBridge({ bridge_version: '2.7.0', discord_guild_id: GUILD_ID, mode: 'instance' }) })
+    expect(old.get('[data-testid="import-update-bridge"]').text()).toContain("This instance's bridge service needs version 2.8.0")
+    const self = mountPairs({ importMode: 'all', bridge: healthyBridge({ bridge_version: '2.6.0', discord_guild_id: GUILD_ID, mode: 'self' }) })
+    expect(self.find('[data-testid="import-update-bridge"]').exists()).toBe(false)
   })
 
   it('shows what a run left out for its authors and for AutoMod', () => {
@@ -176,7 +194,7 @@ describe('BridgeChannelPairs import controls', () => {
   it('explains a private Discord channel that needs its import started on Discord', () => {
     const w = mountPairs({ imports: [makeJob({ state: 'failed', error: 'discord_approval_required' })] })
     expect(w.get('[data-testid="import-state"]').text()).toBe(
-      'Import stopped: the Discord channel is private: start its import on Discord with /bridge import-history',
+      'Import stopped: the Discord channel is private: start it again with private channels included, or run /bridge import-history scope:All bridged channels once on Discord',
     )
     const off = mountPairs({ imports: [makeJob({ state: 'failed', error: 'import_disabled' })] })
     expect(off.get('[data-testid="import-state"]').text()).toBe('Import stopped: history import was turned off')
@@ -195,7 +213,7 @@ describe('BridgeChannelPairs import controls', () => {
     await w.get('[data-testid="import-all"]').trigger('click')
     await agree(w)
     await flushPromises()
-    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'] }])
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'], p_include_private: false }])
   })
 
   it('Import all leaves out pairs whose job is done, queued or running', async () => {
@@ -226,7 +244,7 @@ describe('BridgeChannelPairs import controls', () => {
     await agree(w)
     await flushPromises()
     expect(rpcCalls('discord_bridge_import_start')).toEqual([
-      { p_bridge_id: 'b1', p_harmony_channel_ids: ['h-b', 'h-c', 'h-d', 'h-g'] },
+      { p_bridge_id: 'b1', p_harmony_channel_ids: ['h-b', 'h-c', 'h-d', 'h-g'], p_include_private: false },
     ])
   })
 
@@ -258,7 +276,7 @@ describe('BridgeChannelPairs import controls', () => {
     expect(w.get('[data-testid="import-all-again-yes"]').attributes('disabled')).toBeDefined()
     await agree(w, 'import-all-again-yes')
     await flushPromises()
-    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-a', 'h-b'] }])
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-a', 'h-b'], p_include_private: false }])
     expect(w.find('[data-testid="import-all-again-confirm"]').exists()).toBe(false)
   })
 
@@ -285,6 +303,28 @@ describe('BridgeChannelPairs import controls', () => {
     await w.get('[data-testid="import-cancel"]').trigger('click')
     await flushPromises()
     expect(rpcCalls('discord_bridge_import_cancel')).toEqual([{ p_bridge_id: 'b1', p_import_id: 'j1' }])
+  })
+
+  it('a job its bridge has not stopped yet offers Stop now, which cancels it again', async () => {
+    const w = mountPairs({ imports: [makeJob({ cancel_requested: true })] })
+    expect(w.get('[data-testid="import-state"]').text()).toBe('Cancelling…')
+    expect(w.find('[data-testid="import-cancel"]').exists()).toBe(false)
+    expect(w.get('[data-testid="import-stop-hint"]').text()).toContain('If it is offline')
+    const stop = w.get('[data-testid="import-stop"]')
+    expect(stop.attributes('disabled')).toBeUndefined()
+    expect(stop.attributes('aria-label')).toBe('Stop the import for #general now')
+    await stop.trigger('click')
+    await flushPromises()
+    expect(rpcCalls('discord_bridge_import_cancel')).toEqual([{ p_bridge_id: 'b1', p_import_id: 'j1' }])
+  })
+
+  it('a paused job offers Resume for its channel', async () => {
+    const w = mountPairs({ imports: [makeJob({ state: 'paused' })] })
+    expect(w.get('[data-testid="import-retry"]').text()).toBe('Resume')
+    await w.get('[data-testid="import-retry"]').trigger('click')
+    await agree(w)
+    await flushPromises()
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'], p_include_private: false }])
   })
 
   it('Cancel all cancels every job of the bridge', async () => {
@@ -336,7 +376,7 @@ describe('BridgeChannelPairs import controls', () => {
     await cancelled.get('[data-testid="import-retry"]').trigger('click')
     await agree(cancelled)
     await flushPromises()
-    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'] }])
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'], p_include_private: false }])
   })
 
   it('shows thread progress during the thread phase', () => {
@@ -362,5 +402,90 @@ describe('BridgeChannelPairs import controls', () => {
     await agree(w)
     await flushPromises()
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("can't import history"))
+  })
+})
+
+describe('BridgeChannelPairs private Discord channels', () => {
+  // Bridge 2.8.0 reports everyone_can_view: #general is public, #memes is private.
+  const withVisibility = (map: Record<string, boolean>) => ({
+    guilds: SNAPSHOT.guilds.map((g) => ({
+      ...g,
+      channels: g.channels.map((c) => (c.id in map ? { ...c, everyone_can_view: map[c.id] } : c)),
+    })),
+  })
+  const PAIRS = [
+    makePair({ id: 'p1', harmony_channel_id: 'h-general', discord_channel_id: '11', discord_channel_name: 'general' }),
+    makePair({ id: 'p2', harmony_channel_id: 'h-memes', discord_channel_id: '14', discord_channel_name: 'memes' }),
+  ]
+  const CHANNELS = [
+    { id: 'h-general', name: 'general', categoryName: null },
+    { id: 'h-memes', name: 'memes', categoryName: null },
+  ]
+  const mountPrivate = (snapshot: unknown = withVisibility({ '11': true, '14': false })) =>
+    mount(BridgeChannelPairs, {
+      props: {
+        bridge: healthyBridge({ bridge_version: '2.8.0', discord_guild_id: GUILD_ID, snapshot }),
+        pairs: PAIRS,
+        harmonyChannels: CHANNELS,
+        imports: [],
+        importMode: 'all',
+      },
+      global: global(),
+    })
+
+  it('marks a pair whose Discord channel @everyone cannot read', () => {
+    const w = mountPrivate()
+    const rows = w.findAll('[data-testid="pair-row"]')
+    expect(rows[0].find('[data-testid="pair-private"]').exists()).toBe(false)
+    expect(rows[1].get('[data-testid="pair-private"]').text()).toBe('Private on Discord')
+  })
+
+  it('Import all leaves the private channels out unless the second box is ticked', async () => {
+    const w = mountPrivate()
+    await w.get('[data-testid="import-all"]').trigger('click')
+    expect(w.get('[data-testid="import-private"]').text()).toContain('Private on Discord: #memes')
+    expect(w.get('[data-testid="import-private"]').text()).toContain('cannot read their history on Discord')
+    await agree(w)
+    await flushPromises()
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([
+      { p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'], p_include_private: false },
+    ])
+  })
+
+  it('the second box includes them and records the consent', async () => {
+    const w = mountPrivate()
+    await w.get('[data-testid="import-all"]').trigger('click')
+    await w.get('[data-testid="import-private-check"]').setValue(true)
+    await agree(w)
+    await flushPromises()
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([
+      { p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general', 'h-memes'], p_include_private: true },
+    ])
+  })
+
+  it('a private channel alone cannot start without the second box', async () => {
+    const w = mountPrivate()
+    const rows = w.findAll('[data-testid="pair-row"]')
+    await rows[1].get('[data-testid="import-start"]').trigger('click')
+    await w.get('[data-testid="import-consent-check"]').setValue(true)
+    expect(w.get('[data-testid="import-consent-start"]').attributes('disabled')).toBeDefined()
+    await w.get('[data-testid="import-private-check"]').setValue(true)
+    expect(w.get('[data-testid="import-consent-start"]').attributes('disabled')).toBeUndefined()
+    // A new ask starts with both boxes unticked.
+    await w.get('[data-testid="import-consent-cancel"]').trigger('click')
+    await rows[1].get('[data-testid="import-start"]').trigger('click')
+    expect((w.get('[data-testid="import-private-check"]').element as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('asks nothing more of a bridge that does not report @everyone visibility', async () => {
+    const w = mountPrivate(SNAPSHOT)
+    expect(w.find('[data-testid="pair-private"]').exists()).toBe(false)
+    await w.get('[data-testid="import-all"]').trigger('click')
+    expect(w.find('[data-testid="import-private"]').exists()).toBe(false)
+    await agree(w)
+    await flushPromises()
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([
+      { p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general', 'h-memes'], p_include_private: false },
+    ])
   })
 })

@@ -23,23 +23,29 @@ const MAX_RECONNECT_DELAY_MS = 30_000;
 const BASE_RECONNECT_DELAY_MS = 1_000;
 
 /**
- * Jobs that read their server's current state when they run: one per server per COLLAPSE_MS window
- * of the clock, a delayed job due at the window's end. A statement changing many emojis or roles
- * notifies once per row, and a bridge syncing a server's emojis commits once per emoji. The job id
- * names server and window, so BullMQ keeps the first and ignores the rest; the window lives in
- * Redis and survives a restart. A notification after the window ends lands in the next one.
+ * Jobs that read their server's current state when they run: one pending job per server. A
+ * statement changing many emojis or roles notifies once per row, and a bridge syncing a server's
+ * emojis commits once per emoji. The first notification queues a job COLLAPSE_MS later under the
+ * server's deduplication id (BullMQ deduplication, state in Redis). A notification while that job
+ * waits is absorbed: the job has not read yet. One while it runs is kept (keepLastIfActive) and
+ * queues one more job when it finishes, so a change committed after the job read is sent.
+ * No clock decides membership: the listener's and the workers' clocks may differ.
  */
 const COLLAPSED_JOBS = new Set(['federate-server-update']);
 const COLLAPSE_MS = 5_000;
 
-/** BullMQ job id and delay for a collapsed job; null for any other. Job ids take no ':'. */
-export function collapsedJob(notification: JobNotification, now: number): { jobId: string; delay: number } | null {
+export interface CollapsedJob {
+  delay: number;
+  deduplication: { id: string; keepLastIfActive: true };
+}
+
+/** BullMQ options of a collapsed job; null for any other. */
+export function collapsedJob(notification: JobNotification): CollapsedJob | null {
   const serverId = notification.data?.server_id;
   if (!COLLAPSED_JOBS.has(notification.name) || typeof serverId !== 'string') return null;
-  const window = Math.floor(now / COLLAPSE_MS);
   return {
-    jobId: `${notification.name}-${serverId}-${window}`,
-    delay: (window + 1) * COLLAPSE_MS - now,
+    delay: COLLAPSE_MS,
+    deduplication: { id: `${notification.name}-${serverId}`, keepLastIfActive: true },
   };
 }
 
@@ -185,10 +191,10 @@ export class NotificationListener {
     const collapsedIds = new Set<string>();
     for (const notification of batch) {
       if (notification.name === 'delivery-queue-fallback') continue;
-      const collapsed = collapsedJob(notification, Date.now());
+      const collapsed = collapsedJob(notification);
       if (collapsed) {
-        if (collapsedIds.has(collapsed.jobId)) continue;
-        collapsedIds.add(collapsed.jobId);
+        if (collapsedIds.has(collapsed.deduplication.id)) continue;
+        collapsedIds.add(collapsed.deduplication.id);
       }
       addPromises.push(this.enqueue(notification, collapsed));
     }
@@ -196,7 +202,7 @@ export class NotificationListener {
     await Promise.allSettled(addPromises);
   }
 
-  private async enqueue(notification: JobNotification, collapsed: { jobId: string; delay: number } | null): Promise<void> {
+  private async enqueue(notification: JobNotification, collapsed: CollapsedJob | null): Promise<void> {
     const queue = this.getQueue(notification.name);
     if (!queue) {
       logger.warn(`NotificationListener: no queue for "${notification.name}"`);

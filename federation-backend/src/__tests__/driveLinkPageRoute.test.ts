@@ -40,11 +40,23 @@ const rpc = vi.fn(async (name: string, args: { p_token: string }) => {
   return answer
 })
 
+// instance_config.instance_name as PostgREST answers it; undefined is no row, an Error a failed read.
+const stored = vi.hoisted(() => ({ name: 'Example Chat' as unknown }))
+function instanceConfig(table: string) {
+  if (table !== 'instance_config') throw new Error(`unexpected table ${table}`)
+  const read = async () => stored.name instanceof Error
+    ? { data: null, error: { message: stored.name.message } }
+    : { data: stored.name === undefined ? null : { config_value: stored.name }, error: null }
+  const chain: any = { select: () => chain, eq: () => chain, maybeSingle: read }
+  return chain
+}
+
 vi.mock('../config/supabase.js', () => ({
-  getSupabaseClient: () => ({ rpc: (n: string, a: any) => rpc(n, a) }),
+  getSupabaseClient: () => ({ rpc: (n: string, a: any) => rpc(n, a), from: instanceConfig }),
 }))
 
 const { default: driveLinkPageRouter } = await import('../routes/driveLinkPage.js')
+const { clearInstanceNameCache } = await import('../utils/instanceName.js')
 
 function app() {
   const a = express()
@@ -55,6 +67,8 @@ const get = (path: string) =>
   supertest(app()).get(path).set('User-Agent', 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)')
 
 beforeEach(() => {
+  clearInstanceNameCache()
+  stored.name = 'Example Chat'
   rpc.mockClear()
   for (const key of Object.keys(answers)) delete answers[key]
   answers[TOKEN] = { data: IMAGE, error: null }
@@ -76,6 +90,23 @@ describe('GET /d/:token', () => {
     expect(res.text).toContain(`<meta property="og:url" content="https://harmony.test/d/${TOKEN}">`)
     expect(res.text).not.toMatch(/<script\b/i)
     expect(rpc.mock.calls).toEqual([['drive_link_resolve', { p_token: TOKEN }]])
+  })
+
+  it('names the instance as the admin panel stores it', async () => {
+    const res = await get(`/d/${TOKEN}`)
+    expect(res.text).toContain('<title>beach &lt;trip&gt;.png - Example Chat</title>')
+    expect(res.text).toContain('<meta property="og:site_name" content="Example Chat">')
+    expect(res.text).toContain('>Open in Example Chat</a>')
+    expect(res.text).not.toContain('Harmony')
+
+    answers[TOKEN] = { data: null, error: { message: 'connection refused' } }
+    const down = await get(`/d/${TOKEN}`)
+    expect(down.text).toContain('<title>Example Chat</title>')
+    expect(down.text).toContain('Open it in Example Chat to see the file.')
+
+    clearInstanceNameCache()
+    stored.name = undefined
+    expect((await get(`/d/${TOKEN}`)).text).toContain('<title>Harmony</title>')
   })
 
   it('names no owner, even with Show my name on, and no size', async () => {

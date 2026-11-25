@@ -159,6 +159,8 @@
           <Icon name="screen-share" />
         </button>
 
+        <span class="dock-sep" aria-hidden="true" data-testid="dock-sep" />
+
         <button
           v-if="voiceStore.liveReactionsAvailable"
           ref="dockReactButtonRef"
@@ -174,14 +176,13 @@
 
         <button
           v-if="activityButton.available.value"
-          ref="dockActivityButtonRef"
           @click="activityButton.toggle"
           :class="['control-btn', 'activity-btn', { active: activityButton.visible.value || activityButton.running.value }]"
-          :title="t('activities.title')"
-          :aria-label="t('activities.title')"
+          :title="t('activities.launcherTitle')"
+          :aria-label="t('activities.launcherTitle')"
           aria-haspopup="dialog"
           :aria-expanded="activityButton.visible.value"
-          data-testid="activity-button"
+          data-testid="dock-activities-button"
         >
           <Icon name="popcorn" />
         </button>
@@ -200,42 +201,74 @@
         </button>
 
         <button
-          @click="toggleSpatialPanel"
-          :class="['control-btn', 'spatial-btn', { 
-            active: spatialStore.isPanelVisible,
-            'spatial-enabled': spatialStore.settings.enabled
-          }]"
-          :title="spatialStore.settings.enabled ? t('voice.spatialAudioOn') : t('voice.spatialAudioOff')"
-          :aria-label="t('voice.spatialAudio')"
-          aria-haspopup="dialog"
-          :aria-expanded="spatialStore.isPanelVisible"
+          ref="dockMoreButtonRef"
+          :class="['control-btn', 'more-btn', { active: showMoreMenu || showSettings || spatialStore.isPanelVisible || popoutActive }]"
+          :title="t('voice.moreOptions')"
+          :aria-label="t('voice.moreOptions')"
+          aria-haspopup="menu"
+          :aria-expanded="showMoreMenu"
+          :aria-controls="showMoreMenu ? moreMenuButton.menuId : undefined"
+          data-dock-more
+          data-testid="dock-more"
+          @click="showMoreMenu = !showMoreMenu"
+          @keydown="moreMenuButton.onTriggerKeydown"
         >
-          <Icon name="audio-lines" />
-        </button>
-
-        <button
-          ref="dockSettingsButtonRef"
-          @click="toggleSettings"
-          :class="['control-btn', 'settings-btn', { active: showSettings }]"
-          :title="t('voice.settings')"
-          :aria-label="t('voice.settings')"
-          aria-haspopup="dialog"
-          :aria-expanded="showSettings"
-        >
-          <Icon name="settings" />
-        </button>
-
-        <button
-          v-if="popoutAvailable"
-          @click="popoutActive ? closeCallPopout() : popOutCall()"
-          :class="['control-btn', 'popout-btn', { active: popoutActive }]"
-          :title="popoutActive ? t('voice.popout.return') : t('voice.popout.open')"
-          :aria-label="popoutActive ? t('voice.popout.return') : t('voice.popout.open')"
-          data-testid="dock-popout"
-        >
-          <Icon :name="popoutActive ? 'log-in' : 'external-link'" />
+          <Icon name="more-horizontal" />
         </button>
       </AppToolbar>
+
+      <ChatMenu
+        v-if="showMoreMenu"
+        :id="moreMenuButton.menuId"
+        :anchor="dockMoreButtonRef"
+        prefer="above"
+        :initial-focus="moreMenuButton.initialFocus.value"
+        :label="t('voice.moreOptions')"
+        data-testid="dock-more-menu"
+        @close="showMoreMenu = false"
+      >
+        <button
+          type="button"
+          role="menuitemcheckbox"
+          class="chat-menu-item"
+          :aria-checked="showParticipantsDropdown"
+          :aria-controls="showParticipantsDropdown ? participantsPanelId : undefined"
+          data-dock-participants-item
+          data-testid="dock-more-participants"
+          @click="pickMore(toggleParticipantsDropdown)"
+        >
+          <Icon name="users" />{{ t('voice.participants') }}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          class="chat-menu-item"
+          data-testid="dock-more-spatial"
+          @click="pickMore(toggleSpatialPanel)"
+        >
+          <Icon name="audio-lines" />{{ t('voice.spatialAudio') }}
+          <span class="chat-menu-trail">{{ spatialStore.settings.enabled ? t('voice.spatialOn') : t('voice.spatialOff') }}</span>
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          class="chat-menu-item"
+          data-testid="dock-more-settings"
+          @click="pickMore(toggleSettings)"
+        >
+          <Icon name="settings" />{{ t('voice.settings') }}
+        </button>
+        <button
+          v-if="popoutAvailable"
+          type="button"
+          role="menuitem"
+          class="chat-menu-item"
+          data-testid="dock-popout"
+          @click="pickMore(popoutActive ? closeCallPopout : popOutCall)"
+        >
+          <Icon :name="popoutActive ? 'log-in' : 'external-link'" />{{ popoutActive ? t('voice.popout.return') : t('voice.popout.open') }}
+        </button>
+      </ChatMenu>
 
       <!-- On-screen PTT for touch devices -->
       <PushToTalkButton
@@ -274,6 +307,7 @@
       </div>
 
       <AppToolbar class="action-controls" :label="t('voice.toolbar.call')" @mousedown.stop @touchstart.stop>
+        <span class="dock-sep" aria-hidden="true" data-testid="dock-sep" />
         <!-- The call's chat docked beside the main window's chat -->
         <button
           v-if="callChat.dockable.value"
@@ -291,28 +325,17 @@
         </button>
 
         <button
-          @click.stop="toggleParticipantsDropdown"
-          class="control-btn participants-btn"
-          :class="{ active: showParticipantsDropdown }"
-          :title="t('voice.participants')"
-          :aria-label="t('voice.participants')"
-          :aria-expanded="showParticipantsDropdown"
-          :aria-controls="showParticipantsDropdown ? participantsPanelId : undefined"
-        >
-          <Icon name="users" />
-        </button>
-
-        <button
           @click="expandToOverlay"
           class="control-btn expand-btn"
           :title="t('voice.openCallView')"
           :aria-label="t('voice.openCallView')"
           aria-haspopup="dialog"
           data-voice-expand
+          data-testid="dock-open-call-view"
         >
-          <Icon name="maximize" />
+          <Icon name="maximize-2" />
         </button>
-        
+
         <button
           @click="minimizeDock"
           class="control-btn minimize-btn"
@@ -320,7 +343,7 @@
           :aria-label="t('voice.minimizePanel')"
           data-testid="dock-minimize"
         >
-          <Icon name="minimize" />
+          <Icon name="minimize-2" />
         </button>
 
         <button
@@ -460,7 +483,7 @@
             :aria-label="t('voice.floatingDock.float')"
             data-testid="mini-float"
           >
-            <Icon name="external-link" />
+            <Icon name="move" />
           </button>
 
           <!-- Popped out, the call view lives in the other window: Expand raises it. -->
@@ -561,12 +584,6 @@
       @close="showReactions = false"
     />
 
-    <ActivityLauncher
-      v-if="activityButton.visible.value && !popoutActive"
-      :anchor="activityButton.anchor.value"
-      @close="activityButton.close"
-    />
-
     <SoundboardPopover
       v-if="currentMode !== 'overlay' && soundboardButton.visible.value"
       :visible="soundboardButton.visible.value"
@@ -628,8 +645,11 @@ import { useActivityButton } from '@/components/activities/useActivityButton';
 import { useActivitiesStore } from '@/stores/activities';
 import ActivityDockCard from '@/components/activities/ActivityDockCard.vue';
 import ActivityInvite from '@/components/activities/ActivityInvite.vue';
-import ActivityLauncher from '@/components/activities/ActivityLauncher.vue';
+import { usePlayTogetherStore } from '@/stores/playTogether';
+import ChatMenu from '@/components/chat/ChatMenu.vue';
+import { useMenuButton } from '@/composables/useMenu';
 import { showsMinimizedAudioControls } from './minimizedVoiceControls';
+import { DEFAULT_DOCK_POSITION, parseDockPosition, serializeDockPosition, type DockPosition } from './dockPosition';
 import { userPanelDocked } from '@/composables/useUserPanelDock';
 import type { Rect } from './voiceMenuModel';
 import { isMobileUserAgent } from '@/utils/platform';
@@ -690,7 +710,6 @@ const { getUser } = useUserData();
 
 // STATE
 const dockRootRef = ref<HTMLElement | null>(null);
-const dockSettingsButtonRef = ref<HTMLButtonElement | null>(null);
 const miniExpandButtonRef = ref<HTMLButtonElement | null>(null);
 const participantsPanelId = uid('voice-participants');
 const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
@@ -730,13 +749,12 @@ const isDockDragging = ref(false);
 const dockDragStartPos = ref({ x: 0, y: 0 });
 const dockDragInitialMousePos = ref({ x: 0, y: 0 });
 const dockHasMoved = ref(false);
-const dockPosition = ref({ left: 0, bottom: 80 }); // left 0 means centered
+const dockPosition = ref<DockPosition>({ ...DEFAULT_DOCK_POSITION });
 const dockContainerRef = ref<HTMLElement | null>(null);
 const dockContainerDimensions = ref({ width: 0, height: 0 });
 let dockRafId: number | null = null;
 let dockShouldPreventClick = false;
 
-const DEFAULT_DOCK_POSITION = { left: 0, bottom: 80 }; // left 0 means centered via CSS transform
 
 // COMPUTED PROPERTIES
 const channelName = computed(() => {
@@ -812,8 +830,8 @@ const minimizedPositionStyle = computed((): Record<string, string> => {
 
 const dockPositionStyle = computed((): Record<string, string> => {
   if (currentMode.value !== 'dock') return {};
-  // left 0: centered
-  if (dockPosition.value.left === 0) {
+  const left = dockPosition.value.left;
+  if (left === null) {
     return {
       left: '50%',
       bottom: `${dockPosition.value.bottom}px`,
@@ -822,7 +840,7 @@ const dockPositionStyle = computed((): Record<string, string> => {
     };
   }
   return {
-    left: `${dockPosition.value.left}px`,
+    left: `${left}px`,
     bottom: `${dockPosition.value.bottom}px`,
     transform: 'none',
     position: 'fixed',
@@ -844,8 +862,9 @@ const dockParticipantsDropdownStyle = computed((): Record<string, string> => {
   
   const dockHeight = dockContainerDimensions.value.height || 80; // px fallback
   const dockBottom = dockPosition.value.bottom;
+  const left = dockPosition.value.left;
   
-  if (dockPosition.value.left === 0) {
+  if (left === null) {
     return {
       left: '50%',
       bottom: `${dockBottom + dockHeight + 12}px`, // 12px gap above the dock
@@ -855,7 +874,7 @@ const dockParticipantsDropdownStyle = computed((): Record<string, string> => {
   } else {
     const dockWidth = dockContainerDimensions.value.width || 600; // px fallback
     return {
-      left: `${dockPosition.value.left + dockWidth / 2}px`,
+      left: `${left + dockWidth / 2}px`,
       bottom: `${dockBottom + dockHeight + 12}px`, // 12px gap above the dock
       transform: 'translateX(-50%)',
       position: 'fixed',
@@ -944,8 +963,19 @@ const streamPickerAnchor = ref<Rect | null>(null);
 
 const dockSoundboardButtonRef = ref<HTMLButtonElement | null>(null);
 const soundboardButton = useSoundboardButton(dockSoundboardButtonRef);
-const dockActivityButtonRef = ref<HTMLButtonElement | null>(null);
-const activityButton = useActivityButton(dockActivityButtonRef);
+const activityButton = useActivityButton();
+const playTogether = usePlayTogetherStore();
+onMounted(() => { void playTogether.loadApps(); });
+
+// More options: participants, spatial audio, voice settings, pop out.
+const dockMoreButtonRef = ref<HTMLButtonElement | null>(null);
+const showMoreMenu = ref(false);
+const moreMenuButton = useMenuButton(showMoreMenu);
+/** Runs a More item after the menu closes, so the panel it opens keeps focus. */
+const pickMore = (action: () => unknown) => {
+  showMoreMenu.value = false;
+  void nextTick(() => { void action(); });
+};
 const activitiesStore = useActivitiesStore();
 // The dock card shows while the overlay is closed; the overlay shows the stage instead.
 const dockActivity = computed(() => (currentMode.value === 'dock' && !popoutActive.value && activitiesStore.playingHere ? activitiesStore.current : null));
@@ -1056,7 +1086,7 @@ const toggleSettings = () => {
 
 const closeSettings = () => {
   showSettings.value = false;
-  void nextTick(() => restoreFocusIfLost(dockSettingsButtonRef.value));
+  void nextTick(() => restoreFocusIfLost(dockMoreButtonRef.value));
 };
 
 const toggleParticipantsDropdown = () => {
@@ -1126,15 +1156,7 @@ const loadMinimizedPosition = () => {
 
 const loadDockPosition = () => {
   try {
-    const saved = userStorage.getItem(STORAGE_KEY_DOCK_POSITION);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (typeof parsed.left === 'number' && typeof parsed.bottom === 'number') {
-        dockPosition.value = { left: parsed.left, bottom: parsed.bottom };
-      }
-    } else {
-      dockPosition.value = { ...DEFAULT_DOCK_POSITION };
-    }
+    dockPosition.value = parseDockPosition(userStorage.getItem(STORAGE_KEY_DOCK_POSITION));
   } catch (error) {
     debug.warn('Failed to load dock position:', error);
     dockPosition.value = { ...DEFAULT_DOCK_POSITION };
@@ -1160,15 +1182,11 @@ const saveMinimizedPosition = () => {
 
 const saveDockPosition = () => {
   try {
-    // Default position is stored as absence of the key. left 0 means centered.
-    const isAtDefault = 
-      (dockPosition.value.left === 0 || Math.abs(dockPosition.value.left) < 1) &&
-      Math.abs(dockPosition.value.bottom - DEFAULT_DOCK_POSITION.bottom) < 1;
-    
-    if (isAtDefault) {
+    const stored = serializeDockPosition(dockPosition.value);
+    if (stored === null) {
       userStorage.removeItem(STORAGE_KEY_DOCK_POSITION);
     } else {
-      userStorage.setItem(STORAGE_KEY_DOCK_POSITION, JSON.stringify(dockPosition.value));
+      userStorage.setItem(STORAGE_KEY_DOCK_POSITION, stored);
     }
   } catch (error) {
     debug.warn('Failed to save dock position:', error);
@@ -1420,10 +1438,9 @@ const startDockDrag = (e: MouseEvent | TouchEvent) => {
   
   dockDragInitialMousePos.value = { x: pointer.x, y: pointer.y };
   
-  const currentLeft = dockPosition.value.left === 0 
-    ? styleViewport().width / 2 - (dockContainerDimensions.value.width / 2)
-    : dockPosition.value.left;
-  
+  const currentLeft = dockPosition.value.left
+    ?? styleViewport().width / 2 - (dockContainerDimensions.value.width / 2);
+
   dockDragStartPos.value = {
     x: pointer.x - currentLeft,
     y: styleViewport().height - pointer.y - dockPosition.value.bottom
@@ -1509,19 +1526,15 @@ const stopDockDrag = () => {
   
   // Snap to default on release, desktop only.
   if (isDesktop.value) {
-    const currentLeft = dockPosition.value.left === 0 
-      ? styleViewport().width / 2 - (dockContainerDimensions.value.width / 2)
-      : dockPosition.value.left;
-    
     const centerX = styleViewport().width / 2 - dockContainerDimensions.value.width / 2;
+    const currentLeft = dockPosition.value.left ?? centerX;
     const distanceToDefault = Math.sqrt(
-      Math.pow(currentLeft - centerX, 2) + 
+      Math.pow(currentLeft - centerX, 2) +
       Math.pow(dockPosition.value.bottom - DEFAULT_DOCK_POSITION.bottom, 2)
     );
-    
+
     if (distanceToDefault < SNAP_THRESHOLD) {
-      // left 0 means centered.
-      dockPosition.value = { left: 0, bottom: DEFAULT_DOCK_POSITION.bottom };
+      dockPosition.value = { ...DEFAULT_DOCK_POSITION };
       
       setTimeout(() => {
         if (container) {
@@ -1657,7 +1670,9 @@ onMounted(() => {
     if (showParticipantsDropdown.value && 
         !target.closest('.participants-dropdown-container') &&
         !target.closest('.participants-dropdown') &&
-        !target.closest('.participants-btn')) {
+        !target.closest('.participants-btn') &&
+        !target.closest('[data-dock-participants-item]') &&
+        !target.closest('[data-dock-more]')) {
       showParticipantsDropdown.value = false;
     }
   };
@@ -2063,6 +2078,16 @@ onUnmounted(() => {
 .dock-video-badge :deep(svg) {
   width: 10px;
   height: 10px;
+}
+
+/* Between the call's own controls, what plays in it, and the view of the call. */
+.dock-sep {
+  flex: none;
+  align-self: center;
+  width: 1px;
+  height: 24px;
+  margin: 0 4px;
+  background: var(--border-color, var(--border-primary));
 }
 
 .action-controls {

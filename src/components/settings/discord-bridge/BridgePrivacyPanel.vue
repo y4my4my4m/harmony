@@ -1,28 +1,28 @@
 <template>
-  <div class="privacy" data-testid="bridge-privacy">
-    <p class="db-muted">{{ t('discordBridge.privacy.lead') }}</p>
+  <div class="privacy" data-testid="bridge-privacy" :data-platform="platform">
+    <p class="db-muted">{{ t(key('lead')) }}</p>
 
     <form class="privacy-form" novalidate @submit.prevent="askRemove">
       <div class="db-field">
-        <label class="db-label" :for="`${uid}-id`">{{ t('discordBridge.privacy.idLabel') }}</label>
+        <label class="db-label" :for="`${uid}-id`">{{ t(key('idLabel')) }}</label>
         <input
           :id="`${uid}-id`"
-          v-model.trim="discordId"
+          v-model.trim="remoteId"
           class="db-input"
           type="text"
-          inputmode="numeric"
+          :inputmode="rule.inputmode"
           autocomplete="off"
           spellcheck="false"
-          maxlength="20"
+          :maxlength="rule.maxlength"
           :aria-invalid="idError ? 'true' : undefined"
           :aria-describedby="`${uid}-id-help`"
           data-testid="privacy-id"
         />
         <p :id="`${uid}-id-help`" :class="idError ? 'db-field-error' : 'db-muted'" data-testid="privacy-id-help">
-          {{ idError || t('discordBridge.privacy.idHelp') }}
+          {{ idError || t(key('idHelp')) }}
         </p>
       </div>
-      <button type="submit" class="btn btn-secondary btn-sm" :disabled="busy || !discordId" data-testid="privacy-remove">
+      <button type="submit" class="btn btn-secondary btn-sm" :disabled="busy || !remoteId" data-testid="privacy-remove">
         {{ t('discordBridge.privacy.remove') }}
       </button>
     </form>
@@ -36,8 +36,8 @@
     >
       <p :id="`${uid}-confirm`" class="db-text">
         {{ confirming === 'user'
-          ? t('discordBridge.privacy.removeConfirm', { id: discordId })
-          : t('discordBridge.privacy.purgeConfirm') }}
+          ? t(key('removeConfirm'), { id: remoteId })
+          : t(key('purgeConfirm')) }}
       </p>
       <div class="db-actions">
         <button type="button" class="btn btn-danger btn-sm" :disabled="busy" data-testid="privacy-confirm-yes" @click="runConfirmed">
@@ -54,20 +54,20 @@
     </p>
 
     <template v-if="optouts.length > 0">
-      <h4 class="db-card-sub">{{ t('discordBridge.privacy.listTitle', { count: optouts.length }, optouts.length) }}</h4>
+      <h4 class="db-card-sub">{{ t(key('listTitle'), { count: optouts.length }, optouts.length) }}</h4>
       <ul class="privacy-list" data-testid="privacy-list">
         <li v-for="row in optouts" :key="row.remote_user_id" class="privacy-row" data-testid="privacy-row">
           <code class="privacy-id">{{ row.remote_user_id }}</code>
-          <span class="privacy-source">{{ t(`discordBridge.privacy.source.${row.source}`) }}</span>
+          <span class="privacy-source">{{ t(row.source === 'self' ? key('source.self') : `discordBridge.privacy.source.${row.source}`) }}</span>
           <span v-if="row.source !== 'self' && row.self_opted_out" class="privacy-source" data-testid="privacy-also-self">
-            {{ t('discordBridge.privacy.alsoSelf') }}
+            {{ t(key('alsoSelf')) }}
           </span>
           <button
             v-if="row.source !== 'self'"
             type="button"
             class="btn btn-ghost btn-sm"
             :disabled="busy"
-            :aria-label="t('discordBridge.privacy.restoreLabel', { id: row.remote_user_id })"
+            :aria-label="t(key('restoreLabel'), { id: row.remote_user_id })"
             data-testid="privacy-restore"
             @click="restore(row.remote_user_id)"
           >
@@ -78,7 +78,7 @@
     </template>
 
     <div class="privacy-purge">
-      <p class="db-muted">{{ t('discordBridge.privacy.purgeLead') }}</p>
+      <p class="db-muted">{{ t(key('purgeLead')) }}</p>
       <button type="button" class="btn btn-danger btn-sm" :disabled="busy" data-testid="privacy-purge" @click="confirming = 'all'">
         {{ t('discordBridge.privacy.purge') }}
       </button>
@@ -87,30 +87,48 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, useId, watch } from 'vue'
+import { computed, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
+import { parseMatrixId } from '@/utils/matrixMentions'
 import {
   fetchBridgeOptouts,
   purgeBridgedMessages,
   removeBridgedUser,
   restoreBridgedUser,
   type BridgeOptout,
+  type BridgeRemotePlatform,
 } from './bridgeApi'
 import { bridgeErrorKey } from './bridgeErrors'
 
-const props = defineProps<{ serverId: string }>()
+const props = withDefaults(defineProps<{ serverId: string; platform?: BridgeRemotePlatform }>(), { platform: 'discord' })
 
-// A Discord user id: a snowflake of up to 20 digits.
-const DISCORD_ID = /^[0-9]{5,20}$/
+interface RemoteIdRule {
+  valid: (id: string) => boolean
+  inputmode: 'numeric' | 'text'
+  maxlength: number
+}
+
+const REMOTE_ID_RULES: Record<BridgeRemotePlatform, RemoteIdRule> = {
+  // A snowflake of up to 20 digits.
+  discord: { valid: (id) => /^[0-9]{5,20}$/.test(id), inputmode: 'numeric', maxlength: 20 },
+  // A full MXID, @localpart:server, at most 255 characters.
+  matrix: { valid: (id) => parseMatrixId(id) !== null, inputmode: 'text', maxlength: 255 },
+}
+
+/** Strings that name the remote platform live under its namespace; the rest are shared. */
+const PLATFORM_KEYS: Record<BridgeRemotePlatform, string> = { discord: 'discordBridge.privacy', matrix: 'matrixBridge.privacy' }
 
 const { t } = useI18n()
 const toast = useToast()
 const uid = `bridge-privacy-${useId()}`
 
+const rule = computed(() => REMOTE_ID_RULES[props.platform])
+const key = (name: string) => `${PLATFORM_KEYS[props.platform]}.${name}`
+
 const optouts = ref<BridgeOptout[]>([])
-const discordId = ref('')
+const remoteId = ref('')
 const idError = ref('')
 const busy = ref(false)
 const confirming = ref<'user' | 'all' | null>(null)
@@ -119,19 +137,19 @@ const progress = ref<number | null>(null)
 
 async function load() {
   try {
-    optouts.value = await fetchBridgeOptouts(props.serverId)
+    optouts.value = await fetchBridgeOptouts(props.serverId, props.platform)
   } catch (error) {
     debug.warn('bridge_remote_optouts read failed:', error)
   }
 }
 
 onMounted(load)
-watch(() => props.serverId, load)
-watch(discordId, () => { idError.value = '' })
+watch(() => [props.serverId, props.platform], load)
+watch(remoteId, () => { idError.value = '' })
 
 function askRemove() {
-  if (!DISCORD_ID.test(discordId.value)) {
-    idError.value = t('discordBridge.privacy.idInvalid')
+  if (!rule.value.valid(remoteId.value)) {
+    idError.value = t(key('idInvalid'))
     return
   }
   confirming.value = 'user'
@@ -146,11 +164,11 @@ async function runConfirmed() {
   try {
     const onProgress = (total: number) => { progress.value = total }
     if (scope === 'user') {
-      const removed = await removeBridgedUser(props.serverId, discordId.value, onProgress)
+      const removed = await removeBridgedUser(props.serverId, remoteId.value, onProgress, props.platform)
       toast.success(t('discordBridge.privacy.removed', { count: removed }, removed))
-      discordId.value = ''
+      remoteId.value = ''
     } else {
-      const run = await purgeBridgedMessages(props.serverId, onProgress)
+      const run = await purgeBridgedMessages(props.serverId, onProgress, props.platform)
       if (run.more) toast.warning(t('discordBridge.privacy.purgedSome', { count: run.total }, run.total))
       else toast.success(t('discordBridge.privacy.purged', { count: run.total }, run.total))
     }
@@ -167,7 +185,7 @@ async function runConfirmed() {
 async function restore(id: string) {
   busy.value = true
   try {
-    await restoreBridgedUser(props.serverId, id)
+    await restoreBridgedUser(props.serverId, id, props.platform)
   } catch (error) {
     debug.error('bridge_privacy_restore_remote_user failed:', error)
     toast.error(t(bridgeErrorKey(error, 'discordBridge.errors.privacy')))

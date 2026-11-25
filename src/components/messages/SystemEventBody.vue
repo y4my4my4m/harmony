@@ -8,6 +8,7 @@
     </div>
   </template>
   <Icon v-else-if="type === 'group_created'" name="users" :size="16" class="system-icon" />
+  <Icon v-else-if="isActivity" name="gamepad" :size="16" class="system-icon activity-icon" />
   <Icon v-else-if="type === 'member_join'" name="arrow-right" :size="16" class="system-icon join" />
   <Icon v-else-if="type === 'member_leave'" name="arrow-left" :size="16" class="system-icon leave" />
   <Icon v-else-if="type === 'member_kick'" name="user-x" :size="16" class="system-icon leave" />
@@ -42,7 +43,7 @@
           :style="{ color: userColor(actor.id) }"
           @click="emit('showUserProfile', actor.id)"
         ><DisplayName :user-id="actor.id" /></button>
-        <span v-else class="system-user-name">{{ actor.name }}</span>
+        <span v-else class="system-user-name">{{ actor.name }}<BridgeSourceBadge v-if="actor.source" :source="actor.source" /></span>
         <span v-if="staffInstance" class="system-staff" data-testid="system-staff">{{ ' ' + t('hostStaff.systemActor', { instance: staffInstance }) }}</span>
       </template>
       <template #members>
@@ -67,10 +68,16 @@
         <button type="button" class="system-threads-link" @click="emit('showAllThreads')">{{ t('systemEvents.allThreads') }}</button>
       </template>
       <template #duration><span class="call-duration">{{ callDuration }}</span></template>
+      <template #app><span class="system-activity-name">{{ activityName }}</span></template>
+      <template #players>{{ activityPlayers }}</template>
       <template #count>{{ participantCount }}</template>
     </i18n-t>
     <span v-if="reason" class="system-reason">{{ t('systemEvents.reason', { reason }) }}</span>
     <span v-if="missedCall && !missedByMe" class="call-missed">{{ t('systemEvents.noAnswer') }}</span>
+    <ActivitySystemCard
+      v-if="type === 'activity_started' && activitySessionId"
+      :session-id="activitySessionId"
+    />
     <CallJoinButton
       v-if="type === 'call_started'"
       :message-id="message.id"
@@ -132,10 +139,12 @@
 //   member_join, member_leave        subject_id
 //   member_kick, member_ban          subject_id, actor_id, reason, staff (the actor is instance
 //                                    staff of the server's host, 20261027250001)
-//   thread_created                   actor_id | actor_bot_id (+ discord_user) | actor_name,
+//   thread_created                   actor_id | actor_bot_id (+ discord_user | matrix_user) | actor_name,
 //                                    thread_id, thread_name
 //   group_created                    actor_id, event 'created' (participant_count) | 'members_added' (user_ids)
 //   call_started, call_ended         actor_id, call_type, participants, duration_seconds
+//   activity_started, activity_ended actor_id, app_id, app_name, session_id; ended adds
+//                                    duration_seconds, players, player_count (20261117500001)
 //   channel_(voice_)encryption_*     actor_id
 //   automod_alert                    automod
 import { computed } from 'vue'
@@ -143,11 +152,15 @@ import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import CallJoinButton from '@/components/messages/CallJoinButton.vue'
+import ActivitySystemCard from '@/components/playTogether/ActivitySystemCard.vue'
+import { usePlayTogetherStore } from '@/stores/playTogether'
 import { useProfileStore } from '@/stores/useProfile'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useT } from '@/composables/useT'
-import type { Message } from '@/types/chat'
+import type { BridgePlatform, Message } from '@/types/chat'
+import { bridgedAuthorName, getBridgedAuthor } from '@/utils/messageAuthor'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 
 const props = defineProps<{
   message: Message
@@ -181,6 +194,7 @@ const profileIdOf = (value: unknown): string | null =>
 interface Person {
   id: string | null
   name: string
+  source?: BridgePlatform
 }
 
 const subject = computed<Person>(() => ({
@@ -188,13 +202,12 @@ const subject = computed<Person>(() => ({
   name: t('systemEvents.someone'),
 }))
 
-// A Discord member relayed by a bridge, a bot, or a name carried from another instance.
+// A person relayed by a bridge, a bot, or a name carried from another instance.
 const actor = computed<Person>(() => {
   const id = profileIdOf(meta.value.actor_id)
   if (id) return { id, name: '' }
-  const discord = meta.value.discord_user
-  const discordName = discord?.display_name || discord?.username
-  if (typeof discordName === 'string' && discordName) return { id: null, name: discordName }
+  const bridged = getBridgedAuthor(props.message)
+  if (bridged) return { id: null, name: bridgedAuthorName(bridged), source: bridged.platform }
   const botId = profileIdOf(meta.value.actor_bot_id)
   if (botId) return { id: null, name: props.botName(botId) }
   if (typeof meta.value.actor_name === 'string' && meta.value.actor_name) {
@@ -222,6 +235,15 @@ const reason = computed(() =>
     : '')
 
 const isCall = computed(() => type.value === 'call_started' || type.value === 'call_ended')
+const isActivity = computed(() => type.value === 'activity_started' || type.value === 'activity_ended')
+const activitySessionId = computed(() => (typeof meta.value.session_id === 'string' ? meta.value.session_id : ''))
+const activityName = computed(() => {
+  const id = typeof meta.value.app_id === 'string' ? meta.value.app_id : ''
+  const app = id ? usePlayTogetherStore().appById(id) : undefined
+  if (app) return usePlayTogetherStore().appLabel(app).name
+  return typeof meta.value.app_name === 'string' && meta.value.app_name ? meta.value.app_name : t('systemEvents.activityFallback')
+})
+const activityPlayers = computed(() => Math.max(0, Number(meta.value.player_count) || 0))
 const callType = computed(() => (meta.value.call_type === 'video' ? 'video' : 'voice'))
 // Nobody answered: the callee reads it as missed, the caller as no answer (Discord).
 const missedCall = computed(() =>
@@ -269,6 +291,12 @@ const sentence = computed<{ key: string; plural?: number } | null>(() => {
       if (meta.value.event === 'members_added' && members.value.length > 0) return { key: 'systemEvents.membersAdded' }
       if (participantCount.value > 0) return { key: 'systemEvents.groupCreatedWith', plural: participantCount.value }
       return { key: 'systemEvents.groupCreated' }
+    case 'activity_started':
+      return { key: 'systemEvents.activityStarted' }
+    case 'activity_ended':
+      return activityPlayers.value > 1
+        ? { key: 'systemEvents.activityEnded' }
+        : { key: 'systemEvents.activityEndedAlone' }
     case 'call_started':
       return { key: `systemEvents.callStarted.${callType.value}` }
     case 'call_ended':

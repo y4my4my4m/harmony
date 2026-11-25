@@ -25,6 +25,7 @@ import { sameOrigin, urlHost } from '../utils/apOrigin.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
 import { federationSwitches } from '../services/FederationSwitches.js';
 import { HARMONY_CONTEXT } from './harmonyContext.js';
+import { addresses } from './audience.js';
 import type { 
   VoiceCallInvite, 
   VoiceCallAccept, 
@@ -210,9 +211,7 @@ export class VoiceActivityHandler {
       return;
     }
 
-    const recipients = (Array.isArray(activity.to) ? activity.to : [activity.to])
-      .filter((r): r is string => typeof r === 'string')
-      .slice(0, MAX_CALL_RECIPIENTS);
+    const recipients = addresses(activity.to, MAX_CALL_RECIPIENTS);
     
     for (const recipientUrl of recipients) {
       const { data: recipient } = await supabase
@@ -286,10 +285,11 @@ export class VoiceActivityHandler {
   /**
    * Call event on the party's private user:{profileId} channel, as
    * `federated_call:{event}`. Only its owner subscribes or sends there.
+   * 'answered' tells the party's own devices that one of them took or refused the ring.
    */
-  private static async notifyCallParty(
+  static async notifyCallParty(
     profileId: string,
-    event: 'incoming' | 'accepted' | 'rejected' | 'ended',
+    event: 'incoming' | 'accepted' | 'rejected' | 'ended' | 'answered',
     payload: Record<string, unknown>,
   ): Promise<void> {
     const { error } = await getSupabaseClient().rpc('broadcast_user_event', {
@@ -804,9 +804,7 @@ export class VoiceActivityHandler {
   ): Promise<string[]> {
     const supabase = getSupabaseClient();
     const actorHost = urlHost(activity.actor);
-    const recipients = (Array.isArray(activity.to) ? activity.to : [activity.to])
-      .filter((r): r is string => typeof r === 'string')
-      .slice(0, MAX_CALL_RECIPIENTS);
+    const recipients = addresses(activity.to, MAX_CALL_RECIPIENTS);
     const out: string[] = [];
     for (const recipientUrl of recipients) {
       const { data: user } = await supabase

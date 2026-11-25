@@ -20,6 +20,7 @@ import {
   TUS_RETRY_DELAYS_MS,
   TUS_THRESHOLD_BYTES,
   UploadAbortedError,
+  WHOLE_RETRY_DELAY_MS,
   forgetResumableUploads,
   resetStorageUploads,
   startStorageUpload,
@@ -144,6 +145,104 @@ describe('one-request uploads', () => {
     const { data, error } = await pending
     expect(data).toBeNull()
     expect(error).toMatchObject({ message: 'new row violates row-level security policy', statusCode: '403', status: 400 })
+  })
+})
+
+describe('one-request retry', () => {
+  // storage-api v1.90.0 answer to a second POST of an existing object with x-upsert false.
+  const DUPLICATE = JSON.stringify({ statusCode: '409', error: 'Duplicate', message: 'The resource already exists', code: 'KeyAlreadyExists' })
+
+  it('sends the request once more after a network error, from the start of the body', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const file = new File(['icon bytes'], 'icon.webp', { type: 'image/webp' })
+    const upload = start({ bucket: 'server_icons', path: 's/icon-1.webp', file, label: 'icon.webp' })
+    await requests(1)
+    const first = last()
+    first.upload.onprogress?.({ lengthComputable: true, loaded: 50, total: 100 })
+    first.onerror?.()
+    await flushPromises()
+    expect(upload.state).toMatchObject({ status: 'uploading', reconnecting: true, progress: 0, loaded: 0 })
+    expect(FakeXHR.all).toHaveLength(1)
+
+    await vi.advanceTimersByTimeAsync(WHOLE_RETRY_DELAY_MS)
+    await requests(2)
+    const second = last()
+    expect(upload.state.reconnecting).toBe(false)
+    expect(second.method).toBe('POST')
+    expect(second.url).toBe(first.url)
+    expect(second.headers).toEqual(first.headers)
+    expect((second.body as FormData).get('')).toBeInstanceOf(Blob)
+    second.answer(200)
+    await expect(upload.result).resolves.toEqual({ path: 's/icon-1.webp' })
+    expect(upload.state).toMatchObject({ status: 'completed', reconnecting: false })
+  })
+
+  it('fails with the network error when the second request gets no answer either', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const upload = start({ bucket: 'message_media', path: 'c/r/u/a.jpg', file: new File(['jpg'], 'a.jpg') })
+    await requests(1)
+    last().onerror?.()
+    await vi.advanceTimersByTimeAsync(WHOLE_RETRY_DELAY_MS)
+    await requests(2)
+    last().onerror?.()
+    await expect(upload.result).rejects.toThrow('Network error')
+    expect(upload.state).toMatchObject({ status: 'error', error: 'Network error', reconnecting: false })
+    expect(FakeXHR.all).toHaveLength(2)
+  })
+
+  it('counts a duplicate refusal of the second request as the first one stored', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const upload = start({ bucket: 'message_media', path: 'c/r/u/b.jpg', file: new File(['jpg'], 'b.jpg') })
+    await requests(1)
+    last().onerror?.()
+    await vi.advanceTimersByTimeAsync(WHOLE_RETRY_DELAY_MS)
+    await requests(2)
+    last().answer(400, {}, DUPLICATE)
+    await expect(upload.result).resolves.toEqual({ path: 'c/r/u/b.jpg' })
+  })
+
+  it('refuses a duplicate answered to the first request, and a refusal is never retried', async () => {
+    const duplicate = start({ bucket: 'message_media', path: 'c/r/u/c.jpg', file: new File(['jpg'], 'c.jpg') })
+    await requests(1)
+    last().answer(400, {}, DUPLICATE)
+    await expect(duplicate.result).rejects.toThrow('The resource already exists')
+
+    const refused = start({ bucket: 'message_media', path: 'c/r/u/d.jpg', file: new File(['jpg'], 'd.jpg') })
+    await requests(2)
+    last().answer(500, {}, JSON.stringify({ statusCode: '500', message: 'Internal Server Error' }))
+    await expect(refused.result).rejects.toThrow('Internal Server Error')
+    expect(FakeXHR.all).toHaveLength(2)
+  })
+
+  it('sends no second request once aborted during the wait', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const upload = start({ bucket: 'message_media', path: 'c/r/u/e.jpg', file: new File(['jpg'], 'e.jpg') })
+    await requests(1)
+    last().onerror?.()
+    await flushPromises()
+    upload.abort()
+    await expect(upload.result).rejects.toBeInstanceOf(UploadAbortedError)
+    await vi.advanceTimersByTimeAsync(WHOLE_RETRY_DELAY_MS)
+    expect(FakeXHR.all).toHaveLength(1)
+    expect(upload.state.status).toBe('aborted')
+  })
+
+  it('waits for the browser to come back online before the second request', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    const upload = start({ bucket: 'message_media', path: 'c/r/u/f.jpg', file: new File(['jpg'], 'f.jpg') })
+    await requests(1)
+    last().onerror?.()
+    await vi.advanceTimersByTimeAsync(WHOLE_RETRY_DELAY_MS * 10)
+    expect(FakeXHR.all).toHaveLength(1)
+    expect(upload.state.reconnecting).toBe(true)
+
+    online.mockReturnValue(true)
+    window.dispatchEvent(new Event('online'))
+    await requests(2)
+    last().answer(200)
+    await expect(upload.result).resolves.toEqual({ path: 'c/r/u/f.jpg' })
+    online.mockRestore()
   })
 })
 

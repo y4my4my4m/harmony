@@ -460,3 +460,48 @@ describe('bridge_import_server_emoji, two overlapping imports of one new Discord
     expect(rows.rows[0]?.[0]).toBe('1')
   }, 60_000)
 })
+
+describe('bridge_upload_reserve, two overlapping claims of one server', () => {
+  const SERVER_ID = '00000000-0000-0000-0000-0000000000c5'
+  const CHANNEL_ID = '00000000-0000-0000-0000-0000000000c6'
+  const LOCK = `hashtextextended('bridge_upload:${SERVER_ID}', 0)`
+  const claim = (id: string) => `SELECT public.bridge_upload_reserve('${id}', '${CHANNEL_ID}', 600000)`
+
+  // The first claim is a session that commits 3 s later. The second fits the cap (1 MB) alone and
+  // not beside the first: it waits for the first and then reads its bytes.
+  it('refuses the claim that waited, and holds one', async () => {
+    const seeded = sql(`
+      INSERT INTO public.servers (id, name, owner) VALUES ('${SERVER_ID}', 'Uploads', '${OWNER_PROFILE_ID}');
+      INSERT INTO public.channels (id, server_id, name, type) VALUES ('${CHANNEL_ID}', '${SERVER_ID}', 'uploads', 0);
+      UPDATE public.instance_config SET config_value = '1'::jsonb WHERE config_key = 'bridge_mirror_server_limit_mb';
+    `)
+    expect(seeded.ok, why(seeded)).toBe(true)
+
+    const first = spawn('docker', ['exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', 'postgres', '-q'])
+    const firstDone = new Promise<number | null>((resolve) => first.on('close', resolve))
+    first.stdin.end(`
+      BEGIN;
+      ${claim('00000000-0000-0000-0000-00000000f001')};
+      SELECT pg_sleep(3);
+      COMMIT;
+    `)
+
+    let held = false
+    for (let i = 0; i < 50 && !held; i++) {
+      const lock = sql(`SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND granted
+                           AND (classid::bigint << 32 | objid::bigint) = ${LOCK}`)
+      held = lock.ok && lock.rows[0]?.[0] === '1'
+      if (!held) await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    expect(held, 'the first claim never took the lock').toBe(true)
+
+    const second = sql(claim('00000000-0000-0000-0000-00000000f002'))
+    expect(await firstDone).toBe(0)
+    expect(second.ok, why(second)).toBe(true)
+    expect(second.rows[0]?.[0]).toBe('busy')
+    expect(sql(`SELECT sum(bytes) FROM public.bridge_upload_reservations WHERE server_id = '${SERVER_ID}'`).rows[0]?.[0]).toBe('600000')
+
+    sql(`SELECT public.bridge_upload_release('00000000-0000-0000-0000-00000000f001')`)
+    expect(sql(claim('00000000-0000-0000-0000-00000000f002')).rows[0]?.[0]).toBe('reserved')
+  }, 60_000)
+})

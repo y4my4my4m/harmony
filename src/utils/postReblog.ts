@@ -27,6 +27,7 @@
  */
 
 import type { TimelinePost, ActivityPubPost, FederatedUser } from '@/types';
+import { isMatrixMention } from '@/utils/matrixMentions';
 import { isMassMentionWord } from '@/utils/massMentions';
 import { runtimeConfig } from '@/services/runtimeConfig';
 
@@ -261,7 +262,7 @@ export function replyMentionPrefill(
   };
   add(author.id, author.username, author.domain, author.is_local !== false);
   for (const part of getOriginalPost(post).content ?? []) {
-    if (part.type === 'mention') add(part.userId, part.username, part.domain, part.isLocal);
+    if (part.type === 'mention' && !isMatrixMention(part)) add(part.userId, part.username, part.domain, part.isLocal);
   }
   return handles.length ? `${handles.join(' ')} ` : '';
 }

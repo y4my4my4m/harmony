@@ -20,7 +20,7 @@ const rt = vi.hoisted(() => {
         handlers[`${type}:${filter.event}`] = cb
         return channel
       }),
-      subscribe: vi.fn((cb?: (status: string) => void) => { cb?.('SUBSCRIBED'); return channel }),
+      subscribe: vi.fn((cb?: (status: string) => void) => { channel.status = cb; cb?.('SUBSCRIBED'); return channel }),
       send: vi.fn(async (msg: any) => { channel.sent.push(msg); return 'ok' }),
       track: vi.fn(async () => 'ok'),
       untrack: vi.fn(async () => 'ok'),
@@ -36,6 +36,7 @@ const rt = vi.hoisted(() => {
 vi.mock('@/supabase', () => ({
   supabase: {
     channel: (topic: string, opts: unknown) => rt.make(topic, opts),
+    removeChannel: vi.fn(async () => 'ok'),
     rpc: rt.rpc,
     auth: { getSession: async () => ({ data: { session: { access_token: 'jwt' } } }) },
   },
@@ -192,8 +193,35 @@ describe('unmuted ring', () => {
 
     expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
     expect(globalDMCallListener.showIncomingCallModal.value).toBe(false)
-    const sent = conversationTopic(CONV).flatMap((c) => c.sent)
-    expect(sent).toEqual([expect.objectContaining({ payload: expect.objectContaining({ type: 'busy', callerId: 'me' }) })])
+    expect(rt.rpc).toHaveBeenCalledWith('send_signal', {
+      p_topic: `dm-call:${CONV}`, p_event: 'call-signal', p_payload: { type: 'busy', callType: 'voice', reason: 'busy' },
+    })
+  })
+
+  it.each(['notifications_disabled', 'error'])('a ring refused for %s is declined without a reason, and the caller stops ringing', async (reason) => {
+    permissions.canReceiveCall.mockResolvedValue({ allowed: false, reason })
+    signal('initiate')
+    await settle()
+
+    expect(rt.rpc).toHaveBeenCalledWith('send_signal', {
+      p_topic: `dm-call:${CONV}`, p_event: 'call-signal', p_payload: { type: 'decline', callType: 'voice', reason: undefined },
+    })
+    expect(globalDMCallListener.showIncomingCallModal.value).toBe(false)
+  })
+
+  it('an auto-decline that cannot be sent is caught', async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      rt.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'not admitted' } } as any)
+      permissions.canReceiveCall.mockResolvedValue({ allowed: false, reason: 'dnd' })
+      signal('initiate')
+      await settle()
+      expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
   })
 
   it('a ring cancelled while the gate runs is not recorded', async () => {
@@ -304,11 +332,46 @@ describe('federated ring', () => {
     expect(globalDMCallListener.showIncomingCallModal.value).toBe(true)
   })
 
+  it('a ring the caller ends while the gate runs never shows', async () => {
+    let allow!: (value: unknown) => void
+    permissions.canReceiveCall.mockReturnValue(new Promise((resolve) => { allow = resolve }))
+    federatedRing()
+    await settle()
+    userEvents.handlers['federated_call:ended']({ conversationId: CONV })
+    allow({ allowed: true })
+    await settle()
+    expect(globalDMCallListener.showIncomingCallModal.value).toBe(false)
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+  })
+
   it('a muted ring is recorded without a popup', async () => {
     permissions.canReceiveCall.mockResolvedValue({ allowed: true, silent: true })
     federatedRing()
     await settle()
     expect(globalDMCallListener.showIncomingCallModal.value).toBe(false)
     expect(dmCallSignaling.getActiveCall(CONV)).toMatchObject({ isFederated: true, ringing: true })
+  })
+})
+
+describe('dm-calls closed by the server', () => {
+  it('opens the ring topic again and rings on it', async () => {
+    vi.useFakeTimers()
+    try {
+      permissions.canReceiveCall.mockResolvedValue({ allowed: true })
+      const rings = () => rt.channels.filter((c) => c.topic === 'dm-calls:me')
+      expect(rings()).toHaveLength(1)
+      rings()[0].status('CLOSED')
+      await vi.advanceTimersByTimeAsync(7_500)
+      expect(rings()).toHaveLength(2)
+      expect(rings()[1].opts).toMatchObject({ config: { private: true } })
+
+      rings()[1].handlers['broadcast:incoming-call']({
+        payload: { type: 'initiate', callerId: 'caller', callType: 'voice', timestamp: Date.now(), conversationId: CONV },
+      })
+      await vi.advanceTimersByTimeAsync(10)
+      expect(globalDMCallListener.incomingCall.value?.conversationId).toBe(CONV)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

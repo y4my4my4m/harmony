@@ -22,7 +22,8 @@ import {
  *
  * States arrive from the RPC answers, the voice-channel-event broadcast and peers on the call's
  * data channel; a state replaces the held one only with a higher revision (an end, null, always
- * applies when it comes from the database). While in a call with an activity the row is read
+ * applies when it comes from the database). A peer's state the database does not reach within
+ * PEER_CONFIRM_MS gives way to the database's. While in a call with an activity the row is read
  * again every POLL_MS (POLL_OFFLINE_MS while realtime is down), which settles missed events.
  *
  * Nothing plays without consent: a run (channel and started_at) plays for the member who
@@ -36,6 +37,13 @@ const POLL_MS = 15_000
 const POLL_OFFLINE_MS = 3_000
 /** Clock offset re-measure period, ms. */
 const CLOCK_MS = 5 * 60_000
+/**
+ * How long a peer's state is held without the database reaching its revision, ms. A participant
+ * shares a state after the database answered its control, so a broadcast or a read confirms it.
+ */
+const PEER_CONFIRM_MS = 3_000
+/** Largest distance of a peer's position_at from the database clock, ms. */
+const PEER_CLOCK_MS = 10_000
 const VOLUME_KEY = 'harmony:activity-volume'
 
 export interface ActivityPlayerStatus {
@@ -73,12 +81,11 @@ export const useActivitiesStore = defineStore('activities', () => {
   const slots = shallowRef<HTMLElement[]>([])
   const status = ref<ActivityPlayerStatus>({ ready: false, playing: false, buffering: false, positionMs: 0, durationMs: 0, error: null })
   const busy = ref(false)
-  const launcherOpen = ref(false)
-  /** Button the launcher opens beside, style-space px. */
-  const launcherAnchor = ref<{ left: number; top: number; width: number; height: number } | null>(null)
   let clockAt = 0
   let pollTimer: ReturnType<typeof setTimeout> | null = null
   let pollChannel: string | null = null
+  // Bumped by reset(): an answer asked for before it belongs to another account.
+  let account = 0
 
   const voiceChannelId = computed(() => {
     const voice = useUnifiedVoiceChannelStore()
@@ -96,6 +103,39 @@ export const useActivitiesStore = defineStore('activities', () => {
   const dbRevision = new Map<string, number>()
   /** A peer's state is taken at most this many revisions past the database's. */
   const PEER_REVISIONS_AHEAD = 3
+  /** Per run, the peer state held above the database's revision: its revision, sender and deadline. */
+  const unconfirmed = new Map<string, { revision: number; userId: string; deadline: number; expired: boolean; timer: ReturnType<typeof setTimeout> }>()
+  /** `${run}|${user}`: participants whose state the database refuted, not taken again in that run. */
+  const distrusted = new Set<string>()
+
+  function settle(key: string): void {
+    const pending = unconfirmed.get(key)
+    if (!pending) return
+    clearTimeout(pending.timer)
+    unconfirmed.delete(key)
+  }
+
+  /** Holds the peer state at `revision` of run `key` until the database reaches it or its deadline passes. */
+  function awaitConfirmation(channelId: string, key: string, revision: number, userId: string): void {
+    const pending = unconfirmed.get(key)
+    if (pending) {
+      pending.revision = revision
+      pending.userId = userId
+      return
+    }
+    const timer = setTimeout(() => {
+      const held = unconfirmed.get(key)
+      if (!held) return
+      held.expired = true
+      void refresh(channelId)
+    }, PEER_CONFIRM_MS)
+    unconfirmed.set(key, { revision, userId, deadline: Date.now() + PEER_CONFIRM_MS, expired: false, timer })
+  }
+
+  function forgetRun(key: string): void {
+    settle(key)
+    for (const entry of distrusted) if (entry.startsWith(`${key}|`)) distrusted.delete(entry)
+  }
   // host_id is a profile id (get_current_profile_id()), which need not equal the auth user id.
   const accepted = (a: VoiceActivity) => {
     const me = useProfileStore().profile?.id
@@ -132,9 +172,11 @@ export const useActivitiesStore = defineStore('activities', () => {
   /**
    * Applies a state for `channelId`; false when it is older than the held one. A run of an
    * activity is its started_at; within a run, the revision orders states. An end (null) applies
-   * only from the database. A database state past the last one the database answered applies even
-   * below a revision a peer named (receivePeer bounds those), so no peer holds it back. Every
-   * database state of the held run counts as answered, applied or not.
+   * only from the database. A database state below a peer's revision waits while the peer's state
+   * awaits confirmation: it may be a broadcast older than that state. Once the deadline passes
+   * without the database reaching the peer's revision, the database's state applies whatever its
+   * revision and the peer is not trusted again in the run. Every database state of the held run
+   * counts as answered, applied or not.
    */
   function apply(channelId: string, activity: VoiceActivity | null, authoritative: boolean): boolean {
     const held = byChannel.value[channelId] ?? null
@@ -143,11 +185,22 @@ export const useActivitiesStore = defineStore('activities', () => {
     } else if (held) {
       if (activity.started_at === held.started_at) {
         const key = runKey(held)
-        const confirmed = dbRevision.get(key) ?? held.revision
-        const newerThanDatabase = authoritative && activity.revision > confirmed
-        if (authoritative) dbRevision.set(key, Math.max(confirmed, activity.revision))
-        if (activity.revision < held.revision && !newerThanDatabase) return false
-        if (activity.revision === held.revision && activity.position_at === held.position_at) return false
+        let refuted = false
+        if (authoritative) {
+          dbRevision.set(key, Math.max(dbRevision.get(key) ?? held.revision, activity.revision))
+          const pending = unconfirmed.get(key)
+          if (pending && activity.revision >= pending.revision) {
+            settle(key)
+          } else if (pending && (pending.expired || Date.now() >= pending.deadline)) {
+            distrusted.add(`${key}|${pending.userId}`)
+            settle(key)
+            refuted = true
+          }
+        }
+        if (!refuted) {
+          if (activity.revision < held.revision) return false
+          if (activity.revision === held.revision && activity.position_at === held.position_at) return false
+        }
       } else if (activity.started_at < held.started_at) {
         return false
       }
@@ -157,6 +210,7 @@ export const useActivitiesStore = defineStore('activities', () => {
     if (held && (!activity || activity.started_at !== held.started_at)) {
       const key = runKey(held)
       dbRevision.delete(key)
+      forgetRun(key)
       if (hidden.value.has(key)) {
         const next = new Set(hidden.value)
         next.delete(key)
@@ -179,17 +233,20 @@ export const useActivitiesStore = defineStore('activities', () => {
   }
 
   async function refresh(channelId: string): Promise<void> {
+    const asked = account
     try {
       const result = await getActivity(channelId)
-      apply(channelId, result.activity, true)
+      if (asked === account) apply(channelId, result.activity, true)
     } catch {
       /* the next poll retries */
     }
   }
 
   async function refreshServer(serverId: string): Promise<void> {
+    const asked = account
     try {
       const list = await getServerActivities(serverId)
+      if (asked !== account) return
       // The call's own channel ends only from its own reads and broadcasts: a list requested
       // before its run started would end the run and forget the member's Join.
       for (const [id, a] of Object.entries(byChannel.value)) {
@@ -204,9 +261,11 @@ export const useActivitiesStore = defineStore('activities', () => {
   }
 
   async function run(work: () => Promise<{ activity: VoiceActivity | null }>, channelId: string): Promise<VoiceActivity | null> {
+    const asked = account
     busy.value = true
     try {
       const result = await work()
+      if (asked !== account) return null
       apply(channelId, result.activity, true)
       share(result.activity, channelId)
       return result.activity
@@ -267,8 +326,9 @@ export const useActivitiesStore = defineStore('activities', () => {
    * nothing else, and only a participant who may control the run. A new run, its host, item and
    * queue come from the database and its broadcasts; otherwise any participant could start a run
    * naming this client as host, which plays at once. Its revision counts at most
-   * PEER_REVISIONS_AHEAD past the database's, and apply lets the database's next states past it;
-   * a run the database has not answered here takes none.
+   * PEER_REVISIONS_AHEAD past the database's and its position_at lies within PEER_CLOCK_MS of the
+   * database clock. The database must reach its revision within PEER_CONFIRM_MS (apply); a run the
+   * database has not answered here takes none, nor does a participant the database refuted.
    */
   function receivePeer(event: { userId: string; message: unknown }): void {
     const message = event.message as { type?: string; channelId?: string; activity?: VoiceActivity | null }
@@ -278,13 +338,16 @@ export const useActivitiesStore = defineStore('activities', () => {
     const held = byChannel.value[message.channelId]
     if (!peer || !held || peer.channel_id !== held.channel_id || peer.started_at !== held.started_at) return
     if (held.controls === 'host' && event.userId !== held.host_id) return
+    const key = runKey(held)
+    if (distrusted.has(`${key}|${event.userId}`)) return
     const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
     if (!finite(peer.revision) || !finite(peer.position_ms) || !finite(peer.position_at) || peer.position_ms < 0) return
+    if (Math.abs(peer.position_at - serverTime()) > PEER_CLOCK_MS) return
     // Item and queue changes are the database's: a state naming another item or queue waits for it.
     if (JSON.stringify(peer.item) !== JSON.stringify(held.item) || JSON.stringify(peer.queue) !== JSON.stringify(held.queue)) return
-    const confirmed = dbRevision.get(runKey(held))
+    const confirmed = dbRevision.get(key)
     if (confirmed === undefined || peer.revision <= held.revision || peer.revision > confirmed + PEER_REVISIONS_AHEAD) return
-    apply(message.channelId, {
+    const applied = apply(message.channelId, {
       ...held,
       playing: peer.playing === true,
       position_ms: peer.position_ms,
@@ -292,6 +355,9 @@ export const useActivitiesStore = defineStore('activities', () => {
       rate: finite(peer.rate) && peer.rate >= 0.25 && peer.rate <= 4 ? peer.rate : held.rate,
       revision: peer.revision,
     }, false)
+    if (applied && peer.revision > (dbRevision.get(key) ?? 0)) {
+      awaitConfirmation(message.channelId, key, peer.revision, event.userId)
+    }
   }
 
   /** Hides or shows the current run of `channelId` for this client. */
@@ -367,10 +433,27 @@ export const useActivitiesStore = defineStore('activities', () => {
     schedulePoll()
   }
 
+  /** The account signed out: what it saw, joined and hid goes with it. Volume is the device's. */
+  function reset(): void {
+    account++
+    if (pollTimer) clearTimeout(pollTimer)
+    pollTimer = null
+    pollChannel = null
+    for (const pending of unconfirmed.values()) clearTimeout(pending.timer)
+    unconfirmed.clear()
+    dbRevision.clear()
+    distrusted.clear()
+    byChannel.value = {}
+    hidden.value = new Set()
+    joined.value = new Set()
+    status.value = { ready: false, playing: false, buffering: false, positionMs: 0, durationMs: 0, error: null }
+    busy.value = false
+  }
+
   return {
-    byChannel, offsetMs, volume, muted, hidden, joined, slots, slot, status, busy, launcherOpen, launcherAnchor,
+    byChannel, offsetMs, volume, muted, hidden, joined, slots, slot, status, busy,
     voiceChannelId, current, playingHere, waiting, invited, isHidden, join,
     serverTime, position, syncClock, apply, refresh, refreshServer, start, control, stop, togglePlay, seek,
-    itemEnded, receiveBroadcast, receivePeer, hide, setVolume, registerSlot, setStatus, enterCall,
+    itemEnded, receiveBroadcast, receivePeer, hide, setVolume, registerSlot, setStatus, enterCall, reset,
   }
 })

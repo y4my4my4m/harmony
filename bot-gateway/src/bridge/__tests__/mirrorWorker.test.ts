@@ -17,7 +17,7 @@ vi.mock('../../config/supabase.js', () => ({
   },
   config: {},
 }))
-import { GoneError, OverQuotaError, TooLargeError } from '../../utils/mirrorFile.js'
+import { GoneError, OverQuotaError, QuotaBusyError, TooLargeError } from '../../utils/mirrorFile.js'
 import { discardMirroredParts, isDatabaseRefusal, removeUnreferencedMirrors } from '../mirrorEnqueue.js'
 
 const NOW = 1_800_000_000_000
@@ -30,6 +30,8 @@ function setup(opts: {
   content?: any[]
   mode?: 'link' | 'refresh' | 'mirror'
   claimed?: boolean
+  /** claim_id on the claimed row; absent as on a database before 20261123100001. */
+  claimId?: string
   attempts?: number
   connected?: boolean
   walkDone?: boolean
@@ -56,7 +58,9 @@ function setup(opts: {
       case 'bridge_mirror_observe': return { walk_done: opts.walkDone ?? true }
       case 'bridge_mirror_backfill': return 3
       case 'bridge_mirror_claim':
-        return opts.claimed === false ? [] : [{ message_id: 'm1', attempts: opts.attempts ?? 0 }]
+        return opts.claimed === false ? [] : [{
+          message_id: 'm1', attempts: opts.attempts ?? 0, ...(opts.claimId ? { claim_id: opts.claimId } : {}),
+        }]
       case 'update_message_content_silent':
         if (opts.updateThrows !== undefined) {
           throw Object.assign(new Error('update_message_content_silent failed: boom'), { code: opts.updateThrows })
@@ -206,6 +210,69 @@ describe('MirrorWorker.tick', () => {
     expect(t.finish()[0]).toMatchObject({ p_state: 'queued', p_retry_seconds: 900, p_attempts: 2 })
   })
 
+  it('stores the signed links of a message while another waits for the bridge to re-sign it', async () => {
+    // An unsigned attachment link, as a deleted attachment is left: Discord no longer signs it.
+    const dead = 'https://cdn.discordapp.com/attachments/1/2/a.png'
+    const content = [{ type: 'file', url: dead }, { type: 'file', url: fresh('b') }]
+    const t = setup({ content, attempts: 1 })
+    await t.worker.tick()
+    expect(t.mirror).toHaveBeenCalledTimes(1)
+    expect(t.mirror.mock.calls[0][0]).toBe(fresh('b'))
+    const upd = t.calls.find((c) => c[0] === 'update_message_content_silent')![1]
+    expect(upd.p_content[0]).toEqual({ type: 'file', url: dead })
+    expect(upd.p_content[1].path).toBe('c/c1/bridge/b1/B.png')
+    expect(t.gateway.sendToBot).toHaveBeenCalledWith('b1', {
+      op: 0, t: 'REFRESH_ATTACHMENTS', d: { messageId: 'm1', channelId: 'c1', content: upd.p_content },
+    })
+    expect(t.finish()).toEqual([expect.objectContaining({ p_state: 'queued', p_retry_seconds: 120, p_attempts: 2 })])
+    expect(t.discard).not.toHaveBeenCalled()
+  })
+
+  it('fails on the fifth refresh with the other files stored', async () => {
+    const t = setup({ content: [{ type: 'file', url: stale('a') }, { type: 'file', url: fresh('b') }], attempts: 4 })
+    await t.worker.tick()
+    expect(t.calls.find((c) => c[0] === 'update_message_content_silent')![1].p_content[1].path).toBe('c/c1/bridge/b1/B.png')
+    expect(t.finish()[0]).toMatchObject({ p_state: 'failed', p_attempts: 5, p_error: 'Discord would not refresh the link' })
+  })
+
+  it('stores the signed links while the bot is offline, and waits 900 s for the rest', async () => {
+    const t = setup({ content: [{ type: 'file', url: stale('a') }, { type: 'file', url: fresh('b') }], attempts: 2, connected: false })
+    await t.worker.tick()
+    expect(t.mirror).toHaveBeenCalledTimes(1)
+    expect(t.calls.find((c) => c[0] === 'update_message_content_silent')![1].p_content[1].path).toBe('c/c1/bridge/b1/B.png')
+    expect(t.gateway.sendToBot).not.toHaveBeenCalled()
+    expect(t.finish()[0]).toMatchObject({ p_state: 'queued', p_retry_seconds: 900, p_attempts: 2 })
+  })
+
+  it('asks for the refresh with the content an edit left, after re-applying the stored path', async () => {
+    const original = [{ type: 'file', url: stale('a') }, { type: 'file', url: fresh('b') }]
+    const edited = [{ type: 'text', text: 'edited' }, ...original]
+    const t = setup({ content: original, updateResults: [false, true], rereads: [
+      { id: 'm1', content: original, channel_id: 'c1', bot_id: 'b1' },
+      { id: 'm1', content: edited, channel_id: 'c1', bot_id: 'b1' },
+    ] })
+    await t.worker.tick()
+    const sent = (t.gateway.sendToBot.mock.calls as any[])[0][1].d.content
+    expect(sent[0]).toEqual({ type: 'text', text: 'edited' })
+    expect(sent[1].url).toBe(stale('a'))
+    expect(sent[2].path).toBe('c/c1/bridge/b1/B.png')
+  })
+
+  it('passes the claim id of the row to every outcome', async () => {
+    for (const opts of [{}, { content: [{ type: 'file', url: stale() }] }, { mirror: vi.fn(async () => { throw new Error('boom') }) }]) {
+      const t = setup({ claimId: 'k1', ...opts })
+      await t.worker.tick()
+      expect(t.finish()).toHaveLength(1)
+      expect(t.finish()[0].p_claim_id).toBe('k1')
+    }
+  })
+
+  it('sends no claim id to a database whose claim returns none', async () => {
+    const t = setup()
+    await t.worker.tick()
+    expect(t.finish()[0]).not.toHaveProperty('p_claim_id')
+  })
+
   it('writes the other part and finishes too_large', async () => {
     const mirror = vi.fn(async (url: string) => {
       if (url.includes('/a.png')) throw new TooLargeError(600_000_000)
@@ -243,6 +310,23 @@ describe('MirrorWorker.tick', () => {
     await both.worker.tick()
     expect(both.finish()[0]).toMatchObject({ p_state: 'over_quota' })
     const failing = setup({ content, mirror: refuse({ a: new OverQuotaError(9), b: new Error('boom'), c: new TooLargeError(9) }) })
+    await failing.worker.tick()
+    expect(failing.finish()[0]).toMatchObject({ p_state: 'queued', p_attempts: 1, p_retry_seconds: 60 })
+  })
+
+  it('asks again in 300 s, without an attempt, while files in flight hold the cap', async () => {
+    const refuse = (errors: Record<string, Error>) => vi.fn(async (url: string) => {
+      const name = url.includes('/a.png') ? 'a' : 'b'
+      throw errors[name]
+    })
+    const content = [{ type: 'file', url: fresh('a') }, { type: 'file', url: fresh('b') }]
+    for (const other of [new QuotaBusyError(9), new OverQuotaError(9), new TooLargeError(9), new GoneError(404)]) {
+      const t = setup({ content, mirror: refuse({ a: new QuotaBusyError(9), b: other }) })
+      await t.worker.tick()
+      expect(t.finish()[0]).toMatchObject({ p_state: 'queued', p_attempts: 0, p_retry_seconds: 300 })
+    }
+    // A part that fails for another reason is bounded by its attempts.
+    const failing = setup({ content, mirror: refuse({ a: new QuotaBusyError(9), b: new Error('boom') }) })
     await failing.worker.tick()
     expect(failing.finish()[0]).toMatchObject({ p_state: 'queued', p_attempts: 1, p_retry_seconds: 60 })
   })

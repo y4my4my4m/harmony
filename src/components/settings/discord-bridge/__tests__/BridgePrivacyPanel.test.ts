@@ -1,4 +1,4 @@
-/** BridgePrivacyPanel.vue: Server settings → Discord Bridge → Bridge privacy. */
+/** BridgePrivacyPanel.vue: Server settings → Bridges → Discord or Matrix → Bridge privacy. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import BridgePrivacyPanel from '../BridgePrivacyPanel.vue'
@@ -182,5 +182,96 @@ describe('BridgePrivacyPanel', () => {
 
     expect(toast.success).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('BridgePrivacyPanel for Matrix', () => {
+  const SAM = '@sam:example.org'
+  const LEE = '@lee:example.org'
+  const matrixScope = { p_server_id: SERVER_ID, p_platform: 'matrix' }
+  const mountMatrix = () => mount(BridgePrivacyPanel, { props: { serverId: SERVER_ID, platform: 'matrix' }, global: { plugins: [makeI18n()] } })
+
+  it('lists only the Matrix users left out of this server, named as Matrix users', async () => {
+    installBackend({ bridge_remote_optouts: [
+      ...optouts(),
+      { server_id: SERVER_ID, platform: 'matrix', remote_user_id: SAM, source: 'self', created_at: '2026-11-16T10:00:00Z' },
+      { server_id: SERVER_ID, platform: 'matrix', remote_user_id: LEE, source: 'manager', self_opted_out: true, created_at: '2026-11-16T09:00:00Z' },
+    ] })
+    const w = mountMatrix()
+    await flushPromises()
+
+    expect(w.get('[data-testid="bridge-privacy"]').attributes('data-platform')).toBe('matrix')
+    const rows = w.findAll('[data-testid="privacy-row"]')
+    expect(rows.map((r) => r.find('code').text())).toEqual([SAM, LEE])
+    expect(rows[0].text()).toContain('Opted out on Matrix')
+    expect(rows[1].text()).toContain('Removed by a manager')
+    expect(rows[1].get('[data-testid="privacy-also-self"]').text()).toBe('Also opted out on Matrix')
+    expect(rows[1].get('[data-testid="privacy-restore"]').attributes('aria-label')).toBe(`Bridge Matrix user ${LEE} again`)
+    expect(w.text()).toContain('2 Matrix users left out')
+    expect(w.get('label').text()).toBe('Matrix user ID')
+  })
+
+  it.each(['sam', '400000000000000001', '@sam', 'sam:example.org', '@sam:exa mple.org'])('refuses %j, which is not a Matrix ID', async (value) => {
+    installBackend({ bridge_remote_optouts: [] })
+    const w = mountMatrix()
+    await flushPromises()
+    await w.get('[data-testid="privacy-id"]').setValue(value)
+    await w.get('form').trigger('submit')
+
+    expect(w.get('[data-testid="privacy-id-help"]').text()).toBe('A Matrix user ID looks like @name:server.')
+    expect(w.find('[data-testid="privacy-remove-confirm"]').exists()).toBe(false)
+    expect(rpcCalls('bridge_privacy_remove_remote_user')).toEqual([])
+  })
+
+  it('takes a full Matrix ID, which a Discord panel refuses', async () => {
+    installBackend({ bridge_remote_optouts: [] })
+    const discord = mountPanel()
+    await flushPromises()
+    await discord.get('[data-testid="privacy-id"]').setValue(SAM)
+    await discord.get('form').trigger('submit')
+    expect(discord.get('[data-testid="privacy-id-help"]').text()).toBe('A Discord user ID is 5 to 20 digits.')
+
+    const w = mountMatrix()
+    await flushPromises()
+    const input = w.get('[data-testid="privacy-id"]')
+    expect(input.attributes('inputmode')).toBe('text')
+    expect(input.attributes('maxlength')).toBe('255')
+    await input.setValue(SAM)
+    await w.get('form').trigger('submit')
+    expect(w.get('[data-testid="privacy-remove-confirm"]').text()).toContain(`Matrix user ${SAM}`)
+  })
+
+  it('removes, restores and purges with the matrix platform', async () => {
+    const backend = installBackend({ bridge_remote_optouts: [
+      { server_id: SERVER_ID, platform: 'matrix', remote_user_id: LEE, source: 'manager', created_at: '2026-11-16T09:00:00Z' },
+    ] }, (name, args) => {
+      if (name === 'bridge_privacy_remove_remote_user') return { erased: 3, more: false }
+      if (name === 'bridge_privacy_purge_server') return { erased: 7, more: false }
+      if (name === 'bridge_privacy_restore_remote_user') {
+        const rows = backend.tables.bridge_remote_optouts
+        rows.splice(rows.findIndex((r) => r.remote_user_id === args.p_remote_user_id), 1)
+        return true
+      }
+      return null
+    })
+    const w = mountMatrix()
+    await flushPromises()
+
+    await w.get('[data-testid="privacy-id"]').setValue(SAM)
+    await w.get('form').trigger('submit')
+    await w.get('[data-testid="privacy-confirm-yes"]').trigger('click')
+    await flushPromises()
+    expect(rpcCalls('bridge_privacy_remove_remote_user')).toEqual([{ ...matrixScope, p_remote_user_id: SAM }])
+    expect(toast.success).toHaveBeenCalledWith('Removed 3 messages')
+
+    await w.get('[data-testid="privacy-restore"]').trigger('click')
+    await flushPromises()
+    expect(rpcCalls('bridge_privacy_restore_remote_user')).toEqual([{ ...matrixScope, p_remote_user_id: LEE }])
+
+    await w.get('[data-testid="privacy-purge"]').trigger('click')
+    expect(w.get('[data-testid="privacy-purge-confirm"]').text()).toContain('brought from Matrix into this server')
+    await w.get('[data-testid="privacy-confirm-yes"]').trigger('click')
+    await flushPromises()
+    expect(rpcCalls('bridge_privacy_purge_server')).toEqual([matrixScope])
   })
 })

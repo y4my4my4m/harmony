@@ -1,20 +1,21 @@
 ---
 title: OAuth sign-in
-description: Let people sign in to a self-hosted Harmony instance with Google, GitHub, Twitch or an identity provider you run.
+description: Let people sign in to a self-hosted Harmony instance with Google, GitHub, Twitch, Discord or an identity provider you run.
 ---
 
 # OAuth sign-in
 
 This page is for operators who want **Continue with Google**,
-**Continue with GitHub** or **Continue with Twitch** on their sign-in page,
-or a button for an identity provider they run themselves, such as
-Authentik, Keycloak or Better Auth. The second case has its own section,
-[Your own identity provider](#your-own-identity-provider).
+**Continue with GitHub**, **Continue with Twitch** or **Continue with Discord**
+on their sign-in page, or a button for an identity provider they run
+themselves, such as Authentik, Keycloak or Better Auth. The second case has its
+own section, [Your own identity provider](#your-own-identity-provider).
 
 Each provider needs two things: credentials in the Supabase sign-in service,
 which runs the OAuth exchange, and the provider's button turned on in the
 app. Either one alone does nothing useful: a button without credentials
-fails, and credentials without a button are never used.
+fails, and credentials without a button are never used. For the four built-in
+providers both are set in the admin panel.
 
 ## How a sign-in goes
 
@@ -35,12 +36,22 @@ has their address, see [Existing accounts](#existing-accounts). Registration
 set to `invite` or `closed` (`harmony registration`) stops these new accounts
 too: the sign-in service refuses every new account while sign-up is disabled.
 
+A first sign-in through Discord fills in the person's Discord display name and
+avatar, and suggests their Discord username.
+
 ## Create the provider application
 
 In the developer console of each provider you want, create an OAuth
-application for the instance: an OAuth client of type web application at
-Google, an OAuth app at GitHub, an application at Twitch. Give it this
-callback (redirect) URL:
+application for the instance:
+
+| Provider | Where |
+|---|---|
+| Google | Google Cloud console → APIs & Services → Credentials → an OAuth client ID of type web application |
+| GitHub | Settings → Developer settings → OAuth Apps → New OAuth App |
+| Twitch | Twitch developer console → Applications → Register your application |
+| Discord | Discord Developer Portal → your application → OAuth2. The client ID is the application ID; **Reset Secret** shows the client secret |
+
+Give it this callback (redirect) URL:
 
 ```text
 https://db.chat.example.com/auth/v1/callback
@@ -48,13 +59,69 @@ https://db.chat.example.com/auth/v1/callback
 
 The host is `DB_DOMAIN`, the Supabase API, not the app's domain. The URL is
 `API_EXTERNAL_URL` from `self-host/supabase/.env` followed by
-`/auth/v1/callback`.
+`/auth/v1/callback`; the admin panel shows it with a **Copy** button.
 
 Note the client ID and client secret the provider gives you.
 
-## Add the credentials
+A Discord application that already runs this instance's Discord bridge bot can
+sign people in as well: add the callback URL to its OAuth2 redirects and use
+its client ID and secret here.
 
-In `self-host/supabase/.env`, add three lines per provider:
+## Set it up in the admin panel
+
+1. Open **User settings** → **Instance admin** → **Config** →
+   **Authentication**.
+2. In the provider's card, paste the **Client ID** and the **Client secret**,
+   then select **Save**.
+3. Switch on **On sign-in page**.
+
+The card's badge follows the sign-in service: **Applying…** until it has
+taken the credentials, about 15 seconds, then **Active**. Nothing restarts and
+nobody is signed out.
+
+The secret is write-only: the panel shows **Saved** in its place and never
+sends it back to a browser. Leave a field empty to keep the stored value; type
+a new one to replace it. **Clear** deletes both and turns the provider off.
+For a provider set here, switching **On sign-in page** off hides the button and
+also turns the provider off in the sign-in service, so `/auth/v1/authorize`
+refuses it too.
+
+### How the credentials reach the sign-in service
+
+The database keeps the client ID, and the secret in Supabase Vault
+(`auth_provider_credentials`, readable by no client). Every 10 seconds the
+federation server renders them into `50-harmony-oauth.env` in the
+`auth-config` volume, mode `0600`:
+
+```bash
+# Written by the Harmony federation server from Admin, Authentication. Edits are overwritten.
+GOTRUE_EXTERNAL_DISCORD_ENABLED='true'
+GOTRUE_EXTERNAL_DISCORD_CLIENT_ID='123456789012345678'
+GOTRUE_EXTERNAL_DISCORD_SECRET='…'
+GOTRUE_EXTERNAL_DISCORD_REDIRECT_URI='https://db.chat.example.com/auth/v1/callback'
+```
+
+The sign-in service runs with `--config-dir` on that volume, read-only, and
+reloads it five seconds after it changes. Only the federation server's
+`HARMONY_AUTH_CONFIG_DIR` writes it; client IDs and secrets are limited to
+letters, digits and `. _ ~ + / = -` in the database and again before the file
+is written.
+
+A provider set in the admin panel replaces the `supabase/.env` values below
+for that provider. A cleared one stays off: the sign-in service never forgets
+a value it loaded, so the file says `ENABLED=false` for it.
+
+When the panel says the sign-in service does not take credentials from it, the
+federation server has no `HARMONY_AUTH_CONFIG_DIR`: an instance whose
+`docker-compose.yml` predates 1.9.8, or a manual deployment. Use the variables
+below there, or mount one directory read-write into the federation server
+(`HARMONY_AUTH_CONFIG_DIR`) and read-only into the sign-in service, started as
+`auth --config-dir <dir>`. Both run as uid 1000 in their images.
+
+## Set it up in supabase/.env
+
+Without the admin panel, add three lines per provider to
+`self-host/supabase/.env`:
 
 ```bash
 GITHUB_ENABLED=true
@@ -67,6 +134,7 @@ GITHUB_SECRET=your-client-secret
 | Google | `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET` |
 | GitHub | `GITHUB_ENABLED`, `GITHUB_CLIENT_ID`, `GITHUB_SECRET` |
 | Twitch | `TWITCH_ENABLED`, `TWITCH_CLIENT_ID`, `TWITCH_SECRET` |
+| Discord | `DISCORD_ENABLED`, `DISCORD_CLIENT_ID`, `DISCORD_SECRET` |
 
 Apply them:
 
@@ -77,10 +145,11 @@ docker compose up -d
 
 `self-host/supabase-overrides.yml` passes them to the sign-in service as
 `GOTRUE_EXTERNAL_GITHUB_ENABLED`, `GOTRUE_EXTERNAL_GITHUB_CLIENT_ID` and
-`GOTRUE_EXTERNAL_GITHUB_SECRET` (and likewise for `GOOGLE` and `TWITCH`),
-with `GOTRUE_EXTERNAL_<PROVIDER>_REDIRECT_URI` set to
+`GOTRUE_EXTERNAL_GITHUB_SECRET` (and likewise for `GOOGLE`, `TWITCH` and
+`DISCORD`), with `GOTRUE_EXTERNAL_<PROVIDER>_REDIRECT_URI` set to
 `API_EXTERNAL_URL/auth/v1/callback`. `configure.sh` neither writes nor
 removes these keys, so they survive `harmony config` and `harmony update`.
+The admin panel shows such a provider as **Set on the server**.
 
 On a manual deployment with your own Supabase stack, set the
 `GOTRUE_EXTERNAL_*` variables on its `auth` service directly; the upstream
@@ -88,20 +157,14 @@ compose file has no lines for them.
 
 ## Show the buttons
 
-Turn the providers on in the admin panel:
-
-1. Open **User settings** → **Instance admin** → **Config** →
-   **Authentication**.
-2. Switch on **Google**, **Twitch** or **GitHub**.
-3. Select **Save OAuth settings**.
-
-The buttons appear on the sign-in and registration pages the next time they
-load, in the order Google, Twitch, GitHub.
+Each provider's **On sign-in page** switch in **Authentication** shows its
+button. The buttons appear on the sign-in and registration pages the next time
+they load, in the order Google, Twitch, GitHub, Discord.
 
 The app decides which buttons to show in this order:
 
-1. The providers saved in the admin panel (`instance_config.oauth_providers`),
-   when at least one is on.
+1. The providers switched on in the admin panel
+   (`instance_config.oauth_providers`), when at least one is on.
 2. Otherwise, `ENABLED_OAUTH_PROVIDERS` in `self-host/.env`, a comma-separated
    list such as `google,github` (`VITE_ENABLED_OAUTH_PROVIDERS` in a static
    build). A change needs `docker compose up -d`.
@@ -113,6 +176,7 @@ as well.
 
 ## Check it
 
+- The provider's card in **Authentication** says **Active**.
 - Open the sign-in page in a private window and select the provider's
   button. The provider's consent page should open.
 - An error page from the provider about the redirect URI means the callback
@@ -121,10 +185,13 @@ as well.
 - An error after the provider's page sends you back comes from the sign-in
   service: `harmony logs auth` shows it. A provider whose `_ENABLED` key is
   not `true` is refused there.
+- A card stuck on **Applying…**: `harmony logs federation-server` names a
+  directory it cannot write, and `harmony logs auth` a file it cannot read
+  (`reloader: error loading config`).
 
 ## Existing accounts
 
-A first sign-in through Google, GitHub or Twitch either joins the account that
+A first sign-in through Google, GitHub, Twitch or Discord either joins the account that
 already has the person's address, or makes a new one. Which of the two is safe
 depends on whether the instance confirms addresses by email.
 
@@ -136,8 +203,9 @@ would let anyone in:
 - GitHub sends every address on the GitHub account, unverified ones included.
   Whoever adds your address to their GitHub account would sign in to your
   Harmony account, the admin's included.
-- Google's `email_verified` is ignored the same way, and the sign-in service
-  takes the address Twitch sends as verified in every case.
+- Google's `email_verified` and Discord's `verified` are ignored the same way,
+  and the sign-in service takes the address Twitch sends as verified in every
+  case.
 - The other way round: whoever registers here with someone else's address,
   which nobody checks, would receive that person's first sign-in through any
   provider.
@@ -149,11 +217,13 @@ automatically. `configure.sh`, which `harmony install`, `harmony config` and
 sets up SMTP, since the accounts made before it never proved their address:
 
 ```bash
-PROVIDER_LINKING_DOMAINS=github=github,google=google,twitch=twitch
+PROVIDER_LINKING_DOMAINS=discord=discord,github=github,google=google,twitch=twitch
 ```
 
 An entry already there stays, so a choice made with `harmony auth linking`
-holds across updates. An instance that sends email from the start gets no
+holds across updates; an instance kept apart before 1.9.8 gains
+`discord=discord` on its next update. The domains apply to a provider set in
+the admin panel as to one set in `supabase/.env`. An instance that sends email from the start gets no
 entries and joins by verified address.
 
 | The person | Kept apart (without SMTP) | Joined by address |
@@ -225,9 +295,8 @@ both; the admin panel lists them but cannot change them.
   It checks when you add the provider and again at sign-in. A provider on
   the same machine or LAN needs a DNS name that resolves to a public address
   from inside the `auth` container.
-- **An asymmetric signing key.** ID tokens signed with RS256, RS384, RS512,
-  ES256, ES384, ES512, PS256, PS384, PS512 or EdDSA. HS256, signed with the
-  client secret, is refused.
+- **A userinfo endpoint** that answers with `sub` and `email`. OIDC
+  providers have one; see [ID token or userinfo](#id-token-or-userinfo).
 - **An email address**, unless you add the provider with `--email-optional`.
 
 ### 1. Register Harmony with the provider
@@ -259,15 +328,17 @@ harmony auth add-provider authentik --name Authentik \
 
 It asks for the client secret without showing it. For scripts, pass
 `--client-secret-file FILE` (`-` reads standard input) or set
-`HARMONY_OAUTH_CLIENT_SECRET`. Before it stores anything, the sign-in
-service fetches `ISSUER/.well-known/openid-configuration` and checks that
-its `issuer` equals `--issuer`. The provider's accounts stay apart from
-existing ones ([First sign-in and existing accounts](#first-sign-in-and-existing-accounts)):
+`HARMONY_OAUTH_CLIENT_SECRET`. Before it stores anything, it fetches
+`ISSUER/.well-known/openid-configuration`, checks that its `issuer` equals
+`--issuer`, and takes the provider's authorization, token and userinfo
+endpoints from it. The provider's accounts stay apart from existing ones
+([First sign-in and existing accounts](#first-sign-in-and-existing-accounts)):
 
 ```text
 ==> Recreating the auth service with PROVIDER_LINKING_DOMAINS=custom:authentik=custom:authentik...
 ==> Saving sign-in provider custom:authentik...
  ✓ Sign-in provider custom:authentik (Authentik) added; its button shows on the next load of the sign-in page
+ ✓ Address and name: from the provider's userinfo endpoint
  ✓ Existing accounts: kept apart; a first sign-in through custom:authentik makes a new account
 
    Redirect (callback) URL to register with the provider:
@@ -287,8 +358,8 @@ The provider's id is `custom:authentik`. Reload the sign-in page: the button
 2. **Client type**: Confidential. **Redirect URIs/Origins**: Strict,
    `https://db.chat.example.com/auth/v1/callback`.
 3. **Signing Key**: pick one, such as *authentik Self-signed Certificate*.
-   Without a signing key, Authentik signs ID tokens with HS256, which the
-   sign-in service refuses.
+   Without one, Authentik signs ID tokens with HS256, which only matters
+   with `--id-token`: the sign-in service refuses HS256.
 4. Keep the default scope mappings (`openid`, `email`, `profile`).
 5. **Applications** → **Applications** → **Create**: name `Harmony`, slug
    `harmony`, provider `Harmony`.
@@ -332,8 +403,39 @@ harmony auth add-provider betterauth --name "Example Account" \
 ```
 
 With Better Auth, register the client with the redirect URI above and the
-`openid`, `email` and `profile` scopes. Its JWT plugin signs with EdDSA by
-default, which the sign-in service accepts.
+`openid`, `email` and `profile` scopes. Its ID token carries no address; its
+userinfo endpoint does, which is where Harmony reads it.
+
+### ID token or userinfo
+
+An OIDC provider can hand over the person's address and name in the ID
+token, from its userinfo endpoint, or both. OpenID Connect lets it keep them
+for userinfo when the sign-in also gets an access token, and Better Auth and
+Authelia (4.39 and later) do. The sign-in service reads only one of the two:
+
+| Added with | Reads | Needs |
+|---|---|---|
+| `--issuer` | userinfo, with the access token from the token endpoint | A `userinfo_endpoint` in the discovery document |
+| `--issuer` and `--id-token` | The ID token, verified against the provider's keys | The address in the ID token; an RS, ES, PS or EdDSA signing key (HS256 is refused) |
+
+Without `--id-token`, `add-provider` stores the provider with the endpoints
+of its discovery document; a document without `userinfo_endpoint` gives an
+ID token provider. Harmony 1.9.1 to 1.9.7 added every `--issuer` provider as
+an ID token one, and they stay that way while they work. `harmony auth
+providers` shows each one under **ADDRESS FROM**.
+
+A sign-in through an ID token provider that keeps the address for userinfo
+ends with `Error getting user email from external provider`. Switch it:
+
+```bash
+harmony auth add-provider betterauth --userinfo
+```
+
+It asks for the client secret again: the sign-in service does not hand back
+the stored one, and the provider is made again under the same id. Its
+button, settings and accounts stay. If the sign-in service refuses the new
+form, the old one is put back with the secret you gave. `--id-token`, with
+`--issuer`, switches back.
 
 ### OAuth 2.0 without discovery
 
@@ -404,7 +506,7 @@ it by hand, run `docker compose up -d auth`.
 ### Change or remove a provider
 
 `harmony auth add-provider` with an existing id updates that provider; give
-only what changes. A new client secret:
+only what changes, and it keeps reading what it read. A new client secret:
 
 ```bash
 harmony auth add-provider authentik --client-secret-file /root/authentik-secret
@@ -436,16 +538,23 @@ With your own Supabase stack, the `auth` service needs:
 
 `harmony auth` works with the self-host stack only. Elsewhere, create the
 provider through the sign-in service's admin API with the service role key,
-then add its button to `instance_config`:
+then add its button to `instance_config`. As `harmony auth add-provider`
+does, give the endpoints of the provider's discovery document, so the
+sign-in service reads userinfo:
 
 ```bash
 curl -X POST https://db.chat.example.com/auth/v1/admin/custom-providers \
   -H "apikey: $SERVICE_ROLE_KEY" -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
   -H 'Content-Type: application/json' \
-  -d '{"provider_type":"oidc","identifier":"custom:authentik","name":"Authentik",
-       "issuer":"https://auth.example.com/application/o/harmony/",
+  -d '{"provider_type":"oauth2","identifier":"custom:authentik","name":"Authentik",
+       "authorization_url":"https://auth.example.com/application/o/authorize/",
+       "token_url":"https://auth.example.com/application/o/token/",
+       "userinfo_url":"https://auth.example.com/application/o/userinfo/",
        "client_id":"...","client_secret":"...","scopes":["openid","email","profile"]}'
 ```
+
+`"provider_type":"oidc"` with `"issuer"` in place of the three endpoints
+reads the ID token instead ([ID token or userinfo](#id-token-or-userinfo)).
 
 ```sql
 UPDATE public.instance_config
@@ -460,13 +569,16 @@ UPDATE public.instance_config
 | Symptom | Cause | Fix |
 |---|---|---|
 | `URL cannot resolve to private network addresses` or `URL cannot point to localhost or loopback addresses` | The provider's host resolves to a LAN, loopback or link-local address from the `auth` container | Use a DNS name that resolves to a public address |
-| `oidc: issuer mismatch, expected "A" got "B"` | `--issuer` differs from the discovery document's `issuer`, often by a trailing `/` | Pass B exactly |
+| `oidc: issuer mismatch, expected A got B` | `--issuer` differs from the discovery document's `issuer`, often by a trailing `/` | Pass B exactly |
+| `the discovery document of ISSUER names no userinfo_endpoint` | `--userinfo` for a provider without userinfo | Use `--id-token` |
+| `switching custom:ID to read from userinfo makes it again and needs the client secret` | `--userinfo` or `--id-token` changes what the provider reads | Give the secret (prompt, `--client-secret-file` or `HARMONY_OAUTH_CLIENT_SECRET`) |
 | `discovery request to ... returned 404 Not Found` | No discovery document under the issuer | Check the issuer, or pass `--discovery-url` |
 | `x509: certificate signed by unknown authority` | The provider's certificate is not from a public CA | Serve it with a publicly trusted certificate |
 | `this auth service has no custom sign-in providers` | The sign-in service is older than 2.187.0 | `harmony update` |
 | The provider's page says the redirect URI is invalid | The redirect URI registered with the provider differs | Register `https://db.chat.example.com/auth/v1/callback` exactly |
-| Back on Harmony: `failed to verify ID token`, with `unsupported` algorithm | The provider signs ID tokens with HS256 | Give the client an RSA, EC or Ed25519 signing key (Authentik: **Signing Key**) |
-| Back on Harmony: `Error getting user email from external provider` | No address from the provider | Grant the `email` scope or map an email claim; or re-add with `--email-optional` |
+| Back on Harmony: `failed to verify ID token`, with `unsupported` algorithm | An ID token provider signs with HS256 | `harmony auth add-provider ID --userinfo`, or give the client an RSA, EC or Ed25519 signing key (Authentik: **Signing Key**) |
+| Back on Harmony: `Error getting user email from external provider`, and `harmony auth providers` says `ID token` | The provider keeps the address for userinfo (Better Auth, Authelia 4.39+) | `harmony auth add-provider ID --userinfo` |
+| Back on Harmony: `Error getting user email from external provider`, from a userinfo provider | No address from the provider | Grant the `email` scope or map an email claim; or re-add with `--email-optional` |
 | Back on Harmony: `Unverified email with custom:ID` | The provider sent `email_verified: false` and the instance confirms addresses by email | The person confirms through the email they received, or the provider marks addresses verified |
 | Back on Harmony: `Signups not allowed for this instance` | Registration is `invite` or `closed` | `harmony registration open`, or invite the person first |
 | A JSON page saying `custom provider custom:ID not found` | The button outlived its provider | `harmony auth remove-provider ID` |

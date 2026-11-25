@@ -20,6 +20,9 @@ const BATCH_DELAY_MS = 250
 const CALLS_PER_MINUTE = 60
 /** Messages of one author admitted a minute: links that never sign cannot take the shared budget. */
 const AUTHOR_MESSAGES_PER_MINUTE = 30
+/** Messages of one author held for a later minute (three minutes' worth); past it a request is busy. */
+const AUTHOR_HELD_MAX = 90
+const HELD_MAX = 2_000
 const AUTHORS_MAX = 10_000
 const TOKEN_TTL_MS = 60_000
 /** A message whose links Discord did not re-sign (attachment deleted, token refused) waits this long. */
@@ -173,6 +176,10 @@ export class DiscordLinkRefresher {
   /** Message id -> time it may be tried again; insertion order is age order. */
   private readonly failedUntil = new Map<string, number>()
   private pending: Pending[] = []
+  /** Author -> messages past the author's minute, oldest first; queued as the minute frees places. */
+  private readonly held = new Map<string, Pending[]>()
+  private readonly heldIds = new Set<string>()
+  private releaseTimer: ReturnType<typeof setTimeout> | null = null
   /** Messages of the batches sent and not yet written: a request for one waits on that batch. */
   private readonly signing = new Set<string>()
   private timer: ReturnType<typeof setTimeout> | null = null
@@ -202,22 +209,73 @@ export class DiscordLinkRefresher {
     this.calls = this.calls.filter((t) => t > now - 60_000)
     if (now < this.pausedUntil || this.calls.length >= CALLS_PER_MINUTE) return 'busy'
     if (!(await this.token())) return 'no_signer'
-    if (this.signing.has(messageId) || this.pending.some((p) => p.messageId === messageId)) return 'queued'
-    if (author && !this.admitAuthor(author, now)) return 'busy'
+    if (this.signing.has(messageId) || this.heldIds.has(messageId) || this.pending.some((p) => p.messageId === messageId)) {
+      return 'queued'
+    }
+    const entry = { messageId, content, urls: urls.slice(0, REFRESH_URLS_MAX) }
+    // Past the author's minute the message waits for the next one: the viewer asks only once a
+    // render and 30 s apart (attachmentRefresh.ts COALESCE_MS).
+    if (author && !this.admitAuthor(author, now)) return this.hold(author, entry) ? 'queued' : 'busy'
+    this.enqueue(entry)
+    return 'queued'
+  }
 
-    this.pending.push({ messageId, content, urls: urls.slice(0, REFRESH_URLS_MAX) })
+  /** Queues what the authors' minutes admit now, sends what is queued, and waits for every call and write in flight. */
+  async drain(): Promise<void> {
+    this.release()
+    while (this.pending.length > 0) this.flush()
+    await this.inFlight
+  }
+
+  private enqueue(entry: Pending): void {
+    this.pending.push(entry)
     if (this.pendingUrlCount() >= REFRESH_URLS_MAX) this.flush()
     else if (!this.timer) {
       this.timer = setTimeout(() => this.flush(), BATCH_DELAY_MS)
       this.timer.unref?.()
     }
-    return 'queued'
   }
 
-  /** Sends what is queued and waits for every call and write in flight. */
-  async drain(): Promise<void> {
-    while (this.pending.length > 0) this.flush()
-    await this.inFlight
+  private hold(author: string, entry: Pending): boolean {
+    const waiting = this.held.get(author) ?? []
+    if (waiting.length >= AUTHOR_HELD_MAX || this.heldIds.size >= HELD_MAX) return false
+    waiting.push(entry)
+    this.held.set(author, waiting)
+    this.heldIds.add(entry.messageId)
+    this.scheduleRelease()
+    return true
+  }
+
+  /** Moves held messages to the queue while their author's minute and the call budget admit them. */
+  private release(): void {
+    const now = this.now()
+    this.calls = this.calls.filter((t) => t > now - 60_000)
+    if (now >= this.pausedUntil && this.calls.length < CALLS_PER_MINUTE) {
+      for (const [author, waiting] of this.held) {
+        while (waiting.length > 0 && this.admitAuthor(author, now)) {
+          const entry = waiting.shift() as Pending
+          this.heldIds.delete(entry.messageId)
+          this.enqueue(entry)
+        }
+        if (waiting.length === 0) this.held.delete(author)
+      }
+    }
+    this.scheduleRelease()
+  }
+
+  /** The next release: when the earliest admission of a waiting author leaves its minute, or the call budget frees. */
+  private scheduleRelease(): void {
+    if (this.releaseTimer) {
+      clearTimeout(this.releaseTimer)
+      this.releaseTimer = null
+    }
+    if (this.held.size === 0) return
+    const now = this.now()
+    let at = Infinity
+    for (const author of this.held.keys()) at = Math.min(at, (this.admitted.get(author)?.[0] ?? now) + 60_000)
+    at = Math.max(at, this.pausedUntil, this.calls.length >= CALLS_PER_MINUTE ? this.calls[0] + 60_000 : 0)
+    this.releaseTimer = setTimeout(() => this.release(), Math.max(at - now, BATCH_DELAY_MS))
+    this.releaseTimer.unref?.()
   }
 
   private admitAuthor(author: string, now: number): boolean {

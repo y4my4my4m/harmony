@@ -207,6 +207,54 @@
               </div>
               <ToggleSwitch v-model="editForm.mentionable" :labelledby="`${a11yId}-mention`" :describedby="`${a11yId}-mention-desc`" />
             </div>
+
+            <template v-if="!selectedRole.is_default">
+              <div class="form-group toggle-row">
+                <div class="toggle-info">
+                  <span :id="`${a11yId}-pick`" class="toggle-title">{{ t('server.roleManagement.selfAssignable') }}</span>
+                  <p :id="`${a11yId}-pick-desc`" class="form-help">{{ t('server.roleManagement.selfAssignableDesc') }}</p>
+                </div>
+                <ToggleSwitch
+                  v-model="editForm.selfAssignable"
+                  data-testid="role-self-assignable"
+                  :labelledby="`${a11yId}-pick`"
+                  :describedby="`${a11yId}-pick-desc`"
+                />
+              </div>
+              <template v-if="editForm.selfAssignable">
+                <p v-if="selfAssignWarning" class="form-warning" role="status" data-testid="role-self-assign-warning">
+                  {{ selfAssignWarning }}
+                </p>
+                <div class="form-group">
+                  <label :for="`${a11yId}-pick-group`">{{ t('server.roleManagement.selfAssignGroup') }}</label>
+                  <input
+                    :id="`${a11yId}-pick-group`"
+                    v-model="editForm.selfAssignGroup"
+                    type="text"
+                    class="form-input"
+                    maxlength="50"
+                    :list="`${a11yId}-pick-groups`"
+                    :placeholder="t('server.roleManagement.selfAssignGroupPlaceholder')"
+                    data-testid="role-self-assign-group"
+                  />
+                  <datalist :id="`${a11yId}-pick-groups`">
+                    <option v-for="name in selfAssignGroups" :key="name" :value="name" />
+                  </datalist>
+                </div>
+                <div class="form-group">
+                  <label :for="`${a11yId}-pick-note`">{{ t('server.roleManagement.selfAssignNote') }}</label>
+                  <input
+                    :id="`${a11yId}-pick-note`"
+                    v-model="editForm.selfAssignNote"
+                    type="text"
+                    class="form-input"
+                    maxlength="200"
+                    :placeholder="t('server.roleManagement.selfAssignNotePlaceholder')"
+                    data-testid="role-self-assign-note"
+                  />
+                </div>
+              </template>
+            </template>
           </template>
 
           <!-- Permissions Tab -->
@@ -398,7 +446,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onActivated, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onActivated, onDeactivated, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
 import { supabase } from '@/supabase'
@@ -406,6 +454,7 @@ import { readAllRows } from '@/services/pagedRead'
 import { searchServerMembers } from '@/services/memberDirectoryService'
 import { roleService } from '@/services/RoleService'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import { selfAssignGroupNames, selfAssignProblem } from '@/utils/selfAssignableRoles'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -520,6 +569,9 @@ interface RoleForm {
   hoist: boolean
   mentionable: boolean
   permissions: string[]
+  selfAssignable: boolean
+  selfAssignGroup: string
+  selfAssignNote: string
 }
 const editForm = ref<RoleForm>({
   name: '',
@@ -527,6 +579,9 @@ const editForm = ref<RoleForm>({
   hoist: false,
   mentionable: false,
   permissions: [],
+  selfAssignable: false,
+  selfAssignGroup: '',
+  selfAssignNote: '',
 })
 // Unsaved edits of roles other than the selected one, by role id. Selecting a
 // role takes its draft back into the form; Save or Reset drops it.
@@ -634,6 +689,20 @@ const permissionsArrayToObject = (perms: string[]): Record<string, boolean> => {
 }
 
 // Computed
+// Why members could not pick the selected role as edited; null when they can (overrides aside).
+const selfAssignWarning = computed(() => {
+  const role = selectedRole.value
+  if (!role || !editForm.value.selfAssignable) return null
+  const edited = { ...role, permissions: permissionsArrayToObject(editForm.value.permissions) } as ServerRole
+  const problem = selfAssignProblem(edited, roles.value.map((r) => (r.id === role.id ? edited : r)))
+  if (problem === 'grants') return t('server.roleManagement.selfAssignWarnGrants')
+  if (problem === 'rank') return t('server.roleManagement.selfAssignWarnRank')
+  if (problem === 'admin') return t('server.roleManagement.selfAssignWarnAdmin')
+  return null
+})
+
+const selfAssignGroups = computed(() => selfAssignGroupNames(roles.value))
+
 const hasChanges = computed(() => {
   if (!selectedRole.value) return false
   return isThisRoleDirty(selectedRole.value.id)
@@ -645,6 +714,9 @@ const formOf = (role: ServerRole): RoleForm => ({
   hoist: role.hoist || false,
   mentionable: role.mentionable || false,
   permissions: ensurePermissionsArray(role.permissions),
+  selfAssignable: role.self_assignable === true,
+  selfAssignGroup: role.self_assign_group ?? '',
+  selfAssignNote: role.self_assign_note ?? '',
 })
 
 const copyForm = (form: RoleForm): RoleForm => ({ ...form, permissions: [...form.permissions] })
@@ -656,6 +728,9 @@ function formDiffers(form: RoleForm, role: ServerRole): boolean {
     form.color !== (role.color || '#99AAB5') ||
     form.hoist !== role.hoist ||
     form.mentionable !== role.mentionable ||
+    form.selfAssignable !== (role.self_assignable === true) ||
+    form.selfAssignGroup.trim() !== (role.self_assign_group ?? '') ||
+    form.selfAssignNote.trim() !== (role.self_assign_note ?? '') ||
     JSON.stringify([...form.permissions].sort()) !==
       JSON.stringify([...currentPerms].sort())
   )
@@ -708,6 +783,9 @@ function rebaseForm(form: RoleForm, before: ServerRole, after: ServerRole): Role
     hoist: form.hoist === was.hoist ? now.hoist : form.hoist,
     mentionable: form.mentionable === was.mentionable ? now.mentionable : form.mentionable,
     permissions: permissionsEdited ? [...form.permissions] : now.permissions,
+    selfAssignable: form.selfAssignable === was.selfAssignable ? now.selfAssignable : form.selfAssignable,
+    selfAssignGroup: form.selfAssignGroup === was.selfAssignGroup ? now.selfAssignGroup : form.selfAssignGroup,
+    selfAssignNote: form.selfAssignNote === was.selfAssignNote ? now.selfAssignNote : form.selfAssignNote,
   }
 }
 
@@ -803,20 +881,23 @@ const selectRole = async (role: ServerRole) => {
   const draft = roleDrafts.value[role.id]
   editForm.value = draft ? copyForm(draft) : formOf(role)
   dropDraft(role.id)
-  
-  addMemberSearch.value = ''
-  availableMembers.value = []
-  
+
+  resetMemberSearch()
+
+  // A later selection, or another server, owns the list: an earlier load lands nowhere.
+  const load = ++roleMembersSeq
   loadingMembers.value = true
   try {
     await loadServerBridgedUsers({ force: true })
     const members = await roleService.getRoleMembers(role.id)
+    if (load !== roleMembersSeq) return
     roleMembers.value = mergeRoleMembers(members, role.id)
   } catch (error) {
+    if (load !== roleMembersSeq) return
     console.error('Failed to load role members:', error)
     roleMembers.value = []
   } finally {
-    loadingMembers.value = false
+    if (load === roleMembersSeq) loadingMembers.value = false
   }
 }
 
@@ -910,6 +991,11 @@ const saveRole = async () => {
       hoist: editForm.value.hoist,
       mentionable: editForm.value.mentionable,
       permissions: permissionsArrayToObject(editForm.value.permissions),
+      ...(role.is_default ? {} : {
+        self_assignable: editForm.value.selfAssignable,
+        self_assign_group: editForm.value.selfAssignGroup.trim() || null,
+        self_assign_note: editForm.value.selfAssignNote.trim() || null,
+      }),
     })
     
     if (updated) {
@@ -1007,63 +1093,83 @@ const removeMember = async (member: RoleMemberRow) => {
   }
 }
 
-// Every member, read once and in pages: for an instance that cannot search its membership.
-let everyMember: Promise<any[]> | null = null
-const loadServerMembers = (): Promise<any[]> => {
-  everyMember ??= readAllRows<any>(() => supabase
-    .from('user_servers')
-    .select(`
-      user_id,
-      profiles:user_id (
-        id,
-        username,
-        display_name,
-        avatar_url
-      )
-    `, { count: 'exact' })
-    .eq('server_id', props.serverId)
-    .or('status.is.null,status.eq.accepted')
-    .order('id'))
-    .then(data => data.map((us: any) => ({
-      id: us.user_id,
-      username: us.profiles?.username || 'Unknown',
-      display_name: us.profiles?.display_name,
-      avatar_url: us.profiles?.avatar_url,
-    })))
-    .catch((error) => {
-      console.error('Failed to load server members:', error)
-      everyMember = null
-      return []
-    })
-  return everyMember
+// Every member of one server, read once and in pages: for an instance that cannot search its membership.
+let everyMember: { serverId: string; rows: Promise<any[]> } | null = null
+const loadServerMembers = (serverId: string): Promise<any[]> => {
+  if (everyMember?.serverId === serverId) return everyMember.rows
+  const entry = {
+    serverId,
+    rows: readAllRows<any>(() => supabase
+      .from('user_servers')
+      .select(`
+        user_id,
+        profiles:user_id (
+          id,
+          username,
+          display_name,
+          avatar_url
+        )
+      `, { count: 'exact' })
+      .eq('server_id', serverId)
+      .or('status.is.null,status.eq.accepted')
+      .order('id'))
+      .then(data => data.map((us: any) => ({
+        id: us.user_id,
+        username: us.profiles?.username || 'Unknown',
+        display_name: us.profiles?.display_name,
+        avatar_url: us.profiles?.avatar_url,
+      })))
+      .catch((error) => {
+        console.error('Failed to load server members:', error)
+        if (everyMember === entry) everyMember = null
+        return []
+      }),
+  }
+  everyMember = entry
+  return entry.rows
 }
 
 const handleAddMemberSearch = () => {
   if (searchTimeout) {
     clearTimeout(searchTimeout)
   }
-  
+
   searchTimeout = setTimeout(() => {
     searchAvailableMembers()
   }, 200)
 }
 
-// Members that can be added: not in the role already. The instance searches the membership;
-// where it cannot (no member directory), every member is read once and filtered here.
+// Members that can be added: not in the role already. The instance searches the membership and
+// leaves the role's members out; where it cannot (no member directory), every member is read once
+// and filtered here.
 let addMemberSearchSeq = 0
+let roleMembersSeq = 0
+
+/** Drops the add-member search, its pending timer and any answer still in flight. */
+function resetMemberSearch(): void {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchTimeout = null
+  addMemberSearchSeq++
+  addMemberSearch.value = ''
+  availableMembers.value = []
+  searchingMembers.value = false
+}
+
 const searchAvailableMembers = async () => {
   const query = addMemberSearch.value.toLowerCase().trim()
   const seq = ++addMemberSearchSeq
   if (!query) {
     availableMembers.value = []
+    searchingMembers.value = false
     return
   }
-  
+
   searchingMembers.value = true
-  
+  const serverId = props.serverId
+
   let matches: any[] = []
   try {
-    const found = await searchServerMembers(props.serverId, query, 30)
+    const found = await searchServerMembers(serverId, query, 10, { withoutRole: selectedRole.value?.id })
     if (found) {
       matches = found.map(m => ({
         id: m.id,
@@ -1072,7 +1178,7 @@ const searchAvailableMembers = async () => {
         avatar_url: m.avatar_url,
       }))
     } else {
-      matches = (await loadServerMembers()).filter(member => {
+      matches = (await loadServerMembers(serverId)).filter(member => {
         const username = (member.username || '').toLowerCase()
         const displayName = (member.display_name || '').toLowerCase()
         return username.includes(query) || displayName.includes(query)
@@ -1081,7 +1187,7 @@ const searchAvailableMembers = async () => {
   } catch (error) {
     console.error('Failed to search server members:', error)
   }
-  // The latest search wins.
+  // The latest search wins; resetMemberSearch retires one the view no longer shows.
   if (seq !== addMemberSearchSeq) return
 
   const roleMemberIds = new Set(roleMembers.value.map(m => m.id))
@@ -1192,6 +1298,9 @@ const memberName = (member: { display_name?: string; username: string }): string
 // Watch for server changes
 watch(() => props.serverId, () => {
   everyMember = null
+  resetMemberSearch()
+  roleMembersSeq++
+  roleMembers.value = []
   selectedRole.value = null
   roleDrafts.value = {}
   roles.value = []
@@ -1242,6 +1351,9 @@ onActivated(() => {
   if (activatedBefore) void loadRoles()
   activatedBefore = true
 })
+// A hidden or closed view keeps no member search: its answer would show on the next visit.
+onDeactivated(resetMemberSearch)
+onBeforeUnmount(resetMemberSearch)
 </script>
 
 <style scoped>
@@ -1604,6 +1716,16 @@ onActivated(() => {
   margin: 6px 0 0;
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+}
+
+.form-warning {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 8px);
+  background-color: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
 }
 
 .form-input {

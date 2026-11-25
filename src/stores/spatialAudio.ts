@@ -304,16 +304,22 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
       });
     },
 
-    clearAllPositions(): void {
-      this.userPositions.clear();
+    /** The signed-in user's stored choice. */
+    loadEnabled(): void {
+      this.settings.enabled = readEnabled();
     },
 
+    /**
+     * Ends the call layout: positions, panel and drag. The enabled choice is read again; it
+     * belongs to whoever is signed in.
+     */
     reset(): void {
       this.isPanelVisible = false;
       this.userPositions.clear();
       this.isDragging = false;
       this.draggedUserId = null;
       this.dragOffset = { x: 0, y: 0 };
+      this.loadEnabled();
     }
   }
 });

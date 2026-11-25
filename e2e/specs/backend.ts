@@ -16,6 +16,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Page, Route } from '@playwright/test'
+import WebSocket from 'ws'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const TSX = path.join(ROOT, 'federation-backend/node_modules/.bin/tsx')
@@ -62,6 +63,9 @@ export async function startBackend(extraEnv: Record<string, string> = {}): Promi
       DIRECTORY_ALLOW_PORTS: 'true',
       // createApp() opens no Redis connection; a closed port keeps any path off a local Redis.
       REDIS_URL: 'redis://127.0.0.1:9',
+      // The activity frame loads its script from the dev server; the relay admits its origin.
+      APP_URL: process.env.BASE_URL || 'http://localhost:5173',
+      CORS_ORIGIN: process.env.BASE_URL || 'http://localhost:5173',
       LOG_LEVEL: 'error',
       ...extraEnv,
     },
@@ -100,6 +104,12 @@ export async function startBackend(extraEnv: Record<string, string> = {}): Promi
       const forward = async (route: Route) => {
         const target = new URL(route.request().url())
         const path = target.pathname.replace(/^\/api\/federation(?=\/)/, '')
+        // The activity frame document goes over the network: a fulfilled response has no
+        // address, and Chromium's Local Network Access then refuses the frame's localhost script.
+        if (path.startsWith('/activities/frame/')) {
+          await route.continue({ url: `${url}${path}${target.search}` })
+          return
+        }
         let response
         try {
           response = await route.fetch({ url: `${url}${path}${target.search}` })
@@ -118,6 +128,24 @@ export async function startBackend(extraEnv: Record<string, string> = {}): Promi
       }
       await page.route('**/api/federation/**', forward)
       if (extraEnv.LIVEKIT_URL) await page.route('**/api/livekit/**', forward)
+      // The activity relay socket, bridged frame by frame: page.route() does not carry WebSockets.
+      await page.routeWebSocket(/\/api\/federation\/activities\/socket$/, (socket) => {
+        const upstream = new WebSocket(`${url.replace(/^http/, 'ws')}/activities/socket`)
+        const queued: string[] = []
+        const closeCode = (code: number | undefined) => (code === 1000 || (code !== undefined && code >= 3000 && code <= 4999) ? code : 1000)
+        upstream.on('open', () => { for (const text of queued.splice(0)) upstream.send(text) })
+        upstream.on('message', (data) => socket.send(data.toString()))
+        upstream.on('close', (code, reason) => { socket.close({ code: closeCode(code), reason: reason.toString() }).catch(() => {}) })
+        upstream.on('error', () => {})
+        socket.onMessage((message) => {
+          const text = typeof message === 'string' ? message : message.toString()
+          if (upstream.readyState === WebSocket.OPEN) upstream.send(text)
+          else queued.push(text)
+        })
+        socket.onClose((code, reason) => {
+          if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) upstream.close(closeCode(code), reason)
+        })
+      })
     },
     async stop() {
       stopping = true

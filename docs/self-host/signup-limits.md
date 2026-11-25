@@ -81,7 +81,7 @@ Limits count accounts at creation, confirmed or not. An account deleted later st
 window ends. Someone who knows an address can fill its inbox limit with aliases: the owner of that
 inbox then waits out the 30 days or asks an admin to raise the cap.
 
-A first sign-in through Google, GitHub or Twitch counts toward the network cap only. The hook runs on
+A first sign-in through Google, GitHub, Twitch or Discord counts toward the network cap only. The hook runs on
 the provider's callback, and a refusal shows on the app's callback page.
 
 ### Clear a network
@@ -285,7 +285,7 @@ With **When a sign-up looks automated**, the hook asks when any of these holds:
 
 A sign-up the limits refuse is refused as before, without a call to the provider; a captcha does not
 get past a refusal. The token alone goes to the provider, not the person's address. Sign-ups
-through Google, GitHub, Twitch or your own identity provider are never asked, as no widget can run on
+through Google, GitHub, Twitch, Discord or your own identity provider are never asked, as no widget can run on
 their redirect. Addresses on the instance's own network are exempt, as for every limit.
 
 The hook answers HTTP 428 with "Complete the check to finish signing up." The app shows the widget

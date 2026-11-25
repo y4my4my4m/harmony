@@ -171,6 +171,8 @@ Starting a reply, pinning, unpinning and copying are announced to screen readers
 | Voice message progress bar | Page Down / Page Up | Back or forward a quarter of the message. |
 | Voice message progress bar | Home / End | Start or end. |
 
+In the media viewer, the keys, the wheel and the zoom buttons zoom a picture from a tenth of its fitted size up to five times it, or up to three times the picture's own size when that is larger. A double click on a fitted picture zooms it to 2.5 times about the pointer; on a zoomed, shrunk or moved picture it returns the picture to its fitted size, centred. With a mouse, a drag moves the picture at any zoom, past its edges too, and the wheel zooms without pulling it back; zooming out to the fitted size centres it.
+
 ## Voice and video
 
 These shortcuts are listed in **User settings** → **Keybindings**, where each one can be turned off, recorded anew or reset.

@@ -135,10 +135,18 @@ export async function validateImageUpload(file: File, bucket: string): Promise<s
     return `That ${limits.label} is a ${typeName} file, which isn't allowed. Supported types: ${describeMimeList(limits.allowedMime)}.`
   }
 
+  return sizeError(file, limits)
+}
+
+/** The bucket's size limit alone, for uploads stored whatever their type (messageMediaUpload.storedContentType). */
+export async function validateUploadSize(file: Blob, bucket: string): Promise<string | null> {
+  return sizeError(file, await getBucketLimits(bucket))
+}
+
+function sizeError(file: Blob, limits: BucketLimitConfig): string | null {
   if (limits.maxBytes > 0 && file.size > limits.maxBytes) {
     return `That ${limits.label} is too large (${formatBytes(file.size)}). The maximum allowed size is ${formatBytes(limits.maxBytes)}.`
   }
-
   return null
 }
 

@@ -117,9 +117,13 @@ Profiles, posts and hashtags have the addresses Mastodon uses, on your instance'
 | `/@name/ID`, `/@name@example.social/ID` | A post. **Copy link** in a post's menu copies this address. |
 | `/tags/tag` | A hashtag. |
 
+On public pages, posts show the link previews and GIFs stored with them, and a link to an image or video file shows that file. This instance fetches nothing from other servers when a visitor opens a public page.
+
 Earlier addresses, `/social/profile/…`, `/social/post/…` and `/social/hashtag/…`, open the same pages and change to the new address.
 
 **Copy profile link**, first in a profile's **⋯** menu, copies the profile's address on this instance, to share anywhere.
+
+A profile on another server opens from what this instance stored. When the stored copy is more than a day old, opening the profile reads it again from its server in the background. **Refresh profile**, in the **⋯** menu of an account on another server, reads it now: a new name, avatar or bio shows at once. When that server can't be reached, the profile stays as it was.
 
 A profile shows the account's full handle, `@name@domain`, accounts on this instance included: the form people on other servers type to find or mention it. **Copy handle**, the copy button beside the handle on a profile and on a profile card, and the item of the same name in the profile card's menu, copies it. People search lists accounts by the same handle. A link to a profile in a message shows a card with the account's name, handle, bio and counts, **Follow** and **Open profile**.
 
@@ -132,7 +136,7 @@ Open their profile and select **Follow**. The button then reads **Following**, a
 ### Follow someone on another server
 
 1. In the **Feed** header select **Search**. The **Search users** dialog opens.
-2. Type the full handle, such as `@alice@example.social`, and press Enter. Harmony looks the account up on its server. A display name or part of a username searches the accounts this instance already knows.
+2. Type the full handle, such as `@alice@example.social`, and press Enter. Harmony looks the account up on its server. A display name or part of a username searches the accounts this instance already knows. A username with dots works the same way, as Bluesky accounts bridged by Bridgy Fed (`@alice.bsky.social@bsky.brid.gy`) and Threads accounts have, and such a handle can be mentioned.
 3. Select the account to open its profile, then select **Follow**.
 
 A follow of an account on another server shows **Requested** until that server accepts it. Selecting **Requested** withdraws the request; it reads **Cancel request** while you point at it.

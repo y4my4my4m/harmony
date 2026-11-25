@@ -1,17 +1,17 @@
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
-import { isBridgedDiscordProfileUser } from '@/services/bridgedChannelUsersService'
+import { bridgedProfilePlatform } from '@/services/bridgedChannelUsersService'
 import { formatHandle, type HandleOwner } from '@/utils/handles'
 
 export type CopyHandleAccount = HandleOwner & { id?: string; bridge_source?: string }
 
 /**
  * The handle a person copies to follow or mention an account from anywhere: `@user@domain`,
- * this instance's domain for a local account. '' for a bridged Discord account, whose name
+ * this instance's domain for a local account. '' for a bridged account, whose name
  * no WebFinger answers.
  */
 export function copyableHandle(account: CopyHandleAccount | null | undefined): string {
-  if (!account || isBridgedDiscordProfileUser(account)) return ''
+  if (!account || bridgedProfilePlatform(account)) return ''
   return formatHandle(account, { full: true })
 }
 

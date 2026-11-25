@@ -30,7 +30,9 @@ In order, it:
    checkout: `X.Y.Z` on tag `vX.Y.Z`, otherwise `edge`. On an instance whose
    `.env` has no `ENABLE_ANALYTICS`, [log collection](/self-host/#log-collection)
    turns off: `analytics` and `vector` are removed and the logs they stored
-   deleted, with one line naming the space freed. Files the new code brings
+   deleted, with one line naming the space freed. An instance still named
+   Harmony, the name earlier installers offered, is named after its domain
+   unless `INSTANCE_NAME_CHOSEN=true` marks Harmony as chosen. Files the new code brings
    are made readable to the containers, which a umask of 077 or 027 keeps
    them from ([A restrictive umask](/self-host/troubleshooting#umask)).
 3. **Downloads the new images**, or builds Harmony's with `HARMONY_BUILD=1`.
@@ -39,7 +41,8 @@ In order, it:
    `self-host/backups/TIME-OLD-to-NEW/` (no uploads). `HARMONY_SKIP_BACKUP=1`
    skips this, for when a backup was taken another way.
 5. **Applies new database migrations** while the old containers keep
-   running.
+   running. A name step 2 gave replaces Harmony in the database too, with one
+   line saying so; a name set in the admin panel stays.
 6. **Recreates the containers** whose image or configuration changed, and
    restarts Caddy when the Caddyfile changed.
 7. **Deletes old update backups**, keeping the newest 5 of each kind (see

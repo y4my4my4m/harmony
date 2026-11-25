@@ -45,6 +45,7 @@ import ServerRail from '../ServerRail.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings'
+import { useBridgePrivacyStore } from '@/stores/useBridgePrivacy'
 import { supabase } from '@/supabase'
 
 const s = (id: string, position: number, folder_id: string | null = null, owner = 'someone') =>
@@ -100,6 +101,47 @@ describe('ServerRail context menus', () => {
     } finally {
       now.mockRestore()
     }
+  })
+
+  const privacy = (discord: boolean, matrix: boolean) => ({
+    discord: { bridged: discord, opted_out: false },
+    matrix: { bridged: matrix, opted_out: false },
+  })
+  const answerPrivacy = (data: unknown) => rpc.mockImplementation(async (name: string) => (
+    name === 'bridge_member_privacy' ? { data, error: null } : { data: null, error: null }))
+  const privacyReads = () => rpc.mock.calls.filter(([name]) => name === 'bridge_member_privacy')
+
+  it('offers bridge privacy, without administrator permissions, on a server a bridge relays', async () => {
+    answerPrivacy(privacy(false, true))
+    await openOn('server', 'a')
+    await vi.waitFor(() => expect(actions()).toContain('bridge-privacy'))
+    expect(actions()).toEqual([...base.slice(0, 10), 'bridge-privacy', ...base.slice(10), 'create-folder', 'move-to-folder', 'move-to-F1', 'copy-id', 'leave'])
+    await wrapper.get('[data-action="bridge-privacy"]').trigger('click')
+    await flushPromises()
+    expect(privacyReads()).toEqual([['bridge_member_privacy', { p_server_id: 'a' }], ['bridge_member_privacy', { p_server_id: 'a' }]])
+    expect(useBridgePrivacyStore().serverId).toBe('a')
+    expect(useBridgePrivacyStore().platforms).toEqual(['matrix'])
+  })
+
+  it('reads each server once across menu openings and hides the entry where nothing is bridged', async () => {
+    answerPrivacy(privacy(false, false))
+    await openOn('server', 'a')
+    await flushPromises()
+    expect(actions()).not.toContain('bridge-privacy')
+    await wrapper.get('.rail-menu').trigger('keydown', { key: 'Escape' })
+    await openOn('server', 'a')
+    await flushPromises()
+    expect(actions()).not.toContain('bridge-privacy')
+    expect(privacyReads()).toHaveLength(1)
+  })
+
+  it('does not offer local bridge privacy on a federated copy', async () => {
+    answerPrivacy(privacy(true, true))
+    store.servers[0].is_local_server = false
+    await openOn('server', 'a')
+    await flushPromises()
+    expect(actions()).not.toContain('bridge-privacy')
+    expect(privacyReads()).toEqual([])
   })
 
   it('gives a loose server the full menu', async () => {

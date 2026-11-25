@@ -194,6 +194,88 @@ studio_default_off() {
 	fi
 }
 
+# --- Instance name ---------------------------------------------------------------
+# INSTANCE_NAME in .env, copied into instance_config.instance_name by bootstrap.sh on a new
+# database. Other servers show it: NodeInfo metadata.nodeName, the instance actor's name. A new
+# instance is offered its domain, the title GoToSocial gives a new instance (CreateInstanceSettings).
+# Releases up to 1.9.7 offered Harmony, the software's name, which made every instance that kept
+# it indistinguishable. configure.sh applies the same rules.
+
+# trim STRING: without leading and trailing whitespace.
+trim() {
+	local s="$1"
+	s="${s#"${s%%[![:space:]]*}"}"
+	printf '%s' "${s%"${s##*[![:space:]]}"}"
+}
+
+# is_software_name NAME: status 0 when NAME is Harmony in any case.
+is_software_name() { [[ "$(printf '%s' "$1" | lower)" == harmony ]]; }
+
+# instance_name_problem NAME: why NAME cannot be the instance name; empty when it can. Env files
+# hold it unquoted: compose expands $, cuts at " #", and reads a leading quote as quoting.
+instance_name_problem() {
+	if [[ -z "$1" ]]; then
+		echo "the instance name is empty"
+	elif [[ "$1" == *[\$\#\"\\\`]* || "$1" == \'* || "$1" == *$'\n'* ]]; then
+		echo "the instance name cannot contain \$ # \" \\ or a backtick, or start with a quote (the admin panel accepts any name later)"
+	fi
+}
+
+# instance_name_unchosen: a configured install named Harmony, exactly as earlier releases
+# offered it, without INSTANCE_NAME_CHOSEN in .env. configure.sh names it after its domain.
+instance_name_unchosen() {
+	[[ -n "$(env_get "$ENV_FILE" DOMAIN)" ]] && ! grep -q '^INSTANCE_NAME_CHOSEN=' "$ENV_FILE" 2>/dev/null &&
+		[[ "$(env_get "$ENV_FILE" INSTANCE_NAME)" =~ ^(Harmony)?$ ]]
+}
+
+# ask_instance_name DOMAIN: sets INSTANCE_NAME. Offered: HARMONY_INSTANCE_NAME, else the
+# configured name, else DOMAIN (also for instance_name_unchosen); whitespace alone is no name.
+# Enter or a blank answer takes the offer (read trims). Harmony typed over another offer needs a
+# confirmation; an offered Harmony is taken with a warning.
+ask_instance_name() {
+	local domain="$1" offer problem
+	offer="$(trim "${HARMONY_INSTANCE_NAME:-}")"
+	if [[ -z "$offer" ]]; then
+		offer="$(trim "$(env_get "$ENV_FILE" INSTANCE_NAME)")"
+		if [[ -z "$offer" ]] || instance_name_unchosen; then offer="$domain"; fi
+	fi
+	while :; do
+		ask INSTANCE_NAME "Instance name, as the app and other servers show it" "$offer"
+		INSTANCE_NAME="$(trim "$INSTANCE_NAME")"
+		problem="$(instance_name_problem "$INSTANCE_NAME")"
+		if [[ -n "$problem" ]]; then
+			interactive || die "$problem (HARMONY_INSTANCE_NAME)"
+			warn "$problem"
+			continue
+		fi
+		is_software_name "$INSTANCE_NAME" || return 0
+		warn "Harmony is the software's name: other servers show every instance named so under the same name."
+		if is_software_name "$offer" || ! interactive || ask_yn "Name this instance Harmony anyway?" n; then
+			return 0
+		fi
+	done
+}
+
+# instance_name_default_renamed: run after configure.sh where instance_name_unchosen held before
+# it. instance_config.instance_name takes the new name of .env while it is still Harmony; a name
+# set in the admin panel stays. Prints one line; never stops the caller.
+instance_name_default_renamed() {
+	local name out
+	name="$(env_get "$ENV_FILE" INSTANCE_NAME)"
+	[[ -n "$name" && "$name" != Harmony ]] || return 0
+	if db_ready && out="$(db_sql -v name="$name" <<'SQL'
+UPDATE public.instance_config
+   SET config_value = to_jsonb(:'name'::text), updated_at = now()
+ WHERE config_key = 'instance_name' AND config_value = '"Harmony"'::jsonb
+RETURNING 1;
+SQL
+)"; then
+		[[ "$out" != 1 ]] || ok "Instance name: $name, in place of Harmony, the name earlier releases offered. Admin, Config, Branding changes it."
+	else
+		warn "The instance is still named Harmony in the database; Admin, Config, Branding names it."
+	fi
+}
+
 # Bytes of the _supabase database plus the write-ahead log.
 analytics_disk_bytes() {
 	db_sql -c "SELECT coalesce((SELECT pg_database_size(oid) FROM pg_database WHERE datname = '_supabase'), 0)
@@ -261,9 +343,15 @@ analytics_default_off() {
 svc_id() { compose ps -q --status running "$1" 2>/dev/null | head -1; }
 
 # Environment of the running auth service, one VAR=value per line; empty when it is not running.
+# The KEY='value' lines of its --config-dir (/etc/harmony-auth/*.env, written from Admin,
+# Authentication) come first: GoTrue lets them override the container's environment, and readers
+# take the first.
 auth_env() {
 	local id; id="$(svc_id auth)"
-	[[ -z "$id" ]] || docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$id" 2>/dev/null || true
+	[[ -n "$id" ]] || return 0
+	docker exec "$id" sh -c 'cat /etc/harmony-auth/*.env 2>/dev/null' 2>/dev/null |
+		sed -n "s/^\([A-Z0-9_]*\)='\([^']*\)'\$/\1=\2/p" || true
+	docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$id" 2>/dev/null || true
 }
 
 # oauth_enabled [ENV]: the GoTrue OAuth providers that are on, space-separated. ENV (auth_env)

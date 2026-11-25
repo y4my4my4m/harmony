@@ -7,9 +7,10 @@
 
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
-import { isChannelRefusal } from '@/utils/realtimeRefusal'
+import { ChannelCloseBackoff, isChannelRefusal } from '@/utils/realtimeRefusal'
 import { useAuthStore } from '@/stores/auth'
 import { userDataService } from '@/services/userDataService'
+import { currentRealtimeToken, onMemberToken } from '@/services/realtimeMemberToken'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface TypingUser {
@@ -50,6 +51,14 @@ class TypingIndicatorService {
    */
   private staleSweepers = new Map<string, number>()
   private readonly STALE_REEVAL_MS = 1000
+  /**
+   * Topics refused since their last subscribe request, with the token the refusal carried. No retry
+   * on that token succeeds until membership or policy changes; another member token tries again.
+   */
+  private refusedKeys = new Map<string, { context: TypingContext; token: string }>()
+  private memberTokenOff: (() => void) | null = null
+  private resubscribeTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private closeBackoffs = new Map<string, ChannelCloseBackoff>()
 
   async initialize(): Promise<void> {
     if (this.currentUserId) return
@@ -86,20 +95,12 @@ class TypingIndicatorService {
     }
     this.typingCallbacks.get(contextKey)!.add(callback)
 
-    const wire = () => {
-      this.ensureSubscribed(context).then(ok => {
-        if (ok) this.handlePresenceSync(context)
-      }).catch(err => {
-        debug.error('TypingIndicatorService: Failed to subscribe:', err)
-      })
-    }
-
     if (!this.currentUserId) {
-      this.initialize().then(wire).catch(err => {
+      this.initialize().then(() => this.wire(context)).catch(err => {
         debug.error('TypingIndicatorService: Failed to initialize:', err)
       })
     } else {
-      wire()
+      this.wire(context)
     }
 
     return () => {
@@ -108,10 +109,83 @@ class TypingIndicatorService {
         callbacks.delete(callback)
         if (callbacks.size === 0) {
           this.typingCallbacks.delete(contextKey)
+          this.cancelResubscribe(contextKey)
+          this.closeBackoffs.delete(contextKey)
+          this.refusedKeys.delete(contextKey)
           void this.teardownContextKey(contextKey)
         }
       }
     }
+  }
+
+  /** Subscribes for the context's callbacks, again after a failure, for as long as they stay registered. */
+  private wire(context: TypingContext): void {
+    this.ensureSubscribed(context).then(ok => {
+      if (ok) this.handlePresenceSync(context)
+      else this.scheduleResubscribe(context)
+    }).catch(err => {
+      debug.error('TypingIndicatorService: Failed to subscribe:', err)
+    })
+  }
+
+  private backoffFor(contextKey: string): ChannelCloseBackoff {
+    let backoff = this.closeBackoffs.get(contextKey)
+    if (!backoff) {
+      backoff = new ChannelCloseBackoff()
+      this.closeBackoffs.set(contextKey, backoff)
+    }
+    return backoff
+  }
+
+  private scheduleResubscribe(context: TypingContext): void {
+    const contextKey = this.getContextKey(context)
+    if (this.resubscribeTimers.has(contextKey)) return
+    if (!this.typingCallbacks.has(contextKey) || this.refusedKeys.has(contextKey)) return
+    this.resubscribeTimers.set(contextKey, setTimeout(() => {
+      this.resubscribeTimers.delete(contextKey)
+      if (this.typingCallbacks.has(contextKey)) this.wire(context)
+    }, this.backoffFor(contextKey).next()))
+  }
+
+  private markRefused(context: TypingContext): void {
+    this.refusedKeys.set(this.getContextKey(context), { context, token: currentRealtimeToken() })
+    this.memberTokenOff ??= onMemberToken((token) => this.retryRefused(token))
+  }
+
+  /** Subscribes again each open context refused on a token other than `token`. */
+  private retryRefused(token: string): void {
+    for (const [contextKey, refused] of [...this.refusedKeys]) {
+      if (refused.token === token || !this.typingCallbacks.has(contextKey)) continue
+      this.refusedKeys.delete(contextKey)
+      this.cancelResubscribe(contextKey)
+      this.wire(refused.context)
+    }
+  }
+
+  private cancelResubscribe(contextKey: string): void {
+    const timer = this.resubscribeTimers.get(contextKey)
+    if (timer === undefined) return
+    clearTimeout(timer)
+    this.resubscribeTimers.delete(contextKey)
+  }
+
+  /** The server closed a joined topic. realtime-js has removed the channel and does not rejoin it. */
+  private handleServerClose(context: TypingContext): void {
+    const contextKey = this.getContextKey(context)
+    debug.warn('TypingIndicatorService: Closed by the server', contextKey)
+    this.stopStaleSweeper(contextKey)
+    this.channelsByKey.delete(contextKey)
+    this.typingUsers.delete(contextKey)
+    this.notifyCallbacks(context, [])
+    if (this.isSameContext(context, this.typingBroadcastContext)) {
+      if (this.typingTimeout) {
+        clearTimeout(this.typingTimeout)
+        this.typingTimeout = null
+      }
+      this.isCurrentlyTyping = false
+      this.typingBroadcastContext = null
+    }
+    this.scheduleResubscribe(context)
   }
 
   async startTyping(context: TypingContext): Promise<void> {
@@ -197,6 +271,7 @@ class TypingIndicatorService {
    */
   private async ensureSubscribed(context: TypingContext): Promise<boolean> {
     const contextKey = this.getContextKey(context)
+    this.refusedKeys.delete(contextKey)
     if (this.channelsByKey.has(contextKey)) {
       this.handlePresenceSync(context)
       return true
@@ -227,6 +302,7 @@ class TypingIndicatorService {
           // for Realtime's CHANNEL_ERROR_BACKOFF_MS.
           if (error instanceof TypingChannelRefused) {
             debug.warn('TypingIndicatorService: Refused', channelName)
+            this.markRefused(context)
             return false
           }
           debug.warn(`TypingIndicatorService: Subscription attempt ${attempt}/${MAX_RETRIES} failed`, channelName)
@@ -282,9 +358,13 @@ class TypingIndicatorService {
 
       ch.subscribe((status, err) => {
         if (resolved) {
+          if (this.channelsByKey.get(contextKey) !== ch) return
           // realtime-js rejoins after a socket drop, and rejoins a refused topic until it is removed.
-          if (status === 'CHANNEL_ERROR' && isChannelRefusal(err) && this.channelsByKey.get(contextKey) === ch) {
+          if (status === 'CHANNEL_ERROR' && isChannelRefusal(err)) {
+            this.markRefused(context)
             void this.teardownContextKey(contextKey)
+          } else if (status === 'CLOSED') {
+            this.handleServerClose(context)
           }
           return
         }
@@ -293,6 +373,7 @@ class TypingIndicatorService {
           resolved = true
           clearTimeout(timeout)
           this.channelsByKey.set(contextKey, ch)
+          this.backoffFor(contextKey).joined()
           this.handlePresenceSync(context)
           this.startStaleSweeper(context)
           resolve(true)
@@ -472,6 +553,13 @@ class TypingIndicatorService {
       clearInterval(handle)
     }
     this.staleSweepers.clear()
+
+    for (const timer of this.resubscribeTimers.values()) {
+      clearTimeout(timer)
+    }
+    this.resubscribeTimers.clear()
+    this.closeBackoffs.clear()
+    this.refusedKeys.clear()
 
     this.typingUsers.clear()
     this.typingCallbacks.clear()

@@ -130,16 +130,16 @@
             <!-- User item -->
             <div
               v-else-if="item.bridgedUser"
-              class="user-item bridged-discord-user"
+              class="user-item bridged-user"
               :class="{ 'offline-user': item.isOffline }"
-              :title="`Discord: @${item.bridgedUser.username}`"
+              :title="bridgedMemberTitle(item.bridgedUser)"
               role="button"
               data-member-item
               :data-member-index="virtualRow.index"
               tabindex="-1"
-              @click="showBridgedDiscordUserProfile(item.bridgedUser)"
-              @keydown.enter.self.prevent="showBridgedDiscordUserProfile(item.bridgedUser)"
-              @keydown.space.self.prevent="showBridgedDiscordUserProfile(item.bridgedUser)"
+              @click="showBridgedUserProfile(item.bridgedUser)"
+              @keydown.enter.self.prevent="showBridgedUserProfile(item.bridgedUser)"
+              @keydown.space.self.prevent="showBridgedUserProfile(item.bridgedUser)"
             >
               <Avatar
                 :src="item.bridgedUser.avatarUrl || '/default_avatar.webp'"
@@ -156,10 +156,8 @@
                     {{ item.bridgedUser.displayName || item.bridgedUser.username }}
                   </span>
                   <span class="sr-only">{{ memberStateText(item) }}</span>
-                  <span class="discord-bridge-badge" :title="t('chatNav.members.discord')" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="#5865F2" class="discord-bridge-icon" aria-hidden="true">
-                      <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05-.01.07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12z"/>
-                    </svg>
+                  <span class="member-bridge-badge" aria-hidden="true">
+                    <BridgeSourceBadge :source="item.bridgedUser.source" />
                   </span>
                 </div>
                 <div
@@ -171,7 +169,7 @@
                   </span>
                   <span class="status-text">{{ getBridgedCustomStatusDisplay(item.bridgedUser) }}</span>
                 </div>
-                <span v-else class="user-domain">@{{ item.bridgedUser.username }}</span>
+                <span v-else class="user-domain">{{ bridgedMemberHandle(item.bridgedUser) }}</span>
               </div>
             </div>
 
@@ -382,6 +380,8 @@ import { useAnnouncer } from '@/composables/useAnnouncer';
 import { debug } from '@/utils/debug'
 import type { User } from '@/types';
 import UserProfileModal from '@/components/UserProfileModal.vue';
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
+import { bridgedAuthorHandle, bridgePlatformLabel } from '@/utils/messageAuthor';
 import BotProfileModal from '@/components/BotProfileModal.vue';
 import UserContextMenu from '@/components/UserContextMenu.vue';
 import KickBanModal from '@/components/moderation/KickBanModal.vue';
@@ -408,6 +408,8 @@ import { useBridgedChannelUsers } from '@/composables/useBridgedChannelUsers';
 import {
   bridgedUserToProfileUser,
   type BridgedChannelUser,
+  bridgedUserKey,
+  bridgedUserMatches,
   resolveBridgedUserColor,
 } from '@/services/bridgedChannelUsersService';
 import { useServerBots } from '@/composables/useServerBots';
@@ -853,10 +855,15 @@ const collapsedGroups = ref<Record<string, boolean>>({
   offline: false
 });
 
+// currentChannelId outlives a server switch; the channel list is swapped with the server.
+const openChannelId = computed(() => {
+  const id = serverChannelStore.currentChannelId;
+  return id && serverChannelStore.channels.some((c) => c.id === id) ? id : null;
+});
 const {
-  users: bridgedDiscordUsers,
+  users: bridgedUsers,
   hasBridge: channelHasBridge,
-} = useBridgedChannelUsers(() => serverChannelStore.currentChannelId);
+} = useBridgedChannelUsers(openChannelId, () => serverChannelStore.currentServerId);
 
 const { bots: serverBots } = useServerBots(() => serverChannelStore.currentServerId);
 
@@ -887,20 +894,13 @@ const users = computed(() => {
   }));
 });
 
-const filteredBridgedDiscordUsers = computed(() => {
-  if (!channelHasBridge.value || bridgedDiscordUsers.value.length === 0) {
+const filteredBridgedUsers = computed(() => {
+  if (!channelHasBridge.value || bridgedUsers.value.length === 0) {
     return [];
   }
-  const query = searchQuery.value.trim().toLowerCase();
-  const sorted = [...bridgedDiscordUsers.value].sort((a, b) =>
-    (a.displayName || a.username).localeCompare(b.displayName || b.username),
-  );
-  if (!query) return sorted;
-  return sorted.filter((user) => {
-    const displayName = (user.displayName || '').toLowerCase();
-    const username = user.username.toLowerCase();
-    return displayName.includes(query) || username.includes(query);
-  });
+  return bridgedUsers.value
+    .filter((user) => bridgedUserMatches(user, searchQuery.value))
+    .sort((a, b) => (a.displayName || a.username).localeCompare(b.displayName || b.username));
 });
 
 function getBridgedAvatarStatus(
@@ -939,8 +939,8 @@ function getHighestHoistedRoleForBridged(bridgedUser: BridgedChannelUser): Serve
   return null;
 }
 
-/** Discord users grouped by hoisted role when online+, otherwise by presence (offline bucket). */
-const bridgedDiscordGrouping = computed(() => {
+/** Bridged members grouped by hoisted role when online+, otherwise by presence (offline bucket). */
+const bridgedGrouping = computed(() => {
   const byRoleId: Record<string, BridgedChannelUser[]> = {};
   const byPresence: Record<'online' | 'away' | 'busy' | 'offline', BridgedChannelUser[]> = {
     online: [],
@@ -953,7 +953,7 @@ const bridgedDiscordGrouping = computed(() => {
     byRoleId[role.id] = [];
   }
 
-  for (const bridgedUser of filteredBridgedDiscordUsers.value) {
+  for (const bridgedUser of filteredBridgedUsers.value) {
     const status = bridgedUser.presenceStatus ?? 'offline';
     const hoistedRole = getHighestHoistedRoleForBridged(bridgedUser);
     if (hoistedRole && byRoleId[hoistedRole.id] && status !== 'offline') {
@@ -980,9 +980,18 @@ const bridgedDiscordGrouping = computed(() => {
   return { byRoleId, byPresence };
 });
 
-function showBridgedDiscordUserProfile(bridgedUser: BridgedChannelUser) {
+function showBridgedUserProfile(bridgedUser: BridgedChannelUser) {
   selectedUser.value = bridgedUserToProfileUser(bridgedUser) as User;
   showProfileModal.value = true;
+}
+
+/** Row tooltip: the platform and the username a mention of this member shows (Matrix: the MXID localpart). */
+function bridgedMemberTitle(bridgedUser: BridgedChannelUser): string {
+  return `${bridgePlatformLabel(bridgedUser.source)}: @${bridgedUser.username.replace(/^@+/, '')}`;
+}
+
+function bridgedMemberHandle(bridgedUser: BridgedChannelUser): string {
+  return bridgedAuthorHandle({ platform: bridgedUser.source, id: bridgedUser.id, username: bridgedUser.username });
 }
 
 const filteredUsers = computed(() => {
@@ -1103,11 +1112,11 @@ const directoryTotal = computed(() =>
 
 const memberCountKnown = computed(() => directoryTotal.value !== null || users.value.length > 0);
 
-// Harmony members, installed bots and ephemeral Discord bridge members.
+// Harmony members, installed bots and ephemeral bridged members.
 const totalMemberCount = computed(() => {
   return (directoryTotal.value ?? users.value.length)
     + serverBots.value.length
-    + (channelHasBridge.value ? bridgedDiscordUsers.value.length : 0);
+    + (channelHasBridge.value ? bridgedUsers.value.length : 0);
 });
 
 const currentServerData = computed(() => {
@@ -1197,7 +1206,7 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
       const hoistedRole = getHighestHoistedRoleForBridged(bridgedUser);
       items.push({
         type: 'user',
-        key: `bd-${bridgedUser.id}-${groupKey}`,
+        key: `bd-${bridgedUserKey(bridgedUser)}-${groupKey}`,
         groupKey,
         bridgedUser,
         nameColor: resolveBridgedUserColor(bridgedUser, harmonyRoleColor ?? hoistedRole?.color) ?? null,
@@ -1300,34 +1309,34 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
     };
 
     for (const role of hoistedRolesSorted.value) {
-      addSection(`role:${role.id}`, role.name, bridgedDiscordGrouping.value.byRoleId[role.id] || [],
+      addSection(`role:${role.id}`, role.name, bridgedGrouping.value.byRoleId[role.id] || [],
         { roleColor: role.color || '#99AAB5', nameColor: role.color });
     }
     // A hoisted role the instance grouped by and this client has not loaded yet.
     for (const groupKey of [...sections.keys()]) {
       if (groupKey.startsWith('role:')) addSection(groupKey, '', [], { roleColor: '#99AAB5' });
     }
-    addSection('online', t('user.online'), bridgedDiscordGrouping.value.byPresence.online, { showStatus: 'full' }, bots.online);
-    addSection('away', t('user.away'), bridgedDiscordGrouping.value.byPresence.away, { showStatus: 'partial' }, bots.away);
-    addSection('busy', t('user.busy'), bridgedDiscordGrouping.value.byPresence.busy, { showStatus: 'none' }, bots.busy);
+    addSection('online', t('user.online'), bridgedGrouping.value.byPresence.online, { showStatus: 'full' }, bots.online);
+    addSection('away', t('user.away'), bridgedGrouping.value.byPresence.away, { showStatus: 'partial' }, bots.away);
+    addSection('busy', t('user.busy'), bridgedGrouping.value.byPresence.busy, { showStatus: 'none' }, bots.busy);
     addSection('federated', t('federation.federatedBadge'), [], { showStatus: 'full' });
-    addSection('offline', t('user.offline'), bridgedDiscordGrouping.value.byPresence.offline, { isOffline: true, showStatus: 'none' }, bots.offline);
+    addSection('offline', t('user.offline'), bridgedGrouping.value.byPresence.offline, { isOffline: true, showStatus: 'none' }, bots.offline);
     return items;
   }
 
   for (const role of hoistedRolesSorted.value) {
     const roleUsers = groupedUsers.value[`role:${role.id}`] || [];
-    const bridgedInRole = bridgedDiscordGrouping.value.byRoleId[role.id] || [];
+    const bridgedInRole = bridgedGrouping.value.byRoleId[role.id] || [];
     addGroup(`role:${role.id}`, role.name, roleUsers, bridgedInRole, {
       roleColor: role.color || '#99AAB5',
       nameColor: role.color,
     });
   }
-  addGroup('online', t('user.online'), groupedUsers.value.online, bridgedDiscordGrouping.value.byPresence.online, { showStatus: 'full' }, bots.online);
-  addGroup('away', t('user.away'), groupedUsers.value.away, bridgedDiscordGrouping.value.byPresence.away, { showStatus: 'partial' }, bots.away);
-  addGroup('busy', t('user.busy'), groupedUsers.value.busy, bridgedDiscordGrouping.value.byPresence.busy, { showStatus: 'none' }, bots.busy);
+  addGroup('online', t('user.online'), groupedUsers.value.online, bridgedGrouping.value.byPresence.online, { showStatus: 'full' }, bots.online);
+  addGroup('away', t('user.away'), groupedUsers.value.away, bridgedGrouping.value.byPresence.away, { showStatus: 'partial' }, bots.away);
+  addGroup('busy', t('user.busy'), groupedUsers.value.busy, bridgedGrouping.value.byPresence.busy, { showStatus: 'none' }, bots.busy);
   addGroup('federated', t('federation.federatedBadge'), groupedUsers.value.federated, [], { showStatus: 'full' });
-  addGroup('offline', t('user.offline'), groupedUsers.value.offline, bridgedDiscordGrouping.value.byPresence.offline, { isOffline: true, showStatus: 'none' }, bots.offline);
+  addGroup('offline', t('user.offline'), groupedUsers.value.offline, bridgedGrouping.value.byPresence.offline, { isOffline: true, showStatus: 'none' }, bots.offline);
   }
 
   return items;
@@ -1458,7 +1467,10 @@ const groupTitles = computed(() => {
 const memberStateText = (item: SidebarItem): string => {
   const parts: string[] = [];
   if (item.bridgedUser) {
-    parts.push(t('chatNav.members.discord'), t(presenceStatusKey(getBridgedAvatarStatus(item.bridgedUser))));
+    parts.push(
+      t('chatNav.members.bridged', { platform: bridgePlatformLabel(item.bridgedUser.source) }),
+      t(presenceStatusKey(getBridgedAvatarStatus(item.bridgedUser))),
+    );
   } else if (item.bot) {
     parts.push(t(presenceStatusKey(item.bot.status)));
   } else if (item.user) {
@@ -2120,27 +2132,19 @@ const closeInviteModal = () => {
   text-transform: uppercase;
 }
 
-.discord-bridge-badge {
+.member-bridge-badge {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-  margin-left: 6px;
   align-self: center;
   line-height: 0;
 }
 
-.discord-bridge-icon {
-  width: 14px;
-  height: 14px;
-  display: block;
-}
-
-.bridged-discord-user {
+.bridged-user {
   cursor: pointer;
 }
 
-.bridged-discord-user:hover {
+.bridged-user:hover {
   background-color: var(--background-modifier-hover);
 }
 

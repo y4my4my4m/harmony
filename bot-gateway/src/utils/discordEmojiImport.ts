@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase.js'
+import { DISCORD_CDN_TIMEOUT_MS } from './discordSoundImport.js'
 import { absoluteEmojiUrl } from './emojiUrl.js'
 import { stripMediaBytes } from './stripMetadata.js'
 
@@ -34,7 +35,7 @@ export function isBridgeImportedEmoji(
 
 /**
  * Copies a Discord emoji image into the emojis bucket and answers its public URL.
- * Throws on a non-image response, an oversize body, or a storage error.
+ * Throws on a failed or timed-out download, a non-image response, an oversize body, or a storage error.
  */
 export async function storeDiscordEmojiImage(
   serverId: string,
@@ -42,10 +43,14 @@ export async function storeDiscordEmojiImage(
   animated: boolean,
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
-  const response = await fetchImpl(discordEmojiCdnUrl(discordEmojiId, animated))
+  const response = await fetchImpl(discordEmojiCdnUrl(discordEmojiId, animated), {
+    signal: AbortSignal.timeout(DISCORD_CDN_TIMEOUT_MS),
+  })
   if (!response.ok) throw new Error(`Discord CDN answered ${response.status}`)
   const type = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
   if (!type.startsWith('image/')) throw new Error(`Discord CDN answered ${type || 'no content type'}`)
+  const declared = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > MAX_DISCORD_EMOJI_BYTES) throw new Error(`emoji image is ${declared} bytes`)
   const downloaded = Buffer.from(await response.arrayBuffer())
   if (downloaded.byteLength === 0 || downloaded.byteLength > MAX_DISCORD_EMOJI_BYTES) {
     throw new Error(`emoji image is ${downloaded.byteLength} bytes`)

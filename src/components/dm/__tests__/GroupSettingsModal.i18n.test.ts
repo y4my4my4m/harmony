@@ -31,7 +31,9 @@ vi.mock('@/components/ConfirmationModal.vue', async () => ({ default: (await stu
 vi.mock('@/components/common/Avatar.vue', async () => ({ default: (await stubs()).Plain('Avatar') }))
 vi.mock('@/components/common/Icon.vue', async () => ({ default: (await stubs()).Plain('Icon') }))
 vi.mock('@/components/common/GroupIcon.vue', async () => ({ default: (await stubs()).Plain('GroupIcon') }))
-vi.mock('@/components/dm/GroupChatInviteModal.vue', async () => ({ default: (await stubs()).Plain('GroupChatInviteModal') }))
+vi.mock('@/components/dm/GroupChatInviteModal.vue', () => ({
+  default: { name: 'GroupChatInviteModal', props: ['existingParticipants'], render: () => null },
+}))
 vi.mock('@/components/DisplayName.vue', async () => ({ default: (await stubs()).Plain('DisplayName') }))
 vi.mock('vue-toastification', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
@@ -39,7 +41,8 @@ vi.mock('@/supabase', () => ({ supabase: {} }))
 vi.mock('@/utils/groupIconUtils', () => ({ uploadGroupIcon: vi.fn(), deleteGroupIcon: vi.fn() }))
 vi.mock('@/utils/uploadValidation', () => ({ imageSourceError: () => null }))
 vi.mock('@/composables/useImageCrop', () => ({ useImageCrop: () => ({ cropImage: vi.fn() }) }))
-vi.mock('@/stores/useDM', () => ({ useDMStore: () => ({ getConversationParticipants: vi.fn(async () => []) }) }))
+const dm = vi.hoisted(() => ({ getConversationParticipants: vi.fn(async (): Promise<unknown[]> => []) }))
+vi.mock('@/stores/useDM', () => ({ useDMStore: () => dm }))
 vi.mock('@/composables/useUserData', () => ({ useUserData: () => ({ getCurrentUser: { value: { id: 'me' } } }) }))
 
 enableAutoUnmount(afterEach)
@@ -103,6 +106,15 @@ describe('GroupSettingsModal', () => {
       'dm.groupSettings.removeParticipant{"name":"bob"}',
     ])
     expect(wrapper.findAll('ul.participants-list > li')).toHaveLength(3)
+  })
+
+  it('counts the participants read for itself when the caller has none', async () => {
+    dm.getConversationParticipants.mockResolvedValueOnce(participants)
+    const wrapper = mount(GroupSettingsModal, {
+      props: { show: true, conversation: { id: 'c1', name: '', created_by: 'me' } as any, conversationId: 'c1', participants: [] },
+    })
+    await flushPromises()
+    expect(wrapper.getComponent({ name: 'GroupChatInviteModal' }).props('existingParticipants')).toEqual(participants)
   })
 
   it('names the default group name from participants through i18n', async () => {

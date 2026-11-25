@@ -734,9 +734,9 @@ ${joinCard(context, nameHtml)}`,
   });
 }
 
-export function renderOEmbed(post: any, author: any): object {
+/** `instanceName` is the instance's name as utils/instanceName.ts resolves it. */
+export function renderOEmbed(post: any, author: any, instanceName: string): object {
   const domain = config.INSTANCE_DOMAIN;
-  const instanceName = config.INSTANCE_NAME;
   const plainText = extractPlainText(post.content);
   const displayName = plainDisplayName(author.display_name, author.username);
   const handle = authorHandle(author);

@@ -384,7 +384,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     async loadBlockingData() {
       debug.log('Loading blocking/muting data...');
 
-      // BUGS.md Pattern A: `user_blocks.blocker_id` / `user_mutes.muter_id`
+      // `user_blocks.blocker_id` / `user_mutes.muter_id`
       // reference `profiles(id)`, not `auth.users`. An auth UUID matches 0
       // rows, leaving blockedUsers/mutedUsers empty. authContextService maps
       // auth UUID → profile UUID.
@@ -623,11 +623,10 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Resets all per-user state on logout / account switch.
      *
-     * BUGS.md Pattern B / #3 v2. Single typed reset point for
-     * `auth.logout()`, which otherwise casts past the store's types and
-     * misses state: the non-home feeds, `followCountsLoaded`, relationship
-     * counts, conversations, blocked instances, suggested users, lists and
-     * `unreadCount`. `bookmarks` is `TimelinePost[]`, not `{ posts: [] }`.
+     * Single typed reset point. Covers the non-home feeds,
+     * `followCountsLoaded`, relationship counts, conversations, blocked
+     * instances, suggested users, lists and `unreadCount`. `bookmarks` is
+     * `TimelinePost[]`, not `{ posts: [] }`.
      */
     resetUserRelationshipState() {
       _apInitPromise = null;
@@ -1356,11 +1355,11 @@ export const useActivityPubStore = defineStore('activitypub', {
      * not the original's.
      *
      * An empty result means the post is on no UI surface, so callers skip
-     * the server resync (BUGS.md PC4).
+     * the server resync.
      *
      * Bookmarks are scanned because `loadBookmarks` populates
-     * `this.bookmarks` from a separate call with distinct Post instances
-     * (BUGS.md H2); omitting them leaves the bookmarks view desynced from
+     * `this.bookmarks` from a separate call with distinct Post instances;
+     * omitting them leaves the bookmarks view desynced from
      * realtime favorite/reblog/reply counts until the next refresh.
      */
     _findPostRefs(postId: string): any[] {

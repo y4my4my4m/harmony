@@ -7,7 +7,7 @@ import { misskeyDisplayNameEmojis } from '../utils/misskeyEmojis.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
-import { ActivityProcessor } from './ActivityProcessor.js';
+import { ActivityProcessor, determineVisibility } from './ActivityProcessor.js';
 import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
 import { cache } from '../utils/cache.js';
@@ -205,7 +205,7 @@ export async function resolveRemoteAccount(username: string, domain: string): Pr
 
     // Step 2: Fetch the Actor
     logger.info(`Fetching actor: ${resolved.actorUrl}`);
-    // BUGS.md H15: the actor URL comes from the remote webfinger response.
+    // The actor URL comes from the remote webfinger response.
     // safeFetch re-validates the URL/DNS and follows redirects manually.
     // The profile is upserted under the document's own id, so the document
     // must be served from its own id (fetchAuthoritativeDocument), own its
@@ -658,7 +658,7 @@ router.post(
       return res.status(400).json({ error: 'url is required' });
     }
 
-    // SSRF gate (BUGS.md H13): reject internal/private targets before any
+    // SSRF gate: reject internal/private targets before any
     // fetch. safeFetch re-validates downstream, but failing here returns a
     // clean 400 instead of leaking timing/behavior differences.
     try {
@@ -779,7 +779,7 @@ router.post(
 
     const supabase = getSupabaseClient();
 
-    // SSRF gate (BUGS.md H14): caller-supplied URLs are never fetched. The
+    // SSRF gate: caller-supplied URLs are never fetched. The
     // outbox URL must match the stored profile row, reducing client input to
     // a confirmation of server-known state.
     const { data: profileRow } = await supabase
@@ -1527,7 +1527,7 @@ async function _fetchRemotePostReactionsImpl(
     // at the URL the post names, or at `${ap_id}/likes`, where Pleroma, Akkoma, GoToSocial,
     // Friendica, Pixelfed and Harmony serve it.
     //
-    // BUGS.md H15: postApId is attacker-influenced (inbox / remote feed);
+    // postApId is attacker-influenced (inbox / remote feed);
     // every outbound call goes through safeFetch for SSRF protection.
     const apHeaders = {
       'Accept': 'application/activity+json, application/ld+json',
@@ -2127,10 +2127,12 @@ router.get(
     if (!postApId) {
       return res.status(400).json({ error: 'post_ap_id is required' });
     }
-    const target = urlHost(postApId) ? await readReplyTarget(getSupabaseClient(), postApId) : null;
+    // The crawl state first: a crawl records its result on the post before it counts as ended, so
+    // the row read after 'done' has it.
     const finished = finishedReplyCrawls.get(postApId);
     const fresh = finished && Date.now() - finished.at < REPLY_CRAWL_RESULT_TTL_MS ? finished : undefined;
     const status = inflightReplyCrawls.has(postApId) ? 'running' : fresh ? 'done' : 'idle';
+    const target = urlHost(postApId) ? await readReplyTarget(getSupabaseClient(), postApId) : null;
     return res.json({
       success: true,
       status,
@@ -2201,7 +2203,7 @@ async function fetchRemotePostReplies(
     logger.info(`Misskey API returned no replies, trying standard ActivityPub...`);
   }
 
-  // BUGS.md H15: postApId is attacker-influenced; every request goes through safeFetch.
+  // postApId is attacker-influenced; every request goes through safeFetch.
   let noteStatus = 0;
   const note = await fetchAuthoritativeDocument(postApId, (url) => fetchSignedDocument(url, (status) => { noteStatus = status; }));
   if (!note) {
@@ -2854,6 +2856,12 @@ export async function fetchRecentPostsInBackground(
     userFetchedUrls.set(authorId, fetchedUrls);
 
     const { noteToContent } = await import('./converters/fromActivityPub.js');
+    const { data: authorRow } = await supabase
+      .from('profiles')
+      .select('followers_url')
+      .eq('id', authorId)
+      .maybeSingle();
+    const followersUrl: string | null = authorRow?.followers_url ?? null;
 
     let savedCount = 0;
     let batch = 0;
@@ -2883,7 +2891,7 @@ export async function fetchRecentPostsInBackground(
 
       const slice = page.items.slice(cursor.offset, cursor.offset + (limit - batch));
       for (const item of slice) {
-        const result = await importOutboxItem(item, authorId, outboxUrl, supabase, noteToContent);
+        const result = await importOutboxItem(item, authorId, outboxUrl, supabase, noteToContent, followersUrl);
         if (result.id) oldestId = result.id;
         if (result.saved) savedCount++;
       }
@@ -2950,7 +2958,8 @@ export async function fetchRecentPostsInBackground(
  * Store one outbox entry: a Create (or bare Note/Article/Question) of the author's
  * own post, or an Announce. An Announce whose original is not stored imports
  * the original first; one whose original cannot be stored or boosted is skipped.
- * `id` is the entry's AP id when it is on the outbox host.
+ * `id` is the entry's AP id when it is on the outbox host. `followersUrl` is the author's
+ * stored followers collection.
  */
 async function importOutboxItem(
   item: any,
@@ -2958,6 +2967,7 @@ async function importOutboxItem(
   outboxUrl: string,
   supabase: any,
   noteToContent: (note: any) => any,
+  followersUrl: string | null,
 ): Promise<{ saved: boolean; id?: string }> {
   try {
     const activityType = item?.type;
@@ -3057,6 +3067,10 @@ async function importOutboxItem(
     if (!sameOrigin(note.id, outboxUrl)) {
       return { saved: false };
     }
+    // A Harmony channel message is no post, as in ActivityProcessor.processCreate.
+    if (note['harmony:serverId'] !== undefined) {
+      return { saved: false, id: note.id };
+    }
 
     const { data: existing } = await supabase
       .from('posts')
@@ -3068,18 +3082,10 @@ async function importOutboxItem(
     // noteToContent resolves mentions, hashtags, emoji and attachments.
     const content = noteToContent(note);
 
-    let visibility = 'public';
-    const to = note.to || [];
-    const cc = note.cc || [];
-    const allRecipients = [...to, ...cc];
-
-    if (allRecipients.includes('https://www.w3.org/ns/activitystreams#Public')) {
-      visibility = to.includes('https://www.w3.org/ns/activitystreams#Public') ? 'public' : 'unlisted';
-    } else if (allRecipients.some((r: string) => r.endsWith('/followers'))) {
-      visibility = 'followers';
-    } else {
-      visibility = 'direct';
-    }
+    const visibility = determineVisibility(note, {
+      activity: activityType === 'Create' ? item : undefined,
+      followersUrl,
+    });
 
     const mediaAttachments = extractMediaAttachments(note.attachment);
 

@@ -3,6 +3,7 @@ import { createLogger, defineConfig, type DepOptimizationOptions, type Logger, t
 import vue from '@vitejs/plugin-vue'
 import { selectivePreload } from './vite-plugin-selective-preload'
 import { backgrounds } from './vite-plugin-backgrounds'
+import { activities } from './vite-plugin-activities'
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
@@ -121,6 +122,7 @@ export default defineConfig({
       '/api/federation': {
         target: 'http://localhost:3001',
         changeOrigin: true,
+        ws: true,
         rewrite: (path: string) => path.replace(/^\/api\/federation/, ''),
       },
       '/api/livekit': {
@@ -140,9 +142,10 @@ export default defineConfig({
     // Strip HTML comments from index.html in production (Vue's comments:false only affects .vue templates)
     stripHtmlComments(),
     backgrounds(),
+    activities(),
     // Only preload critical chunks, not route chunks (saves ~500KB+ on initial load)
     selectivePreload({
-      alwaysPreload: ['index', 'vendor', 'vue-vendor', 'supabase-vendor', 'crypto-vendor'],
+      alwaysPreload: ['index', 'vendor', 'vue-vendor', 'supabase-vendor'],
       neverPreload: [/^view-/], // Don't preload route chunks
     }),
   ],
@@ -178,7 +181,6 @@ export default defineConfig({
     },
     include: [
       'simple-peer',
-      '@privacyresearch/libsignal-protocol-typescript',  // Browser-compatible Signal Protocol
     ],
     exclude: []
   },
@@ -215,9 +217,6 @@ export default defineConfig({
             }
             if (id.includes('node_modules/@supabase/')) {
               return 'supabase-vendor'
-            }
-            if (id.includes('node_modules/@privacyresearch/')) {
-              return 'crypto-vendor'
             }
             // Other node_modules needed on first load. Packages reached only
             // through dynamic imports (vuedraggable, qrcode, date-fns, tauri

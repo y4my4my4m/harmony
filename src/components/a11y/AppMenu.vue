@@ -12,7 +12,8 @@
 
   Position: `x`/`y` (CSS px, see utils/appZoom; opens upward from the point
   when it would overflow below) or `anchor` (below it, left-aligned, flipped
-  above when it would overflow), clamped EDGE px inside the viewport, and
+  above when it would overflow; `prefer="above"` opens above it and flips
+  below when it would overflow), clamped EDGE px inside the viewport, and
   placed again when its size changes.
   `trigger` overrides the element focus returns to. Attributes (class, id,
   data-testid) land on the menu element. `@close` carries the reason
@@ -54,6 +55,7 @@ interface Props {
   trigger?: HTMLElement | null
   initialFocus?: 'first' | 'last' | 'none'
   teleport?: boolean
+  prefer?: 'below' | 'above'
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -89,8 +91,10 @@ const place = () => {
   if (props.anchor) {
     const a = styleRect(props.anchor)
     x = a.left
-    y = a.bottom + 4
-    if (y + r.height > viewport.height - EDGE) y = a.top - r.height - 4
+    const above = a.top - r.height - 4
+    const below = a.bottom + 4
+    if (props.prefer === 'above') y = above >= EDGE ? above : below
+    else y = below + r.height > viewport.height - EDGE ? above : below
   } else if (y + r.height > viewport.height - EDGE && y - r.height >= EDGE) {
     // No room under the point: the menu opens upward from it.
     y -= r.height

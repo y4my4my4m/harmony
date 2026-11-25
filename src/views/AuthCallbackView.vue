@@ -227,6 +227,15 @@ const finalizeLoginAndRedirect = async (session: Session) => {
   }, 800)
 }
 
+// A code verified after its timeout finishes the sign-in in the auth store; the challenge
+// follows it as it would a verification that returned in time.
+watch(
+  () => status.value === 'mfa' && !mfaLoading.value && authStore.isLoggedIn,
+  (signedIn) => {
+    if (signedIn && authStore.session) void finalizeLoginAndRedirect(authStore.session)
+  },
+)
+
 const handleMFAVerification = async () => {
   if (mfaLoading.value) return
   if (useRecoveryCode.value) {
@@ -342,7 +351,7 @@ onMounted(async () => {
       }
     }
 
-    // BUGS.md C11: MFA validation must not be bypassed. Assigning
+    // MFA validation must not be bypassed. Assigning
     // `authStore.session = session` directly skips both `onAuthStateChange`'s
     // SIGNED_IN MFA check and the on-init validation, letting an MFA-enrolled
     // user gain full app access at AAL1.

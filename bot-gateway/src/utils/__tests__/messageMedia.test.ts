@@ -56,9 +56,9 @@ beforeEach(() => {
   mocks.upload.mockReset()
   mocks.bucket.mockReset()
   mocks.from.mockReset()
-  // bridge_mirror_allows: the server cap has room.
+  // bridge_upload_reserve: the server cap has room.
   mocks.rpc.mockReset()
-  mocks.rpc.mockResolvedValue({ data: true, error: null })
+  mocks.rpc.mockResolvedValue({ data: 'reserved', error: null })
   mocks.createSignedUrls.mockImplementation(async (paths: string[]) => ({
     data: paths.map((path) => ({ path, signedUrl: `http://kong:8000/storage/v1/object/sign/message_media/${path}?token=t`, error: null })),
     error: null,
@@ -138,6 +138,29 @@ describe('message media for bots', () => {
       { type: 'file', url: 'https://cdn.example/a.png' },
       { type: 'text', text: 'x' },
     ])
+  })
+
+  it('keeps the path of a file the bot stored in the same channel, and no other', () => {
+    const bot = '00000000-0000-4000-8000-0000000000b1'
+    const otherBot = '00000000-0000-4000-8000-0000000000b2'
+    const own = { channelId: CHANNEL.toUpperCase(), botId: bot }
+    const name = '0f0e0d0c-0b0a-4908-8706-050403020100.png'
+    const mine = { type: 'file', url: 'https://signed.test/x', path: `c/${CHANNEL.toLowerCase()}/bridge/${bot}/${name}` }
+    const rejected = [
+      `c/${CHANNEL.toLowerCase()}/bridge/${otherBot}/${name}`,
+      `c/${OTHER}/bridge/${bot}/${name}`,
+      `c/${CHANNEL.toLowerCase()}/bridge/${bot}/../${name}`,
+      `c/${CHANNEL.toLowerCase()}/bridge/${bot}/nested/${name}`,
+      `c/${CHANNEL.toLowerCase()}/u/${bot}/${name}`,
+    ]
+    const parts = [mine, ...rejected.map((path) => ({ type: 'file', url: 'https://signed.test/y', path }))]
+
+    expect(stripBotSuppliedPaths(parts, own)).toEqual([
+      mine,
+      ...rejected.map(() => ({ type: 'file', url: 'https://signed.test/y' })),
+    ])
+    expect(stripBotSuppliedPaths([mine])).toEqual([{ type: 'file', url: 'https://signed.test/x' }])
+    expect(stripBotSuppliedPaths([{ ...mine, type: 'url' }], own)).toEqual([{ type: 'url', url: 'https://signed.test/x' }])
   })
 })
 

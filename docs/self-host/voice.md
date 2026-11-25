@@ -43,9 +43,8 @@ room uses the same one:
 | `p2p` | either | Peer-to-peer |
 
 LiveKit counts as configured when `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` and
-`LIVEKIT_URL` are all set. Peer-to-peer calls use fixed public STUN servers
-(Google's) and the public `openrelay.metered.ca` TURN relay, built into the
-app; no setting changes them.
+`LIVEKIT_URL` are all set. Peer-to-peer calls are described in
+[Peer-to-peer calls](#peer-to-peer-calls).
 
 ## Turn voice on
 
@@ -153,8 +152,112 @@ would relay through 3478/udp and the UDP range
 over ICE/TCP on 7881 instead.
 
 Enabling it means `turn.enabled: true` in `livekit.yaml` and publishing those
-ports from the `livekit` service yourself. Harmony has no settings for a
-separate TURN server such as coturn.
+ports from the `livekit` service yourself. A separate TURN server such as
+coturn serves [peer-to-peer calls](#peer-to-peer-calls) only.
+
+## Peer-to-peer calls
+
+Without LiveKit (`WEBRTC_MODE=p2p`, or `hybrid` with LiveKit off) every
+participant sends audio and video to every other participant directly.
+
+**Signalling.** Offers, answers, ICE candidates, joins, leaves and media
+states go through the database: the client calls `send_signal`, which
+broadcasts them on the room's Realtime topic `harmony-voice-<room>` with the
+caller's profile as the sender. DM call answers and hang-ups
+(`dm-call:<conversation>`) and call effects (`easter-egg:<room>`) travel the
+same way. Clients cannot broadcast on those topics themselves, so no
+participant can send as another. An account sends at most
+`account_signals_per_minute` signals (300) and places at most
+`account_rings_per_minute` calls (10, to this instance and to others together), set in the admin panel's
+**Anti-spam** tab. Apps from before 1.9.8 broadcast their signals themselves;
+on an instance running 1.9.8 or later their peer-to-peer calls do not
+connect, and their answers and hang-ups of DM calls do not reach updated
+apps, until they update.
+
+**STUN and TURN.** Each device asks a STUN server for its public address,
+and a TURN server relays the media of two devices that cannot reach each
+other, typically behind a strict NAT, a carrier-grade NAT or a firewall
+that blocks UDP. With nothing set, calls use Google's STUN servers
+(`stun:stun.l.google.com:19302`, `stun:stun1.l.google.com:19302`) and no
+TURN server: participants' addresses go to Google, and two participants who
+both sit behind strict NATs do not connect.
+
+Set them in the admin panel under **Config** → **Voice & video** →
+**Peer-to-peer calls: STUN and TURN**:
+
+| Field | Key in `instance_config` | Value |
+|---|---|---|
+| **Use the default STUN servers** | `voice_stun_urls` | On: `"default"`, Google's list. Off: the list below |
+| **STUN servers** | `voice_stun_urls` | `stun:` or `stuns:` URLs, one per line; empty for none |
+| **TURN servers** | `voice_turn_urls` | `turn:` or `turns:` URLs, one per line; empty for none |
+| **TURN credentials** | `voice_turn_auth` | **Shared secret** (`secret`) or **Username and password** (`password`) |
+| **TURN username** | `voice_turn_username` | The account, for **Username and password** |
+| **Shared secret** / **TURN password** | `voice_turn_secret` | coturn's `static-auth-secret`, or the account's password. Admins read it; the activity log records only that it was set |
+
+Every signed-in account receives the servers through `voice_ice_servers`
+when it joins a call. With a shared secret, each join gets its own
+credentials, valid for 24 hours: username `<expiry>:<profile id>`,
+password `base64(HMAC-SHA1(secret, username))`, as coturn's
+`use-auth-secret` checks them. With a username and password, every account
+receives that password.
+
+### Run coturn
+
+On a host with a public address, with `turn.chat.example.com` pointing at it
+and a certificate for that name:
+
+```bash
+openssl rand -hex 32   # the shared secret
+```
+
+`/etc/coturn/turnserver.conf`:
+
+```ini
+listening-port=3478
+tls-listening-port=5349
+realm=turn.chat.example.com
+use-auth-secret
+static-auth-secret=the-secret-from-openssl
+cert=/etc/coturn/fullchain.pem
+pkey=/etc/coturn/privkey.pem
+min-port=49160
+max-port=49200
+fingerprint
+no-cli
+no-multicast-peers
+# Relays reach the internet only, not the host's own networks.
+denied-peer-ip=0.0.0.0-0.255.255.255
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=100.64.0.0-100.127.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+```
+
+```bash
+docker run -d --name coturn --restart unless-stopped --network host \
+  -v /etc/coturn:/etc/coturn:ro coturn/coturn -c /etc/coturn/turnserver.conf
+```
+
+Open 3478/udp, 3478/tcp, 5349/tcp and the relay range 49160-49200/udp. On a
+host behind NAT, add `external-ip=<public address>/<private address>`.
+
+Then, in **Peer-to-peer calls: STUN and TURN**:
+
+- **STUN servers**: `stun:turn.chat.example.com:3478` (with **Use the default
+  STUN servers** off, no participant address goes to Google)
+- **TURN servers**:
+  ```text
+  turn:turn.chat.example.com:3478?transport=udp
+  turn:turn.chat.example.com:3478?transport=tcp
+  turns:turn.chat.example.com:5349
+  ```
+- **TURN credentials**: **Shared secret**, with the secret from `openssl`
+
+A call that connects through the relay shows a candidate of type `relay` in
+`chrome://webrtc-internals`. An address in a `denied-peer-ip` range that a
+call needs, such as a LAN install's own network, needs its line removed.
 
 ## Run LiveKit outside the stack
 

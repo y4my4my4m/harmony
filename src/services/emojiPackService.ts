@@ -112,8 +112,8 @@ function loadPackPreference(): void {
   try {
     let stored = userStorage.getItem(STORAGE_KEY)
 
-    // One-time migration off the old un-namespaced raw key.
-    if (!stored) {
+    // One-time migration off the old un-namespaced raw key, into the signed-in account's.
+    if (!stored && userStorage.getCurrentUser()) {
       const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
       if (legacy) {
         stored = legacy

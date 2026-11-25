@@ -227,19 +227,52 @@ describe('DiscordLinkRefresher', () => {
     expect(await r.request('m-60', [{ type: 'url', url: EXPIRED_CLIP }], [EXPIRED_CLIP])).toBe('queued')
   })
 
-  it('admits 30 messages of one author a minute, and others\' messages meanwhile', async () => {
-    const { r, advance } = refresher()
+  it('admits 30 messages of one author a minute and holds 90 more for the minutes after, others\' passing meanwhile', async () => {
+    const { r, write, advance } = refresher()
     const ask = (id: string, author: string) => {
       const content = [{ type: 'url', url: `https://cdn.discordapp.com/attachments/1/${id}/f.png` }]
       return r.request(id, content, expiredDiscordAttachmentUrls(content, NOW), author)
     }
-    for (let m = 0; m < 30; m++) expect(await ask(`${m}`, 'user:spam')).toBe('queued')
-    expect(await ask('30', 'user:spam')).toBe('busy')
-    // A message already queued answers queued without counting again.
+    const ids = (from: number, to: number) => Array.from({ length: to - from }, (_, i) => `${from + i}`)
+    const written = () => write.mock.calls.map((c) => c[0])
+    for (const id of ids(0, 120)) expect(await ask(id, 'user:spam')).toBe('queued')
+    expect(await ask('120', 'user:spam')).toBe('busy')
+    // A message already queued or held answers queued without counting again.
     expect(await ask('0', 'user:spam')).toBe('queued')
-    expect(await ask('31', 'user:other')).toBe('queued')
+    expect(await ask('30', 'user:spam')).toBe('queued')
+    expect(await ask('999', 'user:other')).toBe('queued')
+    await r.drain()
+    expect(written()).toEqual([...ids(0, 30), '999'])
+
+    // The held messages are signed as the author's minutes free places, without being asked again.
+    advance(60_001)
+    await r.drain()
+    expect(written()).toEqual([...ids(0, 30), '999', ...ids(30, 60)])
+    advance(60_001)
     await r.drain()
     advance(60_001)
-    expect(await ask('30', 'user:spam')).toBe('queued')
+    await r.drain()
+    expect(written()).toEqual([...ids(0, 30), '999', ...ids(30, 120)])
+    expect(await ask('120', 'user:spam')).toBe('queued')
+  })
+
+  it('releases held messages on its own once the author\'s minute passes', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const { r, write, advance } = refresher()
+      const ask = (id: string) => {
+        const content = [{ type: 'url', url: `https://cdn.discordapp.com/attachments/1/${id}/f.png` }]
+        return r.request(id, content, expiredDiscordAttachmentUrls(content, NOW), 'discord:busy')
+      }
+      for (let m = 0; m < 31; m++) expect(await ask(`${m}`)).toBe('queued')
+      await r.drain()
+      expect(write).toHaveBeenCalledTimes(30)
+      advance(60_000)
+      await vi.advanceTimersByTimeAsync(60_000)
+      await r.drain()
+      expect(write.mock.calls.map((c) => c[0])).toContain('30')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

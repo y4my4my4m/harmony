@@ -175,12 +175,14 @@
         >
           <div class="stage-banner">
             <VoiceCallBanner />
-            <ActivityInvite v-if="activitiesStore.waiting" :activity="activitiesStore.waiting" class="stage-invite" @click.stop />
+            <!-- Reads the channel's games; a running one shows as a tile (CallActivityTile). -->
+            <PlayTogetherPanel v-if="voicePlayTarget && !stageGame" :target="voicePlayTarget" :banner="false" />
           </div>
-          <!-- Activity: the shared player, the call as a filmstrip -->
-          <template v-if="stageActivity">
+          <!-- Activity or game: the shared player or frame, the call as a filmstrip -->
+          <template v-if="stageGame || stageActivity">
             <div class="focus-area activity-area" @click.stop>
-              <ActivityStage :activity="stageActivity" />
+              <PlayTogetherPanel v-if="stageGame && voicePlayTarget" :target="voicePlayTarget" stage />
+              <ActivityStage v-else-if="stageActivity" :activity="stageActivity" />
             </div>
             <div v-if="tiles.length > 0" class="filmstrip-container" @click.stop>
               <button
@@ -194,6 +196,8 @@
                 {{ filmstripHidden ? t('voice.showParticipants', { count: tiles.length }) : t('voice.hideParticipants') }}
               </button>
               <div v-if="!filmstripHidden" class="filmstrip">
+                <CallActivityTile v-if="callGame" :game="callGame" class="filmstrip-tile" />
+                <CallActivityTile v-if="callWatch" :watch="callWatch" class="filmstrip-tile" />
                 <VoiceTile
                   v-for="tile in tiles"
                   :key="tile.id"
@@ -209,6 +213,8 @@
 
           <!-- Grid view -->
           <div v-else-if="!focusedTile" ref="gridEl" class="tile-grid">
+            <CallActivityTile v-if="callGame" :game="callGame" class="grid-tile" :style="tileStyle" />
+            <CallActivityTile v-if="callWatch" :watch="callWatch" class="grid-tile" :style="tileStyle" />
             <VoiceTile
               v-for="tile in tiles"
               :key="tile.id"
@@ -259,6 +265,8 @@
                 <Icon :name="isFilmstripCollapsed ? 'chevron-up' : 'chevron-down'" />
               </button>
               <div v-if="!isFilmstripCollapsed" class="filmstrip">
+                <CallActivityTile v-if="callGame" :game="callGame" class="filmstrip-tile" />
+                <CallActivityTile v-if="callWatch" :watch="callWatch" class="filmstrip-tile" />
                 <VoiceTile
                   v-for="tile in filmstripTiles"
                   :key="tile.id"
@@ -359,6 +367,8 @@
               <Icon name="screen-share" />
             </button>
 
+            <span class="control-sep" aria-hidden="true" data-testid="overlay-sep" />
+
             <!-- The activity view has its own react button, aimed at the player. -->
             <button
               v-if="voiceStore.liveReactionsAvailable && !stageActivity"
@@ -376,15 +386,14 @@
 
             <button
               v-if="activityButton.available.value"
-              ref="activityButtonRef"
               @click="activityButton.toggle"
               class="control-button"
               :class="{ active: activityButton.visible.value || activityButton.running.value }"
-              :title="t('activities.title')"
-              :aria-label="t('activities.title')"
+              :title="t('activities.launcherTitle')"
+              :aria-label="t('activities.launcherTitle')"
               aria-haspopup="dialog"
               :aria-expanded="activityButton.visible.value"
-              data-testid="overlay-activity-button"
+              data-testid="overlay-activities-button"
             >
               <Icon name="popcorn" />
             </button>
@@ -465,12 +474,8 @@
     <!-- Spatial Audio Panel -->
     <SpatialAudioPanel :is-under-overlay="true" />
 
-    <!-- The dock renders the launcher while the call view is in this window -->
-    <ActivityLauncher
-      v-if="poppedOut && activityButton.visible.value"
-      :anchor="activityButton.anchor.value"
-      @close="activityButton.close"
-    />
+    <!-- The call's launcher, above the call view and in its window; App.vue renders it otherwise -->
+    <ActivitiesLauncher v-if="callViewShown && activityButton.visible.value" />
 
     <!-- Confetti Effect -->
     <ConfettiEffect :is-active="easterEggState.isActive && easterEggState.type === 'rainbow-party'" />
@@ -505,7 +510,9 @@ import { useSoundboardButton } from './useSoundboardButton';
 import { useActivityButton } from '@/components/activities/useActivityButton';
 import { useActivitiesStore } from '@/stores/activities';
 import ActivityStage from '@/components/activities/ActivityStage.vue';
-import ActivityInvite from '@/components/activities/ActivityInvite.vue';
+import CallActivityTile from '@/components/voice/CallActivityTile.vue';
+import PlayTogetherPanel from '@/components/playTogether/PlayTogetherPanel.vue';
+import { usePlayTogetherStore } from '@/stores/playTogether';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import AppToolbar from '@/components/a11y/AppToolbar.vue';
@@ -534,7 +541,7 @@ import { setCallChatOpen, useCallChat, useCallChatUnread } from './callChat';
 
 const SoundboardPopover = defineAsyncComponent(() => import('./SoundboardPopover.vue'));
 const CallSideChat = defineAsyncComponent(() => import('./CallSideChat.vue'));
-const ActivityLauncher = defineAsyncComponent(() => import('@/components/activities/ActivityLauncher.vue'));
+const ActivitiesLauncher = defineAsyncComponent(() => import('@/components/activities/ActivitiesLauncher.vue'));
 
 const { t } = useI18n();
 
@@ -557,10 +564,18 @@ const streamPickerAnchor = ref<Rect | null>(null);
 
 const soundboardButtonRef = ref<HTMLButtonElement | null>(null);
 const soundboardButton = useSoundboardButton(soundboardButtonRef);
-const activityButtonRef = ref<HTMLButtonElement | null>(null);
-const activityButton = useActivityButton(activityButtonRef);
+const activityButton = useActivityButton();
 const activitiesStore = useActivitiesStore();
 const stageActivity = computed(() => (activitiesStore.playingHere ? activitiesStore.current : null));
+const playTogether = usePlayTogetherStore();
+// Games of this call's channel: servers this instance hosts, as watch together.
+const voicePlayTarget = activityButton.target;
+const stageGame = activityButton.gameOnStage;
+// The call's activities this member has not joined, as tiles in the grid and the filmstrips.
+const callGame = computed(() => (voicePlayTarget.value && !stageGame.value ? playTogether.sessionIn(voicePlayTarget.value) : null));
+const callWatch = computed(() => activitiesStore.waiting);
+const activityTileCount = computed(() => (callGame.value ? 1 : 0) + (callWatch.value ? 1 : 0));
+onMounted(() => { void playTogether.loadApps(); });
 
 const FILMSTRIP_KEY = 'harmony:activity-filmstrip-hidden';
 const filmstripHidden = ref((() => {
@@ -987,7 +1002,7 @@ const TILE_ASPECT = 16 / 9;
 
 const tileStyle = computed(() => {
   const { width, height } = stageSize.value;
-  const count = tiles.value.length + ringingUserIds.value.length;
+  const count = tiles.value.length + ringingUserIds.value.length + activityTileCount.value;
   if (!width || !height || count === 0) {
     return { width: '320px', height: '180px' };
   }
@@ -1371,10 +1386,6 @@ onUnmounted(() => {
 .stage-banner :deep(.vcb) {
   pointer-events: auto;
   box-shadow: var(--shadow-medium);
-}
-
-.stage-invite {
-  pointer-events: auto;
 }
 
 .voice-container {
@@ -1981,6 +1992,16 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Between the call's own controls and what plays in it. */
+.control-sep {
+  flex: none;
+  align-self: center;
+  width: 1px;
+  height: 28px;
+  margin: 0 6px;
+  background: var(--border-color, var(--border-primary));
 }
 
 .control-button {

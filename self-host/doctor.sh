@@ -618,6 +618,7 @@ check_services() {
 	check_auth_linking
 	check_signup_limits
 	check_signup_captcha
+	check_storage_backend
 
 	# The cache answers every public storage read with X-Cache-Status, a miss included.
 	fetch local "https://$DB_DOMAIN/storage/v1/object/public/avatars/doctor-probe" "$TMP/media" -D "$TMP/media.h" >/dev/null
@@ -648,6 +649,33 @@ check_services() {
 
 	if $VOICE; then
 		check_voice
+	fi
+}
+
+# Uploads in a bucket (STORAGE_BACKEND s3): the settings the storage container runs with, whether
+# supabase/.env or an override file gave them. `stub` is the stack's own bucket name. Keys may also
+# come from the host (an instance role), hence WARN.
+check_storage_backend() {
+	local sid name value bucket="" missing=""
+	sid="$(svc_id storage)"
+	[[ -n "$sid" ]] || return 0
+	if [[ "$(docker exec "$sid" printenv STORAGE_BACKEND 2>/dev/null || true)" != s3 ]]; then
+		report OK storage-backend "uploads are kept under supabase/volumes/storage"
+		return 0
+	fi
+	for name in STORAGE_S3_BUCKET GLOBAL_S3_BUCKET; do
+		[[ -n "$bucket" ]] || bucket="$(docker exec "$sid" printenv "$name" 2>/dev/null || true)"
+	done
+	[[ -n "$bucket" && "$bucket" != stub ]] || missing="bucket, "
+	for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+		value="$(docker exec "$sid" printenv "$name" 2>/dev/null || true)"
+		[[ -n "$value" ]] || missing+="$name, "
+	done
+	if [[ -n "$missing" ]]; then
+		report WARN storage-backend "storage runs with STORAGE_BACKEND=s3 and without ${missing%, }: uploads fail and stored files do not load" \
+			"STORAGE_S3_BUCKET, STORAGE_S3_ACCESS_KEY_ID and STORAGE_S3_SECRET_ACCESS_KEY in supabase/.env, then docker compose up -d storage"
+	else
+		report OK storage-backend "uploads are kept in the bucket $bucket"
 	fi
 }
 

@@ -55,10 +55,11 @@
 
       <section v-if="displayedServers.length > 0" class="servers-section">
         <h3 v-if="featuredServers.length > 0" class="section-title">{{ $t('server.allCommunities') }}</h3>
-        <div class="server-grid">
+        <div ref="listGrid" class="server-grid">
           <ServerCard
             v-for="server in displayedServers"
             :key="server.id"
+            tabindex="-1"
             :server="server"
             :is-joined="joinedServerIds.has(server.id)"
             :is-loading="loadingServerIds.has(server.id)"
@@ -69,7 +70,7 @@
         </div>
 
         <div v-if="hasMoreServers" class="load-more-section">
-          <button type="button" class="btn btn-secondary" @click="loadMore">
+          <button ref="moreButton" type="button" class="btn btn-secondary" @click="loadMore">
             {{ $t('server.loadMoreCommunities') }}
           </button>
         </div>
@@ -79,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ServerCard from '@/components/common/ServerCard.vue'
 import ServerCardSkeleton from '@/components/common/ServerCardSkeleton.vue'
@@ -113,6 +114,8 @@ const PAGE_SIZE = 20
 const FIRST_FRAME_CARDS = 9
 
 const displayLimit = ref(PAGE_SIZE)
+const listGrid = ref<HTMLElement | null>(null)
+const moreButton = ref<HTMLButtonElement | null>(null)
 const renderLimit = ref(Math.max(0, FIRST_FRAME_CARDS - props.featuredServers.length))
 let revealFrame = 0
 
@@ -143,10 +146,16 @@ function stageReveal(firstFrame: number) {
   liftRenderLimit()
 }
 
-const loadMore = () => {
+/** The last page leaves with the button; focus it held goes to the first card added, not to the page. */
+const loadMore = async () => {
   const shown = displayedServers.value.length
+  const hadFocus = document.activeElement === moreButton.value
   displayLimit.value += PAGE_SIZE
   stageReveal(shown + FIRST_FRAME_CARDS)
+  if (!hadFocus || hasMoreServers.value) return
+  await nextTick()
+  const cards = listGrid.value?.children
+  if (cards && cards.length > 0) (cards[Math.min(shown, cards.length - 1)] as HTMLElement).focus()
 }
 
 onMounted(liftRenderLimit)

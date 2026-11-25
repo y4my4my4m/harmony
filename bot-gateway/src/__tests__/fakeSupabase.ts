@@ -1,7 +1,8 @@
 /**
  * In-memory stand-in for the supabase-js query builder over plain row arrays. Filters apply;
  * column lists, ordering and JSON-path filters do not. An upsert with onConflict updates the row
- * equal on those columns; without it, it inserts. Every builder is a thenable resolving to
+ * equal on those columns (or, with ignoreDuplicates, leaves it and returns nothing for it);
+ * without onConflict, it inserts. Every builder is a thenable resolving to
  * { data, error }, as in supabase-js.
  */
 
@@ -53,6 +54,7 @@ export class FakeQuery implements PromiseLike<FakeResult> {
   private op: 'select' | FakeWrite['op'] = 'select'
   private payload: any
   private conflict: string[] = []
+  private ignoreDuplicates = false
   private filters: Array<(row: Row) => boolean> = []
   private limitN: number | null = null
 
@@ -65,16 +67,21 @@ export class FakeQuery implements PromiseLike<FakeResult> {
     return this
   }
 
+  returns<_T>(): this {
+    return this
+  }
+
   insert(values: Row | Row[]): this {
     this.op = 'insert'
     this.payload = values
     return this
   }
 
-  upsert(values: Row | Row[], options?: { onConflict?: string }): this {
+  upsert(values: Row | Row[], options?: { onConflict?: string; ignoreDuplicates?: boolean }): this {
     this.op = 'upsert'
     this.payload = values
     this.conflict = options?.onConflict?.split(',').map((column) => column.trim()) ?? []
+    this.ignoreDuplicates = options?.ignoreDuplicates === true
     return this
   }
 
@@ -182,14 +189,14 @@ export class FakeQuery implements PromiseLike<FakeResult> {
       case 'insert':
       case 'upsert': {
         const input: Row[] = Array.isArray(this.payload) ? this.payload : [this.payload]
-        const rows = input.map((values) => {
+        const rows = input.flatMap((values) => {
           const existing = this.conflict.length > 0
             ? all.find((row) => this.conflict.every((column) => row[column] === values[column]))
             : undefined
-          if (existing) return Object.assign(existing, values)
+          if (existing) return this.ignoreDuplicates ? [] : [Object.assign(existing, values)]
           const row = { id: this.db.nextId(), ...values }
           all.push(row)
-          return row
+          return [row]
         })
         this.db.writes.push({ table: this.table, op: this.op, rows: rows.map(copy) })
         return { data: rows.map(copy), error: null }

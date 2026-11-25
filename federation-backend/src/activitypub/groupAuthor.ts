@@ -4,17 +4,24 @@
  *   "attributedTo": "https://<host>/servers/<server>",
  *   "harmony:author": {
  *     "kind": "bot" | "webhook" | "bridge",
- *     "id": "<bot uuid>" | "<webhook uuid>" | "discord:<user id>",
+ *     "id": "<bot uuid>" | "<webhook uuid>" | "<source>:<user id>",
  *     "name": "…",                       at most 100 characters
  *     "icon": "https://…",               optional, at most 2048 characters
- *     "source": "discord"                bridge only
+ *     "source": "discord" | "matrix",    a bridged person only
+ *     "bridgeId": "matrix:<MXID>"        a Matrix person only
  *   }
+ *
+ * A Matrix person goes out as kind "webhook" with source "matrix" (wireGroupAuthor) and is read back
+ * as kind "bridge" by bridgeId (parseGroupAuthor). Harmony 1.9.0 to 1.9.7 drops a "bridge" author
+ * whose id does not begin with "discord:", cuts ids at 128 characters and ignores the last two
+ * fields; it shows a webhook of that name and picture.
  *
  * A bot, a channel webhook and a person a bridge relays have no actor; the Group speaks for
  * them. A copy shows the message under this name and picture (metadata.remote_author; a bridged
  * Discord person also as metadata.discord_user, as the bridge writes it on the host).
  */
 
+import { createHash } from 'node:crypto';
 import { getFullAvatarUrl } from '../utils/urlUtils.js';
 
 export const HARMONY_AUTHOR = 'harmony:author';
@@ -30,14 +37,22 @@ export interface GroupAuthor {
 }
 
 const MAX_NAME = 100;
-const MAX_ID = 128;
+const MAX_ID = 1024;
+/** The longest id Harmony before 1.9.8 keeps. */
+const MAX_ID_1_9_7 = 128;
 const MAX_ICON = 2048;
 const KINDS = new Set<GroupAuthorKind>(['bot', 'webhook', 'bridge']);
+const MATRIX_ID = /^matrix:@[^\s:]+:[^\s]+$/;
+
+/** The first `max` UTF-16 units. A surrogate without its pair becomes U+FFFD: jsonb refuses it. */
+function cut(value: string, max: number): string {
+  return value.slice(0, max).toWellFormed();
+}
 
 function text(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.replace(/[\u0000-\u001f\u007f]/g, '').trim();
-  return trimmed ? trimmed.slice(0, max) : null;
+  return trimmed ? cut(trimmed, max) : null;
 }
 
 /** An absolute https URL, or null: the default avatar and relative paths are left out. */
@@ -54,7 +69,7 @@ function httpsIcon(value: unknown): string | null {
 
 /**
  * The author of a host's bot row (bot_id set, no user_id): its webhook (metadata.webhook), the
- * bridged person (metadata.discord_user), else the bot. Null when nothing names it.
+ * bridged person (metadata.matrix_user or discord_user), else the bot. Null when nothing names it.
  */
 export function groupAuthorOf(
   message: { bot_id?: string | null; metadata?: any },
@@ -68,6 +83,14 @@ export function groupAuthorOf(
     if (!name || !id) return null;
     const icon = httpsIcon(webhook.avatar_url) ?? httpsIcon(bot?.avatar_url);
     return { kind: 'webhook', id, name, ...(icon ? { icon } : {}) };
+  }
+  const matrix = metadata.matrix_user;
+  if (matrix && typeof matrix === 'object') {
+    const name = text(matrix.display_name, MAX_NAME) ?? text(matrix.username, MAX_NAME);
+    const userId = text(matrix.id, MAX_ID - 'matrix:'.length);
+    if (!name || !userId) return null;
+    const icon = httpsIcon(matrix.avatar_url);
+    return { kind: 'bridge', id: `matrix:${userId}`, name, ...(icon ? { icon } : {}), source: 'matrix' };
   }
   const discord = metadata.discord_user;
   if (discord && typeof discord === 'object') {
@@ -84,23 +107,35 @@ export function groupAuthorOf(
   return { kind: 'bot', id: botId, name, ...(icon ? { icon } : {}) };
 }
 
+/** harmony:author as sent. An id past MAX_ID_1_9_7 ends in the SHA-256 of the whole. */
+export function wireGroupAuthor(author: GroupAuthor): GroupAuthor & { bridgeId?: string } {
+  if (author.kind !== 'bridge' || author.source !== 'matrix') return author;
+  const id = author.id.length <= MAX_ID_1_9_7
+    ? author.id
+    : `${cut(author.id, MAX_ID_1_9_7 - 65)}:${createHash('sha256').update(author.id).digest('hex')}`;
+  return { ...author, kind: 'webhook', id, bridgeId: author.id };
+}
+
 /** A received harmony:author, bounded; null for anything else. */
 export function parseGroupAuthor(value: unknown): GroupAuthor | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
-  const kind = raw.kind as GroupAuthorKind;
-  if (!KINDS.has(kind)) return null;
-  const id = text(raw.id, MAX_ID);
+  if (!KINDS.has(raw.kind as GroupAuthorKind)) return null;
+  const bridgeId = raw.kind === 'webhook' && raw.source === 'matrix' ? text(raw.bridgeId, MAX_ID) : null;
+  const matrix = bridgeId !== null && MATRIX_ID.test(bridgeId);
+  const kind = matrix ? 'bridge' : raw.kind as GroupAuthorKind;
+  const id = matrix ? bridgeId : text(raw.id, MAX_ID);
   const name = text(raw.name, MAX_NAME);
   if (!id || !name) return null;
-  if (kind === 'bridge' && !id.startsWith('discord:')) return null;
+  const source = id.startsWith('discord:') ? 'discord' : MATRIX_ID.test(id) ? 'matrix' : null;
+  if (kind === 'bridge' && !source) return null;
   const icon = httpsIcon(raw.icon);
   return {
     kind,
     id,
     name,
     ...(icon ? { icon } : {}),
-    ...(kind === 'bridge' ? { source: 'discord' } : {}),
+    ...(kind === 'bridge' ? { source: source! } : {}),
   };
 }
 
@@ -117,6 +152,7 @@ export function remoteAuthorMetadata(author: GroupAuthor): Record<string, unknow
     ...(author.source ? { source: author.source } : {}),
   };
   if (author.kind !== 'bridge') return { remote_author: remote };
+  if (author.source === 'matrix') return { remote_author: remote, bridge_source: 'matrix' };
   return {
     remote_author: remote,
     discord_user: {

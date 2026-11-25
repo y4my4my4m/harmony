@@ -1,4 +1,175 @@
 {
+  "bridgeSource": {
+    "from": "Relayé depuis {platform}",
+    "profile": {
+      "joinedServer": "A rejoint le serveur",
+      "memberSince": "Sur {platform} depuis",
+      "status": "Statut",
+      "roles": "Rôle | Rôles",
+      "copyId": "Copier l’ID {platform}",
+      "copied": "Copié"
+    }
+  },
+  "matrixBridge": {
+    "title": "Passerelle Matrix",
+    "description": "Reliez des canaux de ce serveur à des salons Matrix. Les messages envoyés d'un côté apparaissent de l'autre, avec le nom de leur auteur.",
+    "loading": "Chargement des passerelles Matrix…",
+    "reload": "Recharger",
+    "loadError": "Impossible de charger les réglages de la passerelle Matrix. Rechargez pour réessayer.",
+    "saveError": "Impossible de confirmer la modification. Rechargez pour voir le réglage actuel.",
+    "status": {
+      "none": "Non configurée",
+      "connected": "Reliée à Matrix",
+      "waiting": "En attente de salons Matrix",
+      "problem": "À vérifier",
+      "line": {
+        "none": "Aucun canal de ce serveur n'est encore relié à Matrix.",
+        "connected": "Chaque canal relié a un salon Matrix.",
+        "waiting": "{count} canal attend que la passerelle relie un salon Matrix. | {count} canaux attendent que la passerelle relie un salon Matrix.",
+        "problem": "{count} canal relié n'est pas transmis. Sa fiche ci-dessous explique comment corriger. | {count} canaux reliés ne sont pas transmis. Leurs fiches ci-dessous expliquent comment corriger."
+      },
+      "facts": {
+        "bot": "Bot de la passerelle | Bots de la passerelle",
+        "paired": "Canaux reliés",
+        "rooms": "Reliés à un salon",
+        "waiting": "En attente d'un salon",
+        "stopped": "Non transmis"
+      },
+      "unseen": "Harmony ne peut pas savoir si le service de la passerelle tourne. Pour vérifier, envoyez un message dans un canal relié et cherchez-le dans Matrix."
+    },
+    "pairs": {
+      "title": "Canaux reliés",
+      "listLabel": "Canaux reliés à Matrix",
+      "empty": "Aucun canal n'est encore relié à Matrix.",
+      "harmony": "Harmony",
+      "matrix": "Matrix",
+      "waitingRoom": "En attente que la passerelle relie un salon",
+      "badge": {
+        "connected": "Relié",
+        "waiting": "En attente d'un salon",
+        "stopped": "Non transmis"
+      },
+      "waitingFix": "La passerelle relie un salon dès que ce canal figure dans sa configuration : demandez à la personne qui gère la passerelle de l'ajouter. Vous pouvez déjà choisir comment les membres apparaissent.",
+      "stoppedFix": "{bot} ne peut plus transmettre #{channel} : le bot est désactivé, a perdu « Lire les messages » ou « Envoyer des messages », ou #{channel} a quitté sa liste de canaux. Corrigez cela dans Paramètres du serveur → Paramètres avancés → Bots du serveur.",
+      "via": "Via {bot}",
+      "senderMode": "Comment les membres Harmony apparaissent dans Matrix",
+      "mode": {
+        "ghost": "Comme leurs propres utilisateurs Matrix (recommandé)",
+        "relay": "Via un compte partagé de la passerelle"
+      },
+      "modeHint": {
+        "ghost": "Chaque membre apparaît dans le salon avec son propre nom et sa propre image.",
+        "relay": "Chaque message vient du compte de la passerelle, précédé du nom du membre."
+      },
+      "saving": "Enregistrement…",
+      "edit": "Modifier les canaux reliés",
+      "notOwner": "Seule la personne à qui appartient {bot} peut changer les canaux qu'il transmet. Vous pouvez quand même choisir comment les membres apparaissent, ou le délier."
+    },
+    "modes": {
+      "title": "Comment fonctionnent les deux choix",
+      "ghost": "Comme leurs propres utilisateurs Matrix : la passerelle crée un utilisateur Matrix pour chaque membre Harmony qui voit le canal, avec son nom et son image, et les gens sur Matrix le mentionnent avec l'autocomplétion {'@'} habituelle. Il faut pour cela que l'espace de noms d'utilisateurs de la passerelle soit enregistré sur le serveur d'accueil Matrix, et que le compte de la passerelle puisse inviter des personnes dans le salon. S'il manque l'un des deux, la passerelle signale une erreur ; elle ne passe pas d'elle-même au compte partagé.",
+      "relay": "Via un compte partagé de la passerelle : chaque message vient du compte de la passerelle, précédé du nom de l'auteur, et aucun utilisateur Matrix n'est créé. Les gens sur Matrix mentionnent un membre Harmony en tapant !mention suivi de son nom d'utilisateur exact.",
+      "future": "Une modification ne concerne que les nouveaux messages. Les messages déjà transmis restent tels quels.",
+      "verify": "Enregistrer ici ne prouve pas que la passerelle a pris en compte la modification : vérifiez un nouveau message dans le salon Matrix."
+    },
+    "setup": {
+      "title": "Relier des canaux à Matrix",
+      "editTitle": "Modifier les canaux reliés",
+      "lead": "Choisissez le bot qui fait tourner votre passerelle Matrix et les canaux qu'il transmet. Chaque canal reçoit son salon Matrix dès qu'il figure dans la configuration de la passerelle.",
+      "bot": "Bot de la passerelle",
+      "channels": "Canaux à transmettre",
+      "notAllowed": "Absent de la liste de canaux de {bot}",
+      "notAllowedHelp": "Un canal grisé n'est pas dans la liste de canaux de {bot}. Pour l'ajouter, ouvrez Paramètres du serveur → Paramètres avancés → Bots du serveur, choisissez Canaux à côté de {bot}, puis cochez-le.",
+      "noChannels": "Ce serveur n'a aucun canal textuel que vous pouvez voir.",
+      "pickOne": "Choisissez au moins un canal.",
+      "pickOneEdit": "Choisissez au moins un canal. Pour ne plus en transmettre aucun, utilisez Délier plus bas.",
+      "save": "Relier les canaux",
+      "saveEdit": "Enregistrer les canaux",
+      "saving": "Enregistrement…",
+      "cancel": "Annuler",
+      "saved": "{count} canal est relié à Matrix. | {count} canaux sont reliés à Matrix."
+    },
+    "guide": {
+      "title": "Mettre en place une passerelle Matrix",
+      "lead": "Pour relier des canaux ici, il vous faut un bot à vous qui fait tourner la passerelle Matrix et qui est sur ce serveur.",
+      "steps": {
+        "service": "La personne qui gère cette instance Harmony met en place le service de passerelle Matrix et l'enregistre auprès du serveur d'accueil Matrix. Demandez-lui s'il ne tourne pas encore.",
+        "bot": "Créez un bot pour la passerelle dans {place}, et donnez son jeton à la personne qui gère la passerelle.",
+        "install": "Ajoutez le bot à ce serveur dans {place}. Donnez-lui « Lire les messages » et « Envoyer des messages », puis sous Canaux choisissez « Canaux sélectionnés » et cochez les canaux à transmettre.",
+        "pair": "Revenez ici pour relier ces canaux."
+      },
+      "places": {
+        "myBots": "Paramètres utilisateur → Mes bots",
+        "serverBots": "Paramètres du serveur → Paramètres avancés → Bots du serveur"
+      },
+      "link": "Lire le guide de la passerelle Matrix",
+      "newTab": "(s'ouvre dans un nouvel onglet)",
+      "blockedTitle": "Votre bot sur ce serveur ne peut pas encore transmettre : | Vos bots sur ce serveur ne peuvent pas encore transmettre :",
+      "blockedItem": "{bot} : {reason}",
+      "block": {
+        "bot_inactive": "il est désactivé. Activez-le dans Paramètres utilisateur → Mes bots.",
+        "install_inactive": "il est désactivé sur ce serveur. Ajoutez-le de nouveau dans Paramètres du serveur → Paramètres avancés → Bots du serveur.",
+        "read_send": "il lui faut « Lire les messages » et « Envoyer des messages ». Donnez-les sous Permissions dans Paramètres du serveur → Paramètres avancés → Bots du serveur.",
+        "all_channels": "il peut utiliser tous les canaux, alors qu'une passerelle a besoin d'une liste. Sous Canaux dans Paramètres du serveur → Paramètres avancés → Bots du serveur, choisissez « Canaux sélectionnés ».",
+        "no_channels": "sa liste de canaux ne contient aucun canal textuel. Cochez-en sous Canaux dans Paramètres du serveur → Paramètres avancés → Bots du serveur."
+      }
+    },
+    "unpair": {
+      "title": "Délier de Matrix",
+      "lead": "Délier un bot arrête la transmission de tous ses canaux ici. Les messages déjà transmis restent des deux côtés.",
+      "item": "{bot} : {count} canal | {bot} : {count} canaux",
+      "button": "Délier",
+      "label": "Délier {bot} de Matrix",
+      "confirmTitle": "Délier {bot} ?",
+      "confirmMessage": "{bot} ne transmettra plus {count} canal avec Matrix. Les messages déjà transmis restent. Demandez aussi à la personne qui gère la passerelle de retirer le salon de sa configuration. | {bot} ne transmettra plus {count} canaux avec Matrix. Les messages déjà transmis restent. Demandez aussi à la personne qui gère la passerelle de retirer les salons de sa configuration.",
+      "done": "{bot} est délié de Matrix."
+    },
+    "errors": {
+      "discordBot": "Ce bot fait tourner une passerelle Discord, il ne peut donc pas transmettre Matrix en plus. Utilisez un autre bot.",
+      "allowlist": "Un canal choisi n'est plus dans la liste de canaux du bot. Rechargez et choisissez à nouveau.",
+      "install": "Le bot est désactivé, ou il lui manque « Lire les messages », « Envoyer des messages » ou une liste de canaux sur ce serveur.",
+      "permission": "Seule la personne à qui appartient le bot, avec « Gérer le serveur » sur ce serveur, peut relier ses canaux.",
+      "save": "Impossible d'enregistrer les canaux reliés. Rechargez et réessayez.",
+      "unpair": "Impossible de délier le bot. Rechargez et réessayez.",
+      "installs": "Impossible de charger vos bots ; les canaux ne peuvent donc pas être reliés d'ici pour le moment. Rechargez pour réessayer."
+    },
+    "privacy": {
+      "lead": "Retirez ici un utilisateur Matrix pour supprimer tout ce que la passerelle de ce serveur a apporté de lui et ne plus apporter ses messages.",
+      "idLabel": "ID d'utilisateur Matrix",
+      "idHelp": "L'identifiant Matrix complet, par exemple {'@'}sam:example.org.",
+      "idInvalid": "Un ID d'utilisateur Matrix a la forme {'@'}nom:serveur.",
+      "removeConfirm": "Supprimer tous les messages, fichiers et réactions que cette passerelle a apportés de l'utilisateur Matrix {id}, et ne plus apporter les siens ? Cette action est irréversible.",
+      "listTitle": "{count} utilisateur Matrix exclu | {count} utilisateurs Matrix exclus",
+      "source": {
+        "self": "S'est exclu sur Matrix"
+      },
+      "restoreLabel": "Relier de nouveau l'utilisateur Matrix {id}",
+      "alsoSelf": "S'est aussi exclu sur Matrix",
+      "purgeLead": "Retirez tout ce que la passerelle de ce serveur a apporté de Matrix : messages, fichiers et réactions. Les messages écrits sur Harmony restent.",
+      "purgeConfirm": "Supprimer tous les messages, fichiers et réactions apportés de Matrix sur ce serveur ? Cette action est irréversible."
+    }
+  },
+  "bridges": {
+    "navLabel": "Passerelles",
+    "title": "Passerelles",
+    "intro": "Les passerelles relient des canaux de ce serveur à des salons d'autres plateformes de discussion. Les messages envoyés d'un côté apparaissent de l'autre, avec le nom et la photo de leur auteur.",
+    "tabs": {
+      "discord": "Discord",
+      "matrix": "Matrix"
+    }
+  },
+  "bridgePrivacy": {
+    "title": "Confidentialité des passerelles",
+    "description": "Empêcher les passerelles de transmettre vos futurs messages de ce serveur à d’autres plateformes.",
+    "scope": "Ce réglage concerne uniquement les passerelles de ce serveur. Il ne supprime pas les copies distantes existantes et ne change pas ce que les autres bots peuvent lire.",
+    "optOut": "Ne pas transmettre mes messages vers {platform}",
+    "none": "Aucune passerelle ne transmet actuellement les messages de ce serveur.",
+    "loading": "Chargement de la confidentialité des passerelles",
+    "saving": "Enregistrement…",
+    "loadError": "Impossible de charger votre réglage de confidentialité. Réessayez.",
+    "saveError": "Impossible de confirmer la modification. Rechargez pour vérifier le réglage actuel.",
+    "retry": "Réessayer"
+  },
   "common": {
     "save": "Enregistrer",
     "cancel": "Annuler",
@@ -111,6 +282,7 @@
       "google": "Continuer avec Google",
       "twitch": "Continuer avec Twitch",
       "github": "Continuer avec GitHub",
+      "discord": "Continuer avec Discord",
       "custom": "Continuer avec {name}"
     },
     "callback": {
@@ -344,12 +516,17 @@
     "tryAdjustingSearch": "Essayez d'ajuster vos termes de recherche ou parcourez toutes les communautés",
     "findNextFavoriteServer": "Trouvez votre prochain serveur préféré",
     "searchCommunities": "Rechercher des communautés...",
+    "searchCommunitiesLabel": "Rechercher des communautés",
     "categories": "Catégories",
     "clearCategoryFilter": "Effacer le filtre de catégorie",
     "searchingFor": "Recherche de \"{query}\"",
     "categoryLabel": "Catégorie : {category}",
     "communitiesFound": "{total} communautés trouvées",
     "communitiesOfTotal": "{filtered} sur {total} communautés",
+    "searchAndFilters": "Recherche et filtres",
+    "activeFilters": "Filtres actifs",
+    "removeFilter": "Retirer le filtre",
+    "queryChip": "« {query} »",
     "loadingCommunities": "Chargement des communautés...",
     "findingBestServers": "Recherche des meilleurs serveurs pour vous",
     "failedToLoadCommunities": "Échec du chargement des communautés",
@@ -730,7 +907,16 @@
         "removeMember": "Impossible de retirer le membre du rôle",
         "addMember": "Impossible d'ajouter le membre au rôle",
         "reorder": "Impossible de réordonner les rôles"
-      }
+      },
+      "selfAssignable": "Les membres peuvent choisir ce rôle",
+      "selfAssignableDesc": "Apparaît dans « Choisir des rôles » et dans les menus de rôles : les membres se l’attribuent et le retirent eux-mêmes.",
+      "selfAssignGroup": "Groupe",
+      "selfAssignGroupPlaceholder": "ex. Couleurs, Pronoms, Notifications",
+      "selfAssignNote": "Description courte",
+      "selfAssignNotePlaceholder": "Affichée sous le rôle lors du choix",
+      "selfAssignWarnGrants": "Les membres ne peuvent pas choisir ce rôle tant qu’il a des permissions que {'@'}everyone n’a pas. Retire-les dans l’onglet Permissions.",
+      "selfAssignWarnRank": "Les membres ne peuvent pas choisir ce rôle tant qu’il est au-dessus d’un rôle avec des permissions en plus. Place-le sous tous les rôles de modération.",
+      "selfAssignWarnAdmin": "Les membres ne peuvent pas choisir un rôle administrateur."
     },
     "privacy": {
       "federatedMembers": "{count} membre fédéré actuellement sur ce serveur | {count} membres fédérés actuellement sur ce serveur",
@@ -1148,7 +1334,11 @@
       "lost": "Message chiffré qui ne peut plus être déchiffré",
       "decrypt": "Message chiffré. Déchiffrer",
       "decrypting": "Déchiffrement du message chiffré",
-      "locked": "Message chiffré. Déverrouillez le chiffrement dans Paramètres, Confidentialité et chiffrement, pour le lire."
+      "locked": "Message chiffré. Déverrouillez le chiffrement dans Paramètres, Confidentialité et chiffrement, pour le lire.",
+      "forged": "Message masqué : sa signature ne correspond pas à son expéditeur",
+      "forgedHint": "La signature de ce message chiffré ne se vérifie pas avec la clé de son expéditeur. Il a été modifié ou ne vient pas de la personne indiquée ; il n'est donc pas déchiffré.",
+      "replayed": "Répété",
+      "replayedHint": "Ce message répète un message chiffré antérieur du même expéditeur. Le serveur a enregistré un message deux fois, ce qui peut afficher un ancien message à un autre endroit."
     },
     "spoiler": {
       "hidden": "Spoiler, masqué. Activez pour l'afficher",
@@ -1487,6 +1677,8 @@
     "conversationDismissed": "Conversation masquée. Elle réapparaîtra à un nouveau message.",
     "failedToDismissConversation": "Impossible de masquer la conversation",
     "noUsersFound": "Aucun utilisateur trouvé",
+    "groupSpotsLeft": "{count} place restante | {count} places restantes",
+    "groupFull": "Ce groupe est complet : un groupe compte au plus {count} personnes.",
     "call": "Appeler",
     "videoCall": "Appel vidéo",
     "voiceCall": "Appel vocal",
@@ -1563,7 +1755,8 @@
       "leaveFailed": "Impossible de quitter le groupe",
       "deleted": "Groupe supprimé",
       "deleteFailed": "Impossible de supprimer le groupe"
-    }
+    },
+    "callUndeliverable": "Votre appel n'a pas pu aboutir."
   },
   "user": {
     "panelToggle": "Votre compte et vos commandes vocales",
@@ -1646,9 +1839,9 @@
       "compactMode": "Mode compact",
       "compactModeDesc": "Afficher plus de messages avec un espacement réduit.",
       "bridgeSourceBadge": "Indicateur de source des passerelles",
-      "bridgeSourceBadgeDesc": "Comment les messages relayés par une passerelle (par ex. depuis Discord) affichent leur source à côté du nom de l'auteur.",
+      "bridgeSourceBadgeDesc": "Comment les personnes venant de plateformes relayées comme Discord et Matrix affichent leur source à côté de leur nom.",
       "bridgeSourceBadgeIcon": "Icône de la plateforme",
-      "bridgeSourceBadgeText": "Libellé texte (DISCORD)",
+      "bridgeSourceBadgeText": "Libellé texte (DISCORD, MATRIX)",
       "floatingVideo": "Lecteur vidéo flottant",
       "floatingVideoDesc": "Les vidéos en lecture flottent dans le coin lors du défilement. Fonctionne avec YouTube et les vidéos natives.",
       "videoPlayer": "Lecteur vidéo",
@@ -3289,8 +3482,13 @@
       "voiceCall": "Appel vocal",
       "videoCall": "Appel vidéo",
       "groupCreated": "Groupe créé",
-      "membersAdded": "Membres ajoutés"
-    }
+      "membersAdded": "Membres ajoutés",
+      "activity": "Activité"
+    },
+    "activityStarted": "{actor} a lancé {app}.",
+    "activityEnded": "{actor} a lancé {app} : {players} joueurs, {duration}.",
+    "activityEndedAlone": "{actor} a lancé {app} : {duration}.",
+    "activityFallback": "une activité"
   },
   "time": {
     "now": "maintenant",
@@ -3474,10 +3672,10 @@
       "tabsLabel": "Où chercher",
       "thisInstance": "Cette instance",
       "otherInstances": "Autres instances",
-      "domainLabel": "Instance",
-      "domainPlaceholder": "example.social",
-      "domainHint": "Saisissez le domaine d'une autre instance Harmony, ou choisissez-en une connue.",
-      "browse": "Parcourir",
+      "searchLabel": "Rechercher des serveurs ou parcourir une instance",
+      "searchPlaceholder": "Nom, sujet ou domaine d'instance",
+      "browseDomain": "Parcourir {domain}",
+      "browseAction": "Parcourir une instance",
       "knownInstances": "Instances connues",
       "loading": "Lecture de l'annuaire de {domain}…",
       "serversOn": "{count} serveur sur {domain} | {count} serveurs sur {domain}",
@@ -3488,6 +3686,7 @@
       "members": "{count} membre | {count} membres",
       "join": "Rejoindre",
       "loadMore": "Charger plus",
+      "loadMoreFailed": "Impossible de charger plus de serveurs. Réessayez.",
       "errorTitle": "Impossible de parcourir cette instance",
       "noDirectoryTitle": "Pas d'annuaire de serveurs",
       "invalidDomain": "Saisissez le domaine d'une instance, comme example.social.",
@@ -3499,8 +3698,6 @@
       "unreachable": "{domain} n'a pas répondu. Réessayez plus tard.",
       "failed": "Une erreur est survenue. Réessayez.",
       "allInstances": "Toutes les instances",
-      "filterLabel": "Filtrer les serveurs",
-      "filterPlaceholder": "Nom, sujet ou instance",
       "loadingAdvertised": "Lecture des annuaires des instances connues…",
       "advertisedStats": "{count} serveur sur {instances} | {count} serveurs sur {instances}",
       "instanceCount": "{count} instance | {count} instances",
@@ -3509,8 +3706,9 @@
       "advertisedFailed": "{count} instance n'a pas répondu : ses serveurs n'apparaissent pas. | {count} instances n'ont pas répondu : leurs serveurs n'apparaissent pas.",
       "noMatchTitle": "Aucun serveur correspondant",
       "noMatch": "Aucun serveur d'une instance connue ne correspond à « {query} ».",
+      "noMatchOn": "Aucun serveur de {domain} ne correspond à « {query} ».",
       "advertisedEmptyTitle": "Aucun serveur inscrit pour l'instant",
-      "advertisedEmpty": "Les serveurs que leurs propriétaires inscrivent dans la fédération apparaissent ici. Aucune instance connue de celle-ci n'en inscrit encore : parcourez une autre instance par son domaine ci-dessus.",
+      "advertisedEmpty": "Les serveurs que leurs propriétaires inscrivent dans la fédération apparaissent ici. Aucune instance connue de celle-ci n'en inscrit encore : parcourez une autre instance par son domaine.",
       "hostedOn": "Hébergé sur {instance}",
       "advertisedErrorTitle": "Impossible de lire les instances connues"
     },
@@ -3868,7 +4066,7 @@
       "bot": "Standard",
       "botHint": "Se connecte avec son jeton et agit via la passerelle et l'API REST.",
       "bridge": "Passerelle",
-      "bridgeHint": "Relaie les messages entre Harmony et une autre plateforme. Pour Discord, utilisez plutôt Paramètres du serveur → Passerelle Discord : elle crée et gère son propre bot."
+      "bridgeHint": "Relaie les messages entre Harmony et une autre plateforme. Pour Discord, utilisez plutôt Paramètres du serveur → Passerelles → Discord : elle crée et gère son propre bot."
     },
     "usernameErrors": {
       "tooShort": "Utilisez au moins 3 caractères.",
@@ -4014,7 +4212,11 @@
       },
       "manage_roles": {
         "label": "Gérer les rôles",
-        "description": "Créer, modifier et supprimer des rôles inférieurs au rôle le plus élevé de la personne qui l'a installé, avec les permissions dont il dispose."
+        "description": "Créer, modifier, supprimer et attribuer aux membres des rôles inférieurs au rôle le plus élevé de la personne qui l'a installé, avec les permissions qu'il détient."
+      },
+      "attach_files": {
+        "label": "Joindre des fichiers",
+        "description": "Téléverser des images et d'autres fichiers pour les publier dans les salons où il peut envoyer des messages."
       }
     },
     "commands": {
@@ -4616,7 +4818,8 @@
     },
     "timedOut": "Vous êtes exclu temporairement de ce serveur jusqu'à {time} et ne pouvez pas envoyer de messages, réagir ni lancer de fils.",
     "antispam": {
-      "rateLimited": "Vous allez trop vite. Réessayez dans {seconds} s.",
+      "rateLimited": "Vous allez trop vite. Réessayez dans {wait}.",
+      "strangerConversations": "Les nouvelles conversations avec des personnes que vous ne connaissez pas sont limitées à {count} par heure. Réessayez dans {wait}.",
       "linksBlocked": "Les nouveaux comptes ne peuvent pas encore publier de liens.",
       "strangerMentions": "Les nouveaux comptes peuvent mentionner au plus {count} personnes qui ne les suivent pas.",
       "serverLimit": "Un compte peut posséder au plus {count} serveurs sur cette instance.",
@@ -4771,7 +4974,10 @@
       "expires_at": "Expire",
       "temporary": "Adhésion temporaire",
       "messages_deleted": "Messages supprimés",
-      "federation_discoverable": "Découvrable dans la fédération"
+      "federation_discoverable": "Découvrable dans la fédération",
+      "self_assignable": "Choisissable par les membres",
+      "self_assign_group": "Groupe de choix",
+      "self_assign_note": "Description de choix"
     },
     "value": {
       "none": "aucun",
@@ -5342,6 +5548,10 @@
       "newDeviceLabel": "Nouvel appareil ?",
       "newDeviceReminder": "{label} Connectez-vous dessus et choisissez {another}, puis scannez son code depuis cet appareil. Vos messages se déverrouillent sans saisir la clé de récupération.",
       "rememberNeed": "Vous en aurez besoin si vous perdez l'accès à tous vos appareils connectés ou effacez les données de votre navigateur."
+    },
+    "keyShareFailed": {
+      "title": "Certains membres ne pourront peut-être pas lire votre message",
+      "body": "La clé pour le lire n'a pas atteint {count} membre. Son application la redemandera à l'ouverture du message. | La clé pour le lire n'a pas atteint {count} membres. Leurs applications la redemanderont à l'ouverture du message."
     }
   },
   "admin": {
@@ -5456,6 +5666,53 @@
       "maxPersonalStickers": "Stickers personnels par utilisateur",
       "maxPersonalStickersHint": "De 0 à 100. 0, la valeur par défaut, désactive les stickers personnels."
     },
+    "signInProviders": {
+      "title": "Fournisseurs de connexion",
+      "lead": "Connexion avec Google, Twitch, GitHub ou Discord. Créez une application OAuth chez le fournisseur avec l’URL de rappel ci-dessous, puis collez ici son identifiant client et son secret. Le service de connexion les prend en compte en 15 secondes environ, sans redémarrage.",
+      "loadFailed": "Impossible de charger les réglages des fournisseurs de connexion.",
+      "writerOff": "Le service de connexion de cette instance ne prend pas d’identifiants depuis ici : son serveur de fédération n’a pas de HARMONY_AUTH_CONFIG_DIR. Indiquez-les plutôt dans l’environnement du service de connexion, comme le décrit le guide d’auto-hébergement sur la connexion OAuth.",
+      "writerStopped": "Le serveur de fédération a appliqué les réglages de connexion pour la dernière fois le {time} et ne tourne pas actuellement. Les changements faits ici attendent son retour.",
+      "writerError": "Le serveur de fédération n’a pas pu appliquer les réglages de connexion : {error}",
+      "callback": "URL de rappel (redirection) à déclarer chez chaque fournisseur :",
+      "copy": "Copier",
+      "copied": "URL de rappel copiée",
+      "copyFailed": "Copie impossible. Sélectionnez l’URL et copiez-la à la main.",
+      "showButton": "Sur la page de connexion",
+      "showButtonLabel": "Afficher {provider} sur la page de connexion",
+      "clientId": "Identifiant client",
+      "secret": "Secret client",
+      "secretSaved": "Enregistré. Saisissez-en un nouveau pour le remplacer.",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "clear": "Effacer",
+      "clearTitle": "Effacer la connexion avec {provider} ?",
+      "clearMessage": "L’identifiant client et le secret sont supprimés et la connexion avec {provider} est coupée. Les comptes créés via {provider} se connectent autrement jusqu’à ce qu’elle soit de nouveau configurée.",
+      "saved": "Identifiants {provider} enregistrés",
+      "cleared": "Identifiants {provider} effacés",
+      "saveFailed": "Impossible d’enregistrer les identifiants {provider}.",
+      "buttonsSaved": "Page de connexion mise à jour",
+      "buttonsFailed": "Impossible de mettre à jour la page de connexion.",
+      "status": {
+        "active": "Actif",
+        "applying": "Application…",
+        "hidden": "Coupé : masqué sur la page de connexion",
+        "server": "Configuré sur le serveur",
+        "unset": "Non configuré",
+        "unknown": "État inconnu"
+      },
+      "problem": {
+        "clientId": "Un identifiant client ne contient que des lettres, des chiffres et . _ ~ + / = -.",
+        "discordId": "L’identifiant client Discord est l’identifiant de l’application : 17 à 20 chiffres.",
+        "secret": "Un secret client compte de 8 à 512 lettres, chiffres et caractères . _ ~ + / = -.",
+        "needBoth": "Saisissez un identifiant client et un secret client."
+      },
+      "where": {
+        "google": "Console Google Cloud, API et services, Identifiants : un ID client OAuth de type application Web.",
+        "twitch": "Console développeur Twitch, Applications : enregistrez une application.",
+        "github": "GitHub, Settings, Developer settings, OAuth Apps : une nouvelle OAuth App.",
+        "discord": "Discord Developer Portal, votre application, OAuth2 : le Client ID et le secret qu’affiche Reset Secret."
+      }
+    },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "Réactions max. par personne sur une publication",
@@ -5522,7 +5779,13 @@
         "strangerDmsPerHour": "Nouvelles conversations avec des inconnus par heure",
         "strangerDmsHint": "Un inconnu ne suit pas le compte, ne partage aucun serveur avec lui et n'a aucune conversation avec lui.",
         "newStrangerDmsPerHour": "Idem, pour les nouveaux comptes",
-        "newStrangerDmsHint": "Compte aussi les personnes qui partagent seulement un serveur avec le nouveau compte : rejoindre un serveur public donne accès à tous ses membres."
+        "newStrangerDmsHint": "Compte aussi les personnes qui partagent seulement un serveur avec le nouveau compte : rejoindre un serveur public donne accès à tous ses membres.",
+        "signalsPerMinute": "Signaux d'appel par minute",
+        "signalsHint": "Établir les appels pair à pair, répondre aux appels en MP et raccrocher, effets d'appel. Rejoindre un appel de dix personnes en demande environ 45.",
+        "ringsPerMinute": "Appels passés par minute",
+        "ringsHint": "Chaque appel sonne une fois. Raccrocher n'est jamais refusé.",
+        "rolePicksPerMinute": "Choix de rôles par minute",
+        "rolePicksHint": "Prendre et quitter les rôles à choisir. Chaque changement atteint tout le serveur."
       },
       "bots": {
         "title": "Bots",
@@ -5795,7 +6058,6 @@
     }
   },
   "discordBridge": {
-    "navLabel": "Passerelle Discord",
     "title": "Passerelle Discord",
     "intro": "Une passerelle relie des canaux de ce serveur à des salons d'un serveur Discord. Les messages envoyés d'un côté apparaissent de l'autre, avec le nom et la photo de leur auteur.",
     "loading": "Chargement de la passerelle Discord…",
@@ -6043,6 +6305,7 @@
       "listLabel": "Canaux reliés",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "Privé sur Discord",
       "ok": "Fonctionne",
       "discordGone": "Salon Discord introuvable",
       "discordGoneFix": "Le bot ne trouve plus ce salon Discord : il a été supprimé ou le bot n'y a plus accès. Supprimez la paire ou redonnez l'accès au bot.",
@@ -6346,7 +6609,7 @@
       "managed": "Ce bot est la passerelle Discord de {server}. Il se configure et se gère là-bas ; rien à régler ici.",
       "aServer": "l'un de vos serveurs",
       "openSettings": "Ouvrir les réglages de la passerelle",
-      "unmanaged": "Les passerelles Discord se configurent dans les paramètres d'un serveur : Paramètres du serveur → Passerelle Discord. Cette page crée et gère le bot de la passerelle pour vous ; inutile d'en créer un ici.",
+      "unmanaged": "Les passerelles Discord se configurent dans les paramètres d'un serveur : Paramètres du serveur → Passerelles → Discord. Cette page crée et gère le bot de la passerelle pour vous ; inutile d'en créer un ici.",
       "legacyTitle": "Configuration manuelle de l'ancienne passerelle (v1)",
       "legacyLead": "Uniquement pour l'ancien programme harmony-discord-bridge qui lit un fichier de configuration.",
       "harmonyPermissions": "Ajoutez ce bot au serveur avec Lire les messages et Envoyer des messages (et Gérer les canaux pour /bridge clone-server).",
@@ -6356,7 +6619,7 @@
     },
     "adminSection": {
       "title": "Passerelle Discord",
-      "lead": "Les communautés connectent un serveur Discord dans Paramètres du serveur → Passerelle Discord. Proposez-leur le bot de cette instance, laissez-les apporter le leur, ou les deux. Faire tourner la passerelle sur leur propre ordinateur reste toujours possible."
+      "lead": "Les communautés connectent un serveur Discord dans Paramètres du serveur → Passerelles → Discord. Proposez-leur le bot de cette instance, laissez-les apporter le leur, ou les deux. Faire tourner la passerelle sur leur propre ordinateur reste toujours possible."
     },
     "admin": {
       "title": "Laisser les communautés apporter leur propre bot",
@@ -6430,7 +6693,7 @@
       "clearConfirm": "Retirer les identifiants du bot ? Les communautés liées ne sont plus relayées tant qu'aucun bot n'est reconfiguré. Leurs passerelles et paires de salons sont conservées.",
       "cancel": "Annuler",
       "enable": "Proposer ce bot aux communautés",
-      "enableHint": "Les admins de serveur voient d'abord « Utiliser le bot de cette instance » dans Paramètres du serveur → Passerelle Discord.",
+      "enableHint": "Les admins de serveur voient d'abord « Utiliser le bot de cette instance » dans Paramètres du serveur → Passerelles → Discord.",
       "enableNeedsConfig": "Enregistrez d'abord l'Application ID, le client secret et le jeton du bot.",
       "presence": "Synchronisation de présence",
       "presenceHint": "Demande l'intent Presence de Discord pour chaque serveur lié, pour que les communautés puissent afficher qui est en ligne. Seuls les changements de statut sont envoyés. Ne l'activez que tant que l'intent Presence est activé dans le Developer Portal ; au-delà de 100 serveurs, Discord doit l'approuver.",
@@ -6454,6 +6717,9 @@
       "cancel": "Annuler",
       "cancelLabel": "Annuler l'importation de #{channel}",
       "cancelling": "Annulation…",
+      "stopNow": "Arrêter maintenant",
+      "stopNowLabel": "Arrêter maintenant l'importation de #{channel}",
+      "stopNowHint": "Le pont s'arrête à sa prochaine étape. S'il est hors ligne, « Arrêter maintenant » termine l'importation ici.",
       "waiting": "En attente",
       "running": "Importation… {percent} %",
       "runningUnknown": "Importation…",
@@ -6480,7 +6746,7 @@
         "channel_encrypted": "le salon est désormais chiffré",
         "import_disabled": "l'importation de l'historique a été désactivée",
         "pair_not_importable": "la paire n'apporte plus les messages Discord vers Harmony",
-        "discord_approval_required": "le salon Discord est privé : lancez son importation sur Discord avec /bridge import-history",
+        "discord_approval_required": "le salon Discord est privé : relancez-le en incluant les salons privés, ou exécutez une fois /bridge import-history scope:All bridged channels sur Discord",
         "discord_channel_unsupported": "le salon Discord n'est pas un salon textuel",
         "discord_access_lost": "la passerelle ne peut plus lire le salon Discord",
         "bridge_stalled": "la passerelle n'avançait plus",
@@ -6492,6 +6758,7 @@
         "encrypted": "Les salons chiffrés ne peuvent pas importer d'historique"
       },
       "needsUpdate": "Mets le pont à jour vers la version 2.6.0 ou plus récente pour importer l'historique",
+      "needsUpdateHosted": "Le service de ponts de cette instance doit être en version 2.8.0 ou ultérieure pour importer l'historique. Un administrateur de l'instance le met à jour.",
       "mirrorNote": "Les fichiers importés sont copiés dans le stockage de cette instance.",
       "consent": {
         "title": "Importer l'historique de {count} salon ? | Importer l'historique de {count} salons ?",
@@ -6499,11 +6766,14 @@
         "skips": "Les messages des personnes qui ont quitté le serveur Discord sont ignorés. Toute personne sur Discord peut exclure les siens, ou les effacer, avec /bridge-privacy.",
         "notice": "La passerelle épingle un avis dans chaque salon Discord au début de son importation.",
         "confirm": "Je gère ce serveur Discord, ou j'agis avec l'accord de ses gestionnaires.",
+        "privateTitle": "Privé sur Discord : {channels} | Privés sur Discord : {channels}",
+        "privateLead": "{'@'}everyone ne peut pas lire leur historique sur Discord. Sans votre accord, ils sont laissés de côté.",
+        "privateConfirm": "Inclure ce salon privé : je peux le lire sur Discord, ou ses gestionnaires sont d'accord. | Inclure ces salons privés : je peux les lire sur Discord, ou leurs gestionnaires sont d'accord.",
         "start": "Démarrer l'importation"
       },
       "unavailable": {
         "instance_off": "L'importation de l'historique est désactivée sur cette instance.",
-        "bridge_mode": "L'importation de l'historique est réservée à une passerelle que vous exécutez vous-même, avec votre propre application Discord."
+        "bridge_mode": "Sur cette instance, l'importation de l'historique est réservée aux ponts que le propriétaire du serveur exécute avec sa propre application Discord."
       },
       "authorsSkipped": "{count} ignoré (auteur parti ou exclu) | {count} ignorés (auteurs partis ou exclus)",
       "automodSkipped": "{count} bloqué par AutoMod | {count} bloqués par AutoMod"
@@ -6537,17 +6807,30 @@
     },
     "importAdmin": {
       "title": "Importation de l'historique Discord",
-      "lead": "Permet à un serveur de copier les anciens messages de ses salons Discord vers Harmony, par une passerelle que son propriétaire exécute avec sa propre application Discord. Jamais par le bot Discord de cette instance ni par un bot que cette instance exécute.",
+      "lead": "Permet à un serveur de copier dans Harmony les anciens messages de ses salons Discord par son pont. Choisissez quels ponts le peuvent.",
       "loadFailed": "Impossible de charger les paramètres d'importation de l'historique.",
       "mode": "Importation de l'historique",
-      "modeOff": "Désactivée",
-      "modeSelfRun": "Passerelles auto-hébergées",
-      "modeHint": "Désactivée refuse toute importation, y compris celles en cours.",
-      "warningTitle": "Avant d'activer",
+      "modes": {
+        "off": {
+          "label": "Désactivé",
+          "hint": "Aucun serveur n'importe. Les importations en cours s'arrêtent."
+        },
+        "self_run": {
+          "label": "Ponts auto-hébergés",
+          "hint": "Les ponts que le propriétaire d'un serveur exécute avec sa propre application Discord."
+        },
+        "all": {
+          "label": "Tous les ponts",
+          "hint": "Aussi le bot Discord de cette instance et les ponts à bot propre hébergés ici."
+        }
+      },
+      "modeHint": "Enregistré dès que vous choisissez.",
+      "warningTitle": "Tant que l'importation est activée",
       "warningAuthors": "Les auteurs de ces messages n'ont pas demandé la copie. Les auteurs qui ont quitté le serveur Discord sont ignorés, et les membres excluent ou effacent leurs messages avec /bridge-privacy.",
       "warningRequests": "Les demandes de suppression de contenu sur cette instance vous reviennent. Les gestionnaires d'un serveur retirent un utilisateur Discord dans Paramètres du serveur, Passerelle Discord ; Retirer tous les messages Discord, ci-dessous, vide tous les serveurs.",
       "warningQuiet": "Les messages importés n'envoient aucune notification, comptent comme lus et ne sont pas fédérés. Ils passent par les règles de mots, d'invitations et de liens d'AutoMod du serveur lorsque ses bots ne sont pas exemptés.",
       "warningStorage": "Avec « Mirror to storage », les fichiers importés sont copiés dans le stockage de cette instance, jusqu'à la limite par serveur ci-dessous.",
+      "warningInstanceBot": "Les importations par le bot Discord de cette instance lisent Discord avec votre application Discord : selon les conditions développeur de Discord, vous en êtes responsable en tant que propriétaire.",
       "maxRunning": "Importations simultanées",
       "maxRunningHint": "Sur toute l'instance. Les autres attendent leur tour. 0 signifie aucune limite.",
       "messagesPerMinute": "Messages par minute, par importation",
@@ -6748,7 +7031,7 @@
       "clearSearch": "Effacer la recherche",
       "found": "{count} membre trouvé | {count} membres trouvés",
       "group": "{title}, {count} membre | {title}, {count} membres",
-      "discord": "Membre du pont Discord",
+      "bridged": "Membre de la passerelle {platform}",
       "instanceAdmin": "administrateur de l'instance",
       "instanceMod": "modérateur de l'instance",
       "searchHint": "Nom ou nom d'utilisateur",
@@ -7501,6 +7784,9 @@
   },
   "activities": {
     "title": "Regarder ou écouter ensemble",
+    "launcherTitle": "Activités",
+    "launcherSubtitleCall": "Regarder, écouter ou jouer ensemble dans cet appel",
+    "playHeading": "Jouer",
     "addTitle": "Ajouter à l'activité",
     "lede": "Tout le monde dans l'appel lit la même chose au même moment. Collez un lien YouTube, SoundCloud ou Spotify, un lien vers un fichier vidéo ou audio, ou choisissez dans votre Drive.",
     "linkPlaceholder": "Collez un lien",
@@ -8795,5 +9081,186 @@
       "unsuspended": "Suspension levée pour {count} compte | Suspension levée pour {count} comptes",
       "deleted": "{count} compte supprimé | {count} comptes supprimés"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "Choisir des rôles",
+    "title": "Choisis tes rôles",
+    "intro": "Touche un rôle pour le prendre, touche-le encore pour le retirer. Les changements s’appliquent tout de suite.",
+    "empty": "Ce serveur n’a pas encore de rôles à choisir.",
+    "otherRoles": "Autres rôles",
+    "cardButton": "Choisir des rôles",
+    "errors": {
+      "notMember": "Rejoins le serveur pour choisir ses rôles.",
+      "notLocal": "Les rôles de ce serveur se choisissent sur son instance d’origine.",
+      "unavailable": "Ce rôle ne peut plus être choisi.",
+      "notPickable": "Ce rôle donne des permissions, il ne peut donc pas être choisi. Demande à la modération.",
+      "failed": "Impossible de changer ton rôle. Réessaie."
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "Choisis tes rôles",
+    "otherServer": "Ce menu de rôles appartient à un autre serveur.",
+    "empty": "Aucun rôle à choisir ici pour l’instant.",
+    "hint": "Touche un rôle pour le prendre, touche-le encore pour le retirer.",
+    "createTitle": "Publier un menu de rôles",
+    "noRoles": "Aucun rôle ne peut encore être choisi. Dans Paramètres du serveur → Rôles, active d’abord « Les membres peuvent choisir ce rôle » pour un rôle.",
+    "group": "Rôles proposés",
+    "allGroups": "Tous les rôles à choisir",
+    "titleLabel": "Titre",
+    "preview": "Aperçu",
+    "post": "Publier",
+    "postFailed": "Impossible de publier le menu de rôles."
+  },
+  "joinRole": {
+    "title": "Rôle des nouveaux membres",
+    "description": "Toute personne qui rejoint à partir de maintenant reçoit ce rôle. Les membres déjà présents gardent leurs rôles.",
+    "none": "Aucun",
+    "saved": "Les nouveaux membres recevront ce rôle.",
+    "cleared": "Les nouveaux membres ne reçoivent plus de rôle.",
+    "tooHigh": "Tu ne peux choisir qu’un rôle sous ton rôle le plus élevé.",
+    "saveFailed": "Impossible d’enregistrer le rôle des nouveaux membres.",
+    "notOpen": "Ce rôle donne des permissions que {'@'}everyone n’a pas, ou se trouve au-dessus d’un rôle qui en donne. Il ne peut pas être donné aux nouveaux membres.",
+    "currentNotOpen": "Ce rôle ne peut plus être donné aux nouveaux membres. Choisissez-en un autre."
+  },
+  "playTogether": {
+    "launcherSubtitle": "Lancez une activité que tout le monde ici peut rejoindre",
+    "loadingApps": "Chargement des activités…",
+    "noApps": "Aucune activité n’est activée sur cette instance.",
+    "sandboxNote": "Les activités sont isolées : elles ne voient ni votre compte, ni vos messages, ni rien en dehors du jeu.",
+    "players": "{min} à {max} joueurs",
+    "playing": "{n} joue | {n} jouent",
+    "join": "Rejoindre",
+    "open": "Ouvrir",
+    "leave": "Quitter",
+    "close": "Fermer",
+    "expand": "Agrandir",
+    "collapse": "Réduire",
+    "resize": "Redimensionner l’activité",
+    "endForEveryone": "Terminer pour tout le monde",
+    "hostName": "{name} (hôte)",
+    "return": "Revenir",
+    "retry": "Réessayer",
+    "loading": "Chargement de {name}…",
+    "loadFailed": "{name} ne s’est pas chargé.",
+    "reconnecting": "Reconnexion…",
+    "escaped": "{name} a tenté de sortir de son bac à sable et a été arrêté.",
+    "youArePlaying": "Vous jouez",
+    "joinTheCall": "Rejoignez l’appel pour jouer",
+    "alreadyRunning": "{name} est déjà en cours ici : vous l’avez rejoint.",
+    "openedElsewhere": "Cette activité est maintenant ouverte dans une autre fenêtre.",
+    "bannerOne": "{name} joue à {app}",
+    "bannerMany": "{name} et {n} autre personne jouent à {app} | {name} et {n} autres personnes jouent à {app}",
+    "bannerEmpty": "{app} est en cours ici",
+    "status": {
+      "connecting": "Connexion…",
+      "reconnecting": "Reconnexion…",
+      "ended": "Terminée"
+    },
+    "errors": {
+      "ACTIVITY_APP_UNAVAILABLE": "Cette activité n’est pas disponible sur cette instance.",
+      "ACTIVITY_CONTEXT_UNSUPPORTED": "Cette activité ne peut pas s’exécuter ici.",
+      "ACTIVITY_RATE_LIMITED": "Vous avez lancé beaucoup d’activités. Réessayez dans quelques minutes.",
+      "NOT_FOUND": "Vous ne pouvez pas jouer ici.",
+      "SERVER_NOT_LOCAL": "Les activités ne fonctionnent que sur les serveurs hébergés par cette instance.",
+      "CHANNEL_TYPE": "Les activités fonctionnent dans les salons textuels et vocaux.",
+      "NOT_IN_CALL": "Rejoignez l’appel pour jouer.",
+      "CANNOT_SEND": "Vous ne pouvez pas envoyer de messages dans ce salon.",
+      "MEMBER_TIMED_OUT": "Vous êtes exclu temporairement de ce serveur.",
+      "WEBVIEW_OUTDATED": "Mettez à jour Android System WebView pour jouer aux activités.",
+      "PACKAGE_DESKTOP_ONLY": "Cette activité se joue dans Harmony sur un ordinateur.",
+      "NOT_LOCAL_ACCOUNT": "Seuls les comptes de cette instance peuvent jouer ici.",
+      "ENDED": "Cette activité est terminée.",
+      "FULL": "Cette activité est complète.",
+      "UNSUPPORTED_VERSION": "Mettez Harmony à jour pour jouer à cette activité.",
+      "UNKNOWN": "Un problème est survenu avec l’activité."
+    },
+    "admin": {
+      "tab": "Activités",
+      "title": "Jouer ensemble",
+      "intro": "Les activités que les membres peuvent lancer en MP, MP de groupe, salons textuels et appels. En désactiver une termine ses sessions en cours.",
+      "none": "Aucune activité n’est installée.",
+      "toggle": "Proposer {name}",
+      "enabled": "Activité activée",
+      "disabled": "Activité désactivée",
+      "context": {
+        "direct": "MP",
+        "group": "MP de groupe",
+        "channel": "Salons textuels",
+        "voice": "Salons vocaux"
+      },
+      "safetyTitle": "Comment les activités sont isolées",
+      "safety": {
+        "sandbox": "Chaque activité s’exécute dans un cadre isolé avec sa propre origine opaque : elle ne peut lire ni la session du compte, ni son stockage, ni ses messages, ni la page qui l’entoure.",
+        "network": "Sa politique de contenu refuse les requêtes réseau, fenêtres surgissantes, formulaires et cadres, et ne charge que les fichiers de son propre dossier ; un cadre qui navigue ailleurs est arrêté.",
+        "relay": "Les joueurs communiquent par le relais de cette instance, qui vérifie chaque membre, limite la taille et le débit des messages et ne garde aucune donnée de jeu après une session.",
+        "members": "Seuls les membres de la conversation ou du salon peuvent rejoindre ; quiconque la quitte, quitte l’appel ou se déconnecte quitte la partie en moins de 30 secondes."
+      },
+      "package": "Paquet",
+      "checkUpdate": "Chercher une mise à jour",
+      "remove": "Retirer",
+      "removeConfirm": "Retirer définitivement ?",
+      "installTitle": "Installer une activité",
+      "installIntro": "Téléversez un paquet d’activité (.zip) ou indiquez son adresse HTTPS. Vous voyez ce que c’est avant toute installation.",
+      "chooseZip": "Choisir un .zip",
+      "or": "ou",
+      "urlLabel": "Adresse du paquet",
+      "preview": "Aperçu",
+      "replaces": "remplace la v{version}",
+      "id": "ID",
+      "playersLabel": "Joueurs",
+      "runsIn": "Fonctionne dans",
+      "size": "Taille",
+      "from": "Source",
+      "trustWarning": "Cette activité exécute le code de son auteur sur les appareils de vos membres, dans le bac à sable. N’installez que des activités de confiance, comme vous ajouteriez un bot.",
+      "update": "Mettre à jour",
+      "install": "Installer",
+      "cancel": "Annuler",
+      "updated": "Activité mise à jour",
+      "installed": "Activité installée, désactivée",
+      "removed": "Activité retirée",
+      "errors": {
+        "NOT_A_ZIP": "Ce n’est pas un fichier zip.",
+        "TOO_LARGE": "Le paquet est trop volumineux (6 Mo au plus, 5 Mo pour le script, 256 Ko pour l’icône).",
+        "UNEXPECTED_FILE": "Le paquet contient un fichier autre que manifest.json, le script et l’icône.",
+        "MISSING_FILE": "Il manque un fichier nommé par le manifeste.",
+        "BAD_MANIFEST": "manifest.json n’est pas valide.",
+        "BAD_ENTRY": "Le script est vide ou n’est pas du texte.",
+        "BAD_ICON": "L’icône n’est pas le SVG, PNG ou WebP annoncé.",
+        "BUILTIN_ID": "Une activité intégrée utilise déjà cet ID.",
+        "TOO_MANY_PACKAGES": "Cette instance a déjà 50 paquets.",
+        "PACKAGE_CHANGED": "Le paquet à cette adresse a changé depuis l’aperçu. Refaites l’aperçu.",
+        "FETCH_FAILED": "Le paquet n’a pas pu être téléchargé.",
+        "BAD_URL": "Utilisez une adresse https://."
+      }
+    },
+    "thirdParty": "Tierce",
+    "desktopOnly": "Ordinateur uniquement",
+    "thirdPartyNotice": "Activité tierce, installée par cette instance. Harmony ne vous demande jamais votre mot de passe dans une activité."
+  },
+  "adminVoiceIce": {
+    "title": "Appels pair à pair : STUN et TURN",
+    "intro": "Sans LiveKit, les appels de cette instance relient les appareils directement. Les serveurs STUN donnent à chaque appareil son adresse publique ; un serveur TURN relaie l'audio et la vidéo des appareils qui ne peuvent pas se joindre, par exemple derrière un NAT ou un pare-feu strict.",
+    "stunDefault": "Utiliser les serveurs STUN par défaut",
+    "stunDefaultHint": "{urls}. Les appels envoient l'adresse de chaque participant à ces serveurs.",
+    "stunUrls": "Serveurs STUN",
+    "stunUrlsHint": "Une URL par ligne, comme stun:turn.example.com:3478. Vide : aucun serveur STUN.",
+    "turnUrls": "Serveurs TURN",
+    "turnUrlsHint": "Une URL par ligne, comme turn:turn.example.com:3478 ou turns:turn.example.com:5349. Vide : aucun serveur TURN.",
+    "turnAuth": "Identifiants TURN",
+    "turnAuthSecret": "Secret partagé",
+    "turnAuthSecretHint": "Le static-auth-secret de coturn (use-auth-secret). Chaque appel reçoit ses propres identifiants, valables un jour.",
+    "turnAuthPassword": "Nom d'utilisateur et mot de passe",
+    "username": "Nom d'utilisateur TURN",
+    "secret": "Secret partagé",
+    "password": "Mot de passe TURN",
+    "secretKept": "Enregistré. Laissez vide pour le conserver.",
+    "invalidStun": "Pas une URL STUN : {url}",
+    "invalidTurn": "Pas une URL TURN : {url}",
+    "needsUsername": "Un serveur TURN avec mot de passe demande un nom d'utilisateur.",
+    "needsSecret": "Les serveurs TURN demandent un secret partagé ou un mot de passe.",
+    "save": "Enregistrer",
+    "saved": "Serveurs ICE enregistrés",
+    "saveFailed": "Les serveurs ICE n'ont pas pu être enregistrés.",
+    "loadFailed": "Les serveurs ICE n'ont pas pu être chargés."
   }
 }

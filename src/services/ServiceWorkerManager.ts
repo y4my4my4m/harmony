@@ -10,7 +10,8 @@ import { isLastingRejectionCode } from '@/services/AutoModService'
 // Quick-reply queue (IndexedDB) - schema shared with public/service-worker.js.
 // The SW persists notification-input replies here so they survive
 // "no client open" / "client just booted" / postMessage races; the frontend
-// drains them through messageService.
+// drains them through messageService, each only as the account it was typed
+// for. A sign-out empties the queue.
 
 const QUICK_REPLY_DB_NAME = 'harmony-sw'
 const QUICK_REPLY_DB_VERSION = 1
@@ -22,6 +23,8 @@ interface QuickReplyEntry {
   replyText: string
   /** Notification data payload (conversation_id, server_id, channel_id, ...) */
   data: any
+  /** Profile id the push was for (data.recipient_id); absent from workers before 3.10. */
+  account?: string | null
   navigationUrl?: string | null
   queuedAt: number
 }
@@ -74,6 +77,34 @@ async function removeQuickReply(id: number): Promise<void> {
   }
 }
 
+/** Empties the queue: replies typed for an account leave with its sign-out. */
+export async function forgetQuickReplies(): Promise<void> {
+  try {
+    const db = await openQuickReplyDB()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(QUICK_REPLY_STORE, 'readwrite')
+      tx.objectStore(QUICK_REPLY_STORE).clear()
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
+    })
+    db.close()
+  } catch (err) {
+    debug.error('Quick reply queue: clear failed:', err)
+  }
+}
+
+/**
+ * Epoch ms from which this device's session was signed in: the earliest timestamp in its token's amr
+ * claim. amr timestamps are whole seconds; the second after it bounds the sign-in from above.
+ */
+function sessionSignedInAt(claims: any): number | null {
+  const stamps = (Array.isArray(claims?.amr) ? claims.amr : [])
+    .map((entry: any) => Number(entry?.timestamp))
+    .filter((n: number) => Number.isFinite(n) && n > 0)
+  return stamps.length > 0 ? (Math.min(...stamps) + 1) * 1000 : null
+}
+
 async function enqueueQuickReply(entry: QuickReplyEntry): Promise<void> {
   try {
     const db = await openQuickReplyDB()
@@ -95,6 +126,9 @@ export class ServiceWorkerManager {
   private registration: ServiceWorkerRegistration | null = null
   private isRegistered = false
   private isDrainingQuickReplies = false
+  // A drain asked for while one runs; the running one drains again when it ends.
+  private drainAgain = false
+  private drainOnUserDataPending = false
 
   public static getInstance(): ServiceWorkerManager {
     if (!ServiceWorkerManager.instance) {
@@ -336,6 +370,22 @@ export class ServiceWorkerManager {
   }
 
   /**
+   * Drains again once the signed-in user's data has loaded (userDataService
+   * `initialized`): sends need it, and it loads after sign-in and at boot,
+   * after the triggers above may have run.
+   */
+  private drainWhenUserDataLoads(userData: EventTarget): void {
+    if (this.drainOnUserDataPending) return
+    this.drainOnUserDataPending = true
+    userData.addEventListener('initialized', () => {
+      this.drainOnUserDataPending = false
+      this.drainQuickReplyQueue().catch(err => {
+        debug.error('ServiceWorker: quick reply drain after user data load failed:', err)
+      })
+    }, { once: true })
+  }
+
+  /**
    * Legacy path for SW versions that postMessage replies directly instead of
    * persisting to IndexedDB and pinging QUICK_REPLY_QUEUED. A direct
    * QUICK_REPLY is treated as enqueue + drain.
@@ -351,6 +401,7 @@ export class ServiceWorkerManager {
       await enqueueQuickReply({
         replyText,
         data: notifData,
+        account: typeof notifData.recipient_id === 'string' ? notifData.recipient_id : null,
         navigationUrl: data?.url ?? null,
         queuedAt: Date.now(),
       })
@@ -367,44 +418,71 @@ export class ServiceWorkerManager {
    * Entries are sent through `messageService` so encryption, optimistic UI,
    * and federation triggers match a regular send. An entry is removed only
    * after a successful send; failures stay queued for the next drain (app
-   * boot, route change, or QUICK_REPLY_QUEUED ping).
+   * boot, route change, or QUICK_REPLY_QUEUED ping). Entries the signed-in
+   * account may send wait, unsent, until its user data has loaded.
    */
   async drainQuickReplyQueue(): Promise<void> {
     if (this.isDrainingQuickReplies) {
-      // The in-flight drain covers entries queued up to this point.
+      this.drainAgain = true
       return
     }
     this.isDrainingQuickReplies = true
+    this.drainAgain = false
     try {
       const pending = await peekAllQuickReplies()
       if (pending.length === 0) return
 
-      const { useAuthStore } = await import('@/stores/auth')
+      // Lazy imports: the SW manager initializes before the stores exist.
+      const [{ useAuthStore }, { userDataService }] = await Promise.all([
+        import('@/stores/auth'),
+        import('@/services/userDataService'),
+      ])
       const authStore = useAuthStore()
       if (!authStore.isLoggedIn) {
         debug.log(`Quick reply drain: not logged in, deferring ${pending.length} entries`)
+        this.drainWhenUserDataLoads(userDataService)
         return
       }
 
-      // Lazy import: the SW manager initializes before the stores exist.
       const [{ messageService }, { authContextService }] = await Promise.all([
         import('@/services'),
         import('@/services/AuthContextService'),
       ])
 
       // Requires a resolvable profile; defer to the next trigger otherwise.
+      let profileId: string
       try {
-        await authContextService.getCurrentProfileId()
+        profileId = await authContextService.getCurrentProfileId()
       } catch {
         debug.log('Quick reply drain: no profile resolved yet, deferring')
+        this.drainWhenUserDataLoads(userDataService)
         return
       }
+      // messageService sends as userDataService's current user.
+      const userDataLoaded = !!userDataService.getCurrentUser()
+      let waiting = false
+      // An entry of a worker before 3.10 names no account: it is this account's when it was queued
+      // during this device's session.
+      const token = authStore.session?.access_token
+      const signedInAt = token ? sessionSignedInAt(authStore.decodeJWT(token)) : null
 
       for (const entry of pending) {
         const replyText = (entry.replyText || '').trim()
         const notifData = entry.data || {}
         if (!replyText) {
           await removeQuickReply(entry.id)
+          continue
+        }
+        const owned = entry.account
+          ? entry.account === profileId
+          : signedInAt !== null && entry.queuedAt >= signedInAt
+        if (!owned) {
+          debug.warn('Quick reply typed for another account or session, dropping', entry.id)
+          await removeQuickReply(entry.id)
+          continue
+        }
+        if (!userDataLoaded) {
+          waiting = true
           continue
         }
 
@@ -444,8 +522,17 @@ export class ServiceWorkerManager {
           debug.error('Quick reply drain failed for entry, will retry later:', err, entry)
         }
       }
+      if (waiting) {
+        // Loaded while this drain ran: the event is past, so drain again now.
+        if (userDataService.getCurrentUser()) this.drainAgain = true
+        else this.drainWhenUserDataLoads(userDataService)
+      }
     } finally {
       this.isDrainingQuickReplies = false
+    }
+    if (this.drainAgain) {
+      this.drainAgain = false
+      await this.drainQuickReplyQueue()
     }
   }
 

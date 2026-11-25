@@ -303,7 +303,7 @@ export const useChatStore = defineStore('chat', {
         // Stale-channel guard. Applies to pagination requests
         // (`oldestMessageId !== ''`) as well as the initial load: without it, a
         // channel switch mid-fetch prepends channel A's history into channel
-        // B's `messages` array and corrupts the cache. BUGS.md H34.
+        // B's `messages` array and corrupts the cache.
         if (signal?.aborted) {
           throw new Error('Request aborted');
         }
@@ -927,7 +927,6 @@ export const useChatStore = defineStore('chat', {
         // accepting the fallback prompt re-calls this method with
         // `allowPlaintextFallback: true` and creates a fresh optimistic. A
         // lingering "failed" entry reads as sent-then-rejected on Cancel.
-        // BUGS.md.
         // CoreMessageService wraps database errors as INSERT_FAILED with the
         // database message in `message`; both carry codes.
         const code = [error?.code, error?.message].filter(Boolean).join(' ');

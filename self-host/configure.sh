@@ -22,7 +22,8 @@
 #
 # Answers, as environment variables; each defaults to the configured value:
 #   HARMONY_DOMAIN          public domain, e.g. chat.example.com
-#   HARMONY_INSTANCE_NAME   display name
+#   HARMONY_INSTANCE_NAME   name the app and other servers show; default the domain
+#                           (also for Harmony left from releases up to 1.9.7)
 #   HARMONY_ADMIN_EMAIL     Let's Encrypt contact and Web Push (VAPID) contact
 #   HARMONY_TLS             acme | internal
 #   HARMONY_VOICE           y | n   (LiveKit voice/video)
@@ -321,8 +322,29 @@ LIVEKIT_CHANGED=$DOMAIN_CHANGED
 [[ -n "$OLD_DOMAIN" && "$OLD_DB_DOMAIN" != "$DB_DOMAIN" ]] &&
 	warn "API name changes from $OLD_DB_DOMAIN to $DB_DOMAIN: OAuth providers need the new callback, https://$DB_DOMAIN/auth/v1/callback"
 
-prompt INSTANCE_NAME "Instance display name" "${HARMONY_INSTANCE_NAME:-$(env_get "$ENV_FILE" INSTANCE_NAME)}"
-INSTANCE_NAME="${INSTANCE_NAME:-Harmony}"
+# Instance name: the rules of lib.sh ask_instance_name. Offered: HARMONY_INSTANCE_NAME, else the
+# configured name, else the domain; Harmony left from an earlier release's offer, without
+# INSTANCE_NAME_CHOSEN, gives way to the domain. The offer is never blank, and read trims a
+# blank answer to it.
+trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; printf '%s' "${s%"${s##*[![:space:]]}"}"; }
+is_software_name() { [[ "$(printf '%s' "$1" | lower)" == harmony ]]; }
+NAME_OFFER="$(trim "${HARMONY_INSTANCE_NAME:-}")"
+if [[ -z "$NAME_OFFER" ]]; then
+	NAME_OFFER="$(trim "$(env_get "$ENV_FILE" INSTANCE_NAME)")"
+	if [[ -z "$NAME_OFFER" ]] || { [[ "$NAME_OFFER" == Harmony ]] && ! env_has "$ENV_FILE" INSTANCE_NAME_CHOSEN; }; then
+		NAME_OFFER="$DOMAIN"
+	fi
+fi
+while :; do
+	prompt INSTANCE_NAME "Instance name, as the app and other servers show it" "$NAME_OFFER"
+	INSTANCE_NAME="$(trim "$INSTANCE_NAME")"
+	is_software_name "$INSTANCE_NAME" || break
+	warn "Harmony is the software's name: other servers show every instance named so under the same name."
+	is_software_name "$NAME_OFFER" && break
+	$INTERACTIVE || break
+	prompt NAME_KEEP "Name this instance Harmony anyway? (y/n)" n
+	[[ "$(yes_no "$NAME_KEEP")" == true ]] && break
+done
 # Env files hold the name unquoted: compose expands $, cuts at " #", and reads
 # a leading quote as quoting.
 [[ "$INSTANCE_NAME" != *[\$\#\"\\\`]* && "$INSTANCE_NAME" != \'* && "$INSTANCE_NAME" != *$'\n'* ]] ||
@@ -650,7 +672,7 @@ if [[ "$(yes_no "$OLD_AUTOCONFIRM")" == true || "$(yes_no "$(env_get "$SB_ENV" E
 		want="$(linking_isolate "$linking" $BUILTIN_OAUTH_PROVIDERS)"
 		if [[ "$want" != "$linking" ]]; then
 			env_set "$SB_ENV" PROVIDER_LINKING_DOMAINS "$want"
-			info "supabase/.env: PROVIDER_LINKING_DOMAINS=$want: a first sign-in through Google, GitHub or Twitch makes a new account instead of joining the one with its address (harmony auth linking)"
+			info "supabase/.env: PROVIDER_LINKING_DOMAINS=$want: a first sign-in through Google, GitHub, Twitch or Discord makes a new account instead of joining the one with its address (harmony auth linking)"
 		fi
 	fi
 fi
@@ -693,6 +715,12 @@ env_set     "$ENV_FILE" DOMAIN "$DOMAIN"
 env_set     "$ENV_FILE" DB_DOMAIN "$DB_DOMAIN"
 env_set     "$ENV_FILE" LIVEKIT_DOMAIN "$LIVEKIT_DOMAIN"
 env_set     "$ENV_FILE" INSTANCE_NAME "$INSTANCE_NAME"
+# Harmony given as the answer, not left from an earlier release's offer (lib.sh instance_name_unchosen).
+if [[ "$INSTANCE_NAME" == Harmony ]]; then
+	env_set "$ENV_FILE" INSTANCE_NAME_CHOSEN true
+else
+	env_del "$ENV_FILE" INSTANCE_NAME_CHOSEN
+fi
 env_set     "$ENV_FILE" ADMIN_EMAIL "$ADMIN_EMAIL"
 env_set     "$ENV_FILE" CADDY_TLS "$CADDY_TLS"
 env_set     "$ENV_FILE" ENABLE_VOICE "$ENABLE_VOICE"

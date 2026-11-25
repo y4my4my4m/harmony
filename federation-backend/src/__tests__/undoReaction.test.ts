@@ -226,6 +226,56 @@ describe('Undo of a custom emoji reaction', () => {
   });
 });
 
+describe('Undo of a channel reaction on a copy\'s emoji', () => {
+  // A reaction on a copy's message holds the copy's row of the host's emoji (emoji_id, no
+  // content). A row of the same image without a Group id appears afterwards (an import that kept
+  // the URL, another instance's activity): the Undo still finds the copy's row.
+  const HOST = 'https://host.test';
+  const WAVE_URL = 'https://db.host.test/storage/v1/object/public/emojis/wave.webp';
+  const MESSAGE = '33333333-3333-4333-8333-333333333333';
+  const undoWave = {
+    type: 'EmojiReact',
+    actor: ALICE,
+    object: `${HOST}/messages/${MESSAGE}`,
+    content: ':wave@host.test:',
+    tag: [{ type: 'Emoji', name: ':wave@host.test:', icon: { url: WAVE_URL } }],
+  };
+
+  beforeEach(() => {
+    tables.emojis = [
+      { id: 'copy-wave', url: WAVE_URL, ap_id: `${HOST}/servers/s/emojis/1`, domain: 'host.test', server_id: 'copy', created_at: '2026-01-01T00:00:00Z' },
+    ];
+    tables.reactions = [
+      { id: 'c1', user_id: 'alice-id', message_id: MESSAGE, emoji_id: 'copy-wave', custom_emoji_content: null },
+      { id: 'c2', user_id: 'alice-id', message_id: MESSAGE, emoji_id: null, custom_emoji_content: '🎉' },
+    ];
+  });
+
+  it('removes the reaction holding the copy\'s row', async () => {
+    await ActivityProcessor.removeMessageReactions(MESSAGE, 'alice-id', undoWave);
+    expect(tables.reactions.map((r) => r.id)).toEqual(['c2']);
+  });
+
+  it('removes it when a row of the image without a Group id appeared after the reaction', async () => {
+    tables.emojis.push({ id: 'plain-wave', url: WAVE_URL, ap_id: null, domain: null, server_id: null, scope: 'instance', created_at: '2026-01-02T00:00:00Z' });
+    await ActivityProcessor.removeMessageReactions(MESSAGE, 'alice-id', undoWave);
+    expect(tables.reactions.map((r) => r.id)).toEqual(['c2']);
+  });
+
+  it('removes a reaction holding a cached row once the copy took another row of the image', async () => {
+    tables.emojis.push({ id: 'cached-wave', url: WAVE_URL, ap_id: null, domain: 'db.host.test', server_id: null, created_at: '2025-12-01T00:00:00Z' });
+    tables.reactions[0].emoji_id = 'cached-wave';
+    await ActivityProcessor.removeMessageReactions(MESSAGE, 'alice-id', undoWave);
+    expect(tables.reactions.map((r) => r.id)).toEqual(['c2']);
+  });
+
+  it('leaves the reaction when the Undo names an image of a copy of another instance\'s server', async () => {
+    tables.emojis[0].domain = 'elsewhere.test';
+    await ActivityProcessor.removeMessageReactions(MESSAGE, 'alice-id', undoWave);
+    expect(tables.reactions.map((r) => r.id)).toEqual(['c1', 'c2']);
+  });
+});
+
 describe('Undo of a DM reaction', () => {
   beforeEach(() => {
     tables.reactions = [

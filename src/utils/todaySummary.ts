@@ -619,18 +619,6 @@ export function encryptedMessages(s: TodaySummary): Message[] {
   return out
 }
 
-/** Icon for instance_announcements.icon; mirrors AnnouncementPopup. */
-export function announcementIcon(icon: string | null): string {
-  switch (icon) {
-    case 'warning': return 'alert-triangle'
-    case 'celebration': return 'megaphone'
-    case 'maintenance': return 'wrench'
-    case 'update': return 'refresh-cw'
-    case 'security': return 'shield'
-    default: return 'info'
-  }
-}
-
 // Visit tracking -------------------------------------------------------------------------
 
 const RELATIVE_UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [

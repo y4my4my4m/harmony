@@ -8,7 +8,8 @@
 //   - the event was already defaultPrevented (a widget inside consumed it),
 //   - focus is outside the topmost layer's element (an unregistered popup
 //     opened from it owns that Escape); focus stranded on an element this
-//     module made inert counts as inside, since nothing there takes keys,
+//     module made inert counts as inside, since nothing there takes keys, and
+//     so does focus in one of the layer's companions,
 //   - the topmost layer opened while this keydown was being dispatched (a
 //     view's own Escape listener opened it, e.g. a discard-changes prompt),
 //   - focus is on an expanded combobox or text field (aria-expanded="true"),
@@ -23,7 +24,8 @@
 //   before is never touched. Elements appended later (popovers teleported from
 //   inside a dialog) stay interactive. PERSISTENT_SELECTOR elements (live
 //   regions, the toast host) are never made inert: an inert live region is
-//   silent.
+//   silent. Elements matching a layer's `companions` selector stay interactive
+//   beside that layer only (the voice dock over the media viewer).
 
 export type LayerKind = 'dialog' | 'drawer' | 'menu' | 'popover'
 
@@ -33,6 +35,8 @@ export interface LayerOptions {
   element: () => Element | null | undefined
   /** Called for Escape while topmost. */
   onEscape: () => void
+  /** Selector of top-level elements left interactive beside the layer; focus there counts as inside. */
+  companions?: string
   /** False: the layer takes no Back entry (setLayerHistory). Default true. */
   history?: boolean
 }
@@ -66,7 +70,8 @@ function onKeydown(event: KeyboardEvent): void {
     target !== document.body &&
     target !== document.documentElement &&
     !root.contains(target) &&
-    !isInManagedInert(target)
+    !isInManagedInert(target) &&
+    !(top.companions && (target instanceof Element ? target : target.parentElement)?.closest(top.companions))
   )
     return
   if (target instanceof Element && target !== root && target.closest(EXPANDED_FIELD)) return
@@ -162,8 +167,8 @@ export function holdInert(el: Element): () => void {
   }
 }
 
-/** Makes everything outside `roots` inert; returns the release. */
-export function inertOthers(roots: Element[]): () => void {
+/** Makes everything outside `roots` inert, but for elements matching `except`; returns the release. */
+export function inertOthers(roots: Element[], except?: string): () => void {
   if (typeof document === 'undefined') return () => {}
   const keep = new Set<Element>()
   for (const root of roots) {
@@ -181,6 +186,7 @@ export function inertOthers(roots: Element[]): () => void {
       if (!parent) break
       for (const sibling of Array.from(parent.children)) {
         if (keep.has(sibling) || applied.has(sibling) || sibling.matches(PERSISTENT_SELECTOR)) continue
+        if (except && sibling.matches(except)) continue
         hold(sibling)
         applied.add(sibling)
       }

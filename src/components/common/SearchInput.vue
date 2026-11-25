@@ -9,6 +9,7 @@
     </div>
     
     <input 
+      :id="inputId"
       ref="inputRef"
       :value="modelValue" 
       @input="handleInput"
@@ -47,6 +48,7 @@ interface Props {
   isLoading?: boolean
   disabled?: boolean
   showClearButton?: boolean
+  inputId?: string
 }
 
 interface Emits {

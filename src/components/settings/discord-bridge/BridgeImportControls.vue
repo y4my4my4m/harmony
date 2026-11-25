@@ -7,16 +7,30 @@
         <div class="import-line">
           <span class="import-state" data-testid="import-state">{{ liveText }}</span>
           <button
+            v-if="!stopping"
             type="button"
             class="btn btn-ghost btn-sm"
-            :disabled="busy || job.cancel_requested"
+            :disabled="busy"
             :aria-label="t('discordBridge.import.cancelLabel', { channel: channelName })"
             data-testid="import-cancel"
             @click="emit('cancel', job)"
           >
             {{ t('discordBridge.import.cancel') }}
           </button>
+          <!-- A second cancel ends the job without its bridge (discord_bridge_import_cancel). -->
+          <button
+            v-else
+            type="button"
+            class="btn btn-ghost btn-sm"
+            :disabled="busy"
+            :aria-label="t('discordBridge.import.stopNowLabel', { channel: channelName })"
+            data-testid="import-stop"
+            @click="emit('cancel', job)"
+          >
+            {{ t('discordBridge.import.stopNow') }}
+          </button>
         </div>
+        <p v-if="stopping" class="import-detail" data-testid="import-stop-hint">{{ t('discordBridge.import.stopNowHint') }}</p>
         <div
           v-if="job.state === 'running' && percent !== null && job.phase === 'messages'"
           class="import-bar"
@@ -34,7 +48,7 @@
       <div v-else-if="job" class="import-line">
         <span :class="['import-state', `import-state--${job.state}`]" data-testid="import-state">{{ endText }}</span>
         <button
-          v-if="job.state === 'failed' || job.state === 'cancelled' || job.state === 'done'"
+          v-if="job.state === 'failed' || job.state === 'cancelled' || job.state === 'done' || job.state === 'paused'"
           type="button"
           class="btn btn-secondary btn-sm"
           :disabled="busy"
@@ -82,8 +96,10 @@ const emit = defineEmits<{ start: [harmonyChannelId: string]; cancel: [job: Impo
 const { t, te, locale } = useI18n()
 
 const percent = computed(() => (props.job ? importPercent(props.job) : null))
+/** Asked to stop and still running: the bridge has not answered the request yet. */
+const stopping = computed(() => props.job?.state === 'running' && props.job.cancel_requested)
 const retryKey = computed(() => {
-  if (props.job?.state === 'cancelled') return 'resume'
+  if (props.job?.state === 'cancelled' || props.job?.state === 'paused') return 'resume'
   if (props.job?.state === 'done') return 'again'
   return 'retry'
 })

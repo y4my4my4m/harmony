@@ -1,25 +1,23 @@
-import type { ReactionActor, ReactionGroup } from '@/types'
+import type { BridgeAuthor, BridgePlatform, ReactionActor, ReactionGroup } from '@/types'
 import { BOT_NAME_COLOR } from '@/utils/botUtils'
 import { formatHandle } from '@/utils/handles'
+import { bridgedAuthorHandle, bridgedAuthorName, getBridgedAuthor } from '@/utils/messageAuthor'
 
-/** metadata.discord_user of a reaction bridged from Discord. */
-export type DiscordReactionUser = NonNullable<NonNullable<ReactionActor['metadata']>['discord_user']>
-
-/** One reactor in a reaction group: a Harmony user, a bot, or a bridged Discord user. */
+/** One reactor in a reaction group: a Harmony user, a bot, or a bridged person. */
 export interface ReactionUser {
   /** Unique within one reaction group. */
   key: string
-  /** Profile id, bot id, or Discord user snowflake, per `kind`. */
+  /** Profile id, bot id, Discord snowflake or Matrix MXID, per `kind`. */
   id: string
-  kind: 'user' | 'bot' | 'discord'
+  kind: 'user' | 'bot' | BridgePlatform
   displayName: string
-  /** `@username`, or `@username@domain` for a remote user. */
+  /** `@username`, `@username@domain` for a remote user, the MXID for a Matrix person. */
   handle: string | null
   avatarUrl: string
   userColor: string
   isBridged: boolean
-  bridgeSource?: 'discord'
-  discordUser?: DiscordReactionUser
+  bridgeSource?: BridgePlatform
+  bridgedAuthor?: BridgeAuthor
 }
 
 export interface ReactionBotInfo {
@@ -35,6 +33,8 @@ export interface ReactionUserResolvers {
   color: (userId: string) => string
   handle?: (userId: string) => string | null
   bot?: (botId: string) => ReactionBotInfo | null
+  /** Name colour of a bridged person; DEFAULT_USER_COLOR without it. */
+  bridgedColor?: (platform: BridgePlatform, id: string) => string
   /** Loads profiles and bots the lookups above read. */
   preload?: (actors: ReactionActor[]) => void
 }
@@ -56,11 +56,11 @@ export function reactionGroupContent(group: Pick<ReactionGroup, 'emoji'>): strin
   return typeof emoji?.name === 'string' ? emoji.name : ''
 }
 
-/** Distinct Harmony profile ids among the actors; bridged Discord rows excluded. */
+/** Distinct Harmony profile ids among the actors; bridged rows excluded. */
 export function reactionProfileIds(actors: ReactionActor[] | undefined): string[] {
   const ids = new Set<string>()
   for (const actor of actors ?? []) {
-    if (actor.user_id && !actor.metadata?.discord_user) ids.add(actor.user_id)
+    if (actor.user_id && !getBridgedAuthor(actor)) ids.add(actor.user_id)
   }
   return [...ids]
 }
@@ -75,19 +75,19 @@ export function formatUserHandle(
 }
 
 export function toReactionUser(actor: ReactionActor, resolvers: ReactionUserResolvers): ReactionUser {
-  const discordUser = actor.metadata?.discord_user
-  if (discordUser) {
+  const bridged = getBridgedAuthor(actor)
+  if (bridged) {
     return {
-      key: `discord:${discordUser.id}`,
-      id: discordUser.id,
-      kind: 'discord',
-      displayName: discordUser.display_name || discordUser.username || 'Discord User',
-      handle: discordUser.username ? `@${discordUser.username}` : null,
-      avatarUrl: discordUser.avatar_url || '',
-      userColor: BOT_NAME_COLOR,
+      key: bridged.id ? `${bridged.platform}:${bridged.id}` : `reaction:${actor.reaction_id}`,
+      id: bridged.id,
+      kind: bridged.platform,
+      displayName: bridgedAuthorName(bridged),
+      handle: bridgedAuthorHandle(bridged) || null,
+      avatarUrl: bridged.avatar_url || '',
+      userColor: resolvers.bridgedColor?.(bridged.platform, bridged.id) ?? 'var(--text-primary)',
       isBridged: true,
-      bridgeSource: 'discord',
-      discordUser,
+      bridgeSource: bridged.platform,
+      bridgedAuthor: bridged,
     }
   }
 

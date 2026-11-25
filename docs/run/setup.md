@@ -162,14 +162,14 @@ Click the server name at the top of the channel list, then **Server settings**. 
 | **Roles** | Everyone | [Roles and permissions](/run/roles-permissions) |
 | **Emoji** | Everyone | Custom emoji |
 | **Soundboard** | Everyone | Soundboard sounds |
-| **Discord Bridge** | Manage Server | [Discord bridge](/run/discord-bridge) |
+| **Bridges** | Manage Server | **Discord** tab: [Discord bridge](/run/discord-bridge); **Matrix** tab: [Matrix bridge](/run/matrix-bridge) |
 | **AutoMod** | Manage Server | [Moderation](/run/moderation#automod) |
 | **Reports** | Manage Messages | Reports about messages in this server ([Moderation](/run/moderation#reports)) |
 | **Bans** | Ban Members | The ban list ([Moderation](/run/moderation#unban)) |
 | **Audit log** | View Audit Log | [Moderation](/run/moderation#audit-log) |
 | **Advanced settings** | Everyone | Server ID and creation date, delete the server, template export, bots |
 
-The list puts **Emoji**, **Stickers** and **Soundboard** under **Expression**, **Outgoing webhooks** and **Discord Bridge** under **Integrations**, and **AutoMod**, **Reports**, **Bans** and **Audit log** under **Moderation**. A heading shows only when you see a section under it.
+The list puts **Emoji**, **Stickers** and **Soundboard** under **Expression**, **Outgoing webhooks** and **Bridges** under **Integrations**, and **AutoMod**, **Reports**, **Bans** and **Audit log** under **Moderation**. A heading shows only when you see a section under it.
 
 **Overview** and **Privacy settings** save with **Save changes** at the top; the other sections save on their own. A server hosted on another instance is managed on its home instance; its settings here are mostly read-only.
 

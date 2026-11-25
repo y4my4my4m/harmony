@@ -1,4 +1,175 @@
 {
+  "bridgeSource": {
+    "from": "Bridged from {platform}",
+    "profile": {
+      "joinedServer": "Joined server",
+      "memberSince": "{platform} member since",
+      "status": "Status",
+      "roles": "Role | Roles",
+      "copyId": "Copy {platform} ID",
+      "copied": "Copied"
+    }
+  },
+  "matrixBridge": {
+    "title": "Matrix bridge",
+    "description": "Link channels on this server with rooms on Matrix. Messages sent on either side show up on the other, with the name of whoever sent them.",
+    "loading": "Loading Matrix bridges…",
+    "reload": "Reload",
+    "loadError": "Could not load Matrix bridge settings. Reload to try again.",
+    "saveError": "Could not confirm the change. Reload to check the current setting.",
+    "status": {
+      "none": "Not set up",
+      "connected": "Bridged to Matrix",
+      "waiting": "Waiting for Matrix rooms",
+      "problem": "Needs attention",
+      "line": {
+        "none": "No channel on this server is bridged to Matrix yet.",
+        "connected": "Every paired channel has a Matrix room.",
+        "waiting": "{count} channel is waiting for the bridge to connect a Matrix room. | {count} channels are waiting for the bridge to connect a Matrix room.",
+        "problem": "{count} paired channel isn't being bridged. Its card below says how to fix it. | {count} paired channels aren't being bridged. Their cards below say how to fix them."
+      },
+      "facts": {
+        "bot": "Bridge bot | Bridge bots",
+        "paired": "Paired channels",
+        "rooms": "Connected to a room",
+        "waiting": "Waiting for a room",
+        "stopped": "Not being bridged"
+      },
+      "unseen": "Harmony can't tell whether the bridge service is running. To check, send a message in a paired channel and look for it in Matrix."
+    },
+    "pairs": {
+      "title": "Paired channels",
+      "listLabel": "Channels paired with Matrix",
+      "empty": "No channel is paired with Matrix yet.",
+      "harmony": "Harmony",
+      "matrix": "Matrix",
+      "waitingRoom": "Waiting for the bridge to connect a room",
+      "badge": {
+        "connected": "Connected",
+        "waiting": "Waiting for a room",
+        "stopped": "Not being bridged"
+      },
+      "waitingFix": "The bridge connects a room once this channel is in its configuration: ask whoever runs the bridge to add it. You can already choose how members appear.",
+      "stoppedFix": "{bot} can't bridge #{channel} anymore: the bot is turned off, lost Read messages or Send messages, or #{channel} left its channel list. Fix it in Server settings → Advanced settings → Server bots.",
+      "via": "Through {bot}",
+      "senderMode": "Harmony members appear in Matrix",
+      "mode": {
+        "ghost": "As their own Matrix users (recommended)",
+        "relay": "Through one shared bridge account"
+      },
+      "modeHint": {
+        "ghost": "Each member shows up in the room with their own name and picture.",
+        "relay": "Every message comes from the bridge's account, with the member's name in front."
+      },
+      "saving": "Saving…",
+      "edit": "Change paired channels",
+      "notOwner": "Only the owner of {bot} can change which channels it bridges. You can still choose how members appear, or unpair it."
+    },
+    "modes": {
+      "title": "How the two choices work",
+      "ghost": "As their own Matrix users: the bridge adds a Matrix user for each Harmony member who can see the channel, with their name and picture, and people on Matrix mention them with the usual {'@'} autocomplete. This needs the bridge's user namespace registered on the Matrix homeserver, and the bridge account allowed to invite people into the room. If either is missing, the bridge reports an error; it does not switch to the shared account by itself.",
+      "relay": "Through one shared bridge account: every message comes from the bridge account with the author's name in front, and no Matrix users are added. People on Matrix mention a Harmony member by typing !mention and the member's exact username.",
+      "future": "A change applies to new messages only. Messages already bridged stay as they are.",
+      "verify": "Saving here doesn't prove the bridge has taken the change: check a new message in the Matrix room."
+    },
+    "setup": {
+      "title": "Pair channels with Matrix",
+      "editTitle": "Change paired channels",
+      "lead": "Choose the bot that runs your Matrix bridge and the channels it bridges. Each channel gets its Matrix room once it's in the bridge's configuration.",
+      "bot": "Bridge bot",
+      "channels": "Channels to bridge",
+      "notAllowed": "Not in {bot}'s channel list",
+      "notAllowedHelp": "A greyed-out channel isn't in {bot}'s channel list. To add one, open Server settings → Advanced settings → Server bots, choose Channels next to {bot}, and tick it.",
+      "noChannels": "This server has no text channels you can see.",
+      "pickOne": "Choose at least one channel.",
+      "pickOneEdit": "Choose at least one channel. To stop bridging all of them, use Unpair below.",
+      "save": "Pair channels",
+      "saveEdit": "Save channels",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "saved": "{count} channel is paired with Matrix. | {count} channels are paired with Matrix."
+    },
+    "guide": {
+      "title": "Set up a Matrix bridge",
+      "lead": "To pair channels here, you need a bot of your own that runs the Matrix bridge and is in this server.",
+      "steps": {
+        "service": "Whoever runs this Harmony instance sets up the Matrix bridge service and registers it with the Matrix homeserver. Ask them if it isn't running yet.",
+        "bot": "Create a bot for the bridge in {place}, and give its token to whoever runs the bridge.",
+        "install": "Add the bot to this server in {place}. Give it Read messages and Send messages, then under Channels choose Selected channels and tick the channels to bridge.",
+        "pair": "Come back here to pair those channels."
+      },
+      "places": {
+        "myBots": "User settings → My bots",
+        "serverBots": "Server settings → Advanced settings → Server bots"
+      },
+      "link": "Read the Matrix bridge guide",
+      "newTab": "(opens in a new tab)",
+      "blockedTitle": "Your bot in this server can't bridge yet: | Your bots in this server can't bridge yet:",
+      "blockedItem": "{bot}: {reason}",
+      "block": {
+        "bot_inactive": "it is turned off. Turn it on in User settings → My bots.",
+        "install_inactive": "it is turned off in this server. Add it again in Server settings → Advanced settings → Server bots.",
+        "read_send": "it needs Read messages and Send messages. Give them under Permissions in Server settings → Advanced settings → Server bots.",
+        "all_channels": "it may use every channel, and a bridge needs a list. Under Channels in Server settings → Advanced settings → Server bots, choose Selected channels.",
+        "no_channels": "its channel list has no text channel. Tick some under Channels in Server settings → Advanced settings → Server bots."
+      }
+    },
+    "unpair": {
+      "title": "Unpair from Matrix",
+      "lead": "Unpairing a bot stops it bridging every channel it pairs here. Messages already bridged stay on both sides.",
+      "item": "{bot}: {count} channel | {bot}: {count} channels",
+      "button": "Unpair",
+      "label": "Unpair {bot} from Matrix",
+      "confirmTitle": "Unpair {bot}?",
+      "confirmMessage": "{bot} stops bridging {count} channel with Matrix. Messages already bridged stay. Ask whoever runs the bridge to take the room out of its configuration too. | {bot} stops bridging {count} channels with Matrix. Messages already bridged stay. Ask whoever runs the bridge to take the rooms out of its configuration too.",
+      "done": "{bot} is unpaired from Matrix."
+    },
+    "errors": {
+      "discordBot": "This bot runs a Discord bridge, so it can't bridge Matrix too. Use a separate bot.",
+      "allowlist": "A chosen channel isn't in the bot's channel list anymore. Reload and choose again.",
+      "install": "The bot is turned off, or lacks Read messages, Send messages or a channel list in this server.",
+      "permission": "Only the bot's owner, with Manage Server on this server, can pair its channels.",
+      "save": "Could not save the paired channels. Reload and try again.",
+      "unpair": "Could not unpair the bot. Reload and try again.",
+      "installs": "Could not load your bots, so channels can't be paired from here right now. Reload to try again."
+    },
+    "privacy": {
+      "lead": "Remove a Matrix user here to delete everything this server's bridge brought from them and stop bringing their messages.",
+      "idLabel": "Matrix user ID",
+      "idHelp": "The full Matrix ID, such as {'@'}sam:example.org.",
+      "idInvalid": "A Matrix user ID looks like {'@'}name:server.",
+      "removeConfirm": "Delete every message, file and reaction this bridge brought from Matrix user {id}, and stop bringing theirs? This cannot be undone.",
+      "listTitle": "{count} Matrix user left out | {count} Matrix users left out",
+      "source": {
+        "self": "Opted out on Matrix"
+      },
+      "restoreLabel": "Bridge Matrix user {id} again",
+      "alsoSelf": "Also opted out on Matrix",
+      "purgeLead": "Remove everything this server's bridge brought from Matrix: messages, files and reactions. Messages written on Harmony stay.",
+      "purgeConfirm": "Delete every message, file and reaction brought from Matrix into this server? This cannot be undone."
+    }
+  },
+  "bridges": {
+    "navLabel": "Bridges",
+    "title": "Bridges",
+    "intro": "Bridges link channels on this server with channels and rooms on other chat platforms. Messages sent on either side show up on the other, with each sender's name and picture.",
+    "tabs": {
+      "discord": "Discord",
+      "matrix": "Matrix"
+    }
+  },
+  "bridgePrivacy": {
+    "title": "Bridge privacy",
+    "description": "Prevent bridges from forwarding your future messages from this server to other platforms.",
+    "scope": "This applies only to bridges in this server. It does not remove existing remote copies or change what other bots can read.",
+    "optOut": "Do not forward my messages to {platform}",
+    "none": "No bridge forwards messages from this server right now.",
+    "loading": "Loading bridge privacy",
+    "saving": "Saving…",
+    "loadError": "Could not load your bridge privacy setting. Try again.",
+    "saveError": "Could not confirm the change. Reload to check your current setting.",
+    "retry": "Try again"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -116,6 +287,7 @@
       "google": "Continue with Google",
       "twitch": "Continue with Twitch",
       "github": "Continue with GitHub",
+      "discord": "Continue with Discord",
       "custom": "Continue with {name}"
     },
     "callback": {
@@ -304,12 +476,17 @@
     "tryAdjustingSearch": "Try adjusting your search terms or browse all communities",
     "findNextFavoriteServer": "Find your next favorite server",
     "searchCommunities": "Search communities...",
+    "searchCommunitiesLabel": "Search communities",
     "categories": "Categories",
     "clearCategoryFilter": "Clear category filter",
     "searchingFor": "Searching for \"{query}\"",
     "categoryLabel": "Category: {category}",
     "communitiesFound": "{total} communities found",
     "communitiesOfTotal": "{filtered} of {total} communities",
+    "searchAndFilters": "Search and filters",
+    "activeFilters": "Active filters",
+    "removeFilter": "Remove filter",
+    "queryChip": "“{query}”",
     "loadingCommunities": "Loading communities...",
     "findingBestServers": "Finding the best servers for you",
     "failedToLoadCommunities": "Failed to load communities",
@@ -730,7 +907,16 @@
         "removeMember": "Failed to remove member from role",
         "addMember": "Failed to add member to role",
         "reorder": "Failed to reorder roles"
-      }
+      },
+      "selfAssignable": "Members can pick this role",
+      "selfAssignableDesc": "Listed in Pick roles and in role menus, so members give it to themselves and take it off again.",
+      "selfAssignGroup": "Group",
+      "selfAssignGroupPlaceholder": "e.g. Colours, Pronouns, Notifications",
+      "selfAssignNote": "Short description",
+      "selfAssignNotePlaceholder": "Shown under the role when members pick",
+      "selfAssignWarnGrants": "Members can’t pick this role while it has permissions {'@'}everyone lacks. Remove them on the Permissions tab.",
+      "selfAssignWarnRank": "Members can’t pick this role while it sits above a role with extra permissions. Move it below every moderator role.",
+      "selfAssignWarnAdmin": "Administrator roles can’t be picked by members."
     },
     "privacy": {
       "federatedMembers": "{count} federated member currently in this server | {count} federated members currently in this server",
@@ -1197,7 +1383,11 @@
       "lost": "Encrypted message that can no longer be decrypted",
       "decrypt": "Encrypted message. Decrypt",
       "decrypting": "Decrypting the encrypted message",
-      "locked": "Encrypted message. Unlock encryption in Settings, Privacy and encryption, to read it."
+      "locked": "Encrypted message. Unlock encryption in Settings, Privacy and encryption, to read it.",
+      "forged": "Message hidden: its signature does not match its sender",
+      "forgedHint": "This encrypted message's signature does not verify against its sender's key. It was altered, or it is not from the person it names, so it is not decrypted.",
+      "replayed": "Repeated",
+      "replayedHint": "This message repeats an earlier encrypted message from the same sender. The server stored one message twice, which can show an old message in a new place."
     },
     "spoiler": {
       "hidden": "Spoiler, hidden. Activate to reveal",
@@ -1546,6 +1736,8 @@
     "conversationDismissed": "Conversation dismissed. It'll reappear on a new message.",
     "failedToDismissConversation": "Failed to dismiss conversation",
     "noUsersFound": "No users found",
+    "groupSpotsLeft": "{count} spot left | {count} spots left",
+    "groupFull": "This group is full: a group holds up to {count} people.",
     "call": "Call",
     "videoCall": "Video call",
     "voiceCall": "Voice call",
@@ -1612,7 +1804,8 @@
       "leaveFailed": "Failed to leave group",
       "deleted": "Group deleted",
       "deleteFailed": "Failed to delete group"
-    }
+    },
+    "callUndeliverable": "Your call could not be placed."
   },
   "announcements": {
     "title": "Announcements",
@@ -1734,9 +1927,9 @@
       "compactMode": "Compact mode",
       "compactModeDesc": "Show more messages at once with reduced spacing.",
       "bridgeSourceBadge": "Bridge source indicator",
-      "bridgeSourceBadgeDesc": "How bridged messages (e.g. from Discord) show their source next to the author name.",
+      "bridgeSourceBadgeDesc": "How people from bridged platforms such as Discord and Matrix show their source next to their name.",
       "bridgeSourceBadgeIcon": "Platform icon",
-      "bridgeSourceBadgeText": "Text label (DISCORD)",
+      "bridgeSourceBadgeText": "Text label (DISCORD, MATRIX)",
       "floatingVideo": "Floating video player",
       "floatingVideoDesc": "Keep a playing video in a small player when you scroll away from it. Works with YouTube and uploaded videos.",
       "videoPlayer": "Video player",
@@ -3345,8 +3538,13 @@
       "voiceCall": "Voice call",
       "videoCall": "Video call",
       "groupCreated": "Group created",
-      "membersAdded": "Members added"
-    }
+      "membersAdded": "Members added",
+      "activity": "Activity"
+    },
+    "activityStarted": "{actor} started {app}.",
+    "activityEnded": "{actor} started {app}: {players} players, {duration}.",
+    "activityEndedAlone": "{actor} started {app}: {duration}.",
+    "activityFallback": "an activity"
   },
   "time": {
     "now": "now",
@@ -3465,10 +3663,10 @@
       "tabsLabel": "Where to look",
       "thisInstance": "This instance",
       "otherInstances": "Other instances",
-      "domainLabel": "Instance",
-      "domainPlaceholder": "example.social",
-      "domainHint": "Enter the domain of another Harmony instance, or pick a known one.",
-      "browse": "Browse",
+      "searchLabel": "Search servers or browse an instance",
+      "searchPlaceholder": "Name, topic or instance domain",
+      "browseDomain": "Browse {domain}",
+      "browseAction": "Browse an instance",
       "knownInstances": "Known instances",
       "loading": "Reading the directory of {domain}…",
       "serversOn": "{count} server on {domain} | {count} servers on {domain}",
@@ -3479,6 +3677,7 @@
       "members": "{count} member | {count} members",
       "join": "Join",
       "loadMore": "Load more",
+      "loadMoreFailed": "Couldn't load more servers. Try again.",
       "errorTitle": "Couldn't browse that instance",
       "noDirectoryTitle": "No server directory",
       "invalidDomain": "Enter an instance domain, like example.social.",
@@ -3490,8 +3689,6 @@
       "unreachable": "{domain} didn't answer. Try again later.",
       "failed": "Something went wrong. Try again.",
       "allInstances": "All instances",
-      "filterLabel": "Filter servers",
-      "filterPlaceholder": "Name, topic or instance",
       "loadingAdvertised": "Reading the directories of known instances…",
       "advertisedStats": "{count} server on {instances} | {count} servers on {instances}",
       "instanceCount": "{count} instance | {count} instances",
@@ -3500,8 +3697,9 @@
       "advertisedFailed": "{count} instance didn't answer, so its servers aren't shown. | {count} instances didn't answer, so their servers aren't shown.",
       "noMatchTitle": "No matching servers",
       "noMatch": "No server on a known instance matches “{query}”.",
+      "noMatchOn": "No server on {domain} matches “{query}”.",
       "advertisedEmptyTitle": "No servers listed yet",
-      "advertisedEmpty": "Servers whose owners list them across federation appear here. No instance this one knows lists one yet: browse another instance by its domain above.",
+      "advertisedEmpty": "Servers whose owners list them across federation appear here. No instance this one knows lists one yet: browse another instance by its domain.",
       "hostedOn": "Hosted on {instance}",
       "advertisedErrorTitle": "Couldn't read the known instances"
     },
@@ -3868,7 +4066,7 @@
       "bot": "Standard",
       "botHint": "Connects with its token and acts through the gateway and the REST API.",
       "bridge": "Bridge",
-      "bridgeHint": "Relays messages between Harmony and another platform. For Discord, use Server Settings → Discord Bridge instead: it creates and manages its own bot."
+      "bridgeHint": "Relays messages between Harmony and another platform. For Discord, use Server Settings → Bridges → Discord instead: it creates and manages its own bot."
     },
     "usernameErrors": {
       "tooShort": "Use at least 3 characters.",
@@ -4014,7 +4212,11 @@
       },
       "manage_roles": {
         "label": "Manage roles",
-        "description": "Create, edit and delete roles below its installer's highest role, with permissions it holds."
+        "description": "Create, edit, delete and give members roles below its installer's highest role, with permissions it holds."
+      },
+      "attach_files": {
+        "label": "Attach files",
+        "description": "Upload images and other files to post in channels where it can send messages."
       }
     },
     "commands": {
@@ -4616,7 +4818,8 @@
     },
     "timedOut": "You are timed out in this server until {time} and cannot send messages, react or start threads.",
     "antispam": {
-      "rateLimited": "You're doing that too quickly. Try again in {seconds} s.",
+      "rateLimited": "You're doing that too quickly. Try again in {wait}.",
+      "strangerConversations": "New conversations with people you don't know are limited to {count} per hour. Try again in {wait}.",
       "linksBlocked": "New accounts cannot post links yet.",
       "strangerMentions": "New accounts can mention at most {count} people who do not follow them.",
       "serverLimit": "An account can own at most {count} servers on this instance.",
@@ -4771,7 +4974,10 @@
       "expires_at": "Expires",
       "temporary": "Temporary membership",
       "messages_deleted": "Messages deleted",
-      "federation_discoverable": "Discoverable across federation"
+      "federation_discoverable": "Discoverable across federation",
+      "self_assignable": "Members can pick it",
+      "self_assign_group": "Pick group",
+      "self_assign_note": "Pick description"
     },
     "value": {
       "none": "none",
@@ -5338,6 +5544,10 @@
       "newDeviceLabel": "New device?",
       "newDeviceReminder": "{label} Sign in there and choose {another}, then scan its code from this device. Your messages unlock without typing the recovery key.",
       "rememberNeed": "You'll need it if you lose access to all your signed-in devices or clear your browser data."
+    },
+    "keyShareFailed": {
+      "title": "Some members may not be able to read your message",
+      "body": "The key to read it did not reach {count} member. Their app asks for it again when they open the message. | The key to read it did not reach {count} members. Their apps ask for it again when they open the message."
     }
   },
   "admin": {
@@ -5452,6 +5662,53 @@
       "maxPersonalStickers": "Personal stickers per user",
       "maxPersonalStickersHint": "0 to 100. 0, the default, turns personal stickers off."
     },
+    "signInProviders": {
+      "title": "Sign-in providers",
+      "lead": "Continue with Google, Twitch, GitHub or Discord. Create an OAuth application at the provider with the callback URL below, then paste its client ID and secret here. The sign-in service takes them within about 15 seconds, without a restart.",
+      "loadFailed": "Couldn't load the sign-in provider settings.",
+      "writerOff": "This instance's sign-in service doesn't take credentials from here: its federation server has no HARMONY_AUTH_CONFIG_DIR. Set them in the sign-in service's environment instead, as the self-hosting guide on OAuth sign-in describes.",
+      "writerStopped": "The federation server last applied sign-in settings on {time} and is not running now. Changes made here wait until it is back.",
+      "writerError": "The federation server could not apply the sign-in settings: {error}",
+      "callback": "Callback (redirect) URL to register with each provider:",
+      "copy": "Copy",
+      "copied": "Callback URL copied",
+      "copyFailed": "Couldn't copy. Select the URL and copy it by hand.",
+      "showButton": "On sign-in page",
+      "showButtonLabel": "Show {provider} on the sign-in page",
+      "clientId": "Client ID",
+      "secret": "Client secret",
+      "secretSaved": "Saved. Type a new one to replace it.",
+      "save": "Save",
+      "saving": "Saving…",
+      "clear": "Clear",
+      "clearTitle": "Clear {provider} sign-in?",
+      "clearMessage": "This deletes the client ID and secret and turns {provider} sign-in off. Accounts made through {provider} sign in another way until it is set up again.",
+      "saved": "{provider} credentials saved",
+      "cleared": "{provider} credentials cleared",
+      "saveFailed": "Couldn't save the {provider} credentials.",
+      "buttonsSaved": "Sign-in page updated",
+      "buttonsFailed": "Couldn't update the sign-in page.",
+      "status": {
+        "active": "Active",
+        "applying": "Applying…",
+        "hidden": "Off: hidden from the sign-in page",
+        "server": "Set on the server",
+        "unset": "Not set up",
+        "unknown": "Status unknown"
+      },
+      "problem": {
+        "clientId": "A client ID is letters, digits and . _ ~ + / = - only.",
+        "discordId": "A Discord client ID is the application ID: 17 to 20 digits.",
+        "secret": "A client secret is 8 to 512 letters, digits and . _ ~ + / = - characters.",
+        "needBoth": "Enter a client ID and a client secret."
+      },
+      "where": {
+        "google": "Google Cloud console, APIs & Services, Credentials: an OAuth client ID of type web application.",
+        "twitch": "Twitch developer console, Applications: register an application.",
+        "github": "GitHub, Settings, Developer settings, OAuth Apps: a new OAuth app.",
+        "discord": "Discord Developer Portal, your application, OAuth2: the client ID, and the secret Reset Secret shows."
+      }
+    },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "Max reactions per person on a post",
@@ -5518,7 +5775,13 @@
         "strangerDmsPerHour": "New conversations with strangers per hour",
         "strangerDmsHint": "A stranger does not follow the account, shares no server with it and has no conversation with it.",
         "newStrangerDmsPerHour": "Same, for new accounts",
-        "newStrangerDmsHint": "Also counts people who share only a server with the new account: joining a public server reaches every member."
+        "newStrangerDmsHint": "Also counts people who share only a server with the new account: joining a public server reaches every member.",
+        "signalsPerMinute": "Call signals per minute",
+        "signalsHint": "Setting up peer-to-peer calls, answering and hanging up DM calls, call effects. Joining a call of ten people takes about 45.",
+        "ringsPerMinute": "Calls placed per minute",
+        "ringsHint": "Each call rings once. Hanging up is never refused.",
+        "rolePicksPerMinute": "Role picks per minute",
+        "rolePicksHint": "Taking and dropping self-assignable roles. Each change reaches everyone in the server."
       },
       "bots": {
         "title": "Bots",
@@ -5791,7 +6054,6 @@
     }
   },
   "discordBridge": {
-    "navLabel": "Discord Bridge",
     "title": "Discord bridge",
     "intro": "A bridge links channels on this server with channels on a Discord server. Messages sent on either side show up on the other, with each sender's name and picture.",
     "loading": "Loading the Discord bridge…",
@@ -6039,6 +6301,7 @@
       "listLabel": "Paired channels",
       "harmony": "Harmony",
       "discord": "Discord",
+      "private": "Private on Discord",
       "ok": "Working",
       "discordGone": "Discord channel not found",
       "discordGoneFix": "The bot can no longer find this Discord channel: it was deleted, or the bot lost access to it. Remove the pair, or give the bot access again.",
@@ -6342,7 +6605,7 @@
       "managed": "This bot is the Discord bridge of {server}. It is set up and managed there; there is nothing to configure here.",
       "aServer": "one of your servers",
       "openSettings": "Open the bridge settings",
-      "unmanaged": "Discord bridges are set up from a server's settings: Server Settings → Discord Bridge. That page creates and manages the bridge's bot for you, so you don't need to create one here.",
+      "unmanaged": "Discord bridges are set up from a server's settings: Server Settings → Bridges → Discord. That page creates and manages the bridge's bot for you, so you don't need to create one here.",
       "legacyTitle": "Manual setup for the old bridge (v1)",
       "legacyLead": "Only for the old harmony-discord-bridge program that reads a config file.",
       "harmonyPermissions": "Add this bot to the server with Read Messages and Send Messages (and Manage Channels for /bridge clone-server).",
@@ -6352,7 +6615,7 @@
     },
     "adminSection": {
       "title": "Discord bridge",
-      "lead": "Communities connect a Discord server in Server Settings → Discord Bridge. Offer them this instance's bot, let them bring their own, or both. Running the bridge on a computer of their own is always possible."
+      "lead": "Communities connect a Discord server in Server Settings → Bridges → Discord. Offer them this instance's bot, let them bring their own, or both. Running the bridge on a computer of their own is always possible."
     },
     "admin": {
       "title": "Let communities bring their own bot",
@@ -6426,7 +6689,7 @@
       "clearConfirm": "Remove the bot's credentials? Linked communities stop bridging until a bot is set up again. Their bridges and channel pairs stay.",
       "cancel": "Cancel",
       "enable": "Offer this bot to communities",
-      "enableHint": "Server admins see “Use this instance's bot” first in Server Settings → Discord Bridge.",
+      "enableHint": "Server admins see “Use this instance's bot” first in Server Settings → Bridges → Discord.",
       "enableNeedsConfig": "Save the Application ID, client secret and bot token first.",
       "presence": "Presence sync",
       "presenceHint": "Requests Discord's Presence intent for every linked server, so communities can show who is online. Only changes of status are sent. Turn it on only while the Presence intent is on in the Developer Portal; past 100 servers, Discord has to approve it.",
@@ -6450,6 +6713,9 @@
       "cancel": "Cancel",
       "cancelLabel": "Cancel the import for #{channel}",
       "cancelling": "Cancelling…",
+      "stopNow": "Stop now",
+      "stopNowLabel": "Stop the import for #{channel} now",
+      "stopNowHint": "The bridge stops at its next step. If it is offline, Stop now ends the import here.",
       "waiting": "Waiting",
       "running": "Importing… {percent}%",
       "runningUnknown": "Importing…",
@@ -6476,7 +6742,7 @@
         "channel_encrypted": "the channel is now encrypted",
         "import_disabled": "history import was turned off",
         "pair_not_importable": "the pair no longer brings Discord messages to Harmony",
-        "discord_approval_required": "the Discord channel is private: start its import on Discord with /bridge import-history",
+        "discord_approval_required": "the Discord channel is private: start it again with private channels included, or run /bridge import-history scope:All bridged channels once on Discord",
         "discord_channel_unsupported": "the Discord channel is not a text channel",
         "discord_access_lost": "the bridge can no longer read the Discord channel",
         "bridge_stalled": "the bridge stopped making progress",
@@ -6488,6 +6754,7 @@
         "encrypted": "Encrypted channels can't import history"
       },
       "needsUpdate": "Update the bridge to 2.6.0 or later to import history",
+      "needsUpdateHosted": "This instance's bridge service needs version 2.8.0 or later to import history. An instance admin updates it.",
       "mirrorNote": "Imported files are copied into this instance's storage.",
       "consent": {
         "title": "Import the history of {count} channel? | Import the history of {count} channels?",
@@ -6495,11 +6762,14 @@
         "skips": "Messages from people who left the Discord server are skipped. Anyone on Discord keeps theirs out, or erases them, with /bridge-privacy.",
         "notice": "The bridge pins a notice in each Discord channel when its import starts.",
         "confirm": "I manage this Discord server, or act with its managers' agreement.",
+        "privateTitle": "Private on Discord: {channels} | Private on Discord: {channels}",
+        "privateLead": "{'@'}everyone cannot read their history on Discord. Unless you include them, they are left out.",
+        "privateConfirm": "Include this private channel: I can read it on Discord, or its managers agreed. | Include these private channels: I can read them on Discord, or their managers agreed.",
         "start": "Start import"
       },
       "unavailable": {
         "instance_off": "History import is turned off on this instance.",
-        "bridge_mode": "History import is only for a bridge you run yourself, with your own Discord application."
+        "bridge_mode": "History import on this instance is only for bridges their server's owner runs with their own Discord application."
       },
       "authorsSkipped": "{count} skipped (author left or opted out) | {count} skipped (authors left or opted out)",
       "automodSkipped": "{count} blocked by AutoMod | {count} blocked by AutoMod"
@@ -6533,17 +6803,30 @@
     },
     "importAdmin": {
       "title": "Discord history import",
-      "lead": "Lets a server copy the older messages of its Discord channels into Harmony, through a bridge its owner runs with their own Discord application. Never through this instance's Discord bot or a bot this instance runs.",
+      "lead": "Lets a server copy the older messages of its Discord channels into Harmony through its bridge. Choose which bridges may do it.",
       "loadFailed": "Couldn't load the history import settings.",
       "mode": "History import",
-      "modeOff": "Off",
-      "modeSelfRun": "Self-run bridges",
-      "modeHint": "Off refuses every import, including ones already running.",
-      "warningTitle": "Before you turn this on",
+      "modes": {
+        "off": {
+          "label": "Off",
+          "hint": "No server imports. Imports already running stop."
+        },
+        "self_run": {
+          "label": "Self-run bridges",
+          "hint": "Bridges a server's owner runs with their own Discord application."
+        },
+        "all": {
+          "label": "All bridges",
+          "hint": "Also this instance's Discord bot and the own-bot bridges hosted here."
+        }
+      },
+      "modeHint": "Saved as soon as you choose.",
+      "warningTitle": "While import is on",
       "warningAuthors": "The people who wrote those messages did not ask for the copy. Authors who left the Discord server are skipped, and members opt out or erase their messages with /bridge-privacy.",
       "warningRequests": "Deletion requests for content on this instance come to you. Server managers remove a Discord user under Server settings, Discord Bridge; Remove all Discord messages below clears every server.",
       "warningQuiet": "Imported messages send no notifications, count as read and are not federated. They pass the server's AutoMod word, invite and link rules when its bots are not exempt.",
       "warningStorage": "With Mirror to storage, imported files are copied to this instance's storage, up to the limit per server below.",
+      "warningInstanceBot": "Imports through this instance's Discord bot read Discord with your Discord application: Discord's developer terms hold you, its owner, responsible for them.",
       "maxRunning": "Imports running at once",
       "maxRunningHint": "Across the whole instance. Others wait their turn. 0 is no limit.",
       "messagesPerMinute": "Messages per minute, per import",
@@ -6744,7 +7027,7 @@
       "clearSearch": "Clear search",
       "found": "{count} member found | {count} members found",
       "group": "{title}, {count} member | {title}, {count} members",
-      "discord": "Discord bridge member",
+      "bridged": "{platform} bridge member",
       "instanceAdmin": "instance admin",
       "instanceMod": "instance moderator",
       "searchHint": "Name or username",
@@ -7797,6 +8080,9 @@
   },
   "activities": {
     "title": "Watch or listen together",
+    "launcherTitle": "Activities",
+    "launcherSubtitleCall": "Watch, listen or play together in this call",
+    "playHeading": "Play",
     "addTitle": "Add to the activity",
     "lede": "Everyone in the call plays the same thing at the same moment. Paste a YouTube, SoundCloud or Spotify link, a video or audio file link, or pick from your Drive.",
     "linkPlaceholder": "Paste a link",
@@ -8791,5 +9077,186 @@
       "unsuspended": "{count} account unsuspended | {count} accounts unsuspended",
       "deleted": "{count} account deleted | {count} accounts deleted"
     }
+  },
+  "rolePicker": {
+    "menuEntry": "Pick roles",
+    "title": "Pick your roles",
+    "intro": "Tap a role to take it, tap it again to drop it. Changes apply at once.",
+    "empty": "This server has no roles to pick yet.",
+    "otherRoles": "Other roles",
+    "cardButton": "Pick roles",
+    "errors": {
+      "notMember": "Join the server to pick its roles.",
+      "notLocal": "This server’s roles are picked on its home instance.",
+      "unavailable": "That role can no longer be picked.",
+      "notPickable": "That role gives permissions, so it can’t be picked. Ask a moderator.",
+      "failed": "Couldn’t change your role. Try again."
+    }
+  },
+  "roleMenu": {
+    "defaultTitle": "Pick your roles",
+    "otherServer": "This role menu belongs to another server.",
+    "empty": "No roles to pick here yet.",
+    "hint": "Tap a role to take it, tap it again to drop it.",
+    "createTitle": "Post a role menu",
+    "noRoles": "No role can be picked yet. In Server settings → Roles, turn on “Members can pick this role” for a role first.",
+    "group": "Roles to offer",
+    "allGroups": "Every pickable role",
+    "titleLabel": "Title",
+    "preview": "Preview",
+    "post": "Post",
+    "postFailed": "Couldn’t post the role menu."
+  },
+  "joinRole": {
+    "title": "Role for new members",
+    "description": "Everyone who joins from now on gets this role. Members already here keep their roles.",
+    "none": "None",
+    "saved": "New members will get this role.",
+    "cleared": "New members no longer get a role.",
+    "tooHigh": "You can only choose a role below your highest role.",
+    "saveFailed": "Couldn’t save the role for new members.",
+    "notOpen": "That role gives permissions {'@'}everyone lacks or sits above one that does, so it can’t be given to new members.",
+    "currentNotOpen": "This role can no longer be given to new members. Choose another."
+  },
+  "playTogether": {
+    "launcherSubtitle": "Start an activity everyone here can join",
+    "loadingApps": "Loading activities…",
+    "noApps": "No activities are turned on for this instance.",
+    "sandboxNote": "Activities run sandboxed: they can’t see your account, your messages or anything outside the game.",
+    "players": "{min}–{max} players",
+    "playing": "{n} playing | {n} playing",
+    "join": "Join",
+    "open": "Open",
+    "leave": "Leave",
+    "close": "Close",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "resize": "Resize the activity",
+    "endForEveryone": "End for everyone",
+    "hostName": "{name} (host)",
+    "return": "Return",
+    "retry": "Retry",
+    "loading": "Loading {name}…",
+    "loadFailed": "{name} didn’t load.",
+    "reconnecting": "Reconnecting…",
+    "escaped": "{name} tried to leave its sandbox and was stopped.",
+    "youArePlaying": "You’re playing",
+    "joinTheCall": "Join the call to play",
+    "alreadyRunning": "{name} is already running here, so you joined it.",
+    "openedElsewhere": "This activity is now open in another window.",
+    "bannerOne": "{name} is playing {app}",
+    "bannerMany": "{name} and {n} other are playing {app} | {name} and {n} others are playing {app}",
+    "bannerEmpty": "{app} is running here",
+    "status": {
+      "connecting": "Connecting…",
+      "reconnecting": "Reconnecting…",
+      "ended": "Ended"
+    },
+    "errors": {
+      "ACTIVITY_APP_UNAVAILABLE": "This activity isn’t available on this instance.",
+      "ACTIVITY_CONTEXT_UNSUPPORTED": "This activity can’t run here.",
+      "ACTIVITY_RATE_LIMITED": "You’ve started a lot of activities. Try again in a few minutes.",
+      "NOT_FOUND": "You can’t play here.",
+      "SERVER_NOT_LOCAL": "Activities run only on servers this instance hosts.",
+      "CHANNEL_TYPE": "Activities run in text and voice channels.",
+      "NOT_IN_CALL": "Join the call to play.",
+      "CANNOT_SEND": "You can’t send messages in this channel.",
+      "MEMBER_TIMED_OUT": "You are timed out in this server.",
+      "WEBVIEW_OUTDATED": "Update Android System WebView to play activities.",
+      "PACKAGE_DESKTOP_ONLY": "This activity plays in Harmony on a computer.",
+      "NOT_LOCAL_ACCOUNT": "Only accounts of this instance can play here.",
+      "ENDED": "That activity has ended.",
+      "FULL": "This activity is full.",
+      "UNSUPPORTED_VERSION": "Update Harmony to play this activity.",
+      "UNKNOWN": "Something went wrong with the activity."
+    },
+    "admin": {
+      "tab": "Activities",
+      "title": "Play together",
+      "intro": "Activities members can start in DMs, group DMs, text channels and calls. Turning one off ends its running sessions.",
+      "none": "No activities are installed.",
+      "toggle": "Offer {name}",
+      "enabled": "Activity turned on",
+      "disabled": "Activity turned off",
+      "context": {
+        "direct": "DMs",
+        "group": "Group DMs",
+        "channel": "Text channels",
+        "voice": "Voice channels"
+      },
+      "safetyTitle": "How activities are isolated",
+      "safety": {
+        "sandbox": "Each activity runs in a sandboxed frame with its own opaque origin: it cannot read the account’s session, storage, messages or the page around it.",
+        "network": "Its content policy refuses network requests, popups, forms and frames, and loads files only from its own folder; a frame that navigates away is stopped.",
+        "relay": "Players talk through this instance’s relay, which checks every member, caps message sizes and rates, and keeps no game data after a session.",
+        "members": "Only members of the conversation or channel can join; anyone who leaves it, leaves the call or signs out is removed from the game within 30 seconds."
+      },
+      "package": "Package",
+      "checkUpdate": "Check for update",
+      "remove": "Remove",
+      "removeConfirm": "Remove for good?",
+      "installTitle": "Install an activity",
+      "installIntro": "Upload an activity package (.zip) or give its HTTPS address. You see what it is before anything is installed.",
+      "chooseZip": "Choose a .zip",
+      "or": "or",
+      "urlLabel": "Package address",
+      "preview": "Preview",
+      "replaces": "replaces v{version}",
+      "id": "ID",
+      "playersLabel": "Players",
+      "runsIn": "Runs in",
+      "size": "Size",
+      "from": "From",
+      "trustWarning": "This activity runs code from its author on your members’ devices, inside the sandbox. Install only activities you trust, as you would add a bot.",
+      "update": "Update",
+      "install": "Install",
+      "cancel": "Cancel",
+      "updated": "Activity updated",
+      "installed": "Activity installed, switched off",
+      "removed": "Activity removed",
+      "errors": {
+        "NOT_A_ZIP": "This is not a zip file.",
+        "TOO_LARGE": "The package is too large (6 MB at most, 5 MB for the script, 256 KB for the icon).",
+        "UNEXPECTED_FILE": "The package holds a file other than manifest.json, the script and the icon.",
+        "MISSING_FILE": "The package is missing a file its manifest names.",
+        "BAD_MANIFEST": "manifest.json is invalid.",
+        "BAD_ENTRY": "The script is empty or not text.",
+        "BAD_ICON": "The icon is not the SVG, PNG or WebP it claims to be.",
+        "BUILTIN_ID": "A built-in activity already uses this ID.",
+        "TOO_MANY_PACKAGES": "This instance already has 50 packages.",
+        "PACKAGE_CHANGED": "The package at that address changed since the preview. Preview it again.",
+        "FETCH_FAILED": "The package could not be downloaded.",
+        "BAD_URL": "Use an https:// address."
+      }
+    },
+    "thirdParty": "Third-party",
+    "desktopOnly": "Computer only",
+    "thirdPartyNotice": "Third-party activity, installed by this instance. Harmony never asks for your password inside an activity."
+  },
+  "adminVoiceIce": {
+    "title": "Peer-to-peer calls: STUN and TURN",
+    "intro": "Without LiveKit, calls on this instance connect device to device. STUN servers tell each device its public address; a TURN server relays the media of devices that cannot reach each other, such as behind strict NATs or firewalls.",
+    "stunDefault": "Use the default STUN servers",
+    "stunDefaultHint": "{urls}. Calls send each participant's address to these servers.",
+    "stunUrls": "STUN servers",
+    "stunUrlsHint": "One URL per line, such as stun:turn.example.com:3478. Empty: no STUN server.",
+    "turnUrls": "TURN servers",
+    "turnUrlsHint": "One URL per line, such as turn:turn.example.com:3478 or turns:turn.example.com:5349. Empty: no TURN server.",
+    "turnAuth": "TURN credentials",
+    "turnAuthSecret": "Shared secret",
+    "turnAuthSecretHint": "coturn's static-auth-secret (use-auth-secret). Each call gets its own credentials, valid for a day.",
+    "turnAuthPassword": "Username and password",
+    "username": "TURN username",
+    "secret": "Shared secret",
+    "password": "TURN password",
+    "secretKept": "Stored. Leave empty to keep it.",
+    "invalidStun": "Not a STUN URL: {url}",
+    "invalidTurn": "Not a TURN URL: {url}",
+    "needsUsername": "TURN servers with a password need a username.",
+    "needsSecret": "TURN servers need a shared secret or a password.",
+    "save": "Save",
+    "saved": "ICE servers saved",
+    "saveFailed": "The ICE servers could not be saved.",
+    "loadFailed": "The ICE servers could not be loaded."
   }
 }

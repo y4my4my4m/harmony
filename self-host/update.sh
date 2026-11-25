@@ -12,11 +12,14 @@
 #      gets log collection off: analytics and vector are removed and the logs
 #      they stored deleted (analytics_default_off, lib.sh). One with no
 #      ENABLE_STUDIO gets Studio off: studio and meta are removed
-#      (studio_default_off, lib.sh)
+#      (studio_default_off, lib.sh). One still named Harmony as releases up to
+#      1.9.7 offered, without INSTANCE_NAME_CHOSEN, is named after its domain
+#      (instance_name_unchosen, lib.sh)
 #   3. pull the images (or build Harmony's with HARMONY_BUILD=1); the running
 #      stack is untouched
 #   4. back up the database and the config files into backups/
-#   5. apply new migrations while the old containers keep running
+#   5. apply new migrations while the old containers keep running; a name from
+#      step 2 replaces Harmony in instance_config (instance_name_default_renamed)
 #   6. recreate the containers whose image or configuration changed
 #   7. delete update backups past the newest 5 of each kind, when this run wrote
 #      one (prune_update_backups, lib.sh)
@@ -92,9 +95,10 @@ main() {
 
 	# --- 2. configuration --------------------------------------------------------
 	STEP=configure
-	local unchosen=false studio_unset=false
+	local unchosen=false studio_unset=false name_unchosen=false
 	analytics_unchosen && unchosen=true
 	studio_unchosen && studio_unset=true
+	instance_name_unchosen && name_unchosen=true
 	bash "$SCRIPT_DIR/configure.sh" --non-interactive </dev/null
 	if $unchosen && ! truthy "$(env_get "$ENV_FILE" ENABLE_ANALYTICS)"; then analytics_default_off; fi
 	if $studio_unset && ! truthy "$(env_get "$ENV_FILE" ENABLE_STUDIO)"; then studio_default_off; fi
@@ -116,6 +120,7 @@ main() {
 	# --- 5. migrations -----------------------------------------------------------
 	STEP=migrate
 	bash "$SCRIPT_DIR/bootstrap.sh" --migrations-only
+	if $name_unchosen; then instance_name_default_renamed; fi
 
 	# --- 6. restart --------------------------------------------------------------
 	STEP=restart

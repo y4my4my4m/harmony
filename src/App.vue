@@ -74,6 +74,8 @@
   <!-- Persistent Voice Connection (only when authenticated) -->
   <PersistentVoiceConnection v-if="!isAuthRoute" />
   <ActivityHost v-if="!isAuthRoute && inVoiceCall" />
+  <PlayTogetherHost v-if="!isAuthRoute" />
+  <ActivitiesLauncher v-if="!isAuthRoute && activitiesLauncherHere" />
 
   <!-- PWA Components. The install prompt waits for sign-in; on auth routes it
        covers the form on small screens. -->
@@ -161,6 +163,8 @@ import DeviceApprovalPrompt from '@/components/encryption/DeviceApprovalPrompt.v
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useAuthStore } from '@/stores/auth'
+import { usePlayTogetherStore } from '@/stores/playTogether'
+import { useActivityButton } from '@/components/activities/useActivityButton'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt.vue'
@@ -207,6 +211,15 @@ const {
 const ImageCropDialog = defineAsyncComponent(() => import('@/components/common/ImageCropDialog.vue'))
 const ThemeCustomizerPanel = defineAsyncComponent(() => import('@/components/settings/user/ThemeCustomizerPanel.vue'))
 const ActivityHost = defineAsyncComponent(() => import('@/components/activities/ActivityHost.vue'))
+const PlayTogetherHost = defineAsyncComponent(() => import('@/components/playTogether/PlayTogetherHost.vue'))
+const ActivitiesLauncher = defineAsyncComponent(() => import('@/components/activities/ActivitiesLauncher.vue'))
+const playTogether = usePlayTogetherStore()
+// A call's launcher opens in the call view while that is shown, in its window (UnifiedVoiceOverlay).
+const callLauncherOpen = useActivityButton().visible
+const activitiesLauncherHere = computed(() => {
+  if (!playTogether.launcher) return false
+  return !(callLauncherOpen.value && (voiceStore.isOverlayVisible || callPopout.window))
+})
 // Mounted from the first open on, so its close transition plays.
 const { isOpen: themePanelOpen } = useThemeEditorPanel()
 const themePanelOpened = ref(themePanelOpen.value)
@@ -270,7 +283,7 @@ onMounted(() => {
   // Haptic feedback for interactive elements: exactly one delegated click
   // listener, resolving the strongest matching pattern and returning after the
   // first hit. Per-selector listeners would fire several triggers on one tap
-  // and accumulate across remounts (H44). Removed on unmount.
+  // and accumulate across remounts. Removed on unmount.
   const hapticSelectors: Array<{ selector: string; pattern: string }> = [
     { selector: '.card-interactive', pattern: 'medium' },
     { selector: 'a[href]', pattern: 'selection' },

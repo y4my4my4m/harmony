@@ -398,6 +398,19 @@ describe('shared inbox: bot, webhook and bridged messages on a copy', () => {
     expect(row.metadata.bridge_source).toBe('discord')
   })
 
+  it('stores a bridged Matrix person, sent as a webhook, under the whole Matrix ID, and an edit of it', async () => {
+    const mxid = `matrix:@${'s'.repeat(240)}:example.org`
+    const sent = { kind: 'webhook', id: 'matrix:@cut', name: 'Sam', source: 'matrix', bridgeId: mxid }
+    const create = authored(GROUP_R, sent)
+    await P.processCreate(create)
+    expect(newMessages()[0].metadata).toMatchObject({
+      remote_author: { kind: 'bridge', id: mxid, name: 'Sam', avatar_url: null, source: 'matrix' }, bridge_source: 'matrix',
+    })
+    await P.processUpdate({ type: 'Update', actor: GROUP_R, object: { ...create.object, content: '<p>edited</p>', updated: FRESH, 'harmony:author': { ...sent, name: 'Sam 2' } } })
+    expect(JSON.stringify(newMessages()[0].content)).toContain('edited')
+    expect(newMessages()[0].metadata.remote_author).toMatchObject({ kind: 'bridge', id: mxid, name: 'Sam 2' })
+  })
+
   it('refuses a Group author from a member, a Group on another host, or a relay', async () => {
     await P.processCreate(authored(HOSTU, webhook))
     await P.processCreate(authored(`https://evil.test/servers/${R}`, webhook))

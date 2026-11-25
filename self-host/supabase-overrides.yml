@@ -149,10 +149,30 @@ services:
   # `harmony config --upload-ceiling SIZE` sets FILE_SIZE_LIMIT in supabase/.env,
   # recreates storage and writes the same number into
   # instance_config.upload_ceiling_bytes, above which no upload limit goes.
+  # STORAGE_BACKEND s3 keeps uploads in an S3-compatible bucket (Cloudflare R2, MinIO,
+  # AWS) named by the STORAGE_S3_* keys of supabase/.env; file (the default) keeps them
+  # under supabase/volumes/storage. imgproxy reads S3 objects through presigned URLs from
+  # storage, so it needs no S3 keys.
+  # Compose prefers the calling shell's variables over supabase/.env. Under the names
+  # storage-api reads (AWS_* through the AWS SDK, REGION), an admin's exported AWS CLI
+  # variables would replace the bucket's, so supabase/.env has names of its own.
+  # An endpoint, key or path style that is not set is left out: `environment` beats `env_file`
+  # even when its value is empty, and an override file may give the bucket's settings there. The
+  # entry is then the bare name of the unset key, which Compose does not find and does not pass.
+  # Without STORAGE_S3_BUCKET the path style goes under S3_FORCE_PATH_STYLE, a name storage-api
+  # does not read. GLOBAL_S3_BUCKET and REGION are `stub` in the stack's own environment too; the
+  # file backend's directory is named by the former.
   storage:
     image: ${STORAGE_IMAGE:-supabase/storage-api:v1.90.0}
     environment:
-      FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-52428800}
+      - FILE_SIZE_LIMIT=${FILE_SIZE_LIMIT:-52428800}
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-file}
+      - GLOBAL_S3_BUCKET=${STORAGE_S3_BUCKET:-stub}
+      - ${STORAGE_S3_ENDPOINT:+GLOBAL_S3_ENDPOINT=}${STORAGE_S3_ENDPOINT:-STORAGE_S3_ENDPOINT}
+      - ${STORAGE_S3_BUCKET:+GLOBAL_}S3_FORCE_PATH_STYLE=${STORAGE_S3_FORCE_PATH_STYLE:-true}
+      - ${STORAGE_S3_ACCESS_KEY_ID:+AWS_ACCESS_KEY_ID=}${STORAGE_S3_ACCESS_KEY_ID:-STORAGE_S3_ACCESS_KEY_ID}
+      - ${STORAGE_S3_SECRET_ACCESS_KEY:+AWS_SECRET_ACCESS_KEY=}${STORAGE_S3_SECRET_ACCESS_KEY:-STORAGE_S3_SECRET_ACCESS_KEY}
+      - REGION=${STORAGE_S3_REGION:-stub}
 
   # Animated emoji and large images: frames count toward the source resolution
   # limit (megapixels). v4.0.22 in place of the stack's v3.8.0: it decodes every
@@ -170,10 +190,13 @@ services:
       IMGPROXY_MAX_SRC_RESOLUTION: 50
       IMGPROXY_MAX_ANIMATION_FRAMES: 120
 
-  # Sign-in with Google, GitHub or Twitch: set <PROVIDER>_ENABLED=true,
-  # <PROVIDER>_CLIENT_ID and <PROVIDER>_SECRET in supabase/.env. The provider's
-  # callback URL is API_EXTERNAL_URL/auth/v1/callback (https://db.DOMAIN/...).
-  # Admin, Instance, OAuth chooses which buttons the sign-in page shows.
+  # Sign-in with Google, GitHub, Twitch or Discord: client id and secret in Admin, Instance,
+  # Authentication. The federation server renders them into the auth-config volume as
+  # 50-harmony-oauth.env (GOTRUE_EXTERNAL_<PROVIDER>_*), and GoTrue, started with --config-dir,
+  # reloads that directory 5 s after a change; a provider set there overrides the variables
+  # below. Without it: <PROVIDER>_ENABLED=true, <PROVIDER>_CLIENT_ID and <PROVIDER>_SECRET in
+  # supabase/.env. The provider's callback URL is API_EXTERNAL_URL/auth/v1/callback
+  # (https://db.DOMAIN/...). The same page chooses which buttons the sign-in page shows.
   #
   # Sign-in with the instance's own OAuth 2.0 / OIDC providers: `harmony auth
   # add-provider`. GoTrue keeps them in auth.custom_oauth_providers.
@@ -215,8 +238,11 @@ services:
   # function fails every sign-up.
   auth:
     image: ${GOTRUE_IMAGE:-supabase/gotrue:v2.197.0}
+    command: ["auth", "--config-dir", "/etc/harmony-auth"]
     depends_on:
       analytics: { condition: service_healthy, required: false }
+    volumes:
+      - auth-config:/etc/harmony-auth:ro
     environment:
       GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED: "true"
       GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED: "true"
@@ -237,5 +263,13 @@ services:
       GOTRUE_EXTERNAL_TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID:-}
       GOTRUE_EXTERNAL_TWITCH_SECRET: ${TWITCH_SECRET:-}
       GOTRUE_EXTERNAL_TWITCH_REDIRECT_URI: ${API_EXTERNAL_URL}/auth/v1/callback
+      GOTRUE_EXTERNAL_DISCORD_ENABLED: ${DISCORD_ENABLED:-false}
+      GOTRUE_EXTERNAL_DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_DISCORD_SECRET: ${DISCORD_SECRET:-}
+      GOTRUE_EXTERNAL_DISCORD_REDIRECT_URI: ${API_EXTERNAL_URL}/auth/v1/callback
       GOTRUE_MAILER_TEMPLATES_INVITE: ${MAILER_TEMPLATES_INVITE:-http://web/email-templates/invite.html}
       GOTRUE_MAILER_TEMPLATES_RECOVERY: ${MAILER_TEMPLATES_RECOVERY:-http://web/email-templates/recovery.html}
+
+volumes:
+  # Written by federation-server (docker-compose.yml), read by auth.
+  auth-config:

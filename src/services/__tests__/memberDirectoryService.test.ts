@@ -64,6 +64,20 @@ describe('member directory calls', () => {
     expect(memberDirectoryAvailable()).toBe(true)
   })
 
+  it('a search without a role asks the instance to leave its members out', async () => {
+    rpc.answer = () => ({ data: [{ id: 'm3' }], error: null })
+    expect(await searchServerMembers('s1', ' zed ', 10, { withoutRole: 'r1' })).toEqual([{ id: 'm3' }])
+    expect(rpc.calls).toEqual([{ name: 'search_server_members',
+      args: { p_server_id: 's1', p_query: 'zed', p_limit: 10, p_without_role: 'r1' } }])
+  })
+
+  it('an instance without that argument answers the plain search and stays available', async () => {
+    rpc.answer = (_name, args) => (args.p_without_role ? MISSING : { data: [{ id: 'm1' }], error: null })
+    expect(await searchServerMembers('s1', 'zed', 10, { withoutRole: 'r1' })).toEqual([{ id: 'm1' }])
+    expect(rpc.calls.map(c => c.args.p_without_role)).toEqual(['r1', undefined])
+    expect(memberDirectoryAvailable()).toBe(true)
+  })
+
   it('a blank search asks nothing', async () => {
     expect(await searchServerMembers('s1', '   ')).toEqual([])
     expect(rpc.calls).toEqual([])

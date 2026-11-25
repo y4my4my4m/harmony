@@ -1,37 +1,48 @@
 <template>
   <div class="remote-directory" data-testid="remote-directory">
-    <div class="remote-directory__controls">
-      <form class="remote-directory__form" @submit.prevent="browse(domainInput)">
-        <label :for="inputId" class="remote-directory__label">{{ $t('federation.directory.domainLabel') }}</label>
-        <div class="remote-directory__row">
+    <DiscoveryControls
+      ref="controls"
+      v-model:expanded="expanded"
+      :filters="activeFilters"
+      :count="statsText"
+      count-test-id="remote-directory-stats"
+      @remove="removeFilter"
+    >
+      <!-- One field: filters the listed servers as typed; a domain typed is offered to browse. -->
+      <form class="remote-directory__search" role="search" @submit.prevent="submitSearch">
+        <label :for="inputId" class="remote-directory__label">{{ $t('federation.directory.searchLabel') }}</label>
+        <div class="remote-directory__field">
+          <Icon name="search" :size="18" class="remote-directory__field-icon" />
           <input
             :id="inputId"
-            v-model.trim="domainInput"
+            ref="fieldEl"
+            v-model="filter"
             class="remote-directory__input"
-            type="text"
-            inputmode="url"
+            type="search"
             autocomplete="off"
             autocapitalize="off"
             spellcheck="false"
-            :placeholder="$t('federation.directory.domainPlaceholder')"
-            :aria-describedby="`${inputId}-hint`"
-            data-testid="remote-directory-domain"
+            :enterkeyhint="typedDomain ? 'go' : 'search'"
+            :placeholder="$t('federation.directory.searchPlaceholder')"
+            data-testid="remote-directory-search"
+            @keydown.esc="onEscape"
           />
-          <button
-            type="submit"
-            class="btn btn-secondary"
-            :disabled="!domainInput || loading"
-            data-testid="remote-directory-browse"
-          >
-            <Icon v-if="loading" name="spinner" :size="16" class="spin" />
-            <span>{{ $t('federation.directory.browse') }}</span>
-          </button>
         </div>
-        <p :id="`${inputId}-hint`" class="remote-directory__hint">{{ $t('federation.directory.domainHint') }}</p>
+        <button
+          v-if="typedDomain"
+          type="submit"
+          class="remote-directory__browse"
+          :disabled="loading && pendingDomain === typedDomain"
+          data-testid="remote-directory-browse"
+        >
+          <Icon name="globe" :size="16" />
+          <span class="remote-directory__browse-label">{{ $t('federation.directory.browseDomain', { domain: typedDomain }) }}</span>
+          <kbd class="remote-directory__kbd" aria-hidden="true">↵</kbd>
+        </button>
       </form>
 
       <div
-        v-if="peers.length > 0 || (advertisedSupported && view === 'instance')"
+        v-if="peers.length > 0 || view === 'instance'"
         class="remote-directory__peers"
         role="group"
         :aria-labelledby="`${inputId}-peers`"
@@ -49,23 +60,35 @@
           <Icon name="globe" :size="14" />
           {{ $t('federation.directory.allInstances') }}
         </button>
+        <!-- A domain browsed by typing that no known instance matches. -->
+        <button
+          v-if="unlistedDomain"
+          type="button"
+          class="peer-chip peer-chip--active"
+          aria-pressed="true"
+          data-testid="remote-directory-typed"
+          @click="browse(unlistedDomain)"
+        >
+          <Icon name="globe" :size="14" />
+          <span class="peer-chip__label" :title="unlistedDomain">{{ unlistedDomain }}</span>
+        </button>
         <button
           v-for="peer in peers"
           :key="peer.domain"
           type="button"
           class="peer-chip"
-          :class="{ 'peer-chip--active': view === 'instance' && peer.domain === page?.domain }"
-          :aria-pressed="view === 'instance' && peer.domain === page?.domain"
+          :class="{ 'peer-chip--active': peer.domain === browsedDomain }"
+          :aria-pressed="peer.domain === browsedDomain"
           data-testid="remote-directory-peer"
           @click="browse(peer.domain)"
         >
           <span class="peer-chip__icon"><InstanceIcon :src="peer.icon" :size="14" /></span>
-          {{ peer.domain }}
+          <span class="peer-chip__label">{{ peer.domain }}</span>
         </button>
       </div>
-    </div>
+    </DiscoveryControls>
 
-    <div class="remote-directory__results">
+    <div class="remote-directory__results" @scroll="onResultsScroll">
       <EmptyState
         v-if="federationOff"
         icon="lock"
@@ -97,37 +120,28 @@
           </div>
 
           <template v-else-if="page">
-            <p class="remote-directory__stats" aria-live="polite" data-testid="remote-directory-stats">
-              {{ $t('federation.directory.serversOn', { domain: page.domain, count: page.totalItems ?? items.length }, page.totalItems ?? items.length) }}
-            </p>
-
             <EmptyState
               v-if="items.length === 0"
               icon="compass"
               :title="$t('federation.directory.emptyTitle')"
               :description="$t('federation.directory.empty', { domain: page.domain })"
             />
+            <EmptyState
+              v-else-if="instanceItems.length === 0"
+              icon="search"
+              :title="$t('federation.directory.noMatchTitle')"
+              :description="$t('federation.directory.noMatchOn', { domain: page.domain, query: filter.trim() })"
+              :action-label="typedDomain ? $t('federation.directory.browseDomain', { domain: typedDomain }) : undefined"
+              data-testid="remote-directory-no-match"
+              @action="submitSearch"
+            />
           </template>
         </template>
 
         <!-- Every known instance's listed servers, merged by this instance's backend. -->
         <template v-else-if="advertisedSupported">
-          <div v-if="filter || (advertised && advertised.total > 0)" class="remote-directory__filter">
-            <label :for="`${inputId}-filter`" class="remote-directory__label">{{ $t('federation.directory.filterLabel') }}</label>
-            <input
-              :id="`${inputId}-filter`"
-              v-model="filter"
-              class="remote-directory__input"
-              type="search"
-              autocomplete="off"
-              spellcheck="false"
-              :placeholder="$t('federation.directory.filterPlaceholder')"
-              data-testid="remote-directory-filter"
-            />
-          </div>
-
           <div
-            v-if="advertisedLoading && !advertised"
+            v-if="(advertisedLoading && !advertised) || (!answered && !advertisedError && mergedItems.length === 0)"
             class="remote-directory__loading"
             role="status"
             aria-busy="true"
@@ -148,14 +162,6 @@
           />
 
           <template v-else-if="advertised">
-            <p
-              v-if="advertised.total > 0"
-              class="remote-directory__stats"
-              aria-live="polite"
-              data-testid="remote-directory-stats"
-            >
-              {{ advertisedStats }}
-            </p>
             <p v-if="advertised.pending > 0" class="remote-directory__note" role="status">
               <Icon name="spinner" :size="13" class="spin" />
               {{ $t('federation.directory.advertisedPending', { count: advertised.pending }, advertised.pending) }}
@@ -165,18 +171,22 @@
             </p>
 
             <EmptyState
-              v-if="advertisedItems.length === 0 && filter"
+              v-if="answered && advertisedItems.length === 0 && filter"
               icon="search"
               :title="$t('federation.directory.noMatchTitle')"
               :description="$t('federation.directory.noMatch', { query: filter.trim() })"
+              :action-label="typedDomain ? $t('federation.directory.browseDomain', { domain: typedDomain }) : undefined"
               data-testid="remote-directory-no-match"
+              @action="submitSearch"
             />
             <EmptyState
-              v-else-if="advertisedItems.length === 0 && advertised.pending === 0"
+              v-else-if="answered && advertisedItems.length === 0 && advertised.pending === 0"
               icon="globe"
               :title="$t('federation.directory.advertisedEmptyTitle')"
               :description="$t('federation.directory.advertisedEmpty')"
+              :action-label="$t('federation.directory.browseAction')"
               data-testid="remote-directory-nothing"
+              @action="controls?.expand()"
             />
           </template>
         </template>
@@ -186,31 +196,25 @@
           icon="globe"
           :title="$t('federation.directory.introTitle')"
           :description="$t('federation.directory.intro')"
+          :action-label="$t('federation.directory.browseAction')"
+          @action="controls?.expand()"
         />
 
-        <ul v-if="listed.length > 0" class="remote-directory__list">
+        <ul v-if="listed.length > 0" ref="listEl" class="remote-directory__list">
           <li
             v-for="(server, index) in listed"
             :key="server.id"
             class="remote-server"
+            tabindex="-1"
             data-testid="remote-directory-server"
           >
             <div class="remote-server__icon">
               <img v-if="server.icon" :src="server.icon" alt="" loading="lazy" />
               <span v-else aria-hidden="true">{{ server.name.charAt(0).toUpperCase() }}</span>
             </div>
-            <div class="remote-server__body">
+            <div class="remote-server__head">
               <h3 :id="`${inputId}-name-${index}`" class="remote-server__name">{{ server.name }}</h3>
-              <p class="remote-server__handle">{{ server.handle ?? server.id }}</p>
-              <p v-if="server.summary" class="remote-server__summary">{{ server.summary }}</p>
-              <p v-if="server.memberCount !== null" class="remote-server__members">
-                <Icon name="users" :size="13" />
-                {{ $t('federation.directory.members', { count: server.memberCount }, server.memberCount) }}
-              </p>
-              <p v-if="'instance' in server" class="remote-server__instance" data-testid="remote-directory-instance">
-                <span class="remote-server__instance-icon"><InstanceIcon :src="server.instance.icon" :size="14" /></span>
-                {{ $t('federation.directory.hostedOn', { instance: server.instance.name || server.instance.domain }) }}
-              </p>
+              <p class="remote-server__handle" :title="server.handle ?? server.id">{{ server.handle ?? server.id }}</p>
             </div>
             <!-- Named by its own text, then the server's name: "Join <name>". -->
             <button
@@ -235,11 +239,32 @@
             >
               {{ $t('federation.directory.join') }}
             </button>
+            <p v-if="server.summary" class="remote-server__summary">{{ server.summary }}</p>
+            <p v-if="server.memberCount !== null || 'instance' in server" class="remote-server__meta">
+              <span v-if="server.memberCount !== null" class="remote-server__members">
+                <Icon name="users" :size="13" />
+                {{ $t('federation.directory.members', { count: server.memberCount }, server.memberCount) }}
+              </span>
+              <span v-if="'instance' in server" class="remote-server__instance" data-testid="remote-directory-instance">
+                <span class="remote-server__instance-icon"><InstanceIcon :src="server.instance.icon" :size="14" /></span>
+                {{ $t('federation.directory.hostedOn', { instance: server.instance.name || server.instance.domain }) }}
+              </span>
+            </p>
           </li>
         </ul>
 
         <div v-if="hasMore" class="remote-directory__more">
-          <button type="button" class="btn btn-secondary" :disabled="busy" @click="view === 'all' ? loadMoreAdvertised() : loadMore()">
+          <p v-if="moreFailed" class="remote-directory__more-error" role="alert" data-testid="remote-directory-more-failed">
+            {{ $t('federation.directory.loadMoreFailed') }}
+          </p>
+          <!-- aria-disabled, not disabled: a disabled button drops focus to the page while it reads. -->
+          <button
+            ref="moreButton"
+            type="button"
+            class="btn btn-secondary"
+            :aria-disabled="busy"
+            @click="onLoadMore"
+          >
             <Icon v-if="busy" name="spinner" :size="16" class="spin" />
             <span>{{ $t('federation.directory.loadMore') }}</span>
           </button>
@@ -250,11 +275,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import InstanceIcon from '@/components/common/InstanceIcon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import DiscoveryControls, { type DiscoveryFilter } from '@/components/PublicServers/DiscoveryControls.vue'
 import {
   federationServerService,
   remoteServerUuid,
@@ -266,6 +292,9 @@ import {
   type DirectoryServer,
 } from '@/services/federation'
 import { useServerChannelStore } from '@/stores/useServerChannel'
+import { instanceDomainFromInput, serverMatchesQuery } from '@/utils/directorySearch'
+
+type AdvertisedAnswer = Awaited<ReturnType<typeof federationServerService.listAdvertisedServers>>
 
 const emit = defineEmits<{
   /** A listed Group's id, joined through Join by URL. */
@@ -286,7 +315,6 @@ const serverChannelStore = useServerChannelStore()
 const inputId = `remote-directory-${useId()}`
 
 const view = ref<'all' | 'instance'>('all')
-const domainInput = ref('')
 const pendingDomain = ref('')
 const peers = ref<DirectoryPeer[]>([])
 const page = ref<DirectoryPage | null>(null)
@@ -309,13 +337,47 @@ let filterTimer: ReturnType<typeof setTimeout> | undefined
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 let retries = 0
 
+// Folded on open: the list takes the height; the bar still shows active filters and the count.
+const expanded = ref(false)
+const controls = ref<InstanceType<typeof DiscoveryControls> | null>(null)
+const fieldEl = ref<HTMLInputElement | null>(null)
+const listEl = ref<HTMLUListElement | null>(null)
+const moreButton = ref<HTMLButtonElement | null>(null)
+/** The last Load more failed; the button stays to try again. */
+const moreFailed = ref(false)
+
+/** The field's text as an instance domain, when it reads as one. */
+const typedDomain = computed(() => instanceDomainFromInput(filter.value))
+
+/** The instance whose directory is shown, while one is. */
+const browsedDomain = computed(() => (view.value === 'instance' ? page.value?.domain ?? pendingDomain.value : null))
+
+const unlistedDomain = computed(() => {
+  const domain = browsedDomain.value
+  return domain && !peers.value.some((p) => p.domain === domain) ? domain : null
+})
+
+/** The browsed instance's servers the field's text matches; that directory is not searched remotely. */
+const instanceItems = computed(() => items.value.filter((s) => serverMatchesQuery(s, filter.value)))
+
+/** The merged list answers the text now in the field. */
+const answered = computed(() => advertisedQuery.value === filter.value.trim())
+
+/**
+ * The merged list's rows for the text now in the field: the answer's, or until it arrives, the
+ * earlier answer's rows that match it, as the backend matches them.
+ */
+const mergedItems = computed(() => (answered.value
+  ? advertisedItems.value
+  : advertisedItems.value.filter((s) => serverMatchesQuery(s, filter.value))))
+
 const listed = computed<Array<DirectoryServer | AdvertisedServer>>(() =>
-  view.value === 'all' ? (advertisedSupported.value ? advertisedItems.value : []) : items.value)
+  view.value === 'all' ? (advertisedSupported.value ? mergedItems.value : []) : instanceItems.value)
 
 const busy = computed(() => (view.value === 'all' ? advertisedLoading.value : loading.value))
 
 const hasMore = computed(() => view.value === 'all'
-  ? advertisedSupported.value && advertised.value?.nextOffset != null
+  ? advertisedSupported.value && answered.value && advertised.value?.nextOffset != null
   : !!page.value?.next)
 
 /** Group id -> local copy id, for the listed servers the user is already in. */
@@ -334,15 +396,64 @@ const joinedIds = computed(() => {
   return joined
 })
 
-const advertisedStats = computed(() => {
-  const current = advertised.value
-  if (!current) return ''
-  if (filter.value.trim()) {
-    return t('federation.directory.advertisedMatches', { count: current.total }, current.total)
+const statsText = computed(() => {
+  if (federationOff.value) return ''
+  const query = filter.value.trim()
+  if (view.value === 'instance') {
+    const current = page.value
+    if (!current || refusal.value) return ''
+    if (query) return t('federation.directory.advertisedMatches', { count: instanceItems.value.length }, instanceItems.value.length)
+    const count = current.totalItems ?? items.value.length
+    return t('federation.directory.serversOn', { domain: current.domain, count }, count)
   }
+  const current = advertised.value
+  if (!advertisedSupported.value || !answered.value || !current || current.total === 0) return ''
+  if (query) return t('federation.directory.advertisedMatches', { count: current.total }, current.total)
   const instances = t('federation.directory.instanceCount', { count: current.instances }, current.instances)
   return t('federation.directory.advertisedStats', { count: current.total, instances }, current.total)
 })
+
+const activeFilters = computed<DiscoveryFilter[]>(() => {
+  const filters: DiscoveryFilter[] = []
+  if (browsedDomain.value) filters.push({ key: 'instance', label: browsedDomain.value, icon: 'globe' })
+  const query = filter.value.trim()
+  if (query) filters.push({ key: 'query', label: t('server.queryChip', { query }), icon: 'search' })
+  return filters
+})
+
+function removeFilter(key: string) {
+  if (key === 'instance') showAll()
+  else if (key === 'query') filter.value = ''
+}
+
+/** Enter in the field: browses a typed domain, which leaves the field; filters at once otherwise. */
+async function submitSearch() {
+  const domain = typedDomain.value
+  if (domain) {
+    filter.value = ''
+    void browse(domain)
+    // The Browse button and the empty state's action leave with the text; focus returns to the field.
+    await nextTick()
+    if (!document.activeElement || document.activeElement === document.body) fieldEl.value?.focus()
+    return
+  }
+  clearTimeout(filterTimer)
+  if (view.value === 'all') void loadAdvertised()
+}
+
+/**
+ * Escape empties a filled field and goes no further; the dialog closes on the next. Vue renders
+ * the empty field before the dialog's window listener runs, which would then close it.
+ */
+function onEscape(event: KeyboardEvent) {
+  if (!filter.value) return
+  filter.value = ''
+  event.stopPropagation()
+}
+
+function onResultsScroll(event: Event) {
+  controls.value?.listScrolled((event.target as HTMLElement).scrollTop)
+}
 
 const refusalTitle = computed(() =>
   refusal.value === 'no_directory' ? t('federation.directory.noDirectoryTitle') : t('federation.directory.errorTitle'))
@@ -363,9 +474,10 @@ const refusalText = computed(() => {
 async function browse(input: string) {
   const domain = input.trim()
   if (!domain) return
+  clearTimeout(filterTimer)
   const mine = ++generation
+  moreFailed.value = false
   view.value = 'instance'
-  domainInput.value = domain
   pendingDomain.value = domain
   refusal.value = null
   page.value = null
@@ -394,10 +506,8 @@ async function loadMore() {
   try {
     const result = await federationServerService.browseDirectory(current.domain, current.next)
     if (mine !== generation) return
-    if (!result.ok) {
-      refusal.value = result.refusal
-      return
-    }
+    moreFailed.value = !result.ok
+    if (!result.ok) return
     const seen = new Set(items.value.map((s) => s.id))
     items.value = [...items.value, ...result.page.items.filter((s) => !seen.has(s.id))]
     page.value = { ...result.page, totalItems: result.page.totalItems ?? current.totalItems }
@@ -409,7 +519,37 @@ async function loadMore() {
 function showAll() {
   ++generation
   loading.value = false
+  moreFailed.value = false
   view.value = 'all'
+  // The merged list answers the text typed before an instance was browsed.
+  if (advertisedSupported.value && !answered.value) {
+    clearTimeout(filterTimer)
+    retries = 0
+    void loadAdvertised()
+  }
+}
+
+/**
+ * The first `rows` servers of the merged list for `query`, the backend's first page for 0, read
+ * ADVERTISED_MAX_ROWS at a time. A later page that counts other instances than the first starts
+ * the read over once: the first page's offsets no longer hold. Null once `stale()`.
+ */
+async function readMerged(query: string, rows: number, stale: () => boolean, again = true): Promise<AdvertisedAnswer | null> {
+  const first = await federationServerService.listAdvertisedServers(query, 0, rows > 0 ? Math.min(rows, ADVERTISED_MAX_ROWS) : undefined)
+  if (stale()) return null
+  if (!first.ok) return first
+  const merged = [...first.page.items]
+  let last = first.page
+  while (merged.length < rows && last.nextOffset != null) {
+    const next = await federationServerService.listAdvertisedServers(query, last.nextOffset, Math.min(rows - merged.length, ADVERTISED_MAX_ROWS))
+    if (stale()) return null
+    if (!next.ok) return next
+    if (again && next.page.instances !== first.page.instances) return readMerged(query, rows, stale, false)
+    const seen = new Set(merged.map((s) => s.id))
+    merged.push(...next.page.items.filter((s) => !seen.has(s.id)))
+    last = next.page
+  }
+  return { ok: true, page: { ...last, items: merged } }
 }
 
 /**
@@ -423,9 +563,8 @@ async function loadAdvertised(rows = 0) {
   const query = filter.value.trim()
   advertisedLoading.value = true
   try {
-    const limit = rows > 0 ? Math.min(rows, ADVERTISED_MAX_ROWS) : undefined
-    const answer = await federationServerService.listAdvertisedServers(query, 0, limit)
-    if (mine !== advertisedGeneration) return
+    const answer = await readMerged(query, rows, () => mine !== advertisedGeneration)
+    if (!answer) return
     if (!answer.ok) {
       if (answer.unsupported) advertisedSupported.value = false
       else {
@@ -439,6 +578,7 @@ async function loadAdvertised(rows = 0) {
     }
     const result = answer.page
     advertisedError.value = false
+    moreFailed.value = false
     if (result.federationOff) federationOff.value = true
     advertised.value = result
     advertisedQuery.value = query
@@ -466,13 +606,14 @@ async function loadMoreAdvertised() {
   try {
     const answer = await federationServerService.listAdvertisedServers(advertisedQuery.value, offset)
     if (mine !== advertisedGeneration) return
+    moreFailed.value = !answer.ok
     if (!answer.ok) {
       retryWhilePending(current)
       return
     }
     const result = answer.page
     if (result.instances !== current.instances) {
-      void loadAdvertised(offset + result.items.length)
+      await loadAdvertised(offset + result.items.length)
       return
     }
     const seen = new Set(advertisedItems.value.map((s) => s.id))
@@ -484,9 +625,25 @@ async function loadMoreAdvertised() {
   }
 }
 
+/** The last page leaves with the button; focus it held goes to the first row added, not to the page. */
+async function onLoadMore() {
+  if (busy.value) return
+  const before = listed.value.length
+  const hadFocus = document.activeElement === moreButton.value
+  await (view.value === 'all' ? loadMoreAdvertised() : loadMore())
+  if (!hadFocus || hasMore.value) return
+  await nextTick()
+  const active = document.activeElement
+  if (active && active !== document.body && active !== moreButton.value) return
+  const rows = listEl.value?.children
+  if (rows && rows.length > 0) (rows[Math.min(before, rows.length - 1)] as HTMLElement).focus()
+}
+
+// A browsed instance's directory filters on this side; showAll() reads the merged list for the text.
 watch(filter, () => {
   clearTimeout(filterTimer)
   retries = 0
+  if (view.value !== 'all') return
   filterTimer = setTimeout(() => { void loadAdvertised() }, FILTER_DEBOUNCE_MS)
 })
 
@@ -515,15 +672,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
 }
 
-.remote-directory__controls {
-  padding: var(--space-4) var(--space-6) var(--space-3);
-  border-bottom: 1px solid var(--border-primary);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.remote-directory__form {
+.remote-directory__search {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -536,16 +685,24 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
 }
 
-.remote-directory__row {
+.remote-directory__field {
+  position: relative;
   display: flex;
-  gap: var(--space-2);
+  align-items: center;
+}
+
+.remote-directory__field-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
 }
 
 .remote-directory__input {
   flex: 1;
   min-width: 0;
   height: 40px;
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-3) 0 40px;
   background: var(--input-bg);
   border: 1px solid var(--input-border);
   border-radius: var(--radius-md);
@@ -567,10 +724,50 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 3px var(--harmony-primary-light);
 }
 
-.remote-directory__hint {
-  margin: 0;
-  font-size: var(--font-size-xs);
+.remote-directory__browse {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.remote-directory__browse:hover:not(:disabled) {
+  background: var(--background-modifier-active);
+  border-color: var(--border-hover);
+}
+
+.remote-directory__browse:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
+.remote-directory__browse:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.remote-directory__browse-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.remote-directory__kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
 }
 
 .remote-directory__peers {
@@ -598,6 +795,7 @@ onBeforeUnmount(() => {
     background-color var(--transition-fast),
     border-color var(--transition-fast),
     color var(--transition-fast);
+  max-width: 100%;
 }
 
 .peer-chip:hover {
@@ -620,7 +818,14 @@ onBeforeUnmount(() => {
 .peer-chip__icon {
   width: 14px;
   height: 14px;
+  flex-shrink: 0;
   display: inline-flex;
+}
+
+.peer-chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .remote-directory__results {
@@ -643,22 +848,6 @@ onBeforeUnmount(() => {
   font-size: var(--font-size-sm);
 }
 
-.remote-directory__stats {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-}
-
-.remote-directory__filter {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.remote-directory__filter .remote-directory__input {
-  flex: none;
-}
-
 .remote-directory__note {
   margin: 0;
   display: inline-flex;
@@ -678,10 +867,12 @@ onBeforeUnmount(() => {
 }
 
 .remote-server {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   background: var(--background-secondary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
@@ -709,8 +900,7 @@ onBeforeUnmount(() => {
   object-fit: cover;
 }
 
-.remote-server__body {
-  flex: 1;
+.remote-server__head {
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -723,44 +913,53 @@ onBeforeUnmount(() => {
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .remote-server__handle {
   margin: 0;
   font-size: var(--font-size-xs);
   color: var(--text-muted);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.remote-server__summary,
+.remote-server__meta {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--font-size-xs);
 }
 
 .remote-server__summary {
-  margin: var(--space-1) 0 0;
-  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   white-space: pre-line;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.remote-server__members {
-  margin: var(--space-1) 0 0;
-  display: inline-flex;
+.remote-server__meta {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  font-size: var(--font-size-xs);
+  gap: var(--space-1) var(--space-3);
   color: var(--text-secondary);
 }
 
+.remote-server__members,
 .remote-server__instance {
-  margin: var(--space-1) 0 0;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
 
@@ -773,12 +972,29 @@ onBeforeUnmount(() => {
 
 .remote-server__action {
   flex-shrink: 0;
-  align-self: center;
+}
+
+.remote-server:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .remote-directory__more {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.remote-directory__more-error {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-danger);
+}
+
+.remote-directory__more .btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: progress;
 }
 
 .spin {
@@ -796,8 +1012,8 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
-  .remote-directory__controls {
-    padding: var(--space-3) var(--space-4);
+  .remote-directory__kbd {
+    display: none;
   }
 
   .remote-directory__results {
@@ -812,8 +1028,8 @@ onBeforeUnmount(() => {
   .remote-directory__peers {
     flex-wrap: nowrap;
     overflow-x: auto;
-    margin: 0 calc(-1 * var(--space-4));
-    padding: 0 var(--space-4);
+    margin: -4px calc(-1 * var(--space-4));
+    padding: 4px var(--space-4);
     scrollbar-width: none;
   }
 

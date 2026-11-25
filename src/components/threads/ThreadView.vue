@@ -217,8 +217,8 @@
                   data-testid="thread-parent-message"
                 >
                   <div class="message-avatar">
-                    <Avatar 
-                      :src="parentForeignAuthor ? (parentForeignAuthor.avatar_url || '/default_avatar.webp') : getAuthorAvatar(displayParentMessage.user_id)" 
+                    <Avatar
+                      :src="parentForeignAuthor ? (parentForeignAuthor.avatar_url || '/default_avatar.webp') : getAuthorAvatar(displayParentMessage.user_id)"
                       :alt="parentForeignAuthor ? parentForeignAuthor.name : getAuthorName(displayParentMessage.user_id)"
                       size="sm"
                       :interactive="!parentForeignAuthor"
@@ -226,7 +226,7 @@
                   </div>
                   <div class="message-main">
                     <div class="message-meta">
-                      <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}</span>
+                      <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}<BridgeSourceBadge v-if="getBridgeSource(displayParentMessage)" :source="getBridgeSource(displayParentMessage)!" /></span>
                       <span v-else class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
                         <DisplayName :userId="displayParentMessage.user_id" />
                         <FederatedUserBadge :user-id="displayParentMessage.user_id" />
@@ -237,6 +237,11 @@
                       <UnifiedMessageContent
                         :content="displayParentMessage.content"
                         :message-id="displayParentMessage.id"
+                        :encrypted="displayParentMessage.encrypted || false"
+                        :decrypted="displayParentMessage.decrypted || false"
+                        :unrecoverable="displayParentMessage.decryption_unrecoverable || false"
+                        :decryption-error="displayParentMessage.decryption_error"
+                        :replayed="displayParentMessage.decryption_replayed || false"
                         :media-hidden="mediaHidden"
                       />
                     </div>
@@ -249,7 +254,7 @@
                   <span class="reply-count">{{ t('chatNav.thread.replies', { count: thread?.message_count || 0 }, thread?.message_count || 0) }}</span>
                   <div class="divider-line"></div>
                 </div>
-          
+
                 <!-- Draft mode hint -->
                 <div class="draft-hint" v-if="isDraftMode">
                   <div class="divider-line"></div>
@@ -340,7 +345,6 @@ import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue'
-import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
@@ -367,6 +371,7 @@ import {
   isOptimisticThreadId,
   mergeFreshThreadMessages,
   landThreadReply,
+  fillThreadGap,
   type StoredThread,
 } from '@/stores/useThreads'
 import { getRandomId } from '@/stores/shared/optimisticMessages'
@@ -384,7 +389,9 @@ import { keepPendingEdit } from '@/stores/shared/optimisticEdit'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useOpenThreadGone } from '@/composables/useOpenThreadGone'
 import { useThreadDraft } from '@/composables/useThreadDraft'
-import { getForeignAuthor } from '@/utils/messageAuthor'
+import { useThreadMessageDecryption } from '@/composables/useThreadMessageDecryption'
+import { getForeignAuthor, getBridgeSource } from '@/utils/messageAuthor'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 import { useDialog } from '@/composables/useDialog'
 import { useMenu, useMenuButton } from '@/composables/useMenu'
 import { usePortalTarget } from '@/composables/usePortalTarget'
@@ -492,6 +499,7 @@ const { checkMissing: checkThreadMissing } = useOpenThreadGone(thread, (how) => 
   close()
 })
 const messages = ref<Message[]>([])
+const { readableArrival, readableUpdate } = useThreadMessageDecryption(messages, () => thread.value)
 const loading = ref(false)
 const loadingMore = ref(false)
 const hasMore = ref(false)
@@ -542,7 +550,7 @@ const displayParentMessage = computed(() => {
   return isThreadNoticeParent(parent) ? null : parent
 })
 
-// A starter written by a bridged Discord person, a webhook or a bot has no profile to show.
+// A starter written by a bridged person, a webhook or a bot has no profile to show.
 const parentForeignAuthor = computed(() => getForeignAuthor(displayParentMessage.value as Message | null | undefined))
 
 // Thread name (or generate from parent message in draft mode)
@@ -1436,7 +1444,9 @@ const setupRealtimeSubscription = () => {
       const payloadNew = payload.new as any
       
       if (payloadNew.thread_id === thread.value?.id) {
-        const newMessage: Message = {
+        // The send response may have placed it already.
+        if (messages.value.some(m => m.id === payloadNew.id)) return
+        const newMessage = await readableArrival({
           id: payloadNew.id,
           created_at: new Date(payloadNew.created_at),
           channel_id: payloadNew.channel_id,
@@ -1452,9 +1462,10 @@ const setupRealtimeSubscription = () => {
           encrypted: payloadNew.encrypted || false,
           encryption_metadata: payloadNew.encryption_metadata || null,
           thread_id: payloadNew.thread_id,
-        }
+        })
+        if (!newMessage) return
         
-        // The send response may have placed it already, or may still hold its optimistic row.
+        // The optimistic row of the send may still be held, or the send response landed meanwhile.
         if (!landThreadReply(messages.value, newMessage)) return
         if (refreshInFlight) arrivedDuringFetch.add(newMessage.id)
 
@@ -1486,11 +1497,14 @@ const setupRealtimeSubscription = () => {
         return
       }
       
-      const index = messages.value.findIndex(m => m.id === payloadNew.id)
-      if (index !== -1) {
+      if (messages.value.some(m => m.id === payloadNew.id)) {
+        const fields = await readableUpdate(payloadNew)
+        // The row may have gone, or a newer update of it landed, during the decryption.
+        const index = fields ? messages.value.findIndex(m => m.id === payloadNew.id) : -1
+        if (!fields || index === -1) return
         const updatedMessage: Message = {
           ...messages.value[index],
-          content: payloadNew.content,
+          ...fields,
           updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
           metadata: payloadNew.metadata || null,
           is_pinned: pinsStore.pending[payloadNew.id]?.pinned ?? payloadNew.is_pinned,
@@ -1520,9 +1534,33 @@ const setupRealtimeSubscription = () => {
   threadSubscription.value = realtimeConnectionManager.subscribeBroadcast({
     channelName,
     broadcasts: [{ event: 'message_event', handler: (payload) => routeMessageEvent(payload, handlers) }],
+    // Replies sent while the topic was down reach no transport.
+    onReconnected: () => fillReplyGap(),
   })
 
   debug.log(`Subscribed to thread messages: ${channelName}`)
+}
+
+/** Lands the replies a Realtime gap kept from the list. A refresh in flight reads them itself. */
+const fillReplyGap = async () => {
+  const threadId = thread.value?.id
+  if (!threadId || isOptimisticThreadId(threadId) || refreshInFlight) return
+  try {
+    const gap = await fillThreadGap(
+      () => (thread.value?.id === threadId ? messages.value : null),
+      (options) => threadService.getThreadMessages(threadId, options),
+    )
+    if (!gap) return
+    messages.value = gap.messages
+    if (gap.hasMore !== undefined) hasMore.value = gap.hasMore
+    for (const reply of gap.added) threadService.addMessageToCache(threadId, reply)
+    if (gap.added.length) {
+      await nextTick()
+      scrollToBottom()
+    }
+  } catch (error) {
+    debug.warn('Thread gap fill failed:', error)
+  }
 }
 
 // Watch for visibility changes

@@ -1378,7 +1378,7 @@ router.get(
 
       logger.info(`Fetching messages from remote channel: ${fetchUrl}`);
 
-      // BUGS.md H15: fetchUrl is constructed from remote AP response data;
+      // fetchUrl is constructed from remote AP response data;
       // signedApFetch goes through safeFetch.
       const response = await SignatureService.signedApFetch(fetchUrl, {
         headers: {
@@ -2230,7 +2230,7 @@ export class ServerDiscoveryService {
         return false;
       }
 
-      // BUGS.md H15: membersUrl is from remote AP response.
+      // membersUrl is from remote AP response.
       const headers = {
         'Accept': 'application/activity+json, application/json',
         'User-Agent': federationUserAgent(),

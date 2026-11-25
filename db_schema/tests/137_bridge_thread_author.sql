@@ -52,7 +52,7 @@ SELECT ok((SELECT NOT metadata ? 'discord_user' FROM n137 WHERE k = 'bad-id'),
     'a member without a snowflake id is ignored');
 SELECT ok((SELECT NOT metadata ? 'discord_user' FROM n137 WHERE k = 'none'),
     'no member: the notice stays under the bot');
-SELECT ok(NOT has_function_privilege('authenticated', 'public.bot_create_thread(uuid, uuid, text, uuid, text, jsonb)', 'EXECUTE'),
+SELECT ok(NOT has_function_privilege('authenticated', 'public.bot_create_thread(uuid, uuid, text, uuid, text, jsonb, timestamptz, text)', 'EXECUTE'),
     'clients cannot call bot_create_thread');
 
 SELECT * FROM finish();

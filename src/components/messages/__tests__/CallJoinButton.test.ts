@@ -68,7 +68,12 @@ const settle = async () => {
 }
 const present = () => [{ callType: 'voice', joinedAt: new Date().toISOString(), isCaller: true, systemMessageId: 'msg-1' }]
 const callChannel = () => rt.channels.find((c) => c.topic === `dm-call:${CONV}`)
-const joins = (channel: any) => channel.sent.filter((m: any) => m.payload?.type === 'join')
+// A join sent either way: send_signal (signal-relay) or the client broadcast an older instance takes.
+const joins = (channel: any) => [
+  ...channel.sent.filter((m: any) => m.payload?.type === 'join'),
+  ...rt.rpc.mock.calls.filter(([fn, args]: any[]) =>
+    fn === 'send_signal' && args?.p_topic === channel.topic && args?.p_payload?.type === 'join'),
+]
 
 // Rung and answered elsewhere; the conversation's channel is not open.
 const answeredCall = () => {

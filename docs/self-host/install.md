@@ -101,7 +101,7 @@ In order:
 | Admin email | Your login. Also the contact Let's Encrypt and push services see | the current one on a re-run |
 | Admin username | Your handle: 3 to 24 characters of `a-z`, `0-9` and `_`, not a [reserved name](/use/getting-started#set-up-your-profile). Not asked when an admin exists | the email's local part, reduced to those characters; `owner` when that leaves fewer than 3 or a reserved name |
 | Admin password | 8 characters or more, asked twice. Not asked when an admin exists | Enter generates one, shown once after the summary |
-| Instance name | Shown in the app. It cannot contain `$`, `#`, `"`, `\` or a backtick, or start with a quote; the admin panel accepts any name later | `Harmony` |
+| Instance name | Shown in the app, and to other servers as the instance's name (NodeInfo, the instance actor). It cannot be blank or contain `$`, `#`, `"`, `\` or a backtick, or start with a quote; the admin panel accepts any name later. Harmony, the software's name, asks for a confirmation | the domain; the current name on a re-run, and the domain for an instance still named Harmony by an earlier installer |
 | Enable voice and video? | Voice channels, calls and screen sharing (LiveKit). Needs the `live.` record and ports 7881/tcp and 7882/udp | `y` |
 | Enable bots? | The bot gateway, for bots and Discord bridges | `n` |
 | Host Discord bridges on this server? | Asked when bots are on. Communities paste their Discord bot token into Harmony and this server runs their bridge; see [Discord bridges](/self-host/discord-bridges) | `n` |
@@ -279,7 +279,7 @@ Answers:
 | `HARMONY_ADMIN_EMAIL` | Admin login, Let's Encrypt and push contact | required |
 | `HARMONY_ADMIN_USERNAME` | Admin handle | the email's local part |
 | `HARMONY_ADMIN_PASSWORD` | Admin password, 8 characters or more | generated, shown once after the summary or written to a file ([After the installer finishes](#after-the-installer-finishes)) |
-| `HARMONY_INSTANCE_NAME` | Instance name | `Harmony` |
+| `HARMONY_INSTANCE_NAME` | Instance name; `Harmony` is taken with a warning | the domain; the current name on a re-run |
 | `HARMONY_VOICE` | `y` or `n`: voice and video | `y` |
 | `HARMONY_BOTS` | `y` or `n`: bot gateway | `n` |
 | `HARMONY_DISCORD` | `y` or `n`: Discord bridge hosting; `y` turns bots on | `n` |
@@ -322,6 +322,7 @@ Options:
 |---|---|
 | `--dir DIR` | `HARMONY_DIR=DIR` |
 | `--ref REF` | `HARMONY_REF=REF` |
+| `--name NAME` | `HARMONY_INSTANCE_NAME=NAME` |
 | `--non-interactive` | `HARMONY_NONINTERACTIVE=1` |
 | `-h`, `--help` | Prints the installer's built-in help |
 

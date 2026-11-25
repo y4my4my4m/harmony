@@ -212,7 +212,7 @@
     <GroupChatInviteModal
       :show="showAddParticipant"
       :conversation-id="conversationId"
-      :existing-participants="participants"
+      :existing-participants="displayParticipants"
       @close="showAddParticipant = false"
       @users-added="handleUsersAdded"
     />

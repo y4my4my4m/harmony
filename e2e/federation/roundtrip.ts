@@ -58,12 +58,16 @@
 // (cases/discovery.ts).
 // An invite link to a server on another Harmony instance is stored as that server's card, read
 // from the host's invite answer (cases/remoteInviteCard.ts).
+// NodeInfo nodeName, the instance actor's name, the invite, Drive link and post pages and
+// /instance-info carry the stored instance name (cases/instanceName.ts).
 // The instance's federation switches refuse, drop and close against the peer
 // (cases/federationSwitches.ts).
 // A sticker leaves as a rawContent part beside its image and a described Document, arrives on a
 // copy as the peer's sticker, and crosses in DMs by harmony:sticker (cases/stickers.ts).
 // A remote stranger's DM stops at the recipient's setting (cases/dmPolicy.ts).
 // A remote DM stops at a block of its sender, and passes after the unblock (cases/dmBlocks.ts).
+// A remote Delete of a DM leaves the recipient's conversation preview (cases/dmDeletePreview.ts).
+// A remote group invite adds the person it names to the group's copy (cases/groupInvites.ts).
 // A chat poll is held by the server's host or the DM's author; copies take its counts, and votes
 // are Mastodon's vote Notes, each way (cases/polls.ts).
 // A server's pins, roles, members' roles and channel order, and the instance staff role on an
@@ -119,19 +123,21 @@ import { caseInboundPosts } from './cases/inbound-posts.ts'
 import { caseRemoteReplies } from './cases/remoteReplies.ts'
 import { caseQuotes } from './cases/quotes.ts'
 import { caseEmojiOrigin } from './cases/emojiOrigin.ts'
+import { caseProfileEmojis } from './cases/profileEmojis.ts'
 import { caseChannelReactionUndo } from './cases/channelReactionUndo.ts'
 import { caseQuoteNotifications } from './cases/notif.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
 import { caseVoiceModeration } from './cases/voiceModeration.ts'
 import { caseVoiceModerationFederation } from './cases/voiceModerationFederation.ts'
 import { caseVoicePresenceRefresh } from './cases/voicePresenceRefresh.ts'
-import { caseGroupActor } from './cases/groupActor.ts'
+import { caseGroupActor, deliver as deliverSigned } from './cases/groupActor.ts'
 import { caseChannelPermissions } from './cases/channelPermissions.ts'
 import { casePrivateCategories } from './cases/privateCategories.ts'
 import { caseGroupRelay } from './cases/groupRelay.ts'
 import { caseThreadRoutes } from './cases/threadRoutes.ts'
 import { caseEmptyThread } from './cases/emptyThread.ts'
 import { caseApConformance } from './cases/apConformance.ts'
+import { caseInstanceName } from './cases/instanceName.ts'
 import { caseApInbound } from './cases/apInbound.ts'
 import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
 import { caseAccountMoveImport } from './cases/accountMoveImport.ts'
@@ -153,6 +159,8 @@ import { caseSocial } from './cases/social.ts'
 import { casePolls } from './cases/polls.ts'
 import { caseDmPolicy } from './cases/dmPolicy.ts'
 import { caseDmBlocks } from './cases/dmBlocks.ts'
+import { caseGroupInvites } from './cases/groupInvites.ts'
+import { caseDmDeletePreview } from './cases/dmDeletePreview.ts'
 import { caseInboundAuthority } from './cases/inboundAuthority.ts'
 import { caseClientAuthority } from './cases/clientAuthority.ts'
 import { caseClaimedFields } from './cases/claimedFields.ts'
@@ -2849,6 +2857,7 @@ async function main() {
     await caseOutboundFlag(db, peer, localUrl, env, backend)
     await caseInboundReactions(db, peer, localUrl)
     await caseEmojiOrigin({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE }, post, signedHeaders, assert, eq })
+    await caseProfileEmojis({ db, peer, localUrl, ids: { remote: REMOTE }, post, signedHeaders, assert, eq })
     await caseOutboundReactions(db, peer, backend)
     await caseRemoteReactionCounts(db, peer, localUrl)
     await caseDocumentCache(db, localUrl)
@@ -2892,11 +2901,9 @@ async function main() {
         auth: { autoRefreshToken: false, persistSession: false },
         global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
       }),
-      deliver: (activity, signer = { key: peer.key.privateKey, actor: peer.actorUrl }) => {
-        const body = JSON.stringify(activity)
-        const target = `${localUrl}/inbox`
-        return post(target, signedHeaders(target, body, signer.key, `${signer.actor}#main-key`), body).then((r) => r.status)
-      },
+      // The earlier cases spend the peer's inbox share: a 429 is sent again once the window turns.
+      deliver: (activity, signer = { key: peer.key.privateKey, actor: peer.actorUrl }) =>
+        deliverSigned(post, signedHeaders, `${localUrl}/inbox`, JSON.stringify(activity), signer.key, `${signer.actor}#main-key`),
     })
     await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
     await caseQuotes({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
@@ -2946,6 +2953,20 @@ async function main() {
     })
     await caseDmPolicy({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq })
     await caseDmBlocks({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq, remote: REMOTE })
+    await caseDmDeletePreview({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq,
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+    })
+    await caseGroupInvites({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq, remote: REMOTE,
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+    })
 
     await caseStickers({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, get, signedHeaders, signedGetHeaders,
@@ -2988,6 +3009,7 @@ async function main() {
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, get, assert, eq,
       ids: { alice: ALICE, carol: CAROL, remote: REMOTE, pubServer: PUB_SERVER },
     })
+    await caseInstanceName({ db, localUrl, backendRoot: BACKEND_ROOT, get, assert, eq, ids: { alice: ALICE, pubServer: PUB_SERVER } })
     await caseApInbound({ db, peer, localUrl, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq, ids: { alice: ALICE, remote: REMOTE } })
     await caseRemoteInteractions({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, env, post, get, signedHeaders,

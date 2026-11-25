@@ -85,31 +85,56 @@ export function emojiDomainForms(host: string | null | undefined): string[] {
   return [...new Set([h, h.replace(/:\d+$/, '')])];
 }
 
-/**
- * The emojis row an inbound image URL names, for an emoji whose origin instance is `originHost`:
- * a row without a Group id (cached from an activity, or this instance's own) first, else a row of
- * a copy whose Group is on that host (its domain). A copy of a server on another instance never
- * answers for the URL: its Group may list any image. Several rows of one URL answer with the
- * oldest, never an error.
- */
-export async function inboundEmojiRowId(supabase: any, url: string, originHost: string | null): Promise<string | null> {
-  const { data: plain } = await supabase
-    .from('emojis')
-    .select('id')
-    .eq('url', url)
-    .is('ap_id', null)
-    .order('created_at', { ascending: true })
-    .limit(1);
-  if (plain?.[0]?.id) return plain[0].id;
-  const domains = emojiDomainForms(originHost);
-  if (domains.length === 0) return null;
-  const { data: copy } = await supabase
+/** Rows of one image read per kind for an Undo. */
+const IMAGE_ROWS = 50;
+
+/** Rows of copies whose Group is on one of `domains` naming the image, oldest first. */
+async function copyRowIds(supabase: any, url: string, domains: string[], limit: number): Promise<string[]> {
+  if (domains.length === 0) return [];
+  const { data } = await supabase
     .from('emojis')
     .select('id')
     .eq('url', url)
     .not('ap_id', 'is', null)
     .in('domain', domains)
     .order('created_at', { ascending: true })
-    .limit(1);
-  return copy?.[0]?.id ?? null;
+    .limit(limit);
+  return (data ?? []).map((row: { id: string }) => row.id);
+}
+
+/** Rows without a Group id naming the image, oldest first. */
+async function plainRowIds(supabase: any, url: string, limit: number): Promise<string[]> {
+  const { data } = await supabase
+    .from('emojis')
+    .select('id')
+    .eq('url', url)
+    .is('ap_id', null)
+    .order('created_at', { ascending: true })
+    .limit(limit);
+  return (data ?? []).map((row: { id: string }) => row.id);
+}
+
+/**
+ * The emojis row an inbound image URL names, for an emoji whose origin instance is `originHost`:
+ * a row of a copy whose Group is on that host (its domain) first, the server's emoji its members
+ * react with; else a row without a Group id (cached from an activity, or this instance's own).
+ * A copy of a server on another instance never answers for the URL: its Group may list any image.
+ * Several rows of one URL answer with the oldest, never an error.
+ */
+export async function inboundEmojiRowId(supabase: any, url: string, originHost: string | null): Promise<string | null> {
+  const [copy] = await copyRowIds(supabase, url, emojiDomainForms(originHost), 1);
+  if (copy) return copy;
+  const [plain] = await plainRowIds(supabase, url, 1);
+  return plain ?? null;
+}
+
+/**
+ * Every row inboundEmojiRowId may have answered for the image, in its order. A reaction holds
+ * the row answered when it arrived; a row of the image stored since does not move it, so an Undo
+ * matches any of them.
+ */
+export async function inboundEmojiRowIds(supabase: any, url: string, originHost: string | null): Promise<string[]> {
+  const copies = await copyRowIds(supabase, url, emojiDomainForms(originHost), IMAGE_ROWS);
+  const plain = await plainRowIds(supabase, url, IMAGE_ROWS);
+  return [...copies, ...plain];
 }

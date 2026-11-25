@@ -118,6 +118,9 @@ playwright-report/
 test-results/
 tests/e2e/.auth/
 
+# Vitest output
+.vitest/
+
 # HAR debug files
 *.har
 

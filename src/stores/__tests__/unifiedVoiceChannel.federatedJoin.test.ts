@@ -99,7 +99,7 @@ describe('joinFederatedVoiceChannel', () => {
 
     await broadcast('federated_voice:token', legit)
     await expect(joined).resolves.toBe(true)
-    expect(webrtc.joinWithToken).toHaveBeenCalledWith('wss://livekit.remote.test', 'GOOD', 'chan', 'me')
+    expect(webrtc.joinWithToken).toHaveBeenCalledWith('wss://livekit.remote.test', 'GOOD', 'chan', 'me', undefined)
   })
 
   it('holds a token that arrives before the join id is known and applies it only if it matches', async () => {
@@ -114,7 +114,34 @@ describe('joinFederatedVoiceChannel', () => {
     releaseJoin()
     await expect(joined).resolves.toBe(true)
     expect(webrtc.joinWithToken).toHaveBeenCalledTimes(1)
-    expect(webrtc.joinWithToken).toHaveBeenCalledWith('wss://livekit.remote.test', 'GOOD', 'chan', 'me')
+    expect(webrtc.joinWithToken).toHaveBeenCalledWith('wss://livekit.remote.test', 'GOOD', 'chan', 'me', undefined)
+  })
+
+  it('cancelled while the host\'s token connects, hands it on and leaves the next join\'s state alone', async () => {
+    const s = store()
+    const controller = new AbortController()
+    let connect!: (ok: boolean) => void
+    webrtc.joinWithToken.mockImplementationOnce(() => new Promise((resolve) => { connect = resolve }))
+    const joined = s.joinFederatedVoiceChannel('chan', 'server', 'me', controller.signal)
+    const ended = joined.then(() => 'joined', (error: Error) => error.name)
+    await flush()
+    releaseJoin()
+    await flush()
+    await flush()
+    const accepted = broadcast('federated_voice:token', legit)
+    await flush()
+    expect(webrtc.joinWithToken).toHaveBeenCalledWith('wss://livekit.remote.test', 'GOOD', 'chan', 'me', controller.signal)
+
+    controller.abort()
+    // The join after it.
+    const next = new AbortController()
+    Object.assign(s, { isConnecting: true, connectionAbortController: next, optimisticChannelId: 'other', optimisticServerId: 'server' })
+    connect(false)
+    await accepted
+    await expect(ended).resolves.toBe('AbortError')
+    expect(s.isConnecting).toBe(true)
+    expect(s.optimisticChannelId).toBe('other')
+    expect(s.connectionAbortController).not.toBeNull()
   })
 
   it('ignores a rejection that does not answer the pending join', async () => {

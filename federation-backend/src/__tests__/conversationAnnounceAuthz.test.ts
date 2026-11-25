@@ -49,7 +49,10 @@ const read = (row: Row, col: string) => {
 
 function fakeSupabase() {
   return {
-    rpc: (fn: string) => Promise.resolve({ data: rpcResult[fn] ?? null, error: null }),
+    rpc: (fn: string, args: any) => {
+      const result = rpcResult[fn]
+      return Promise.resolve({ data: (typeof result === 'function' ? result(args) : result) ?? null, error: null })
+    },
     from(table: string) {
       const filters: Array<(row: Row) => boolean> = []
       let op: 'select' | 'delete' | 'update' = 'select'
@@ -220,6 +223,79 @@ describe('group DM by remote conversation id', () => {
       'carol-id', [{ type: 'text', text: 'hi' }], null, { skipSpamGuard: true },
     )
     expect(tables.messages).toEqual([expect.objectContaining({ conversation_id: 'conv-1', user_id: 'carol-id' })])
+  })
+})
+
+describe('group DM started on another instance', () => {
+  // With the author, 13 people: past the 10 of a group made here (20261116100001).
+  it('a message naming 12 people arrives with all of them', async () => {
+    const people = Array.from({ length: 11 }, (_, i) => `https://remote.test/users/person${i}`)
+    people.forEach((url, i) => tables.profiles.push({ id: `person-${i}`, username: `person${i}`, is_local: i >= 8, federated_id: url, updated_at: FRESH }))
+    rpcResult.dm_recipients_allowing = (args: any) => args.p_recipients
+    // Stands in for the function: the conversation holds the actor and everyone named.
+    rpcResult.get_or_create_federated_group_conversation = (args: any) => {
+      tables.conversation_participants.push(...[args.p_actor_id, ...args.p_local_recipient_ids].map((id: string) => participant('conv-13', id)))
+      return 'conv-13'
+    }
+    await P.handleDirectMessage(
+      { id: 'https://remote.test/notes/13', attributedTo: CAROL, to: [ALICE, ...people] },
+      'carol-id', [{ type: 'text', text: 'all of us' }], null, { skipSpamGuard: true },
+    )
+    expect(tables.conversation_participants.filter((p) => p.conversation_id === 'conv-13').map((p) => p.user_id))
+      .toEqual(['carol-id', 'alice-id', ...people.map((_, i) => `person-${i}`)])
+    expect(tables.messages).toEqual([expect.objectContaining({ conversation_id: 'conv-13', user_id: 'carol-id' })])
+  })
+})
+
+describe('group invite', () => {
+  const BOB = 'https://harmony.test/users/bob'
+  let applied: Row[]
+  let notices: Row[]
+  const invite = (to: string[]) => P.handleGroupInvite(
+    { id: 'https://remote.test/group-invites/remote-conv/x', attributedTo: CAROL, to, metadata: { type: 'group_invite', conversation_id: 'remote-conv', conversation_name: 'Weekend' } },
+    'carol-id', null, { skipSpamGuard: true },
+  )
+
+  beforeEach(() => {
+    applied = []
+    notices = []
+    tables.profiles.push({ id: 'bob-id', username: 'bob', is_local: true, federated_id: BOB, updated_at: FRESH })
+    rpcResult.dm_recipients_allowing = (args: any) => args.p_recipients
+    rpcResult.send_notification_to_user = (args: any) => { notices.push(args) }
+    rpcResult.apply_federated_group_invite = (args: any) => {
+      applied.push(args)
+      return { conversation_id: 'conv-1', added: args.p_recipient_ids }
+    }
+  })
+
+  it('hands the local recipients to the database and notifies the ones it added', async () => {
+    rpcResult.apply_federated_group_invite = (args: any) => {
+      applied.push(args)
+      return { conversation_id: 'conv-1', added: ['bob-id'] }
+    }
+    await invite([ALICE, BOB, DAVE])
+    expect(applied).toEqual([{ p_actor_id: 'carol-id', p_recipient_ids: ['alice-id', 'bob-id'], p_remote_conversation_id: 'remote-conv' }])
+    expect(notices).toEqual([expect.objectContaining({ p_to_user_id: 'bob-id', p_conversation_id: 'conv-1', p_from_user_id: 'carol-id' })])
+    expect(notices[0].p_notification_data).toMatchObject({ is_invite: true, preview: 'You were added to Weekend', conversation: { id: 'conv-1', name: 'Weekend' }, sender: { user_id: 'carol-id' } })
+  })
+
+  it('tells nobody who was in the group already', async () => {
+    rpcResult.apply_federated_group_invite = { conversation_id: 'conv-1', added: [] }
+    await invite([ALICE])
+    expect(notices).toEqual([])
+  })
+
+  it('tells nobody of a group the inviter is not in', async () => {
+    rpcResult.apply_federated_group_invite = null
+    await invite([ALICE, BOB])
+    expect(notices).toEqual([])
+  })
+
+  it('leaves out recipients whose setting or block refuses the inviter', async () => {
+    rpcResult.dm_recipients_allowing = ['bob-id']
+    await invite([ALICE, BOB])
+    expect(applied[0].p_recipient_ids).toEqual(['bob-id'])
+    expect(notices.map((n) => n.p_to_user_id)).toEqual(['bob-id'])
   })
 })
 

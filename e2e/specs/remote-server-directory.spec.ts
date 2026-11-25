@@ -6,8 +6,8 @@
 // - Other instances opens on the servers the known instance (a federated_instances row whose
 //   NodeInfo the backend reads on opening) lists, merged by the backend (GET /directory/servers),
 //   most members first, each naming the instance that hosts it, with nothing typed. One it lists
-//   with discoverable false is not shown. The filter narrows the list and says when nothing
-//   matches.
+//   with discoverable false is not shown. The search field narrows the list and says when
+//   nothing matches.
 // - The known instance's own directory reads the same servers; All instances returns to the
 //   merged list.
 // - Join opens Join remote server on the server's Group; joining sends a signed Join to its inbox
@@ -17,7 +17,7 @@
 //   servers above the rows already shown (the rows on screen are read again from the top), and
 //   a failed read for a new filter shows the error, not the previous filter's servers.
 
-import { test, expect, type Page, type Route } from '@playwright/test'
+import { test, expect, type Locator, type Page, type Route } from '@playwright/test'
 import crypto from 'node:crypto'
 import { adminClient, createUser, deleteUser, seedServer, signIn, type SeededServer, type SpecUser } from './harness'
 import { startBackend, type Backend } from './backend'
@@ -63,6 +63,13 @@ test.afterAll(async () => {
   await deleteUser(admin, phoneUser)
 })
 
+/** Opens the folded controls of Other instances; the search field takes focus. */
+async function openControls(dialog: Locator) {
+  const toggle = dialog.getByTestId('remote-directory').getByRole('button', { name: 'Search and filters' })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
+  await expect(dialog.getByTestId('remote-directory-search')).toBeFocused()
+}
+
 async function openOtherInstances(page: Page, from: 'rail' | 'splash' = 'rail') {
   if (from === 'rail') await page.getByRole('button', { name: 'Harmony Portal' }).click()
   else await page.getByRole('button', { name: /Browse public servers/ }).click()
@@ -94,15 +101,16 @@ test('a server listed on another instance is browsed and joined', async ({ page 
     await expect(cards.nth(1).getByTestId('remote-directory-instance')).toHaveText(`Hosted on ${PEER_NAME}`)
     await expect(dialog).not.toContainText(hidden.name)
     await expect(dialog.getByTestId('remote-directory-stats')).toHaveText('2 servers on 1 instance')
-    await expect(dialog.getByTestId('remote-directory-domain')).toHaveValue('')
+    await expect(dialog.getByTestId('remote-directory-search')).toHaveValue('')
     await expect(dialog.getByTestId('remote-directory-all')).toHaveAttribute('aria-pressed', 'true')
     const signed = peer.requests.filter((r) => r.method === 'GET' && r.url.startsWith('/servers/directory'))
     expect(signed.length).toBeGreaterThan(0)
     expect(signed.every((r) => /keyId="https:\/\/localhost\/users\/instance\.actor#main-key"/.test(String(r.headers.signature)))).toBe(true)
   })
 
-  await test.step('the filter narrows the list and says when nothing matches', async () => {
-    const filter = dialog.getByRole('searchbox', { name: 'Filter servers' })
+  await test.step('the search field narrows the list and says when nothing matches', async () => {
+    await openControls(dialog)
+    const filter = dialog.getByRole('searchbox', { name: 'Search servers or browse an instance' })
     await filter.fill('lighthouse')
     await expect(cards).toHaveCount(1, { timeout: 15000 })
     await expect(cards.first()).toContainText(listed.name)
@@ -129,9 +137,10 @@ test('a server listed on another instance is browsed and joined', async ({ page 
   })
 
   await test.step('typing the domain browses it the same way', async () => {
-    await dialog.getByTestId('remote-directory-domain').fill(`https://${peer.domain}/`)
+    await dialog.getByTestId('remote-directory-search').fill(`https://${peer.domain}/`)
     await dialog.getByTestId('remote-directory-browse').click()
     await expect(dialog.getByTestId('remote-directory-stats')).toHaveText(`3 servers on ${peer.domain}`, { timeout: 30000 })
+    await expect(dialog.getByTestId('remote-directory-search')).toHaveValue('')
     await expect(cards).toHaveCount(2)
     await dialog.getByTestId('remote-directory-all').click()
     await expect(cards).toHaveCount(2)
@@ -176,7 +185,8 @@ test('at phone width Other instances fits the screen', async ({ page }) => {
   const mergedBox = await merged.boundingBox()
   expect(mergedBox!.x).toBeGreaterThanOrEqual(0)
   expect(mergedBox!.x + mergedBox!.width).toBeLessThanOrEqual(375)
-  await dialog.getByTestId('remote-directory-domain').fill(peer.domain)
+  await openControls(dialog)
+  await dialog.getByTestId('remote-directory-search').fill(peer.domain)
   await dialog.getByTestId('remote-directory-browse').click()
   const card = dialog.getByTestId('remote-directory-server').first()
   await expect(card).toBeVisible({ timeout: 30000 })
@@ -185,7 +195,7 @@ test('at phone width Other instances fits the screen', async ({ page }) => {
   expect(box!.x + box!.width).toBeLessThanOrEqual(375)
   const overflow = await page.evaluate(() => document.scrollingElement!.scrollWidth - window.innerWidth)
   expect(overflow).toBeLessThanOrEqual(0)
-  const input = await dialog.getByTestId('remote-directory-domain').evaluate((el) => getComputedStyle(el).fontSize)
+  const input = await dialog.getByTestId('remote-directory-search').evaluate((el) => getComputedStyle(el).fontSize)
   expect(input).toBe('16px')
 })
 
@@ -246,11 +256,12 @@ test('an instance that answers late shows above the rows already loaded; a faile
   })
 
   await test.step('a failed read for a new filter shows the error; Retry reads it', async () => {
-    await dialog.getByRole('searchbox', { name: 'Filter servers' }).fill('zed')
+    await openControls(dialog)
+    await dialog.getByRole('searchbox', { name: 'Search servers or browse an instance' }).fill('zed')
     const error = dialog.getByTestId('remote-directory-advertised-error')
     await expect(error).toContainText("Couldn't read the known instances", { timeout: 15000 })
     await expect(cards).toHaveCount(0)
-    await expect(dialog.getByRole('searchbox', { name: 'Filter servers' })).toHaveValue('zed')
+    await expect(dialog.getByRole('searchbox', { name: 'Search servers or browse an instance' })).toHaveValue('zed')
     await error.getByRole('button', { name: 'Retry' }).click()
     await expect(cards).toHaveCount(1, { timeout: 15000 })
     await expect(cards.first()).toContainText('Zed Lounge')

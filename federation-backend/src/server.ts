@@ -11,6 +11,8 @@
  */
 
 import express, { Application } from 'express';
+import { createServer, type IncomingMessage, type Server } from 'node:http';
+import { isIP } from 'node:net';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -36,6 +38,7 @@ import driveLinkRouter from './routes/driveLink.js';
 import accountMigrationRouter from './routes/accountMigration.js';
 import adminInvitesRouter from './routes/adminInvites.js';
 import adminEmojisRouter from './routes/adminEmojis.js';
+import { createAuthProviderConfigWriter } from './services/authProviderConfigStart.js';
 
 import webFingerRouter from './activitypub/WebFingerService.js';
 import actorRouter from './activitypub/ActorService.js';
@@ -57,6 +60,10 @@ import inviteWidgetRouter from './routes/inviteWidget.js';
 import driveLinkPageRouter from './routes/driveLinkPage.js';
 import publicPagesRouter from './publicPages/routes.js';
 import pushRelayRouter from './routes/pushRelay.js';
+import activityFrameRouter from './activities/frame.js';
+import { adminActivitiesRouter, packageFilesRouter } from './activities/packageRoutes.js';
+import { ActivityRelay, isRelayUpgrade } from './activities/relay.js';
+import { reapActivitySessions, supabaseRelayDeps } from './activities/relayDeps.js';
 import { documentCache, subscribeDocumentInvalidation } from './middleware/documentCache.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { refuseInboxWhenInboundOff } from './middleware/inboundFederation.js';
@@ -147,6 +154,12 @@ export function createApp(): Application {
   app.use('/api/federation/admin/invites', adminInvitesRouter);
   app.use('/admin/emojis', adminEmojisRouter);
   app.use('/api/federation/admin/emojis', adminEmojisRouter);
+  app.use('/activities', activityFrameRouter);
+  app.use('/api/federation/activities', activityFrameRouter);
+  app.use('/activities', packageFilesRouter);
+  app.use('/api/federation/activities', packageFilesRouter);
+  app.use('/admin/activities', adminActivitiesRouter);
+  app.use('/api/federation/admin/activities', adminActivitiesRouter);
 
   // Donation webhooks - each provider handles its own body parser internally.
   // Ko-fi posts application/x-www-form-urlencoded which the global json
@@ -192,6 +205,35 @@ export function createApp(): Application {
   return app;
 }
 
+/**
+ * The activity relay on `server`'s upgrade requests (activities/relay.ts), with a reaper that
+ * finishes sessions no relay touches. The client address follows the app's trust proxy setting,
+ * as rateLimit.clientIp.
+ */
+export function attachActivityRelay(server: Server, app: Application): ActivityRelay {
+  const trust = app.get('trust proxy fn') as ((addr: string, i: number) => boolean) | undefined;
+  const relay = new ActivityRelay(supabaseRelayDeps(), {
+    allowedOrigins: [...new Set([...corsOrigins(config.CORS_ORIGIN), config.APP_URL ? new URL(config.APP_URL).origin : `https://${config.INSTANCE_DOMAIN}`])],
+    clientIp: (req: IncomingMessage) => {
+      const peer = req.socket.remoteAddress ?? '';
+      if (peer && trust?.(peer, 0)) {
+        const real = req.headers['x-real-ip'];
+        const value = typeof real === 'string' ? real.trim() : '';
+        if (value && isIP(value)) return value;
+      }
+      return peer || 'unknown';
+    },
+    log: { info: (m) => logger.info(m), warn: (m) => logger.warn(m) },
+  });
+  relay.attach(server);
+  const reap = () => {
+    reapActivitySessions().catch((error: Error) => logger.warn(`Activity session reap failed: ${error.message}`));
+  };
+  reap();
+  setInterval(reap, 60_000).unref();
+  return relay;
+}
+
 export async function startServer(): Promise<void> {
   // Connect Redis before starting the server so cache/rate-limit/presence
   // are available from the first request.
@@ -203,7 +245,8 @@ export async function startServer(): Promise<void> {
   const app = createApp();
   const PORT = config.PORT;
 
-  app.listen(PORT, () => {
+  // An Upgrade request the relay does not take is an ordinary request.
+  const server = createServer({ shouldUpgradeCallback: isRelayUpgrade }, app).listen(PORT, () => {
     logger.info(`Harmony Federation Server running on port ${PORT}`);
     logger.info(`Environment: ${config.NODE_ENV}`);
     logger.info(`Instance: ${config.INSTANCE_NAME} (${config.INSTANCE_DOMAIN})`);
@@ -220,4 +263,11 @@ export async function startServer(): Promise<void> {
     }
     PushNotificationService.getFcmSender();
   });
+  attachActivityRelay(server, app);
+
+  const authConfig = createAuthProviderConfigWriter();
+  if (authConfig) {
+    authConfig.start();
+    logger.info(`Sign-in provider settings go to ${config.HARMONY_AUTH_CONFIG_DIR}`);
+  }
 }

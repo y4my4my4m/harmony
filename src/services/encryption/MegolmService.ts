@@ -60,6 +60,14 @@ export interface MegolmInboundSession {
   // Message index -> that message's AES-GCM key (raw, base64), held without the session key:
   // pinned messages of a session that began before this user joined.
   messageKeys?: Record<string, string>
+  // Message index -> the message decrypted at it (noteMessageIndex); `at` is its send time, ms.
+  // This device's record only: stored with the session, left out of exports and backups.
+  seenIndices?: Record<string, SeenIndex>
+}
+
+export interface SeenIndex {
+  id: string
+  at: number | null
 }
 
 export interface MegolmEncryptedMessage {
@@ -460,16 +468,18 @@ export class MegolmService {
     sessionKey: string,
     firstKnownIndex: number = 0
   ): Promise<void> {
+    const key = `${roomId}:${senderUserId}:${sessionId}`
+    const seenIndices = this.inboundSessions.get(key)?.seenIndices
     const session: MegolmInboundSession = {
       sessionId,
       roomId,
       senderUserId,
       sessionKey,
       firstKnownIndex,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      ...(seenIndices ? { seenIndices } : {}),
     }
 
-    const key = `${roomId}:${senderUserId}:${sessionId}`
     this.inboundSessions.set(key, session)
     await this.saveInboundSession(session)
 
@@ -516,6 +526,73 @@ export class MegolmService {
     if (!shadowed) await this.saveInboundSession(session)
 
     debug.log(`Imported key of message ${messageIndex} of session ${sessionId.substring(0, 8)}...`)
+  }
+
+  /**
+   * Records the message decrypted at a session index; true when it is a replay: another message
+   * id holds the index. One ciphertext stored twice decrypts twice as authentic.
+   *
+   * Mirrors the index -> event id record of matrix-js-sdk OlmDevice.decryptGroupMessage, which
+   * refuses any second event. Deviation: of two messages at one index the earlier-sent (`sentAt`,
+   * ms) keeps it, so the later copy is the replay whichever a page reads first; without both send
+   * times the first read keeps it. An edit is a new index of the same id, and one id read again is
+   * no replay. The record is this device's: another device, or this one after a fresh restore,
+   * starts its own.
+   */
+  async noteMessageIndex(
+    roomId: string,
+    senderUserId: string,
+    sessionId: string,
+    messageIndex: number,
+    messageId: string,
+    sentAt?: number,
+  ): Promise<boolean> {
+    const key = `${roomId}:${senderUserId}:${sessionId}`
+    const session = this.inboundSessions.get(key)
+    if (!session) return false
+    const seen = session.seenIndices?.[messageIndex]
+    if (seen?.id === messageId) return false
+    const at = typeof sentAt === 'number' && Number.isFinite(sentAt) ? sentAt : null
+    if (seen && !(at !== null && seen.at !== null && at < seen.at)) return true
+
+    const updated: MegolmInboundSession = {
+      ...session,
+      seenIndices: { ...session.seenIndices, [messageIndex]: { id: messageId, at } },
+    }
+    this.inboundSessions.set(key, updated)
+    await this.saveSeenIndices(key)
+    return false
+  }
+
+  // Session key -> the save of its seen indices not yet started; notes made meanwhile share it.
+  private queuedIndexSaves = new Map<string, Promise<void>>()
+  // Session key -> the save of its seen indices writing now.
+  private runningIndexSaves = new Map<string, Promise<void>>()
+
+  /**
+   * Saves the session as it is in memory, after the save of it already writing. A page decrypt
+   * notes many indices of one session at once: they share one queued save, and snapshots saved
+   * side by side cannot land out of order.
+   */
+  private saveSeenIndices(key: string): Promise<void> {
+    const queued = this.queuedIndexSaves.get(key)
+    if (queued) return queued
+    const save: Promise<void> = (this.runningIndexSaves.get(key) ?? Promise.resolve()).then(async () => {
+      this.queuedIndexSaves.delete(key)
+      this.runningIndexSaves.set(key, save)
+      const current = this.inboundSessions.get(key)
+      if (!current) return
+      // The store is keyed by session id alone: a keyless entry shadowed by another sender's full
+      // copy stays in memory (importMessageKey).
+      const shadowed = !current.sessionKey && Array.from(this.inboundSessions.values()).some(s =>
+        s.sessionId === current.sessionId && s.roomId === current.roomId && s.senderUserId !== current.senderUserId && s.sessionKey)
+      if (!shadowed) await this.saveInboundSession(current)
+    })
+    this.queuedIndexSaves.set(key, save)
+    void save.finally(() => {
+      if (this.runningIndexSaves.get(key) === save) this.runningIndexSaves.delete(key)
+    })
+    return save
   }
 
   getMessageKey(roomId: string, senderUserId: string, sessionId: string, messageIndex: number): string | undefined {
@@ -925,7 +1002,7 @@ export class MegolmService {
   }> {
     return {
       outbound: Array.from(this.outboundSessions.values()),
-      inbound: Array.from(this.inboundSessions.values())
+      inbound: Array.from(this.inboundSessions.values()).map(({ seenIndices: _seen, ...session }) => session),
     }
   }
 
@@ -979,8 +1056,9 @@ export class MegolmService {
       const key = `${session.roomId}:${session.senderUserId}:${session.sessionId}`
       const existing = this.inboundSessions.get(key)
       if (!existing || (!existing.sessionKey && session.sessionKey)) {
-        this.inboundSessions.set(key, session)
-        await this.saveInboundSession(session)
+        const restored = existing?.seenIndices ? { ...session, seenIndices: existing.seenIndices } : session
+        this.inboundSessions.set(key, restored)
+        await this.saveInboundSession(restored)
         debug.log(`  - Imported inbound session from ${session.senderUserId.substring(0, 8)}...`)
       } else if (!existing.sessionKey && session.messageKeys) {
         const merged = { ...existing, messageKeys: { ...session.messageKeys, ...existing.messageKeys } }
@@ -1217,6 +1295,8 @@ export class MegolmService {
     this.inboundSessions.clear()
     this.roomEncryptLocks.clear()
     this.sessionSharedRecipients.clear()
+    this.queuedIndexSaves.clear()
+    this.runningIndexSaves.clear()
     this.initialized = false
   }
 }

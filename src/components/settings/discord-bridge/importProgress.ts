@@ -3,6 +3,8 @@ import type { ImportJob } from './bridgeApi'
 
 /** Oldest bridge release that serves the history import endpoints. */
 export const IMPORT_MIN_BRIDGE_VERSION = '2.6.0'
+/** Oldest bridge release that imports through the instance bot and own-bot hosted bridges. */
+export const HOSTED_IMPORT_MIN_BRIDGE_VERSION = '2.8.0'
 
 /**
  * Share of the channel's history already imported. The importer walks from start_at back
@@ -25,11 +27,11 @@ function parseVersion(version: string): [number, number, number] | null {
   return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null
 }
 
-/** True when the bridge reports semver >= 2.6.0. */
-export function bridgeSupportsImport(version: string | null): boolean {
+/** True when the bridge reports semver >= min (default 2.6.0). */
+export function bridgeSupportsImport(version: string | null, min: string = IMPORT_MIN_BRIDGE_VERSION): boolean {
   if (!version) return false
   const have = parseVersion(version)
-  const need = parseVersion(IMPORT_MIN_BRIDGE_VERSION)
+  const need = parseVersion(min)
   if (!have || !need) return false
   for (let i = 0; i < 3; i++) {
     if (have[i] !== need[i]) return have[i] > need[i]
@@ -38,8 +40,9 @@ export function bridgeSupportsImport(version: string | null): boolean {
 }
 
 /**
- * Whether the bridge may import at all: only a bridge the server's owner runs (mode self), with
- * the instance switch on (discord_bridge_import_block), on a release that has the endpoints.
+ * Whether the bridge may import at all, as discord_bridge_import_block decides it: the instance
+ * switch (bridge_history_import) self_run admits bridges of mode self, all admits every bridge;
+ * then a bridge release that imports in its mode.
  */
 export type ImportAvailability = 'ok' | 'bridge_mode' | 'instance_off' | 'needs_update'
 
@@ -47,9 +50,10 @@ export function importAvailability(
   bridge: { mode: string; bridge_version: string | null },
   importMode: string | null | undefined,
 ): ImportAvailability {
-  if (bridge.mode !== 'self') return 'bridge_mode'
-  if (importMode !== 'self_run') return 'instance_off'
-  return bridgeSupportsImport(bridge.bridge_version) ? 'ok' : 'needs_update'
+  if (importMode !== 'self_run' && importMode !== 'all') return 'instance_off'
+  if (importMode === 'self_run' && bridge.mode !== 'self') return 'bridge_mode'
+  const min = bridge.mode === 'self' ? IMPORT_MIN_BRIDGE_VERSION : HOSTED_IMPORT_MIN_BRIDGE_VERSION
+  return bridgeSupportsImport(bridge.bridge_version, min) ? 'ok' : 'needs_update'
 }
 
 export type ImportBlock = 'direction' | 'encrypted'

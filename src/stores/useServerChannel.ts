@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { markRaw } from 'vue';
 import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import type { Server, Category, Channel, ResolvedEmoji, ServerFolder } from '@/types';
@@ -11,6 +12,7 @@ import { userEventChannel } from '@/services/UserEventChannel';
 import { authContextService } from '@/services/AuthContextService';
 import { SERVER_BOT_CHANGE_EVENT } from '@/services/serverBotsService';
 import { createServerFromTemplate as createServerFromTemplateRpc } from '@/services/serverTemplateService';
+import { openRebuildingChannel, type RebuildingChannel } from '@/services/rebuildingChannel';
 import { updateServerNotificationSettings } from '@/services/notificationSettings';
 import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings';
 import {
@@ -95,7 +97,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
     currentChannelId: null as string | null,
     isInitializing: false as boolean,
     hasInitialized: false as boolean,
-    serverStructureSubscription: null as RealtimeChannel | null,
+    serverStructureTopic: null as RebuildingChannel | null,
     userServersSubscription: null as RealtimeChannel | null, // legacy, kept for type compat
     _userServerBroadcastUnsubs: [] as (() => void)[],
     currentUserId: null as string | null,
@@ -1872,10 +1874,15 @@ export const useServerChannelStore = defineStore('serverChannel', {
       await this.unsubscribeFromServerStructure();
       
       debug.log('Subscribing to server structure updates for:', serverId);
-      
-      this.serverStructureSubscription = supabase
-        .channel(`server-structure:${serverId}`, { config: { private: true } })
-        .on('broadcast', { event: 'server_event' }, async (payload) => {
+
+      // Two calls in one tick both pass the await above.
+      void this.serverStructureTopic?.close();
+      this.serverStructureTopic = markRaw(openRebuildingChannel({
+        topic: `server-structure:${serverId}`,
+        onSubscribed: (resumed) => {
+          if (resumed) this._scheduleVisibleChannelRefresh(serverId);
+        },
+        bind: (channel) => channel.on('broadcast', { event: 'server_event' }, async (payload) => {
           const data = payload.payload ?? payload;
           const type = data?.type as string;
           if (!type) return;
@@ -1952,26 +1959,19 @@ export const useServerChannelStore = defineStore('serverChannel', {
               window.dispatchEvent(new CustomEvent(SERVER_BOT_CHANGE_EVENT, { detail: data }));
               break;
           }
-        })
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log(`[Realtime] server-structure:${serverId} → SUBSCRIBED`);
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error(`[Realtime] server-structure:${serverId} → CHANNEL_ERROR`);
-          } else {
-            console.log(`[Realtime] server-structure:${serverId} →`, status);
-          }
-        });
+        }),
+      }));
     },
 
     /**
      * Unsubscribe from server structure updates
      */
     async unsubscribeFromServerStructure(): Promise<void> {
-      if (this.serverStructureSubscription) {
+      const topic = this.serverStructureTopic;
+      if (topic) {
         debug.log('Unsubscribing from server structure updates');
-        await this.serverStructureSubscription.unsubscribe();
-        this.serverStructureSubscription = null;
+        this.serverStructureTopic = null;
+        await topic.close();
       }
     },
 

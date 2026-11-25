@@ -20,7 +20,7 @@
 GOTRUE_OAUTH_PROVIDERS="apple azure bitbucket discord facebook figma fly github gitlab google kakao keycloak linkedin linkedin_oidc notion slack slack_oidc snapchat spotify twitch twitter vercel_marketplace workos x zoom"
 
 # Providers supabase-overrides.yml maps from <ID in capitals>_ENABLED in supabase/.env.
-BUILTIN_OAUTH_PROVIDERS="github google twitch"
+BUILTIN_OAUTH_PROVIDERS="discord github google twitch"
 
 # linking_valid VALUE: status 0 when GoTrue parses VALUE; empty parses.
 linking_valid() {

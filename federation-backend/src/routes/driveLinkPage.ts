@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { driveLinkPageLimiter } from '../middleware/rateLimit.js';
 import {
@@ -6,6 +7,7 @@ import {
   renderDriveLinkPage,
   renderDriveLinkUnavailablePage,
 } from '../services/driveLinkPage.js';
+import { cachedInstanceName } from '../utils/instanceName.js';
 
 const router = Router();
 
@@ -37,11 +39,14 @@ router.get(
   '/d/:token',
   driveLinkPageLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    const result = await loadDriveLinkPreview(req.params.token);
-    if (result.status === 'valid') return sendPage(res, 200, renderDriveLinkPage(result.preview));
-    if (result.status === 'invalid') return sendPage(res, 404, renderDriveLinkUnavailablePage('invalid'));
+    const [result, name] = await Promise.all([
+      loadDriveLinkPreview(req.params.token),
+      cachedInstanceName(getSupabaseClient()),
+    ]);
+    if (result.status === 'valid') return sendPage(res, 200, renderDriveLinkPage(result.preview, name));
+    if (result.status === 'invalid') return sendPage(res, 404, renderDriveLinkUnavailablePage('invalid', name));
     res.setHeader('Retry-After', '30');
-    return sendPage(res, 503, renderDriveLinkUnavailablePage('unavailable'));
+    return sendPage(res, 503, renderDriveLinkUnavailablePage('unavailable', name));
   })
 );
 

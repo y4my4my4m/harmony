@@ -115,6 +115,12 @@
         class="unverified-author-badge"
         title="This message was decrypted but the sender's identity could not be cryptographically verified. The sender may be running an older client, or the message may have been tampered with."
       >Unverified author</span>
+      <span
+        v-if="decrypted && replayed"
+        class="unverified-author-badge replayed-badge"
+        data-testid="message-replayed"
+        :title="t('messageA11y.encrypted.replayedHint')"
+      >{{ t('messageA11y.encrypted.replayed') }}</span>
       <!-- Parts render in groups: a quote holding a link, mention or emoji is one blockquote
            around its text pieces and parts (utils/inlineMarkdownRuns); every other group is
            its parts alone. -->
@@ -146,10 +152,21 @@
         >
           <!-- Encrypted glyphs -->
           <template v-if="encrypted && !decrypted">
+            <!-- Signature does not verify against the sender's key: not decrypted, not
+                 retryable, set apart from a message waiting for its key. -->
+            <span
+              v-if="decryptionError === 'forged'"
+              class="encrypted-no-decrypt encrypted-forged"
+              data-testid="message-forged"
+              :title="t('messageA11y.encrypted.forgedHint')"
+            >
+              <Icon name="alert-triangle" :size="14" class="forged-icon" aria-hidden="true" />
+              <span>{{ t('messageA11y.encrypted.forged') }}</span>
+            </span>
             <!-- Permanently unrecoverable: encrypted with a key that no longer
                  exists. No click-to-decrypt - retrying would never succeed. -->
             <span
-              v-if="unrecoverable"
+              v-else-if="unrecoverable"
               class="encrypted-no-decrypt encrypted-unrecoverable encrypted-glyphs"
               title="This message was encrypted with a previous key that no longer exists on this account, so it can't be decrypted."
             >
@@ -210,12 +227,13 @@
           :marks="marksAt(partIndex)"
         ><button
           type="button"
-          class="mention" 
-          :class="{ 'bridged-mention': isBridgedMention(part), 'discord-mention': part.domain === 'discord.com', 'federated-mention': !!mentionSuffix(part) }"
+          class="mention"
+          :class="{ 'bridged-mention': isBridgedMention(part), 'federated-mention': !!mentionSuffix(part) }"
           @click="handleMentionClick(part, $event)"
           :title="getMentionTooltip(part)"
         >
-          <template v-if="readsAsMassMention(part)"><span class="mention-at">@</span>{{ part.username }}<span v-if="massMentionHost(part)" class="mention-domain">@{{ massMentionHost(part) }}</span></template>
+          <template v-if="bridgedMentionPlatform(part)"><span class="mention-at">@</span>{{ bridgedMentionName(part, bridgedMentionPlatform(part)!) }}<BridgeSourceBadge :source="bridgedMentionPlatform(part)!" /></template>
+          <template v-else-if="readsAsMassMention(part)"><span class="mention-at">@</span>{{ part.username }}<span v-if="massMentionHost(part)" class="mention-domain">@{{ massMentionHost(part) }}</span></template>
           <template v-else>
             <span class="mention-at">@</span>
             <template v-if="part.userId">
@@ -312,8 +330,8 @@
           >{{ shownLinkLabel(part) }}</a></InlineMarks>
           <!-- Image URLs -->
           <template v-if="chatLink(part)"></template>
-          <div 
-            v-else-if="isImageUrl(part.url) && showsPreview(part)" 
+          <div
+            v-else-if="isImageUrl(part.url) && showsPreview(part)"
             class="media-container image-container"
           >
             <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
@@ -803,6 +821,11 @@
           :message-id="messageId"
         />
 
+        <RoleMenuCard
+          v-else-if="part && typeof part === 'object' && part.type === 'role_menu' && roleMenu"
+          :menu="roleMenu"
+        />
+
         <StickerView
           v-else-if="part && typeof part === 'object' && part.type === 'sticker'"
           :sticker="part"
@@ -836,7 +859,7 @@
 import { defineComponent, watch, ref, nextTick, reactive, onMounted, onUpdated, onUnmounted, computed, shallowRef, effectScope, type EffectScope } from 'vue';
 import type { PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { EmbedPayload, MessagePart, FileContent } from '@/types';
+import type { DecryptionErrorKind, EmbedPayload, MessagePart, FileContent } from '@/types';
 import { coalesceInlineContentForMarkdown, extractFileParts } from '@/utils/messageContentUtils';
 import { withUnmatchedMentionsAsText } from '@/utils/unmatchedMentions';
 import AutoSuggest from '@/components/AutoSuggest.vue';
@@ -870,6 +893,8 @@ import { withMediaHidden } from '@/utils/hiddenMedia';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import PollCard from '@/components/polls/PollCard.vue';
+import RoleMenuCard from '@/components/roles/RoleMenuCard.vue';
+import { roleMenuPartOf } from '@/utils/roleMenu';
 import StickerView from '@/components/stickers/StickerView.vue';
 import { isStickerFallback, isStickerPart, withoutStickerFallbacks } from '@/utils/stickerParts';
 import { groupMediaGalleryParts, type DisplayPart } from '@/utils/mediaGalleryUtils';
@@ -906,7 +931,8 @@ import { convertEmoticons } from '@/utils/emoticons';
 import { isImeKeyEvent } from '@/utils/editorShortcuts';
 import { isMaskedUrlPart, maskedUrlsIn, shownLinkLabel } from '@/utils/maskedLinks';
 import { useVisualTheme } from '@/composables/useVisualTheme';
-import { BRIDGED_DISCORD_USER_ID_PREFIX } from '@/services/bridgedChannelUsersService';
+import { bridgedMentionName, bridgedMentionPlainText, bridgedMentionPlatform, bridgedMentionTitle } from '@/utils/bridgedMentions';
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import {
   defaultKlipyHomeUrl,
@@ -926,6 +952,7 @@ import { focusElement } from '@/utils/a11y/focus';
 export default defineComponent({
   name: 'UnifiedMessageContent',
   components: {
+    BridgeSourceBadge,
     AutoSuggest,
     DisplayName,
     CodeBlock,
@@ -941,6 +968,7 @@ export default defineComponent({
     Icon,
     RoleMentionCard,
     PollCard,
+    RoleMenuCard,
     StickerView,
     VideoControls,
     InlineMarks,
@@ -998,6 +1026,16 @@ export default defineComponent({
     unrecoverable: {
       type: Boolean,
       default: false
+    },
+    /** Why decryption failed (Message.decryption_error). */
+    decryptionError: {
+      type: String as PropType<DecryptionErrorKind | undefined>,
+      default: undefined,
+    },
+    /** Decrypted, and an earlier message of another id holds its session index (Message.decryption_replayed). */
+    replayed: {
+      type: Boolean,
+      default: false,
     },
     /**
      * Megolm v2 sender-binding verification result.
@@ -1476,10 +1514,16 @@ export default defineComponent({
     // parts stored beside it are server metadata, not message content. A poll
     // renders its card alone: the text part beside it spells the poll out for
     // text-only readers.
+    const roleMenu = computed(() => roleMenuPartOf(props.content));
+
     const displayContent = computed(() => {
       if (props.encrypted && !props.decrypted) return undecryptedDisplayParts(props.content);
       if (pollPartOf(props.content)) {
         return props.content.filter((part) => part && typeof part === 'object' && part.type === 'poll');
+      }
+      // A role menu renders its card alone, as a poll does.
+      if (roleMenu.value) {
+        return props.content.filter((part) => part && typeof part === 'object' && part.type === 'role_menu');
       }
       const content = withUnmatchedMentionsAsText(withoutStickerFallbacks(props.content));
       if (props.mediaHidden) return withMediaHidden(content);
@@ -1612,10 +1656,9 @@ export default defineComponent({
 
     const formatMentionDisplay = (mentionPart: any): string => {
       try {
+        const bridged = bridgedMentionPlainText(mentionPart);
+        if (bridged) return bridged;
         if (mentionPart.isLocal) {
-          return `@${mentionPart.username}`;
-        } else if (mentionPart.domain === 'discord.com' || mentionPart.isBridged) {
-          // Bridged Discord users show @username; the platform icon comes from CSS.
           return `@${mentionPart.username}`;
         } else {
           return `@${mentionPart.username}@${mentionPart.domain}`;
@@ -1755,7 +1798,7 @@ export default defineComponent({
       );
     });
     // Parts drawn as a block below the text line: preview cards, media, files, polls, stickers.
-    const BLOCK_PART_TYPES = new Set(['file', 'poll', 'sticker', 'media_gallery', 'media_hidden']);
+    const BLOCK_PART_TYPES = new Set(['file', 'poll', 'role_menu', 'sticker', 'media_gallery', 'media_hidden']);
     const drawsBlock = (partIndex: number): boolean => {
       const part = displayContent.value[partIndex] as any;
       if (!part || typeof part !== 'object') return false;
@@ -1969,12 +2012,11 @@ export default defineComponent({
       });
     };
     
-    const isBridgedMention = (part: any): boolean => {
-      return part?.isBridged || part?.domain === 'discord.com';
-    };
+    const isBridgedMention = (part: any): boolean => !!bridgedMentionPlatform(part);
     
     const { getUser, getUserDisplayName } = useUserData();
     const mentionSuffix = (part: any): string | null => {
+      if (isBridgedMention(part)) return null;
       const user = part?.userId ? getUser(part.userId).value : null;
       return mentionDisplayDomain(
         part,
@@ -2019,9 +2061,8 @@ export default defineComponent({
     };
 
     const getMentionTooltip = (part: any): string => {
-      if (part?.domain === 'discord.com') {
-        return `Discord user: ${part.username}`;
-      }
+      const bridged = bridgedMentionPlatform(part);
+      if (bridged) return bridgedMentionTitle(part, bridged);
       if (readsAsMassMention(part)) {
         const host = massMentionHost(part);
         return host ? `@${part.username}@${host}` : `@${part.username}`;
@@ -2036,8 +2077,9 @@ export default defineComponent({
     const handleMentionClick = (part: any, event: MouseEvent) => {
       event.stopPropagation();
 
-      if (isBridgedMention(part)) {
-        emit('show-user-profile', `${BRIDGED_DISCORD_USER_ID_PREFIX}${part.userId}`, event);
+      const bridged = bridgedMentionPlatform(part);
+      if (bridged) {
+        if (part.userId) emit('show-user-profile', `${bridged}:${part.userId}`, event);
         return;
       }
 
@@ -2124,6 +2166,7 @@ export default defineComponent({
 
     return {
       rootRef,
+      roleMenu,
       instanceDomain,
       soleDriveLink,
       soleGifLink,
@@ -2192,6 +2235,8 @@ export default defineComponent({
       handleChannelMentionClick,
       handleMentionClick,
       isBridgedMention,
+      bridgedMentionPlatform,
+      bridgedMentionName,
       mentionSuffix,
       readsAsMassMention,
       massMentionHost,
@@ -3050,9 +3095,8 @@ a.channel-mention {
   margin-left: 1px;
 }
 
-/* Discord bridged mentions - Discord blurple #5865F2 */
-.mention.discord-mention {
-  background-color: rgba(88, 101, 242, 0.2);
+/* A bridged person's pill: the platform badge follows the name. */
+.mention.bridged-mention {
   padding: 0 4px;
 }
 
@@ -3066,24 +3110,6 @@ a.channel-mention {
   background-size: contain;
   background-repeat: no-repeat;
   vertical-align: middle;
-}
-
-.mention.discord-mention::after {
-  content: '';
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  margin-left: 3px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 127.14 96.36'%3E%3Cpath fill='%235865f2' d='M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z'/%3E%3C/svg%3E");
-  background-size: contain;
-  background-repeat: no-repeat;
-  vertical-align: middle;
-}
-
-.mention.bridged-mention:not(.discord-mention) {
-  background-color: rgba(150, 100, 200, 0.2);
-  border-left: 2px solid #9664c8;
-  padding-left: 4px;
 }
 
 /* Encrypted glyph styles live in design-system.css */
@@ -3106,5 +3132,19 @@ a.channel-mention {
 .encrypted-unrecoverable .unrecoverable-lock {
   margin-right: 4px;
   opacity: 0.8;
+}
+
+.encrypted-forged {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 45%, transparent);
+  border-radius: 4px;
+  cursor: help;
 }
 </style>

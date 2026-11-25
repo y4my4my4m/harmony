@@ -29,6 +29,8 @@ const FUTURE_MARGIN_MS = 60_000
 const BUSY_RETRY_SECONDS = 30
 // Messages whose attachments are prepared (and possibly mirrored) at once.
 const PREPARE_CONCURRENCY = 5
+// Channel rows one bridge_import_link_replies_page call reads.
+const LINK_PAGE_ROWS = 2000
 
 // Postgres cast, range and check failures from values the bridge sent.
 const BAD_VALUE_SQLSTATES = new Set(['22007', '22P02', '22003', '22023', '23514'])
@@ -266,8 +268,11 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
       return res.status(400).json({ code: 'invalid_batch' })
     }
     // A malformed or future-dated message is refused alone; the batch carries on. An entry
-    // without a Discord id has nothing to answer under.
+    // without a Discord id has nothing to answer under. A Discord id carried twice is stored once
+    // (bridge_import_messages skips the later copy); the later copy is skipped here, before any
+    // file of it is mirrored.
     const refused: Array<{ discord_message_id: string; reason: string }> = []
+    const repeated: string[] = []
     const now = Date.now()
     let items: PreparedInput[] = []
     for (const entry of raw) {
@@ -277,7 +282,8 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
       if (!item) refused.push({ discord_message_id: id, reason: 'invalid' })
       else if (isFuture(item.rest.created_at, now) || isFuture(item.rest.edited_at, now)) {
         refused.push({ discord_message_id: id, reason: 'future_date' })
-      } else items.push(item)
+      } else if (items.some((other) => other.discord_message_id === item.discord_message_id)) repeated.push(id)
+      else items.push(item)
     }
     const refusedIds = refused.map((r) => r.discord_message_id)
     // `rejected` is present when the insert function answered or this route refused a message.
@@ -318,7 +324,10 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
     })
     if (sendRpcError(res, existingError, 'bridge_import_present_ids', 'batch')) return
     const present = new Set<string>(Array.isArray(existing) ? (existing as string[]) : [])
-    const already = items.filter((item) => present.has(item.discord_message_id)).map((item) => item.discord_message_id)
+    const already = [
+      ...items.filter((item) => present.has(item.discord_message_id)).map((item) => item.discord_message_id),
+      ...repeated,
+    ]
     items = items.filter((item) => !present.has(item.discord_message_id))
     if (items.length === 0) return answer({ inserted: [], skipped: already })
 
@@ -338,7 +347,9 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
     // Imported messages are bridge-authored: the discord_user key keeps typed @everyone as text.
     const prepared: Array<{ parts: unknown[]; mirrorDeferred: boolean } | null> = new Array(items.length).fill(null)
     for (let i = 0; i < items.length; i += PREPARE_CONCURRENCY) {
-      await Promise.all(items.slice(i, i + PREPARE_CONCURRENCY).map(async (item, offset) => {
+      // Every preparation of the group settles before a failure is acted on: one still mirroring
+      // would store a file after the cleanup.
+      const settled = await Promise.allSettled(items.slice(i, i + PREPARE_CONCURRENCY).map(async (item, offset) => {
         prepared[i + offset] = await prepareBotMessageContent({
           content: withoutMentions(item.content),
           metadata: { discord_user: item.rest.discord_user ?? {} },
@@ -346,6 +357,12 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
           botId: botId(req),
         })
       }))
+      const failed = settled.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+      if (failed) {
+        // Nothing of the batch is stored.
+        await discardMirroredParts(prepared.flatMap((entry) => entry?.parts ?? []))
+        throw failed.reason
+      }
     }
 
     const messages: Record<string, unknown>[] = []
@@ -411,19 +428,36 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
       p_import_id: req.params.id,
       p_thread: req.body,
     })
+    // A thread a person deleted in Harmony is skipped. The code stays invalid_thread, which every
+    // bridge release since 2.6.0 skips; `reason` tells it apart from a malformed one.
+    if (error?.message === 'thread_deleted') {
+      return res.status(400).json({ code: 'invalid_thread', reason: 'thread_deleted' })
+    }
     if (sendRpcError(res, error, 'bridge_import_thread', 'thread')) return
     if (data == null) return notRunning(res)
     res.json({ thread_id: data })
   }))
 
+  // One page per transaction, from the job's replies_cursor, until the channel's last page. A
+  // request the bridge abandoned stops at the next page; its retry carries on from the cursor.
   router.post('/:id/replies/link', ...open, handler(async (req, res) => {
-    const { data, error } = await supabase.rpc('bridge_import_link_replies', {
-      p_bot_id: botId(req),
-      p_import_id: req.params.id,
-    })
-    if (sendRpcError(res, error, 'bridge_import_link_replies', 'generic')) return
-    if (data == null) return notRunning(res)
-    res.json({ linked: data })
+    let abandoned = false
+    res.on('close', () => { if (!res.writableFinished) abandoned = true })
+    let linked = 0
+    for (;;) {
+      const { data, error } = await supabase.rpc('bridge_import_link_replies_page', {
+        p_bot_id: botId(req),
+        p_import_id: req.params.id,
+        p_limit: LINK_PAGE_ROWS,
+      })
+      if (sendRpcError(res, error, 'bridge_import_link_replies_page', 'generic')) return
+      const page = data as { linked?: number; done?: boolean; not_running?: boolean } | null
+      if (!page || page.not_running === true) return notRunning(res)
+      linked += Number(page.linked) || 0
+      if (page.done === true) break
+      if (abandoned) return
+    }
+    res.json({ linked })
   }))
 
   return router

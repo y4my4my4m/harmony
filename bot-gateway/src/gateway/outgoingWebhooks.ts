@@ -50,14 +50,23 @@ export class OutgoingWebhookRoutes {
 
   /**
    * Queues the event for the webhooks taking it. `payload` is the event's gateway `d`, with
-   * server_id added. Errors are logged: a webhook never holds up a gateway event.
+   * server_id added; with `botsOnly` the server's webhooks are left out. Errors are logged: a
+   * webhook never holds up a gateway event.
    */
-  async enqueue(event: string, serverId: string, channelId: string | null, botIds: readonly string[], payload: Record<string, unknown>): Promise<void> {
-    if (!this.wants(event, serverId, botIds)) return
+  async enqueue(
+    event: string,
+    serverId: string,
+    channelId: string | null,
+    botIds: readonly string[],
+    payload: Record<string, unknown>,
+    botsOnly = false,
+  ): Promise<void> {
+    if (botsOnly ? this.botsTaking(event, botIds).length === 0 : !this.wants(event, serverId, botIds)) return
     const body = { ...payload, server_id: serverId }
+    const webhookServerId = botsOnly ? null : serverId
     const { error } = await supabase.rpc('enqueue_outgoing_webhook_event', {
       p_event: event,
-      p_server_id: serverId,
+      p_server_id: webhookServerId,
       p_channel_id: channelId,
       p_bot_ids: this.botsTaking(event, botIds),
       p_payload: body,

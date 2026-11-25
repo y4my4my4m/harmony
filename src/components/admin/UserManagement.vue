@@ -16,8 +16,9 @@
         :key="filter.key"
         @click="activeUserFilter = filter.key"
         :class="['filter-btn', { active: activeUserFilter === filter.key }]"
+        :data-testid="`user-filter-${filter.key}`"
       >
-        {{ filter.label }} ({{ filter.count }})
+        {{ filter.label }} ({{ filter.approximate ? '≈' : '' }}{{ filter.count }})
       </button>
     </div>
     <div class="users-list">
@@ -263,6 +264,7 @@ import { adminService, type AdminUser } from '@/services/AdminService'
 import { userDataService } from '@/services/userDataService'
 import { getServerIconUrl } from '@/utils/serverUtils'
 import { formatDate } from './adminFormat'
+import { applyUserChange, useInstanceStats, type UserFlags } from '@/composables/useInstanceStats'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useT } from '@/composables/useT'
 import UploadLimitDialog from './UploadLimitDialog.vue'
@@ -320,13 +322,20 @@ const userServers = ref<{
 }[]>([])
 const loadingServers = ref(false)
 const users = ref<AdminUser[]>([])
-const userCounts = ref({ total: 0, local: 0, federated: 0, suspended: 0 })
-const userFilters = computed(() => [
-  { key: 'all', label: 'All users', count: userCounts.value.total },
-  { key: 'local', label: 'Local', count: userCounts.value.local },
-  { key: 'federated', label: 'Federated', count: userCounts.value.federated },
-  { key: 'suspended', label: 'Suspended', count: userCounts.value.suspended }
-])
+// Filter counts come from the statistics snapshot; this tab's own changes move them at once.
+const { stats, load: loadStats, adjust: adjustStats } = useInstanceStats()
+const userFilters = computed(() => {
+  const counts = stats.value?.users
+  const approximate = (column: string) => stats.value?.approximate.includes(column) === true
+  return [
+    { key: 'all', label: 'All users', count: counts?.total ?? 0, approximate: approximate('users_total') },
+    { key: 'local', label: 'Local', count: counts?.local ?? 0, approximate: approximate('users_local') },
+    { key: 'federated', label: 'Federated', count: counts?.federated ?? 0, approximate: approximate('users_federated') },
+    { key: 'suspended', label: 'Suspended', count: counts?.suspended ?? 0, approximate: approximate('users_suspended') },
+  ]
+})
+const recordUserChange = (before: UserFlags, after: UserFlags) =>
+  adjustStats((s) => applyUserChange(s.users, before, after))
 
 // Filtering/search happens server-side in adminService.getUsers so pagination
 // totals match the filtered set; this list is served as-is.
@@ -345,15 +354,6 @@ watch(userSearch, () => {
   }, 300)
 })
 const userPagination = ref({ offset: 0, limit: 25, total: 0 })
-
-const loadUserCounts = async () => {
-  try {
-    userCounts.value = await adminService.getUserCounts()
-  } catch (error) {
-    debug.error('Failed to load user counts:', error)
-    userCounts.value = { total: 0, local: 0, federated: 0, suspended: 0 }
-  }
-}
 
 const loadUsers = async () => {
   try {
@@ -417,27 +417,31 @@ const patchUserRow = (userId: string, patch: Record<string, any> | null) => {
   if ((f === 'suspended' && patch.is_suspended === false)) {
     patchUserRow(userId, null)
   }
-  loadUserCounts().catch(() => {})
 }
 
 const moderateUser = async (user: any, action: string) => {
+  const before: UserFlags = { is_local: user.is_local, is_suspended: user.is_suspended }
   try {
     if (action === 'suspend') {
       const reason = (await prompt({ title: 'Suspend user', message: `Suspend ${user.username}?`, label: 'Reason', confirmButtonText: 'Suspend', dangerAction: true }))?.trim()
       if (!reason) return
       await adminService.moderateUser(user.id, 'suspend', reason, authStore.session?.user?.id || '')
+      recordUserChange(before, { ...before, is_suspended: true })
       patchUserRow(user.id, { is_suspended: true, suspension_reason: reason })
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
       toast.success(`User ${user.username} suspended`)
     } else if (action === 'unsuspend') {
       if (!(await confirm({ title: 'Unsuspend user', message: `Are you sure you want to unsuspend user ${user.username}?`, confirmButtonText: 'Unsuspend' }))) return
       await adminService.moderateUser(user.id, 'unsuspend', 'Admin unsuspend', authStore.session?.user?.id || '')
+      recordUserChange(before, { ...before, is_suspended: false })
       patchUserRow(user.id, { is_suspended: false, suspension_reason: null })
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
       toast.success(`User ${user.username} unsuspended`)
     } else if (action === 'delete') {
       if (!(await confirm({ title: 'Delete user', message: `Are you sure you want to delete user ${user.username}? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
       await adminService.moderateUser(user.id, 'delete', 'Admin deletion', authStore.session?.user?.id || '')
+      // AdminService's delete is a suspension; the profile row stays.
+      recordUserChange(before, { ...before, is_suspended: true })
       patchUserRow(user.id, null)
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
       toast.success(`User ${user.username} deleted`)
@@ -502,10 +506,11 @@ const navigateToServer = (serverId: string) => {
 }
 
 
-const onUsersChanged = () => { void loadUsers(); void loadUserCounts() }
+// The event's UsersDelta moves the shared counts (useInstanceStats); the page reloads here.
+const onUsersChanged = () => { void loadUsers() }
 onMounted(() => {
   void loadUsers()
-  void loadUserCounts()
+  void loadStats()
   window.addEventListener('admin:users-changed', onUsersChanged)
 })
 onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChanged))

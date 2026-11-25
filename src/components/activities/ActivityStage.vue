@@ -77,7 +77,7 @@
         </li>
       </ol>
       <p v-else class="activity-stage__empty">{{ t('activities.queueEmpty') }}</p>
-      <button type="button" class="activity-stage__add" data-testid="activity-queue-add" @click="actStore.launcherOpen = true">
+      <button type="button" class="activity-stage__add" data-testid="activity-queue-add" @click="activityButton.open">
         <Icon name="plus" :size="15" />{{ t('activities.addToQueue') }}
       </button>
     </div>
@@ -103,11 +103,13 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import ActivityControls from './ActivityControls.vue'
 import { activitySourceIcon, activitySourceLabel, activitySourceUrl } from './activitySources'
 import { useActivityControl } from './useActivityControl'
+import { useActivityButton } from './useActivityButton'
 
 const props = defineProps<{ activity: VoiceActivity }>()
 
 const { t } = useT()
 const actStore = useActivitiesStore()
+const activityButton = useActivityButton()
 const voice = useUnifiedVoiceChannelStore()
 const { canEnd } = useActivityControl(() => props.activity)
 const slotEl = ref<HTMLElement | null>(null)

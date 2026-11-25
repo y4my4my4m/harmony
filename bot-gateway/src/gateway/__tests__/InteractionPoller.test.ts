@@ -6,15 +6,17 @@ const ALICE = '00000000-0000-0000-0000-0000000000a1'
 const BOB = '00000000-0000-0000-0000-0000000000a2'
 const CAROL = '00000000-0000-0000-0000-0000000000a3'
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn() }))
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }))
 
 vi.mock('../../config/supabase.js', () => ({
-  supabase: { rpc: mocks.rpc },
+  supabase: { rpc: mocks.rpc, from: mocks.from },
   config: {},
 }))
 
 import { INTERACTION_CLAIM_LIMIT, INTERACTION_POLL_MS, InteractionPoller, interactionEvent } from '../InteractionPoller.js'
 import type { WebSocketGateway } from '../WebSocketGateway.js'
+import { forgetBridgeConsent } from '../../bridge/memberConsent.js'
+import { FakeDb } from '../../__tests__/fakeSupabase.js'
 
 type Sent = { botId: string; event: any }
 
@@ -53,6 +55,14 @@ beforeEach(() => {
   sent = []
   process.env.PUBLIC_URL = 'https://harmony.test'
   mocks.rpc.mockReset()
+  forgetBridgeConsent()
+  // BOT_A relays channel 'c' to Matrix; BOT_B is an ordinary bot.
+  const db = new FakeDb({
+    bots: [{ id: BOT_A, bot_type: null, bridge_platform: 'matrix' }, { id: BOT_B, bot_type: null, bridge_platform: null }],
+    channels: [{ id: 'c', server_id: 's' }],
+  })
+  mocks.from.mockReset()
+  mocks.from.mockImplementation((table: string) => db.from(table))
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -145,6 +155,70 @@ describe('InteractionPoller', () => {
     await poller.poll()
     expect(sent.map((s) => s.event.d.id)).toEqual(['i1', 'i2'])
     expect(console.error).toHaveBeenCalled()
+  })
+})
+
+describe('InteractionPoller and member bridge opt-outs', () => {
+  let optedOut: string[]
+  let optOutsFail: boolean
+
+  const naming = (userId: string, key: 'users' | 'members') =>
+    ({ data: { id: 'cmd', name: 'hug', type: 1, options: [{ name: 'who', type: 6, value: userId }], resolved: { [key]: { [userId]: { id: userId, username: 'x' } } } } })
+  const failures = () => mocks.rpc.mock.calls.filter(([fn]) => fn === 'bot_interaction_fail')
+
+  beforeEach(() => {
+    connected = [BOT_A, BOT_B]
+    sockets = { [BOT_A]: 1, [BOT_B]: 1 }
+    optedOut = []
+    optOutsFail = false
+  })
+
+  function claim(...rows: unknown[]) {
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      if (fn === 'claim_bot_interactions') return { data: rows, error: null }
+      if (fn === 'bridge_channel_platform') return { data: args.p_bot_id === BOT_A ? 'matrix' : null, error: null }
+      if (fn === 'bridge_member_optout_ids') {
+        return optOutsFail ? { data: null, error: { message: 'offline' } } : { data: { user_ids: optedOut }, error: null }
+      }
+      return { data: null, error: null }
+    })
+  }
+
+  it('delivers an invocation of a bridge bot by a member who opted out of its platform', async () => {
+    optedOut = [ALICE]
+    claim(claimed('i1', BOT_A), claimed('i2', BOT_A, naming(ALICE, 'users')))
+    await new InteractionPoller(gateway()).poll()
+
+    expect(sent.map((s) => s.event.d.id)).toEqual(['i1', 'i2'])
+    expect(failures()).toEqual([])
+  })
+
+  it.each(['users', 'members'] as const)('refuses a bridge invocation whose resolved %s name another member who opted out', async key => {
+    optedOut = [BOB]
+    claim(claimed('i1', BOT_A, naming(BOB, key)), claimed('i2', BOT_A, naming(CAROL, key)))
+    await new InteractionPoller(gateway()).poll()
+
+    expect(sent.map((s) => s.event.d.id)).toEqual(['i2'])
+    expect(failures()).toEqual([['bot_interaction_fail', { p_bot_id: BOT_A, p_id: 'i1', p_error: 'failed' }]])
+  })
+
+  it('refuses a bridge invocation naming another member while the opt-outs cannot be read', async () => {
+    optOutsFail = true
+    claim(claimed('i1', BOT_A, naming(BOB, 'users')))
+    await new InteractionPoller(gateway()).poll()
+
+    expect(sent).toEqual([])
+    expect(failures()).toEqual([['bot_interaction_fail', { p_bot_id: BOT_A, p_id: 'i1', p_error: 'failed' }]])
+  })
+
+  it('leaves an ordinary bot unaffected', async () => {
+    optedOut = [BOB]
+    claim(claimed('i1', BOT_B, naming(BOB, 'users')))
+    await new InteractionPoller(gateway()).poll()
+
+    expect(sent.map((s) => s.event.d.id)).toEqual(['i1'])
+    expect(failures()).toEqual([])
+    expect(mocks.rpc.mock.calls.map(([fn]) => fn)).toEqual(['claim_bot_interactions'])
   })
 })
 

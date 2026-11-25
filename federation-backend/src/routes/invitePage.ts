@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { invitePageLimiter } from '../middleware/rateLimit.js';
 import { loadInvitePreview } from '../services/invitePreview.js';
@@ -7,6 +8,7 @@ import {
   renderInvitePage,
   renderUnavailableInvitePage,
 } from '../services/invitePageRenderer.js';
+import { cachedInstanceName } from '../utils/instanceName.js';
 
 const router = Router();
 
@@ -40,17 +42,17 @@ router.get(
   invitePageLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { code } = req.params;
-    const result = await loadInvitePreview(code);
+    const [result, name] = await Promise.all([loadInvitePreview(code), cachedInstanceName(getSupabaseClient())]);
 
     if (result.status === 'valid') {
       const oembed = DISCORDBOT.test(req.get('user-agent') ?? '');
-      return sendPage(res, 200, 'public, max-age=300', renderInvitePage(result.preview, { oembed }));
+      return sendPage(res, 200, 'public, max-age=300', renderInvitePage(result.preview, name, { oembed }));
     }
     if (result.status === 'invalid') {
-      return sendPage(res, 200, 'public, max-age=60', renderInvalidInvitePage());
+      return sendPage(res, 200, 'public, max-age=60', renderInvalidInvitePage(name));
     }
     res.setHeader('Retry-After', '30');
-    return sendPage(res, 503, 'no-store', renderUnavailableInvitePage(code));
+    return sendPage(res, 503, 'no-store', renderUnavailableInvitePage(code, name));
   })
 );
 

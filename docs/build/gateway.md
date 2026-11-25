@@ -118,10 +118,11 @@ To recover messages missed while disconnected, read the channels you care about 
 - **Timing.** The gateway reads the database on a schedule: new messages every second (up to 50 per read), edits and deletes every 2 seconds, reactions every 2 seconds (up to 100 new reactions per read), member and moderation events every 2 seconds.
 - **Permission changes.** The gateway caches each server's installations and rechecks them every 10 seconds; a removed bot or changed permission or channel list affects delivery within about 10 seconds. Whether @everyone can view a channel is cached for 10 seconds.
 - **Author details.** Usernames, display names and avatars are cached for 10 minutes and nicknames for 60 seconds, so a change can take that long to show in events.
-- **No server ID.** Message and reaction payloads carry `channel_id` and no server ID. [`GET /servers/{server.id}/channels`](/build/rest#list-channels) maps channels to servers. [Member events](#member-events) carry `server_id`.
 - **Without a connection.** An [outgoing webhook](/build/outgoing-webhooks) receives the same events by HTTPS POST, connected or not.
 - **No thread events.** Messages posted in a thread arrive as `MESSAGE_CREATE` with `thread_id` set; there is no separate thread event.
 - **Interactions.** `INTERACTION_CREATE` goes only to the bot whose command was run, on every open connection, without the `read_messages` check: running the command is the member addressing that bot. The gateway reads new interactions every 250 milliseconds. One that cannot reach an open connection fails at once; one older than its 5-second answer window when the gateway reads it is dropped. Outgoing webhooks do not receive it.
+
+Bridge bots additionally respect each native member's **Bridge privacy** setting: message creates, updates and reaction adds of a member who opted out are withheld from them, with the replies of bots to that member's slash commands and the system messages that name them. Deletes and reaction removals reach every bridge bot; the `metadata` of a withheld message's delete holds only the mapping the bridge recorded. The gateway reads a preference at most 5 seconds after a change, a pairing 10; unavailable privacy state discloses no message. See [Member opt-out](/build/bridges#member-opt-out). Ordinary bots and independent server webhooks are unaffected. This does not revoke previously delivered payloads or erase remote copies; queued bridge programs must also [recheck current consent](/build/rest#bridge-registration-and-consent).
 
 ## Events
 
@@ -153,6 +154,7 @@ See [Identify](#identify).
 | Field | Type | Description |
 |---|---|---|
 | `id` | UUID | Message ID. |
+| `server_id` | UUID | Server of the channel. |
 | `channel_id` | UUID | Channel ID. A thread's messages carry the thread's parent channel. |
 | `thread_id` | UUID or `null` | Thread the message was posted in. |
 | `author` | object or `null` | The shown author; see [Authors](#authors). `null` when the author's account no longer exists. |
@@ -174,6 +176,7 @@ In `content_raw`, a `file` part whose `path` names an attachment stored on the i
   "t": "MESSAGE_CREATE",
   "d": {
     "id": "0b9e5a61-…",
+    "server_id": "1e7d…",
     "channel_id": "c2d4f8a0-…",
     "thread_id": null,
     "author": {
@@ -216,7 +219,7 @@ A system message has `is_system: true` and `author: null`: nobody wrote it. `met
 |---|---|
 | `member_join`, `member_leave` | `subject_id`: the member |
 | `member_kick`, `member_ban` | `subject_id`: the member; `actor_id`: the moderator; `reason` |
-| `thread_created` | `actor_id`, or `actor_bot_id` and `discord_user` for a thread a bridge relayed; `thread_id`, `thread_name` |
+| `thread_created` | `actor_id`, or `actor_bot_id` and `discord_user` for a thread a bridge relayed; `thread_id`, `thread_name` (`Thread` for a bridge it is [withheld](/build/bridges#member-opt-out) from) |
 | `channel_encryption_enabled`, `channel_encryption_disabled`, `channel_voice_encryption_enabled`, `channel_voice_encryption_disabled` | `actor_id` |
 | `automod_alert` | `automod` |
 
@@ -235,9 +238,10 @@ Sent once per message, when the message is deleted in the app or through the RES
 | Field | Type | Description |
 |---|---|---|
 | `id` | UUID | Message ID. |
+| `server_id` | UUID | Server of the channel. |
 | `channel_id` | UUID | Channel ID. |
 | `thread_id` | UUID or `null` | Thread the message was in. |
-| `metadata` | object or `null` | The message's last metadata. |
+| `metadata` | object or `null` | The message's last metadata; for a bridge the message is [withheld](/build/bridges#member-opt-out) from, the mapping it recorded alone. |
 
 A message removed from the database by other means, such as deleting its channel, produces no event.
 
@@ -247,6 +251,7 @@ A message removed from the database by other means, such as deleting its channel
 |---|---|---|
 | `reaction_id` | UUID | Reaction ID. |
 | `message_id` | UUID | Message the reaction is on. |
+| `server_id` | UUID | Server of the channel. |
 | `channel_id` | UUID | Channel of that message. |
 | `user_id` | UUID or `null` | Reacting member, when a member reacted. |
 | `bot_id` | UUID or `null` | Reacting bot, when a bot reacted. |
@@ -302,6 +307,8 @@ Sent to the bot that wrote a message when all of these hold: the instance's brid
   "d": { "messageId": "0b9e5a61-…", "channelId": "c2d4f8a0-…", "content": [ … ] }
 }
 ```
+
+In `mirror` mode the gateway also sends it for a message whose files it is copying when one of its attachment links has expired or carries no signature; the other files are copied first, so `content` holds their parts with `path` set, and the bot writes those back unchanged.
 
 Field names in this event are camelCase. `content` is the message's stored parts. The bot renews the URLs and writes the parts back with a [silent content patch](/build/rest#patch-content-silently). While the bot is not connected, the gateway renews them itself when the instance has its Discord bot set up. See [Attachments](/build/bridges#attachments).
 
@@ -381,9 +388,11 @@ Registers the remote platform's members for the channels a bridge relays. The ap
 | `createdAt` | string or `null` | Optional. ISO 8601. |
 | `presenceStatus` | string | Optional. `online`, `away`, `busy` or `offline`. |
 | `customStatus` | object or `null` | Optional. `{ "text", "emoji" }`. |
-| `source` | string | `discord`. |
+| `source` | string | `discord`, or `matrix` in an explicitly Matrix registration. |
 
-The gateway stores member objects as sent.
+Discord registrations retain their existing member fields. A durably Matrix-marked bot cannot omit or downgrade its platform to enter the legacy path. Matrix registrations set `d.platform` to `"matrix"` and supply per-channel members with `id` (full MXID), `username`, `displayName`, `avatarUrl` (empty or `null` when absent), and `source: "matrix"`. A current registered Matrix binding is required for every channel. Matrix identities are validated and bounded to 1,000 per list, with usernames/display names at most 100 characters and HTTP(S) avatar URLs at most 2048. Native role, Discord role, presence and arbitrary fields are not accepted as Matrix identity claims. A legacy/ordinary registration cannot inject Matrix members.
+
+A single bot must publish its **whole channel snapshot** on each op 6, not one channel per frame: later frames replace earlier ones. Snapshots from different bots/platforms sharing a channel remain separate; one disconnect does not erase the other's members. Matrix bindings are rechecked before returning cached Matrix members to the frontend. Discord's op 7 presence protocol remains Discord-specific.
 
 ### Bridge presence update (op 7)
 

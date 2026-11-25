@@ -1,5 +1,3 @@
-import { supabase } from '@/supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
@@ -15,8 +13,25 @@ import {
   needsGainStage,
 } from './voice/micGain';
 import { SOUNDBOARD_P2P_EVENT } from './soundboard/protocol';
+import { SIGNAL_ACK_TIMEOUT_MS, relaysSignals, sendSignal as sendRoomSignal, sendSignalOnUnload } from './signalRelay';
+import { DEFAULT_ICE_SERVERS, loadIceServers } from './voice/iceServers';
+import { speakingDetector } from './voice/speakingDetector';
+import { openRebuildingChannel, type RebuildingChannel } from './rebuildingChannel';
 
 const RENEGOTIATION_STABLE_WAIT_MS = 10_000;
+// send_signal takes 1 to 64 messages, at most 65536 bytes as text (20261124100001).
+const RELAY_BATCH_MESSAGES = 64;
+const RELAY_BATCH_BYTES = 48_000;
+const SIGNAL_JOIN_TIMEOUT_MS = 15_000;
+// Longest a leave waits for its queued signals (user-left) to be sent.
+const LEAVE_SEND_TIMEOUT_MS = 2_000;
+// After a resumed signalling topic: members answering the state request with no connection here get an offer.
+const RESYNC_WINDOW_MS = 10_000;
+// A member whose connection failed or closed has left once this passes with no signal from it. ICE
+// reports 'failed' 15 to 30 s after the last packet.
+const PEER_LOST_GRACE_MS = 6_000;
+// A member still signalling with its connection lost stays, and is asked again this often.
+const PEER_RECHECK_MS = 30_000;
 
 // TYPES & INTERFACES
 
@@ -48,17 +63,24 @@ export interface UserConnection {
   connectionState: RTCPeerConnectionState;
   iceConnectionState: RTCIceConnectionState;
   /**
-   * BUGS.md H20: ICE candidates arriving before `setRemoteDescription`
+   * ICE candidates arriving before `setRemoteDescription`
    * (common with trickle ICE) are queued here and flushed afterwards.
    * `addIceCandidate` throws `InvalidStateError` when `remoteDescription`
    * is unset, which yields flaky P2P connections on slow networks.
    */
   pendingIceCandidates: RTCIceCandidateInit[];
+  /** Set while the connection is lost: ends in the member's leave (watchPeer). */
+  lostTimer: ReturnType<typeof setTimeout> | null;
+  /** The member has signalled since watchPeer last asked. */
+  heard: boolean;
 }
 
 export interface SignalingMessage {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'user-joined' | 'user-left' | 'media-state' | 'state-sync' | 'call-start-time' | 'request-call-start-time';
+  type: 'offer' | 'answer' | 'ice-candidate' | 'user-joined' | 'user-left' | 'media-state' | 'state-sync' | 'call-start-time' | 'request-call-start-time' | 'soundboard';
+  /** Relayed (send_signal): the database's sender, not the message's. */
   from: string;
+  /** The sender's join: a new one means the peer started over and its old connection is dead. */
+  session?: string;
   to?: string;
   data: any;
   timestamp: number;
@@ -69,13 +91,58 @@ export interface ChannelState {
   channelId: string;
 }
 
+function newSessionId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function isLost(connection: UserConnection): boolean {
+  const { connectionState } = connection.peerConnection;
+  return connectionState === 'failed' || connectionState === 'closed';
+}
+
+function cancelled(): DOMException {
+  return new DOMException('Connection cancelled', 'AbortError');
+}
+
+function silentState(userId: string): UserMediaState {
+  return {
+    userId,
+    isAudioEnabled: true,
+    isVideoEnabled: false,
+    isScreenSharing: false,
+    isMuted: false,
+    isDeafened: false,
+    isSpeaking: false,
+    audioLevel: 0,
+  };
+}
+
 // MAIN WEBRTC SERVICE
 
 export class UnifiedWebRTCService {
   private channelId: string | null = null;
   private currentUserId: string | null = null;
-  private signalChannel: RealtimeChannel | null = null;
-  
+  private signalChannel: RebuildingChannel | null = null;
+  // Ends a setupSignaling that is still waiting for its topic.
+  private cancelSignaling: (() => void) | null = null;
+  private resyncUntil = 0;
+  // This client's join, empty outside one, and each peer's latest (SignalingMessage.session).
+  private sessionId = '';
+  private peerSessions = new Map<string, string>();
+  // Each peer's session that said user-left: what it sent before can arrive after.
+  private leftSessions = new Map<string, string>();
+  // Outgoing messages in order, one request in flight (signalRelay.sendSignal); a request carries
+  // the run of messages queued meanwhile.
+  private signalQueue: Array<{
+    room: string;
+    from: string;
+    channel: RebuildingChannel;
+    message: Omit<SignalingMessage, 'from'>;
+  }> = [];
+  private signalFlushing = false;
+  private signalFlush: Promise<void> = Promise.resolve();
+  private iceServers: RTCIceServer[] = [...DEFAULT_ICE_SERVERS];
+
   // Local media and state
   // localStream carries mic + camera; the screenshare gets its own stream so
   // both video feeds can be published at once and told apart by stream id.
@@ -108,7 +175,7 @@ export class UnifiedWebRTCService {
   // Audio context for level monitoring
   private audioContext: AudioContext | null = null;
   private localAudioAnalyser: AnalyserNode | null = null;
-  // BUGS.md H21: RAF handle, so device/constraint changes cancel the previous
+  // RAF handle, so device/constraint changes cancel the previous
   // loop before starting a new one. Overlapping loops all read
   // `localAudioAnalyser` and broadcast audio levels in lockstep.
   private audioLevelRafId: number | null = null;
@@ -238,7 +305,7 @@ export class UnifiedWebRTCService {
     // Connected: swap the live audio track.
     if (this.localStream && this.channelId) {
 
-      // BUGS.md H22: acquire the new stream BEFORE stopping the old tracks.
+      // Acquire the new stream BEFORE stopping the old tracks.
       // Stopping first leaves the call with no mic until rejoin whenever
       // `getUserMedia` fails (permission revoked, device gone,
       // OverconstrainedError).
@@ -358,10 +425,19 @@ export class UnifiedWebRTCService {
   }
   async joinChannel(channelId: string, userId: string, abortSignal?: AbortSignal): Promise<boolean> {
     debug.log('Joining voice channel:', channelId, 'as user:', userId);
+    let session = '';
+    // Throws once the join is cancelled, leaving what it opened, or has ended: a leave or a later
+    // join took its place and holds the service.
+    const stillJoining = async (): Promise<void> => {
+      const ended = this.sessionId !== session;
+      if (!ended && !abortSignal?.aborted) return;
+      if (!ended) await this.leaveChannel();
+      throw cancelled();
+    };
     
     try {
       if (abortSignal?.aborted) {
-        throw new DOMException('Connection cancelled', 'AbortError');
+        throw cancelled();
       }
       
       if (this.channelId) {
@@ -369,42 +445,33 @@ export class UnifiedWebRTCService {
       }
       
       if (abortSignal?.aborted) {
-        throw new DOMException('Connection cancelled', 'AbortError');
+        throw cancelled();
       }
       
       this.channelId = channelId;
       this.currentUserId = userId;
       this.localMediaState.userId = userId;
-      
+      session = this.sessionId = newSessionId();
+      const iceServers = loadIceServers();
+
       // 1. Audio first - a voice channel always carries audio.
-      await this.initializeLocalAudio();
+      await this.initializeLocalAudio(session);
       // fresh tracks start enabled; re-apply mute/PTT gate before audio flows
       this.applyMicGate();
-
-      if (abortSignal?.aborted) {
-        await this.leaveChannel();
-        throw new DOMException('Connection cancelled', 'AbortError');
-      }
+      this.iceServers = await iceServers;
+      await stillJoining();
       
       // 2. Signaling must be up before presence is announced.
       await this.setupSignaling();
-      
-      if (abortSignal?.aborted) {
-        await this.leaveChannel();
-        throw new DOMException('Connection cancelled', 'AbortError');
-      }
+      await stillJoining();
       
       // 3. Pull current channel state from existing members.
       await this.requestChannelState();
-      
-      if (abortSignal?.aborted) {
-        await this.leaveChannel();
-        throw new DOMException('Connection cancelled', 'AbortError');
-      }
+      await stillJoining();
       
       // 4. Announce presence, after state sync.
       setTimeout(() => {
-        if (!abortSignal?.aborted) {
+        if (!abortSignal?.aborted && this.sessionId === session) {
           this.broadcastMessage({
             type: 'user-joined',
             from: userId,
@@ -413,11 +480,6 @@ export class UnifiedWebRTCService {
           });
         }
       }, 200);
-      
-      if (abortSignal?.aborted) {
-        await this.leaveChannel();
-        throw new DOMException('Connection cancelled', 'AbortError');
-      }
       
       this.emit('channel-joined', { channelId, userId });
       this.emit('local-state-changed', this.localMediaState);
@@ -429,15 +491,18 @@ export class UnifiedWebRTCService {
         throw error; // Re-throw to propagate cancellation
       }
       debug.error('Failed to join channel:', error);
+      // A later join owns the service once it has its own session.
+      if (session && this.sessionId === session) await this.teardown(false);
       this.emit('error', error);
       return false;
     }
   }
 
-  async leaveChannel(): Promise<void> {
+  /** `silent`: nothing is sent, queued signals included. */
+  async leaveChannel({ silent = false }: { silent?: boolean } = {}): Promise<void> {
     debug.log('Leaving voice channel');
     
-    if (this.currentUserId && this.channelId) {
+    if (!silent && this.currentUserId && this.channelId) {
       this.broadcastMessage({
         type: 'user-left',
         from: this.currentUserId,
@@ -446,12 +511,34 @@ export class UnifiedWebRTCService {
       });
     }
     
-    this.connections.forEach(conn => {
-      this.cleanupRemoteAudio(conn);
-      conn.peerConnection.close();
-    });
+    const oldChannelId = this.channelId;
+    await this.teardown(!silent);
+    
+    this.emit('channel-left', { channelId: oldChannelId });
+  }
+
+  /**
+   * Releases everything a join opened: peers, tracks, topic, level monitoring. No event and no
+   * message; a second run finds nothing left. `sendQueued`: signals already queued still go out,
+   * and the topic, which a client broadcast needs, closes after them; otherwise they are dropped.
+   */
+  private async teardown(sendQueued: boolean): Promise<void> {
+    const signalChannel = this.signalChannel;
+    const audioContext = this.audioContext;
+    this.signalChannel = null;
+    this.audioContext = null;
+    this.channelId = null;
+    this.currentUserId = null;
+    this.sessionId = '';
+    this.cancelSignaling?.();
+    this.cancelSignaling = null;
+    if (!sendQueued) this.signalQueue = [];
+
+    this.connections.forEach(conn => this.closeConnection(conn));
     this.connections.clear();
     this.allUserStates.clear();
+    this.peerSessions.clear();
+    this.leftSessions.clear();
     
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => track.stop());
@@ -472,14 +559,9 @@ export class UnifiedWebRTCService {
     this.localMediaState.isVideoEnabled = false;
     this.localMediaState.isScreenSharing = false;
 
-    if (this.signalChannel) {
-      await this.signalChannel.unsubscribe();
-      this.signalChannel = null;
-    }
-    
-    // BUGS.md H21 v2: cancel the RAF explicitly, symmetric with setup. The
+    // Cancel the RAF explicitly, symmetric with setup. The
     // loop also self-terminates next frame via the `else` branch in
-    // `updateLevel` once `audioContext` is null below; the explicit cancel
+    // `updateLevel` once `audioContext` is null; the explicit cancel
     // keeps that from being load-bearing.
     if (this.audioLevelRafId !== null) {
       cancelAnimationFrame(this.audioLevelRafId);
@@ -489,19 +571,25 @@ export class UnifiedWebRTCService {
       try { this.localAudioAnalyser.disconnect(); } catch { /* noop */ }
       this.localAudioAnalyser = null;
     }
-    if (this.audioContext) {
-      await this.audioContext.close();
-      this.audioContext = null;
-    }
-    
-    const oldChannelId = this.channelId;
-    this.channelId = null;
-    this.currentUserId = null;
-    
-    this.emit('channel-left', { channelId: oldChannelId });
+
+    const sent = sendQueued ? this.queuedSignalsSent() : Promise.resolve();
+    if (!relaysSignals()) await sent;
+    await Promise.all([sent, signalChannel?.close(), audioContext?.close()]);
+  }
+
+  /** Once the queue is empty, at the latest LEAVE_SEND_TIMEOUT_MS from now. */
+  private async queuedSignalsSent(): Promise<void> {
+    if (!this.signalFlushing) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      this.signalFlush,
+      new Promise<void>((resolve) => { timer = setTimeout(resolve, LEAVE_SEND_TIMEOUT_MS); }),
+    ]);
+    clearTimeout(timer);
   }
 
   async toggleVideo(): Promise<boolean> {
+    const session = this.sessionId;
     try {
       if (!this.localMediaState.isVideoEnabled) {
         // Enable video (screenshare, if active, keeps its own stream/senders)
@@ -522,6 +610,11 @@ export class UnifiedWebRTCService {
         }
         
         const videoStream = await navigator.mediaDevices.getUserMedia(videoConstraints);
+        // The call the camera was asked for has ended.
+        if (this.sessionId !== session || !this.localStream) {
+          videoStream.getTracks().forEach(track => track.stop());
+          return this.localMediaState.isVideoEnabled;
+        }
         const videoTrack = videoStream.getVideoTracks()[0];
         
         if (!videoTrack) {
@@ -614,6 +707,7 @@ export class UnifiedWebRTCService {
     } catch (error) {
       debug.error('Error toggling video:', error);
       
+      if (this.sessionId !== session) return this.localMediaState.isVideoEnabled;
       this.localMediaState.isVideoEnabled = false;
       return false;
     }
@@ -623,6 +717,7 @@ export class UnifiedWebRTCService {
   private screenShareAudioTrackId: string | null = null;
   
   async toggleScreenShare(): Promise<boolean> {
+    const session = this.sessionId;
     try {
       if (!this.localMediaState.isScreenSharing) {
         // Resolution and framerate come from the stream quality settings.
@@ -635,6 +730,11 @@ export class UnifiedWebRTCService {
           },
           audio: true // Include system audio for app streaming
         });
+        // The call the screen was picked for has ended.
+        if (this.sessionId !== session) {
+          screenStream.getTracks().forEach(track => track.stop());
+          return this.localMediaState.isScreenSharing;
+        }
         
         const screenVideoTrack = screenStream.getVideoTracks()[0];
         const screenAudioTrack = screenStream.getAudioTracks()[0]; // System audio
@@ -952,10 +1052,11 @@ export class UnifiedWebRTCService {
         },
       });
     }
-    this.micGainStage.setGain(needsGainStage(this.inputVolume) ? inputGain(this.inputVolume) : 1);
-    const out = await this.micGainStage.connect(captured);
+    const stage = this.micGainStage;
+    stage.setGain(needsGainStage(this.inputVolume) ? inputGain(this.inputVolume) : 1);
+    const out = await stage.connect(captured);
     if (!out) {
-      this.teardownMicGain();
+      if (this.micGainStage === stage) this.teardownMicGain();
       return captured;
     }
     return out;
@@ -1009,7 +1110,15 @@ export class UnifiedWebRTCService {
     return audioLevel > 20 && !isMuted;
   }
 
-  private async initializeLocalAudio(): Promise<void> {
+  /** Opens the microphone for the join `session`. One whose join has ended meanwhile is stopped. */
+  private async initializeLocalAudio(session: string): Promise<void> {
+    // The permission prompt outlives the join: its answer can come during a later one.
+    const capture = async (audio: MediaTrackConstraints): Promise<MediaStream> => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio, video: false });
+      if (this.sessionId === session) return stream;
+      stream.getTracks().forEach(track => track.stop());
+      throw cancelled();
+    };
     try {
       const { inputDevice } = this.getSelectedDevices();
       const audioConstraints: MediaTrackConstraints = {
@@ -1025,11 +1134,9 @@ export class UnifiedWebRTCService {
       let newAudioStream: MediaStream;
 
       try {
-        newAudioStream = await navigator.mediaDevices.getUserMedia({
-          audio: audioConstraints,
-          video: false
-        });
+        newAudioStream = await capture(audioConstraints);
       } catch (error) {
+        if (this.sessionId !== session) throw cancelled();
         debug.warn('Failed to use selected device during constraint update, falling back to default:', error);
         
         this.selectedInputDevice = null;
@@ -1040,10 +1147,7 @@ export class UnifiedWebRTCService {
           // No deviceId - let browser choose
         };
         
-        newAudioStream = await navigator.mediaDevices.getUserMedia({
-          audio: fallbackConstraints,
-          video: false
-        });
+        newAudioStream = await capture(fallbackConstraints);
         
         debug.log('Using default audio device as fallback during constraint update');
       }
@@ -1051,6 +1155,10 @@ export class UnifiedWebRTCService {
       this.inputVolume = clampInputVolume(VoiceSettingsService.getAll().inputVolume);
       const captured = newAudioStream.getAudioTracks()[0];
       const outgoing = captured ? await this.routeMic(captured) : null;
+      if (this.sessionId !== session) {
+        captured?.stop();
+        throw cancelled();
+      }
       this.localStream = outgoing && outgoing !== captured ? new MediaStream([outgoing]) : newAudioStream;
 
       const audioTrack = this.localStream.getAudioTracks()[0];
@@ -1070,7 +1178,7 @@ export class UnifiedWebRTCService {
   private setupAudioLevelMonitoring(): void {
     if (!this.localStream) return;
 
-    // BUGS.md H21: tear down the previous context and cancel its RAF before
+    // Tear down the previous context and cancel its RAF before
     // constructing the new one. This method also runs on the device- and
     // constraint-change paths via `updateInputDevice`; without the teardown
     // each mid-call switch leaks an AudioContext plus a live RAF loop until
@@ -1108,18 +1216,18 @@ export class UnifiedWebRTCService {
           
           const wasSpeaking = this.localMediaState.isSpeaking;
           this.localMediaState.isSpeaking = this.calculateSpeakingState(average, this.isMicGated());
-          
+
           this.emit('audio-level', { userId: this.currentUserId, level: average });
-          
-          // Broadcast audio level to other users every 100ms if speaking
+
+          // Peers on a relaying instance read speaking from the received track (setupRemoteAudio).
+          // Peers of an older instance read it from these broadcasts: every 100 ms while speaking.
           const now = Date.now();
-          if ((average > 20 || now - lastBroadcast > 1000) && now - lastBroadcast > 100) {
+          if (!relaysSignals() && (average > 20 || now - lastBroadcast > 1000) && now - lastBroadcast > 100) {
             this.broadcastAudioLevel();
             lastBroadcast = now;
           }
-          
-          // Speaking-state transitions are broadcast to peers.
-          if (wasSpeaking !== this.localMediaState.isSpeaking) {
+
+          if (!relaysSignals() && wasSpeaking !== this.localMediaState.isSpeaking) {
             this.broadcastMediaState();
             // NOTE: 'local-state-changed' is not emitted here; components react
             // to audioLevel directly, and the extra event breaks their reactivity.
@@ -1137,38 +1245,69 @@ export class UnifiedWebRTCService {
     }
   }
 
+  /**
+   * harmony-voice-<room>: read under voice room access (can_subscribe_to_topic). A server close
+   * reopens it (openRebuildingChannel); messages of the gap are lost, so a resumed topic asks the
+   * room for its state again and offers to members it holds no connection with.
+   */
   private async setupSignaling(): Promise<void> {
     if (!this.channelId || !this.currentUserId) {
       throw new Error('Channel ID or User ID not set');
     }
-    
-    // Private: voice room access only (can_subscribe_to_topic, can_send_to_topic).
-    this.signalChannel = supabase.channel(`harmony-voice-${this.channelId}`, {
-      config: { private: true, broadcast: { self: false } }
+
+    let settle: ((error?: Error) => void) | null = null;
+    const ready = new Promise<void>((resolve, reject) => {
+      settle = (error) => (error ? reject(error) : resolve());
     });
-    
-    this.signalChannel.on('broadcast', { event: 'signal' }, (payload) => {
-      this.handleSignalingMessage(payload.payload as SignalingMessage);
-    });
-    
-    this.signalChannel.on('broadcast', { event: 'audio-level' }, (payload) => {
-      this.handleAudioLevel(payload.payload);
+    const timer = setTimeout(() => settle?.(new Error('Failed to setup signaling: no answer')), SIGNAL_JOIN_TIMEOUT_MS);
+    this.cancelSignaling = () => {
+      clearTimeout(timer);
+      settle?.(new DOMException('Connection cancelled', 'AbortError'));
+      settle = null;
+    };
+
+    this.signalChannel = openRebuildingChannel({
+      topic: `harmony-voice-${this.channelId}`,
+      config: { broadcast: { self: false, ack: true } },
+      bind: (channel) => {
+        channel.on('broadcast', { event: 'signals' }, (payload) => {
+          this.handleRelayed(payload.payload);
+        });
+
+        // Client broadcasts: only an instance without send_signal admits them on this topic.
+        channel.on('broadcast', { event: 'signal' }, (payload) => {
+          this.handleSignalingMessage(payload.payload as SignalingMessage);
+        });
+
+        channel.on('broadcast', { event: 'audio-level' }, (payload) => {
+          const userId = (payload.payload as { userId?: unknown } | null)?.userId;
+          if (typeof userId === 'string' && !speakingDetector.covers(userId)) this.handleAudioLevel(payload.payload);
+        });
+
+        channel.on('broadcast', { event: SOUNDBOARD_P2P_EVENT }, (payload) => {
+          this.handleSoundboard(payload.payload);
+        });
+      },
+      onSubscribed: (resumed) => {
+        if (settle) {
+          debug.log('Signaling channel ready');
+          clearTimeout(timer);
+          settle();
+          settle = null;
+        } else if (resumed) {
+          debug.log('Signaling channel resumed: asking the room for its state');
+          this.resyncUntil = Date.now() + RESYNC_WINDOW_MS;
+          void this.requestChannelState();
+        }
+      },
+      onRefused: (error) => {
+        clearTimeout(timer);
+        settle?.(new Error(`Failed to setup signaling: ${error?.message ?? 'refused'}`));
+        settle = null;
+      },
     });
 
-    this.signalChannel.on('broadcast', { event: SOUNDBOARD_P2P_EVENT }, (payload) => {
-      this.handleSoundboard(payload.payload);
-    });
-    
-    return new Promise<void>((resolve, reject) => {
-      this.signalChannel!.subscribe((status: string) => {
-        if (status === 'SUBSCRIBED') {
-          debug.log('Signaling channel ready');
-          resolve();
-        } else if (status === 'CHANNEL_ERROR') {
-          reject(new Error('Failed to setup signaling'));
-        }
-      });
-    });
+    return ready;
   }
 
   private async requestChannelState(): Promise<void> {
@@ -1184,8 +1323,24 @@ export class UnifiedWebRTCService {
     });
   }
 
+  /** A send_signal broadcast: {from, messages}, `from` set by the database. */
+  private handleRelayed(raw: unknown): void {
+    if (!raw || typeof raw !== 'object') return;
+    const { from, messages } = raw as { from?: unknown; messages?: unknown };
+    if (typeof from !== 'string' || !Array.isArray(messages)) return;
+    for (const entry of messages) {
+      if (!entry || typeof entry !== 'object') continue;
+      const message = { ...(entry as Omit<SignalingMessage, 'from'>), from };
+      if (message.type === 'soundboard') this.handleSoundboard({ from, message: message.data });
+      else void this.handleSignalingMessage(message);
+    }
+  }
+
   private async handleSignalingMessage(message: SignalingMessage): Promise<void> {
     const { type, from, to, data } = message;
+
+    // A topic being left still delivers.
+    if (!this.channelId) return;
     
     // Ignore our own messages
     if (from === this.currentUserId) return;
@@ -1194,10 +1349,28 @@ export class UnifiedWebRTCService {
     if (to && to !== this.currentUserId) return;
     
     debug.log('Received:', type, 'from:', from);
+
+    // A peer that reloaded or crashed comes back with a new session before any user-left.
+    if (message.session) {
+      const known = this.peerSessions.get(from);
+      if (type === 'user-left') {
+        // A reload's user-left can land after the new session's first message.
+        if (known && known !== message.session) return;
+        this.leftSessions.set(from, message.session);
+      } else if (this.leftSessions.get(from) === message.session) {
+        return;
+      }
+      if (known !== message.session) {
+        this.peerSessions.set(from, message.session);
+        if (known) this.dropConnection(from);
+      }
+    }
+    const held = this.connections.get(from);
+    if (held) held.heard = true;
     
     switch (type) {
       case 'user-joined':
-        await this.handleUserJoined(from, data.mediaState);
+        await this.handleUserJoined(from, data.mediaState, !!message.session);
         break;
         
       case 'user-left':
@@ -1236,34 +1409,97 @@ export class UnifiedWebRTCService {
     }
   }
 
-  private async handleUserJoined(userId: string, mediaState: UserMediaState): Promise<void> {
-    debug.log('User joined:', userId, mediaState);
-    
+  /**
+   * A peer's media state as it states its own: keyed and labelled by its sender, with speaking
+   * as analysed here while speakingDetector covers it.
+   */
+  private peerState(userId: string, claimed: UserMediaState | undefined): UserMediaState {
+    const previous = this.allUserStates.get(userId);
+    const state: UserMediaState = { ...silentState(userId), ...previous, ...claimed, userId };
+    if (previous && speakingDetector.covers(userId)) {
+      state.isSpeaking = previous.isSpeaking;
+      state.audioLevel = previous.audioLevel;
+    }
+    return state;
+  }
+
+  /**
+   * `sessioned`: the announcement names its session, and a connection already held is with that
+   * session (handleSignalingMessage drops one of an earlier session): it stays. Without a session,
+   * the connection is replaced (createPeerConnection).
+   */
+  private async handleUserJoined(userId: string, claimed: UserMediaState, sessioned = false): Promise<void> {
+    debug.log('User joined:', userId, claimed);
+
+    const mediaState = this.peerState(userId, claimed);
     this.allUserStates.set(userId, mediaState);
 
-    await this.createPeerConnection(userId, true); // We initiate since they just joined
-    
+    if (!sessioned || !this.connections.has(userId)) {
+      await this.createPeerConnection(userId, true); // The member already in the call initiates.
+    }
+
     this.emit('user-joined', { userId, mediaState });
   }
 
+  /** Closes the connection with a peer and its audio. */
+  private dropConnection(userId: string): void {
+    const connection = this.connections.get(userId);
+    if (!connection) return;
+    this.closeConnection(connection);
+    this.connections.delete(userId);
+  }
+
+  private closeConnection(connection: UserConnection): void {
+    if (connection.lostTimer) clearTimeout(connection.lostTimer);
+    connection.lostTimer = null;
+    this.cleanupRemoteAudio(connection);
+    connection.peerConnection.close();
+  }
+
+  /**
+   * A connection that failed or closed: a page gone without a user-left (a crash, a session that
+   * ended). Its member leaves after `wait` unless it recovers or the member signals meanwhile; asked
+   * for its state, one still in the call with its media cut answers, and stays.
+   */
+  private watchPeer(connection: UserConnection, wait = PEER_LOST_GRACE_MS): void {
+    const { userId } = connection;
+    if (!isLost(connection) || this.connections.get(userId) !== connection) {
+      if (connection.lostTimer) clearTimeout(connection.lostTimer);
+      connection.lostTimer = null;
+      return;
+    }
+    if (connection.lostTimer) return;
+    connection.heard = false;
+    this.sendDirectMessage(userId, {
+      type: 'state-sync',
+      from: this.currentUserId!,
+      data: { action: 'request' },
+      timestamp: Date.now()
+    });
+    connection.lostTimer = setTimeout(() => {
+      connection.lostTimer = null;
+      if (this.connections.get(userId) !== connection || !isLost(connection)) return;
+      if (connection.heard) this.watchPeer(connection, PEER_RECHECK_MS);
+      else void this.handleUserLeft(userId);
+    }, wait);
+  }
+
+  /** A second leave of the same member says nothing. */
   private async handleUserLeft(userId: string): Promise<void> {
     debug.log('User left:', userId);
+    const present = this.connections.has(userId) || this.allUserStates.has(userId);
 
-    const connection = this.connections.get(userId);
-    if (connection) {
-      this.cleanupRemoteAudio(connection);
-      connection.peerConnection.close();
-      this.connections.delete(userId);
-    }
+    this.dropConnection(userId);
 
     this.allUserStates.delete(userId);
     this.announcedScreenStreamIds.delete(userId);
-    this.emit('user-left', { userId });
+    if (present) this.emit('user-left', { userId });
   }
 
-  private handleMediaStateUpdate(userId: string, mediaState: UserMediaState, screenStreamId?: string | null): void {
-    debug.log('Media state update:', userId, mediaState, 'screenStreamId:', screenStreamId);
+  private handleMediaStateUpdate(userId: string, claimed: UserMediaState, screenStreamId?: string | null): void {
+    debug.log('Media state update:', userId, claimed, 'screenStreamId:', screenStreamId);
 
+    const mediaState = this.peerState(userId, claimed);
     this.allUserStates.set(userId, mediaState);
 
     // Screen stream announcement may arrive before or after the tracks do;
@@ -1313,24 +1549,24 @@ export class UnifiedWebRTCService {
           action: 'response',
           mediaState: this.localMediaState,
           screenStreamId: this.localScreenStream?.id ?? null,
-          allStates: Array.from(this.allUserStates.values())
         },
         timestamp: Date.now()
       });
     } else if (data.action === 'response') {
-      // Peer delivers the current channel state.
+      // Each member answers for itself; what a peer reports of others is not read.
       debug.log('Received channel state from:', from, data);
-      
-      if (data.allStates) {
-        data.allStates.forEach((state: UserMediaState) => {
-          if (state.userId !== this.currentUserId) {
-            this.allUserStates.set(state.userId, state);
-          }
-        });
-      }
-      
+
       if (data.mediaState) {
-        this.allUserStates.set(from, data.mediaState);
+        this.allUserStates.set(from, this.peerState(from, data.mediaState));
+      }
+
+      // A member who joined while the topic was down: its user-joined never arrived here. One whose
+      // connection the same outage ended gets another.
+      const held = this.connections.get(from);
+      const lost = !!held && isLost(held);
+      if (Date.now() < this.resyncUntil && (!held || lost)) {
+        await this.createPeerConnection(from, true);
+        if (!held) this.emit('user-joined', { userId: from, mediaState: this.allUserStates.get(from) ?? silentState(from) });
       }
 
       if (data.screenStreamId !== undefined) {
@@ -1341,6 +1577,8 @@ export class UnifiedWebRTCService {
         }
       }
 
+      // The answer to watchPeer: the member is listed already.
+      if (lost) return;
       this.emit('channel-state-synced', {
         users: Array.from(this.allUserStates.values())
       });
@@ -1349,30 +1587,16 @@ export class UnifiedWebRTCService {
 
   private async createPeerConnection(userId: string, isInitiator: boolean): Promise<void> {
     debug.log('Creating peer connection with:', userId, 'as initiator:', isInitiator);
-    
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-      ],
-      iceCandidatePoolSize: 10,
-    });
-    
+
+    // A connection held with the peer is replaced: closed with its audio, not left running.
+    this.dropConnection(userId);
+
+    const pc = this.newPeerConnection();
+
     const connection: UserConnection = {
       userId,
       peerConnection: pc,
-      mediaState: this.allUserStates.get(userId) || {
-        userId,
-        isAudioEnabled: true,
-        isVideoEnabled: false,
-        isScreenSharing: false,
-        isMuted: false,
-        isDeafened: false,
-        isSpeaking: false,
-        audioLevel: 0
-      },
+      mediaState: this.allUserStates.get(userId) || silentState(userId),
       remoteStream: null,
       remoteScreenStream: null,
       knownStreams: new Map(),
@@ -1380,7 +1604,9 @@ export class UnifiedWebRTCService {
       screenAudioElement: null,
       connectionState: pc.connectionState,
       iceConnectionState: pc.iceConnectionState,
-      pendingIceCandidates: []
+      pendingIceCandidates: [],
+      lostTimer: null,
+      heard: false
     };
 
     this.connections.set(userId, connection);
@@ -1411,21 +1637,26 @@ export class UnifiedWebRTCService {
       }
     };
     
+    const sendCandidate = (candidate: RTCIceCandidate) => this.sendDirectMessage(userId, {
+      type: 'ice-candidate',
+      from: this.currentUserId!,
+      to: userId,
+      data: candidate,
+      timestamp: Date.now()
+    });
+    // An initiator's candidates, the pooled ones among them, can be gathered before its offer is
+    // sent; a peer drops a candidate that comes before the offer, as it holds no connection yet.
+    let heldCandidates: RTCIceCandidate[] | null = isInitiator ? [] : null;
     pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        this.sendDirectMessage(userId, {
-          type: 'ice-candidate',
-          from: this.currentUserId!,
-          to: userId,
-          data: event.candidate,
-          timestamp: Date.now()
-        });
-      }
+      if (!event.candidate) return;
+      if (heldCandidates) heldCandidates.push(event.candidate);
+      else sendCandidate(event.candidate);
     };
     
     pc.onconnectionstatechange = () => {
       connection.connectionState = pc.connectionState;
       this.emit('connection-state-changed', { userId, state: pc.connectionState });
+      this.watchPeer(connection);
     };
     
     pc.oniceconnectionstatechange = () => {
@@ -1447,7 +1678,21 @@ export class UnifiedWebRTCService {
         });
       } catch (error) {
         debug.error('Error creating offer for:', userId, error);
+      } finally {
+        const held = heldCandidates ?? [];
+        heldCandidates = null;
+        held.forEach(sendCandidate);
       }
+    }
+  }
+
+  /** The instance's ICE servers; the defaults when RTCPeerConnection refuses them. */
+  private newPeerConnection(): RTCPeerConnection {
+    try {
+      return new RTCPeerConnection({ iceServers: this.iceServers, iceCandidatePoolSize: 10 });
+    } catch (error) {
+      debug.warn('[P2P] ICE servers refused, using the defaults:', error);
+      return new RTCPeerConnection({ iceServers: [...DEFAULT_ICE_SERVERS], iceCandidatePoolSize: 10 });
     }
   }
 
@@ -1455,11 +1700,25 @@ export class UnifiedWebRTCService {
     debug.log('Handling offer from:', from);
     
     let connection = this.connections.get(from);
-    if (!connection) {
+    if (!connection || isLost(connection)) {
       await this.createPeerConnection(from, false);
       connection = this.connections.get(from)!;
+    } else if (connection.peerConnection.signalingState === 'have-local-offer') {
+      // Offers crossed: two members joined at once, or renegotiations met. The member with the
+      // greater id rolls its offer back and answers; the other keeps its offer and ignores this one
+      // (the WebRTC "perfect negotiation" pattern, with the id as politeness).
+      if ((this.currentUserId ?? '') < from) {
+        debug.log('Offer collision with', from, '- keeping ours');
+        return;
+      }
+      try {
+        await connection.peerConnection.setLocalDescription({ type: 'rollback' });
+      } catch (error) {
+        debug.warn('Offer collision with', from, '- rollback failed:', error);
+        return;
+      }
     }
-    
+
     // Ensure user is tracked in allUserStates so they appear in the participant list.
     // Offers can arrive before the state-sync response that normally adds users.
     if (!this.allUserStates.has(from)) {
@@ -1480,8 +1739,8 @@ export class UnifiedWebRTCService {
     
     try {
       await connection.peerConnection.setRemoteDescription(offer);
-      // BUGS.md H20: flush ICE candidates that arrived between the offer
-      // being received and us setting the remote description.
+      // Flush ICE candidates that arrived before the remote description was
+      // set.
       await this.flushPendingIceCandidates(from);
       const answer = await connection.peerConnection.createAnswer();
       await connection.peerConnection.setLocalDescription(answer);
@@ -1505,7 +1764,7 @@ export class UnifiedWebRTCService {
     if (connection) {
       try {
         await connection.peerConnection.setRemoteDescription(answer);
-        // BUGS.md H20: flush ICE candidates that arrived before the answer
+        // Flush ICE candidates that arrived before the answer
         // was processed.
         await this.flushPendingIceCandidates(from);
       } catch (error) {
@@ -1518,12 +1777,12 @@ export class UnifiedWebRTCService {
     const connection = this.connections.get(from);
     if (!connection) return;
 
-    // BUGS.md H20: with trickle ICE, candidates frequently arrive before the
+    // With trickle ICE, candidates frequently arrive before the
     // remote SDP has been processed. Calling `addIceCandidate` before
     // `setRemoteDescription` throws `InvalidStateError`. Queue until the
     // remote description is set, then flush in `flushPendingIceCandidates`.
     if (!connection.peerConnection.remoteDescription) {
-      // BUGS.md H20 v2: queue cap. An authenticated peer in the same Supabase
+      // Queue cap. An authenticated peer in the same Supabase
       // voice channel can flood `ice-candidate` messages without ever sending
       // an offer. Observed real-world counts are <30 per peer, so 100 bounds
       // the memory without dropping legitimate candidates.
@@ -1566,7 +1825,10 @@ export class UnifiedWebRTCService {
     }
   }
 
-  /** `from` is the sender's own claim; the private topic admits only the room's members. */
+  /**
+   * `from` is the database's on a relaying instance (handleRelayed); on an older one it is the
+   * sender's own claim, and the private topic admits only the room's members.
+   */
   private handleSoundboard(raw: unknown): void {
     if (!raw || typeof raw !== 'object') return;
     const { from, message } = raw as { from?: unknown; message?: unknown };
@@ -1575,32 +1837,65 @@ export class UnifiedWebRTCService {
   }
 
   sendSoundboard(message: unknown): void {
-    if (!this.signalChannel || !this.currentUserId) return;
-    this.signalChannel.send({
-      type: 'broadcast',
-      event: SOUNDBOARD_P2P_EVENT,
-      payload: { from: this.currentUserId, message },
-    });
+    if (!this.currentUserId) return;
+    this.sendSignal({ type: 'soundboard', from: this.currentUserId, data: message, timestamp: Date.now() });
   }
 
   private broadcastMessage(message: SignalingMessage): void {
-    if (this.signalChannel) {
-      this.signalChannel.send({
-        type: 'broadcast',
-        event: 'signal',
-        payload: message
-      });
-    }
+    this.sendSignal(message);
   }
 
   private sendDirectMessage(to: string, message: SignalingMessage): void {
-    if (this.signalChannel) {
-      this.signalChannel.send({
-        type: 'broadcast',
-        event: 'signal',
-        payload: { ...message, to }
-      });
+    this.sendSignal({ ...message, to });
+  }
+
+  private sendSignal(signal: SignalingMessage): void {
+    if (!this.signalChannel || !this.channelId || !this.currentUserId) return;
+    const { from: _sender, ...message } = { ...signal, session: this.sessionId };
+    this.signalQueue.push({ room: this.channelId, from: this.currentUserId, channel: this.signalChannel, message });
+    if (!this.signalFlushing) this.signalFlush = this.flushSignals();
+  }
+
+  /** Sends the queue, one request at a time, each a run of one join's messages. */
+  private async flushSignals(): Promise<void> {
+    this.signalFlushing = true;
+    try {
+      while (this.signalQueue.length > 0) {
+        const { room, from, channel } = this.signalQueue[0];
+        let count = 0;
+        let bytes = 0;
+        while (count < this.signalQueue.length && count < RELAY_BATCH_MESSAGES && this.signalQueue[count].channel === channel) {
+          bytes += JSON.stringify(this.signalQueue[count].message).length;
+          if (count > 0 && bytes > RELAY_BATCH_BYTES) break;
+          count++;
+        }
+        const batch = this.signalQueue.splice(0, count).map((entry) => entry.message);
+        try {
+          await sendRoomSignal(`harmony-voice-${room}`, 'signals', { messages: batch },
+            () => this.broadcastSignals(channel, from, batch));
+        } catch (error) {
+          debug.warn('[P2P]', batch.length, 'signals refused:', (error as { message?: string })?.message ?? error);
+          this.emit('error', error);
+        }
+      }
+    } finally {
+      this.signalFlushing = false;
     }
+  }
+
+  /**
+   * Each message as its own client broadcast, as an instance without send_signal takes it. The
+   * first outcome that is not 'ok', else 'ok'.
+   */
+  private async broadcastSignals(
+    channel: RebuildingChannel,
+    from: string,
+    messages: Array<Omit<SignalingMessage, 'from'>>,
+  ): Promise<string> {
+    const outcomes = await Promise.all(messages.map((message) => channel.send(message.type === 'soundboard'
+      ? { type: 'broadcast', event: SOUNDBOARD_P2P_EVENT, payload: { from, message: message.data } }
+      : { type: 'broadcast', event: 'signal', payload: { ...message, from } }, { timeout: SIGNAL_ACK_TIMEOUT_MS })));
+    return outcomes.find((outcome) => outcome !== 'ok') ?? 'ok';
   }
 
   /**
@@ -1764,6 +2059,14 @@ export class UnifiedWebRTCService {
       // chain on deafen, which `muted` alone would not.
       remoteAudioMixer.attach(connection.userId, 'mic', connection.audioElement);
 
+      // Speaking from the received audio, as livekitWebRTC.watchRemoteSpeaker: peers send no levels.
+      speakingDetector.watch(
+        connection.userId,
+        () => connection.remoteStream?.getAudioTracks()[0] ?? null,
+        (level) => this.handleAudioLevel({ userId: connection.userId, audioLevel: level, timestamp: Date.now() }),
+        connection,
+      );
+
       debug.log('Audio element created for user:', connection.userId,
                   'muted:', connection.audioElement.muted,
                   'spatialEnabled:', spatialStore.settings.enabled,
@@ -1805,6 +2108,7 @@ export class UnifiedWebRTCService {
   }
 
   private cleanupRemoteAudio(connection: UserConnection): void {
+    speakingDetector.unwatch(connection.userId, connection);
     remoteAudioMixer.detach(connection.userId, 'mic', connection.audioElement ?? undefined);
     remoteAudioMixer.detach(connection.userId, 'screen', connection.screenAudioElement ?? undefined);
     if (connection.audioElement) {
@@ -1821,9 +2125,24 @@ export class UnifiedWebRTCService {
     }
   }
 
+  /** user-left of an unloading page: the signal queue's requests wait for auth-js's lock, past its end. */
+  private sendLeaveOnUnload(): void {
+    if (!this.signalChannel || !this.channelId || !this.currentUserId) return;
+    const message = { type: 'user-left' as const, data: {}, timestamp: Date.now(), session: this.sessionId };
+    if (relaysSignals()) sendSignalOnUnload(`harmony-voice-${this.channelId}`, 'signals', { messages: [message] });
+    else void this.broadcastSignals(this.signalChannel, this.currentUserId, [message]).catch(() => {});
+  }
+
+  // beforeunload also fires for a navigation that becomes a download; pagehide only when the page goes.
   private setupCleanup(): void {
-    window.addEventListener('beforeunload', () => {
-      this.leaveChannel();
+    window.addEventListener('pagehide', (event) => {
+      if (!this.channelId) return;
+      const channelId = this.channelId;
+      this.sendLeaveOnUnload();
+      void this.leaveChannel({ silent: true }).then(() => {
+        // Restored from the back/forward cache, the app shows a call that has ended.
+        if (event.persisted) this.emit('connection-lost', { channelId });
+      });
     });
   }
 
@@ -1901,11 +2220,10 @@ export class UnifiedWebRTCService {
     
     if (this.localStream && this.channelId) {
 
-      // BUGS.md H22 v2, mirroring `updateInputDevice`: acquire the new stream
-      // FIRST, then stop and remove the old tracks. The reverse order kills
-      // the mic whenever `getUserMedia` rejects the new constraints (AGC value
-      // the device cannot honour, permission flipped between save and apply).
-      // BUGS.md H22 lists this method at audit lines 1837-1883.
+      // As in `updateInputDevice`: acquire the new stream FIRST, then stop
+      // and remove the old tracks. The reverse order kills the mic whenever
+      // `getUserMedia` rejects the new constraints (AGC value the device
+      // cannot honour, permission flipped between save and apply).
       try {
         const newAudioStream = await navigator.mediaDevices.getUserMedia({
           audio: this.audioConstraints,
