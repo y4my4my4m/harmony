@@ -2127,10 +2127,12 @@ router.get(
     if (!postApId) {
       return res.status(400).json({ error: 'post_ap_id is required' });
     }
-    const target = urlHost(postApId) ? await readReplyTarget(getSupabaseClient(), postApId) : null;
+    // The crawl state first: a crawl records its result on the post before it counts as ended, so
+    // the row read after 'done' has it.
     const finished = finishedReplyCrawls.get(postApId);
     const fresh = finished && Date.now() - finished.at < REPLY_CRAWL_RESULT_TTL_MS ? finished : undefined;
     const status = inflightReplyCrawls.has(postApId) ? 'running' : fresh ? 'done' : 'idle';
+    const target = urlHost(postApId) ? await readReplyTarget(getSupabaseClient(), postApId) : null;
     return res.json({
       success: true,
       status,

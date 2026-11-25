@@ -127,6 +127,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- **Fetching a post's replies from its server shows the right counts.** A fetch that ended while its
+  progress was being read reported the counts from before it.
 - **A Discord bridge pair on a voice channel shows the channel's name.** The Discord bridge page
   named a pair whose Harmony side is a voice channel's chat by its id; the form for a new pair still
   offers text channels only. (#215, ROODAY)

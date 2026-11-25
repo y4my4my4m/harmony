@@ -40,6 +40,8 @@ let nextId = 1
 /** Errors the next inserts answer with, in order. */
 let insertErrors: Array<{ code: string; message: string }> = []
 let inserts = 0
+/** Holds the answer of the next read: what it read stays as it was when it began. */
+let nextRead: { began: () => void; until: Promise<void> } | null = null
 
 const DEFAULTS: Record<string, Row> = {
   posts: { is_deleted: false, in_reply_to: null, metadata: {} },
@@ -96,7 +98,15 @@ function fakeSupabase() {
         ilike() { return builder },
         order() { return builder },
         limit(n: number) { cap = n; return builder },
-        maybeSingle() { return Promise.resolve({ data: run()[0] ?? null, error: null }) },
+        maybeSingle() {
+          const row = run()[0]
+          const held = nextRead
+          nextRead = null
+          const answer = { data: row ? { ...row } : null, error: null }
+          if (!held) return Promise.resolve(answer)
+          held.began()
+          return held.until.then(() => answer)
+        },
         single() {
           const rows = run()
           return Promise.resolve(rows.length === 1 ? { data: rows[0], error: null } : { data: null, error: { message: 'no rows' } })
@@ -335,6 +345,23 @@ describe('POST /fetch-replies with async', () => {
       replies_fetched_at: FRESH,
     })
     expect(repliesOf('post-1')).toHaveLength(2)
+  })
+
+  it('never answers done with the counts from before the crawl, when it ends while the status reads them', async () => {
+    const release = hold(PAGE_OTHERS)
+    expect((await start({ force: true })).body.status).toBe('started')
+    let letGo!: () => void
+    let begun!: () => void
+    const reading = new Promise<void>((resolve) => { begun = resolve })
+    nextRead = { began: begun, until: new Promise<void>((resolve) => { letGo = resolve }) }
+    const answer = status().then((res) => res.body)
+    await reading
+    release()
+    await settle()
+    letGo()
+    const body = await answer
+    expect(body.status).toMatch(/^(running|done)$/)
+    if (body.status === 'done') expect(body.replies_fetched_at).toBe(FRESH)
   })
 
   it('answers done with the result when the crawl ends within the wait', async () => {
