@@ -60,7 +60,8 @@ import {
   withoutThreadName,
 } from '../bridge/memberConsent.js'
 import { BridgeAvatarBusyError, BridgeAvatarQuotaError, bridgeAvatarBytes, nativeBridgeAvatar, storeBridgeAvatar } from '../utils/bridgeAvatar.js'
-import { MATRIX_ROOM_ID, matrixRoomBinding, matrixBridgeMembers, publicMatrixBridgeMembers } from '../bridge/matrixRooms.js'
+import { MATRIX_ROOM_ID, MatrixRoomRefused, matrixRoomBinding, matrixRoomOf, matrixBridgeMember, matrixBridgeMembers, matrixSendCheck, NO_MATRIX_BINDING, publicMatrixBridgeMembers } from '../bridge/matrixRooms.js'
+import { isMatrixRoomAlias } from '../bridge/matrixBridgeConfig.js'
 import { TTLCache } from '../utils/TTLCache.js'
 import { MAX_COMMANDS, validateCommand, validateCommands } from '../commands/validate.js'
 
@@ -360,6 +361,11 @@ export interface MessageDeleteSink {
   messageHardDeleted(message: DeletedMessage): Promise<void>
 }
 
+/** Told that installs on the channel's server changed, before the change is answered. */
+export interface InstallSink {
+  installsChanged(channelId: string): Promise<void>
+}
+
 /** Most messages one history read returns, Discord's maximum. */
 export const MAX_MESSAGES_PER_READ = 100
 /** Most members one member list read returns, Discord's maximum. */
@@ -383,7 +389,7 @@ export class BotRestAPI {
   // A channel never moves to another server.
   private readonly auditChannelServers = new TTLCache<string, string>(10_000, 10 * 60_000)
 
-  constructor(private readonly deletes?: MessageDeleteSink) {
+  constructor(private readonly deletes?: MessageDeleteSink, private readonly installs?: InstallSink) {
     this.router = Router()
     this.setupMiddleware()
     this.setupRoutes()
@@ -409,6 +415,7 @@ export class BotRestAPI {
     this.route('post', '/channels/:channelId/bridge-avatar', this.uploadBridgeAvatar)
     this.route('get', '/channels/:channelId/bridge-room', this.getMatrixBridgeRoom)
     this.route('put', '/channels/:channelId/bridge-room', this.bindMatrixBridgeRoom)
+    this.route('get', '/channels/:channelId/bridge-check', this.getMatrixBridgeCheck)
     this.route('get', '/channels/:channelId/bridge-members', this.getMatrixBridgeMembers)
     this.route('get', '/channels/:channelId/bridge-members/:userId/avatar', this.getNativeBridgeAvatar)
 
@@ -1231,27 +1238,59 @@ export class BotRestAPI {
     try {
       const { channelId } = req.params
       if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
-      return res.json(await matrixRoomBinding(req.bot!.id, channelId))
+      return res.json(await matrixRoomOf(req.bot!.id, channelId))
     } catch { return res.status(503).json({ error: 'Matrix room binding unavailable' }) }
   }
 
+  /** What a Matrix bridge checks before it relays, in one read; a channel it does not relay answers nulls. */
+  private async getMatrixBridgeCheck(req: BotRequest, res: Response) {
+    const { channelId } = req.params
+    const userId = req.query.user_id
+    if (!UUID_PATTERN.test(channelId)) return res.status(400).json({ error: 'Invalid channel ID' })
+    if (userId !== undefined && (typeof userId !== 'string' || !UUID_PATTERN.test(userId))) {
+      return res.status(400).json({ error: 'user_id must be a uuid' })
+    }
+    try {
+      const botId = req.bot!.id
+      const { check, scoped } = await matrixSendCheck(botId, channelId, userId)
+      if (!scoped && !(await this.channelWriteAccess(botId, channelId, 'send_messages')).ok) return res.json(NO_MATRIX_BINDING)
+      return res.json({ ...check, member: check.member && publicMatrixBridgeMembers([check.member])[0] })
+    } catch { return res.status(503).json({ error: 'Matrix send check unavailable' }) }
+  }
+
   private async bindMatrixBridgeRoom(req: BotRequest, res: Response) {
-    const { room_id, initial_sender_mode } = req.body ?? {}
-    if (typeof room_id !== 'string' || !MATRIX_ROOM_ID.test(room_id) || !['ghost', 'relay'].includes(initial_sender_mode)) {
-      return res.status(400).json({ error: 'Expected room_id and initial_sender_mode (ghost or relay)' })
+    const { room_id, initial_sender_mode, room_alias } = req.body ?? {}
+    if (typeof room_id !== 'string' || !MATRIX_ROOM_ID.test(room_id) || !['ghost', 'relay'].includes(initial_sender_mode)
+      || (room_alias != null && !isMatrixRoomAlias(room_alias))) {
+      return res.status(400).json({ error: 'Expected room_id, initial_sender_mode (ghost or relay) and, for a pair named by alias, room_alias' })
     }
     try {
       const { channelId } = req.params
       if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
-      return res.json(await matrixRoomBinding(req.bot!.id, channelId, { room_id, sender_mode: initial_sender_mode }))
-    } catch { return res.status(503).json({ error: 'Matrix room binding unavailable; unpair before changing rooms' }) }
+      const bound = await matrixRoomBinding(req.bot!.id, channelId, {
+        room_id, sender_mode: initial_sender_mode, ...(room_alias != null ? { room_alias } : {}),
+      })
+      // Pairing put the channel in the install's list; the bridge relays from this answer on.
+      await this.installs?.installsChanged(channelId)
+      return res.json(bound)
+    } catch (error) {
+      if (error instanceof MatrixRoomRefused) return res.status(409).json({ error: error.message, code: error.code })
+      return res.status(503).json({ error: 'Matrix room binding unavailable' })
+    }
   }
 
+  /** `?user_id=` answers that member alone, or none, under the rules of the list. */
   private async getMatrixBridgeMembers(req: BotRequest, res: Response) {
+    const userId = req.query.user_id
+    if (userId !== undefined && (typeof userId !== 'string' || !UUID_PATTERN.test(userId))) {
+      return res.status(400).json({ error: 'user_id must be a uuid' })
+    }
     try {
       const { channelId } = req.params
       if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
-      return res.json(publicMatrixBridgeMembers(await matrixBridgeMembers(req.bot!.id, channelId)))
+      return res.json(publicMatrixBridgeMembers(userId === undefined
+        ? await matrixBridgeMembers(req.bot!.id, channelId)
+        : await matrixBridgeMember(req.bot!.id, channelId, userId)))
     } catch { return res.status(503).json({ error: 'Matrix member consent unavailable' }) }
   }
 

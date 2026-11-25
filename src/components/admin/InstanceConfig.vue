@@ -43,7 +43,7 @@
       <div v-if="limitsSupported" class="setting-group">
         <label>Bots one account can own</label>
         <input v-model.number="config.chat.maxBotsPerUser" type="number" min="0" class="cyber-input" data-testid="config-max-bots-per-user" />
-        <span class="setting-hint">Channel webhooks and linked Discord bridges are not counted. 0 = no limit. Default: 25.</span>
+        <span class="setting-hint">Channel webhooks and linked Discord and Matrix bridges are not counted. 0 = no limit. Default: 25.</span>
       </div>
       <div class="setting-group">
         <label>Max message length</label>
@@ -92,6 +92,8 @@
       </div>
 
       <BridgeAdminSection />
+
+      <MatrixAdminSection />
 
       <h3 style="margin-top: 24px;">Media picker (Klipy)</h3>
       <p class="setting-hint" style="margin-bottom: 16px;">
@@ -731,6 +733,7 @@ import UploadLimitsAdmin from '@/components/admin/UploadLimitsAdmin.vue'
 import VoiceIceSettings from '@/components/admin/VoiceIceSettings.vue'
 import OAuthProvidersAdmin from '@/components/admin/OAuthProvidersAdmin.vue'
 import BridgeAdminSection from '@/components/settings/discord-bridge/BridgeAdminSection.vue'
+import MatrixAdminSection from '@/components/settings/matrix-bridge/MatrixAdminSection.vue'
 import { adminService } from '@/services/AdminService'
 import { trendingService } from '@/services/TrendingService'
 import { supabase } from '@/supabase'

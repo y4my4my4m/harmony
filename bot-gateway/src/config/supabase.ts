@@ -60,7 +60,9 @@ export const config = {
     publicUrl: (process.env.PUBLIC_URL || '').trim(),
     // GET /bridge/v2/hosted answers 404 while this is shorter than 32 characters.
     hostSecret: process.env.BRIDGE_HOST_SECRET || '',
-    // ms between discord_bridges.updated_at polls, clamped to 1-60 s.
+    // As hostSecret, for /bridge/v2/matrix/host: each host reads its own platform's tokens alone.
+    matrixHostSecret: process.env.MATRIX_BRIDGE_HOST_SECRET || '',
+    // ms between polls of the bridges' updated_at, clamped to 1-60 s.
     configPollMs: Math.min(
       60_000,
       Math.max(1_000, parseInt(process.env.BRIDGE_CONFIG_POLL_MS || '5000') || 5_000),

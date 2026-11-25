@@ -93,7 +93,7 @@
       "title": "Set up a Matrix bridge",
       "lead": "To pair channels here, you need a bot of your own that runs the Matrix bridge and is in this server.",
       "steps": {
-        "service": "Whoever runs this Harmony instance sets up the Matrix bridge service and registers it with the Matrix homeserver. Ask them if it isn't running yet.",
+        "service": "Run the Matrix bridge on a computer that's always on, or ask someone who runs one. The operator of a Matrix homeserver, yours or another, registers it there once.",
         "bot": "Create a bot for the bridge in {place}, and give its token to whoever runs the bridge.",
         "install": "Add the bot to this server in {place}. Give it Read messages and Send messages, then under Channels choose Selected channels and tick the channels to bridge.",
         "pair": "Come back here to pair those channels."
@@ -124,6 +124,349 @@
       "confirmMessage": "{bot} stops bridging {count} channel with Matrix. Messages already bridged stay. Ask whoever runs the bridge to take the room out of its configuration too. | {bot} stops bridging {count} channels with Matrix. Messages already bridged stay. Ask whoever runs the bridge to take the rooms out of its configuration too.",
       "done": "{bot} is unpaired from Matrix."
     },
+    "start": {
+      "title": "Where should the bridge run?",
+      "needs": "You need a Matrix account for the bridge on any homeserver, or a homeserver whose operator can register the bridge. Setup takes about fifteen minutes.",
+      "self": {
+        "title": "Run it yourself",
+        "point1": "You run one command (Docker) on any computer that's always on: a home server, a VPS, a Raspberry Pi.",
+        "point2": "Harmony members can appear in Matrix as Matrix users of their own.",
+        "tradeoff": "The bridge works only while that computer is on and online.",
+        "choose": "Run it myself"
+      },
+      "custom": {
+        "title": "Use your own bridge program",
+        "point1": "For another bridge program, or a configuration you write yourself.",
+        "point2": "You create its bot, add it to this server and choose the channels it bridges.",
+        "tradeoff": "Its Matrix rooms are set in its own configuration, and Harmony can't see whether it runs.",
+        "choose": "Use my own program"
+      },
+      "hostingUnavailable": "This instance doesn't run Matrix bridges for its communities, so the bridge runs on a computer of yours.",
+      "bothWays": "Either way, messages in bridged channels pass through this instance like any other message here. End-to-end encrypted channels and rooms can't be bridged.",
+      "needsInstance": "You need a Matrix room where you may change the settings, or someone there who may.",
+      "ownBot": "Or bridge another way:",
+      "instance": {
+        "title": "Use {instance}'s bridge",
+        "recommended": "Recommended",
+        "point1": "Nothing to install and no account to make: you invite the bridge to a room and post a code there.",
+        "point2": "This instance runs the bridge for you.",
+        "tradeoff": "The bridge belongs to this instance's operator, who can read every room you link.",
+        "choose": "Use {instance}'s bridge"
+      },
+      "hosted": {
+        "title": "Use your own Matrix account, run on this instance",
+        "lead": "Sign in with a Matrix account here; this instance runs the bridge with it.",
+        "point1": "Nothing to install.",
+        "point2": "Every message from Harmony comes from that account, with the member's name in front.",
+        "tradeoff": "This instance's operator holds the account's access token and can read every room the account is in. Use an account made for the bridge.",
+        "choose": "Use my own account here"
+      }
+    },
+    "custom": {
+      "otherPrompt": "Want a bridge you set up from here?",
+      "other": "Choose how to run it",
+      "beside": "Use your own bridge program as well",
+      "besideLead": "A program of your own bridges other channels, with a bot you create. The bridge above stays as it is."
+    },
+    "self": {
+      "lead": "The bridge is a small program that runs on a computer that stays on, such as a home server, a VPS or a Raspberry Pi.",
+      "connection": {
+        "label": "How the bridge signs in to Matrix",
+        "application_service": {
+          "title": "On a homeserver you run, or whose operator you can ask",
+          "lead": "The operator registers the bridge once. Harmony members can appear as Matrix users of their own."
+        },
+        "account": {
+          "title": "With a Matrix account",
+          "lead": "On any homeserver, matrix.org too. Every message comes from that account, with the member's name in front."
+        }
+      },
+      "needsAppService": "The homeserver has to reach the bridge: both run on the same computer or network, or the bridge has a public address.",
+      "needsAccount": "Make an account for the bridge on any homeserver, used for nothing else.",
+      "field": {
+        "homeserverUrl": {
+          "label": "Homeserver address",
+          "help": "The address Matrix apps connect to. The bridge's computer must be able to open it.",
+          "invalid": "Enter an address such as https://matrix.example.org."
+        },
+        "serverName": {
+          "label": "Server name",
+          "help": "The part after the colon in the homeserver's user IDs, such as {'@'}sam:example.org.",
+          "invalid": "Enter a name such as example.org."
+        },
+        "appserviceUrl": {
+          "label": "Address of the bridge",
+          "help": "How the homeserver reaches the computer the bridge runs on. The bridge listens on port 9009.",
+          "invalid": "Enter an address such as http://192.168.1.20:9009."
+        }
+      },
+      "fillFields": "Fill in the fields above first: the commands below take them in.",
+      "source": {
+        "name": "From source",
+        "install": "Install Git and Node.js 24, then run these commands one after another:",
+        "env": "In that folder, save this as {file}:",
+        "run": "Start the bridge there. A service manager such as systemd keeps it running:",
+        "trouble": "The bridge writes what it does to the terminal it runs in. If it says the setup code is invalid or expired, click New code above, put the new code into .env and start it again."
+      },
+      "replaceToken": "Replace {placeholder} with the access token of the bridge's Matrix account.",
+      "registration": {
+        "title": "Register the bridge on the homeserver",
+        "fromDocker": "When it starts, the bridge writes {file}. Copy it out of the container:",
+        "fromSource": "When it starts, the bridge writes {file} in that folder.",
+        "install": "Give {file} to the homeserver's operator. On Synapse they add its path to {setting} in homeserver.yaml and restart Synapse.",
+        "done": "The bridge connects by itself once the homeserver knows it.",
+        "secret": "The file holds the bridge's keys to the homeserver. Don't post it anywhere."
+      },
+      "keepData": "Keep {place}: it holds the bridge's sign-in, its registration and the Matrix users it made. Take it along when you move the bridge to another computer. Without it the bridge has to be registered again.",
+      "keepDataAccount": "Keep {place}: it holds the bridge's sign-in and what it already relayed. Take it along when you move the bridge to another computer.",
+      "copiedToken": "A token copied from a Matrix app's settings works only where tokens do not expire; on matrix.org they do, within minutes.",
+      "login": "Sign in with the account. This asks for its user name and password in the terminal and prints the access token:"
+    },
+    "check": {
+      "waiting": "Waiting for your bridge to connect. Run the command from step 1; it usually connects within a minute.",
+      "running": "Check that the bridge is running on that computer and that the command printed no error.",
+      "code": "If the log says the setup code is invalid or expired, get a new code in step 1 and run the command again.",
+      "matrix": {
+        "ok": "Bridge signed in to the homeserver",
+        "fail": "The bridge can't sign in to the homeserver",
+        "waiting": "Bridge signed in to the homeserver"
+      },
+      "account": "Check that you signed in with the account in step 1. Doing it again does no harm."
+    },
+    "managed": {
+      "starting": "Bridge is connecting to Matrix",
+      "account": "Matrix account",
+      "homeserver": "Homeserver",
+      "connection": "Signs in as",
+      "connectionKind": {
+        "application_service": "Application service",
+        "account": "Matrix account"
+      },
+      "pending": "Messages waiting",
+      "failed": "Messages not delivered",
+      "disconnectBody": "Stops bridging and removes all channel pairs and the bridge's Harmony bot. Messages that were already bridged stay. Matrix users and rooms aren't deleted.",
+      "disconnectRegistration": "The homeserver's operator can take the bridge's registration out.",
+      "confirmNote": "Also stop the program on your computer. With Docker: {command}",
+      "pairsLead": "Each pair links one channel here with one Matrix room.",
+      "inviteHint": "The bridge joins a room when you pair it. Invite {account} first to a room that isn't open to everyone.",
+      "inviteHintUnknown": "The bridge joins a room when you pair it. Invite its Matrix account first to a room that isn't open to everyone.",
+      "state": {
+        "new": "Waiting for the bridge",
+        "joining": "Joining the room",
+        "ready": "Working",
+        "error": "Not working"
+      },
+      "removeLabel": "Remove the pair {channel} and {room}",
+      "direction": {
+        "both": "Both ways",
+        "to_harmony": "Matrix → Harmony only",
+        "to_matrix": "Harmony → Matrix only"
+      },
+      "room": "Matrix room",
+      "invitations": "Invitations (accepted when you pair the room)",
+      "otherRoom": "Another room…",
+      "roomOption": "{name} ({detail})",
+      "cannotSend": "the bridge can't post there",
+      "address": "Room address or ID",
+      "addressHelp": "Such as #general:example.org. A matrix.to link works too.",
+      "addressInvalid": "That isn't a room address. It looks like #general:example.org, or !abc:example.org for a room ID.",
+      "addressEmpty": "Enter the room's address or ID.",
+      "chooseBoth": "Choose a Harmony channel and a Matrix room.",
+      "encryptedNote": "End-to-end encrypted channels and rooms are greyed out: the bridge can't read them.",
+      "roomsStale": "The bridge is offline. These are the rooms it was in when it was last connected.",
+      "hiddenChannel": "A channel you can't see",
+      "theAccount": "the bridge's account",
+      "ghostExplained": "As their own Matrix users: a Harmony member gets a Matrix user with their name and picture when they first write in the channel. In channels of up to 100 members the bridge makes them ahead, so people on Matrix can mention everyone with the usual {'@'} autocomplete. The bridge must be allowed to invite people into the room.",
+      "instanceMode": "With this instance's Matrix bridge",
+      "disconnectHosted": "The stored access token is deleted. End the session “Harmony bridge” in the account's Matrix settings as well.",
+      "disconnectAccount": "End the session “Harmony bridge” in the account's Matrix settings as well.",
+      "disconnectInstance": "This instance's bridge leaves the rooms by itself.",
+      "noRoom": "No room"
+    },
+    "pairError": {
+      "room_not_found": "The bridge found no room at {room}. Check the address, or remove this pair.",
+      "not_invited": "{room} can't be joined without an invitation. Invite {account} to it on Matrix.",
+      "room_encrypted": "{room} is end-to-end encrypted, so the bridge can't read it. Pair a room without encryption instead.",
+      "channel_encrypted": "{channel} is end-to-end encrypted, so the bridge can't read it. Pair a channel without encryption instead.",
+      "cannot_send": "{account} may not post in {room}. Messages from Matrix still arrive here. Ask an admin of the room to let it post.",
+      "room_in_use": "{room} is already bridged to another Harmony channel. Choose another room.",
+      "ghosts_unavailable": "The bridge can't add Matrix users for Harmony members to {room}. Messages from Matrix still arrive here. Allow {account} to invite people there, or choose the shared bridge account.",
+      "harmony_not_bound": "Harmony hasn't linked {room} with {channel} yet. The bridge tries again by itself; if this stays, remove the pair and add it again.",
+      "unknown": "The bridge gave no reason. Its log has the details.",
+      "room_moved": "The room was linked with another channel by a newer code. Link {channel} again with a code of its own."
+    },
+    "problems": {
+      "aRoom": "a room",
+      "theHomeserver": "the homeserver",
+      "bridge_offline": {
+        "fix": "Make sure the computer running it is on, then start the bridge. With Docker, the first command below starts it; if it stops again, the second one shows why."
+      },
+      "matrix_registration_missing": {
+        "title": "The homeserver doesn't know the bridge yet.",
+        "fix": "Give the bridge's registration.json to the homeserver's operator. With Docker, the command below copies it out of the container. The bridge connects by itself once the homeserver has it."
+      },
+      "matrix_token_invalid": {
+        "title": "The homeserver rejected the bridge's sign-in.",
+        "fixAppService": "The registration on the homeserver isn't this bridge's. Give its operator the bridge's registration.json again.",
+        "fixAccount": "Get a new access token for the bridge's Matrix account, and start the bridge with it.",
+        "fixHosted": "Sign in with the account again here, or use another one."
+      },
+      "matrix_unreachable": {
+        "title": "The bridge can't reach the homeserver.",
+        "fix": "Check that the computer running the bridge can open {homeserver}. The bridge keeps retrying.",
+        "fixHosted": "Check that {homeserver} is running and can be reached from the internet. The bridge keeps retrying."
+      },
+      "harmony_auth_failed": {
+        "fix": "Remove the container with the command below, then start the bridge again with a new setup code. Its data stays."
+      },
+      "room_encrypted": {
+        "title": "The bridge doesn't relay {room}: it is end-to-end encrypted.",
+        "fix": "Remove its pair, or pair a room without encryption."
+      },
+      "room_not_joined": {
+        "title": "The bridge isn't in {room}.",
+        "fix": "Invite the bridge's account to it on Matrix, or remove its pair."
+      },
+      "worker_stopped": {
+        "title": "The bridge stopped relaying: it can't write its data.",
+        "fix": "Check the disk of the computer running it, then restart the bridge. With Docker:"
+      },
+      "messages_skipped": {
+        "title": "Some older messages of a room weren't relayed.",
+        "fix": "Nothing to fix. New messages are relayed as usual."
+      },
+      "account_in_use": {
+        "title": "Another bridge on this instance already uses this Matrix account.",
+        "fix": "Use an account made for this bridge alone."
+      }
+    },
+    "hosted": {
+      "lead": "Sign in with the Matrix account the bridge uses. This instance runs the bridge with it.",
+      "access": "This instance's operator holds the account's access token and can read every room the account is in.",
+      "ownAccount": "Use an account made for the bridge, in the rooms you bridge alone. End-to-end encrypted rooms aren't relayed.",
+      "homeserver": "Homeserver",
+      "homeserverHelp": "Its server name, such as matrix.org, or its address.",
+      "method": {
+        "label": "Access to the account",
+        "password": "Sign in here",
+        "token": "Paste an access token"
+      },
+      "user": "User name",
+      "password": "Password",
+      "passwordHelp": "The password goes from your browser to the homeserver alone. Harmony never gets it, and it isn't kept.",
+      "token": "Access token",
+      "issue": {
+        "address": "Enter a server name such as matrix.org, or an https address.",
+        "unreachable": "The homeserver can't be reached from this browser. Check the name, try the homeserver's own address, or paste an access token instead.",
+        "not_matrix": "No Matrix homeserver answered there. Check the name, or enter the homeserver's own address.",
+        "no_password": "This homeserver doesn't sign people in with a password. Paste an access token instead.",
+        "wrong_password": "The homeserver refused the user name or the password.",
+        "deactivated": "This account is deactivated.",
+        "limited": "Too many tries. Wait a while, then try again.",
+        "limitedFor": "Too many tries. Try again in {count} second. | Too many tries. Try again in {count} seconds.",
+        "expires": "This homeserver gives out access tokens that expire, so the bridge can't keep the account. Use an account on another homeserver.",
+        "token_refused": "The homeserver doesn't know this token. It may have expired.",
+        "refused": "The homeserver refused the sign-in.",
+        "empty": "Paste the token first.",
+        "harmonyToken": "That's a Harmony bot token. You need the Matrix account's access token.",
+        "notToken": "That doesn't look like an access token.",
+        "incomplete": "Enter the user name and the password."
+      },
+      "saved": "Account saved. This instance starts your bridge within a minute or two.",
+      "busy": {
+        "password": "Signing in…",
+        "token": "Saving…"
+      },
+      "save": {
+        "password": "Sign in",
+        "token": "Save token"
+      },
+      "step": "Sign in to Matrix",
+      "blocked": "Sign in with a Matrix account to continue.",
+      "replace": "Replace the Matrix account"
+    },
+    "link": {
+      "title": "Link a room",
+      "encryptedNote": "End-to-end encrypted channels are greyed out, and an encrypted room can't be linked: the bridge can't read them.",
+      "getCode": "Get a code",
+      "chooseChannel": "Choose a Harmony channel.",
+      "codeTitle": "Link {channel} with a Matrix room",
+      "invite": "In Matrix, invite the bridge's account to the room:",
+      "noAccount": "The account isn't known yet: this instance's bridge hasn't connected to Matrix.",
+      "post": "Post this in the room once the account has joined:",
+      "command": "Message to post",
+      "appears": "The pair appears here by itself.",
+      "expiredHelp": "This code has expired. Click New code and post the new message.",
+      "who": "Only someone who may change the room's settings can link it: an admin of the room, or whoever the room allows.",
+      "moves": "The room moves here from whatever it was linked with before.",
+      "close": "Close",
+      "linked": "{channel} is linked with {room}.",
+      "again": "Link a room again"
+    },
+    "admin": {
+      "title": "Matrix bridge",
+      "lead": "Communities connect rooms on Matrix in Server settings → Bridges → Matrix. Offer them this instance's bridge, let them bring their own account, or both. Running the bridge on a computer of their own is always possible.",
+      "loadFailed": "Couldn't load the Matrix bridge settings.",
+      "saved": "Matrix bridge settings saved",
+      "saveFailed": "Couldn't save the Matrix bridge settings",
+      "cleared": "Matrix bridge removed",
+      "hostedCount": "Hosted bridges now: {count} of {limit}.",
+      "hosting": {
+        "title": "Let communities bring their own account",
+        "lead": "Communities sign in with a Matrix account of their own, and this instance runs the bridge with it. Server admins see this as “Use your own Matrix account, run on this instance”.",
+        "toggle": "Run communities' own accounts",
+        "toggleHint": "You hold each community's access token. A token gives access to every room its account is in."
+      },
+      "instance": {
+        "title": "This instance's Matrix bridge",
+        "lead": "One Matrix connection of this instance, shared by every community. They link a room by posting a code in it, with nothing to install.",
+        "linkedCount": "Servers that chose it: {count} of {limit}.",
+        "configured": "Bridge set up: {homeserver}.",
+        "notConfigured": "No bridge set up yet.",
+        "connection": {
+          "application_service": "On your own homeserver. Harmony members can appear as Matrix users of their own.",
+          "account": "An ordinary account on any homeserver. Every message comes from it."
+        },
+        "senderLocalpart": "Name of the bridge's account",
+        "invalidLocalpart": "Use a to z, 0 to 9 and . _ = - only.",
+        "tooLong": "Too long together with the server name.",
+        "login": "Get a token that doesn't expire",
+        "save": "Save bridge",
+        "clear": "Remove bridge",
+        "clearConfirm": "Remove the bridge's tokens? Communities using it stop bridging until a bridge is set up again. Their bridges and pairs stay.",
+        "registration": {
+          "title": "Registration file",
+          "made": "Made",
+          "notMade": "Not made yet",
+          "make": "Make the registration file",
+          "again": "Make a new registration file",
+          "confirm": "A new file replaces the bridge's tokens. The bridge stops until the homeserver has the new file.",
+          "downloaded": "The file is in your downloads. It can't be shown again; make a new one if it is lost.",
+          "stale": "The homeserver's registration no longer matches. Make a new file and give it to the homeserver."
+        },
+        "enable": "Offer this bridge to communities",
+        "enableHint": "Server admins see “Use this instance's bridge” first in Server settings → Bridges → Matrix.",
+        "enableNeedsConfig": "Set the bridge up first: its homeserver, and the access token or the registration file.",
+        "limit": "Maximum servers",
+        "limitHint": "New ones are refused once this many chose the bridge, linked or not."
+      }
+    },
+    "service": {
+      "title": "Bridge service",
+      "never": "The service hasn't connected yet.",
+      "version": "version {version}",
+      "absent": {
+        "discord": "Communities' Discord bridges run in a service next to this instance. Start it on the server with:",
+        "matrix": "Communities' Matrix bridges run in a service next to this instance. Start it on the server with:"
+      },
+      "problem": {
+        "matrix_registration_missing": "The homeserver doesn't know the bridge. Give it the registration file and restart it.",
+        "matrix_token_invalid": "The homeserver refuses the access token. Save a new one.",
+        "matrix_unreachable": "The homeserver can't be reached. The bridge keeps retrying.",
+        "harmony_unreachable": "The service can't reach this instance's bot gateway.",
+        "worker_stopped": "The service can't write its data. Check the disk, then restart it."
+      }
+    },
     "errors": {
       "discordBot": "This bot runs a Discord bridge, so it can't bridge Matrix too. Use a separate bot.",
       "allowlist": "A chosen channel isn't in the bot's channel list anymore. Reload and choose again.",
@@ -131,7 +474,16 @@
       "permission": "Only the bot's owner, with Manage Server on this server, can pair its channels.",
       "save": "Could not save the paired channels. Reload and try again.",
       "unpair": "Could not unpair the bot. Reload and try again.",
-      "installs": "Could not load your bots, so channels can't be paired from here right now. Reload to try again."
+      "installs": "Could not load your bots, so channels can't be paired from here right now. Reload to try again.",
+      "unavailable": "The Matrix bridge isn't available on this instance yet. Its admin needs to update Harmony.",
+      "gone": "The bridge was removed in the meantime. Reload the page.",
+      "roomTaken": "That room is already paired with another channel.",
+      "change": "Couldn't save the change. Try again.",
+      "exists": "This server already has a Matrix bridge. Reload the page to see it.",
+      "notOffered": "This instance doesn't offer that at the moment. Choose another way to run the bridge.",
+      "full": "This instance already runs as many Matrix bridges as it allows. Choose another way, or ask the instance's admin.",
+      "account": "Couldn't save the account. Try again.",
+      "roomCode": "Couldn't get a code. Try again."
     },
     "privacy": {
       "lead": "Remove a Matrix user here to delete everything this server's bridge brought from them and stop bringing their messages.",
@@ -156,7 +508,8 @@
     "tabs": {
       "discord": "Discord",
       "matrix": "Matrix"
-    }
+    },
+    "encrypted": "end-to-end encrypted"
   },
   "bridgePrivacy": {
     "title": "Bridge privacy",
@@ -5787,7 +6140,7 @@
         "title": "Bots",
         "hint": "Requests per minute across all routes of one bot, on top of the per-route limit. A bot whose owner is exempt has no such ceiling. 0 = no limit.",
         "requestsPerMinute": "Requests per minute, per bot",
-        "bridgeRequestsPerMinute": "Requests per minute, per linked Discord bridge"
+        "bridgeRequestsPerMinute": "Requests per minute, per linked Discord or Matrix bridge"
       },
       "federation": {
         "title": "Federation mention spam",

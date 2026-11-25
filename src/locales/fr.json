@@ -93,7 +93,7 @@
       "title": "Mettre en place une passerelle Matrix",
       "lead": "Pour relier des canaux ici, il vous faut un bot à vous qui fait tourner la passerelle Matrix et qui est sur ce serveur.",
       "steps": {
-        "service": "La personne qui gère cette instance Harmony met en place le service de passerelle Matrix et l'enregistre auprès du serveur d'accueil Matrix. Demandez-lui s'il ne tourne pas encore.",
+        "service": "Faites tourner la passerelle Matrix sur un ordinateur toujours allumé, ou demandez à quelqu'un qui en a une. La personne qui gère un serveur d'accueil Matrix, le vôtre ou un autre, l'y enregistre une seule fois.",
         "bot": "Créez un bot pour la passerelle dans {place}, et donnez son jeton à la personne qui gère la passerelle.",
         "install": "Ajoutez le bot à ce serveur dans {place}. Donnez-lui « Lire les messages » et « Envoyer des messages », puis sous Canaux choisissez « Canaux sélectionnés » et cochez les canaux à transmettre.",
         "pair": "Revenez ici pour relier ces canaux."
@@ -124,6 +124,349 @@
       "confirmMessage": "{bot} ne transmettra plus {count} canal avec Matrix. Les messages déjà transmis restent. Demandez aussi à la personne qui gère la passerelle de retirer le salon de sa configuration. | {bot} ne transmettra plus {count} canaux avec Matrix. Les messages déjà transmis restent. Demandez aussi à la personne qui gère la passerelle de retirer les salons de sa configuration.",
       "done": "{bot} est délié de Matrix."
     },
+    "start": {
+      "title": "Où la passerelle doit-elle tourner ?",
+      "needs": "Il vous faut un compte Matrix pour la passerelle sur n'importe quel serveur d'accueil, ou un serveur d'accueil où la passerelle peut être enregistrée. La mise en place prend une quinzaine de minutes.",
+      "self": {
+        "title": "La faire tourner vous-même",
+        "point1": "Vous lancez une commande (Docker) sur un ordinateur toujours allumé : un serveur à la maison, un VPS, un Raspberry Pi.",
+        "point2": "Les membres Harmony peuvent apparaître dans Matrix comme leurs propres utilisateurs Matrix.",
+        "tradeoff": "La passerelle ne fonctionne que tant que cet ordinateur est allumé et connecté.",
+        "choose": "La faire tourner moi-même"
+      },
+      "custom": {
+        "title": "Utiliser votre propre programme de passerelle",
+        "point1": "Pour un autre programme de passerelle, ou une configuration que vous écrivez vous-même.",
+        "point2": "Vous créez son bot, l'ajoutez à ce serveur et choisissez les canaux qu'il transmet.",
+        "tradeoff": "Ses salons Matrix se règlent dans sa propre configuration, et Harmony ne peut pas voir s'il tourne.",
+        "choose": "Utiliser mon propre programme"
+      },
+      "hostingUnavailable": "Cette instance ne fait pas tourner de passerelles Matrix pour ses communautés, la passerelle tourne donc sur un de vos ordinateurs.",
+      "bothWays": "Dans les deux cas, les messages des canaux reliés passent par cette instance comme tout autre message ici. Les canaux et salons chiffrés de bout en bout ne peuvent pas être reliés.",
+      "needsInstance": "Il vous faut un salon Matrix dont vous pouvez changer les paramètres, ou quelqu'un là-bas qui le peut.",
+      "ownBot": "Ou d'une autre manière :",
+      "instance": {
+        "title": "Utiliser la passerelle de {instance}",
+        "recommended": "Recommandé",
+        "point1": "Rien à installer, aucun compte à créer : vous invitez la passerelle dans un salon et y postez un code.",
+        "point2": "Cette instance fait tourner la passerelle pour vous.",
+        "tradeoff": "La passerelle appartient à la personne qui gère cette instance, qui peut lire chaque salon que vous reliez.",
+        "choose": "Utiliser la passerelle de {instance}"
+      },
+      "hosted": {
+        "title": "Utiliser votre propre compte Matrix, sur cette instance",
+        "lead": "Connectez-vous ici avec un compte Matrix ; cette instance fait tourner la passerelle avec.",
+        "point1": "Rien à installer.",
+        "point2": "Chaque message de Harmony vient de ce compte, précédé du nom du membre.",
+        "tradeoff": "La personne qui gère cette instance détient le jeton d'accès du compte et peut lire chaque salon où il se trouve. Utilisez un compte créé pour la passerelle.",
+        "choose": "Utiliser mon propre compte ici"
+      }
+    },
+    "custom": {
+      "otherPrompt": "Vous voulez une passerelle que vous réglez d'ici ?",
+      "other": "Choisir où elle tourne",
+      "beside": "Utiliser aussi votre propre programme de passerelle",
+      "besideLead": "Un programme à vous transmet d'autres canaux, avec un bot que vous créez. La passerelle ci-dessus reste telle quelle."
+    },
+    "self": {
+      "lead": "La passerelle est un petit programme qui tourne sur un ordinateur qui reste allumé, comme un serveur à la maison, un VPS ou un Raspberry Pi.",
+      "connection": {
+        "label": "Comment la passerelle se connecte à Matrix",
+        "application_service": {
+          "title": "Sur un serveur d'accueil à vous, ou dont vous pouvez joindre la personne qui le gère",
+          "lead": "Cette personne enregistre la passerelle une fois. Les membres Harmony peuvent apparaître comme leurs propres utilisateurs Matrix."
+        },
+        "account": {
+          "title": "Avec un compte Matrix",
+          "lead": "Sur n'importe quel serveur d'accueil, matrix.org compris. Chaque message vient de ce compte, précédé du nom du membre."
+        }
+      },
+      "needsAppService": "Le serveur d'accueil doit pouvoir joindre la passerelle : les deux tournent sur le même ordinateur ou le même réseau, ou la passerelle a une adresse publique.",
+      "needsAccount": "Créez pour la passerelle un compte sur n'importe quel serveur d'accueil, qui ne serve à rien d'autre.",
+      "field": {
+        "homeserverUrl": {
+          "label": "Adresse du serveur d'accueil",
+          "help": "L'adresse à laquelle les applications Matrix se connectent. L'ordinateur de la passerelle doit pouvoir l'ouvrir.",
+          "invalid": "Entrez une adresse comme https://matrix.example.org."
+        },
+        "serverName": {
+          "label": "Nom du serveur",
+          "help": "Ce qui suit les deux-points dans les identifiants du serveur d'accueil, comme {'@'}sam:example.org.",
+          "invalid": "Entrez un nom comme example.org."
+        },
+        "appserviceUrl": {
+          "label": "Adresse de la passerelle",
+          "help": "Comment le serveur d'accueil joint l'ordinateur où tourne la passerelle. La passerelle écoute sur le port 9009.",
+          "invalid": "Entrez une adresse comme http://192.168.1.20:9009."
+        }
+      },
+      "fillFields": "Remplissez d'abord les champs ci-dessus : les commandes ci-dessous les reprennent.",
+      "source": {
+        "name": "Depuis le code source",
+        "install": "Installez Git et Node.js 24, puis lancez ces commandes l'une après l'autre :",
+        "env": "Dans ce dossier, enregistrez ceci sous le nom {file} :",
+        "run": "Démarrez-y la passerelle. Un gestionnaire de services comme systemd la garde en marche :",
+        "trouble": "La passerelle écrit ce qu'elle fait dans le terminal où elle tourne. Si elle indique que le code de configuration est invalide ou expiré, cliquez sur « Nouveau code » ci-dessus, mettez le nouveau code dans .env et redémarrez-la."
+      },
+      "replaceToken": "Remplacez {placeholder} par le jeton d'accès du compte Matrix de la passerelle.",
+      "registration": {
+        "title": "Enregistrer la passerelle sur le serveur d'accueil",
+        "fromDocker": "À son démarrage, la passerelle écrit {file}. Copiez-le hors du conteneur :",
+        "fromSource": "À son démarrage, la passerelle écrit {file} dans ce dossier.",
+        "install": "Donnez {file} à la personne qui gère le serveur d'accueil. Avec Synapse, elle ajoute son chemin à {setting} dans homeserver.yaml et redémarre Synapse.",
+        "done": "La passerelle se connecte d'elle-même dès que le serveur d'accueil la connaît.",
+        "secret": "Ce fichier contient les clés de la passerelle pour le serveur d'accueil. Ne le publiez nulle part."
+      },
+      "keepData": "Gardez {place} : il contient la connexion de la passerelle, son enregistrement et les utilisateurs Matrix qu'elle a créés. Emportez-le si vous déplacez la passerelle sur un autre ordinateur. Sans lui, la passerelle doit être enregistrée à nouveau.",
+      "keepDataAccount": "Gardez {place} : il contient la connexion de la passerelle et ce qu'elle a déjà transmis. Emportez-le si vous déplacez la passerelle sur un autre ordinateur.",
+      "copiedToken": "Un jeton copié depuis les paramètres d'une application Matrix ne fonctionne que là où les jetons n'expirent pas ; sur matrix.org, ils expirent en quelques minutes.",
+      "login": "Connectez-vous avec le compte. La commande demande dans le terminal son nom d'utilisateur et son mot de passe, et affiche le jeton d'accès :"
+    },
+    "check": {
+      "waiting": "En attente de la connexion de votre passerelle. Lancez la commande de l'étape 1 ; elle se connecte en général en moins d'une minute.",
+      "running": "Vérifiez que la passerelle tourne sur cet ordinateur et que la commande n'a affiché aucune erreur.",
+      "code": "Si le journal indique que le code de configuration est invalide ou expiré, demandez un nouveau code à l'étape 1 et relancez la commande.",
+      "matrix": {
+        "ok": "Passerelle connectée au serveur d'accueil",
+        "fail": "La passerelle n'arrive pas à se connecter au serveur d'accueil",
+        "waiting": "Passerelle connectée au serveur d'accueil"
+      },
+      "account": "Vérifiez que vous vous êtes connecté avec le compte à l'étape 1. Recommencer ne pose aucun problème."
+    },
+    "managed": {
+      "starting": "La passerelle se connecte à Matrix",
+      "account": "Compte Matrix",
+      "homeserver": "Serveur d'accueil",
+      "connection": "Se connecte comme",
+      "connectionKind": {
+        "application_service": "Service d'application",
+        "account": "Compte Matrix"
+      },
+      "pending": "Messages en attente",
+      "failed": "Messages non remis",
+      "disconnectBody": "Arrête la passerelle et supprime toutes les paires de canaux ainsi que le bot Harmony de la passerelle. Les messages déjà relayés restent. Les utilisateurs et salons Matrix ne sont pas supprimés.",
+      "disconnectRegistration": "La personne qui gère le serveur d'accueil peut retirer l'enregistrement de la passerelle.",
+      "confirmNote": "Arrêtez aussi le programme sur votre ordinateur. Avec Docker : {command}",
+      "pairsLead": "Chaque paire relie un canal d'ici à un salon Matrix.",
+      "inviteHint": "La passerelle rejoint un salon quand vous le reliez. Invitez d'abord {account} dans les salons qui ne sont pas ouverts à tous.",
+      "inviteHintUnknown": "La passerelle rejoint un salon quand vous le reliez. Invitez d'abord son compte Matrix dans les salons qui ne sont pas ouverts à tous.",
+      "state": {
+        "new": "En attente de la passerelle",
+        "joining": "Rejoint le salon",
+        "ready": "Fonctionne",
+        "error": "Ne fonctionne pas"
+      },
+      "removeLabel": "Supprimer la paire {channel} et {room}",
+      "direction": {
+        "both": "Dans les deux sens",
+        "to_harmony": "Matrix → Harmony uniquement",
+        "to_matrix": "Harmony → Matrix uniquement"
+      },
+      "room": "Salon Matrix",
+      "invitations": "Invitations (acceptées quand vous reliez le salon)",
+      "otherRoom": "Un autre salon…",
+      "roomOption": "{name} ({detail})",
+      "cannotSend": "la passerelle ne peut pas y écrire",
+      "address": "Adresse ou identifiant du salon",
+      "addressHelp": "Par exemple #general:example.org. Un lien matrix.to convient aussi.",
+      "addressInvalid": "Ce n'est pas l'adresse d'un salon. Elle ressemble à #general:example.org, ou !abc:example.org pour un identifiant de salon.",
+      "addressEmpty": "Entrez l'adresse ou l'identifiant du salon.",
+      "chooseBoth": "Choisissez un canal Harmony et un salon Matrix.",
+      "encryptedNote": "Les canaux et salons chiffrés de bout en bout sont grisés : la passerelle ne peut pas les lire.",
+      "roomsStale": "La passerelle est hors ligne. Voici les salons où elle était à sa dernière connexion.",
+      "hiddenChannel": "Un canal que vous ne pouvez pas voir",
+      "theAccount": "le compte de la passerelle",
+      "ghostExplained": "Comme leurs propres utilisateurs Matrix : un membre Harmony reçoit un utilisateur Matrix, avec son nom et son image, quand il écrit pour la première fois dans le canal. Dans les canaux de 100 membres au plus, la passerelle les crée à l'avance, pour que les gens sur Matrix puissent mentionner tout le monde avec l'autocomplétion {'@'} habituelle. La passerelle doit pouvoir inviter des personnes dans le salon.",
+      "instanceMode": "Avec la passerelle Matrix de cette instance",
+      "disconnectHosted": "Le jeton d'accès enregistré est supprimé. Fermez aussi la session « Harmony bridge » dans les paramètres Matrix du compte.",
+      "disconnectAccount": "Fermez aussi la session « Harmony bridge » dans les paramètres Matrix du compte.",
+      "disconnectInstance": "La passerelle de cette instance quitte les salons d'elle-même.",
+      "noRoom": "Aucun salon"
+    },
+    "pairError": {
+      "room_not_found": "La passerelle n'a trouvé aucun salon à {room}. Vérifiez l'adresse, ou supprimez cette paire.",
+      "not_invited": "{room} ne peut pas être rejoint sans invitation. Invitez-y {account} sur Matrix.",
+      "room_encrypted": "{room} est chiffré de bout en bout, la passerelle ne peut donc pas le lire. Reliez plutôt un salon sans chiffrement.",
+      "channel_encrypted": "{channel} est chiffré de bout en bout, la passerelle ne peut donc pas le lire. Reliez plutôt un canal sans chiffrement.",
+      "cannot_send": "{account} ne peut pas écrire dans {room}. Les messages de Matrix arrivent toujours ici. Demandez à l'administration du salon de l'autoriser.",
+      "room_in_use": "{room} est déjà relié à un autre canal Harmony. Choisissez un autre salon.",
+      "ghosts_unavailable": "La passerelle ne peut pas ajouter à {room} d'utilisateurs Matrix pour les membres Harmony. Les messages de Matrix arrivent toujours ici. Autorisez {account} à y inviter des personnes, ou choisissez le compte partagé de la passerelle.",
+      "harmony_not_bound": "Harmony n'a pas encore lié {room} à {channel}. La passerelle réessaie d'elle-même ; si cela dure, supprimez la paire et ajoutez-la à nouveau.",
+      "unknown": "La passerelle n'a pas donné de raison. Son journal donne les détails.",
+      "room_moved": "Le salon a été relié à un autre canal avec un code plus récent. Reliez à nouveau {channel} avec un code à lui."
+    },
+    "problems": {
+      "aRoom": "un salon",
+      "theHomeserver": "le serveur d'accueil",
+      "bridge_offline": {
+        "fix": "Vérifiez que l'ordinateur qui la fait tourner est allumé, puis démarrez la passerelle. Avec Docker, la première commande ci-dessous la démarre ; si elle s'arrête encore, la deuxième montre pourquoi."
+      },
+      "matrix_registration_missing": {
+        "title": "Le serveur d'accueil ne connaît pas encore la passerelle.",
+        "fix": "Donnez le fichier registration.json de la passerelle à la personne qui gère le serveur d'accueil. Avec Docker, la commande ci-dessous le copie hors du conteneur. La passerelle se connecte d'elle-même dès que le serveur d'accueil l'a."
+      },
+      "matrix_token_invalid": {
+        "title": "Le serveur d'accueil a refusé la connexion de la passerelle.",
+        "fixAppService": "L'enregistrement présent sur le serveur d'accueil n'est pas celui de cette passerelle. Donnez à nouveau son fichier registration.json à la personne qui gère le serveur.",
+        "fixAccount": "Obtenez un nouveau jeton d'accès pour le compte Matrix de la passerelle, et démarrez la passerelle avec.",
+        "fixHosted": "Reconnectez-vous ici avec le compte, ou utilisez-en un autre."
+      },
+      "matrix_unreachable": {
+        "title": "La passerelle ne peut pas joindre le serveur d'accueil.",
+        "fix": "Vérifiez que l'ordinateur qui fait tourner la passerelle peut ouvrir {homeserver}. La passerelle continue d'essayer.",
+        "fixHosted": "Vérifiez que {homeserver} fonctionne et qu'il est joignable depuis Internet. La passerelle continue d'essayer."
+      },
+      "harmony_auth_failed": {
+        "fix": "Supprimez le conteneur avec la commande ci-dessous, puis démarrez à nouveau la passerelle avec un nouveau code de configuration. Ses données restent."
+      },
+      "room_encrypted": {
+        "title": "La passerelle ne transmet pas {room} : chiffrement de bout en bout.",
+        "fix": "Supprimez sa paire, ou reliez un salon sans chiffrement."
+      },
+      "room_not_joined": {
+        "title": "La passerelle n'est pas dans {room}.",
+        "fix": "Invitez-y le compte de la passerelle sur Matrix, ou supprimez sa paire."
+      },
+      "worker_stopped": {
+        "title": "La passerelle ne transmet plus : elle ne peut pas écrire ses données.",
+        "fix": "Vérifiez le disque de l'ordinateur qui la fait tourner, puis redémarrez la passerelle. Avec Docker :"
+      },
+      "messages_skipped": {
+        "title": "Quelques anciens messages d'un salon n'ont pas été transmis.",
+        "fix": "Rien à corriger. Les nouveaux messages sont transmis comme d'habitude."
+      },
+      "account_in_use": {
+        "title": "Une autre passerelle de cette instance utilise déjà ce compte Matrix.",
+        "fix": "Utilisez un compte créé pour cette passerelle seule."
+      }
+    },
+    "hosted": {
+      "lead": "Connectez-vous avec le compte Matrix que la passerelle utilise. Cette instance fait tourner la passerelle avec.",
+      "access": "La personne qui gère cette instance détient le jeton d'accès du compte et peut lire chaque salon où il se trouve.",
+      "ownAccount": "Utilisez un compte créé pour la passerelle, présent dans les salons reliés et nulle part ailleurs. Les salons chiffrés de bout en bout ne sont pas transmis.",
+      "homeserver": "Serveur d'accueil",
+      "homeserverHelp": "Son nom de serveur, comme matrix.org, ou son adresse.",
+      "method": {
+        "label": "Accès au compte",
+        "password": "Se connecter ici",
+        "token": "Coller un jeton d'accès"
+      },
+      "user": "Nom d'utilisateur",
+      "password": "Mot de passe",
+      "passwordHelp": "Le mot de passe va de votre navigateur au serveur d'accueil, et nulle part ailleurs. Harmony ne le reçoit jamais et il n'est pas conservé.",
+      "token": "Jeton d'accès",
+      "issue": {
+        "address": "Entrez un nom de serveur comme matrix.org, ou une adresse https.",
+        "unreachable": "Le serveur d'accueil est injoignable depuis ce navigateur. Vérifiez le nom, essayez l'adresse du serveur lui-même, ou collez plutôt un jeton d'accès.",
+        "not_matrix": "Aucun serveur d'accueil Matrix n'a répondu à cet endroit. Vérifiez le nom, ou entrez l'adresse du serveur lui-même.",
+        "no_password": "Ce serveur d'accueil ne connecte personne par mot de passe. Collez plutôt un jeton d'accès.",
+        "wrong_password": "Le serveur d'accueil a refusé le nom d'utilisateur ou le mot de passe.",
+        "deactivated": "Ce compte est désactivé.",
+        "limited": "Trop d'essais. Attendez un peu, puis réessayez.",
+        "limitedFor": "Trop d'essais. Réessayez dans {count} seconde. | Trop d'essais. Réessayez dans {count} secondes.",
+        "expires": "Ce serveur d'accueil donne des jetons d'accès qui expirent, la passerelle ne peut donc pas garder le compte. Utilisez un compte sur un autre serveur d'accueil.",
+        "token_refused": "Le serveur d'accueil ne connaît pas ce jeton. Il a peut-être expiré.",
+        "refused": "Le serveur d'accueil a refusé la connexion.",
+        "empty": "Collez d'abord le jeton.",
+        "harmonyToken": "C'est un jeton de bot Harmony. Il vous faut le jeton d'accès du compte Matrix.",
+        "notToken": "Cela ne ressemble pas à un jeton d'accès.",
+        "incomplete": "Entrez le nom d'utilisateur et le mot de passe."
+      },
+      "saved": "Compte enregistré. Cette instance démarre votre passerelle d'ici une ou deux minutes.",
+      "busy": {
+        "password": "Connexion…",
+        "token": "Enregistrement…"
+      },
+      "save": {
+        "password": "Se connecter",
+        "token": "Enregistrer le jeton"
+      },
+      "step": "Se connecter à Matrix",
+      "blocked": "Connectez-vous avec un compte Matrix pour continuer.",
+      "replace": "Remplacer le compte Matrix"
+    },
+    "link": {
+      "title": "Relier un salon",
+      "encryptedNote": "Les canaux chiffrés de bout en bout sont grisés, et un salon chiffré ne peut pas être relié : la passerelle ne peut pas les lire.",
+      "getCode": "Obtenir un code",
+      "chooseChannel": "Choisissez un canal Harmony.",
+      "codeTitle": "Relier {channel} à un salon Matrix",
+      "invite": "Dans Matrix, invitez le compte de la passerelle dans le salon :",
+      "noAccount": "Le compte n'est pas encore connu : la passerelle de cette instance ne s'est pas encore connectée à Matrix.",
+      "post": "Postez ceci dans le salon une fois que le compte l'a rejoint :",
+      "command": "Message à poster",
+      "appears": "La paire apparaît ici d'elle-même.",
+      "expiredHelp": "Ce code a expiré. Cliquez sur « Nouveau code » et postez le nouveau message.",
+      "who": "Seule une personne qui peut changer les paramètres du salon peut le relier : son administration, ou qui le salon autorise.",
+      "moves": "Le salon passe ici, quoi qu'il ait relié auparavant.",
+      "close": "Fermer",
+      "linked": "{channel} est relié à {room}.",
+      "again": "Relier à nouveau un salon"
+    },
+    "admin": {
+      "title": "Passerelle Matrix",
+      "lead": "Les communautés relient des salons Matrix dans Paramètres du serveur → Passerelles → Matrix. Proposez-leur la passerelle de cette instance, laissez-les apporter leur propre compte, ou les deux. Faire tourner la passerelle sur un ordinateur à soi reste toujours possible.",
+      "loadFailed": "Impossible de charger les réglages de la passerelle Matrix.",
+      "saved": "Réglages de la passerelle Matrix enregistrés",
+      "saveFailed": "Impossible d'enregistrer les réglages de la passerelle Matrix",
+      "cleared": "Passerelle Matrix retirée",
+      "hostedCount": "Passerelles hébergées actuellement : {count} sur {limit}.",
+      "hosting": {
+        "title": "Laisser les communautés apporter leur propre compte",
+        "lead": "Les communautés se connectent avec leur propre compte Matrix, et cette instance fait tourner la passerelle avec. Les admins de serveur voient cela comme « Utiliser votre propre compte Matrix, sur cette instance ».",
+        "toggle": "Faire tourner les comptes des communautés",
+        "toggleHint": "Vous détenez le jeton d'accès de chaque communauté. Un jeton donne accès à chaque salon où se trouve son compte."
+      },
+      "instance": {
+        "title": "La passerelle Matrix de cette instance",
+        "lead": "Une connexion Matrix de cette instance, partagée par toutes les communautés. Elles relient un salon en y postant un code, sans rien installer.",
+        "linkedCount": "Serveurs qui l'ont choisie : {count} sur {limit}.",
+        "configured": "Passerelle en place : {homeserver}.",
+        "notConfigured": "Aucune passerelle en place pour l'instant.",
+        "connection": {
+          "application_service": "Sur votre propre serveur d'accueil. Les membres Harmony peuvent apparaître comme leurs propres utilisateurs Matrix.",
+          "account": "Un compte ordinaire sur n'importe quel serveur d'accueil. Chaque message en vient."
+        },
+        "senderLocalpart": "Nom du compte de la passerelle",
+        "invalidLocalpart": "Utilisez seulement a à z, 0 à 9 et . _ = -",
+        "tooLong": "Trop long avec le nom du serveur.",
+        "login": "Obtenir un jeton qui n'expire pas",
+        "save": "Enregistrer la passerelle",
+        "clear": "Retirer la passerelle",
+        "clearConfirm": "Retirer les jetons de la passerelle ? Les communautés qui l'utilisent ne transmettent plus rien jusqu'à ce qu'une passerelle soit remise en place. Leurs passerelles et paires restent.",
+        "registration": {
+          "title": "Fichier d'enregistrement",
+          "made": "Créé",
+          "notMade": "Pas encore créé",
+          "make": "Créer le fichier d'enregistrement",
+          "again": "Créer un nouveau fichier d'enregistrement",
+          "confirm": "Un nouveau fichier remplace les jetons de la passerelle. Elle s'arrête jusqu'à ce que le serveur d'accueil ait le nouveau fichier.",
+          "downloaded": "Le fichier est dans vos téléchargements. Il ne peut pas être affiché à nouveau ; créez-en un autre s'il est perdu.",
+          "stale": "L'enregistrement du serveur d'accueil ne correspond plus. Créez un nouveau fichier et donnez-le au serveur d'accueil."
+        },
+        "enable": "Proposer cette passerelle aux communautés",
+        "enableHint": "Les admins de serveur voient d'abord « Utiliser la passerelle de cette instance » dans Paramètres du serveur → Passerelles → Matrix.",
+        "enableNeedsConfig": "Mettez d'abord la passerelle en place : son serveur d'accueil, et le jeton d'accès ou le fichier d'enregistrement.",
+        "limit": "Nombre maximum de serveurs",
+        "limitHint": "Les nouveaux sont refusés dès que ce nombre a choisi la passerelle, relié ou non."
+      }
+    },
+    "service": {
+      "title": "Service de passerelles",
+      "never": "Le service ne s'est pas encore connecté.",
+      "version": "version {version}",
+      "absent": {
+        "discord": "Les passerelles Discord des communautés tournent dans un service à côté de cette instance. Démarrez-le sur le serveur avec :",
+        "matrix": "Les passerelles Matrix des communautés tournent dans un service à côté de cette instance. Démarrez-le sur le serveur avec :"
+      },
+      "problem": {
+        "matrix_registration_missing": "Le serveur d'accueil ne connaît pas la passerelle. Donnez-lui le fichier d'enregistrement et redémarrez-le.",
+        "matrix_token_invalid": "Le serveur d'accueil refuse le jeton d'accès. Enregistrez-en un nouveau.",
+        "matrix_unreachable": "Le serveur d'accueil est injoignable. La passerelle continue d'essayer.",
+        "harmony_unreachable": "Le service ne peut pas joindre la passerelle de bots de cette instance.",
+        "worker_stopped": "Le service ne peut pas écrire ses données. Vérifiez le disque, puis redémarrez-le."
+      }
+    },
     "errors": {
       "discordBot": "Ce bot fait tourner une passerelle Discord, il ne peut donc pas transmettre Matrix en plus. Utilisez un autre bot.",
       "allowlist": "Un canal choisi n'est plus dans la liste de canaux du bot. Rechargez et choisissez à nouveau.",
@@ -131,7 +474,16 @@
       "permission": "Seule la personne à qui appartient le bot, avec « Gérer le serveur » sur ce serveur, peut relier ses canaux.",
       "save": "Impossible d'enregistrer les canaux reliés. Rechargez et réessayez.",
       "unpair": "Impossible de délier le bot. Rechargez et réessayez.",
-      "installs": "Impossible de charger vos bots ; les canaux ne peuvent donc pas être reliés d'ici pour le moment. Rechargez pour réessayer."
+      "installs": "Impossible de charger vos bots ; les canaux ne peuvent donc pas être reliés d'ici pour le moment. Rechargez pour réessayer.",
+      "unavailable": "La passerelle Matrix n'est pas encore disponible sur cette instance. Son administration doit mettre Harmony à jour.",
+      "gone": "La passerelle a été supprimée entre-temps. Rechargez la page.",
+      "roomTaken": "Ce salon est déjà relié à un autre canal.",
+      "change": "Impossible d'enregistrer la modification. Réessayez.",
+      "exists": "Ce serveur a déjà une passerelle Matrix. Rechargez la page pour la voir.",
+      "notOffered": "Cette instance ne le propose pas pour le moment. Choisissez une autre manière de faire tourner la passerelle.",
+      "full": "Cette instance fait déjà tourner autant de passerelles Matrix qu'elle en autorise. Choisissez une autre manière, ou demandez à l'administration de l'instance.",
+      "account": "Impossible d'enregistrer le compte. Réessayez.",
+      "roomCode": "Impossible d'obtenir un code. Réessayez."
     },
     "privacy": {
       "lead": "Retirez ici un utilisateur Matrix pour supprimer tout ce que la passerelle de ce serveur a apporté de lui et ne plus apporter ses messages.",
@@ -156,7 +508,8 @@
     "tabs": {
       "discord": "Discord",
       "matrix": "Matrix"
-    }
+    },
+    "encrypted": "chiffré de bout en bout"
   },
   "bridgePrivacy": {
     "title": "Confidentialité des passerelles",
@@ -5791,7 +6144,7 @@
         "title": "Bots",
         "hint": "Requêtes par minute sur toutes les routes d'un bot, en plus de la limite par route. Un bot dont le propriétaire est exempté n'a pas ce plafond. 0 = aucune limite.",
         "requestsPerMinute": "Requêtes par minute, par bot",
-        "bridgeRequestsPerMinute": "Requêtes par minute, par pont Discord lié"
+        "bridgeRequestsPerMinute": "Requêtes par minute, par pont Discord ou Matrix lié"
       },
       "federation": {
         "title": "Spam de mentions fédéré",

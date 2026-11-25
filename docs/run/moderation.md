@@ -238,7 +238,7 @@ Instance admins set them. Instance admins and moderators are never limited. `0` 
 | Setting | Default | Meaning |
 |---|---|---|
 | **Servers one account can own** | `100` | Servers on this instance. A copy of a server hosted elsewhere does not count |
-| **Bots one account can own** | `25` | Channel webhooks and the bots of linked Discord bridges do not count |
+| **Bots one account can own** | `25` | Channel webhooks and the bots of linked Discord and Matrix bridges do not count |
 
 An account already over a number keeps what it has and cannot add more.
 
@@ -276,9 +276,9 @@ An exemption does not override [who can start a conversation](/use/privacy-secur
 
 ### Bots and bridges
 
-Bots have a ceiling across all their REST routes: **Requests per minute, per bot** (`600`) and **Requests per minute, per linked Discord bridge** (`3000`), under **Anti-spam** → **Bots**. See [Permissions and rate limits](/build/permissions-rate-limits#rest-rate-limits).
+Bots have a ceiling across all their REST routes: **Requests per minute, per bot** (`600`) and **Requests per minute, per linked Discord or Matrix bridge** (`3000`), under **Anti-spam** → **Bots**. See [Permissions and rate limits](/build/permissions-rate-limits#rest-rate-limits).
 
-A linked Discord bridge relays one to three requests per message and is limited first by 100 requests per minute per channel. A bridge from before Bridge v2, or a bridge to another network, counts as an ordinary bot, because the ceiling follows a linked bridge and not the bot's type. If one reaches 600 requests per minute, raise the number or exempt its owner.
+A linked Discord bridge relays one to three requests per message and is limited first by 100 requests per minute per channel. A Discord bridge from before Bridge v2, and a bridge program on a bot of someone's own, count as an ordinary bot, because the ceiling follows a bridge linked under **Bridges** and not the bot's type. If one reaches 600 requests per minute, raise the number or exempt its owner.
 
 ## Audit log
 

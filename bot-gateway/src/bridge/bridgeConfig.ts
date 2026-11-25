@@ -7,18 +7,20 @@ export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 // Characters a typed setup code may carry between its groups: whitespace, '-', U+2010-U+2015, U+2212.
 const CODE_SEPARATORS = /[\s\-\u2010-\u2015\u2212]/g
 
+/** Code prefixes: HB sets up a Discord bridge, MX a Matrix bridge; ML links a Matrix room. */
+export type CodePrefix = 'HB' | 'MX' | 'ML'
+
 /**
- * Canonical 'HB-XXXX-XXXX-XXXX' form of a typed setup code: case, separators and the HB prefix
- * are optional. Null when 12 characters of [A-Z0-9] do not remain. Mirrors
- * discord_bridge_normalize_code().
+ * Canonical 'HB-XXXX-XXXX-XXXX' form of a typed setup code: case, separators and the prefix are
+ * optional. Null when 12 characters of [A-Z0-9] do not remain. Mirrors
+ * discord_bridge_normalize_code() and matrix_bridge_normalize_code().
  */
-export function normalizeSetupCode(raw: unknown): string | null {
+export function normalizeSetupCode(raw: unknown, prefix: CodePrefix = 'HB'): string | null {
   if (typeof raw !== 'string') return null
   const compact = raw.replace(CODE_SEPARATORS, '').toUpperCase()
-  const match = /^(?:HB)?([A-Z0-9]{12})$/.exec(compact)
-  if (!match) return null
-  const body = match[1]
-  return `HB-${body.slice(0, 4)}-${body.slice(4, 8)}-${body.slice(8, 12)}`
+  const body = compact.length === 12 ? compact : compact.startsWith(prefix) ? compact.slice(prefix.length) : ''
+  if (!/^[A-Z0-9]{12}$/.test(body)) return null
+  return `${prefix}-${body.slice(0, 4)}-${body.slice(4, 8)}-${body.slice(8, 12)}`
 }
 export const DIRECTIONS = ['both', 'to_harmony', 'to_discord'] as const
 export type Direction = (typeof DIRECTIONS)[number]

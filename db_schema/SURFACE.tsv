@@ -158,6 +158,7 @@ bot_interaction_resolved	p_bot_id uuid, p_server_id uuid, p_data jsonb	jsonb	def
 bot_is_integration	p_bot_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	policy
 bot_permission_mask	p_names jsonb	bigint	invoker	public, pg_temp		unreferenced
 bot_permission_names	p_mask bigint	jsonb	invoker	public, pg_temp		unreferenced
+bot_rate_limit_check	p_bot_id uuid, p_bucket text, p_limit integer, p_window_seconds integer, p_floor integer	integer	definer	public, pg_temp	service_role	client
 bot_rate_limit_take	p_bot_id uuid, p_bucket text, p_limit integer, p_window_seconds integer	integer	definer	public, pg_temp	service_role	client
 bridge_author_lock_key	p_server_id uuid, p_platform text, p_remote_user_id text	bigint	invoker	public, pg_temp	service_role	unreferenced
 bridge_avatar_track_object		trigger	definer	public, pg_temp		trigger
@@ -166,6 +167,8 @@ bridge_channel_platform	p_bot_id uuid, p_channel_id uuid	text	definer	public, pg
 bridge_delete_server_sound	p_bot_id uuid, p_server_id uuid, p_sound_id uuid	text	definer	public, pg_temp	service_role	client
 bridge_evict_removed_emojis	p_bot_id uuid, p_server_id uuid, p_ids uuid[]	TABLE(id uuid, path text)	definer	public, pg_temp	service_role	client
 bridge_evict_retired_stickers	p_bot_id uuid, p_server_id uuid, p_ids uuid[]	TABLE(id uuid, path text)	definer	public, pg_temp	service_role	client
+bridge_host_report	p_platform text, p_version text, p_status jsonb	void	definer	public, pg_temp	service_role	client
+bridge_hosts_status		jsonb	definer	public, pg_temp	authenticated	client
 bridge_import_admit	p_bot_id uuid, p_import_id uuid, p_count integer	jsonb	definer	public, pg_temp	service_role	client
 bridge_import_automod_hit	p_compiled jsonb, p_server_id uuid, p_channel_id uuid, p_category uuid, p_content jsonb	text	definer	public, pg_temp		unreferenced
 bridge_import_guard	p_bot_id uuid, p_import_id uuid	discord_bridge_imports	definer	public, pg_temp	service_role	client
@@ -830,10 +833,59 @@ mark_conversation_as_read	p_conversation_id uuid, p_message_id uuid	void	definer
 mark_notifications_read_by_context	p_context_type text, p_context_id text	integer	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 mark_server_as_read	p_server_id uuid	void	definer	public, extensions, pg_temp	authenticated+service_role	client
 mark_server_welcome_seen	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
-matrix_bridge_bind_room	p_bot_id uuid, p_channel_id uuid, p_room_id text, p_initial_sender_mode text	jsonb	definer	public, pg_temp	service_role	client
+matrix_bot_is_managed	p_bot_id uuid	boolean	definer	public, pg_temp		unreferenced
+matrix_bridge_admit_mode	p_mode text	void	definer	public, pg_temp		unreferenced
+matrix_bridge_bind_room	p_bot_id uuid, p_channel_id uuid, p_room_id text, p_initial_sender_mode text, p_room_alias text	jsonb	definer	public, pg_temp	service_role	client
 matrix_bridge_binding_json	p_bot_id uuid, p_channel_id uuid	jsonb	definer	public, pg_temp		unreferenced
+matrix_bridge_channel_member	p_bot_id uuid, p_channel_id uuid, p_user_id uuid	TABLE(id uuid, username text, display_name text, avatar_url text, nickname text, domain text, is_local boolean)	definer	public, pg_temp	service_role	client
 matrix_bridge_channel_members	p_bot_id uuid, p_channel_id uuid, p_limit integer, p_after uuid	TABLE(id uuid, username text, display_name text, avatar_url text, nickname text, domain text, is_local boolean)	definer	public, pg_temp	service_role	client
+matrix_bridge_channels_changed		trigger	definer	public, pg_temp		trigger
+matrix_bridge_check_pair	p_server_id uuid, p_channel_id uuid, p_caller uuid, p_direction text, p_sender_mode text	void	definer	public, pg_temp		unreferenced
+matrix_bridge_code_hash	p_code text	text	invoker	public, pg_temp		unreferenced
+matrix_bridge_config	p_bot_id uuid	jsonb	definer	public, pg_temp	service_role	client
+matrix_bridge_create	p_server_id uuid, p_mode text	jsonb	definer	public, pg_temp	authenticated	client
+matrix_bridge_delete	p_bridge_id uuid	void	definer	public, pg_temp	authenticated	client
+matrix_bridge_for_manager	p_bridge_id uuid	matrix_bridges	definer	public, pg_temp		unreferenced
+matrix_bridge_hosted_list		TABLE(bridge_id uuid, harmony_token text, homeserver_url text, access_token text)	definer	public, pg_temp	service_role	client
+matrix_bridge_hosting_enabled		boolean	definer	public, pg_temp		client
+matrix_bridge_hosting_limit		integer	definer	public, pg_temp		client
+matrix_bridge_install_bot	p_bot_id uuid, p_server_id uuid, p_installer uuid	void	definer	public, pg_temp		unreferenced
+matrix_bridge_instance_clear		void	definer	public, pg_temp	authenticated	client
+matrix_bridge_instance_configured		boolean	definer	public, pg_temp		unreferenced
+matrix_bridge_instance_enabled		boolean	definer	public, pg_temp		client
+matrix_bridge_instance_hosted		jsonb	definer	public, pg_temp	service_role	client
+matrix_bridge_instance_limit		integer	definer	public, pg_temp		client
+matrix_bridge_instance_log	p_admin uuid, p_old jsonb, p_new jsonb	void	definer	public, pg_temp		unreferenced
+matrix_bridge_instance_purge		trigger	definer	public, pg_temp		trigger
+matrix_bridge_instance_registration		jsonb	definer	public, extensions, pg_temp	authenticated	client
+matrix_bridge_instance_set	p_connection text, p_homeserver_url text, p_access_token text, p_server_name text, p_sender_localpart text, p_appservice_url text	jsonb	definer	public, pg_temp	authenticated	client
+matrix_bridge_instance_status		jsonb	definer	public, pg_temp	authenticated	client
+matrix_bridge_instance_user		text	definer	public, pg_temp		unreferenced
+matrix_bridge_instance_view	p_row matrix_bridge_instance	jsonb	invoker	public, pg_temp		unreferenced
+matrix_bridge_issue_token	p_bot_id uuid	text	definer	public, pg_temp		unreferenced
+matrix_bridge_json	p_bridge_id uuid	jsonb	definer	public, pg_temp		unreferenced
+matrix_bridge_link_room	p_code text, p_room_id text, p_sender text	jsonb	definer	public, pg_temp	service_role	client
+matrix_bridge_managed_by	p_profile_id uuid, p_server_id uuid	boolean	definer	public, pg_temp		unreferenced
+matrix_bridge_member_row	p_channel_id uuid, p_user_id uuid	TABLE(id uuid, username text, display_name text, avatar_url text, nickname text, domain text, is_local boolean)	definer	public, pg_temp		unreferenced
+matrix_bridge_new_code	p_prefix text	text	invoker	public, extensions, pg_temp		unreferenced
+matrix_bridge_normalize_code	p_code text, p_prefix text	text	invoker	public, pg_temp		unreferenced
+matrix_bridge_offers		jsonb	definer	public, pg_temp	authenticated	client
+matrix_bridge_optouts_changed		trigger	definer	public, pg_temp		trigger
+matrix_bridge_pair	p_bridge_id uuid, p_channel_id uuid, p_room text, p_direction text, p_sender_mode text	jsonb	definer	public, pg_temp	authenticated	client
+matrix_bridge_provision_bot	p_bridge_id uuid, p_owner uuid	uuid	definer	public, extensions, pg_temp		unreferenced
+matrix_bridge_redeem_code	p_code text	jsonb	definer	public, pg_temp	service_role	client
+matrix_bridge_report_status	p_bot_id uuid, p_connection text, p_status jsonb, p_snapshot jsonb, p_version text, p_pairs jsonb	jsonb	definer	public, pg_temp	service_role	client
 matrix_bridge_room	p_bot_id uuid, p_channel_id uuid	jsonb	definer	public, pg_temp	service_role	client
+matrix_bridge_room_code	p_bridge_id uuid, p_channel_id uuid, p_direction text, p_sender_mode text	jsonb	definer	public, pg_temp	authenticated	client
+matrix_bridge_secrets_purge		trigger	definer	public, pg_temp		trigger
+matrix_bridge_send_check	p_bot_id uuid, p_channel_id uuid, p_user_id uuid	jsonb	definer	public, pg_temp	service_role	client
+matrix_bridge_set_account	p_bridge_id uuid, p_homeserver_url text, p_access_token text	jsonb	definer	public, pg_temp	authenticated	client
+matrix_bridge_setup_code	p_bridge_id uuid	jsonb	definer	public, pg_temp	authenticated	client
+matrix_bridge_state	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated	client
+matrix_bridge_unpair	p_bridge_id uuid, p_channel_id uuid	jsonb	definer	public, pg_temp	authenticated	client
+matrix_bridge_vault_token	p_bridge_id uuid	void	definer	public, pg_temp		unreferenced
+matrix_bridges_retire_bot		trigger	definer	public, pg_temp		trigger
+matrix_bridges_touch		trigger	invoker	public, pg_temp		trigger
 matrix_user_valid	p_user jsonb	boolean	invoker	public, pg_temp		unreferenced
 megolm_key_scope_allowed	p_room_id text, p_session_id text, p_sender uuid, p_user_id uuid, p_message_id uuid	text	definer	public, pg_temp	service_role	unreferenced
 megolm_session_began_before	p_room_id text, p_session_id text, p_sender uuid, p_at timestamp with time zone	boolean	definer	public, pg_temp	service_role	unreferenced

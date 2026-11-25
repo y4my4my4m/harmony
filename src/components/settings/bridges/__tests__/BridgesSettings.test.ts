@@ -7,7 +7,7 @@ import BridgesSettings from '../BridgesSettings.vue'
 import { requestedSettingsSection } from '../bridgesSection'
 
 const DiscordStub = { name: 'DiscordBridgeSetup', props: ['serverId', 'serverName', 'linkReturn', 'headingLevel'], template: '<div class="discord-stub" />' }
-const MatrixStub = { name: 'MatrixBridgeSettings', props: ['serverId'], template: '<div class="matrix-stub" />' }
+const MatrixStub = { name: 'MatrixBridgeSetup', props: ['serverId'], template: '<div class="matrix-stub" />' }
 
 let wrapper: VueWrapper
 afterEach(() => wrapper?.unmount())
@@ -18,7 +18,7 @@ function mountBridges(props: Record<string, unknown> = {}) {
     attachTo: document.body,
     global: {
       plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })],
-      stubs: { DiscordBridgeSetup: DiscordStub, MatrixBridgeSettings: MatrixStub },
+      stubs: { DiscordBridgeSetup: DiscordStub, MatrixBridgeSetup: MatrixStub },
     },
   })
   return wrapper

@@ -308,6 +308,29 @@ describe('botAuthMiddleware', () => {
       expect(waits).toEqual([0, 0, 0, 0, 0])
     })
 
+    it('raises the overall count to the floor alone where a route has more of its own', async () => {
+      const bot = '00000000-0000-0000-0000-0000000000b8'
+      const waits: number[] = []
+      for (let i = 0; i < 4; i++) waits.push(await localRateLimitWait(bot, '/bridge-check', 8, 60, 3, 2))
+      expect(waits.slice(0, 3)).toEqual([0, 0, 0])
+      expect(waits[3]).toBeGreaterThan(0)
+    })
+
+    it('admits 4 times the route limit of bridge-check', async () => {
+      mocks.config.rateLimit.maxRequests = 1
+      routeRpc({
+        verify_bot_token: () => ({ data: { ...VALID_VERIFICATION, bot_id: '00000000-0000-0000-0000-0000000000b9' }, error: null }),
+        bot_rate_limit_check: () => FAILING,
+      })
+      const app = express()
+      app.get('/api/v1/channels/:channelId/bridge-check', botAuthMiddleware as any, botRateLimit as any, (_req, res) => { res.json({}) })
+      const send = () => supertest(app).get('/api/v1/channels/00000000-0000-0000-0000-0000000000c1/bridge-check').set('Authorization', `Bot ${TOKEN}`)
+
+      const statuses: number[] = []
+      for (let i = 0; i < 5; i++) statuses.push((await send()).status)
+      expect(statuses).toEqual([200, 200, 200, 200, 429])
+    })
+
     it('counts one bot apart from another', async () => {
       mocks.config.rateLimit.maxRequests = 1
       let botId = '00000000-0000-0000-0000-0000000000b2'

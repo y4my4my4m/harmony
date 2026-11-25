@@ -93,7 +93,7 @@
       "title": "设置 Matrix 桥接",
       "lead": "要在这里配对频道，你需要一个属于你自己、运行 Matrix 桥接并已加入此服务器的机器人。",
       "steps": {
-        "service": "运行此 Harmony 实例的人负责搭建 Matrix 桥接服务，并在 Matrix 主服务器上注册它。如果它还没运行，请联系他们。",
+        "service": "在一台始终开机的电脑上运行 Matrix 桥接，或者请已经运行的人帮忙。Matrix 主服务器（您自己的或他人的）的运营者在那里注册一次即可。",
         "bot": "在 {place} 中为桥接创建一个机器人，并把它的令牌交给运行桥接的人。",
         "install": "在 {place} 中把机器人添加到此服务器。给它“读取消息”和“发送消息”，然后在“频道”中选择“选定的频道”，并勾选要桥接的频道。",
         "pair": "回到这里配对这些频道。"
@@ -124,6 +124,349 @@
       "confirmMessage": "{bot} 将不再把 {count} 个频道与 Matrix 桥接。已桥接的消息会保留。也请让运行桥接的人把房间从其配置中移除。",
       "done": "{bot} 已解除与 Matrix 的配对。"
     },
+    "start": {
+      "title": "桥接要在哪里运行？",
+      "needs": "您需要一个供桥接使用的 Matrix 账户（任何主服务器均可），或一个其运营者可以注册桥接的主服务器。设置大约需要十五分钟。",
+      "self": {
+        "title": "自己运行",
+        "point1": "在任意一台始终开机的电脑（家用服务器、VPS、树莓派）上运行一条命令（Docker）。",
+        "point2": "Harmony 成员可以作为各自的 Matrix 用户出现在 Matrix 中。",
+        "tradeoff": "只有那台电脑开机并联网时，桥接才会工作。",
+        "choose": "我自己运行"
+      },
+      "custom": {
+        "title": "使用您自己的桥接程序",
+        "point1": "适用于其他桥接程序，或您自己编写的配置。",
+        "point2": "您创建它的机器人，把机器人添加到此服务器，并选择要桥接的频道。",
+        "tradeoff": "它的 Matrix 房间在它自己的配置中设置，Harmony 无法得知它是否在运行。",
+        "choose": "使用我自己的程序"
+      },
+      "hostingUnavailable": "此实例不为社区运行 Matrix 桥接，因此桥接在您的电脑上运行。",
+      "bothWays": "无论哪种方式，桥接频道中的消息都会像这里的其他消息一样经过此实例。启用端到端加密的频道和房间无法桥接。",
+      "needsInstance": "您需要一个您可以更改其设置的 Matrix 房间，或者那里有可以更改设置的人。",
+      "ownBot": "或用其他方式桥接：",
+      "instance": {
+        "title": "使用 {instance} 的桥接",
+        "recommended": "推荐",
+        "point1": "无需安装，也无需创建账户：把桥接邀请到房间，并在房间里发送一个代码。",
+        "point2": "此实例为您运行桥接。",
+        "tradeoff": "桥接属于此实例的运营者，运营者可以读取您连接的每个房间。",
+        "choose": "使用 {instance} 的桥接"
+      },
+      "hosted": {
+        "title": "使用您自己的 Matrix 账户，在此实例上运行",
+        "lead": "在这里登录一个 Matrix 账户；此实例用它运行桥接。",
+        "point1": "无需安装。",
+        "point2": "来自 Harmony 的每条消息都由该账户发出，并在前面加上成员的名字。",
+        "tradeoff": "此实例的运营者持有该账户的访问令牌，可以读取该账户所在的每个房间。请使用专为桥接创建的账户。",
+        "choose": "在这里使用我自己的账户"
+      }
+    },
+    "custom": {
+      "otherPrompt": "想要一个在这里设置的桥接？",
+      "other": "选择在哪里运行",
+      "beside": "同时使用您自己的桥接程序",
+      "besideLead": "您自己的程序用您创建的机器人桥接其他频道。上面的桥接保持不变。"
+    },
+    "self": {
+      "lead": "桥接是一个小程序，需要在一台保持开机的电脑上运行，例如家用服务器、VPS 或树莓派。",
+      "connection": {
+        "label": "桥接登录 Matrix 的方式",
+        "application_service": {
+          "title": "使用您自己的主服务器，或您可以请其运营者帮忙的主服务器",
+          "lead": "运营者注册一次桥接。Harmony 成员可以作为各自的 Matrix 用户出现。"
+        },
+        "account": {
+          "title": "使用一个 Matrix 账户",
+          "lead": "任何主服务器都可以，包括 matrix.org。每条消息都来自该账户，并在前面加上成员的名字。"
+        }
+      },
+      "needsAppService": "主服务器必须能访问桥接：两者在同一台电脑或同一网络中运行，或者桥接有公网地址。",
+      "needsAccount": "在任意主服务器上创建一个只供桥接使用的账户。",
+      "field": {
+        "homeserverUrl": {
+          "label": "主服务器地址",
+          "help": "Matrix 应用连接的地址。桥接所在的电脑必须能打开它。",
+          "invalid": "请输入类似 https://matrix.example.org 的地址。"
+        },
+        "serverName": {
+          "label": "服务器名称",
+          "help": "主服务器用户 ID（例如 {'@'}sam:example.org）中冒号后面的部分。",
+          "invalid": "请输入类似 example.org 的名称。"
+        },
+        "appserviceUrl": {
+          "label": "桥接地址",
+          "help": "主服务器访问桥接所在电脑时使用的地址。桥接监听 9009 端口。",
+          "invalid": "请输入类似 http://192.168.1.20:9009 的地址。"
+        }
+      },
+      "fillFields": "请先填写上面的各项：下面的命令会使用它们。",
+      "source": {
+        "name": "从源代码运行",
+        "install": "安装 Git 和 Node.js 24，然后依次运行这些命令：",
+        "env": "在该文件夹中，把以下内容保存为 {file}：",
+        "run": "在那里启动桥接。systemd 之类的服务管理器可以让它持续运行：",
+        "trouble": "桥接会在运行它的终端中输出它在做什么。如果提示设置码无效或已过期，请点击上方的“新设置码”，把新的设置码写入 .env，然后重新启动。"
+      },
+      "replaceToken": "把 {placeholder} 替换为桥接的 Matrix 账户的访问令牌。",
+      "registration": {
+        "title": "在主服务器上注册桥接",
+        "fromDocker": "桥接启动时会写出 {file}。把它从容器中复制出来：",
+        "fromSource": "桥接启动时会在该文件夹中写出 {file}。",
+        "install": "把 {file} 交给主服务器的运营者。在 Synapse 上，运营者把它的路径加到 homeserver.yaml 的 {setting} 中，然后重启 Synapse。",
+        "done": "主服务器认识桥接后，桥接会自动连接。",
+        "secret": "该文件包含桥接访问主服务器的密钥，请不要发布到任何地方。"
+      },
+      "keepData": "请保留 {place}：其中有桥接的登录信息、注册信息和它创建的 Matrix 用户。把桥接迁移到另一台电脑时请一并带上。如果丢失，桥接需要重新注册。",
+      "keepDataAccount": "请保留 {place}：其中有桥接的登录信息和已转发内容的记录。把桥接迁移到另一台电脑时请一并带上。",
+      "copiedToken": "从 Matrix 应用设置中复制的令牌只在令牌不会过期的主服务器上有效；在 matrix.org 上，令牌几分钟内就会过期。",
+      "login": "登录该账户。命令会在终端中询问用户名和密码，并输出访问令牌："
+    },
+    "check": {
+      "waiting": "正在等待您的桥接连接。请运行第 1 步中的命令；通常一分钟内就会连接。",
+      "running": "请确认桥接正在那台电脑上运行，并且命令没有输出错误。",
+      "code": "如果日志显示设置码无效或已过期，请在第 1 步获取新的设置码并重新运行命令。",
+      "matrix": {
+        "ok": "桥接已登录主服务器",
+        "fail": "桥接无法登录主服务器",
+        "waiting": "桥接登录主服务器"
+      },
+      "account": "请确认您已在第 1 步登录账户。再登录一次也没有关系。"
+    },
+    "managed": {
+      "starting": "桥接正在连接 Matrix",
+      "account": "Matrix 账户",
+      "homeserver": "主服务器",
+      "connection": "登录方式",
+      "connectionKind": {
+        "application_service": "应用服务",
+        "account": "Matrix 账户"
+      },
+      "pending": "等待中的消息",
+      "failed": "未送达的消息",
+      "disconnectBody": "停止桥接，并移除所有频道配对和桥接的 Harmony 机器人。已桥接的消息会保留。Matrix 用户和房间不会被删除。",
+      "disconnectRegistration": "主服务器的运营者可以移除桥接的注册。",
+      "confirmNote": "也请停止您电脑上的程序。使用 Docker 时：{command}",
+      "pairsLead": "每个配对把这里的一个频道与一个 Matrix 房间连接起来。",
+      "inviteHint": "配对时桥接会加入房间。如果房间并非对所有人开放，请先邀请 {account}。",
+      "inviteHintUnknown": "配对时桥接会加入房间。如果房间并非对所有人开放，请先邀请桥接的 Matrix 账户。",
+      "state": {
+        "new": "等待桥接",
+        "joining": "正在加入房间",
+        "ready": "正常",
+        "error": "未在工作"
+      },
+      "removeLabel": "移除 {channel} 与 {room} 的配对",
+      "direction": {
+        "both": "双向",
+        "to_harmony": "仅 Matrix → Harmony",
+        "to_matrix": "仅 Harmony → Matrix"
+      },
+      "room": "Matrix 房间",
+      "invitations": "邀请（配对房间时接受）",
+      "otherRoom": "其他房间…",
+      "roomOption": "{name}（{detail}）",
+      "cannotSend": "桥接无法在那里发言",
+      "address": "房间地址或 ID",
+      "addressHelp": "例如 #general:example.org，也可以使用 matrix.to 链接。",
+      "addressInvalid": "这不是房间地址。地址类似 #general:example.org，房间 ID 类似 !abc:example.org。",
+      "addressEmpty": "请输入房间的地址或 ID。",
+      "chooseBoth": "请选择一个 Harmony 频道和一个 Matrix 房间。",
+      "encryptedNote": "启用端到端加密的频道和房间显示为灰色：桥接无法读取它们。",
+      "roomsStale": "桥接已离线。这是它上次连接时所在的房间。",
+      "hiddenChannel": "您看不到的频道",
+      "theAccount": "桥接的账户",
+      "ghostExplained": "作为各自的 Matrix 用户：Harmony 成员首次在频道中发言时，会得到一个带有其名字和头像的 Matrix 用户。在不超过 100 名成员的频道中，桥接会提前创建，这样 Matrix 上的人可以用平常的 {'@'} 自动补全提及所有人。桥接必须能邀请人进入房间。",
+      "instanceMode": "使用此实例的 Matrix 桥接",
+      "disconnectHosted": "已保存的访问令牌会被删除。也请在该账户的 Matrix 设置中结束会话“Harmony bridge”。",
+      "disconnectAccount": "也请在该账户的 Matrix 设置中结束会话“Harmony bridge”。",
+      "disconnectInstance": "此实例的桥接会自动离开房间。",
+      "noRoom": "没有房间"
+    },
+    "pairError": {
+      "room_not_found": "桥接在 {room} 没有找到房间。请检查地址，或移除该配对。",
+      "not_invited": "没有邀请无法加入 {room}。请在 Matrix 上邀请 {account}。",
+      "room_encrypted": "{room} 启用了端到端加密，桥接无法读取。请改为配对一个未加密的房间。",
+      "channel_encrypted": "{channel} 启用了端到端加密，桥接无法读取。请改为配对一个未加密的频道。",
+      "cannot_send": "{account} 不能在 {room} 中发言。来自 Matrix 的消息仍会到达这里。请让房间的管理员允许它发言。",
+      "room_in_use": "{room} 已与另一个 Harmony 频道桥接。请选择其他房间。",
+      "ghosts_unavailable": "桥接无法在 {room} 中为 Harmony 成员添加 Matrix 用户。来自 Matrix 的消息仍会到达这里。请允许 {account} 在那里邀请人，或选择共享的桥接账户。",
+      "harmony_not_bound": "Harmony 尚未把 {room} 与 {channel} 连接起来。桥接会自动重试；如果一直如此，请移除该配对后重新添加。",
+      "unknown": "桥接没有给出原因。它的日志中有详细信息。",
+      "room_moved": "该房间已用更新的代码与另一个频道连接。请用新的代码重新连接 {channel}。"
+    },
+    "problems": {
+      "aRoom": "一个房间",
+      "theHomeserver": "主服务器",
+      "bridge_offline": {
+        "fix": "请确认运行桥接的电脑已开机，然后启动桥接。使用 Docker 时，下面第一条命令可以启动它；如果它再次停止，第二条命令可以显示原因。"
+      },
+      "matrix_registration_missing": {
+        "title": "主服务器还不认识桥接。",
+        "fix": "请把桥接的 registration.json 交给主服务器的运营者。使用 Docker 时，下面的命令可以把它从容器中复制出来。主服务器有了它之后，桥接会自动连接。"
+      },
+      "matrix_token_invalid": {
+        "title": "主服务器拒绝了桥接的登录。",
+        "fixAppService": "主服务器上的注册不是这个桥接的。请把桥接的 registration.json 再次交给其运营者。",
+        "fixAccount": "请为桥接的 Matrix 账户获取新的访问令牌，并用它启动桥接。",
+        "fixHosted": "请在这里重新登录该账户，或使用另一个账户。"
+      },
+      "matrix_unreachable": {
+        "title": "桥接无法访问主服务器。",
+        "fix": "请确认运行桥接的电脑可以打开 {homeserver}。桥接会继续重试。",
+        "fixHosted": "请确认 {homeserver} 正在运行，并且可以从互联网访问。桥接会继续重试。"
+      },
+      "harmony_auth_failed": {
+        "fix": "用下面的命令移除容器，然后用新的设置码重新启动桥接。它的数据会保留。"
+      },
+      "room_encrypted": {
+        "title": "桥接不转发 {room}：它启用了端到端加密。",
+        "fix": "请移除它的配对，或配对一个未加密的房间。"
+      },
+      "room_not_joined": {
+        "title": "桥接不在 {room} 中。",
+        "fix": "请在 Matrix 上邀请桥接的账户，或移除它的配对。"
+      },
+      "worker_stopped": {
+        "title": "桥接已停止转发：它无法写入数据。",
+        "fix": "请检查运行桥接的电脑的磁盘，然后重启桥接。使用 Docker 时："
+      },
+      "messages_skipped": {
+        "title": "某个房间的部分较早消息未被转发。",
+        "fix": "无需处理。新消息会照常转发。"
+      },
+      "account_in_use": {
+        "title": "此实例上的另一个桥接已在使用此 Matrix 账户。",
+        "fix": "请使用仅供此桥接使用的账户。"
+      }
+    },
+    "hosted": {
+      "lead": "登录桥接所用的 Matrix 账户。此实例用它运行桥接。",
+      "access": "此实例的运营者持有该账户的访问令牌，可以读取该账户所在的每个房间。",
+      "ownAccount": "请使用专为桥接创建的账户，并且只让它待在您桥接的房间里。启用端到端加密的房间不会被转发。",
+      "homeserver": "主服务器",
+      "homeserverHelp": "它的服务器名称（例如 matrix.org）或地址。",
+      "method": {
+        "label": "访问账户的方式",
+        "password": "在这里登录",
+        "token": "粘贴访问令牌"
+      },
+      "user": "用户名",
+      "password": "密码",
+      "passwordHelp": "密码只从您的浏览器发送到主服务器。Harmony 不会收到它，也不会保存它。",
+      "token": "访问令牌",
+      "issue": {
+        "address": "请输入类似 matrix.org 的服务器名称，或一个 https 地址。",
+        "unreachable": "无法从此浏览器访问该主服务器。请检查名称，尝试主服务器自己的地址，或改为粘贴访问令牌。",
+        "not_matrix": "那里没有 Matrix 主服务器应答。请检查名称，或输入主服务器自己的地址。",
+        "no_password": "该主服务器不支持用密码登录。请改为粘贴访问令牌。",
+        "wrong_password": "主服务器拒绝了用户名或密码。",
+        "deactivated": "该账户已停用。",
+        "limited": "尝试次数过多。请稍等片刻再试。",
+        "limitedFor": "尝试次数过多。请在 {count} 秒后再试。 | 尝试次数过多。请在 {count} 秒后再试。",
+        "expires": "该主服务器发放的访问令牌会过期，桥接无法一直使用该账户。请使用其他主服务器上的账户。",
+        "token_refused": "主服务器不认识此令牌。它可能已过期。",
+        "refused": "主服务器拒绝了登录。",
+        "empty": "请先粘贴令牌。",
+        "harmonyToken": "这是 Harmony 机器人令牌。您需要的是 Matrix 账户的访问令牌。",
+        "notToken": "这看起来不像访问令牌。",
+        "incomplete": "请输入用户名和密码。"
+      },
+      "saved": "账户已保存。此实例会在一两分钟内启动您的桥接。",
+      "busy": {
+        "password": "正在登录…",
+        "token": "正在保存…"
+      },
+      "save": {
+        "password": "登录",
+        "token": "保存令牌"
+      },
+      "step": "登录 Matrix",
+      "blocked": "登录一个 Matrix 账户后才能继续。",
+      "replace": "更换 Matrix 账户"
+    },
+    "link": {
+      "title": "连接一个房间",
+      "encryptedNote": "启用端到端加密的频道显示为灰色，加密的房间也无法连接：桥接无法读取它们。",
+      "getCode": "获取代码",
+      "chooseChannel": "请选择一个 Harmony 频道。",
+      "codeTitle": "把 {channel} 与一个 Matrix 房间连接",
+      "invite": "在 Matrix 中，把桥接的账户邀请到房间：",
+      "noAccount": "尚不知道该账户：此实例的桥接还没有连接到 Matrix。",
+      "post": "账户加入后，在房间里发送这条消息：",
+      "command": "要发送的消息",
+      "appears": "配对会自动出现在这里。",
+      "expiredHelp": "此代码已过期。请点击“新设置码”，然后发送新的消息。",
+      "who": "只有可以更改房间设置的人才能连接它：房间的管理员，或房间允许的人。",
+      "moves": "无论该房间之前与什么连接，都会移到这里。",
+      "close": "关闭",
+      "linked": "{channel} 已与 {room} 连接。",
+      "again": "重新连接房间"
+    },
+    "admin": {
+      "title": "Matrix 桥接",
+      "lead": "社区在“服务器设置 → 桥接 → Matrix”中连接 Matrix 房间。您可以向他们提供此实例的桥接，让他们使用自己的账户，或两者都提供。在自己的电脑上运行桥接始终可行。",
+      "loadFailed": "无法加载 Matrix 桥接设置。",
+      "saved": "Matrix 桥接设置已保存",
+      "saveFailed": "无法保存 Matrix 桥接设置",
+      "cleared": "Matrix 桥接已移除",
+      "hostedCount": "当前托管的桥接：{count} / {limit}。",
+      "hosting": {
+        "title": "让社区使用自己的账户",
+        "lead": "社区用自己的 Matrix 账户登录，此实例用它运行桥接。服务器管理员会看到“使用您自己的 Matrix 账户，在此实例上运行”。",
+        "toggle": "运行社区自己的账户",
+        "toggleHint": "您将持有每个社区的访问令牌。令牌可以访问其账户所在的每个房间。"
+      },
+      "instance": {
+        "title": "此实例的 Matrix 桥接",
+        "lead": "此实例的一个 Matrix 连接，由所有社区共用。社区在房间里发送一个代码即可连接，无需安装任何东西。",
+        "linkedCount": "选择它的服务器：{count} / {limit}。",
+        "configured": "已设置的桥接：{homeserver}。",
+        "notConfigured": "尚未设置桥接。",
+        "connection": {
+          "application_service": "在您自己的主服务器上运行。Harmony 成员可以作为各自的 Matrix 用户出现。",
+          "account": "任意主服务器上的普通账户。每条消息都由它发出。"
+        },
+        "senderLocalpart": "桥接账户的名称",
+        "invalidLocalpart": "只能使用 a 到 z、0 到 9 以及 . _ = -",
+        "tooLong": "与服务器名称合在一起过长。",
+        "login": "获取不会过期的令牌",
+        "save": "保存桥接",
+        "clear": "移除桥接",
+        "clearConfirm": "移除桥接的令牌？使用它的社区将停止桥接，直到重新设置。它们的桥接和配对会保留。",
+        "registration": {
+          "title": "注册文件",
+          "made": "已生成",
+          "notMade": "尚未生成",
+          "make": "生成注册文件",
+          "again": "生成新的注册文件",
+          "confirm": "新文件会替换桥接的令牌。在主服务器换上新文件之前，桥接会停止工作。",
+          "downloaded": "文件已保存到您的下载内容中。它无法再次显示；如果丢失，请重新生成。",
+          "stale": "主服务器上的注册已不匹配。请生成新文件并交给主服务器。"
+        },
+        "enable": "向社区提供此桥接",
+        "enableHint": "服务器管理员在“服务器设置 → 桥接 → Matrix”中会首先看到“使用此实例的桥接”。",
+        "enableNeedsConfig": "请先设置桥接：它的主服务器，以及访问令牌或注册文件。",
+        "limit": "服务器数量上限",
+        "limitHint": "无论是否已连接，选择该桥接的服务器达到此数量后，新的会被拒绝。"
+      }
+    },
+    "service": {
+      "title": "桥接服务",
+      "never": "该服务尚未连接。",
+      "version": "版本 {version}",
+      "absent": {
+        "discord": "社区的 Discord 桥接在此实例旁的一个服务中运行。请在服务器上用以下命令启动它：",
+        "matrix": "社区的 Matrix 桥接在此实例旁的一个服务中运行。请在服务器上用以下命令启动它："
+      },
+      "problem": {
+        "matrix_registration_missing": "主服务器不认识该桥接。请为它添加注册文件并重启。",
+        "matrix_token_invalid": "主服务器拒绝访问令牌。请保存新的令牌。",
+        "matrix_unreachable": "无法访问主服务器。桥接会继续重试。",
+        "harmony_unreachable": "该服务无法访问此实例的机器人网关。",
+        "worker_stopped": "该服务无法写入数据。请检查磁盘，然后重启它。"
+      }
+    },
     "errors": {
       "discordBot": "此机器人在运行 Discord 桥接，因此不能同时桥接 Matrix。请使用另一个机器人。",
       "allowlist": "所选频道已不在机器人的频道列表中。请重新加载后重新选择。",
@@ -131,7 +474,16 @@
       "permission": "只有在此服务器拥有“管理服务器”权限的机器人所有者才能配对它的频道。",
       "save": "无法保存已配对的频道。请重新加载后重试。",
       "unpair": "无法解除机器人的配对。请重新加载后重试。",
-      "installs": "无法加载你的机器人，因此现在无法在这里配对频道。请重新加载后重试。"
+      "installs": "无法加载你的机器人，因此现在无法在这里配对频道。请重新加载后重试。",
+      "unavailable": "此实例尚不支持 Matrix 桥接。管理员需要更新 Harmony。",
+      "gone": "桥接在此期间已被移除。请重新加载页面。",
+      "roomTaken": "该房间已与另一个频道配对。",
+      "change": "无法保存更改。请重试。",
+      "exists": "此服务器已有 Matrix 桥接。重新加载页面即可看到。",
+      "notOffered": "此实例目前不提供该方式。请选择其他方式运行桥接。",
+      "full": "此实例运行的 Matrix 桥接已达上限。请选择其他方式，或联系实例管理员。",
+      "account": "无法保存账户。请重试。",
+      "roomCode": "无法获取代码。请重试。"
     },
     "privacy": {
       "lead": "在此处移除 Matrix 用户后，此服务器的桥接从该用户带来的所有内容都会被删除，且不再带入其消息。",
@@ -156,7 +508,8 @@
     "tabs": {
       "discord": "Discord",
       "matrix": "Matrix"
-    }
+    },
+    "encrypted": "端到端加密"
   },
   "bridgePrivacy": {
     "title": "桥接隐私",
@@ -5791,7 +6144,7 @@
         "title": "机器人",
         "hint": "单个机器人所有路由合计的每分钟请求数，在每路由限制之外生效。所有者被豁免的机器人没有此上限。0 = 无限制。",
         "requestsPerMinute": "每个机器人每分钟请求数",
-        "bridgeRequestsPerMinute": "每个已关联 Discord 桥接每分钟请求数"
+        "bridgeRequestsPerMinute": "每个已关联 Discord 或 Matrix 桥接每分钟请求数"
       },
       "federation": {
         "title": "联邦提及刷屏",

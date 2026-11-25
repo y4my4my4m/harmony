@@ -195,6 +195,8 @@ describe('route table', () => {
     expect(res.body.id).toBe(BOT_ID)
     expect(res.body.capabilities).toEqual([
       'bridge_sound_sync', 'bridge_emoji_sync', 'bridge_sticker_sync', 'bridge_history_import', 'bridge_privacy',
+      'matrix_bridge_v2',
+      'matrix_bridge_check',
     ])
   })
 

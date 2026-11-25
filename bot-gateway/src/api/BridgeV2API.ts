@@ -30,20 +30,65 @@ import {
 
 import { createHistoryImportRouter } from '../bridge/historyImport.js'
 import { createBridgePrivacyRouter } from '../bridge/bridgePrivacy.js'
+import { noteBridgeHost } from '../bridge/bridgeHosts.js'
 
 // One body for every redeem failure: unknown, used, expired and malformed codes read alike.
-const INVALID_CODE = { error: 'Invalid or expired setup code', code: 'invalid_code' } as const
+export const INVALID_CODE = { error: 'Invalid or expired setup code', code: 'invalid_code' } as const
 
 // Host secrets shorter than this leave GET /hosted disabled.
 export const MIN_HOST_SECRET_LENGTH = 32
 
-export interface BridgeV2Options {
+export interface RedeemLimitOptions {
   // Per-IP attempts on POST /redeem per window.
   redeemLimit?: number
   redeemWindowMs?: number
-  // Per-IP failed GET /hosted and /hosted/instance requests per window.
+}
+
+export function redeemRateLimit(options: RedeemLimitOptions): RequestHandler {
+  return rateLimit({
+    windowMs: options.redeemWindowMs ?? 15 * 60 * 1000,
+    limit: options.redeemLimit ?? 10,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many attempts; try again later', code: 'rate_limited' },
+  })
+}
+
+export interface HostLimitOptions {
+  // Per-IP requests with a refused host secret per window.
   hostedFailureLimit?: number
   hostedWindowMs?: number
+}
+
+/** Counts refused secrets only: a runner polling while hosting is off is not locked out. */
+export function hostRateLimit(options: HostLimitOptions): RequestHandler {
+  return rateLimit({
+    windowMs: options.hostedWindowMs ?? 15 * 60 * 1000,
+    limit: options.hostedFailureLimit ?? 30,
+    skipSuccessfulRequests: true,
+    requestWasSuccessful: (_req, res) => res.statusCode !== 401,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many attempts; try again later', code: 'rate_limited' },
+  })
+}
+
+/** False after answering: 404 while `secret` is unusable, 401 on a wrong X-Bridge-Host-Secret. */
+export function hostSecretAccepted(req: Request, res: Response, secret: string | undefined): boolean {
+  res.set('Cache-Control', 'no-store')
+  if (!secret || secret.length < MIN_HOST_SECRET_LENGTH) {
+    res.status(404).json({ error: 'Not found' })
+    return false
+  }
+  const given = req.get('x-bridge-host-secret') ?? ''
+  if (!secretsEqual(given, secret)) {
+    res.status(401).json({ error: 'Invalid host secret' })
+    return false
+  }
+  return true
+}
+
+export interface BridgeV2Options extends RedeemLimitOptions, HostLimitOptions {
   // Per-IP requests on GET /discord/authorize and /discord/callback together, per window.
   linkLimit?: number
   linkWindowMs?: number
@@ -65,8 +110,8 @@ export function secretsEqual(given: string, expected: string): boolean {
   return timingSafeEqual(a, b)
 }
 
-// SQLSTATE raised by the discord_bridge_* functions -> HTTP status.
-function statusForSqlState(code: string | undefined): number {
+// SQLSTATE raised by the discord_bridge_* and matrix_bridge_* functions -> HTTP status.
+export function statusForSqlState(code: string | undefined): number {
   switch (code) {
     case '22023':
     case '23514':
@@ -127,24 +172,8 @@ export class BridgeV2API {
   constructor(options: BridgeV2Options = {}) {
     this.router = Router()
 
-    const redeemLimiter = rateLimit({
-      windowMs: options.redeemWindowMs ?? 15 * 60 * 1000,
-      limit: options.redeemLimit ?? 10,
-      standardHeaders: 'draft-7',
-      legacyHeaders: false,
-      message: { error: 'Too many attempts; try again later', code: 'rate_limited' },
-    })
-    // Counts refused secrets only: a runner polling while hosting is off is not locked out.
-    const hostedLimiter = rateLimit({
-      windowMs: options.hostedWindowMs ?? 15 * 60 * 1000,
-      limit: options.hostedFailureLimit ?? 30,
-      skipSuccessfulRequests: true,
-      requestWasSuccessful: (_req, res) => res.statusCode !== 401,
-      standardHeaders: 'draft-7',
-      legacyHeaders: false,
-      message: { error: 'Too many attempts; try again later', code: 'rate_limited' },
-    })
-
+    const redeemLimiter = redeemRateLimit(options)
+    const hostedLimiter = hostRateLimit(options)
     const linkLimiter = rateLimit({
       windowMs: options.linkWindowMs ?? 15 * 60 * 1000,
       limit: options.linkLimit ?? 30,
@@ -197,24 +226,9 @@ export class BridgeV2API {
     })
   }
 
-  /** False after answering: 404 while BRIDGE_HOST_SECRET is unusable, 401 on a wrong secret. */
-  private hostSecretAccepted(req: Request, res: Response): boolean {
-    res.set('Cache-Control', 'no-store')
-    const secret = config.bridge?.hostSecret ?? ''
-    if (secret.length < MIN_HOST_SECRET_LENGTH) {
-      res.status(404).json({ error: 'Not found' })
-      return false
-    }
-    const given = req.get('x-bridge-host-secret') ?? ''
-    if (!secretsEqual(given, secret)) {
-      res.status(401).json({ error: 'Invalid host secret' })
-      return false
-    }
-    return true
-  }
-
   private async hosted(req: Request, res: Response) {
-    if (!this.hostSecretAccepted(req, res)) return
+    if (!hostSecretAccepted(req, res, config.bridge?.hostSecret)) return
+    noteBridgeHost('discord')
 
     const enabled = await hostingEnabled()
     if (enabled === null) return res.status(503).json({ error: 'Hosting state unavailable' })
@@ -235,7 +249,8 @@ export class BridgeV2API {
 
   /** discord_bridge_instance_hosted(): 404 while the instance bot is off or unconfigured. */
   private async hostedInstance(req: Request, res: Response) {
-    if (!this.hostSecretAccepted(req, res)) return
+    if (!hostSecretAccepted(req, res, config.bridge?.hostSecret)) return
+    noteBridgeHost('discord')
 
     const { data, error } = await supabase.rpc('discord_bridge_instance_hosted')
     if (error) {

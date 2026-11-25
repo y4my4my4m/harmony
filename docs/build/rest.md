@@ -73,6 +73,7 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | `GET` | [`/channels/{channel.id}/encryption`](#get-channel-encryption) | `read_messages` | Read the channel's effective message encryption state |
 | `GET` | [`/channels/{channel.id}/bridge-platform`](#bridge-registration-and-consent) | `read_messages` | Read this bot/channel's registered bridge platform |
 | `GET` | [`/channels/{channel.id}/bridge-consent/{user.id}`](#bridge-registration-and-consent) | `read_messages`; registered bridge | Check current member relay consent |
+| `GET` | [`/channels/{channel.id}/bridge-check`](#matrix-send-check) | Token | What a Matrix bridge checks before it relays, in one request |
 | `POST` | [`/channels/{channel.id}/bridge-avatar`](#upload-a-matrix-bridge-avatar) | Scoped Matrix bridge with read/send | Store bounded raster avatar bytes |
 | `POST` | [`/channels/{channel.id}/bridge-files`](#matrix-attachment-bytes) | Bound Matrix bridge with read/send; plaintext | Store bounded attachment bytes in private message media |
 | `GET` | [`/channels/{channel.id}/messages/{message.id}/bridge-files/{index}`](#matrix-attachment-bytes) | Bound Matrix bridge with read/send; current message visibility | Download a stored raw-index attachment, not a supplied URL |
@@ -519,12 +520,37 @@ These endpoints require a currently registered Matrix binding and channel read/s
 
 | Method | Path | Result |
 |---|---|---|
-| `PUT` | `/channels/{channel.id}/bridge-room` | Bind `{ "room_id": "!opaqueRoomId", "initial_sender_mode": "ghost" }`; `relay` is also valid. Returns the current `{ "room_id", "sender_mode" }`, preserving later manager changes. |
-| `GET` | `/channels/{channel.id}/bridge-room` | The current binding and manager-selected sender mode. |
-| `GET` | `/channels/{channel.id}/bridge-members` | Array of eligible native members: `id`, `username`, `display_name`, `avatar_url`, `domain`, `is_local`, `nickname`. Accepted, channel-visible local members only, excluding opt-outs and deleted accounts; nickname takes display-name precedence. |
+| `PUT` | `/channels/{channel.id}/bridge-room` | Bind `{ "room_id": "!opaqueRoomId", "initial_sender_mode": "ghost" }`; `relay` is also valid. A pair a manager named by alias also needs `room_alias`, the alias the room was resolved from. Returns the current `{ "room_id", "sender_mode" }`, preserving later manager changes. `409` `room_in_use`: another channel has the room. `409` `room_changed`: the channel is paired with another room; a [managed bridge](/build/bridges#matrix-config) reads its configuration again, a custom bot unpairs first. |
+| `GET` | `/channels/{channel.id}/bridge-room` | The current binding and manager-selected sender mode. `room_id` is `null` while a managed pair is not bound, and for any pair whose room a [room code](/build/bridges#room-codes) linked to another channel. A custom bot's channel that was never bound answers `503`. |
+| `GET` | `/channels/{channel.id}/bridge-members` | Array of eligible native members: `id`, `username`, `display_name`, `avatar_url`, `domain`, `is_local`, `nickname`. Accepted, channel-visible local members only, excluding opt-outs and deleted accounts; nickname takes display-name precedence. `?user_id={user.id}` answers that member alone, or an empty array, under the same rules (Harmony 1.9.9). |
 | `GET` | `/channels/{channel.id}/bridge-members/{user.id}/avatar` | Optional `{ "data": "<base64>", "content_type": "image/png" }` from the current eligible member's own Harmony avatars storage object. No caller-supplied URL/path; no external hosts, redirects or SVG. Raster bytes are metadata-stripped and capped at 1 MiB. |
 
-Malformed room/mode/user IDs return `400`, missing binding or permissions `403`, and unavailable or malformed binding/consent data `503`. A room cannot be reassigned without unpairing. The avatar endpoint returns `404` for an ineligible member or unsupported/missing picture. Bundled default avatars and external avatar URLs are not mirrored; omit the optional picture rather than discarding text. Mode/member snapshots never replace final delivery-time consent checks.
+Malformed room/mode/user IDs return `400`, missing binding or permissions `403`, and unavailable or malformed binding/consent data `503`. A bridge cannot reassign a bound room. The avatar endpoint returns `404` for an ineligible member or unsupported/missing picture. Bundled default avatars and external avatar URLs are not mirrored; omit the optional picture rather than discarding text. Mode/member snapshots never replace final delivery-time consent checks.
+
+### Matrix send check
+
+`GET /channels/{channel.id}/bridge-check` answers in one request what the routes above do apart, for a Matrix bridge to read before it relays a message (`matrix_bridge_check` in the gateway's [capabilities](/build/gateway#ready), Harmony 1.9.9; a gateway without it answers `404`). `?user_id={user.id}` adds the member who wrote the message, or is mentioned in it.
+
+```json
+{
+  "platform": "matrix",
+  "room_id": "!abc:example.org",
+  "sender_mode": "ghost",
+  "messages_encrypted": false,
+  "relay_allowed": true,
+  "member": { "id": "7b0c…", "username": "alice", "display_name": "Alice", "avatar_url": null, "domain": "harmony.example.com", "is_local": true, "nickname": null }
+}
+```
+
+| Field | As |
+|---|---|
+| `platform` | `bridge-platform`: `matrix`, or `null` when the bot has no Matrix binding here or may not read or send in the channel. Every other field is then `null`. |
+| `room_id`, `sender_mode` | `GET bridge-room`. `room_id` is `null` for every channel that holds no room. |
+| `messages_encrypted` | [`GET /channels/{channel.id}/encryption`](#get-channel-encryption). |
+| `relay_allowed` | `bridge-consent`; `null` without `user_id`. |
+| `member` | The entry of `bridge-members?user_id=`, in the same shape; `null` when that list is empty, and without `user_id`. |
+
+Nothing in the answer is cached. A malformed channel or user ID answers `400`, a failed or malformed lookup `503`: do not relay then. Relay only with `platform` `matrix`, the expected `room_id`, `messages_encrypted` `false` and `relay_allowed` `true`.
 
 ### Matrix attachment bytes
 
@@ -904,4 +930,4 @@ The gateway serves these outside `/api/v1`. The app and bridge programs call the
 | `GET` | `/bridged-users/server/{server.id}` | User session; member of the server | The registered members of all the server's channels, one entry per remote ID. |
 | `POST` | `/attachments/refresh` | User session; views the message's channel | Body `{ "messageId" }`. Sends [`REFRESH_ATTACHMENTS`](/build/gateway#refresh-attachments) to the message's bot while it is connected; otherwise the gateway re-signs expired Discord links itself with the instance Discord bot. |
 | `GET` | `/bridge-setup/{pairing code}` | None | Legacy Discord bridge pairing lookup; see [Writing a bridge](/build/bridges#legacy-pairing-codes). |
-| | `/bridge/v2/…` | Varies | The [Bridge v2 API](/build/bridges#bridge-v2-endpoints). |
+| | `/bridge/v2/…` | Varies | The [Bridge v2 API](/build/bridges#bridge-v2-endpoints), and for Matrix [`/bridge/v2/matrix/…`](/build/bridges#matrix-bridge-setup). |

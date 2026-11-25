@@ -1,134 +1,91 @@
 <template>
-  <div class="stepper" data-testid="bridge-stepper">
-    <nav class="db-card step-nav" :aria-label="t('discordBridge.steps.navLabel')">
-      <ol>
-        <li v-for="(step, index) in steps" :key="step">
-          <button
-            type="button"
-            :class="['step-link', `step-link--${stepState(step)}`, { current: current === step }]"
-            :aria-current="current === step ? 'step' : undefined"
-            :aria-label="t('discordBridge.steps.navItem', { n: index + 1, name: stepName(step) })"
-            :disabled="!available(step)"
-            :data-testid="`nav-${step}`"
-            @click="goTo(step, true)"
-          >
-            <span class="step-index" aria-hidden="true">
-              <Icon v-if="stepState(step) === 'done'" name="check" :size="14" />
-              <template v-else>{{ index + 1 }}</template>
-            </span>
-            <span class="step-name">{{ stepName(step) }}</span>
-            <span v-if="stepState(step) === 'done'" class="db-sr-only">{{ t('discordBridge.steps.doneSr') }}</span>
-          </button>
-        </li>
-      </ol>
-    </nav>
+  <BridgeStepShell
+    ref="shell"
+    :steps="steps"
+    :current="current"
+    :derived="derived"
+    :step-name="stepName"
+    :available="available"
+    :can-advance="canAdvance"
+    :can-finish="pairs.length > 0"
+    :next-label="nextLabel"
+    :hint="nextBlockedHint"
+    @go="(step) => goTo(step, true)"
+    @back="back"
+    @next="next"
+    @finish="emit('finish')"
+    @start-over="emit('start-over')"
+  >
+    <BridgeInstanceLink
+      v-if="current === 'link'"
+      :server-id="bridge.server_id"
+      :guild-name="bridge.discord_guild_id ? bridge.discord_guild_name || bridge.discord_guild_id : null"
+    />
 
-    <section class="db-card step-panel" :aria-labelledby="headingId" :data-step="current">
-      <p class="step-count">{{ t('discordBridge.steps.count', { n: currentIndex + 1, total: steps.length }) }}</p>
-      <h3 :id="headingId" ref="heading" class="db-card-title" tabindex="-1">
-        {{ stepName(current) }}
-      </h3>
+    <BridgeDiscordBotStep
+      v-else-if="current === 'bot'"
+      :bridge-id="bridge.id"
+      :mode="bridge.mode"
+      :settings="settings"
+      :server-name="serverName"
+      @changed="emit('changed')"
+    />
 
-      <BridgeInstanceLink
-        v-if="current === 'link'"
-        :server-id="bridge.server_id"
-        :guild-name="bridge.discord_guild_id ? bridge.discord_guild_name || bridge.discord_guild_id : null"
-      />
+    <template v-else-if="current === 'connect'">
+      <BridgeConnectSelf v-if="bridge.mode === 'self'" :bridge-id="bridge.id" :harmony-url="harmonyUrl" />
+      <BridgeConnectHosted v-else :bridge-id="bridge.id" @saved="onTokenSaved" />
+    </template>
 
-      <BridgeDiscordBotStep
-        v-else-if="current === 'bot'"
-        :bridge-id="bridge.id"
-        :mode="bridge.mode"
-        :settings="settings"
-        :server-name="serverName"
-        @changed="emit('changed')"
-      />
+    <BridgeChecklist
+      v-else-if="current === 'check'"
+      :bridge="bridge"
+      :now="now"
+      :harmony-channels="harmonyChannels"
+      :harmony-url="harmonyUrl"
+      @go="(step) => goTo(step, true)"
+      @changed="emit('changed')"
+    />
 
-      <template v-else-if="current === 'connect'">
-        <BridgeConnectSelf v-if="bridge.mode === 'self'" :bridge-id="bridge.id" :harmony-url="harmonyUrl" />
-        <BridgeConnectHosted v-else :bridge-id="bridge.id" @saved="onTokenSaved" />
-      </template>
+    <BridgeGuildPicker
+      v-else-if="current === 'guild'"
+      :bridge="bridge"
+      :pair-count="pairs.length"
+      @changed="emit('changed')"
+    />
 
-      <BridgeChecklist
-        v-else-if="current === 'check'"
+    <template v-else-if="current === 'channels'">
+      <BridgeProblemList
+        v-if="bridge.mode === 'instance' && problems.length"
+        class="channel-problems"
         :bridge="bridge"
-        :now="now"
+        :problems="problems"
         :harmony-channels="harmonyChannels"
         :harmony-url="harmonyUrl"
-        @go="(step) => goTo(step, true)"
+        @go="(step) => goTo(step === 'connect' ? 'link' : step, true)"
         @changed="emit('changed')"
       />
-
-      <BridgeGuildPicker
-        v-else-if="current === 'guild'"
+      <BridgeChannelPairs
         :bridge="bridge"
-        :pair-count="pairs.length"
+        :pairs="pairs"
+        :harmony-channels="harmonyChannels"
+        :imports="imports"
+        :encrypted-channel-ids="encryptedChannelIds"
+        :attachment-mode="attachmentMode"
+        :import-mode="importMode"
         @changed="emit('changed')"
       />
+    </template>
 
-      <template v-else-if="current === 'channels'">
-        <BridgeProblemList
-          v-if="bridge.mode === 'instance' && problems.length"
-          class="channel-problems"
-          :bridge="bridge"
-          :problems="problems"
-          :harmony-channels="harmonyChannels"
-          :harmony-url="harmonyUrl"
-          @go="(step) => goTo(step === 'connect' ? 'link' : step, true)"
-          @changed="emit('changed')"
-        />
-        <BridgeChannelPairs
-          :bridge="bridge"
-          :pairs="pairs"
-          :harmony-channels="harmonyChannels"
-          :imports="imports"
-          :encrypted-channel-ids="encryptedChannelIds"
-          :attachment-mode="attachmentMode"
-          :import-mode="importMode"
-          @changed="emit('changed')"
-        />
-      </template>
-
-      <template v-else-if="current === 'options'">
-        <p class="db-muted">{{ t('discordBridge.steps.options.lead') }}</p>
-        <BridgeSettingsPanel :bridge-id="bridge.id" :settings="settings" :mode="bridge.mode" @changed="emit('changed')" />
-      </template>
-
-      <p v-if="nextBlockedHint" class="db-muted next-hint" data-testid="next-hint">{{ nextBlockedHint }}</p>
-
-      <div class="db-actions step-footer">
-        <button v-if="currentIndex > 0" type="button" class="btn btn-secondary" data-testid="step-back" @click="back">
-          {{ t('discordBridge.steps.back') }}
-        </button>
-        <button
-          v-if="current !== 'options'"
-          type="button"
-          class="btn btn-primary"
-          :disabled="!canAdvance"
-          data-testid="step-next"
-          @click="next"
-        >
-          {{ t(`discordBridge.steps.next.${current}${current === 'connect' ? `.${bridge.mode}` : ''}`) }}
-        </button>
-        <button v-else type="button" class="btn btn-primary" :disabled="pairs.length === 0" data-testid="step-finish" @click="emit('finish')">
-          {{ t('discordBridge.steps.finish') }}
-        </button>
-      </div>
-    </section>
-
-    <p class="db-muted start-over">
-      {{ t('discordBridge.steps.startOver.prompt') }}
-      <button type="button" class="link-button" data-testid="start-over" @click="emit('start-over')">
-        {{ t('discordBridge.steps.startOver.action') }}
-      </button>
-    </p>
-  </div>
+    <template v-else-if="current === 'options'">
+      <p class="db-muted">{{ t('discordBridge.steps.options.lead') }}</p>
+      <BridgeSettingsPanel :bridge-id="bridge.id" :settings="settings" :mode="bridge.mode" @changed="emit('changed')" />
+    </template>
+  </BridgeStepShell>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, useId, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import Icon from '@/components/common/Icon.vue'
 import {
   buildChecklist,
   collectProblems,
@@ -150,6 +107,7 @@ import type { ImportJob } from './bridgeApi'
 import BridgeSettingsPanel from './BridgeSettingsPanel.vue'
 import BridgeInstanceLink from './BridgeInstanceLink.vue'
 import BridgeProblemList from './BridgeProblemList.vue'
+import BridgeStepShell from './BridgeStepShell.vue'
 
 const props = defineProps<{
   bridge: DiscordBridgeRow
@@ -173,8 +131,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const headingId = `bridge-step-${useId()}`
-const heading = ref<HTMLElement | null>(null)
+const shell = ref<{ focusHeading: () => void } | null>(null)
 
 /**
  * How far the admin got before the bridge first reported in. Only the row is
@@ -205,7 +162,6 @@ const steps = computed(() => setupStepsFor(props.bridge.mode))
 const settings = computed(() => normalizeBridgeSettings(props.bridge.settings))
 const problems = computed(() => collectProblems(props.bridge, props.now))
 const derived = computed(() => deriveSetupStep(props.bridge, props.pairs.length, props.now, reached.value))
-const derivedIndex = computed(() => steps.value.indexOf(derived.value))
 const initial = props.initialStep && steps.value.includes(props.initialStep) ? props.initialStep : null
 const current = ref<SetupStep>(initial ?? derived.value)
 const currentIndex = computed(() => steps.value.indexOf(current.value))
@@ -237,10 +193,6 @@ function available(step: SetupStep): boolean {
   }
 }
 
-function stepState(step: SetupStep): 'done' | 'todo' {
-  return steps.value.indexOf(step) < derivedIndex.value ? 'done' : 'todo'
-}
-
 const canAdvance = computed(() => {
   switch (current.value) {
     case 'check':
@@ -253,6 +205,12 @@ const canAdvance = computed(() => {
     default:
       return true
   }
+})
+
+/** The last step finishes instead and has no Next label. */
+const nextLabel = computed(() => {
+  if (current.value === 'options') return ''
+  return t(`discordBridge.steps.next.${current.value}${current.value === 'connect' ? `.${props.bridge.mode}` : ''}`)
 })
 
 const nextBlockedHint = computed(() => {
@@ -269,7 +227,7 @@ async function goTo(step: SetupStep, focus: boolean) {
   current.value = step
   if (focus) {
     await nextTick()
-    heading.value?.focus()
+    shell.value?.focusHeading()
   }
 }
 
@@ -295,153 +253,7 @@ function onTokenSaved() {
 
 <style scoped src="./bridge.css"></style>
 <style scoped>
-.step-nav {
-  padding: 8px;
-}
-
-.step-nav ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-}
-
-.step-link {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 44px;
-  padding: 6px 8px;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-
-.step-link:hover:not(:disabled) {
-  background: var(--background-tertiary);
-  color: var(--text-primary);
-}
-
-.step-link:focus-visible {
-  outline: 2px solid var(--harmony-primary);
-  outline-offset: 1px;
-}
-
-.step-link:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.step-link.current {
-  background: color-mix(in srgb, var(--harmony-primary) 14%, transparent);
-  color: var(--text-primary);
-}
-
-.step-index {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  border: 2px solid currentColor;
-  font-size: 12px;
-}
-
-.step-link--done .step-index {
-  border-color: var(--success);
-  background: var(--success);
-  color: var(--text-on-primary, #fff);
-}
-
-.step-link.current .step-index {
-  border-color: var(--harmony-primary);
-  color: var(--text-link);
-}
-
-.step-link--done.current .step-index {
-  color: var(--text-on-primary, #fff);
-  background: var(--success);
-}
-
-.step-name {
-  min-width: 0;
-  line-height: 1.25;
-}
-
-.step-count {
-  margin: 0 0 4px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-secondary);
-}
-
-.step-panel h3:focus {
-  outline: none;
-}
-
-.step-panel h3:focus-visible {
-  outline: 2px solid var(--harmony-primary);
-  outline-offset: 2px;
-}
-
-.next-hint {
-  margin-top: 16px;
-}
-
 .channel-problems {
   margin-bottom: 16px;
-}
-
-.step-footer {
-  justify-content: flex-end;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--background-quaternary);
-}
-
-.start-over {
-  text-align: center;
-}
-
-.link-button {
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--text-link);
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.link-button:focus-visible {
-  outline: 2px solid var(--harmony-primary);
-  outline-offset: 2px;
-}
-
-@media (max-width: 520px) {
-  .step-nav ol {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-
-  .step-link {
-    justify-content: center;
-    padding: 6px 2px;
-  }
-
-  .step-name {
-    display: none;
-  }
 }
 </style>

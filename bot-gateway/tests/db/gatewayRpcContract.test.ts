@@ -505,3 +505,205 @@ describe('bridge_upload_reserve, two overlapping claims of one server', () => {
     expect(sql(claim('00000000-0000-0000-0000-00000000f002')).rows[0]?.[0]).toBe('reserved')
   }, 60_000)
 })
+
+describe('managed Matrix bridges', () => {
+  const SERVERS = ['00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000d2']
+  const CHANNELS = ['00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000d4']
+  const ROOM = '!contract:example.org'
+  let bridges: string[] = []
+
+  /** Statements of the owner's client, each committed. */
+  const asOwner = (statements: string) => `
+    SELECT set_config('request.jwt.claim.sub', '${OWNER_AUTH_ID}', false);
+    SELECT set_config('request.jwt.claims', '{"sub":"${OWNER_AUTH_ID}"}', false);
+    SET ROLE authenticated;
+    ${statements}`
+  const pair = (bridge: number, room: string) =>
+    `SELECT public.matrix_bridge_pair('${bridges[bridge]}', '${CHANNELS[bridge]}', '${room}') -> 'pairs' -> 0 ->> 'room_id';`
+
+  /**
+   * A session that runs `first`, holds its transaction for 3 s, runs `last` and commits. Resolves once
+   * it holds, to a promise of its exit status (3 after an error).
+   */
+  async function holding(first: string, held: string, last = '') {
+    const session = spawn('docker', ['exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', 'postgres', '-q', '-v', 'ON_ERROR_STOP=1'])
+    const exit = new Promise<number | null>((resolve) => session.on('close', resolve))
+    session.stdin.end(`BEGIN; ${first} SELECT pg_sleep(3); ${last} COMMIT;`)
+    for (let i = 0; i < 50; i++) {
+      const waiting = sql(`SELECT count(*) FROM pg_stat_activity WHERE query LIKE 'SELECT pg_sleep(3)%' AND state = 'active'`)
+      if (waiting.rows[0]?.[0] === '1') return { exit }
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    throw new Error(`${held} never held`)
+  }
+
+  beforeAll(() => {
+    const seeded = sql(`
+      INSERT INTO public.servers (id, name, owner) VALUES ('${SERVERS[0]}', 'Matrix A', '${OWNER_PROFILE_ID}'), ('${SERVERS[1]}', 'Matrix B', '${OWNER_PROFILE_ID}');
+      INSERT INTO public.channels (id, server_id, name, type) VALUES ('${CHANNELS[0]}', '${SERVERS[0]}', 'general', 0), ('${CHANNELS[1]}', '${SERVERS[1]}', 'general', 0);
+      ${asOwner(SERVERS.map((id) => `SELECT 'bridge=' || (public.matrix_bridge_create('${id}', 'self') ->> 'id');`).join('\n'))}`)
+    expect(seeded.ok, why(seeded)).toBe(true)
+    bridges = seeded.rows.flat().filter((v) => v.startsWith('bridge=')).map((v) => v.slice('bridge='.length))
+    expect(bridges).toHaveLength(2)
+  })
+
+  it('runs every function the gateway calls', () => {
+    const r = sql(`
+      SELECT bot_id AS bot FROM public.matrix_bridges WHERE id = '${bridges[0]}' \\gset
+      SELECT public.matrix_bridge_config(:'bot')::text;
+      SELECT public.matrix_bridge_report_status(:'bot', 'account', '{"ready":true}', '{"rooms":[]}', '0.2.0', '[]')::text;
+      SELECT public.matrix_bridge_redeem_code('MX-AAAA-BBBB-CCCC') IS NULL;`)
+    expect(r.ok, why(r)).toBe(true)
+    const member = sql(`SELECT count(*) FROM public.matrix_bridge_channel_member('${BOT_ID}', '${CHANNELS[0]}', '${OWNER_PROFILE_ID}')`)
+    expect(why(member)).toMatch(/42501: Active Matrix binding required/)
+    const check = sql(`SELECT public.matrix_bridge_send_check('${BOT_ID}', '${CHANNELS[0]}')::text, public.matrix_bridge_send_check('${BOT_ID}', '${CHANNELS[0]}', '${OWNER_PROFILE_ID}')::text`)
+    expect(check.ok, why(check)).toBe(true)
+    for (const answer of check.rows[0]) {
+      expect(JSON.parse(answer)).toEqual({ platform: null, room_id: null, sender_mode: null, messages_encrypted: null, relay_allowed: null, member: null })
+    }
+    expect(JSON.parse(r.rows[0][0])).toMatchObject({ bridge_id: bridges[0], server_id: SERVERS[0], pairs: [], privacy_version: '0:0' })
+    expect(JSON.parse(r.rows[1][0])).toEqual({ ok: true })
+    expect(r.rows[2][0]).toBe('t')
+
+    const host = sql(`
+      SELECT count(*) FROM public.matrix_bridge_hosted_list();
+      SELECT public.matrix_bridge_instance_hosted() IS NULL;
+      SELECT public.matrix_bridge_link_room('ML-AAAA-BBBB-CCCC', '!a:example.org', '@sam:example.org') IS NULL;
+      SELECT public.bridge_host_report(p_platform => 'discord') IS NULL;
+      SELECT public.bridge_host_report(p_platform => 'matrix', p_version => '1', p_status => '{"hosted":0}') IS NULL;
+      SELECT string_agg(platform, ',' ORDER BY platform) FROM public.bridge_hosts;`)
+    expect(host.ok, why(host)).toBe(true)
+    expect(host.rows.map((row) => row[0])).toEqual(['0', 't', 't', 'f', 'f', 'discord,matrix'])
+  })
+
+  it('a room two bridges bind at the same time has one channel', async () => {
+    const named = sql(asOwner(pair(0, ROOM) + pair(1, ROOM)))
+    expect(named.ok, why(named)).toBe(true)
+    const bind = (bridge: number) => `SELECT public.matrix_bridge_bind_room(
+      (SELECT bot_id FROM public.matrix_bridges WHERE id = '${bridges[bridge]}'), '${CHANNELS[bridge]}', '${ROOM}', 'relay');`
+    const session = await holding(bind(0), 'the first bind')
+    const second = sql(bind(1))
+    expect(await session.exit).toBe(0)
+    expect(why(second)).toMatch(/23505: The Matrix room is bound to another channel/)
+    const rows = sql(`SELECT channel_id FROM public.bridge_channels WHERE room_id = '${ROOM}' AND room_bound`)
+    expect(rows.rows).toEqual([[CHANNELS[0]]])
+  }, 60_000)
+
+  it('redeems a code once when two bridges present it at the same time', async () => {
+    const issued = sql(asOwner(`SELECT 'code=' || (public.matrix_bridge_setup_code('${bridges[0]}') ->> 'code');`))
+    const code = issued.rows.flat().find((v) => v.startsWith('code='))!.slice('code='.length)
+    const session = await holding(`SELECT public.matrix_bridge_redeem_code('${code}') IS NOT NULL;`, 'the first redeem')
+    const second = sql(`SELECT public.matrix_bridge_redeem_code('${code}') IS NULL`)
+    expect(await session.exit).toBe(0)
+    expect(second.ok, why(second)).toBe(true)
+    expect(second.rows[0][0]).toBe('t')
+    const tokens = sql(`SELECT count(*) FROM public.bot_tokens t JOIN public.matrix_bridges b ON b.bot_id = t.bot_id
+                         WHERE b.id = '${bridges[0]}' AND t.is_active`)
+    expect(tokens.rows[0][0]).toBe('1')
+  }, 60_000)
+
+  // The session locks and writes as matrix_bridge_setup_code: the bridge, then its codes.
+  it('a redeem waits for a new code without a deadlock, and then redeems nothing', async () => {
+    const issued = sql(asOwner(`SELECT 'code=' || (public.matrix_bridge_setup_code('${bridges[0]}') ->> 'code');`))
+    const code = issued.rows.flat().find((v) => v.startsWith('code='))!.slice('code='.length)
+    const session = await holding(`SELECT 1 FROM public.matrix_bridges WHERE id = '${bridges[0]}' FOR UPDATE;`, 'the new code',
+      `DELETE FROM public.matrix_bridge_setup_codes WHERE bridge_id = '${bridges[0]}';`)
+    const old = sql(`SELECT public.matrix_bridge_redeem_code('${code}') IS NULL`)
+    expect(await session.exit).toBe(0)
+    expect(old.ok, why(old)).toBe(true)
+    expect(old.rows[0][0]).toBe('t')
+  }, 60_000)
+
+  it('a room bound while its pair is renamed is refused', async () => {
+    const named = sql(asOwner(pair(1, '#old:example.org')))
+    expect(named.ok, why(named)).toBe(true)
+    const session = await holding(asOwner(pair(1, '#new:example.org')) + ' RESET ROLE;', 'the renaming')
+    const bound = sql(`SELECT public.matrix_bridge_bind_room(
+                         p_bot_id => (SELECT bot_id FROM public.matrix_bridges WHERE id = '${bridges[1]}'), p_channel_id => '${CHANNELS[1]}',
+                         p_room_id => '!old:example.org', p_initial_sender_mode => 'relay', p_room_alias => '#old:example.org')`)
+    expect(await session.exit).toBe(0)
+    expect(why(bound)).toMatch(/22023: The pair names another Matrix room/)
+    const row = sql(`SELECT room_alias, room_id IS NULL FROM public.bridge_channels WHERE channel_id = '${CHANNELS[1]}'`)
+    expect(row.rows).toEqual([['#new:example.org', 't']])
+  }, 60_000)
+
+  // The session locks and writes as matrix_bridge_pair: the bridge, then the pair.
+  it('binding a room waits for a pairing without a deadlock', async () => {
+    const named = sql(asOwner(pair(1, '#kept:example.org')))
+    expect(named.ok, why(named)).toBe(true)
+    const session = await holding(`SELECT 1 FROM public.matrix_bridges WHERE id = '${bridges[1]}' FOR UPDATE;`, 'the pairing',
+      `UPDATE public.bridge_channels SET direction = 'to_matrix' WHERE channel_id = '${CHANNELS[1]}';`)
+    const bound = sql(`SELECT public.matrix_bridge_bind_room((SELECT bot_id FROM public.matrix_bridges WHERE id = '${bridges[1]}'),
+                         '${CHANNELS[1]}', '!kept:example.org', 'relay', '#kept:example.org') ->> 'room_id'`)
+    expect(await session.exit).toBe(0)
+    expect(bound.ok, why(bound)).toBe(true)
+    expect(bound.rows[0][0]).toBe('!kept:example.org')
+  }, 60_000)
+
+  describe('of the instance', () => {
+    const LINKERS = ['00000000-0000-0000-0000-0000000000d5', '00000000-0000-0000-0000-0000000000d6']
+    const GENERAL = ['00000000-0000-0000-0000-0000000000d7', '00000000-0000-0000-0000-0000000000d8']
+    let own: string[] = []
+
+    const code = (bridge: number) => {
+      const r = sql(asOwner(`SELECT 'code=' || (public.matrix_bridge_room_code('${own[bridge]}', '${GENERAL[bridge]}') ->> 'code');`))
+      expect(r.ok, why(r)).toBe(true)
+      return r.rows.flat().find((v) => v.startsWith('code='))!.slice('code='.length)
+    }
+    const link = (bridge: number, room: string) =>
+      `SELECT public.matrix_bridge_link_room('${code(bridge)}', '${room}', '@sam:example.org') ->> 'channel_id';`
+    const bound = (room: string) => sql(`SELECT channel_id FROM public.bridge_channels WHERE room_id = '${room}' AND room_bound`).rows
+
+    beforeAll(() => {
+      const seeded = sql(`
+        INSERT INTO public.servers (id, name, owner) VALUES ('${LINKERS[0]}', 'Link A', '${OWNER_PROFILE_ID}'), ('${LINKERS[1]}', 'Link B', '${OWNER_PROFILE_ID}');
+        INSERT INTO public.channels (id, server_id, name, type) VALUES ('${GENERAL[0]}', '${LINKERS[0]}', 'general', 0), ('${GENERAL[1]}', '${LINKERS[1]}', 'general', 0);
+        UPDATE public.instance_config SET config_value = 'true' WHERE config_key = 'matrix_bridge_instance_enabled';
+        INSERT INTO public.matrix_bridge_instance (connection, homeserver_url, access_token_secret)
+          VALUES ('account', 'http://synapse:8008', vault.create_secret('syt_contract', NULL, 'contract'));
+        ${asOwner(LINKERS.map((id) => `SELECT 'bridge=' || (public.matrix_bridge_create('${id}', 'instance') ->> 'id');`).join('\n'))}`)
+      expect(seeded.ok, why(seeded)).toBe(true)
+      own = seeded.rows.flat().filter((v) => v.startsWith('bridge=')).map((v) => v.slice('bridge='.length))
+      expect(own).toHaveLength(2)
+    })
+
+    it('a room two codes link at the same time has one channel', async () => {
+      const second = link(1, '!both:example.org')
+      const session = await holding(link(0, '!both:example.org'), 'the first link')
+      const r = sql(second)
+      expect(await session.exit).toBe(0)
+      expect(r.ok, why(r)).toBe(true)
+      expect(r.rows[0][0]).toBe(GENERAL[1])
+      expect(bound('!both:example.org')).toEqual([[GENERAL[1]]])
+    }, 60_000)
+
+    it('a code takes a room a bridge is binding at the same time', async () => {
+      const named = sql(asOwner(pair(1, '!bound:example.org')))
+      expect(named.ok, why(named)).toBe(true)
+      const second = link(0, '!bound:example.org')
+      const session = await holding(`SELECT public.matrix_bridge_bind_room((SELECT bot_id FROM public.matrix_bridges WHERE id = '${bridges[1]}'),
+                                       '${CHANNELS[1]}', '!bound:example.org', 'relay');`, 'the bind')
+      const r = sql(second)
+      expect(await session.exit).toBe(0)
+      expect(r.ok, why(r)).toBe(true)
+      expect(bound('!bound:example.org')).toEqual([[GENERAL[0]]])
+      expect(sql(`SELECT room_bound, state_error FROM public.bridge_channels WHERE channel_id = '${CHANNELS[1]}'`).rows).toEqual([['f', 'room_in_use']])
+    }, 60_000)
+
+    // The session locks the bridges in id order, as two rooms moving in opposite directions meet.
+    it('two rooms moving between two bridges do not deadlock', async () => {
+      const [first, last] = [...own].sort()
+      const holder = own.indexOf(first)
+      const taker = own.indexOf(last)
+      const held = sql(link(holder, '!crossing:example.org'))
+      expect(held.ok, why(held)).toBe(true)
+      const moving = link(taker, '!crossing:example.org')
+      const session = await holding(`SELECT 1 FROM public.matrix_bridges WHERE id = '${first}' FOR UPDATE;`, 'the other move',
+        `SELECT 1 FROM public.matrix_bridges WHERE id = '${last}' FOR UPDATE;`)
+      const r = sql(moving)
+      expect(await session.exit).toBe(0)
+      expect(r.ok, why(r)).toBe(true)
+      expect(bound('!crossing:example.org')).toEqual([[GENERAL[taker]]])
+    }, 60_000)
+  })
+})

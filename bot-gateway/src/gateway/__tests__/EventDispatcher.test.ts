@@ -835,6 +835,21 @@ describe('install changes reach the permission cache within the refresh bound', 
     expect(await deliveredTo('after')).toEqual([])
   })
 
+  it('delivers to a widened install at once when told of the channel, and reads no other server again', async () => {
+    const install = db.rows('bot_server_permissions').find((r) => r.bot_id === OPEN_BOT)!
+    install.allowed_channel_ids = [BRIDGED]
+    expect(await deliveredTo('before')).toEqual([])
+    install.allowed_channel_ids = [BRIDGED, GENERAL]
+    expect(await deliveredTo('cached')).toEqual([])
+    const queries = permissionQueries()
+    await dispatcher.installsChanged('00000000-0000-0000-0000-00000000dead')
+    expect(await deliveredTo('another channel')).toEqual([])
+    expect(permissionQueries()).toBe(queries)
+    await dispatcher.installsChanged(GENERAL)
+
+    expect(await deliveredTo('after')).toEqual([OPEN_BOT])
+  })
+
   it('picks up a new install', async () => {
     db.rows('bot_server_permissions').splice(0)
     expect(await deliveredTo('before')).toEqual([])

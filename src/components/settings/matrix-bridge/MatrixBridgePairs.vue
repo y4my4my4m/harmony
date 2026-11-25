@@ -82,68 +82,10 @@ function stateOf(row: MatrixBridgePair): PairState {
 
 <style scoped src="../discord-bridge/bridge.css"></style>
 <style scoped>
-/* Pair cards as BridgeChannelPairs.vue. */
-.pair-list {
-  list-style: none;
-  margin: 0 0 16px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.pair {
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--background-quaternary);
-  background: var(--background-primary);
-  min-width: 0;
-}
-
-.pair-main {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.pair-channel {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.pair-platform {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-secondary);
-}
-
-.pair-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-}
-
 .pair-pending {
   font-weight: 400;
   font-style: italic;
   color: var(--text-secondary);
-}
-
-.pair-arrow {
-  font-size: 18px;
-  color: var(--text-link);
-}
-
-.pair-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
 }
 
 .pair-fix {

@@ -3,10 +3,11 @@
 // profile card with the platform handle. Server settings has one Bridges entry with a Discord and
 // a Matrix tab, and the former Discord Bridge link opens the Discord tab. A member's Bridge privacy
 // lists only the platforms the server bridges and keeps the choice across a reload. On the Matrix
-// tab a manager with no bot of their own reads the setup steps and the guide link; the owner of a
-// bot installed in the server pairs channels of its channel list, sees each wait for a room and the
-// status card count them, and unpairs the bot. On a server whose only bot bridges Matrix, '@'
-// suggests a Matrix person to the bot's owner and to a member its private row is hidden from.
+// tab, under Use your own bridge program, a manager with no bot of their own reads the setup steps
+// and the guide link; the owner of a bot installed in the server pairs channels of its channel list,
+// sees each wait for a room and the status card count them, and unpairs the bot. On a server whose
+// only bot bridges Matrix, '@' suggests a Matrix person to the bot's owner and to a member its
+// private row is hidden from.
 //
 // MATRIX_TAB_SHOTS=<directory> saves the Matrix tab empty, with the setup form, and paired, at 1440x900.
 
@@ -232,11 +233,14 @@ async function shoot(page: Page, file: string, end?: Locator): Promise<void> {
   await page.screenshot({ path: path.join(SHOTS, `${file}.png`) })
 }
 
-async function openMatrixTab(page: Page, serverId: string) {
+/** The Matrix tab with the form of a bridge program of one's own, chosen first where nothing is paired. */
+async function openOwnProgram(page: Page, serverId: string) {
   await page.goto(`/server/${serverId}?section=bridges&tab=matrix`)
   await dismissAnnouncements(page)
   const panel = page.getByTestId('bridges-panel-matrix')
-  await expect(panel.getByTestId('matrix-status')).toBeVisible({ timeout: 30000 })
+  await expect(panel.getByTestId('bridge-mode-chooser')).toBeVisible({ timeout: 30000 })
+  await panel.getByRole('article', { name: 'Use your own bridge program' }).getByRole('button').click()
+  await expect(panel.getByTestId('matrix-status')).toBeVisible()
   return panel
 }
 
@@ -273,13 +277,13 @@ test.describe('Matrix tab setup', () => {
   test('a manager with no bot of their own gets the setup steps and the guide', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await signIn(page, helper)
-    const panel = await openMatrixTab(page, bareServer.id)
+    const panel = await openOwnProgram(page, bareServer.id)
     await expect(panel.getByTestId('matrix-status-title')).toHaveText('Not set up')
     await expect(panel.getByTestId('matrix-bridge-empty')).toBeVisible()
     await expect(panel.getByTestId('matrix-setup')).toHaveCount(0)
     const steps = panel.getByTestId('matrix-guide-steps').getByRole('listitem')
     await expect(steps).toHaveCount(4)
-    await expect(steps.nth(0)).toContainText('Matrix bridge service')
+    await expect(steps.nth(0)).toContainText('Run the Matrix bridge on a computer')
     await expect(steps.nth(1)).toContainText('User settings → My bots')
     await expect(steps.nth(2)).toContainText('Server settings → Advanced settings → Server bots')
     const link = panel.getByRole('link', { name: /Read the Matrix bridge guide/ })
@@ -292,7 +296,7 @@ test.describe('Matrix tab setup', () => {
     test.setTimeout(120_000)
     await page.setViewportSize({ width: 1440, height: 900 })
     await signIn(page, owner)
-    const panel = await openMatrixTab(page, setupServer.id)
+    const panel = await openOwnProgram(page, setupServer.id)
     const form = panel.getByTestId('matrix-setup')
     const card = (channelId: string) => panel.locator(`[data-testid="matrix-pair"][data-channel="${channelId}"]`)
 

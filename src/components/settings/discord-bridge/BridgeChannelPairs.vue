@@ -195,20 +195,7 @@
       <form class="add-form" novalidate data-testid="pair-form" @submit.prevent="add">
         <h4 class="db-card-sub">{{ t('discordBridge.pairs.addTitle') }}</h4>
         <div class="add-grid">
-          <div class="db-field">
-            <label :for="`${uid}-harmony`" class="db-label">{{ t('discordBridge.pairs.harmonyChannel') }}</label>
-            <select :id="`${uid}-harmony`" v-model="harmonyId" class="db-select" data-testid="select-harmony">
-              <option value="">{{ t('discordBridge.pairs.choose') }}</option>
-              <template v-for="group in harmonyGroups" :key="group.label">
-                <optgroup v-if="group.label" :label="group.label">
-                  <option v-for="c in group.channels" :key="c.id" :value="c.id">#{{ c.name }}</option>
-                </optgroup>
-                <template v-else>
-                  <option v-for="c in group.channels" :key="c.id" :value="c.id">#{{ c.name }}</option>
-                </template>
-              </template>
-            </select>
-          </div>
+          <BridgeChannelSelect :id="`${uid}-harmony`" v-model="harmonyId" :groups="harmonyGroups" />
 
           <div class="db-field">
             <label :for="`${uid}-discord`" class="db-label">{{ t('discordBridge.pairs.discordChannel') }}</label>
@@ -280,6 +267,7 @@ import {
   PAIR_DIRECTIONS,
   discordChannelIssues,
   groupDiscordTextChannels,
+  groupHarmonyTextChannels,
   isBlockingIssue,
   matchChannelsByName,
   parseSnapshotGuilds,
@@ -291,6 +279,7 @@ import {
   type SnapshotChannel,
 } from '@/utils/discordBridgeSetup'
 import { cancelImports, pairChannels, startImports, unpairChannel, type ImportJob } from './bridgeApi'
+import BridgeChannelSelect from './BridgeChannelSelect.vue'
 import BridgeImportControls from './BridgeImportControls.vue'
 import { importAvailability, importBlock, isImportablePair } from './importProgress'
 import { bridgeErrorKey } from './bridgeErrors'
@@ -330,17 +319,7 @@ const discordChannels = computed(() => guild.value?.channels ?? [])
 const pairedHarmony = computed(() => new Set(props.pairs.map((p) => p.harmony_channel_id)))
 const pairedDiscord = computed(() => new Set(props.pairs.map((p) => p.discord_channel_id)))
 
-const harmonyGroups = computed(() => {
-  const groups: { label: string; channels: HarmonyChannelOption[] }[] = []
-  for (const channel of props.harmonyChannels) {
-    if (channel.voice || pairedHarmony.value.has(channel.id)) continue
-    const label = channel.categoryName ?? ''
-    let group = groups.find((g) => g.label === label)
-    if (!group) groups.push((group = { label, channels: [] }))
-    group.channels.push(channel)
-  }
-  return groups
-})
+const harmonyGroups = computed(() => groupHarmonyTextChannels(props.harmonyChannels, pairedHarmony.value))
 
 const discordGroups = computed(() =>
   groupDiscordTextChannels(guild.value)
@@ -556,75 +535,6 @@ async function pairMatches() {
   color: var(--text-secondary);
 }
 
-.pair-list {
-  list-style: none;
-  margin: 0 0 16px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.pair {
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--background-quaternary);
-  background: var(--background-primary);
-  min-width: 0;
-}
-
-.pair-main {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.pair-channel {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.pair-platform {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-secondary);
-}
-
-.pair-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-}
-
-.pair-arrow {
-  font-size: 18px;
-  color: var(--text-link);
-}
-
-.pair-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.pair-meta .remove {
-  margin-left: auto;
-}
-
-.pair-fixes {
-  margin: 8px 0 0;
-  padding-left: 18px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
 .import-toolbar {
   display: flex;
   flex-direction: column;
@@ -727,48 +637,7 @@ async function pairMatches() {
   color: var(--text-primary);
 }
 
-.add-form {
-  padding-top: 4px;
-}
-
-.add-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.issue-list {
-  margin: 0 0 12px;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.issue-list li {
-  padding: 8px 10px;
-  border-radius: 6px;
-}
-
-.issue-list .blocking {
-  background: color-mix(in srgb, var(--error) 10%, transparent);
-}
-
-.issue-list .warning {
-  background: color-mix(in srgb, var(--warning) 14%, transparent);
-}
-
 .discord-side {
   margin-top: 16px;
-}
-
-@media (max-width: 720px) {
-  .add-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-  }
 }
 </style>

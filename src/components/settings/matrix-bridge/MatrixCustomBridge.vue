@@ -1,10 +1,5 @@
 <template>
-  <section class="matrix-bridge" :aria-labelledby="`${uid}-title`" data-testid="matrix-bridge">
-    <div class="settings-section">
-      <h3 :id="`${uid}-title`" class="section-title">{{ t('matrixBridge.title') }}</h3>
-      <p class="section-description">{{ t('matrixBridge.description') }}</p>
-    </div>
-
+  <div data-testid="matrix-custom">
     <div v-if="loading" class="loading-state" role="status">
       <LoadingSpinner :size="32" />
       <span>{{ t('matrixBridge.loading') }}</span>
@@ -83,7 +78,7 @@
         </div>
       </section>
 
-      <section v-if="rows.length" class="db-card" :aria-labelledby="`${uid}-privacy`">
+      <section v-if="rows.length && !hidePrivacy" class="db-card" :aria-labelledby="`${uid}-privacy`">
         <h3 :id="`${uid}-privacy`" class="db-card-title">{{ t('discordBridge.privacy.title') }}</h3>
         <BridgePrivacyPanel :server-id="serverId" platform="matrix" />
       </section>
@@ -111,7 +106,7 @@
         </ul>
       </section>
     </template>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -149,7 +144,13 @@ interface BotInUse {
   count: number
 }
 
-const props = defineProps<{ serverId: string }>()
+const props = withDefaults(defineProps<{
+  serverId: string
+  /** The bot of the server's managed bridge: configure_matrix_bridge refuses it. */
+  managedBotId?: string | null
+  /** The privacy panel covers the platform; the managed bridge beside this one shows it. */
+  hidePrivacy?: boolean
+}>(), { managedBotId: null, hidePrivacy: false })
 const { t } = useI18n()
 const profile = useProfileStore()
 const { confirm } = useConfirmDialog()
@@ -223,7 +224,7 @@ async function load(): Promise<boolean> {
   if (pairs.status === 'fulfilled') rows.value = pairs.value
   else error.value = 'loadError'
   if (owned.status === 'fulfilled' && serverChannels.status === 'fulfilled') {
-    installs.value = owned.value
+    installs.value = owned.value.filter(install => install.bot_id !== props.managedBotId)
     // The setup form pairs text channels only.
     channels.value = serverChannels.value.filter(channel => !channel.voice)
   } else {
@@ -331,29 +332,6 @@ onBeforeUnmount(() => { revision++ })
 
 <style scoped src="../discord-bridge/bridge.css"></style>
 <style scoped>
-.matrix-bridge {
-  margin-bottom: 32px;
-  max-width: 860px;
-}
-
-.settings-section {
-  margin-bottom: 20px;
-}
-
-.section-title {
-  margin: 0 0 8px;
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.section-description {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-}
-
 .loading-state {
   display: flex;
   flex-direction: column;
@@ -387,10 +365,6 @@ onBeforeUnmount(() => { revision++ })
 
 .modes .db-muted:last-child {
   margin-bottom: 0;
-}
-
-.danger {
-  border-color: color-mix(in srgb, var(--error) 40%, var(--background-quaternary));
 }
 
 .unpair-list {

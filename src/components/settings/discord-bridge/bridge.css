@@ -1,4 +1,4 @@
-/* Shared by the Discord bridge settings components through <style scoped src>. */
+/* Shared by the bridge settings components through <style scoped src>. */
 
 .db-card {
   background-color: var(--background-secondary);
@@ -266,6 +266,189 @@
   border: 0;
 }
 
+.link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--text-link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
+.pair-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pair {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--background-quaternary);
+  background: var(--background-primary);
+  min-width: 0;
+}
+
+.pair-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pair-channel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pair-platform {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.pair-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.pair-arrow {
+  font-size: 18px;
+  color: var(--text-link);
+}
+
+.pair-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.pair-meta .remove {
+  margin-left: auto;
+}
+
+.pair-fixes {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.add-form {
+  padding-top: 4px;
+}
+
+.add-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.issue-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.issue-list li {
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.issue-list .blocking {
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+}
+
+.issue-list .warning {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+}
+
+.status-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  margin-top: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-secondary);
+}
+
+.status-dot.online {
+  background: var(--success);
+}
+
+.status-dot.degraded {
+  background: var(--warning);
+}
+
+.status-dot.offline {
+  background: var(--error);
+}
+
+.status-text {
+  min-width: 0;
+}
+
+.status-text .db-card-title {
+  margin-bottom: 2px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 8px 0 16px;
+}
+
+.facts div {
+  min-width: 0;
+}
+
+.facts dt {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.facts dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.danger {
+  border-color: color-mix(in srgb, var(--error) 40%, var(--background-quaternary));
+}
+
 @media (max-width: 640px) {
   .db-card {
     padding: 16px;
@@ -273,5 +456,18 @@
 
   .db-actions .btn {
     flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .add-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

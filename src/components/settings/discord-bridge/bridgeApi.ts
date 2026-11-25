@@ -32,8 +32,20 @@ export const DEFAULT_IMPORT_MAX_RUNNING = 1
 export const DEFAULT_IMPORT_RATE = 600
 export const DEFAULT_MIRROR_SERVER_LIMIT_MB = 5120
 
+export const MATRIX_INSTANCE_ENABLED_KEY = 'matrix_bridge_instance_enabled'
+export const MATRIX_INSTANCE_LIMIT_KEY = 'matrix_bridge_instance_limit'
+
+/** The bridges communities bring and the instance runs, per platform. */
+export const HOSTING_KEYS = {
+  discord: { enabled: HOSTING_ENABLED_KEY, limit: HOSTING_LIMIT_KEY },
+  matrix: { enabled: 'matrix_bridge_hosting_enabled', limit: 'matrix_bridge_hosting_limit' },
+} as const
+
 export type BridgeInstanceConfigKey =
   | typeof HOSTING_ENABLED_KEY
+  | (typeof HOSTING_KEYS)['matrix']['enabled' | 'limit']
+  | typeof MATRIX_INSTANCE_ENABLED_KEY
+  | typeof MATRIX_INSTANCE_LIMIT_KEY
   | typeof HOSTING_LIMIT_KEY
   | typeof INSTANCE_BOT_ENABLED_KEY
   | typeof INSTANCE_BOT_PRESENCE_KEY
@@ -57,7 +69,7 @@ export class BridgeUnavailableError extends Error {
   }
 }
 
-function raise(error: { code?: string; message?: string } | null): void {
+export function raise(error: { code?: string; message?: string } | null): void {
   if (!error) return
   if (error.code && MISSING_CODES.has(error.code)) throw new BridgeUnavailableError()
   throw Object.assign(new Error(error.message || 'Request failed'), { code: error.code })
@@ -214,12 +226,16 @@ export function forgetIssuedSetupCodes(): void {
   issuedCodes.clear()
 }
 
+export function rememberSetupCode(bridgeId: string, code: string): IssuedSetupCode {
+  const issued = { code, issuedAt: Date.now() }
+  issuedCodes.set(bridgeId, issued)
+  return issued
+}
+
 export async function createSetupCode(bridgeId: string): Promise<IssuedSetupCode> {
   const { data, error } = await supabase.rpc('discord_bridge_setup_code', { p_bridge_id: bridgeId })
   raise(error)
-  const issued = { code: data as string, issuedAt: Date.now() }
-  issuedCodes.set(bridgeId, issued)
-  return issued
+  return rememberSetupCode(bridgeId, data as string)
 }
 
 export async function setHostedToken(bridgeId: string, token: string): Promise<void> {
@@ -538,19 +554,45 @@ export interface HostingConfig {
   limit: number
 }
 
-export async function fetchHostingConfig(): Promise<HostingConfig> {
+export async function fetchHostingConfig(platform: BridgeRemotePlatform = DISCORD_PLATFORM): Promise<HostingConfig> {
+  const keys = HOSTING_KEYS[platform]
   const { data, error } = await supabase
     .from('instance_config')
     .select('config_key, config_value')
-    .in('config_key', [HOSTING_ENABLED_KEY, HOSTING_LIMIT_KEY])
+    .in('config_key', [keys.enabled, keys.limit])
   if (error) throw new Error(error.message)
   const rows = (data as { config_key: string; config_value: unknown }[] | null) ?? []
   const value = (key: string) => rows.find((r) => r.config_key === key)?.config_value
-  const limit = Number(value(HOSTING_LIMIT_KEY))
+  const limit = Number(value(keys.limit))
   return {
-    enabled: configBool(value(HOSTING_ENABLED_KEY)),
+    enabled: configBool(value(keys.enabled)),
     limit: Number.isFinite(limit) && limit >= 0 ? Math.floor(limit) : DEFAULT_HOSTING_LIMIT,
   }
+}
+
+/** The service that runs bridges for communities, as the gateway last heard from it. */
+export interface BridgeHost {
+  platform: BridgeRemotePlatform
+  lastSeenAt: string | null
+  version: string | null
+  status: unknown
+}
+
+/** bridge_hosts_status(), for instance admins. Throws BridgeUnavailableError on an instance before 1.9.9. */
+export async function fetchBridgeHosts(): Promise<BridgeHost[] | null> {
+  const { data, error } = await supabase.rpc('bridge_hosts_status')
+  raise(error)
+  if (!Array.isArray(data)) return null
+  return (data as Record<string, unknown>[]).flatMap((row): BridgeHost[] =>
+    row?.platform === 'discord' || row?.platform === 'matrix'
+      ? [{
+          platform: row.platform,
+          lastSeenAt: typeof row.last_seen_at === 'string' ? row.last_seen_at : null,
+          version: typeof row.version === 'string' && row.version ? row.version : null,
+          status: row.status,
+        }]
+      : [],
+  )
 }
 
 /** Writes one bridge instance_config key; batch_set_instance_config requires an instance admin. */

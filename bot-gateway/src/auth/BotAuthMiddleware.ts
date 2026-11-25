@@ -72,6 +72,10 @@ export const INTERACTION_BUCKET = 'interactions'
 export const INTERACTION_LIMIT = 50
 export const INTERACTION_WINDOW_SECONDS = 5
 
+// A Matrix bridge reads bridge-check twice per relayed message: at 4 times a route's limit the checks
+// admit, in a channel, as many messages each way as POST messages does.
+export const BRIDGE_CHECK_FACTOR = 4
+
 // Route parameters that name the resource a bucket is per, as Discord's major parameters.
 const MAJOR_PARAMS = new Set(['channelId', 'serverId', 'guildId'])
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -145,8 +149,8 @@ localOverallCounts.init({ windowMs: 60_000 } as Options)
 
 /**
  * Seconds to wait while the rate-limit RPC fails: the route bucket, then the bot's overall count,
- * as check_and_increment_bot_rate_limit. The overall limit never reads below the route limit per
- * minute.
+ * as bot_rate_limit_check. The overall limit never reads below `floor` per window, the route limit
+ * unless the route has more of its own.
  */
 export async function localRateLimitWait(
   botId: string,
@@ -154,11 +158,12 @@ export async function localRateLimitWait(
   maxRequests: number,
   windowSeconds: number,
   overallPerMinute = LOCAL_OVERALL_PER_MINUTE,
+  floor = maxRequests,
 ): Promise<number> {
   const route = await countLocally(localCounts, botId, bucket, maxRequests, windowSeconds)
   const overall = await countLocally(
     localOverallCounts, botId, 'overall',
-    Math.max(overallPerMinute, Math.ceil((maxRequests * 60) / windowSeconds)), 60,
+    Math.max(overallPerMinute, Math.ceil((floor * 60) / windowSeconds)), 60,
   )
   return Math.max(route, overall)
 }
@@ -210,6 +215,8 @@ async function checkInteractionLimit(botId: string): Promise<number> {
  *
  * check_and_increment_bot_rate_limit counts the route bucket and the bot's overall bucket in one
  * call. A database older than migration 20261109200001 answers a boolean, true for a full window.
+ * bot_rate_limit_check does for a route with more than the configured limit, which the overall
+ * ceiling does not rise to.
  *
  * Window and limit come from config.rateLimit (RATE_LIMIT_WINDOW_MS,
  * RATE_LIMIT_MAX_REQUESTS). Window is passed in seconds, floored at 1.
@@ -220,27 +227,37 @@ async function checkInteractionLimit(botId: string): Promise<number> {
  */
 async function checkRateLimit(botId: string, bucket: string): Promise<number> {
   const windowSeconds = Math.max(1, Math.floor(config.rateLimit.windowMs / 1000))
-  const maxRequests = config.rateLimit.maxRequests
+  const floor = config.rateLimit.maxRequests
+  const maxRequests = bucket.endsWith('/bridge-check') ? floor * BRIDGE_CHECK_FACTOR : floor
+  const local = () => localRateLimitWait(botId, bucket, maxRequests, windowSeconds, LOCAL_OVERALL_PER_MINUTE, floor)
 
   try {
-    const { data, error } = await supabase.rpc('check_and_increment_bot_rate_limit', {
-      p_bot_id: botId,
-      p_bucket: bucket,
-      p_limit: maxRequests,
-      p_window_seconds: windowSeconds,
-    })
+    const { data, error } = maxRequests === floor
+      ? await supabase.rpc('check_and_increment_bot_rate_limit', {
+        p_bot_id: botId,
+        p_bucket: bucket,
+        p_limit: maxRequests,
+        p_window_seconds: windowSeconds,
+      })
+      : await supabase.rpc('bot_rate_limit_check', {
+        p_bot_id: botId,
+        p_bucket: bucket,
+        p_limit: maxRequests,
+        p_window_seconds: windowSeconds,
+        p_floor: floor,
+      })
 
     if (error) {
       console.error('Rate limit RPC error:', error)
-      return localRateLimitWait(botId, bucket, maxRequests, windowSeconds)
+      return local()
     }
 
     if (typeof data === 'number') return data
     if (typeof data === 'boolean') return data ? windowSeconds : 0
     console.error('Rate limit RPC answered neither a number nor a boolean:', JSON.stringify(data))
-    return localRateLimitWait(botId, bucket, maxRequests, windowSeconds)
+    return local()
   } catch (error) {
     console.error('Rate limit check error:', error)
-    return localRateLimitWait(botId, bucket, maxRequests, windowSeconds)
+    return local()
   }
 }

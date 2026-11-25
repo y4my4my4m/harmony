@@ -1,5 +1,5 @@
 <template>
-  <div class="instance-bot-admin" data-testid="bridge-instance-bot-admin">
+  <div class="admin-card" data-testid="bridge-instance-bot-admin">
     <h4>{{ t('discordBridge.instanceAdmin.title') }}</h4>
     <p class="hint">{{ t('discordBridge.instanceAdmin.lead') }}</p>
 
@@ -435,23 +435,14 @@ onMounted(load)
 </script>
 
 <style scoped src="../../admin/adminShared.css"></style>
+<style scoped src="./bridgeAdmin.css"></style>
 <style scoped>
-.instance-bot-admin {
+.admin-card {
   margin-top: 16px;
 }
 
-.instance-bot-admin h4 {
-  margin: 0 0 8px;
-  font-size: 15px;
-}
-
-.summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 0 0 12px;
-  color: var(--text-primary);
-  font-size: 14px;
+.field {
+  max-width: 560px;
 }
 
 .portal {
@@ -491,96 +482,5 @@ onMounted(load)
 
 .credentials {
   margin-bottom: 16px;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 12px 0;
-}
-
-.text,
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.field {
-  margin-bottom: 12px;
-  max-width: 560px;
-}
-
-.title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.state {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.state--ok {
-  color: var(--text-success);
-}
-
-.hint {
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.mono {
-  font-family: var(--font-mono, ui-monospace, monospace);
-}
-
-.limit-input {
-  max-width: 160px;
-}
-
-.buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.confirm {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--text-primary);
-  font-size: 14px;
-}
-
-.confirm p {
-  margin: 0 0 8px;
-}
-
-.note {
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  color: var(--text-primary);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.note a {
-  color: var(--text-link);
-}
-
-.error {
-  color: var(--text-danger);
-  font-size: 13px;
 }
 </style>

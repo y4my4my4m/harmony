@@ -105,6 +105,16 @@ describe('the HTTP server', () => {
   })
 })
 
+describe('bridge setup routes', () => {
+  it('are mounted for Discord and for Matrix', async () => {
+    for (const path of ['/bridge/v2/redeem', '/bridge/v2/matrix/redeem']) {
+      const res = await supertest(app).post(path).send({ code: 'nope' })
+      expect([path, res.status, res.body.code]).toEqual([path, 400, 'invalid_code'])
+    }
+    expect((await supertest(app).get('/bridge/v2/matrix/config')).status).toBe(401)
+  })
+})
+
 describe('GET /status', () => {
   connect(BRIDGE_BOT, 'public-bridge')
   connect(PRIVATE_BOT, 'secret-moderation-bot')

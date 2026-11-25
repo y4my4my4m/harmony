@@ -120,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -162,6 +162,7 @@ import BridgeModeChooser from './discord-bridge/BridgeModeChooser.vue'
 import BridgeSetupStepper from './discord-bridge/BridgeSetupStepper.vue'
 import BridgeStatusView from './discord-bridge/BridgeStatusView.vue'
 import BridgeLegacyInfo from './discord-bridge/BridgeLegacyInfo.vue'
+import { useBridgePolling } from './discord-bridge/useBridgePolling'
 
 const props = withDefaults(
   defineProps<{
@@ -174,9 +175,6 @@ const props = withDefaults(
   }>(),
   { serverName: '', linkReturn: null, headingLevel: 2 },
 )
-
-/** Status and snapshot refresh; the bridge heartbeats every 30 s and on change. */
-const POLL_MS = 5000
 
 const { t } = useI18n()
 const toast = useToast()
@@ -201,7 +199,6 @@ const legacy = ref<LegacyPairing | null>(null)
 const hostingEnabled = ref(false)
 const instanceBotEnabled = ref(false)
 const linkError = ref<LinkErrorCode | null>(props.linkReturn?.error ?? null)
-const now = ref(Date.now())
 
 const view = ref<'setup' | 'status'>('setup')
 const initialStep = ref<SetupStep | null>(null)
@@ -215,8 +212,9 @@ const confirmNote = computed(() => {
   return ''
 })
 
-let timer: ReturnType<typeof setInterval> | null = null
 let refreshSeq = 0
+
+const { now } = useBridgePolling(() => !!bridge.value && !loading.value, () => void refresh())
 
 async function readBridge(): Promise<void> {
   const seq = ++refreshSeq
@@ -290,17 +288,6 @@ async function refresh() {
   } catch (error) {
     debug.warn('Discord bridge refresh failed:', error)
   }
-}
-
-function poll() {
-  now.value = Date.now()
-  if (!bridge.value || loading.value) return
-  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
-  void refresh()
-}
-
-function onVisibility() {
-  if (document.visibilityState === 'visible') poll()
 }
 
 function clearAction() {
@@ -386,16 +373,7 @@ async function runDelete() {
   }
 }
 
-onMounted(() => {
-  void load()
-  timer = setInterval(poll, POLL_MS)
-  document.addEventListener('visibilitychange', onVisibility)
-})
-
-onUnmounted(() => {
-  if (timer) clearInterval(timer)
-  document.removeEventListener('visibilitychange', onVisibility)
-})
+onMounted(() => void load())
 </script>
 
 <style scoped src="./discord-bridge/bridge.css"></style>

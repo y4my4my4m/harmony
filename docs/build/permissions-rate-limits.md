@@ -149,9 +149,9 @@ The value of a bit is 2 to the power of its number: `SEND_MESSAGES` is `4096`. W
 
 The REST API counts requests per bot in buckets. A bucket is one route, and for routes that name a channel or server (`{channel.id}`, `{server.id}`, `/guilds/{server.id}`), one route on one channel or server. `GET /channels/{channel.id}/messages` on two channels uses two buckets; every message ID, emoji or invite code on one route shares one bucket. All methods on a route count together, so `GET` and `POST /channels/{channel.id}/messages` share a bucket. Case, a trailing slash and the query string do not matter. Requests that match no route share one bucket.
 
-Each bucket allows 100 requests per 60-second window. The window starts at the first request in the bucket and resets when it ends. An instance can change both numbers with the gateway's `RATE_LIMIT_MAX_REQUESTS` and `RATE_LIMIT_WINDOW_MS` settings; see [Configuration](/self-host/configuration).
+Each bucket allows 100 requests per 60-second window, [`bridge-check`](/build/rest#matrix-send-check) four times as many. The window starts at the first request in the bucket and resets when it ends. An instance can change the limit and the window with the gateway's `RATE_LIMIT_MAX_REQUESTS` and `RATE_LIMIT_WINDOW_MS` settings; see [Configuration](/self-host/configuration).
 
-All routes of one bot also share an overall ceiling per 60 seconds: 600 requests by default, 3,000 for the bot of a linked [Discord bridge](/run/discord-bridge). Requests refused by a route's bucket count toward it. An instance admin sets both numbers under **Instance admin** → **Anti-spam**. The ceiling never reads below the route limit per minute. A bot whose owner is [exempt](/run/moderation#exempt-an-account) has no overall ceiling.
+All routes of one bot also share an overall ceiling per 60 seconds: 600 requests by default, 3,000 for the bot of a linked [Discord bridge](/run/discord-bridge) or of a [Matrix bridge](/build/bridges#matrix-bridge-setup) set up in the app. Requests refused by a route's bucket count toward it. An instance admin sets both numbers under **Instance admin** → **Anti-spam**. The ceiling never reads below the route limit per minute. A bot whose owner is [exempt](/run/moderation#exempt-an-account) has no overall ceiling.
 
 A request over the limit answers:
 
@@ -165,7 +165,7 @@ Retry-After: 17
 
 `retry_after` and `Retry-After` are the seconds until the window that refused the request ends. No other rate-limit headers are sent. Requests refused with `401` or `503` during authentication are not counted. When the gateway's rate-limit check fails, it counts each bucket in its own process and keeps refusing at the same number. In place of the overall ceiling it counts all of a bot's requests together, up to 3000 a minute (the default overall limit of a bridge), until the check works again.
 
-The [Bridge v2](/build/bridges#bridge-v2-endpoints) routes a bridge bot calls with its token (`/config`, `/status`, `/pairs`) count in the same way, one bucket per route. The history import routes (`/bridge/v2/imports`) count per method and per import job: `GET` and `PATCH /bridge/v2/imports/{import.id}` of one job use two buckets.
+The [Bridge v2](/build/bridges#bridge-v2-endpoints) routes a bridge bot calls with its token (`/config`, `/status`, `/pairs`, and `/matrix/config`, `/matrix/status` and `/matrix/privacy` of a [Matrix bridge](/build/bridges#matrix-bridge-setup)) count in the same way, one bucket per route. The history import routes (`/bridge/v2/imports`) count per method and per import job: `GET` and `PATCH /bridge/v2/imports/{import.id}` of one job use two buckets.
 
 The three [interaction routes](/build/commands#respond) share one bucket per bot, 50 requests per 5 seconds, and do not count toward the overall ceiling: their volume follows how often members run the bot's commands, and each interaction already allows at most one answer, its edits and 10 follow-ups. Members running commands are limited to 5 per 10 seconds per account.
 
@@ -180,7 +180,9 @@ The Bridge v2 routes that take no bot token are limited per client IP address:
 | Route | Limit |
 |---|---|
 | `POST /bridge/v2/redeem` | 10 requests per 15 minutes |
-| `GET /bridge/v2/hosted` and `/hosted/instance` | 30 requests refused with `401` per 15 minutes; accepted requests are not counted |
+| `POST /bridge/v2/matrix/redeem` | 10 requests per 15 minutes |
+| `GET /bridge/v2/hosted` and `/hosted/instance` | 30 requests refused with `401` per 15 minutes, both routes together; accepted requests are not counted |
+| `GET /bridge/v2/matrix/host`, `POST /bridge/v2/matrix/host/status` and `/host/link` | 30 requests refused with `401` per 15 minutes, the three routes together; accepted requests are not counted |
 | `GET /bridge/v2/discord/authorize` and `/discord/callback` | 30 requests per 15 minutes, both routes together |
 
 They send the standard `RateLimit` and `RateLimit-Policy` headers (IETF draft 7). A refused request answers `429` with `{ "error": "Too many attempts; try again later", "code": "rate_limited" }`.
@@ -189,6 +191,7 @@ They send the standard `RateLimit` and `RateLimit-Policy` headers (IETF draft 7)
 
 | Limit | Value |
 |---|---|
+| `GET /channels/{channel.id}/bridge-check` | 400 requests per minute and channel: four times the instance's route limit. The overall ceiling is the same as for every route |
 | Message text | The instance's message length limit, 2000 characters unless the operator changed it; text parts only |
 | Different emoji on one message | 20; the 21st answers `400` with `code` `30010` |
 | REST request body | 10 MB |

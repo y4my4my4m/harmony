@@ -51,7 +51,7 @@
           :link-return="linkReturn"
           :heading-level="3"
         />
-        <MatrixBridgeSettings v-else :key="serverId" :server-id="serverId" />
+        <MatrixBridgeSetup v-else :key="serverId" :server-id="serverId" />
       </template>
     </div>
   </section>
@@ -63,7 +63,7 @@ import { useI18n } from 'vue-i18n'
 import { useRovingTabindex } from '@/composables/useRovingTabindex'
 import type { BridgeLinkReturn } from '@/utils/discordBridgeSetup'
 import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
-import MatrixBridgeSettings from '@/components/settings/matrix-bridge/MatrixBridgeSettings.vue'
+import MatrixBridgeSetup from '@/components/settings/matrix-bridge/MatrixBridgeSetup.vue'
 import { BRIDGE_TABS, type BridgeTab } from './bridgesSection'
 
 const props = withDefaults(

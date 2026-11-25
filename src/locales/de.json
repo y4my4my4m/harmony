@@ -93,7 +93,7 @@
       "title": "Eine Matrix-Bridge einrichten",
       "lead": "Um hier Kanäle zu verbinden, brauchst du einen eigenen Bot, der die Matrix-Bridge betreibt und auf diesem Server ist.",
       "steps": {
-        "service": "Wer diese Harmony-Instanz betreibt, richtet den Matrix-Bridge-Dienst ein und registriert ihn beim Matrix-Homeserver. Frag dort nach, falls er noch nicht läuft.",
+        "service": "Betreibe die Matrix-Bridge auf einem Computer, der immer an ist, oder frag jemanden, der eine betreibt. Wer einen Matrix-Homeserver betreibt, du oder jemand anderes, registriert sie dort einmalig.",
         "bot": "Erstelle unter {place} einen Bot für die Bridge und gib sein Token der Person, die die Bridge betreibt.",
         "install": "Füge den Bot unter {place} zu diesem Server hinzu. Gib ihm „Nachrichten lesen“ und „Nachrichten senden“, wähle dann unter Kanäle „Ausgewählte Kanäle“ und hake die zu übertragenden Kanäle an.",
         "pair": "Komm hierher zurück, um diese Kanäle zu verbinden."
@@ -124,6 +124,349 @@
       "confirmMessage": "{bot} überträgt {count} Kanal nicht mehr mit Matrix. Bereits übertragene Nachrichten bleiben. Bitte die Person, die die Bridge betreibt, auch den Raum aus ihrer Konfiguration zu nehmen. | {bot} überträgt {count} Kanäle nicht mehr mit Matrix. Bereits übertragene Nachrichten bleiben. Bitte die Person, die die Bridge betreibt, auch die Räume aus ihrer Konfiguration zu nehmen.",
       "done": "{bot} ist von Matrix getrennt."
     },
+    "start": {
+      "title": "Wo soll die Bridge laufen?",
+      "needs": "Du brauchst ein Matrix-Konto für die Bridge auf einem beliebigen Homeserver oder einen Homeserver, dessen Betreiber die Bridge registrieren kann. Die Einrichtung dauert etwa fünfzehn Minuten.",
+      "self": {
+        "title": "Selbst ausführen",
+        "point1": "Du führst einen Befehl (Docker) auf einem Computer aus, der immer läuft: ein Heimserver, ein VPS, ein Raspberry Pi.",
+        "point2": "Harmony-Mitglieder können in Matrix als eigene Matrix-Benutzer erscheinen.",
+        "tradeoff": "Die Bridge arbeitet nur, solange dieser Computer eingeschaltet und online ist.",
+        "choose": "Selbst ausführen"
+      },
+      "custom": {
+        "title": "Eigenes Bridge-Programm verwenden",
+        "point1": "Für ein anderes Bridge-Programm oder eine Konfiguration, die du selbst schreibst.",
+        "point2": "Du erstellst seinen Bot, fügst ihn zu diesem Server hinzu und wählst die Kanäle, die er überträgt.",
+        "tradeoff": "Seine Matrix-Räume stehen in seiner eigenen Konfiguration, und Harmony kann nicht erkennen, ob es läuft.",
+        "choose": "Eigenes Programm verwenden"
+      },
+      "hostingUnavailable": "Diese Instanz betreibt keine Matrix-Bridges für ihre Communities, daher läuft die Bridge auf einem deiner Computer.",
+      "bothWays": "In beiden Fällen laufen Nachrichten in verbundenen Kanälen über diese Instanz, wie jede andere Nachricht hier. Ende-zu-Ende-verschlüsselte Kanäle und Räume lassen sich nicht verbinden.",
+      "needsInstance": "Du brauchst einen Matrix-Raum, dessen Einstellungen du ändern darfst, oder jemanden dort, der es darf.",
+      "ownBot": "Oder auf anderem Weg verbinden:",
+      "instance": {
+        "title": "Die Bridge von {instance} verwenden",
+        "recommended": "Empfohlen",
+        "point1": "Nichts zu installieren und kein Konto anzulegen: Du lädst die Bridge in einen Raum ein und postest dort einen Code.",
+        "point2": "Diese Instanz betreibt die Bridge für dich.",
+        "tradeoff": "Die Bridge gehört dem Betreiber dieser Instanz, der jeden Raum lesen kann, den du verbindest.",
+        "choose": "Die Bridge von {instance} verwenden"
+      },
+      "hosted": {
+        "title": "Eigenes Matrix-Konto verwenden, auf dieser Instanz ausgeführt",
+        "lead": "Melde dich hier mit einem Matrix-Konto an; diese Instanz betreibt die Bridge damit.",
+        "point1": "Nichts zu installieren.",
+        "point2": "Jede Nachricht aus Harmony kommt von diesem Konto, mit dem Namen des Mitglieds davor.",
+        "tradeoff": "Der Betreiber dieser Instanz verwahrt das Zugriffstoken des Kontos und kann jeden Raum lesen, in dem das Konto ist. Nimm ein Konto nur für die Bridge.",
+        "choose": "Eigenes Konto hier verwenden"
+      }
+    },
+    "custom": {
+      "otherPrompt": "Möchtest du eine Bridge, die du hier einrichtest?",
+      "other": "Wähle, wo sie läuft",
+      "beside": "Zusätzlich ein eigenes Bridge-Programm verwenden",
+      "besideLead": "Ein eigenes Programm überträgt andere Kanäle, mit einem Bot, den du erstellst. Die Bridge oben bleibt, wie sie ist."
+    },
+    "self": {
+      "lead": "Die Bridge ist ein kleines Programm, das auf einem Computer läuft, der eingeschaltet bleibt, etwa ein Heimserver, ein VPS oder ein Raspberry Pi.",
+      "connection": {
+        "label": "So meldet sich die Bridge bei Matrix an",
+        "application_service": {
+          "title": "Auf einem eigenen Homeserver oder einem, dessen Betreiber du fragen kannst",
+          "lead": "Der Betreiber registriert die Bridge einmal. Harmony-Mitglieder können als eigene Matrix-Benutzer erscheinen."
+        },
+        "account": {
+          "title": "Mit einem Matrix-Konto",
+          "lead": "Auf jedem Homeserver, auch matrix.org. Jede Nachricht kommt von diesem Konto, mit dem Namen des Mitglieds davor."
+        }
+      },
+      "needsAppService": "Der Homeserver muss die Bridge erreichen: Beide laufen auf demselben Computer oder im selben Netzwerk, oder die Bridge hat eine öffentliche Adresse.",
+      "needsAccount": "Lege für die Bridge ein Konto auf einem beliebigen Homeserver an, das du für nichts anderes nutzt.",
+      "field": {
+        "homeserverUrl": {
+          "label": "Adresse des Homeservers",
+          "help": "Die Adresse, mit der sich Matrix-Apps verbinden. Der Computer der Bridge muss sie öffnen können.",
+          "invalid": "Gib eine Adresse wie https://matrix.example.org ein."
+        },
+        "serverName": {
+          "label": "Servername",
+          "help": "Der Teil nach dem Doppelpunkt in den Benutzer-IDs des Homeservers, etwa {'@'}sam:example.org.",
+          "invalid": "Gib einen Namen wie example.org ein."
+        },
+        "appserviceUrl": {
+          "label": "Adresse der Bridge",
+          "help": "So erreicht der Homeserver den Computer, auf dem die Bridge läuft. Die Bridge lauscht auf Port 9009.",
+          "invalid": "Gib eine Adresse wie http://192.168.1.20:9009 ein."
+        }
+      },
+      "fillFields": "Fülle zuerst die Felder oben aus: Die Befehle unten übernehmen sie.",
+      "source": {
+        "name": "Aus dem Quellcode",
+        "install": "Installiere Git und Node.js 24 und führe dann diese Befehle nacheinander aus:",
+        "env": "Speichere dies in diesem Ordner als {file}:",
+        "run": "Starte die Bridge dort. Eine Dienstverwaltung wie systemd hält sie am Laufen:",
+        "trouble": "Die Bridge schreibt ins Terminal, was sie tut. Steht dort, dass der Einrichtungscode ungültig oder abgelaufen ist, klick oben auf „Neuer Code“, trag den neuen Code in .env ein und starte sie erneut."
+      },
+      "replaceToken": "Ersetze {placeholder} durch das Zugriffstoken des Matrix-Kontos der Bridge.",
+      "registration": {
+        "title": "Die Bridge auf dem Homeserver registrieren",
+        "fromDocker": "Beim Start schreibt die Bridge {file}. Kopiere die Datei aus dem Container:",
+        "fromSource": "Beim Start schreibt die Bridge in diesem Ordner {file}.",
+        "install": "Gib {file} dem Betreiber des Homeservers. Bei Synapse trägt er den Pfad in homeserver.yaml unter {setting} ein und startet Synapse neu.",
+        "done": "Die Bridge verbindet sich von selbst, sobald der Homeserver sie kennt.",
+        "secret": "Die Datei enthält die Schlüssel der Bridge zum Homeserver. Veröffentliche sie nirgends."
+      },
+      "keepData": "Behalte {place}: Darin liegen die Anmeldung der Bridge, ihre Registrierung und die von ihr angelegten Matrix-Benutzer. Nimm es mit, wenn die Bridge auf einen anderen Computer umzieht. Ohne diese Daten muss sie neu registriert werden.",
+      "keepDataAccount": "Behalte {place}: Darin liegen die Anmeldung der Bridge und was sie schon übertragen hat. Nimm es mit, wenn die Bridge auf einen anderen Computer umzieht.",
+      "copiedToken": "Ein aus den Einstellungen einer Matrix-App kopiertes Token funktioniert nur dort, wo Token nicht ablaufen; auf matrix.org laufen sie nach Minuten ab.",
+      "login": "Melde dich mit dem Konto an. Der Befehl fragt im Terminal nach Benutzername und Passwort und gibt das Zugriffstoken aus:"
+    },
+    "check": {
+      "waiting": "Warte auf die Verbindung deiner Bridge. Führe den Befehl aus Schritt 1 aus; meist verbindet sie sich innerhalb einer Minute.",
+      "running": "Prüfe, ob die Bridge auf diesem Computer läuft und der Befehl keinen Fehler ausgegeben hat.",
+      "code": "Steht im Protokoll, dass der Einrichtungscode ungültig oder abgelaufen ist, hol dir in Schritt 1 einen neuen Code und führe den Befehl erneut aus.",
+      "matrix": {
+        "ok": "Bridge beim Homeserver angemeldet",
+        "fail": "Die Bridge kann sich nicht beim Homeserver anmelden",
+        "waiting": "Bridge beim Homeserver angemeldet"
+      },
+      "account": "Prüfe, ob du dich in Schritt 1 mit dem Konto angemeldet hast. Es noch einmal zu tun schadet nicht."
+    },
+    "managed": {
+      "starting": "Bridge verbindet sich mit Matrix",
+      "account": "Matrix-Konto",
+      "homeserver": "Homeserver",
+      "connection": "Meldet sich an als",
+      "connectionKind": {
+        "application_service": "Application Service",
+        "account": "Matrix-Konto"
+      },
+      "pending": "Wartende Nachrichten",
+      "failed": "Nicht zugestellte Nachrichten",
+      "disconnectBody": "Beendet die Bridge und entfernt alle Kanalpaare und den Harmony-Bot der Bridge. Bereits übertragene Nachrichten bleiben. Matrix-Benutzer und Räume werden nicht gelöscht.",
+      "disconnectRegistration": "Der Betreiber des Homeservers kann die Registrierung der Bridge entfernen.",
+      "confirmNote": "Stoppe auch das Programm auf deinem Computer. Mit Docker: {command}",
+      "pairsLead": "Jedes Paar verbindet einen Kanal hier mit einem Matrix-Raum.",
+      "inviteHint": "Die Bridge tritt einem Raum bei, wenn du ihn verbindest. Lade {account} vorher in Räume ein, die nicht allen offenstehen.",
+      "inviteHintUnknown": "Die Bridge tritt einem Raum bei, wenn du ihn verbindest. Lade ihr Matrix-Konto vorher in Räume ein, die nicht allen offenstehen.",
+      "state": {
+        "new": "Wartet auf die Bridge",
+        "joining": "Tritt dem Raum bei",
+        "ready": "Funktioniert",
+        "error": "Funktioniert nicht"
+      },
+      "removeLabel": "Paar {channel} und {room} entfernen",
+      "direction": {
+        "both": "In beide Richtungen",
+        "to_harmony": "Nur Matrix → Harmony",
+        "to_matrix": "Nur Harmony → Matrix"
+      },
+      "room": "Matrix-Raum",
+      "invitations": "Einladungen (werden beim Verbinden des Raums angenommen)",
+      "otherRoom": "Anderer Raum…",
+      "roomOption": "{name} ({detail})",
+      "cannotSend": "die Bridge darf dort nicht schreiben",
+      "address": "Raumadresse oder -ID",
+      "addressHelp": "Zum Beispiel #general:example.org. Ein matrix.to-Link geht auch.",
+      "addressInvalid": "Das ist keine Raumadresse. Sie sieht aus wie #general:example.org, eine Raum-ID wie !abc:example.org.",
+      "addressEmpty": "Gib die Adresse oder ID des Raums ein.",
+      "chooseBoth": "Wähle einen Harmony-Kanal und einen Matrix-Raum.",
+      "encryptedNote": "Ende-zu-Ende-verschlüsselte Kanäle und Räume sind ausgegraut: Die Bridge kann sie nicht lesen.",
+      "roomsStale": "Die Bridge ist offline. Das sind die Räume von ihrer letzten Verbindung.",
+      "hiddenChannel": "Ein Kanal, den du nicht sehen kannst",
+      "theAccount": "das Konto der Bridge",
+      "ghostExplained": "Als eigene Matrix-Benutzer: Ein Harmony-Mitglied bekommt einen Matrix-Benutzer mit seinem Namen und Bild, wenn es zum ersten Mal in den Kanal schreibt. In Kanälen mit bis zu 100 Mitgliedern legt die Bridge sie vorab an, damit Leute auf Matrix alle mit der gewohnten {'@'}-Autovervollständigung erwähnen können. Die Bridge muss Leute in den Raum einladen dürfen.",
+      "instanceMode": "Mit der Matrix-Bridge dieser Instanz",
+      "disconnectHosted": "Das gespeicherte Zugriffstoken wird gelöscht. Beende auch die Sitzung „Harmony bridge“ in den Matrix-Einstellungen des Kontos.",
+      "disconnectAccount": "Beende auch die Sitzung „Harmony bridge“ in den Matrix-Einstellungen des Kontos.",
+      "disconnectInstance": "Die Bridge dieser Instanz verlässt die Räume von selbst.",
+      "noRoom": "Kein Raum"
+    },
+    "pairError": {
+      "room_not_found": "Die Bridge hat unter {room} keinen Raum gefunden. Prüfe die Adresse oder entferne dieses Paar.",
+      "not_invited": "{room} lässt sich nur mit einer Einladung betreten. Lade {account} auf Matrix dorthin ein.",
+      "room_encrypted": "{room} ist Ende-zu-Ende-verschlüsselt, daher kann die Bridge den Raum nicht lesen. Verbinde stattdessen einen Raum ohne Verschlüsselung.",
+      "channel_encrypted": "{channel} ist Ende-zu-Ende-verschlüsselt, daher kann die Bridge den Kanal nicht lesen. Verbinde stattdessen einen Kanal ohne Verschlüsselung.",
+      "cannot_send": "{account} darf in {room} nicht schreiben. Nachrichten aus Matrix kommen hier weiter an. Bitte jemanden mit Adminrechten im Raum, es zu erlauben.",
+      "room_in_use": "{room} ist schon mit einem anderen Harmony-Kanal verbunden. Wähle einen anderen Raum.",
+      "ghosts_unavailable": "Die Bridge kann in {room} keine Matrix-Benutzer für Harmony-Mitglieder hinzufügen. Nachrichten aus Matrix kommen hier weiter an. Erlaube {account}, dort Leute einzuladen, oder wähle das gemeinsame Bridge-Konto.",
+      "harmony_not_bound": "Harmony hat {room} noch nicht mit {channel} verbunden. Die Bridge versucht es von selbst erneut; bleibt es dabei, entferne das Paar und füge es neu hinzu.",
+      "unknown": "Die Bridge hat keinen Grund genannt. Details stehen in ihrem Protokoll.",
+      "room_moved": "Der Raum wurde mit einem neueren Code mit einem anderen Kanal verbunden. Verbinde {channel} mit einem eigenen Code neu."
+    },
+    "problems": {
+      "aRoom": "einen Raum",
+      "theHomeserver": "den Homeserver",
+      "bridge_offline": {
+        "fix": "Stelle sicher, dass der Computer, auf dem sie läuft, an ist, und starte die Bridge dann. Mit Docker startet der erste Befehl unten sie; stoppt sie erneut, zeigt der zweite den Grund."
+      },
+      "matrix_registration_missing": {
+        "title": "Der Homeserver kennt die Bridge noch nicht.",
+        "fix": "Gib dem Betreiber des Homeservers die Datei registration.json der Bridge. Mit Docker kopiert der Befehl unten sie aus dem Container. Die Bridge verbindet sich von selbst, sobald der Homeserver sie hat."
+      },
+      "matrix_token_invalid": {
+        "title": "Der Homeserver hat die Anmeldung der Bridge abgelehnt.",
+        "fixAppService": "Die Registrierung auf dem Homeserver gehört nicht zu dieser Bridge. Gib dem Betreiber die Datei registration.json der Bridge noch einmal.",
+        "fixAccount": "Hol dir ein neues Zugriffstoken für das Matrix-Konto der Bridge und starte die Bridge damit.",
+        "fixHosted": "Melde dich hier erneut mit dem Konto an oder nimm ein anderes."
+      },
+      "matrix_unreachable": {
+        "title": "Die Bridge kann den Homeserver nicht erreichen.",
+        "fix": "Prüfe, ob der Computer, auf dem die Bridge läuft, {homeserver} öffnen kann. Die Bridge versucht es weiter.",
+        "fixHosted": "Prüfe, ob {homeserver} läuft und aus dem Internet erreichbar ist. Die Bridge versucht es weiter."
+      },
+      "harmony_auth_failed": {
+        "fix": "Entferne den Container mit dem Befehl unten und starte die Bridge dann mit einem neuen Einrichtungscode. Ihre Daten bleiben."
+      },
+      "room_encrypted": {
+        "title": "Die Bridge überträgt {room} nicht, weil Ende-zu-Ende-Verschlüsselung aktiv ist.",
+        "fix": "Entferne das Paar oder verbinde einen Raum ohne Verschlüsselung."
+      },
+      "room_not_joined": {
+        "title": "Die Bridge hat {room} nicht betreten.",
+        "fix": "Lade das Konto der Bridge auf Matrix dorthin ein oder entferne das Paar."
+      },
+      "worker_stopped": {
+        "title": "Die Bridge überträgt nichts mehr: Sie kann ihre Daten nicht schreiben.",
+        "fix": "Prüfe den Datenträger des Computers, auf dem sie läuft, und starte die Bridge dann neu. Mit Docker:"
+      },
+      "messages_skipped": {
+        "title": "Einige ältere Nachrichten eines Raums wurden nicht übertragen.",
+        "fix": "Nichts zu tun. Neue Nachrichten werden wie gewohnt übertragen."
+      },
+      "account_in_use": {
+        "title": "Eine andere Bridge auf dieser Instanz verwendet dieses Matrix-Konto schon.",
+        "fix": "Nimm ein Konto nur für diese Bridge."
+      }
+    },
+    "hosted": {
+      "lead": "Melde dich mit dem Matrix-Konto an, das die Bridge verwendet. Diese Instanz betreibt die Bridge damit.",
+      "access": "Der Betreiber dieser Instanz verwahrt das Zugriffstoken des Kontos und kann jeden Raum lesen, in dem das Konto ist.",
+      "ownAccount": "Nimm ein Konto nur für die Bridge, das nur in den verbundenen Räumen ist. Ende-zu-Ende-verschlüsselte Räume werden nicht übertragen.",
+      "homeserver": "Homeserver",
+      "homeserverHelp": "Sein Servername, etwa matrix.org, oder seine Adresse.",
+      "method": {
+        "label": "Zugang zum Konto",
+        "password": "Hier anmelden",
+        "token": "Zugriffstoken einfügen"
+      },
+      "user": "Benutzername",
+      "password": "Passwort",
+      "passwordHelp": "Das Passwort geht von deinem Browser nur an den Homeserver. Harmony bekommt es nie, und es wird nicht aufbewahrt.",
+      "token": "Zugriffstoken",
+      "issue": {
+        "address": "Gib einen Servernamen wie matrix.org oder eine https-Adresse ein.",
+        "unreachable": "Der Homeserver ist aus diesem Browser nicht erreichbar. Prüfe den Namen, versuche die Adresse des Homeservers selbst oder füge stattdessen ein Zugriffstoken ein.",
+        "not_matrix": "Dort hat kein Matrix-Homeserver geantwortet. Prüfe den Namen oder gib die Adresse des Homeservers selbst ein.",
+        "no_password": "Dieser Homeserver meldet niemanden mit Passwort an. Füge stattdessen ein Zugriffstoken ein.",
+        "wrong_password": "Der Homeserver hat den Benutzernamen oder das Passwort abgelehnt.",
+        "deactivated": "Dieses Konto ist deaktiviert.",
+        "limited": "Zu viele Versuche. Warte eine Weile und versuche es dann erneut.",
+        "limitedFor": "Zu viele Versuche. Versuche es in {count} Sekunde erneut. | Zu viele Versuche. Versuche es in {count} Sekunden erneut.",
+        "expires": "Dieser Homeserver gibt Zugriffstoken aus, die ablaufen, daher kann die Bridge das Konto nicht behalten. Nimm ein Konto auf einem anderen Homeserver.",
+        "token_refused": "Der Homeserver kennt dieses Token nicht. Vielleicht ist es abgelaufen.",
+        "refused": "Der Homeserver hat die Anmeldung abgelehnt.",
+        "empty": "Füge zuerst das Token ein.",
+        "harmonyToken": "Das ist ein Harmony-Bot-Token. Du brauchst das Zugriffstoken des Matrix-Kontos.",
+        "notToken": "Das sieht nicht wie ein Zugriffstoken aus.",
+        "incomplete": "Gib den Benutzernamen und das Passwort ein."
+      },
+      "saved": "Konto gespeichert. Diese Instanz startet deine Bridge innerhalb von ein, zwei Minuten.",
+      "busy": {
+        "password": "Anmeldung läuft…",
+        "token": "Wird gespeichert…"
+      },
+      "save": {
+        "password": "Anmelden",
+        "token": "Token speichern"
+      },
+      "step": "Bei Matrix anmelden",
+      "blocked": "Melde dich mit einem Matrix-Konto an, um fortzufahren.",
+      "replace": "Matrix-Konto ersetzen"
+    },
+    "link": {
+      "title": "Einen Raum verbinden",
+      "encryptedNote": "Ende-zu-Ende-verschlüsselte Kanäle sind ausgegraut, und ein verschlüsselter Raum lässt sich nicht verbinden: Die Bridge kann sie nicht lesen.",
+      "getCode": "Code holen",
+      "chooseChannel": "Wähle einen Harmony-Kanal.",
+      "codeTitle": "{channel} mit einem Matrix-Raum verbinden",
+      "invite": "Lade in Matrix das Konto der Bridge in den Raum ein:",
+      "noAccount": "Das Konto ist noch nicht bekannt: Die Bridge dieser Instanz hat sich noch nicht mit Matrix verbunden.",
+      "post": "Poste dies im Raum, sobald das Konto beigetreten ist:",
+      "command": "Zu postende Nachricht",
+      "appears": "Das Paar erscheint hier von selbst.",
+      "expiredHelp": "Dieser Code ist abgelaufen. Klick auf „Neuer Code“ und poste die neue Nachricht.",
+      "who": "Verbinden kann nur, wer die Einstellungen des Raums ändern darf: jemand mit Adminrechten oder wem der Raum es erlaubt.",
+      "moves": "Der Raum zieht hierher um, womit er vorher auch verbunden war.",
+      "close": "Schließen",
+      "linked": "{channel} ist mit {room} verbunden.",
+      "again": "Wieder einen Raum verbinden"
+    },
+    "admin": {
+      "title": "Matrix-Bridge",
+      "lead": "Communities verbinden Matrix-Räume unter Servereinstellungen → Bridges → Matrix. Biete ihnen die Bridge dieser Instanz an, lass sie ein eigenes Konto mitbringen, oder beides. Die Bridge auf einem eigenen Computer auszuführen geht immer.",
+      "loadFailed": "Die Einstellungen der Matrix-Bridge konnten nicht geladen werden.",
+      "saved": "Einstellungen der Matrix-Bridge gespeichert",
+      "saveFailed": "Die Einstellungen der Matrix-Bridge konnten nicht gespeichert werden",
+      "cleared": "Matrix-Bridge entfernt",
+      "hostedCount": "Gehostete Bridges derzeit: {count} von {limit}.",
+      "hosting": {
+        "title": "Communities ein eigenes Konto mitbringen lassen",
+        "lead": "Communities melden sich mit einem eigenen Matrix-Konto an, und diese Instanz betreibt die Bridge damit. Server-Admins sehen dies als „Eigenes Matrix-Konto verwenden, auf dieser Instanz ausgeführt“.",
+        "toggle": "Eigene Konten von Communities betreiben",
+        "toggleHint": "Du verwahrst das Zugriffstoken jeder Community. Ein Token gibt Zugriff auf jeden Raum, in dem sein Konto ist."
+      },
+      "instance": {
+        "title": "Matrix-Bridge dieser Instanz",
+        "lead": "Eine Matrix-Verbindung dieser Instanz, die sich alle Communities teilen. Sie verbinden einen Raum, indem sie dort einen Code posten, ohne etwas zu installieren.",
+        "linkedCount": "Server, die sie gewählt haben: {count} von {limit}.",
+        "configured": "Bridge eingerichtet: {homeserver}.",
+        "notConfigured": "Noch keine Bridge eingerichtet.",
+        "connection": {
+          "application_service": "Auf deinem eigenen Homeserver. Harmony-Mitglieder können als eigene Matrix-Benutzer erscheinen.",
+          "account": "Ein gewöhnliches Konto auf einem beliebigen Homeserver. Jede Nachricht kommt von ihm."
+        },
+        "senderLocalpart": "Name des Bridge-Kontos",
+        "invalidLocalpart": "Nur a bis z, 0 bis 9 und . _ = - verwenden.",
+        "tooLong": "Zusammen mit dem Servernamen zu lang.",
+        "login": "Ein Token holen, das nicht abläuft",
+        "save": "Bridge speichern",
+        "clear": "Bridge entfernen",
+        "clearConfirm": "Die Token der Bridge entfernen? Communities, die sie nutzen, übertragen nichts mehr, bis wieder eine Bridge eingerichtet ist. Ihre Bridges und Paare bleiben.",
+        "registration": {
+          "title": "Registrierungsdatei",
+          "made": "Erstellt",
+          "notMade": "Noch nicht erstellt",
+          "make": "Registrierungsdatei erstellen",
+          "again": "Neue Registrierungsdatei erstellen",
+          "confirm": "Eine neue Datei ersetzt die Token der Bridge. Die Bridge steht still, bis der Homeserver die neue Datei hat.",
+          "downloaded": "Die Datei liegt in deinen Downloads. Sie lässt sich nicht noch einmal anzeigen; erstelle eine neue, falls sie verloren geht.",
+          "stale": "Die Registrierung auf dem Homeserver passt nicht mehr. Erstelle eine neue Datei und gib sie dem Homeserver."
+        },
+        "enable": "Diese Bridge Communities anbieten",
+        "enableHint": "Server-Admins sehen „Die Bridge dieser Instanz verwenden“ zuerst unter Servereinstellungen → Bridges → Matrix.",
+        "enableNeedsConfig": "Richte zuerst die Bridge ein: ihren Homeserver und das Zugriffstoken oder die Registrierungsdatei.",
+        "limit": "Höchstzahl der Server",
+        "limitHint": "Neue werden abgelehnt, sobald so viele die Bridge gewählt haben, verbunden oder nicht."
+      }
+    },
+    "service": {
+      "title": "Bridge-Dienst",
+      "never": "Der Dienst hat sich noch nicht verbunden.",
+      "version": "Version {version}",
+      "absent": {
+        "discord": "Die Discord-Bridges der Communities laufen in einem Dienst neben dieser Instanz. Starte ihn auf dem Server mit:",
+        "matrix": "Die Matrix-Bridges der Communities laufen in einem Dienst neben dieser Instanz. Starte ihn auf dem Server mit:"
+      },
+      "problem": {
+        "matrix_registration_missing": "Der Homeserver kennt die Bridge nicht. Gib ihm die Registrierungsdatei und starte ihn neu.",
+        "matrix_token_invalid": "Der Homeserver lehnt das Zugriffstoken ab. Speichere ein neues.",
+        "matrix_unreachable": "Der Homeserver ist nicht erreichbar. Die Bridge versucht es weiter.",
+        "harmony_unreachable": "Der Dienst erreicht das Bot-Gateway dieser Instanz nicht.",
+        "worker_stopped": "Der Dienst kann seine Daten nicht schreiben. Prüfe den Datenträger und starte ihn neu."
+      }
+    },
     "errors": {
       "discordBot": "Dieser Bot betreibt eine Discord-Bridge und kann deshalb nicht auch Matrix übertragen. Nimm einen eigenen Bot.",
       "allowlist": "Ein gewählter Kanal steht nicht mehr in der Kanalliste des Bots. Lade neu und wähle noch einmal.",
@@ -131,7 +474,16 @@
       "permission": "Nur die Person, der der Bot gehört, kann seine Kanäle verbinden, und dafür braucht sie „Server verwalten“ auf diesem Server.",
       "save": "Die verbundenen Kanäle konnten nicht gespeichert werden. Lade neu und versuche es noch einmal.",
       "unpair": "Der Bot konnte nicht getrennt werden. Lade neu und versuche es noch einmal.",
-      "installs": "Deine Bots konnten nicht geladen werden, deshalb lassen sich hier gerade keine Kanäle verbinden. Lade neu, um es noch einmal zu versuchen."
+      "installs": "Deine Bots konnten nicht geladen werden, deshalb lassen sich hier gerade keine Kanäle verbinden. Lade neu, um es noch einmal zu versuchen.",
+      "unavailable": "Die Matrix-Bridge ist auf dieser Instanz noch nicht verfügbar. Ihre Administration muss Harmony aktualisieren.",
+      "gone": "Die Bridge wurde inzwischen entfernt. Lade die Seite neu.",
+      "roomTaken": "Dieser Raum ist schon mit einem anderen Kanal verbunden.",
+      "change": "Die Änderung konnte nicht gespeichert werden. Versuche es noch einmal.",
+      "exists": "Dieser Server hat schon eine Matrix-Bridge. Lade die Seite neu, um sie zu sehen.",
+      "notOffered": "Diese Instanz bietet das gerade nicht an. Wähle einen anderen Weg, die Bridge zu betreiben.",
+      "full": "Diese Instanz betreibt schon so viele Matrix-Bridges, wie sie erlaubt. Wähle einen anderen Weg oder frag die Administration der Instanz.",
+      "account": "Das Konto konnte nicht gespeichert werden. Versuche es noch einmal.",
+      "roomCode": "Es konnte kein Code geholt werden. Versuche es noch einmal."
     },
     "privacy": {
       "lead": "Entferne hier eine Matrix-Person, um alles zu löschen, was die Bridge dieses Servers von ihr gebracht hat, und keine weiteren Nachrichten von ihr zu bringen.",
@@ -156,7 +508,8 @@
     "tabs": {
       "discord": "Discord",
       "matrix": "Matrix"
-    }
+    },
+    "encrypted": "Ende-zu-Ende-verschlüsselt"
   },
   "bridgePrivacy": {
     "title": "Bridge-Datenschutz",
@@ -5791,7 +6144,7 @@
         "title": "Bots",
         "hint": "Anfragen pro Minute über alle Routen eines Bots, zusätzlich zum Limit pro Route. Ein Bot, dessen Besitzer ausgenommen ist, hat diese Obergrenze nicht. 0 = kein Limit.",
         "requestsPerMinute": "Anfragen pro Minute, pro Bot",
-        "bridgeRequestsPerMinute": "Anfragen pro Minute, pro verknüpfter Discord-Bridge"
+        "bridgeRequestsPerMinute": "Anfragen pro Minute, pro verknüpfter Discord- oder Matrix-Bridge"
       },
       "federation": {
         "title": "Erwähnungsspam aus der Föderation",

@@ -31,11 +31,16 @@ let optOutsFail: boolean
 let consent: unknown
 let room: unknown
 let members: unknown
+// matrix_bridge_channel_member's answer.
+let member: unknown
+// matrix_bridge_bind_room's error.
+let bindError: { code: string; message: string } | null
 // bridge_upload_reserve's answer.
 let admitted: string
 const fetcher = vi.fn()
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks() })
-function app() { const a = express(); a.use(express.json({ limit: '2mb' })); a.use('/api/v1', new BotRestAPI().router); return a }
+const installsChanged = vi.fn(async (_channelId: string) => {})
+function app() { const a = express(); a.use(express.json({ limit: '2mb' })); a.use('/api/v1', new BotRestAPI(undefined, { installsChanged }).router); return a }
 const base = `/api/v1/channels/${CHANNEL}`
 const inserted = () => db.writesTo('messages', 'insert').map(w => w.rows[0])
 
@@ -44,8 +49,11 @@ beforeEach(() => {
   platform = 'matrix'; platformFails = false; optedOut = {}; optOutsFail = false; consent = true
   admitted = 'reserved'
   room = { room_id: '!opaqueRoom', sender_mode: 'ghost' }
+  bindError = null
   members = [{ id: USER, username: 'alice', display_name: 'Alice', avatar_url: 'alice/avatar.png', nickname: null, domain: 'profiles.example', is_local: true }]
+  member = members
   fetcher.mockReset(); vi.stubGlobal('fetch', fetcher)
+  installsChanged.mockReset(); installsChanged.mockResolvedValue(undefined)
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
   db = new FakeDb({
@@ -66,8 +74,10 @@ beforeEach(() => {
     if (fn === 'bridge_message_by_discord_id') {
       return { data: db.rows('messages').find(m => m.metadata?.discord_message_id === args.p_discord_message_id)?.id ?? null, error: null }
     }
-    if (fn === 'matrix_bridge_bind_room' || fn === 'matrix_bridge_room') return { data: room, error: null }
+    if (fn === 'matrix_bridge_bind_room') return bindError ? { data: null, error: bindError } : { data: room, error: null }
+    if (fn === 'matrix_bridge_room') return { data: room, error: null }
     if (fn === 'matrix_bridge_channel_members') return { data: members, error: null }
+    if (fn === 'matrix_bridge_channel_member') return { data: member, error: null }
     if (fn === 'bridge_upload_reserve') return { data: admitted, error: null }
     if (fn === 'bridge_upload_release') return { data: null, error: null }
     throw new Error('Unmocked RPC: ' + fn)
@@ -127,6 +137,41 @@ describe('metadata.bridge_author on a message', () => {
     forgetBridgeConsent(); platform = null
     expect((await patch({ bridge_author: { ...author, username: 'renamed' } })).status).toBe(403)
     expect(db.rows('messages')[0].metadata.matrix_user).toEqual(stored)
+  })
+})
+
+// guard_bridge_author_optout and guard_bridge_reaction_optout raise it for a Matrix author too.
+describe('a Matrix author who opted out', () => {
+  const refusal = { error: 'The author opted out of this bridge', code: 'BRIDGE_AUTHOR_OPTED_OUT' }
+  const refuse = (table: string) => { db.failures[table] = { code: '23514', message: 'BRIDGE_AUTHOR_OPTED_OUT' } }
+
+  it('is answered 403 BRIDGE_AUTHOR_OPTED_OUT on a message', async () => {
+    refuse('messages')
+    const r = await supertest(app()).post(base + '/messages').send({ content: 'Hello', metadata: { bridge_author: author } })
+    expect([r.status, r.body]).toEqual([403, refusal])
+  })
+
+  it.each([
+    ['an edit', () => supertest(app()).patch('/api/v1/messages/' + MESSAGE).send({ content: 'Edited' })],
+    ['a metadata edit', () => supertest(app()).patch('/api/v1/messages/' + MESSAGE + '/metadata').send({ metadata: { bridge_author: author } })],
+  ])('on %s', async (_what, call) => {
+    Object.assign(db.rows('messages')[0], { bot_id: BOT, user_id: null })
+    mocks.from.mockImplementation((table: string) => {
+      const query = db.from(table)
+      if (table !== 'messages') return query
+      const update = query.update.bind(query)
+      query.update = (values: Row) => { refuse('messages'); return update(values) }
+      return query
+    })
+    const r = await call()
+    expect([r.status, r.body]).toEqual([403, refusal])
+  })
+
+  it('on a reaction', async () => {
+    db.rows('bot_server_permissions')[0].add_reactions = true
+    refuse('reactions')
+    const r = await supertest(app()).put(`/api/v1/messages/${MESSAGE}/reactions/hello`).send({ metadata: { bridge_author: author } })
+    expect([r.status, r.body]).toEqual([403, refusal])
   })
 })
 
@@ -316,9 +361,186 @@ describe('Matrix room control and consenting native members', () => {
     })
     expect((await supertest(app()).get(base + '/bridge-room')).body).toEqual(room)
   })
+  it('has the event dispatch read the installs again before it answers a binding, and not for a refused one', async () => {
+    const bind = () => supertest(app()).put(base + '/bridge-room').send({ room_id: '!opaqueRoom', initial_sender_mode: 'relay' })
+    let told!: () => void
+    installsChanged.mockImplementationOnce(() => new Promise(resolve => { told = resolve }))
+    let answered = false
+    const bound = bind().then(r => { answered = true; return r.status })
+    await vi.waitFor(() => expect(installsChanged).toHaveBeenCalledWith(CHANNEL))
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(answered).toBe(false)
+    told()
+    expect(await bound).toBe(200)
+    installsChanged.mockClear()
+    bindError = { code: '23505', message: 'The Matrix room is bound to another channel' }
+    expect((await bind()).status).toBe(409)
+    await supertest(app()).get(base + '/bridge-room')
+    expect(installsChanged).not.toHaveBeenCalled()
+  })
   it.each([{ room_id: '!bad/room', initial_sender_mode: 'ghost' }, { room_id: '!ok', initial_sender_mode: 'auto' }, { room_id: '!ok\u0000', initial_sender_mode: 'relay' }])('rejects malformed room bindings', async body => {
     expect((await supertest(app()).put(base + '/bridge-room').send(body)).status).toBe(400)
   })
+  it('binds a pair named by alias under that alias, and refuses a malformed one', async () => {
+    const bind = (room_alias: unknown) => supertest(app()).put(base + '/bridge-room')
+      .send({ room_id: '!opaqueRoom', initial_sender_mode: 'relay', room_alias })
+    expect((await bind('#general:example.org')).status).toBe(200)
+    expect(mocks.rpc).toHaveBeenLastCalledWith('matrix_bridge_bind_room', {
+      p_bot_id: BOT, p_channel_id: CHANNEL, p_room_id: '!opaqueRoom', p_initial_sender_mode: 'relay', p_room_alias: '#general:example.org',
+    })
+    expect((await bind(null)).status).toBe(200)
+    expect(mocks.rpc.mock.lastCall?.[1]).not.toHaveProperty('p_room_alias')
+    for (const alias of ['general', '#general', '!room:example.org', 7, '#a\u0000:b']) expect((await bind(alias)).status).toBe(400)
+  })
+
+  it('answers 409 to a room bound elsewhere and to a pair that names another room, 503 to anything else', async () => {
+    const bind = () => supertest(app()).put(base + '/bridge-room').send({ room_id: '!opaqueRoom', initial_sender_mode: 'relay' })
+    bindError = { code: '23505', message: 'The Matrix room is bound to another channel' }
+    let r = await bind()
+    expect([r.status, r.body.code]).toEqual([409, 'room_in_use'])
+    for (const message of ['The pair names another Matrix room', 'Remove the binding before assigning another Matrix room']) {
+      bindError = { code: '22023', message }
+      r = await bind()
+      expect([r.status, r.body.code]).toEqual([409, 'room_changed'])
+    }
+    for (const code of ['42501', '57014', 'XX000']) {
+      bindError = { code, message: 'x' }
+      r = await bind()
+      expect([r.status, r.body.code]).toEqual([503, undefined])
+    }
+  })
+
+  it('reads a managed or moved pair that holds no room as null, and a custom binding not bound yet as 503', async () => {
+    const get = () => supertest(app()).get(base + '/bridge-room')
+    room = { room_id: null, sender_mode: 'ghost', room_bound: false }
+    let r = await get()
+    expect([r.status, r.body]).toEqual([200, { room_id: null, sender_mode: 'ghost' }])
+    room = { room_id: null, sender_mode: 'relay' }
+    expect((await get()).status).toBe(503)
+    room = { room_id: null, sender_mode: 'auto', room_bound: false }
+    expect((await get()).status).toBe(503)
+    // What is bound answers as before.
+    room = { room_id: '!opaqueRoom', sender_mode: 'relay' }
+    r = await get()
+    expect([r.status, r.body]).toEqual([200, room])
+  })
+
+  it('a custom bot that lost its room to a code reads null and is refused with 409 room_in_use; its other channel is as before', async () => {
+    const other = '00000000-0000-0000-0000-0000000000c4'
+    db.rows('channels').push({ id: other, server_id: SERVER })
+    const rooms: Record<string, unknown> = {
+      [CHANNEL]: { room_id: null, sender_mode: 'relay', room_bound: false },
+      [other]: { room_id: '!kept', sender_mode: 'ghost' },
+    }
+    const otherwise = mocks.rpc.getMockImplementation()!
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      if (fn === 'matrix_bridge_room') return { data: rooms[args.p_channel_id], error: null }
+      if (fn === 'matrix_bridge_bind_room') {
+        return args.p_channel_id === CHANNEL ? { data: null, error: { code: '23505', message: 'The Matrix room is bound to another channel' } }
+          : { data: rooms[other], error: null }
+      }
+      return otherwise(fn, args)
+    })
+    const put = (channel: string, room_id: string) => supertest(app()).put(`/api/v1/channels/${channel}/bridge-room`).send({ room_id, initial_sender_mode: 'relay' })
+    expect((await supertest(app()).get(base + '/bridge-room')).body).toEqual({ room_id: null, sender_mode: 'relay' })
+    const lost = await put(CHANNEL, '!custom')
+    expect([lost.status, lost.body.code]).toEqual([409, 'room_in_use'])
+    const kept = await put(other, '!kept')
+    expect([kept.status, kept.body]).toEqual([200, rooms[other]])
+    expect((await supertest(app()).get(`/api/v1/channels/${other}/bridge-room`)).body).toEqual(rooms[other])
+    expect((await supertest(app()).post(`/api/v1/channels/${other}/messages`).send({ content: 'Hello', metadata: { bridge_author: author } })).status).toBe(201)
+  })
+
+  // An unbound pair is no room: no file passes, whichever way.
+  it('carries no attachment while the pair holds no room', async () => {
+    const otherwise = mocks.rpc.getMockImplementation()!
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => fn === 'channel_messages_encrypted' ? { data: false, error: null } : otherwise(fn, args))
+    const up = () => supertest(app()).post(base + '/bridge-files')
+      .set({ 'Content-Type': 'application/octet-stream', 'X-File-Name': 'a.png', 'X-File-Type': 'image/png' }).send(Buffer.from('x'))
+    const down = () => supertest(app()).get(`${base}/messages/${MESSAGE}/bridge-files/0`)
+    const unavailable = { error: 'Matrix attachment access unavailable' }
+    expect([(await up()).body, (await down()).body]).not.toContainEqual(unavailable)
+    room = { room_id: null, sender_mode: 'ghost', room_bound: false }
+    for (const call of [up, down]) {
+      const r = await call()
+      expect([r.status, r.body]).toEqual([503, unavailable])
+    }
+    expect(mocks.upload).not.toHaveBeenCalled()
+  })
+
+  describe('another bridge\'s channel', () => {
+    const FOREIGN_SERVER = '00000000-0000-0000-0000-00000000005b'
+    const FOREIGN = '00000000-0000-0000-0000-0000000000c9'
+    const foreign = `/api/v1/channels/${FOREIGN}`
+    // Both servers' channels are paired by instance bridges; BOT is the bot of SERVER's.
+    const calls: Array<[string, () => Promise<{ status: number }>]> = [
+      ['GET bridge-room', () => supertest(app()).get(foreign + '/bridge-room')],
+      ['PUT bridge-room', () => supertest(app()).put(foreign + '/bridge-room').send({ room_id: '!stolen', initial_sender_mode: 'relay' })],
+      ['PUT bridge-room by alias', () => supertest(app()).put(foreign + '/bridge-room').send({ room_id: '!stolen', initial_sender_mode: 'relay', room_alias: '#a:b' })],
+      ['GET bridge-members', () => supertest(app()).get(foreign + '/bridge-members')],
+      ['GET one member', () => supertest(app()).get(foreign + '/bridge-members').query({ user_id: USER })],
+      ['GET a member\'s avatar', () => supertest(app()).get(`${foreign}/bridge-members/${USER}/avatar`)],
+      ['GET bridge-platform', () => supertest(app()).get(foreign + '/bridge-platform')],
+      ['GET bridge-consent', () => supertest(app()).get(`${foreign}/bridge-consent/${USER}`)],
+      ['GET encryption', () => supertest(app()).get(foreign + '/encryption')],
+      ['POST bridge-avatar', () => supertest(app()).post(foreign + '/bridge-avatar').send({ data: 'aaaa', content_type: 'image/png' })],
+      ['POST bridge-files', () => supertest(app()).post(foreign + '/bridge-files').set({ 'Content-Type': 'application/octet-stream', 'X-File-Name': 'a.png', 'X-File-Type': 'image/png' }).send(Buffer.from('x'))],
+      ['GET bridge-files', () => supertest(app()).get(`${foreign}/messages/${MESSAGE}/bridge-files/0`)],
+      ['POST a message', () => supertest(app()).post(foreign + '/messages').send({ content: 'Hello', metadata: { bridge_author: author } })],
+      ['GET messages', () => supertest(app()).get(foreign + '/messages')],
+    ]
+
+    it.each(calls)('refuses %s, and reads or writes nothing', async (_route, call) => {
+      db.rows('channels').push({ id: FOREIGN, server_id: FOREIGN_SERVER })
+      db.rows('servers').push({ id: FOREIGN_SERVER, owner: OTHER_USER })
+      db.rows('server_roles').push({ id: 'everyone-2', server_id: FOREIGN_SERVER, is_default: true, position: 0, permissions: 122646786 })
+      db.rows('bot_server_permissions')[0].allowed_channel_ids = [CHANNEL]
+      db.rows('bot_server_permissions').push({
+        bot_id: OTHER_BOT, server_id: FOREIGN_SERVER, is_active: true, read_messages: true, send_messages: true, allowed_channel_ids: [FOREIGN],
+      })
+      db.rows('bridge_channels').push({ bot_id: OTHER_BOT, channel_id: FOREIGN, platform: 'matrix' })
+      const otherwise = mocks.rpc.getMockImplementation()!
+      mocks.rpc.mockImplementation(async (fn: string, args: any) => fn === 'bridge_channel_platform'
+        ? { data: db.rows('bridge_channels').some(row => row.bot_id === args.p_bot_id && row.channel_id === args.p_channel_id) ? 'matrix' : null, error: null }
+        : otherwise(fn, args))
+
+      expect((await call()).status).toBe(403)
+      expect(mocks.rpc.mock.calls.filter(([fn]) => fn !== 'bridge_channel_platform' && fn !== 'channel_messages_encrypted')).toEqual([])
+      expect(db.writes).toEqual([])
+      expect(mocks.upload).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('one member', () => {
+    const one = (user: string, query = {}) => supertest(app()).get(base + '/bridge-members').query({ user_id: user, ...query })
+
+    it('is answered alone, without reading the list', async () => {
+      const r = await one(USER)
+      expect(r.status).toBe(200)
+      expect(r.body).toHaveLength(1)
+      expect(r.body[0]).toMatchObject({ id: USER, username: 'alice', is_local: true })
+      expect(mocks.rpc).toHaveBeenCalledWith('matrix_bridge_channel_member', { p_bot_id: BOT, p_channel_id: CHANNEL, p_user_id: USER })
+      expect(mocks.rpc.mock.calls.some(([fn]) => fn === 'matrix_bridge_channel_members')).toBe(false)
+    })
+
+    it('is no one when the list would not name them', async () => {
+      member = []
+      const r = await one(USER)
+      expect([r.status, r.body]).toEqual([200, []])
+    })
+
+    it('needs a uuid and the Matrix registration, and fails closed on another member', async () => {
+      for (const user of ['alice', '', `${USER},${OTHER_USER}`]) expect((await one(user)).status).toBe(400)
+      expect((await supertest(app()).get(`${base}/bridge-members?user_id=${USER}&user_id=${OTHER_USER}`)).status).toBe(400)
+      expect(mocks.rpc.mock.calls.some(([fn]) => fn === 'matrix_bridge_channel_member')).toBe(false)
+      expect((await one(OTHER_USER)).status).toBe(503)
+      member = [...(members as object[]), ...(members as object[])]
+      expect((await one(USER)).status).toBe(503)
+      platform = null; forgetBridgeConsent()
+      expect((await one(USER)).status).toBe(403)
+    })
+  })
+
   it('requires Matrix read/send registration on every control/member request', async () => {
     platform = null
     for (const path of ['/bridge-room', '/bridge-members', '/bridge-members/' + USER + '/avatar']) {
@@ -361,6 +583,166 @@ describe('Matrix room control and consenting native members', () => {
       .mockResolvedValueOnce(new Response('<svg/>'))
     expect((await supertest(app()).get(base + '/bridge-members/' + USER + '/avatar')).status).toBe(404)
     expect((await supertest(app()).get(base + '/bridge-members/' + USER + '/avatar')).status).toBe(404)
+  })
+})
+
+describe('bridge-check', () => {
+  const nothing = { platform: null, room_id: null, sender_mode: null, messages_encrypted: null, relay_allowed: null, member: null }
+  // What the database holds of BOT in CHANNEL; matrix_bridge_send_check and the separate functions answer from it.
+  interface State {
+    platform: 'matrix' | null
+    room_id: string | null
+    room_bound: boolean
+    sender_mode: 'ghost' | 'relay'
+    encrypted: boolean
+    optedOut: boolean
+    member: Record<string, unknown> | null
+    unscoped: boolean
+  }
+  let state: State
+  // Overrides matrix_bridge_send_check's answer.
+  let answer: unknown
+  let failure: { code: string; message: string } | null
+
+  beforeEach(() => {
+    vi.stubEnv('PUBLIC_URL', 'https://harmony.example')
+    answer = undefined; failure = null
+    state = {
+      platform: 'matrix', room_id: '!opaqueRoom', room_bound: true, sender_mode: 'ghost', encrypted: false, optedOut: false, unscoped: false,
+      member: { id: USER, username: 'alice', display_name: 'Alice', avatar_url: 'alice/avatar.png', nickname: 'Al', domain: null, is_local: true },
+    }
+    db.rows('bot_server_permissions')[0].allowed_channel_ids = [CHANNEL]
+    const otherwise = mocks.rpc.getMockImplementation()!
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      const person = state.optedOut ? null : state.member
+      switch (fn) {
+        case 'bridge_channel_platform': return { data: state.platform, error: null }
+        case 'matrix_bridge_room': return {
+          data: { room_id: state.room_bound ? state.room_id : null, sender_mode: state.sender_mode, ...(state.room_bound ? {} : { room_bound: false }) }, error: null,
+        }
+        case 'channel_messages_encrypted': return { data: state.encrypted, error: null }
+        case 'bridge_member_relay_allowed': return { data: !state.optedOut, error: null }
+        case 'matrix_bridge_channel_member': return { data: person ? [person] : [], error: null }
+        case 'matrix_bridge_send_check':
+          if (failure) return { data: null, error: failure }
+          if (answer !== undefined) return { data: answer, error: null }
+          if (state.platform === null) return { data: nothing, error: null }
+          return {
+            data: {
+              platform: state.platform, room_id: state.room_bound ? state.room_id : null, sender_mode: state.sender_mode,
+              messages_encrypted: state.encrypted, relay_allowed: args.p_user_id ? !state.optedOut : null,
+              member: args.p_user_id ? person : null, ...(state.unscoped ? { scoped: false } : {}),
+            },
+            error: null,
+          }
+        default: return otherwise(fn, args)
+      }
+    })
+  })
+  const check = (user?: string) => supertest(app()).get(base + '/bridge-check').query(user ? { user_id: user } : {})
+  const separately = async (user?: string) => {
+    forgetBridgeConsent()
+    const get = (path: string) => supertest(app()).get(base + path)
+    const answers = [await get('/bridge-platform'), await get('/bridge-room'), await get('/encryption'),
+      ...(user ? [await get('/bridge-consent/' + user), await get('/bridge-members?user_id=' + user)] : [])]
+    if (answers.some(r => r.status === 403)) return nothing
+    const [platformAnswer, roomAnswer, encryption, consentAnswer, list] = answers
+    return {
+      platform: platformAnswer.body.platform, room_id: roomAnswer.body.room_id, sender_mode: roomAnswer.body.sender_mode,
+      messages_encrypted: encryption.body.messages_encrypted,
+      relay_allowed: user ? consentAnswer.body.relay_allowed : null, member: user ? list.body[0] ?? null : null,
+    }
+  }
+  const cases: Array<[string, () => void]> = [
+    ['a bound channel', () => {}],
+    ['a channel sent in the bot\'s name', () => { state.sender_mode = 'relay' }],
+    ['a pair without a room', () => { state.room_bound = false }],
+    ['an encrypted channel', () => { state.encrypted = true }],
+    ['a person who opted out', () => { state.optedOut = true }],
+    ['a person who is no member', () => { state.member = null }],
+    ['a member without an avatar, a nickname and a name', () => { Object.assign(state.member!, { avatar_url: null, nickname: null, display_name: null }) }],
+    ['a channel hidden from @everyone and the person', () => {
+      state.member = null
+      db.rows('channel_permission_overrides').push({ channel_id: CHANNEL, role_id: 'everyone', user_id: null, allow_permissions: 0, deny_permissions: 2 })
+    }],
+    ['another bot\'s channel', () => {
+      state.platform = null
+      db.rows('bot_server_permissions')[0].allowed_channel_ids = []
+    }],
+    ['a channel the bot does not relay', () => { state.platform = null }],
+    ['an install of every channel', () => { state.unscoped = true; db.rows('bot_server_permissions')[0].allowed_channel_ids = null }],
+    ['a channel hidden from an install of every channel', () => {
+      state.unscoped = true; db.rows('bot_server_permissions')[0].allowed_channel_ids = null
+      db.rows('channel_permission_overrides').push({ channel_id: CHANNEL, role_id: 'everyone', user_id: null, allow_permissions: 0, deny_permissions: 2 })
+    }],
+    ['a channel an install of every channel may not write', () => {
+      state.unscoped = true; db.rows('bot_server_permissions')[0].allowed_channel_ids = null
+      db.rows('channel_permission_overrides').push({ channel_id: CHANNEL, role_id: 'everyone', user_id: null, allow_permissions: 0, deny_permissions: 4096 })
+    }],
+  ]
+
+  it.each(cases)('answers what the separate routes do: %s', async (_name, arrange) => {
+    arrange()
+    for (const user of [undefined, USER, USER.toUpperCase()]) {
+      const r = await check(user)
+      expect(r.status).toBe(200)
+      expect(r.body).toEqual(await separately(user))
+    }
+  })
+
+  it('names the room, and the person as bridge-members does', async () => {
+    expect((await check()).body).toEqual({
+      platform: 'matrix', room_id: '!opaqueRoom', sender_mode: 'ghost', messages_encrypted: false, relay_allowed: null, member: null,
+    })
+    expect((await check(USER)).body).toMatchObject({
+      relay_allowed: true,
+      member: { id: USER, username: 'alice', display_name: 'Al', nickname: 'Al', domain: 'harmony.example', is_local: true, avatar_url: expect.stringMatching(/^https?:\/\//) },
+    })
+    state.optedOut = true
+    expect((await check(USER)).body).toMatchObject({ relay_allowed: false, member: null })
+  })
+
+  it('is one read', async () => {
+    mocks.rpc.mockClear(); mocks.from.mockClear()
+    await check(USER)
+    expect(mocks.rpc.mock.calls).toEqual([['matrix_bridge_send_check', { p_bot_id: BOT, p_channel_id: CHANNEL, p_user_id: USER }]])
+    expect(mocks.from).not.toHaveBeenCalled()
+    mocks.rpc.mockClear()
+    await check()
+    expect(mocks.rpc.mock.calls).toEqual([['matrix_bridge_send_check', { p_bot_id: BOT, p_channel_id: CHANNEL, p_user_id: null }]])
+  })
+
+  it('answers 400 to a malformed id, before any read', async () => {
+    mocks.rpc.mockClear()
+    for (const user of ['alice', '', `${USER},${OTHER_USER}`]) {
+      expect((await supertest(app()).get(base + '/bridge-check').query({ user_id: user })).status).toBe(400)
+    }
+    expect((await supertest(app()).get(`${base}/bridge-check?user_id=${USER}&user_id=${OTHER_USER}`)).status).toBe(400)
+    expect((await supertest(app()).get('/api/v1/channels/general/bridge-check')).status).toBe(400)
+    expect(mocks.rpc).not.toHaveBeenCalled()
+  })
+
+  it('answers 503 to a failed read and to anything but a whole answer', async () => {
+    failure = { code: '57014', message: 'canceling statement' }
+    let r = await check(USER)
+    expect([r.status, r.body]).toEqual([503, { error: 'Matrix send check unavailable' }])
+    failure = null
+    const whole = { platform: 'matrix', room_id: '!r', sender_mode: 'ghost', messages_encrypted: false, relay_allowed: true, member: null }
+    answer = whole
+    expect((await check(USER)).status).toBe(200)
+    for (const broken of [null, [], 'matrix', {}, { ...whole, platform: 'discord' }, { ...whole, platform: undefined }, { ...whole, room_id: undefined },
+      { ...whole, room_id: '!bad/room' }, { ...whole, sender_mode: null }, { ...whole, sender_mode: 'auto' }, { ...whole, messages_encrypted: null },
+      { ...whole, relay_allowed: null }, { ...whole, member: undefined }, { ...whole, member: { id: USER } }, { ...whole, member: [] },
+      { ...whole, scoped: true }, { ...whole, member: { ...state.member, id: OTHER_USER } }, { ...whole, member: { ...state.member, is_local: false } }]) {
+      answer = broken
+      r = await check(USER)
+      expect([JSON.stringify(broken), r.status]).toEqual([JSON.stringify(broken), 503])
+    }
+    // Without a person, nobody is named.
+    for (const person of [{ relay_allowed: true, member: null }, { relay_allowed: null, member: state.member }]) {
+      answer = { ...whole, ...person }
+      expect((await check()).status).toBe(503)
+    }
   })
 })
 

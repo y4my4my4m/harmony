@@ -685,6 +685,12 @@ export class EventDispatcher {
     }
   }
 
+  /** The next event of the channel's server reads its installs again. */
+  async installsChanged(channelId: string): Promise<void> {
+    const serverId = await this.resolveServerId(channelId)
+    if (serverId) this.botPermissionsCache.delete(serverId)
+  }
+
   /** @everyone's layer on a channel. Failed lookups are not cached. */
   private async resolveEveryoneLayer(serverId: string, channelId: string): Promise<EveryoneLayer | null> {
     const cached = this.channelLayerCache.get(channelId)
