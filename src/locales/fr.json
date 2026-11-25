@@ -914,7 +914,7 @@
       "selfAssignGroupPlaceholder": "ex. Couleurs, Pronoms, Notifications",
       "selfAssignNote": "Description courte",
       "selfAssignNotePlaceholder": "Affichée sous le rôle lors du choix",
-      "selfAssignWarnGrants": "Les membres ne peuvent pas choisir ce rôle tant qu’il a des permissions que @everyone n’a pas. Retire-les dans l’onglet Permissions.",
+      "selfAssignWarnGrants": "Les membres ne peuvent pas choisir ce rôle tant qu’il a des permissions que {'@'}everyone n’a pas. Retire-les dans l’onglet Permissions.",
       "selfAssignWarnRank": "Les membres ne peuvent pas choisir ce rôle tant qu’il est au-dessus d’un rôle avec des permissions en plus. Place-le sous tous les rôles de modération.",
       "selfAssignWarnAdmin": "Les membres ne peuvent pas choisir un rôle administrateur."
     },
@@ -9119,7 +9119,7 @@
     "cleared": "Les nouveaux membres ne reçoivent plus de rôle.",
     "tooHigh": "Tu ne peux choisir qu’un rôle sous ton rôle le plus élevé.",
     "saveFailed": "Impossible d’enregistrer le rôle des nouveaux membres.",
-    "notOpen": "Ce rôle donne des permissions que @everyone n’a pas, ou se trouve au-dessus d’un rôle qui en donne. Il ne peut pas être donné aux nouveaux membres.",
+    "notOpen": "Ce rôle donne des permissions que {'@'}everyone n’a pas, ou se trouve au-dessus d’un rôle qui en donne. Il ne peut pas être donné aux nouveaux membres.",
     "currentNotOpen": "Ce rôle ne peut plus être donné aux nouveaux membres. Choisissez-en un autre."
   },
   "playTogether": {

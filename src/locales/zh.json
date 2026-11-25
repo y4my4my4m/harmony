@@ -914,7 +914,7 @@
       "selfAssignGroupPlaceholder": "例如：颜色、代词、通知",
       "selfAssignNote": "简短说明",
       "selfAssignNotePlaceholder": "选择角色时显示在角色下方",
-      "selfAssignWarnGrants": "此角色拥有 @everyone 没有的权限时，成员无法选择。请在“权限”标签页中移除。",
+      "selfAssignWarnGrants": "此角色拥有 {'@'}everyone 没有的权限时，成员无法选择。请在“权限”标签页中移除。",
       "selfAssignWarnRank": "此角色位于拥有额外权限的角色之上时，成员无法选择。请将其移到所有管理角色之下。",
       "selfAssignWarnAdmin": "成员无法选择管理员角色。"
     },
@@ -9119,7 +9119,7 @@
     "cleared": "新成员将不再获得角色。",
     "tooHigh": "只能选择低于你最高角色的角色。",
     "saveFailed": "无法保存新成员角色。",
-    "notOpen": "该角色拥有 @everyone 没有的权限，或位于此类角色之上，因此不能给予新成员。",
+    "notOpen": "该角色拥有 {'@'}everyone 没有的权限，或位于此类角色之上，因此不能给予新成员。",
     "currentNotOpen": "该角色已不能再给予新成员。请选择其他角色。"
   },
   "playTogether": {

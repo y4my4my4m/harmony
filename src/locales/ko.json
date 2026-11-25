@@ -914,7 +914,7 @@
       "selfAssignGroupPlaceholder": "예: 색상, 대명사, 알림",
       "selfAssignNote": "짧은 설명",
       "selfAssignNotePlaceholder": "역할을 고를 때 아래에 표시됩니다",
-      "selfAssignWarnGrants": "@everyone에 없는 권한이 있는 동안에는 멤버가 이 역할을 고를 수 없습니다. 권한 탭에서 제거하세요.",
+      "selfAssignWarnGrants": "{'@'}everyone에 없는 권한이 있는 동안에는 멤버가 이 역할을 고를 수 없습니다. 권한 탭에서 제거하세요.",
       "selfAssignWarnRank": "추가 권한이 있는 역할보다 위에 있는 동안에는 멤버가 이 역할을 고를 수 없습니다. 모든 모더레이터 역할보다 아래로 옮기세요.",
       "selfAssignWarnAdmin": "관리자 역할은 멤버가 고를 수 없습니다."
     },
@@ -9119,7 +9119,7 @@
     "cleared": "새 멤버는 더 이상 역할을 받지 않습니다.",
     "tooHigh": "내 최상위 역할보다 낮은 역할만 고를 수 있습니다.",
     "saveFailed": "새 멤버 역할을 저장하지 못했습니다.",
-    "notOpen": "이 역할은 @everyone에 없는 권한을 주거나 그런 역할보다 위에 있어 새 멤버에게 줄 수 없습니다.",
+    "notOpen": "이 역할은 {'@'}everyone에 없는 권한을 주거나 그런 역할보다 위에 있어 새 멤버에게 줄 수 없습니다.",
     "currentNotOpen": "이 역할은 더 이상 새 멤버에게 줄 수 없습니다. 다른 역할을 고르세요."
   },
   "playTogether": {

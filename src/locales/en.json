@@ -914,7 +914,7 @@
       "selfAssignGroupPlaceholder": "e.g. Colours, Pronouns, Notifications",
       "selfAssignNote": "Short description",
       "selfAssignNotePlaceholder": "Shown under the role when members pick",
-      "selfAssignWarnGrants": "Members can’t pick this role while it has permissions @everyone lacks. Remove them on the Permissions tab.",
+      "selfAssignWarnGrants": "Members can’t pick this role while it has permissions {'@'}everyone lacks. Remove them on the Permissions tab.",
       "selfAssignWarnRank": "Members can’t pick this role while it sits above a role with extra permissions. Move it below every moderator role.",
       "selfAssignWarnAdmin": "Administrator roles can’t be picked by members."
     },
@@ -9115,7 +9115,7 @@
     "cleared": "New members no longer get a role.",
     "tooHigh": "You can only choose a role below your highest role.",
     "saveFailed": "Couldn’t save the role for new members.",
-    "notOpen": "That role gives permissions @everyone lacks or sits above one that does, so it can’t be given to new members.",
+    "notOpen": "That role gives permissions {'@'}everyone lacks or sits above one that does, so it can’t be given to new members.",
     "currentNotOpen": "This role can no longer be given to new members. Choose another."
   },
   "playTogether": {

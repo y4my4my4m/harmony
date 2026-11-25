@@ -3,7 +3,8 @@
 // menu and from a role menu card posted with /rolemenu, in a plain and an end-to-end encrypted
 // channel; the owner picks a role for new members, and someone joining gets it.
 //
-// Covered: the editor toggle and group saved; the warning for a role with extra permissions; the
+// Covered: the editor toggle and group saved; the warning for a role with extra permissions, which
+// compiles (a production build throws a message compile error at render; dev logs it); the
 // picker listing only pickable roles; a toggle reaching user_roles and back; the card's text part
 // stored beside it in plaintext channels and nothing readable in encrypted ones; the join role
 // applied by a real join and not to people already there; an untitled menu headed in each viewer's
@@ -109,6 +110,10 @@ test('the owner makes a role pickable, and a member takes and drops it from the 
   const aliceContext = await browser.newContext()
   try {
     const ownerPage = await ownerContext.newPage()
+    const compileErrors: string[] = []
+    ownerPage.on('console', (message) => {
+      if (message.type() === 'error' && message.text().includes('Message compilation error')) compileErrors.push(message.text())
+    })
     await signIn(ownerPage, owner)
     await ownerPage.goto(`/server/${server.id}?section=roles`)
     await expect(ownerPage.locator('.role-rail .role-pill').first()).toBeVisible({ timeout: 30000 })
@@ -117,6 +122,7 @@ test('the owner makes a role pickable, and a member takes and drops it from the 
       await pill(ownerPage, 'Mods').click()
       await ownerPage.locator('[data-testid="role-self-assignable"]').click()
       await expect(ownerPage.locator('[data-testid="role-self-assign-warning"]')).toContainText('permissions @everyone lacks')
+      expect(compileErrors).toEqual([])
       await ownerPage.locator('[data-testid="role-self-assignable"]').click()
       await expect(ownerPage.locator('[data-testid="role-self-assign-warning"]')).toHaveCount(0)
     })

@@ -914,7 +914,7 @@
       "selfAssignGroupPlaceholder": "例：カラー、代名詞、通知",
       "selfAssignNote": "短い説明",
       "selfAssignNotePlaceholder": "ロールを選ぶときに下に表示されます",
-      "selfAssignWarnGrants": "@everyoneにない権限を持つ間は、メンバーはこのロールを選べません。権限タブで外してください。",
+      "selfAssignWarnGrants": "{'@'}everyoneにない権限を持つ間は、メンバーはこのロールを選べません。権限タブで外してください。",
       "selfAssignWarnRank": "追加の権限を持つロールより上にある間は、メンバーはこのロールを選べません。モデレーターのロールより下に移動してください。",
       "selfAssignWarnAdmin": "管理者ロールはメンバーが選べません。"
     },
@@ -9119,7 +9119,7 @@
     "cleared": "新メンバーにロールは付かなくなりました。",
     "tooHigh": "自分の最上位ロールより下のロールしか選べません。",
     "saveFailed": "新メンバーのロールを保存できませんでした。",
-    "notOpen": "このロールは @everyone にない権限を持つか、それを持つロールより上にあるため、新しいメンバーには付与できません。",
+    "notOpen": "このロールは {'@'}everyone にない権限を持つか、それを持つロールより上にあるため、新しいメンバーには付与できません。",
     "currentNotOpen": "このロールは新しいメンバーに付与できなくなりました。別のロールを選んでください。"
   },
   "playTogether": {

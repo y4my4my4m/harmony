@@ -914,7 +914,7 @@
       "selfAssignGroupPlaceholder": "z. B. Farben, Pronomen, Benachrichtigungen",
       "selfAssignNote": "Kurze Beschreibung",
       "selfAssignNotePlaceholder": "Wird beim Wählen unter der Rolle angezeigt",
-      "selfAssignWarnGrants": "Solange diese Rolle Berechtigungen hat, die @everyone fehlen, können Mitglieder sie nicht wählen. Entferne sie im Tab Berechtigungen.",
+      "selfAssignWarnGrants": "Solange diese Rolle Berechtigungen hat, die {'@'}everyone fehlen, können Mitglieder sie nicht wählen. Entferne sie im Tab Berechtigungen.",
       "selfAssignWarnRank": "Solange diese Rolle über einer Rolle mit zusätzlichen Berechtigungen steht, können Mitglieder sie nicht wählen. Verschiebe sie unter alle Moderationsrollen.",
       "selfAssignWarnAdmin": "Administratorrollen können Mitglieder nicht wählen."
     },
@@ -9119,7 +9119,7 @@
     "cleared": "Neue Mitglieder bekommen keine Rolle mehr.",
     "tooHigh": "Du kannst nur eine Rolle unter deiner höchsten Rolle wählen.",
     "saveFailed": "Die Rolle für neue Mitglieder konnte nicht gespeichert werden.",
-    "notOpen": "Diese Rolle gibt Berechtigungen, die @everyone nicht hat, oder steht über einer solchen Rolle. Neuen Mitgliedern kann sie nicht gegeben werden.",
+    "notOpen": "Diese Rolle gibt Berechtigungen, die {'@'}everyone nicht hat, oder steht über einer solchen Rolle. Neuen Mitgliedern kann sie nicht gegeben werden.",
     "currentNotOpen": "Diese Rolle kann neuen Mitgliedern nicht mehr gegeben werden. Wähle eine andere."
   },
   "playTogether": {

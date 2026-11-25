@@ -914,7 +914,7 @@
       "selfAssignGroupPlaceholder": "p. ej. Colores, Pronombres, Notificaciones",
       "selfAssignNote": "Descripción corta",
       "selfAssignNotePlaceholder": "Se muestra bajo el rol al elegir",
-      "selfAssignWarnGrants": "Los miembros no pueden elegir este rol mientras tenga permisos que @everyone no tiene. Quítalos en la pestaña Permisos.",
+      "selfAssignWarnGrants": "Los miembros no pueden elegir este rol mientras tenga permisos que {'@'}everyone no tiene. Quítalos en la pestaña Permisos.",
       "selfAssignWarnRank": "Los miembros no pueden elegir este rol mientras esté por encima de un rol con permisos extra. Muévelo por debajo de todos los roles de moderación.",
       "selfAssignWarnAdmin": "Los miembros no pueden elegir roles de administrador."
     },
@@ -9119,7 +9119,7 @@
     "cleared": "Los nuevos miembros ya no reciben un rol.",
     "tooHigh": "Solo puedes elegir un rol por debajo de tu rol más alto.",
     "saveFailed": "No se pudo guardar el rol para nuevos miembros.",
-    "notOpen": "Ese rol da permisos que @everyone no tiene o está por encima de uno que los da, así que no se puede dar a los miembros nuevos.",
+    "notOpen": "Ese rol da permisos que {'@'}everyone no tiene o está por encima de uno que los da, así que no se puede dar a los miembros nuevos.",
     "currentNotOpen": "Este rol ya no se puede dar a los miembros nuevos. Elige otro."
   },
   "playTogether": {
