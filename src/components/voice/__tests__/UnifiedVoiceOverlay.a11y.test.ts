@@ -24,6 +24,7 @@ vi.mock('@/stores/activities', () => ({
 vi.mock('@/components/activities/useActivityButton', () => ({
   useActivityButton: () => ({
     available: { value: false }, visible: { value: false }, running: { value: false },
+    target: { value: null }, gameOnStage: { value: false },
     anchor: { value: null }, toggle: () => {}, close: () => {},
   }),
 }))

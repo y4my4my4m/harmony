@@ -390,11 +390,16 @@ test('a call plays DrawinPhone on its stage, and the frame takes input over the 
   await expect(stage).toBeVisible()
   await expect(game(a.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
 
-  // Bob is in the call: the stage banner offers the game.
+  // Bob is in the call: the game is a tile beside the participants, as a stream, with Join.
   await openChannel(b.page, server.id, server.generalChannelId)
   await enterCall(b.page, bob, true)
-  await b.page.locator('.voice-overlay').getByTestId('play-together-join').click()
+  const tile = b.page.locator('.voice-overlay .tile-grid [data-testid="call-activity-tile"][data-kind="game"]')
+  await expect(tile).toBeVisible({ timeout: 30_000 })
+  await expect(tile).toContainText('DrawinPhone')
+  await expect(b.page.locator('.voice-overlay [data-testid="play-together-banner"]')).toHaveCount(0)
+  await tile.getByTestId('play-together-join').click()
   await expect(game(b.page).getByTestId('dp-player')).toHaveCount(2, { timeout: 30_000 })
+  await expect(b.page.locator('.voice-overlay [data-testid="call-activity-tile"]')).toHaveCount(0)
   await expect(game(a.page).getByTestId('dp-player')).toHaveCount(2)
 
   // The call view makes the rest of the page inert; the game must still take clicks and keys.

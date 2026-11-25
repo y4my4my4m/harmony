@@ -175,8 +175,8 @@
         >
           <div class="stage-banner">
             <VoiceCallBanner />
-            <ActivityInvite v-if="activitiesStore.waiting" :activity="activitiesStore.waiting" class="stage-invite" @click.stop />
-            <PlayTogetherPanel v-if="voicePlayTarget && !stageGame" :target="voicePlayTarget" class="stage-invite" @click.stop />
+            <!-- Reads the channel's games; a running one shows as a tile (CallActivityTile). -->
+            <PlayTogetherPanel v-if="voicePlayTarget && !stageGame" :target="voicePlayTarget" :banner="false" />
           </div>
           <!-- Activity or game: the shared player or frame, the call as a filmstrip -->
           <template v-if="stageGame || stageActivity">
@@ -196,6 +196,8 @@
                 {{ filmstripHidden ? t('voice.showParticipants', { count: tiles.length }) : t('voice.hideParticipants') }}
               </button>
               <div v-if="!filmstripHidden" class="filmstrip">
+                <CallActivityTile v-if="callGame" :game="callGame" class="filmstrip-tile" />
+                <CallActivityTile v-if="callWatch" :watch="callWatch" class="filmstrip-tile" />
                 <VoiceTile
                   v-for="tile in tiles"
                   :key="tile.id"
@@ -211,6 +213,8 @@
 
           <!-- Grid view -->
           <div v-else-if="!focusedTile" ref="gridEl" class="tile-grid">
+            <CallActivityTile v-if="callGame" :game="callGame" class="grid-tile" :style="tileStyle" />
+            <CallActivityTile v-if="callWatch" :watch="callWatch" class="grid-tile" :style="tileStyle" />
             <VoiceTile
               v-for="tile in tiles"
               :key="tile.id"
@@ -261,6 +265,8 @@
                 <Icon :name="isFilmstripCollapsed ? 'chevron-up' : 'chevron-down'" />
               </button>
               <div v-if="!isFilmstripCollapsed" class="filmstrip">
+                <CallActivityTile v-if="callGame" :game="callGame" class="filmstrip-tile" />
+                <CallActivityTile v-if="callWatch" :watch="callWatch" class="filmstrip-tile" />
                 <VoiceTile
                   v-for="tile in filmstripTiles"
                   :key="tile.id"
@@ -504,7 +510,7 @@ import { useSoundboardButton } from './useSoundboardButton';
 import { useActivityButton } from '@/components/activities/useActivityButton';
 import { useActivitiesStore } from '@/stores/activities';
 import ActivityStage from '@/components/activities/ActivityStage.vue';
-import ActivityInvite from '@/components/activities/ActivityInvite.vue';
+import CallActivityTile from '@/components/voice/CallActivityTile.vue';
 import PlayTogetherPanel from '@/components/playTogether/PlayTogetherPanel.vue';
 import { usePlayTogetherStore } from '@/stores/playTogether';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
@@ -565,6 +571,10 @@ const playTogether = usePlayTogetherStore();
 // Games of this call's channel: servers this instance hosts, as watch together.
 const voicePlayTarget = activityButton.target;
 const stageGame = activityButton.gameOnStage;
+// The call's activities this member has not joined, as tiles in the grid and the filmstrips.
+const callGame = computed(() => (voicePlayTarget.value && !stageGame.value ? playTogether.sessionIn(voicePlayTarget.value) : null));
+const callWatch = computed(() => activitiesStore.waiting);
+const activityTileCount = computed(() => (callGame.value ? 1 : 0) + (callWatch.value ? 1 : 0));
 onMounted(() => { void playTogether.loadApps(); });
 
 const FILMSTRIP_KEY = 'harmony:activity-filmstrip-hidden';
@@ -992,7 +1002,7 @@ const TILE_ASPECT = 16 / 9;
 
 const tileStyle = computed(() => {
   const { width, height } = stageSize.value;
-  const count = tiles.value.length + ringingUserIds.value.length;
+  const count = tiles.value.length + ringingUserIds.value.length + activityTileCount.value;
   if (!width || !height || count === 0) {
     return { width: '320px', height: '180px' };
   }
@@ -1376,10 +1386,6 @@ onUnmounted(() => {
 .stage-banner :deep(.vcb) {
   pointer-events: auto;
   box-shadow: var(--shadow-medium);
-}
-
-.stage-invite {
-  pointer-events: auto;
 }
 
 .voice-container {

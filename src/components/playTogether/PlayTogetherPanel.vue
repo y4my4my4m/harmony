@@ -88,7 +88,7 @@
   </section>
 
   <div
-    v-else-if="running && !stage"
+    v-else-if="running && !stage && banner"
     class="pt-banner"
     data-testid="play-together-banner"
   >
@@ -144,11 +144,13 @@ import { getAvatarUrl } from '@/utils/avatarUtils'
 const POLL_MS = 15_000
 const MAX_AVATARS = 5
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   target: ActivityTarget
   /** Fill the container: the call stage. */
   stage?: boolean
-}>()
+  /** false: no Join banner for someone else's session; the call shows it as a tile. */
+  banner?: boolean
+}>(), { stage: false, banner: true })
 
 const { t } = useT()
 const store = usePlayTogetherStore()
