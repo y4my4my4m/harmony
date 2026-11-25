@@ -65,7 +65,7 @@ The zip is at most 6 MB, packed and unpacked, and holds nothing else. Admins ins
 
 | Allowed | Refused |
 | --- | --- |
-| Scripts, styles, images, media and fonts from the activity's own folder, `data:` and `blob:` | `fetch`, XHR, WebSocket, EventSource, `sendBeacon`, WebRTC |
+| The entry script; styles, images, media and fonts from the activity's own folder, `data:` and `blob:` | `fetch`, XHR, WebSocket, EventSource, `sendBeacon`, WebRTC |
 | Canvas, WebGL, Web Audio, pointer lock, workers from `blob:` | Cookies, `localStorage`, IndexedDB |
 | | Popups, forms, top navigation, downloads, `alert`/`confirm`, scripts in a nested frame |
 | | Camera, microphone, geolocation, clipboard reads |
