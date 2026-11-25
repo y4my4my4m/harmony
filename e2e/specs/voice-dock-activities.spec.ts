@@ -226,7 +226,7 @@ test('from the call view, the Activities button and Add to queue open the launch
   }
 })
 
-test('a DM header keeps Call, Search and More; More holds Add people, video and Activities', async ({ page }) => {
+test('a DM header keeps Call, Search and More; Activities is in the message box\'s + menu', async ({ page }) => {
   test.setTimeout(90_000)
   await signIn(page, owner)
   await page.goto(`/dm/${dm}`)
@@ -239,20 +239,22 @@ test('a DM header keeps Call, Search and More; More holds Add people, video and 
     const buttons = header.locator(':scope > button, :scope > .more-options-container > button')
     await expect(buttons).toHaveCount(3)
     await expect(header.locator('.add-user-btn, .video-btn, .play-btn')).toHaveCount(0)
-    await expect(page.getByTestId('activities-button')).toHaveCount(0)
   })
 
-  await test.step('More lists Add people, Start video call and Activities', async () => {
+  await test.step('More lists Add people and Start video call', async () => {
     await page.getByTestId('dm-more').click()
     await expect(page.getByTestId('dm-menu-add-people')).toHaveText('Add people')
     await expect(page.getByTestId('dm-menu-video')).toHaveText('Start video call')
-    const item = page.getByTestId('activities-menu-item')
-    await expect(item).toHaveText('Activities')
-    await expect(item.locator('.icon-wrap')).toHaveClass(/icon-popcorn/)
+    await expect(page.locator('.actions-menu .icon-popcorn, .action-item .icon-popcorn')).toHaveCount(0)
+    await page.keyboard.press('Escape')
   })
 
-  await test.step('outside a call, Activities opens the dialog with the games alone', async () => {
-    await page.getByTestId('activities-menu-item').click()
+  await test.step('outside a call, Activities in the + menu opens the dialog with the games alone', async () => {
+    await page.getByTestId('composer-attach').click()
+    const item = page.getByTestId('upload-menu-activities')
+    await expect(item).toHaveText('Activities')
+    await expect(item.locator('.icon-wrap')).toHaveClass(/icon-popcorn/)
+    await item.click()
     const launcher = page.getByTestId('activities-launcher')
     await expect(page.getByRole('dialog', { name: 'Activities' })).toBeVisible()
     await expect(launcher.getByTestId('play-together-app-drawinphone')).toBeVisible()

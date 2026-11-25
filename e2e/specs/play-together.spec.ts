@@ -40,10 +40,10 @@ async function open(browser: Browser, user: SpecUser): Promise<{ context: Browse
 
 const game = (page: Page): FrameLocator => page.frameLocator('[data-testid="play-together-frame"]')
 
-/** A DM's Activities entry is in its header's More options menu. */
-async function openDmActivities(page: Page): Promise<void> {
-  await page.getByTestId('dm-more').click()
-  await page.getByTestId('activities-menu-item').click()
+/** Activities is in the message box's + menu, in a DM as in a text channel. */
+async function openActivities(page: Page): Promise<void> {
+  await page.getByTestId('composer-attach').click()
+  await page.getByTestId('upload-menu-activities').click()
 }
 
 /** The launcher, each app card and the sandbox note lie within the dialog's left and right edges. */
@@ -162,7 +162,7 @@ test('two people play DrawinPhone in a DM, then the starter ends it', async ({ b
   const b = await open(browser, bob)
 
   await a.page.goto(`/dm/${dm}`)
-  await openDmActivities(a.page)
+  await openActivities(a.page)
   await expect(a.page.getByTestId('activities-launcher')).toBeVisible()
   await expectLauncherFits(a.page)
   await a.page.getByTestId('play-together-app-drawinphone').click()
@@ -257,7 +257,7 @@ test('the host\'s name emoji and an avatar slower than the delivery reach the ot
     }
 
     await b.page.goto(`/dm/${dm}`)
-    await openDmActivities(b.page)
+    await openActivities(b.page)
     await b.page.getByTestId('play-together-app-drawinphone').click()
     await expect(game(b.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
 
@@ -296,7 +296,7 @@ test('the activity frame runs in an opaque origin without storage or network', a
     w.webkit = { messageHandlers: { ipc: { postMessage: () => {} } } }
   })
   await a.page.goto(`/dm/${dm}`)
-  await openDmActivities(a.page)
+  await openActivities(a.page)
   await a.page.getByTestId('play-together-app-drawinphone').click()
   await expect(game(a.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
 
@@ -380,9 +380,9 @@ test('an admin turns DrawinPhone off and the launcher stops offering it', async 
 
   const a = await open(browser, alice)
   await a.page.goto(`/dm/${dm}`)
-  await a.page.getByTestId('dm-more').click()
-  await expect(a.page.getByTestId('dm-menu-add-people')).toBeVisible({ timeout: 30_000 })
-  await expect(a.page.getByTestId('activities-menu-item')).toHaveCount(0)
+  await a.page.getByTestId('composer-attach').click({ timeout: 30_000 })
+  await expect(a.page.getByTestId('upload-menu-file')).toBeVisible()
+  await expect(a.page.getByTestId('upload-menu-activities')).toHaveCount(0)
   await a.page.keyboard.press('Escape')
 
   await toggle.click()
@@ -519,7 +519,7 @@ test('an account that signs out in another tab has its launcher closed here', as
   const a = await open(browser, bob)
   const page = a.page
   await page.goto(`/dm/${dm}`)
-  await openDmActivities(page)
+  await openActivities(page)
   await expect(page.getByTestId('activities-launcher')).toBeVisible()
 
   const tab = await a.context.newPage()
@@ -666,7 +666,7 @@ test('an admin installs an activity package, switches it on, and a member plays 
   await backend.route(p)
   await signIn(p, alice)
   await p.goto(`/dm/${dm}`)
-  await openDmActivities(p)
+  await openActivities(p)
   await expect(p.getByTestId('play-together-desktop-only-tictac')).toHaveText('Computer only')
   await expect(p.getByTestId('play-together-app-tictac')).toBeDisabled()
   await expect(p.getByTestId('play-together-app-drawinphone')).toBeEnabled()
@@ -676,7 +676,7 @@ test('an admin installs an activity package, switches it on, and a member plays 
   // Third-party label: on the package, not the built-in.
   const a = await open(browser, alice)
   await a.page.goto(`/dm/${dm}`)
-  await openDmActivities(a.page)
+  await openActivities(a.page)
   await expect(a.page.getByTestId('play-together-third-party-tictac')).toHaveText('Third-party')
   await expect(a.page.getByTestId('play-together-third-party-drawinphone')).toHaveCount(0)
 
@@ -730,11 +730,18 @@ test('a member who cannot send, or is timed out, cannot join a channel\'s game',
   const a = await open(browser, alice)
   const b = await open(browser, bob)
 
+  /** The header holds no Activities button; the message box's + menu does. */
+  const startInChannel = async (page: Page, channelId: string) => {
+    await openChannel(page, server.id, channelId)
+    await expect(page.locator('.chat-header .search-btn')).toBeVisible()
+    await expect(page.locator('.chat-header .icon-popcorn')).toHaveCount(0)
+    await openActivities(page)
+    await page.getByTestId('play-together-app-drawinphone').click()
+    await expect(game(page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
+  }
+
   await test.step('read-only in the channel: no Join, and the reason, on the banner and the card', async () => {
-    await openChannel(a.page, server.id, quietId)
-    await a.page.getByTestId('activities-button').click()
-    await a.page.getByTestId('play-together-app-drawinphone').click()
-    await expect(game(a.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
+    await startInChannel(a.page, quietId)
     await openChannel(b.page, server.id, quietId)
     await expect(b.page.getByTestId('play-together-refusal')).toHaveText('You can’t send messages in this channel.', { timeout: 30_000 })
     await expect(b.page.getByTestId('play-together-join')).toHaveCount(0)
@@ -748,10 +755,7 @@ test('a member who cannot send, or is timed out, cannot join a channel\'s game',
     await must('timeout', admin.from('server_member_timeouts').insert({
       server_id: server.id, user_id: bob.id, until: new Date(Date.now() + 3_600_000).toISOString(), reason: 'journey',
     }))
-    await openChannel(a.page, server.id, server.generalChannelId)
-    await a.page.getByTestId('activities-button').click()
-    await a.page.getByTestId('play-together-app-drawinphone').click()
-    await expect(game(a.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
+    await startInChannel(a.page, server.generalChannelId)
     await openChannel(b.page, server.id, server.generalChannelId)
     await expect(b.page.getByTestId('play-together-refusal')).toHaveText('You are timed out in this server.', { timeout: 30_000 })
     await expect(b.page.getByTestId('play-together-join')).toHaveCount(0)
@@ -768,7 +772,7 @@ test('a game its last player leaves ends at once, and the banner goes with it', 
   test.setTimeout(90_000)
   const a = await open(browser, alice)
   await a.page.goto(`/dm/${dm}`)
-  await openDmActivities(a.page)
+  await openActivities(a.page)
   await a.page.getByTestId('play-together-app-drawinphone').click()
   await expect(game(a.page).getByTestId('dp-lobby')).toBeVisible({ timeout: 30_000 })
 

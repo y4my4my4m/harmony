@@ -23,6 +23,8 @@ const shared = vi.hoisted(() => ({
   drafts: {} as Record<string, string>,
   auth: { session: { user: { id: 'aaaaaaaa-0000-4000-8000-000000000001' } } as { user: { id: string } } | null },
   channelEncrypted: false,
+  activities: [] as string[],
+  openLauncher: vi.fn(),
 }))
 
 const chatStore = {
@@ -33,6 +35,7 @@ const chatStore = {
 }
 const dmStore = reactive({
   currentConversationId: null as string | null,
+  conversations: [] as { id: string; type: string }[],
   getCurrentConversation: null,
   sendDMMessage: vi.fn(),
   discardFailedDMMessage: vi.fn(),
@@ -41,9 +44,9 @@ const dmStore = reactive({
 const serverChannelStore = reactive({
   currentServerId: SERVER as string | null,
   currentChannelId: CHANNEL as string | null,
-  currentServer: null,
+  currentServer: null as { is_local_server?: boolean } | null,
   channels: [
-    { id: CHANNEL, server_id: SERVER, name: 'general' },
+    { id: CHANNEL, server_id: SERVER, name: 'general', type: 0 as number | string | undefined },
     { id: OTHER_CHANNEL, server_id: SERVER, name: 'random' },
   ],
 })
@@ -65,6 +68,9 @@ vi.mock('@/stores/drafts', () => ({
     },
     clearDraft: (key: string) => { delete shared.drafts[key] },
   }),
+}))
+vi.mock('@/stores/playTogether', () => ({
+  usePlayTogetherStore: () => ({ loadApps: vi.fn(), openLauncher: shared.openLauncher, appsFor: (context: string) => (shared.activities.includes(context) ? [{ id: 'drawinphone' }] : []) }),
 }))
 vi.mock('@/stores/useServerWelcome', () => ({
   useServerWelcomeStore: () => ({ mustAccept: () => false, open: vi.fn(), handleRulesRejection: vi.fn() }),
@@ -153,8 +159,8 @@ vi.mock('@/components/MessageInput.vue', async () => {
   return {
     default: define({
       name: 'MessageInput',
-      props: { backgroundSend: Boolean, modelValue: String, allowPolls: Boolean },
-      emits: ['sendMessage', 'queueVoiceMessage', 'update:modelValue', 'createPoll'],
+      props: { backgroundSend: Boolean, modelValue: String, allowPolls: Boolean, allowActivities: Boolean },
+      emits: ['sendMessage', 'queueVoiceMessage', 'update:modelValue', 'createPoll', 'openActivities'],
       setup(_props, { expose }) {
         expose({ restoreAttachments: shared.restoreAttachments })
         return () => render('div')
@@ -452,5 +458,62 @@ describe('ChatComponent image descriptions and send errors', () => {
       vi.useRealTimers()
       resetAnnouncer()
     }
+  })
+})
+
+describe('Activities in the + menu', () => {
+  const DM = 'dddddddd-0000-4000-8000-000000000001'
+  const offered = (props: Record<string, unknown> = {}) => {
+    const wrapper = mount(ChatComponent, { props: { messages: [] as Message[], channelId: CHANNEL, isLoading: false, ...props }, global: { stubs: { Teleport: true } } })
+    return { input: wrapper.findComponent({ name: 'MessageInput' }), shown: wrapper.findComponent({ name: 'MessageInput' }).props('allowActivities') as boolean }
+  }
+  beforeEach(() => {
+    shared.activities = ['direct', 'group', 'channel', 'voice']
+    shared.openLauncher.mockReset()
+    dmStore.conversations = [{ id: DM, type: 'direct' }]
+  })
+  afterEach(() => {
+    shared.activities = []
+    serverChannelStore.channels[0].type = 0
+    serverChannelStore.currentServer = null
+    dmStore.conversations = []
+  })
+
+  it.each([0, '0', undefined])('opens the launcher of a text channel (type %j)', (type) => {
+    serverChannelStore.channels[0].type = type
+    const { input, shown } = offered()
+    expect(shown).toBe(true)
+    input.vm.$emit('openActivities')
+    expect(shared.openLauncher).toHaveBeenCalledWith({ kind: 'channel', id: CHANNEL, serverId: SERVER, voice: false }, null)
+  })
+
+  it.each(['direct', 'group'])('opens the launcher of a %s conversation', (type) => {
+    dmStore.conversations = [{ id: DM, type }]
+    const { input, shown } = offered({ isDM: true, channelId: undefined, conversationId: DM })
+    expect(shown).toBe(true)
+    input.vm.$emit('openActivities')
+    expect(shared.openLauncher).toHaveBeenCalledWith({ kind: 'conversation', id: DM }, type)
+  })
+
+  it('is not offered in a voice channel\'s chat, whose game starts from the call', () => {
+    serverChannelStore.channels[0].type = 2
+    const { input, shown } = offered()
+    expect(shown).toBe(false)
+    input.vm.$emit('openActivities')
+    expect(shared.openLauncher).not.toHaveBeenCalled()
+  })
+
+  it('is not offered where no activity runs, on a server hosted elsewhere, or in an unknown channel or conversation', () => {
+    shared.activities = ['direct', 'voice']
+    expect(offered().shown).toBe(false)
+    dmStore.conversations = [{ id: DM, type: 'group' }]
+    expect(offered({ isDM: true, channelId: undefined, conversationId: DM }).shown).toBe(false)
+    shared.activities = ['direct', 'group', 'channel', 'voice']
+    serverChannelStore.currentServer = { is_local_server: false }
+    expect(offered().shown).toBe(false)
+    serverChannelStore.currentServer = null
+    expect(offered({ channelId: 'eeeeeeee-0000-4000-8000-000000000009' }).shown).toBe(false)
+    dmStore.conversations = []
+    expect(offered({ isDM: true, channelId: undefined, conversationId: DM }).shown).toBe(false)
   })
 })

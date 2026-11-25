@@ -152,16 +152,6 @@
           </button>
 
           <button
-            v-if="playAvailable"
-            class="action-item"
-            data-testid="activities-menu-item"
-            @click="closeActionsMenu(); openPlayTogether()"
-          >
-            <Icon name="popcorn" :size="16" />
-            <span>{{ t('activities.launcherTitle') }}</span>
-          </button>
-
-          <button
             v-if="conversation.type === 'group'"
             class="action-item"
             @click="openGroupSettings"
@@ -306,7 +296,6 @@ import { debug } from '@/utils/debug'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { dmConversationIdFromChannel, useCallSwitch } from '@/composables/useCallSwitch'
 import { useDMCallJoin } from '@/composables/useDMCallJoin'
-import { usePlayTogetherStore } from '@/stores/playTogether'
 
 const { t } = useT()
 const { leftDrawerToggle } = useAppDrawers()
@@ -373,14 +362,6 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-
-const playTogether = usePlayTogetherStore()
-const playContext = computed(() => (props.conversation.type === 'group' ? 'group' : 'direct') as 'group' | 'direct')
-const playAvailable = computed(() => playTogether.appsFor(playContext.value).length > 0)
-function openPlayTogether(): void {
-  playTogether.openLauncher({ kind: 'conversation', id: props.conversation.id }, props.conversation.type)
-}
-onMounted(() => { void playTogether.loadApps() })
 
 const emit = defineEmits<{
   'toggle-left-sidebar': []

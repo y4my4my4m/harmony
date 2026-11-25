@@ -152,7 +152,9 @@
               :allow-drive="driveEnabled"
               @files-selected="handleFilesSelected"
               @pick-drive="openDrivePicker"
+              :allow-activities="allowActivities"
               @create-poll="handleCreatePoll"
+              @open-activities="handleOpenActivities"
               @close="closeUploadMenu"
             />
           </div>
@@ -401,6 +403,8 @@ interface Props {
   backgroundSend?: boolean;
   /** The + menu offers Create poll; the parent handles `createPoll`. */
   allowPolls?: boolean;
+  /** The + menu offers Activities; the parent handles `openActivities`. */
+  allowActivities?: boolean;
   allowRoleMenus?: boolean;
   /** Messages of this room are encrypted: uploads carry no file name to Drive. */
   encryptedRoom?: boolean;
@@ -419,6 +423,7 @@ const props = withDefaults(defineProps<Props>(), {
   serverId: undefined,
   backgroundSend: false,
   allowPolls: false,
+  allowActivities: false,
   allowRoleMenus: false,
   encryptedRoom: false,
 });
@@ -463,6 +468,7 @@ const emit = defineEmits<{
   'edit-last-message': []
   sendGif: [gif: Gif]
   createPoll: []
+  openActivities: []
 }>();
 
 const authStore = useAuthStore();
@@ -1181,6 +1187,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     const handleCreatePoll = () => {
       closeUploadMenu();
       emit('createPoll');
+    };
+
+    const handleOpenActivities = () => {
+      closeUploadMenu();
+      emit('openActivities');
     };
 
     const createFilePreview = async (file: File): Promise<FilePreviewData> => {

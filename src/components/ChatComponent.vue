@@ -71,6 +71,7 @@
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
       :allow-polls="pollsAllowed"
+      :allow-activities="!!activities"
       :allow-role-menus="roleMenusAllowed"
       :encrypted-room="composerEncrypted"
       :draft-key="draftKey"
@@ -84,6 +85,7 @@
       @edit-last-message="handleEditLastMessage"
       @sendGif="handleSendGif"
       @createPoll="openPollModal"
+      @openActivities="openActivities"
     >
       <!-- Shares the strip under the field with the typing indicator. -->
       <template #status-end>
@@ -216,6 +218,7 @@
   import { useActivityPubStore } from '@/stores/useActivityPub';
   import { useThemeStore } from '@/stores/useTheme';
   import { useDraftsStore } from '@/stores/drafts';
+  import { usePlayTogetherStore } from '@/stores/playTogether';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailure';
   import { useOutboxStore, withPendingRows } from '@/stores/useOutbox';
@@ -293,6 +296,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
   const draftsStore = useDraftsStore();
+  const playTogether = usePlayTogetherStore();
   const outbox = useOutboxStore();
   const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
 
@@ -383,6 +387,24 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   const openPollModal = () => {
     if (pollsAllowed.value) showPollModal.value = true;
   };
+
+  // DMs, groups, and text channels of servers this instance hosts. A voice channel's game starts from the call.
+  const activities = computed(() => {
+    if (props.isDM) {
+      const conversation = dmStore.conversations.find(c => c.id === props.conversationId);
+      if (!conversation || !playTogether.appsFor(conversation.type === 'group' ? 'group' : 'direct').length) return null;
+      return { target: { kind: 'conversation' as const, id: conversation.id }, type: conversation.type };
+    }
+    const channel = serverChannelStore.channels.find(ch => ch.id === (props.channelId || serverChannelStore.currentChannelId));
+    const serverId = serverChannelStore.currentServerId;
+    if (!channel || !serverId || Number(channel.type ?? 0) !== 0 || serverChannelStore.currentServer?.is_local_server === false
+      || !playTogether.appsFor('channel').length) return null;
+    return { target: { kind: 'channel' as const, id: channel.id, serverId, voice: false }, type: null };
+  });
+  const openActivities = () => {
+    if (activities.value) playTogether.openLauncher(activities.value.target, activities.value.type);
+  };
+  onMounted(() => { void playTogether.loadApps(); });
   const handlePollCreated = (row: Record<string, any>) => {
     showPollModal.value = false;
     handleDontReply();
