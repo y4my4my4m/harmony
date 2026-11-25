@@ -42,6 +42,10 @@ app.get('/health', (req, res) => {
 })
 
 const server = createServer(app)
+// Node's requestTimeout counts from the first byte to the end of the body and answers 408; its 300 s
+// default ends a large or queued upload. 1800 s is an upload reservation's lease
+// (20261125200002). headersTimeout keeps its 60 s.
+server.requestTimeout = 1_800_000
 
 const wss = new WebSocketServer({ 
   server, 

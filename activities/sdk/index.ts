@@ -323,18 +323,21 @@ class RoomImpl implements Room {
 /**
  * A message of the embedding client. In a call's pop-out window the parent is that window, whose
  * script runs in the app's realm: its messages carry the app's window as source, the pop-out's
- * opener, and the app's origin, the pop-out's own (a Document Picture-in-Picture window has no
- * opener).
+ * opener (a Document Picture-in-Picture window has none), and the app's origin, the pop-out's own.
+ * The origin decides: a site that opened Harmony is the opener of the window the frame is docked in.
  */
 function fromClient(event: MessageEvent): boolean {
   if (event.source === window.parent) return true
-  if (!event.source) return false
+  if (!event.source || event.origin === 'null') return false
+  // Absent in Firefox, and 'null' where the frame's referrer policy hides it.
+  const app = window.location.ancestorOrigins?.[0]
+  if (app && app !== 'null') return event.origin === app
+  // The web app serves the frame's document from its own origin.
   try {
-    if (event.source === window.parent.opener) return true
+    return event.source === window.parent.opener && event.origin === window.location.origin
   } catch {
-    // The opener is not readable.
+    return false
   }
-  return event.origin !== 'null' && event.origin === window.location.ancestorOrigins?.[0]
 }
 
 let pending: Promise<Room> | null = null

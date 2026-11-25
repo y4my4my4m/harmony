@@ -43,7 +43,7 @@ vi.mock('../../utils/mirrorExternalMedia.js', async (importOriginal) => {
 })
 
 import { BotRestAPI, BusyError, UPLOADS_PER_BOT, WAITING_UPLOADS_PER_BOT, keyedConcurrencyLimit } from '../BotRestAPI.js'
-import { EmptyFileError, OverQuotaError, TooLargeError } from '../../utils/mirrorFile.js'
+import { EmptyFileError, OverQuotaError, QuotaBusyError, TooLargeError } from '../../utils/mirrorFile.js'
 import { formatContent } from '../messageContent.js'
 
 let db: FakeDb
@@ -171,6 +171,15 @@ describe('POST /channels/:id/attachments', () => {
     mocks.store.mockRejectedValueOnce(new OverQuotaError(11))
     expect((await post(GENERAL, PNG)).status).toBe(507)
     expect(db.rows('bot_audit_log')).toEqual([])
+  })
+
+  it('answers 429 while only files in flight keep the server\'s cap from taking the file', async () => {
+    seed()
+    mocks.store.mockRejectedValueOnce(new QuotaBusyError(11))
+    const busy = await post(GENERAL, PNG)
+    expect(busy.status).toBe(429)
+    expect(busy.headers['retry-after']).toBe('5')
+    expect(busy.body).toEqual({ error: 'Too many uploads at once', retry_after: 5 })
   })
 })
 

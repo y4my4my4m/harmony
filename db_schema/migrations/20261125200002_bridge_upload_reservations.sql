@@ -8,12 +8,14 @@
 --                             expires_at, 1800 s after the last claim (the mirror worker's lease),
 --                             ends a claim whose gateway died. Service role reads.
 --
---   bridge_upload_reserve(reservation, channel, bytes, avatar bot, max avatars) -> boolean
+--   bridge_upload_reserve(reservation, channel, bytes, avatar bot, max avatars) -> text
 --       Claims `bytes` in all for the channel's server under the caller's reservation id, whatever
---       the id claimed before. false, and no reservation, when the cap has no room, the channel is
---       unknown or has no server, or the avatar bot already holds `max avatars` avatars, the ones
---       in flight included. One claim at a time per server (and per avatar bot), so each reads the
---       claims before it.
+--       the id claimed before. 'reserved', or no reservation and:
+--         'full'     the stored bytes leave the cap no room, or the channel is unknown or has no server
+--         'busy'     the stored bytes leave room, the bytes in flight do not
+--         'avatars'  the cap has room, the avatar bot holds `max avatars` avatars in the server, the
+--                    ones in flight included
+--       One claim at a time per server, so each reads the claims before it.
 --   bridge_upload_release(reservation)
 --   bridge_mirror_allows(channel, bytes)
 --       of 20261112800001, redefined: bytes in flight count as stored ones
@@ -35,8 +37,6 @@ CREATE TABLE IF NOT EXISTS public.bridge_upload_reservations (
 );
 
 CREATE INDEX IF NOT EXISTS bridge_upload_reservations_server_idx ON public.bridge_upload_reservations (server_id);
-CREATE INDEX IF NOT EXISTS bridge_upload_reservations_avatar_bot_idx
-    ON public.bridge_upload_reservations (avatar_bot_id) WHERE avatar_bot_id IS NOT NULL;
 
 COMMENT ON TABLE public.bridge_upload_reservations IS
     'Bytes of files bots and bridges are storing at the moment, per server. Written through bridge_upload_reserve and bridge_upload_release. Service role reads.';
@@ -83,7 +83,7 @@ CREATE OR REPLACE FUNCTION public.bridge_upload_reserve(
     p_bytes bigint,
     p_avatar_bot_id uuid DEFAULT NULL,
     p_max_avatars integer DEFAULT NULL)
-RETURNS boolean
+RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
@@ -93,33 +93,34 @@ DECLARE
 BEGIN
     SELECT c.server_id INTO v_server FROM public.channels c WHERE c.id = p_channel_id;
     IF p_reservation_id IS NULL OR v_server IS NULL THEN
-        RETURN false;
+        RETURN 'full';
     END IF;
 
-    IF p_avatar_bot_id IS NOT NULL THEN
-        PERFORM pg_advisory_xact_lock(hashtextextended('bridge_avatars:' || p_avatar_bot_id::text, 0));
-    END IF;
     PERFORM pg_advisory_xact_lock(hashtextextended('bridge_upload:' || v_server::text, 0));
 
     DELETE FROM public.bridge_upload_reservations r
      WHERE r.id = p_reservation_id
         OR (r.server_id = v_server AND r.expires_at <= now());
 
-    IF p_avatar_bot_id IS NOT NULL
-       AND (SELECT COALESCE(sum(a.objects), 0) FROM public.bridge_avatar_usage a WHERE a.bot_id = p_avatar_bot_id)
-         + (SELECT count(*) FROM public.bridge_upload_reservations r
-             WHERE r.avatar_bot_id = p_avatar_bot_id AND r.expires_at > now())
-           >= COALESCE(p_max_avatars, 0) THEN
-        RETURN false;
-    END IF;
     IF NOT public.bridge_mirror_allows(p_channel_id, p_bytes) THEN
-        RETURN false;
+        -- Refused: a cap of 0 refuses nothing, so there is one.
+        RETURN CASE WHEN public.bridge_mirror_server_bytes(v_server) + GREATEST(COALESCE(p_bytes, 0), 0)
+                         <= public.instance_count_cap('bridge_mirror_server_limit_mb', 5120)::bigint * 1048576
+                    THEN 'busy' ELSE 'full' END;
+    END IF;
+    IF p_avatar_bot_id IS NOT NULL
+       AND COALESCE((SELECT a.objects FROM public.bridge_avatar_usage a
+                      WHERE a.bot_id = p_avatar_bot_id AND a.server_id = v_server), 0)
+         + (SELECT count(*) FROM public.bridge_upload_reservations r
+             WHERE r.server_id = v_server AND r.avatar_bot_id = p_avatar_bot_id)
+           >= COALESCE(p_max_avatars, 0) THEN
+        RETURN 'avatars';
     END IF;
 
     INSERT INTO public.bridge_upload_reservations (id, server_id, avatar_bot_id, bytes, expires_at)
     VALUES (p_reservation_id, v_server, p_avatar_bot_id, GREATEST(COALESCE(p_bytes, 0), 0),
             now() + interval '1800 seconds');
-    RETURN true;
+    RETURN 'reserved';
 END;
 $$;
 

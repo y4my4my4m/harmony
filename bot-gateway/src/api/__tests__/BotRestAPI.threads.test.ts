@@ -291,14 +291,23 @@ describe('a thread title and its members\' opt-outs', () => {
     expect(existing.body.name).toBe('Thread')
   })
 
-  it('reaches an ordinary bot, and answers 500 without a title while the starter message cannot be read', async () => {
-    optedOut = [OWNER_ID]
+  it('answers 500 without a title while the starter message cannot be read, and Thread once it is gone', async () => {
     seed()
-    db.rows('bots')[0].bot_type = null
     expect((await read()).body.name).toBe('Starter')
     db.failures.messages = { message: 'offline' }
     const failed = await read()
     expect(failed.status).toBe(500)
     expect(failed.body).not.toHaveProperty('name')
+    delete db.failures.messages
+    db.rows('messages').splice(0)
+    expect((await read()).body.name).toBe('Thread')
+  })
+
+  it('reaches an ordinary bot, without reading the starter message', async () => {
+    optedOut = [OWNER_ID]
+    seed()
+    db.rows('bots')[0].bot_type = null
+    db.failures.messages = { message: 'offline' }
+    expect((await read()).body.name).toBe('Starter')
   })
 })

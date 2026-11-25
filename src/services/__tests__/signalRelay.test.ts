@@ -8,8 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const capabilities = vi.hoisted(() => ({ relay: true }))
 vi.mock('@/services/instanceCapabilities', () => ({ hasCapability: (name: string) => name === 'signal-relay' && capabilities.relay }))
 const rpc = vi.hoisted(() => vi.fn())
-vi.mock('@/supabase', () => ({ supabase: { rpc } }))
+const realtime = vi.hoisted(() => ({ accessTokenValue: '' as string | null }))
+vi.mock('@/supabase', () => ({ supabase: { rpc, realtime }, SUPABASE_URL: 'https://api.test', SUPABASE_ANON_KEY: 'anon-key' }))
 
+let sendSignalOnUnload: typeof import('../signalRelay').sendSignalOnUnload
 let sendSignal: typeof import('../signalRelay').sendSignal
 let relaysSignals: typeof import('../signalRelay').relaysSignals
 
@@ -22,7 +24,7 @@ beforeEach(async () => {
   capabilities.relay = true
   rpc.mockReset().mockResolvedValue(ok)
   vi.resetModules()
-  ;({ sendSignal, relaysSignals } = await import('../signalRelay'))
+  ;({ sendSignal, relaysSignals, sendSignalOnUnload } = await import('../signalRelay'))
 })
 
 describe('sendSignal', () => {
@@ -87,6 +89,41 @@ describe('sendSignal', () => {
     const broadcast = vi.fn(() => 'ok')
     await accept(broadcast)
     expect(broadcast).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('a signal of an unloading page', () => {
+  const send = () => sendSignalOnUnload('harmony-voice-r1', 'signals', { messages: [{ type: 'user-left' }] })
+
+  it('is a keepalive request with the token Realtime holds, not a client request', () => {
+    const fetch = vi.fn(async (_url: string, _init: RequestInit) => new Response())
+    vi.stubGlobal('fetch', fetch)
+    realtime.accessTokenValue = 'refreshed'
+    send()
+    expect(rpc).not.toHaveBeenCalled()
+    expect(fetch).toHaveBeenCalledExactlyOnceWith('https://api.test/rest/v1/rpc/send_signal', {
+      method: 'POST',
+      keepalive: true,
+      headers: { apikey: 'anon-key', Authorization: 'Bearer refreshed', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_topic: 'harmony-voice-r1', p_event: 'signals', p_payload: { messages: [{ type: 'user-left' }] } }),
+    })
+    vi.unstubAllGlobals()
+  })
+
+  it.each([['signed out', 'anon-key'], ['before Realtime has one', ''], ['before Realtime has one', null]])('is not sent %s', (_when, token) => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    realtime.accessTokenValue = token
+    send()
+    expect(fetch).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('that the browser refuses (its keepalive quota is spent) throws nothing', () => {
+    vi.stubGlobal('fetch', () => { throw new TypeError('keepalive quota') })
+    realtime.accessTokenValue = 'member'
+    expect(send).not.toThrow()
+    vi.unstubAllGlobals()
   })
 })
 

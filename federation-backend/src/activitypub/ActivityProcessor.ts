@@ -4864,7 +4864,8 @@ export class ActivityProcessor {
   }
 
   /**
-   * Group invite: creates the conversation and notifies local recipients.
+   * Group invite: finds or creates the conversation, adds the local recipients missing from it and
+   * notifies those added.
    */
   private static async handleGroupInvite(
     object: any,
@@ -4897,22 +4898,24 @@ export class ActivityProcessor {
 
     const remoteConversationId = object.metadata?.conversation_id || null;
 
-    const { data: conversationId, error: convError } = await supabase.rpc(
-      'get_or_create_federated_group_conversation',
-      {
-        p_actor_id: authorId,
-        p_local_recipient_ids: allowedIds,
-        p_remote_conversation_id: remoteConversationId,
-      }
-    );
+    const { data: invite, error: inviteError } = await supabase.rpc('apply_federated_group_invite', {
+      p_actor_id: authorId,
+      p_recipient_ids: allowedIds,
+      p_remote_conversation_id: remoteConversationId,
+    });
 
-    if (convError || !conversationId) {
-      logger.error('Failed to get/create group for invite:', convError);
+    if (inviteError) {
+      logger.error('Failed to apply group invite:', inviteError);
       return;
     }
     // A conversation found by remote id takes no invite from outside it.
-    if (!(await actorInConversation(supabase, conversationId, authorId))) {
-      logDenied('group invite', normalizeActor(object.attributedTo), `not a participant of ${conversationId}`);
+    if (!invite) {
+      logDenied('group invite', normalizeActor(object.attributedTo), `not a participant of ${remoteConversationId}`);
+      return;
+    }
+    const { conversation_id: conversationId, added } = invite as { conversation_id: string; added: string[] };
+    if (added.length === 0) {
+      logger.info(`Group invite ${object.id}: every recipient is in conversation ${conversationId}`);
       return;
     }
 
@@ -4924,7 +4927,7 @@ export class ActivityProcessor {
 
     const conversationName = object.metadata?.conversation_name || 'a group conversation';
 
-    for (const userId of allowedIds) {
+    for (const userId of added) {
       const { error: notifError } = await supabase.rpc('send_notification_to_user', {
         p_notification_type: 'dm',
         p_to_user_id: userId,
@@ -4948,7 +4951,7 @@ export class ActivityProcessor {
       });
       if (notifError) logger.warn('Failed to create invite notification:', notifError);
     }
-    logger.info(`Group invite processed: conversation ${conversationId}, ${allowedIds.length} recipient(s)`);
+    logger.info(`Group invite processed: conversation ${conversationId}, ${added.length} recipient(s)`);
   }
 
   /**

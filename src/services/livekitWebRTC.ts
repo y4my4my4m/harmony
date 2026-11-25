@@ -362,6 +362,9 @@ export class LiveKitWebRTCService {
   // reported as a lost connection.
   private leaving = false;
 
+  // Counts joins and leaves: what waited across either belongs to a call that has ended.
+  private epoch = 0;
+
   // Stream quality settings (applied to new tracks and updated live).
   // audioBitrate is kbps and applies to stream audio.
   private streamQualitySettings = {
@@ -488,6 +491,7 @@ export class LiveKitWebRTCService {
     debug.log('[LiveKit] Joining voice channel:', channelId, 'as user:', userId, 'E2EE:', requireE2EE);
     // Mic capture opens in parallel with the signalling connect and is published once connected.
     let earlyMic: Promise<LocalAudioTrack> | null = null;
+    let join = -1;
 
     try {
       // Check for cancellation
@@ -505,6 +509,7 @@ export class LiveKitWebRTCService {
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
+      join = ++this.epoch;
       this.channelId = channelId;
       this.currentUserId = userId;
       this.roomType = roomType;
@@ -518,11 +523,7 @@ export class LiveKitWebRTCService {
         this.getToken(roomName, roomType),
         loadLiveKit(),
       ]);
-      
-      // Check for cancellation after getting token
-      if (abortSignal?.aborted) {
-        throw new DOMException('Connection cancelled', 'AbortError');
-      }
+      await this.checkJoin(join, null, abortSignal);
       
       // The key is NOT known yet: it is a random shared room key
       // distributed server-blind over Megolm after connect (see
@@ -536,8 +537,9 @@ export class LiveKitWebRTCService {
         throw new Error('Voice end-to-end encryption is required but not available on this device');
       }
       const e2eeOptions = this.e2eeRequired ? await this.setupE2EEOptions() : null;
+      await this.checkJoin(join, null, abortSignal);
 
-      this.room = new Room({
+      const room = this.room = new Room({
         ...this.prepareRoomOptions(),
         ...(e2eeOptions ? { e2ee: e2eeOptions } : {}),
       });
@@ -553,29 +555,19 @@ export class LiveKitWebRTCService {
       
       // Relay-only ICE avoids the browser "local network" prompt at no
       // latency cost, since traffic passes through the SFU regardless.
-      await this.room.connect(tokenResponse.wsUrl, tokenResponse.token, {
+      await room.connect(tokenResponse.wsUrl, tokenResponse.token, {
         autoSubscribe: true,
         // rtcConfig: {
         //   iceTransportPolicy: 'relay',
         // },
       });
-      
-      // Check for cancellation after connecting
-      if (abortSignal?.aborted) {
-        await this.leaveChannel();
-        throw new DOMException('Connection cancelled', 'AbortError');
-      }
+      await this.checkJoin(join, room, abortSignal);
       
       debug.log('[LiveKit] Connected to room:', roomName);
       
       // Existing participants fire no ParticipantConnected event.
       await this.syncExistingParticipants();
-      
-      // Check for cancellation after syncing participants
-      if (abortSignal?.aborted) {
-        await this.leaveChannel();
-        throw new DOMException('Connection cancelled', 'AbortError');
-      }
+      await this.checkJoin(join, room, abortSignal);
       
       // The shared E2EE key is established BEFORE publishing media so the
       // first frames are encrypted. Failure to agree on a key in time
@@ -583,6 +575,7 @@ export class LiveKitWebRTCService {
       // room.
       if (this.e2eeRequired) {
         const keyed = await this.initVoiceE2EE();
+        await this.checkJoin(join, room, abortSignal);
         if (!keyed) {
           await this.leaveChannel();
           throw new Error('Could not establish a shared encryption key for this call');
@@ -594,12 +587,7 @@ export class LiveKitWebRTCService {
       const captured = earlyMic;
       earlyMic = null;
       await this.publishLocalAudio(captured);
-      
-      // Final cancellation check
-      if (abortSignal?.aborted) {
-        await this.leaveChannel();
-        throw new DOMException('Connection cancelled', 'AbortError');
-      }
+      await this.checkJoin(join, room, abortSignal);
       
       this.emit('channel-joined', { channelId, userId });
       this.startLevelPolling();
@@ -619,6 +607,8 @@ export class LiveKitWebRTCService {
         // Room and its listeners don't leak.
         throw error;
       }
+      // The leave that ended the join closed its room.
+      if (join !== this.epoch) throw new DOMException('Connection cancelled', 'AbortError');
       debug.error('[LiveKit] Failed to join channel:', error);
       // The Room is constructed and its listeners registered
       // BEFORE `room.connect()` is awaited, so a connect failure would leave
@@ -638,16 +628,20 @@ export class LiveKitWebRTCService {
    * Join with a pre-obtained token, for federated voice against a remote
    * instance's LiveKit server.
    */
-  async joinWithToken(wsUrl: string, token: string, channelId: string, userId: string): Promise<boolean> {
+  async joinWithToken(wsUrl: string, token: string, channelId: string, userId: string, abortSignal?: AbortSignal): Promise<boolean> {
     debug.log('[LiveKit] Joining federated voice channel:', channelId, 'with remote token');
+    let join = -1;
     
     try {
       // Clean previous connection
       if (this.room) {
         await this.leaveChannel();
       }
+      if (abortSignal?.aborted) throw new DOMException('Connection cancelled', 'AbortError');
       
+      join = ++this.epoch;
       const { Room } = await loadLiveKit();
+      await this.checkJoin(join, null, abortSignal);
 
       this.channelId = channelId;
       this.currentUserId = userId;
@@ -664,23 +658,26 @@ export class LiveKitWebRTCService {
         this.remoteServerDomain = null;
       }
       
-      this.room = new Room(this.prepareRoomOptions());
+      const room = this.room = new Room(this.prepareRoomOptions());
 
       this.setupRoomListeners();
 
       // Connect to remote LiveKit server with provided token
-      await this.room.connect(wsUrl, token, {
+      await room.connect(wsUrl, token, {
         autoSubscribe: true,
       });
+      await this.checkJoin(join, room, abortSignal);
       
       debug.log('[LiveKit] Connected to federated room');
       
       // Sync existing participants
       await this.syncExistingParticipants();
+      await this.checkJoin(join, room, abortSignal);
       this.emitLocalGrants();
       
       // Publish local audio track
       await this.publishLocalAudio();
+      await this.checkJoin(join, room, abortSignal);
       
       this.emit('channel-joined', { channelId, userId });
       this.startLevelPolling();
@@ -689,6 +686,12 @@ export class LiveKitWebRTCService {
       
       return true;
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        debug.log('[LiveKit] Federated connection cancelled');
+        throw error;
+      }
+      // The leave that ended the join closed its room.
+      if (join !== this.epoch) throw new DOMException('Connection cancelled', 'AbortError');
       debug.error('[LiveKit] Failed to join federated channel:', error);
       // Same teardown as joinChannel: the Room and its listeners exist before connect().
       try {
@@ -701,6 +704,20 @@ export class LiveKitWebRTCService {
     }
   }
   
+  /**
+   * Throws once the join is cancelled, leaving what it opened, or has ended: a leave or a later join
+   * took its place and holds the service, and only the join's own room closes.
+   */
+  private async checkJoin(join: number, room: Room | null, abortSignal?: AbortSignal): Promise<void> {
+    if (join === this.epoch) {
+      if (!abortSignal?.aborted) return;
+      await this.leaveChannel();
+    } else if (room) {
+      await room.disconnect(true).catch(() => {});
+    }
+    throw new DOMException('Connection cancelled', 'AbortError');
+  }
+
   private emitLocalLevel(level: number): void {
     if (!this.currentUserId) return;
     if (Math.abs(level - this.localMediaState.audioLevel) >= 3 || (level === 0) !== (this.localMediaState.audioLevel === 0)
@@ -769,6 +786,7 @@ export class LiveKitWebRTCService {
 
   async leaveChannel(): Promise<void> {
     debug.log('[LiveKit] Leaving voice channel');
+    const epoch = ++this.epoch;
     this.stopLevelPolling();
 
     if (this.room) {
@@ -782,6 +800,8 @@ export class LiveKitWebRTCService {
       } finally {
         this.leaving = false;
       }
+      // A later leave or join has the state.
+      if (epoch !== this.epoch) return;
       this.room = null;
     }
 
@@ -846,8 +866,9 @@ export class LiveKitWebRTCService {
    * connect, stopped when the grant withholds the microphone.
    */
   private async publishLocalAudio(captured?: Promise<LocalAudioTrack> | null): Promise<void> {
-    if (!this.room?.localParticipant || !this.getLocalGrants().speak) {
-      if (this.room?.localParticipant) debug.log('[LiveKit] Microphone not granted; joining without it');
+    const { room, epoch } = this;
+    if (!room?.localParticipant || !this.getLocalGrants().speak) {
+      if (room?.localParticipant) debug.log('[LiveKit] Microphone not granted; joining without it');
       captured?.then(t => t.stop()).catch(() => {});
       return;
     }
@@ -862,18 +883,31 @@ export class LiveKitWebRTCService {
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Microphone acquisition timed out')), 8000)),
       ]);
+      // The call the microphone was opened for has ended.
+      if (epoch !== this.epoch) {
+        audioTrack.stop();
+        return;
+      }
 
       // Gain stage before publish: the first packet already carries the
       // input volume, and E2EE wraps the sender that carries the processed track.
       await this.enqueueMicGainSync(audioTrack);
+      if (epoch !== this.epoch) {
+        audioTrack.stop();
+        return;
+      }
 
       // Voice uses livekit-client's default preset (music, 48 kbps). DTX
       // saves bandwidth in silence; RED covers packet loss.
-      await this.room.localParticipant.publishTrack(audioTrack, {
+      await room.localParticipant.publishTrack(audioTrack, {
         source: lib().Track.Source.Microphone,
         dtx: true,
         red: true,
       });
+      if (epoch !== this.epoch) {
+        audioTrack.stop();
+        return;
+      }
 
       this.localMediaState.isAudioEnabled = true;
 
@@ -887,6 +921,7 @@ export class LiveKitWebRTCService {
       debug.warn('[LiveKit] No microphone available, joining in muted state:', error);
       // A track resolving after the timeout is stopped so it releases the device.
       trackPromise.then(t => t.stop()).catch(() => {});
+      if (epoch !== this.epoch) return;
       this.localMediaState.isMuted = true;
       this.localMediaState.isAudioEnabled = false;
       this.emit('local-state-changed', this.localMediaState);
@@ -900,6 +935,7 @@ export class LiveKitWebRTCService {
       debug.warn('[LiveKit] No room connected');
       return false;
     }
+    const { room, epoch } = this;
     const { Track, createLocalVideoTrack } = lib();
     if (!this.localMediaState.isVideoEnabled && !this.getLocalGrants().stream) {
       debug.warn('[LiveKit] Camera not granted');
@@ -928,12 +964,21 @@ export class LiveKitWebRTCService {
             debug.warn('[LiveKit] Could not apply frameRate constraint:', e);
           }
         }
+        // The call the camera was asked for has ended.
+        if (epoch !== this.epoch) {
+          videoTrack.stop();
+          return this.localMediaState.isVideoEnabled;
+        }
         
-        await this.room.localParticipant.publishTrack(videoTrack, {
+        await room.localParticipant.publishTrack(videoTrack, {
           source: Track.Source.Camera,
           videoCodec: 'vp8',
           simulcast: true, // Enable simulcast for adaptive quality
         });
+        if (epoch !== this.epoch) {
+          videoTrack.stop();
+          return this.localMediaState.isVideoEnabled;
+        }
         
         this.localMediaState.isVideoEnabled = true;
         debug.log('[LiveKit] Video enabled');
@@ -1018,6 +1063,7 @@ export class LiveKitWebRTCService {
    */
   private async startScreenShare(): Promise<void> {
     const lp = this.room!.localParticipant;
+    const { epoch } = this;
     const { Track } = lib();
     const quality = {
       resolution: this.streamQualitySettings.resolution,
@@ -1049,6 +1095,11 @@ export class LiveKitWebRTCService {
     // The option type omits restrictOwnAudio and the display-media hints
     // livekit-client forwards; the cast widens it.
     const tracks: LocalTrack[] = await lp.createScreenTracks(captureOptions as any);
+    // The call the screen was picked for has ended.
+    if (epoch !== this.epoch) {
+      tracks.forEach(t => t.stop());
+      return;
+    }
     const video = tracks.find(t => t.kind === Track.Kind.Video);
     const audio = tracks.find(t => t.kind === Track.Kind.Audio);
     if (!video) {
@@ -1731,6 +1782,7 @@ export class LiveKitWebRTCService {
       return;
     }
     
+    const { epoch } = this;
     const existingParticipants = this.room.remoteParticipants;
     debug.log(`[LiveKit] Syncing ${existingParticipants.size} existing participants`);
     
@@ -1752,6 +1804,7 @@ export class LiveKitWebRTCService {
 
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
+      if (epoch !== this.epoch) return;
       
       if (!userId) {
         debug.warn(`[LiveKit] Could not resolve identity for existing participant: ${participant.identity}`);

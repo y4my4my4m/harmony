@@ -147,6 +147,143 @@ describe('a P2P join whose topic does not answer', () => {
   });
 });
 
+/** getUserMedia answers when the test says; the microphone and camera prompts of a page. */
+function prompts() {
+  const asked: Array<{ constraints: any; allow: () => any; refuse: () => void }> = [];
+  (navigator as any).mediaDevices.getUserMedia = vi.fn((constraints: any) => new Promise((resolve, reject) => {
+    asked.push({
+      constraints,
+      allow: () => {
+        const track = { kind: constraints.video ? 'video' : 'audio', id: `t-${asked.length}`, enabled: true, stop: vi.fn(), getSettings: () => ({}) };
+        resolve({
+          getTracks: () => [track],
+          getAudioTracks: () => (constraints.video ? [] : [track]),
+          getVideoTracks: () => (constraints.video ? [track] : []),
+          addTrack: vi.fn(),
+          removeTrack: vi.fn(),
+        });
+        return track;
+      },
+      refuse: () => reject(new DOMException('denied', 'NotAllowedError')),
+    });
+  }));
+  return asked;
+}
+
+describe('a P2P join cancelled at its microphone prompt', () => {
+  async function cancelledThenJoined() {
+    const asked = prompts();
+    const made = service();
+    const controller = new AbortController();
+    const first = made.svc.joinChannel('room-1', ALICE, controller.signal).then(() => 'joined', (error: Error) => error.name);
+    await vi.waitFor(() => expect(asked).toHaveLength(1));
+    controller.abort();
+    await made.svc.leaveChannel();
+
+    const second = made.svc.joinChannel('room-2', ALICE);
+    await vi.waitFor(() => expect(asked).toHaveLength(2));
+    const microphone = asked[1].allow();
+    await vi.waitFor(() => expect(topics.opened).toHaveLength(1));
+    topics.opened[0].options.onSubscribed(false);
+    await expect(second).resolves.toBe(true);
+    return { ...made, asked, first, microphone };
+  }
+
+  it('and answered during the next join, stops its own microphone alone and leaves that call up', async () => {
+    const { svc, s, asked, first, microphone } = await cancelledThenJoined();
+    const late = asked[0].allow();
+    await expect(first).resolves.toBe('AbortError');
+    expect(late.stop).toHaveBeenCalled();
+    expect(microphone.stop).not.toHaveBeenCalled();
+    expect(svc.getLocalStream()!.getAudioTracks()).toEqual([microphone]);
+    expect(s.rawMicTrack).toBe(microphone);
+    expect(s.channelId).toBe('room-2');
+    expect(topics.opened).toHaveLength(1);
+    expect(topics.opened[0].close).not.toHaveBeenCalled();
+    await svc.leaveChannel();
+  });
+
+  it('and refused during the next join, prompts no second time', async () => {
+    const { svc, s, asked, first, microphone } = await cancelledThenJoined();
+    s.selectedInputDevice = 'headset';
+    asked[0].refuse();
+    await expect(first).resolves.toBe('AbortError');
+    expect(asked).toHaveLength(2);
+    expect(s.selectedInputDevice).toBe('headset');
+    expect(microphone.stop).not.toHaveBeenCalled();
+    await svc.leaveChannel();
+  });
+
+  it('with no join after it, stops the microphone answered late and opens nothing', async () => {
+    const asked = prompts();
+    const { svc, events } = service();
+    const controller = new AbortController();
+    const join = svc.joinChannel('room-1', ALICE, controller.signal).then(() => 'joined', (error: Error) => error.name);
+    await vi.waitFor(() => expect(asked).toHaveLength(1));
+    controller.abort();
+    await svc.leaveChannel();
+    const late = asked[0].allow();
+    await expect(join).resolves.toBe('AbortError');
+    expect(late.stop).toHaveBeenCalled();
+    expect(svc.getLocalStream()).toBeNull();
+    expect(topics.opened).toHaveLength(0);
+    expect(events).not.toContain('channel-joined');
+  });
+});
+
+describe('a capture prompt that outlives the call', () => {
+  it('the camera answered after it is stopped, and no later call sends it', async () => {
+    const { svc, s } = await joined();
+    const asked = prompts();
+    const toggled = svc.toggleVideo();
+    await vi.waitFor(() => expect(asked).toHaveLength(1));
+    await svc.leaveChannel();
+
+    const next = svc.joinChannel('room-2', ALICE);
+    await vi.waitFor(() => expect(asked).toHaveLength(2));
+    const microphone = asked[1].allow();
+    await vi.waitFor(() => expect(topics.opened).toHaveLength(2));
+    topics.opened[1].options.onSubscribed(false);
+    await next;
+
+    const camera = asked[0].allow();
+    await expect(toggled).resolves.toBe(false);
+    expect(camera.stop).toHaveBeenCalled();
+    expect(svc.getLocalState().isVideoEnabled).toBe(false);
+    expect(svc.getLocalStream()!.getTracks()).toEqual([microphone]);
+    expect((s.localStream.addTrack as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+    await svc.leaveChannel();
+  });
+
+  it('the camera answered with no call is stopped', async () => {
+    const { svc } = await joined();
+    const asked = prompts();
+    const toggled = svc.toggleVideo();
+    await vi.waitFor(() => expect(asked).toHaveLength(1));
+    await svc.leaveChannel({ silent: true });
+    const camera = asked[0].allow();
+    await expect(toggled).resolves.toBe(false);
+    expect(camera.stop).toHaveBeenCalled();
+    expect(svc.getLocalState().isVideoEnabled).toBe(false);
+  });
+
+  it('the screen picked after it is stopped', async () => {
+    const { svc, s } = await joined();
+    let pick!: () => void;
+    const screen = { kind: 'video', id: 'screen', stop: vi.fn() };
+    (navigator as any).mediaDevices.getDisplayMedia = vi.fn(() => new Promise((resolve) => {
+      pick = () => resolve({ getTracks: () => [screen], getVideoTracks: () => [screen], getAudioTracks: () => [] });
+    }));
+    const toggled = svc.toggleScreenShare();
+    await svc.leaveChannel();
+    pick();
+    await expect(toggled).resolves.toBe(false);
+    expect(screen.stop).toHaveBeenCalled();
+    expect(s.localScreenStream).toBeNull();
+    expect(svc.getLocalState().isScreenSharing).toBe(false);
+  });
+});
+
 describe('a P2P leave', () => {
   it('sends user-left, closes the topic and says it left', async () => {
     const { svc, events } = await joined();

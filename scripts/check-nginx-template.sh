@@ -153,6 +153,14 @@ for r in 'attachments?filename=a.png' bridge-files; do
   expect_body "/bot-gateway/api/v1$BOT_CHANNEL/$r" "200 bot-gateway POST /api/v1$BOT_CHANNEL/$r 53000000"
 done
 expect_body "/bot-gateway/api/v1$BOT_CHANNEL/messages" '413 <html>'
+for d in proxy_send_timeout proxy_read_timeout; do
+  if docker exec "$CONTAINER" nginx -T 2>/dev/null | sed -n '/(attachments|bridge-files)/,/^    }/p' | grep -q "$d 600s;"; then
+    printf 'ok   %-40.40s %s\n' 'bot uploads' "$d 600s"
+  else
+    err "bot uploads: no $d 600s"
+    FAILED=$((FAILED + 1))
+  fi
+done
 
 log "ActivityPub-only paths"
 STAMP=/users/fx_alice/quote_authorizations/00000000-0000-0000-0000-000000000002

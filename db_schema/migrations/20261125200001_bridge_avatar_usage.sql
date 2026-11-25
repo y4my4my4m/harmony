@@ -18,6 +18,8 @@
 --                                       deleting the bot, the server or its paired channels all end
 --                                       there. A bridge configured again within the hour keeps them.
 --   bridge_mirror_server_bytes(server)  of 20261123100002, redefined: the avatars of the server count
+--   bridge_mirror_status()              of 20261123100002, redefined: stored_bytes counts the avatars
+--                                       of every server that exists, as the caps do
 --
 -- Body otherwise, volatility, owner and grants as 20261123100002. No object of these names exists
 -- before this migration: 1.9.8 is the first release with the Matrix bridge.
@@ -164,19 +166,51 @@ AS $$
                        WHERE a.server_id = p_server_id), 0))::bigint;
 $$;
 
+CREATE OR REPLACE FUNCTION public.bridge_mirror_status()
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF NOT public.is_current_user_admin() THEN
+        RAISE EXCEPTION 'Only instance admins can read the mirror queue' USING ERRCODE = '42501';
+    END IF;
+    RETURN (
+        SELECT jsonb_build_object(
+            'queued', count(*) FILTER (WHERE q.state = 'queued'),
+            'too_large', count(*) FILTER (WHERE q.state = 'too_large'),
+            'too_large_bytes', COALESCE(sum(q.largest_bytes) FILTER (WHERE q.state = 'too_large'), 0),
+            'failed', count(*) FILTER (WHERE q.state = 'failed'),
+            'over_quota', count(*) FILTER (WHERE q.state = 'over_quota'),
+            'stored_bytes', (SELECT COALESCE(sum(u.bytes), 0)
+                               FROM public.bridge_mirror_usage u
+                               JOIN public.channels c ON c.id = u.channel_id
+                              WHERE c.server_id IS NOT NULL)
+                          + (SELECT COALESCE(sum(a.bytes), 0)
+                               FROM public.bridge_avatar_usage a
+                               JOIN public.servers s ON s.id = a.server_id))
+          FROM public.bridge_mirror_queue q);
+END;
+$$;
+
 DO $$
 DECLARE
     fn text;
 BEGIN
     FOREACH fn IN ARRAY ARRAY[
         'public.bridge_avatar_unbound(integer)',
-        'public.bridge_mirror_server_bytes(uuid)'
+        'public.bridge_mirror_server_bytes(uuid)',
+        'public.bridge_mirror_status()'
     ] LOOP
         EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn);
         EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', fn);
     END LOOP;
 END
 $$;
+
+GRANT EXECUTE ON FUNCTION public.bridge_mirror_status() TO authenticated;
 
 COMMIT;
 

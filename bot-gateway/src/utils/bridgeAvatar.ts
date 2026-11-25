@@ -64,22 +64,38 @@ export async function nativeBridgeAvatar(avatar: string): Promise<{ data: string
   return null
 }
 
-// Avatars one bridge bot keeps across its servers: one per relayed author and picture, stored with
-// the author's first message. 1000 of 1 MiB are a fifth of the default server cap (5120 MiB). Past
-// it authors are relayed without a picture.
+// Avatars one bridge bot keeps in a server: one per relayed author and picture. 1000 of 1 MiB are a
+// fifth of the default server cap (5120 MiB). Past it each new one replaces the one asked for longest
+// ago, to the day: a picture nobody has any more goes, and the bridge asks again for one in use.
 export const MAX_BRIDGE_AVATARS = 1000
+const TOUCH_AFTER_MS = 24 * 60 * 60_000
+// Concurrent uploads can take the place an eviction made.
+const EVICTION_ROUNDS = 3
 
 export class BridgeAvatarQuotaError extends Error {}
+export class BridgeAvatarBusyError extends Error {}
 
 /** The folder of the avatars bucket holding a bridge bot's avatars for a server (bridge_avatar_usage). */
 export function bridgeAvatarFolder(botId: string, serverId: string): string {
   return `bridges/${botId.toLowerCase()}/${serverId.toLowerCase()}`
 }
 
+/** Removes the avatar of `folder` written longest ago. bridge_avatar_usage follows storage.objects. */
+async function evictOldestAvatar(folder: string): Promise<void> {
+  const bucket = supabase.storage.from('avatars')
+  const { data: oldest, error } = await bucket.list(folder, { limit: 1, sortBy: { column: 'updated_at', order: 'asc' } })
+  if (error || !Array.isArray(oldest)) throw new Error('Bridge avatar storage unavailable')
+  if (oldest.length === 0) return
+  const { error: removeError } = await bucket.remove([`${folder}/${oldest[0].name}`])
+  if (removeError) throw new Error('Bridge avatar storage unavailable')
+}
+
 /**
  * Stores a relayed person's avatar under bridges/<bot>/<server>/<sha256 of the stripped bytes>; the
- * same image is one object. A new image past MAX_BRIDGE_AVATARS of the bot, or past the cap of the
- * channel's server on files bots and bridges store, throws BridgeAvatarQuotaError.
+ * same image is one object, written again when it was last written TOUCH_AFTER_MS ago. A new image
+ * past MAX_BRIDGE_AVATARS of the bot in the server replaces the oldest one; past the server's cap on
+ * files bots and bridges store it throws BridgeAvatarQuotaError, or BridgeAvatarBusyError while only
+ * files in flight are in the way.
  */
 export async function storeBridgeAvatar(
   botId: string,
@@ -97,15 +113,26 @@ export async function storeBridgeAvatar(
   const bucket = supabase.storage.from('avatars')
   const { data: held, error: listError } = await bucket.list(folder, { limit: 10, search: hash })
   if (listError || !Array.isArray(held)) throw new Error('Bridge avatar storage unavailable')
-  if (!held.some(object => object.name === name)) {
+  const write = () => bucket.upload(path, bytes, { contentType, upsert: true, cacheControl: '86400' })
+  const own = held.find(object => object.name === name)
+  if (!own) {
     const reservation = new UploadReservation(channelId, { botId, max: MAX_BRIDGE_AVATARS })
     try {
-      if (!(await reservation.claim(bytes.length))) throw new BridgeAvatarQuotaError('Bridge avatar limit reached')
-      const { error } = await bucket.upload(path, bytes, { contentType, upsert: true, cacheControl: '86400' })
+      let claim = await reservation.claim(bytes.length)
+      for (let round = 0; claim === 'avatars' && round < EVICTION_ROUNDS; round++) {
+        await evictOldestAvatar(folder)
+        claim = await reservation.claim(bytes.length)
+      }
+      if (claim === 'busy') throw new BridgeAvatarBusyError('Bridge avatar storage is busy')
+      if (claim !== 'reserved') throw new BridgeAvatarQuotaError('Bridge avatar limit reached')
+      const { error } = await write()
       if (error) throw new Error('Bridge avatar storage unavailable')
     } finally {
       await reservation.release()
     }
+  } else if (own.updated_at && Date.now() - Date.parse(own.updated_at) > TOUCH_AFTER_MS) {
+    const { error } = await write()
+    if (error) console.warn(`Writing ${path} again failed: ${error.message}`)
   }
   const { data } = bucket.getPublicUrl(path)
   return publicStorageUrl(data.publicUrl)

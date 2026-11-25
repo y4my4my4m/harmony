@@ -61,8 +61,9 @@ vi.mock('@/services/realtimeMemberToken', () => ({
   currentRealtimeToken: () => 'member-1',
   onMemberToken: () => () => {},
 }))
+const profile = vi.hoisted(() => ({ read: async () => 'me' as string | null }))
 vi.mock('@/services/AuthContextService', () => ({
-  authContextService: { getCurrentProfileId: async () => 'me' },
+  authContextService: { getCurrentProfileId: () => profile.read() },
 }))
 
 import { UnifiedWebRTCService } from '../unifiedWebRTC'
@@ -87,6 +88,7 @@ class FakePeerConnection {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  profile.read = async () => 'me'
   FakeSocket.sockets.length = 0
   wire.rpc = vi.fn(async () => ({ data: null, error: null }))
   wire.client = new RealtimeClient('ws://realtime.test/realtime/v1', {
@@ -230,5 +232,66 @@ describe('DM call topic', () => {
     off()
     await vi.advanceTimersByTimeAsync(120_000)
     expect(socket().joins(topic)).toHaveLength(1)
+  })
+
+  describe('cleanup, at a session end', () => {
+    const leaves = () => socket().sent.filter((f) => f.event === 'phx_leave' && f.topic === topic)
+    const channels = () => (dmCallSignaling as any).channels as Map<string, RealtimeChannel>
+
+    it('leaves a topic still joining: its late answer registers nothing', async () => {
+      dmCallSignaling.subscribeToConversation(CONV, () => {})
+      await vi.advanceTimersByTimeAsync(0)
+      socket().open()
+      await vi.advanceTimersByTimeAsync(0)
+      const join = socket().joins(topic)[0]
+      dmCallSignaling.cleanup()
+      await vi.advanceTimersByTimeAsync(0)
+      socket().reply(join)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(leaves()).toHaveLength(1)
+      expect(channels().size).toBe(0)
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(socket().joins(topic)).toHaveLength(1)
+    })
+
+    it('a topic asked for and not yet opened is not opened', async () => {
+      let answer!: (id: string) => void
+      profile.read = () => new Promise((resolve) => { answer = resolve })
+      dmCallSignaling.subscribeToConversation(CONV, () => {})
+      dmCallSignaling.cleanup()
+      answer('me')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(FakeSocket.sockets.flatMap((s) => s.joins(topic))).toEqual([])
+      expect(channels().size).toBe(0)
+    })
+
+    it('the next account\'s topic of the same conversation is its own, and survives the first one\'s end', async () => {
+      const before: string[] = []
+      dmCallSignaling.subscribeToConversation(CONV, (signal) => before.push(signal.type))
+      await vi.advanceTimersByTimeAsync(0)
+      socket().open()
+      await vi.advanceTimersByTimeAsync(0)
+      const first = socket().joins(topic)[0]
+      dmCallSignaling.cleanup()
+
+      const after: string[] = []
+      const off = dmCallSignaling.subscribeToConversation(CONV, (signal) => after.push(signal.type))
+      await vi.advanceTimersByTimeAsync(0)
+      socket().reply(first)
+      await vi.advanceTimersByTimeAsync(0)
+      const second = socket().joins(topic).at(-1)!
+      expect(second.ref).not.toBe(first.ref)
+      socket().reply(second)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(channels().size).toBe(1)
+
+      socket().deliver({
+        topic, event: 'broadcast', ref: null, join_ref: second.ref,
+        payload: { type: 'broadcast', event: 'call-signal', payload: { type: 'leave', callerId: 'them', callType: 'voice', timestamp: 1, conversationId: CONV } },
+      })
+      expect(after).toEqual(['leave'])
+      expect(before).toEqual([])
+      off()
+    })
   })
 })

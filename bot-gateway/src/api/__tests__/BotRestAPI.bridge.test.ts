@@ -224,6 +224,21 @@ describe('PATCH /messages/:id/metadata on a Harmony-origin message', () => {
     expect((await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`).send({ metadata: MAPPING })).status).toBe(200)
   })
 
+  it('keeps a thread\'s withheld name out of the answer, and in the stored notice', async () => {
+    seed()
+    const author = '00000000-0000-0000-0000-0000000000a9'
+    const thread = '00000000-0000-0000-0000-0000000000d7'
+    const notice = { type: 'thread_created', actor_id: OWNER_ID, thread_id: thread, thread_name: 'what the author wrote' }
+    Object.assign(db.rows('messages')[0], { user_id: null, is_system: true, metadata: notice })
+    db.rows('messages').push({ ...db.rows('messages')[0], id: 'starter', user_id: author, is_system: false, metadata: {} })
+    db.rows('threads').push({ id: thread, parent_message_id: 'starter', created_by: OWNER_ID })
+    optedOut = { discord: [author] }
+    const res = await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`).send({ metadata: MAPPING })
+    expect(res.status).toBe(200)
+    expect(res.body.metadata).toEqual({ ...notice, thread_name: 'Thread', ...MAPPING })
+    expect(metadataOf(HARMONY_MESSAGE)).toEqual({ ...notice, ...MAPPING })
+  })
+
   it('refuses a channel the bridge does not pair', async () => {
     seed()
     const res = await supertest(app()).patch(`/api/v1/messages/${UNPAIRED_MESSAGE}/metadata`).send({ metadata: MAPPING })

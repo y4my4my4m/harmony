@@ -23,7 +23,7 @@ export type ActiveWebRTCService = 'livekit' | 'p2p' | null;
 export interface WebRTCManager {
   // Connection
   joinChannel(channelId: string, userId: string, roomType?: 'voice_channel' | 'dm_call' | 'stage'): Promise<boolean>;
-  joinWithToken(wsUrl: string, token: string, channelId: string, userId: string): Promise<boolean>;
+  joinWithToken(wsUrl: string, token: string, channelId: string, userId: string, abortSignal?: AbortSignal): Promise<boolean>;
   leaveChannel(): Promise<void>;
   
   // Media controls
@@ -300,20 +300,23 @@ class WebRTCManagerService implements WebRTCManager {
     wsUrl: string,
     token: string,
     channelId: string,
-    userId: string
+    userId: string,
+    abortSignal?: AbortSignal
   ): Promise<boolean> {
     debug.log(`[WebRTCManager] Joining federated channel: ${channelId} with remote token`);
     this.lastJoinError = null;
     this.lastTransportError = null;
 
+    if (abortSignal?.aborted) return false;
     if (this.activeService) {
       await this.leaveChannel();
+      if (abortSignal?.aborted) return false;
     }
 
     // activeService is set before the join so events are forwarded during it.
     this.activeService = 'livekit';
     livekitWebRTC.setTransmitGate(this.transmitGateOpen);
-    return this.runJoin(livekitWebRTC, 'SFU', () => livekitWebRTC.joinWithToken(wsUrl, token, channelId, userId));
+    return this.runJoin(livekitWebRTC, 'SFU', () => livekitWebRTC.joinWithToken(wsUrl, token, channelId, userId, abortSignal), abortSignal);
   }
   
   /**

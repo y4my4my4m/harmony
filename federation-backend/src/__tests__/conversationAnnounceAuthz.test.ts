@@ -247,6 +247,58 @@ describe('group DM started on another instance', () => {
   })
 })
 
+describe('group invite', () => {
+  const BOB = 'https://harmony.test/users/bob'
+  let applied: Row[]
+  let notices: Row[]
+  const invite = (to: string[]) => P.handleGroupInvite(
+    { id: 'https://remote.test/group-invites/remote-conv/x', attributedTo: CAROL, to, metadata: { type: 'group_invite', conversation_id: 'remote-conv', conversation_name: 'Weekend' } },
+    'carol-id', null, { skipSpamGuard: true },
+  )
+
+  beforeEach(() => {
+    applied = []
+    notices = []
+    tables.profiles.push({ id: 'bob-id', username: 'bob', is_local: true, federated_id: BOB, updated_at: FRESH })
+    rpcResult.dm_recipients_allowing = (args: any) => args.p_recipients
+    rpcResult.send_notification_to_user = (args: any) => { notices.push(args) }
+    rpcResult.apply_federated_group_invite = (args: any) => {
+      applied.push(args)
+      return { conversation_id: 'conv-1', added: args.p_recipient_ids }
+    }
+  })
+
+  it('hands the local recipients to the database and notifies the ones it added', async () => {
+    rpcResult.apply_federated_group_invite = (args: any) => {
+      applied.push(args)
+      return { conversation_id: 'conv-1', added: ['bob-id'] }
+    }
+    await invite([ALICE, BOB, DAVE])
+    expect(applied).toEqual([{ p_actor_id: 'carol-id', p_recipient_ids: ['alice-id', 'bob-id'], p_remote_conversation_id: 'remote-conv' }])
+    expect(notices).toEqual([expect.objectContaining({ p_to_user_id: 'bob-id', p_conversation_id: 'conv-1', p_from_user_id: 'carol-id' })])
+    expect(notices[0].p_notification_data).toMatchObject({ is_invite: true, preview: 'You were added to Weekend', conversation: { id: 'conv-1', name: 'Weekend' }, sender: { user_id: 'carol-id' } })
+  })
+
+  it('tells nobody who was in the group already', async () => {
+    rpcResult.apply_federated_group_invite = { conversation_id: 'conv-1', added: [] }
+    await invite([ALICE])
+    expect(notices).toEqual([])
+  })
+
+  it('tells nobody of a group the inviter is not in', async () => {
+    rpcResult.apply_federated_group_invite = null
+    await invite([ALICE, BOB])
+    expect(notices).toEqual([])
+  })
+
+  it('leaves out recipients whose setting or block refuses the inviter', async () => {
+    rpcResult.dm_recipients_allowing = ['bob-id']
+    await invite([ALICE, BOB])
+    expect(applied[0].p_recipient_ids).toEqual(['bob-id'])
+    expect(notices.map((n) => n.p_to_user_id)).toEqual(['bob-id'])
+  })
+})
+
 describe('Announce and quote visibility', () => {
   it('an Announce of a direct post stores nothing', async () => {
     await P.processAnnounce({ type: 'Announce', id: 'https://evil.test/a/1', actor: MALLORY,

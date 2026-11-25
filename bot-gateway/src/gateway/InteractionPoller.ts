@@ -116,7 +116,7 @@ export class InteractionPoller {
         const serverId = await serverOfChannel(row.channel_id)
         if (!serverId) throw new Error('Interaction channel has no server')
         for (const userId of named) {
-          if (!(await relayAllowed(botId, serverId, row.channel_id, userId))) {
+          if (!(await relayAllowed(botId, serverId, row.channel_id, [userId]))) {
             throw new Error('Interaction names a member who opted out of this bridge')
           }
         }

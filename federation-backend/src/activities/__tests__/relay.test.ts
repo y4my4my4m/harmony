@@ -24,6 +24,8 @@ interface Fake extends RelayDeps {
   verifyError: boolean
   /** Token checks not answered yet. */
   checking: number
+  /** Tokens checked while stalled. */
+  checked: string[]
   stall: boolean
   maxPlayers: number
   finished: Array<{ id: string; reason: string }>
@@ -40,6 +42,7 @@ function fakeDeps(): Fake {
     admitError: false,
     verifyError: false,
     checking: 0,
+    checked: [],
     stall: false,
     maxPlayers: 8,
     finished: [],
@@ -51,17 +54,18 @@ function fakeDeps(): Fake {
       if (fake.verifyError) throw new Error('GoTrue down')
       if (fake.stall) {
         fake.checking++
+        fake.checked.push(token)
         return new Promise(() => {})
       }
       const id = token.replace(/^token-/, '')
       return NAMES[id] && !fake.signedOut.has(id) ? { profileId: id, expiresAt: fake.expiresAt } : null
     },
-    async admit(_session, profileId): Promise<Admission> {
+    async admit(session, profileId): Promise<Admission> {
       if (fake.admitError) throw new Error('database down')
       const refusal = fake.refusals.get(profileId)
       if (refusal) return { refusal }
       return {
-        session: { id: SESSION, app_id: 'drawinphone', context: 'direct', started_by: ALICE, max_players: fake.maxPlayers, min_players: 2 },
+        session: { id: session, app_id: 'drawinphone', context: 'direct', started_by: ALICE, max_players: fake.maxPlayers, min_players: 2 },
         member: { id: profileId, username: NAMES[profileId], display_name: NAMES[profileId].toUpperCase(), avatar_url: null },
         can_end: fake.canEnd.has(profileId),
       }
@@ -153,9 +157,9 @@ async function open(headers: Record<string, string> = {}): Promise<Client> {
   return client
 }
 
-async function join(id: string): Promise<{ client: Client; welcome: Extract<RelayFrame, { op: 'welcome' }> }> {
+async function join(id: string, session = SESSION): Promise<{ client: Client; welcome: Extract<RelayFrame, { op: 'welcome' }> }> {
   const client = await open()
-  client.send({ op: 'hello', v: 1, token: `token-${id}`, session: SESSION })
+  client.send({ op: 'hello', v: 1, token: `token-${id}`, session })
   const welcome = await client.next('welcome')
   return { client, welcome }
 }
@@ -485,6 +489,46 @@ describe('activity relay: limits', () => {
     }
   })
 
+  it('keeps the connection of a declined upgrade for its next requests', async () => {
+    const app = createServer({ shouldUpgradeCallback: isRelayUpgrade }, (req, res) => {
+      let body = ''
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', () => res.writeHead(202, { 'Content-Type': 'text/plain' }).end(`${req.method} ${req.url} ${body};`))
+    })
+    relay.attach(app)
+    let sockets = 0
+    app.on('connection', () => { sockets++ })
+    await new Promise<void>((resolve) => app.listen(0, '127.0.0.1', resolve))
+    const { port } = app.address() as AddressInfo
+    const socket = connect(port, '127.0.0.1')
+    let answer = ''
+    socket.on('data', (chunk) => { answer += chunk })
+    const post = (body: string, headers = '') => socket.write(`POST /inbox HTTP/1.1\r\nHost: x\r\n${headers}Content-Length: ${body.length}\r\n\r\n${body}`)
+    try {
+      post('first', 'Connection: Upgrade, keep-alive\r\nUpgrade: websocket\r\n')
+      await vi.waitFor(() => expect(answer).toContain('POST /inbox first;'))
+      expect(answer).toMatch(/^HTTP\/1\.1 202 /)
+      expect(answer).not.toMatch(/^Connection: close/im)
+
+      post('second')
+      await vi.waitFor(() => expect(answer).toContain('POST /inbox second;'))
+
+      post('third', 'Connection: Upgrade, keep-alive\r\nUpgrade: websocket\r\n')
+      post('fourth')
+      await vi.waitFor(() => expect(answer).toContain('POST /inbox fourth;'))
+      expect(answer.match(/HTTP\/1\.1 \d+/g)).toEqual(Array(4).fill('HTTP/1.1 202'))
+      expect(sockets).toBe(1)
+
+      // The relay's own path on the same connection.
+      socket.write('GET /activities/socket HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n')
+      await vi.waitFor(() => expect(answer).toContain('HTTP/1.1 101 '))
+    } finally {
+      socket.destroy()
+      app.closeAllConnections()
+      await new Promise<void>((resolve) => app.close(() => resolve()))
+    }
+  })
+
   it('refuses an upgrade on another path and closes its socket where Node raises it anyway', async () => {
     const { port } = server.address() as AddressInfo
     const answer = await rawRequest(port, 'GET /inbox HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n')
@@ -538,6 +582,20 @@ function rawRequest(port: number, text: string): Promise<string> {
     socket.on('error', () => socket.destroy())
     socket.on('close', done)
   })
+}
+
+/** `count` sessions of `size` members each; the members' ids, named in NAMES. */
+async function joinSessions(count: number, size: number): Promise<string[]> {
+  const ids: string[] = []
+  for (let s = 0; s < count; s++) {
+    for (let m = 0; m < size; m++) {
+      const id = `8888888${s}-0000-4000-8000-00000000000${m}`
+      NAMES[id] = `s${s}m${m}`
+      ids.push(id)
+      await join(id, `0b0b0b0b-0000-4000-8000-00000000000${s}`)
+    }
+  }
+  return ids
 }
 
 async function restart(options: Partial<RelayOptions>): Promise<void> {
@@ -686,6 +744,31 @@ describe('activity relay: hardening', () => {
       expect(deps.checking).toBe(8)
     } finally {
       for (const id of extra) delete NAMES[id]
+    }
+  })
+
+  it('checks a bounded number of members at a time across sessions', async () => {
+    await restart({ readmitMs: 40, depTimeoutMs: 10_000, readmitConcurrency: 4, maxConnectionsPerIp: 100, maxPendingPerAddress: 100 })
+    const members = await joinSessions(3, 3)
+    try {
+      deps.stall = true
+      await vi.waitFor(() => expect(deps.checking).toBeGreaterThan(0))
+      await sleep(150)
+      expect(deps.checking).toBe(4)
+      expect(new Set(deps.checked.map((token) => token.slice(6, 14))).size).toBeGreaterThan(1)
+    } finally {
+      for (const id of members) delete NAMES[id]
+    }
+  })
+
+  it('goes on to the members waiting for a slot once the checks before them time out', async () => {
+    await restart({ readmitMs: 40, depTimeoutMs: 30, readmitConcurrency: 2, emptyGraceMs: 60_000, maxConnectionsPerIp: 100, maxPendingPerAddress: 100 })
+    const members = await joinSessions(3, 3)
+    try {
+      deps.stall = true
+      await vi.waitFor(() => expect(new Set(deps.checked).size).toBe(members.length), { timeout: 2000 })
+    } finally {
+      for (const id of members) delete NAMES[id]
     }
   })
 

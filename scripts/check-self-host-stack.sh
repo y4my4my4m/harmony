@@ -141,7 +141,20 @@ keys = "STORAGE_BACKEND GLOBAL_S3_BUCKET GLOBAL_S3_ENDPOINT REGION AWS_ACCESS_KE
 print("|".join(str(env.get(k)) for k in keys.split()))')"
     if [ "$got" = "$2" ]; then printf 'ok   %s\n' "$1"; else fail "$1: expected '$2', got '$got'"; fi
   }
-  expect_storage "the file backend when nothing is set" 'file|stub||stub||'
+  expect_storage "the file backend when nothing is set" 'file|stub|None|stub|None|None'
+  # Settings an override file gives, the keys through env_file.
+  printf '%s\n' AWS_ACCESS_KEY_ID=file AWS_SECRET_ACCESS_KEY=file > "$STACK/s3.env"
+  cat > "$STACK/docker-compose.override.yml" <<'OVERRIDE'
+services:
+  storage:
+    env_file: [./s3.env]
+    environment:
+      STORAGE_BACKEND: s3
+      GLOBAL_S3_BUCKET: own
+      REGION: own
+OVERRIDE
+  expect_storage "the bucket of docker-compose.override.yml" 's3|own|None|own|file|file'
+  rm "$STACK/docker-compose.override.yml" "$STACK/s3.env"
   printf '%s\n' STORAGE_BACKEND=s3 STORAGE_S3_BUCKET=media STORAGE_S3_ENDPOINT=https://s3.test STORAGE_S3_REGION=auto \
     STORAGE_S3_ACCESS_KEY_ID=key STORAGE_S3_SECRET_ACCESS_KEY=secret >> "$STACK/supabase/.env"
   expect_storage "the bucket of supabase/.env" 's3|media|https://s3.test|auto|key|secret'

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { onSessionRejected, signOutAndForget, signOutEverywhere, supabase } from '@/supabase';
-import type { Session } from '@supabase/supabase-js';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { debug } from '@/utils/debug';
 import { i18n } from '@/i18n';
@@ -16,6 +16,10 @@ const storageAccountFollowed = new WeakSet<object>();
 const MFA_VERIFY_TIMEOUT_MS = 30_000;
 // Bound on the leave of a call at sign-out, ms.
 const CALL_LEAVE_TIMEOUT_MS = 3_000;
+// Bound on the navigation to sign-in that the stores' reset waits for, ms.
+const SIGN_IN_NAVIGATION_TIMEOUT_MS = 2_000;
+// Bound on the clearing of an account's state that the next account's sign-in waits for, ms.
+const ACCOUNT_CLEAR_TIMEOUT_MS = 3_000;
 const TIMED_OUT = Symbol('timed out');
 
 // Bumped by login() and cancelPendingSignIn(): a verify answered after its timeout finishes
@@ -24,14 +28,19 @@ let signInAttempt = 0;
 // A verify that outlived its timeout. Its session is adopted through verify2FA's late path,
 // not by the MFA_CHALLENGE_VERIFIED handler.
 let lateVerify: Promise<void> | null = null;
+// Account of the latest auth event, null once signed out. An event whose handling waited adopts
+// its session only while it is still the latest one's account.
+let latestEventUserId: string | null = null;
+// An account's state being cleared (clearAccount).
+let clearing: Promise<unknown> | null = null;
 
-/** The verify's outcome, or TIMED_OUT; the timer ends with the race. */
-async function withVerifyTimeout<T>(verify: Promise<T>): Promise<T | typeof TIMED_OUT> {
+/** The work's outcome, or TIMED_OUT after `ms`; the timer ends with the race. */
+async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      verify,
-      new Promise<typeof TIMED_OUT>((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), MFA_VERIFY_TIMEOUT_MS); }),
+      work,
+      new Promise<typeof TIMED_OUT>((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), ms); }),
     ]);
   } finally {
     clearTimeout(timer);
@@ -47,12 +56,7 @@ async function leaveCallForSignOut(): Promise<void> {
     const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel');
     const voiceStore = useUnifiedVoiceChannelStore();
     if (!voiceStore.isConnectedOrJoining) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const outcome = await Promise.race([
-      voiceStore.leaveVoiceChannel(),
-      new Promise<typeof TIMED_OUT>((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), CALL_LEAVE_TIMEOUT_MS); }),
-    ]);
-    clearTimeout(timer);
+    const outcome = await withTimeout(voiceStore.leaveVoiceChannel(), CALL_LEAVE_TIMEOUT_MS);
     if (outcome === TIMED_OUT) debug.warn('Leaving the call timed out on sign-out');
   } catch (error) {
     debug.error('Error leaving the call:', error);
@@ -384,166 +388,230 @@ export const useAuthStore = defineStore('auth', {
         });
       }
 
-      supabase.auth.onAuthStateChange(async (event, session) => {
-        const currentUserId = this.session?.user?.id;
-        const newUserId = session?.user?.id;
-        
-        // Already logged in as the same user: most events are ignored.
-        // Supabase fires SIGNED_IN when the tab becomes visible.
-        if (currentUserId && newUserId === currentUserId) {
-          // Same user - only handle actual logout or user data changes
-          if (event === 'SIGNED_OUT') {
-            await this.handleSignedOut();
-            return;
-          }
-          if (event === 'USER_UPDATED') {
-            debug.log('Auth event: USER_UPDATED - updating session');
-            this.session = session;
-            return;
-          }
-          // SIGNED_IN, TOKEN_REFRESHED, INITIAL_SESSION with same user = IGNORE
-          // These fire on tab visibility changes and would break connections
-          return;
-        }
-        
-        // Not logged in, or different user - process the event
-        debug.log(`Auth event: ${event}, AAL: ${this.getAAL(session)}`);
-        
-        if (event === 'PASSWORD_RECOVERY') {
-          debug.log('PASSWORD_RECOVERY event detected - entering password reset mode');
-          this.isPasswordResetMode = true;
-          this.session = session;
-          
-          const currentPath = window.location.pathname;
-          if (currentPath !== '/reset-password') {
-            // Dynamic import to avoid circular dependency with router
-            const { default: router } = await import('@/router');
-            router.push('/reset-password');
-          }
-          return;
-        }
-        
+      // auth-js awaits this callback, and holds its lock meanwhile for the events of a refresh, an MFA
+      // verify and a tab shown again (_removeSession, _callRefreshToken, _recoverAndRefresh); every
+      // supabase request waits for that lock. The callback returns at once: what an event needs
+      // before anything else runs in it, the rest after it.
+      supabase.auth.onAuthStateChange((event, session) => {
+        void this.handleAuthEvent(event, session)
+          .catch((error) => debug.error(`Auth event ${event} failed:`, error));
+      });
+    },
+
+    async handleAuthEvent(event: AuthChangeEvent, session: Session | null) {
+      const currentUserId = this.session?.user?.id;
+      const newUserId = session?.user?.id;
+      latestEventUserId = newUserId ?? null;
+
+      // Already logged in as the same user: most events are ignored.
+      // Supabase fires SIGNED_IN when the tab becomes visible.
+      if (currentUserId && newUserId === currentUserId) {
+        // Same user - only handle actual logout or user data changes
         if (event === 'SIGNED_OUT') {
           await this.handleSignedOut();
           return;
         }
-        
-        if (event === 'MFA_CHALLENGE_VERIFIED') {
-          if (lateVerify) return;
-          debug.log('MFA challenge verified - allowing session through');
+        if (event === 'USER_UPDATED') {
+          debug.log('Auth event: USER_UPDATED - updating session');
           this.session = session;
-          if (session?.user?.id) {
-            this.setupOfflineHandlers(session.user.id);
-          }
           return;
         }
-        
-        if (event === 'SIGNED_IN' && session) {
-          // Skip validation if MFA flow is in progress - the AAL1 session is
-          // expected and will be upgraded to AAL2 by verify2FA()
-          if (this._pendingMFAVerification) {
-            debug.log('SIGNED_IN during pending MFA verification - skipping (will upgrade to AAL2)');
-            return;
-          }
-          const isValid = await this.validateSessionForMFA(session);
-          if (!isValid) {
-            debug.warn('SIGNED_IN with invalid AAL1 session (MFA enabled) - signing out');
-            // Mirrors initializeAuth(): the AAL1 session must be destroyed,
-            // otherwise it sits in Supabase storage and the next tab/refresh
-            // picks it up and logs in without MFA.
-            this.session = null;
-            this.isPasswordResetMode = false;
-            await signOutAndForget();
-            userStorage.clearCurrentUser();
-            this.cleanupNotificationSystem();
-            if (currentUserId) await this.returnToSignIn();
-            return;
-          }
-          
-          debug.log('New login validated');
+        // SIGNED_IN, TOKEN_REFRESHED, INITIAL_SESSION with same user = IGNORE
+        // These fire on tab visibility changes and would break connections
+        return;
+      }
+
+      // Not logged in, or different user - process the event
+      debug.log(`Auth event: ${event}, AAL: ${this.getAAL(session)}`);
+
+      if (event === 'PASSWORD_RECOVERY') {
+        debug.log('PASSWORD_RECOVERY event detected - entering password reset mode');
+        this.isPasswordResetMode = true;
+        if (currentUserId) await this.clearForAccount(newUserId);
+        else this.session = session;
+
+        const currentPath = window.location.pathname;
+        if (currentPath !== '/reset-password') {
+          // Dynamic import to avoid circular dependency with router
+          const { default: router } = await import('@/router');
+          const opened = Promise.resolve(router.push('/reset-password'))
+            .catch((error) => debug.warn('Opening the password reset failed:', error));
+          // The first account's views unmount before the recovery session is set.
+          if (currentUserId) await withTimeout(opened, SIGN_IN_NAVIGATION_TIMEOUT_MS);
+        }
+        if (currentUserId && latestEventUserId === newUserId) this.session = session;
+        return;
+      }
+
+      if (event === 'SIGNED_OUT') {
+        await this.handleSignedOut();
+        return;
+      }
+
+      if (event === 'MFA_CHALLENGE_VERIFIED') {
+        if (lateVerify) return;
+        debug.log('MFA challenge verified - allowing session through');
+        if (currentUserId && session) {
+          await this.adoptEventSession(session);
+          return;
+        }
+        this.session = session;
+        if (session?.user?.id) {
+          this.setupOfflineHandlers(session.user.id);
+        }
+        return;
+      }
+
+      if (event === 'SIGNED_IN' && session) {
+        // Skip validation if MFA flow is in progress - the AAL1 session is
+        // expected and will be upgraded to AAL2 by verify2FA()
+        if (this._pendingMFAVerification) {
+          debug.log('SIGNED_IN during pending MFA verification - skipping (will upgrade to AAL2)');
+          return;
+        }
+        const isValid = await this.validateSessionForMFA(session);
+        if (latestEventUserId !== newUserId) return;
+        if (!isValid) {
+          debug.warn('SIGNED_IN with invalid AAL1 session (MFA enabled) - signing out');
+          // Mirrors initializeAuth(): the AAL1 session must be destroyed,
+          // otherwise it sits in Supabase storage and the next tab/refresh
+          // picks it up and logs in without MFA.
           this.isPasswordResetMode = false;
-          this.session = session;
-          if (session.user?.id) {
-            userStorage.setCurrentUser(session.user.id);
-            this.setupOfflineHandlers(session.user.id);
-            this.initializeUserSettings(session.user.id);
-            const activityPubStore = useActivityPubStore();
-            void activityPubStore.initialize().catch((err) =>
-              debug.error('ActivityPub initialize after SIGNED_IN failed:', err)
-            );
-          }
+          await this.refuseEventSession(currentUserId);
           return;
         }
-        
-        if (event === 'INITIAL_SESSION' && session) {
-          // This branch also runs when `this.session` was null and
-          // INITIAL_SESSION fires from another tab's just-created AAL1
-          // session - an MFA-required session that has not completed
-          // verification. Re-validate before adopting, unless
-          // _mfaValidatedForSession records this tab's own boot-path
-          // validation from initializeAuth().
-          if (!this.session) {
-            // Skip when an MFA flow is in progress (login() / verify2FA() /
-            // OAuth callback). gotrue-js fires INITIAL_SESSION as a microtask
-            // when its `_emitInitialSession` runs after `detectSessionInUrl`
-            // exchanges the OAuth code; this microtask runs BEFORE
-            // AuthCallbackView mounts. Without this guard, the AAL1 OAuth
-            // session would be torn down by `validateSessionForMFA` before
-            // the callback view's MFA challenge UI ever appears.
-            if (this._pendingMFAVerification) {
-              debug.log('INITIAL_SESSION during pending MFA verification - skipping')
-              return
-            }
-            const alreadyValidated = this._mfaValidatedForSession === session.access_token
-            const isValid = alreadyValidated || (await this.validateSessionForMFA(session))
-            if (!isValid) {
-              debug.warn('INITIAL_SESSION blocked: AAL1 session with MFA enabled')
-              await signOutAndForget()
-              this.session = null
-              this.cleanupNotificationSystem()
-              return
-            }
-            this._mfaValidatedForSession = session.access_token
-            this.session = session;
-            if (session.user?.id) {
-              userStorage.setCurrentUser(session.user.id);
-              this.setupOfflineHandlers(session.user.id);
-              const activityPubStore = useActivityPubStore();
-              void activityPubStore.initialize().catch((err) =>
-                debug.error('ActivityPub initialize after INITIAL_SESSION failed:', err)
-              );
-            }
-          }
-          return;
-        }
-        
-        // TOKEN_REFRESHED / catch-all path. Unconditional assignment would
-        // let an AAL1 session in via any unhandled event while
-        // `this.session` is null, so validate before adopting.
-        if (session) {
-          // Already logged in: refresh tokens only.
-          if (this.session) {
-            this.session = session;
-            return;
-          }
-          // Same MFA-in-progress guard as above - without it, a
-          // TOKEN_REFRESHED arriving while AuthCallbackView is mid-challenge
-          // would tear down the AAL1 session before verification completes.
+
+        debug.log('New login validated');
+        await this.adoptEventSession(session);
+        return;
+      }
+
+      if (event === 'INITIAL_SESSION' && session) {
+        // This branch also runs when `this.session` was null and
+        // INITIAL_SESSION fires from another tab's just-created AAL1
+        // session - an MFA-required session that has not completed
+        // verification. Re-validate before adopting, unless
+        // _mfaValidatedForSession records this tab's own boot-path
+        // validation from initializeAuth().
+        if (!this.session) {
+          // Skip when an MFA flow is in progress (login() / verify2FA() /
+          // OAuth callback). gotrue-js fires INITIAL_SESSION as a microtask
+          // when its `_emitInitialSession` runs after `detectSessionInUrl`
+          // exchanges the OAuth code; this microtask runs BEFORE
+          // AuthCallbackView mounts. Without this guard, the AAL1 OAuth
+          // session would be torn down by `validateSessionForMFA` before
+          // the callback view's MFA challenge UI ever appears.
           if (this._pendingMFAVerification) {
-            debug.log(`${event} during pending MFA verification - skipping`)
+            debug.log('INITIAL_SESSION during pending MFA verification - skipping')
             return
           }
-          const isValid = await this.validateSessionForMFA(session);
+          const alreadyValidated = this._mfaValidatedForSession === session.access_token
+          const isValid = alreadyValidated || (await this.validateSessionForMFA(session))
+          if (latestEventUserId !== newUserId) return
           if (!isValid) {
-            debug.warn(`${event} blocked: AAL1 session with MFA enabled`)
+            debug.warn('INITIAL_SESSION blocked: AAL1 session with MFA enabled')
             await signOutAndForget()
             this.session = null
+            this.cleanupNotificationSystem()
             return
           }
           this._mfaValidatedForSession = session.access_token
           this.session = session;
+          if (session.user?.id) {
+            userStorage.setCurrentUser(session.user.id);
+            this.setupOfflineHandlers(session.user.id);
+            const activityPubStore = useActivityPubStore();
+            void activityPubStore.initialize().catch((err) =>
+              debug.error('ActivityPub initialize after INITIAL_SESSION failed:', err)
+            );
+          }
         }
-      });
+        return;
+      }
+
+      // TOKEN_REFRESHED / catch-all path. Unconditional assignment would
+      // let an AAL1 session in via any unhandled event, so validate before
+      // adopting.
+      if (session) {
+        // Same MFA-in-progress guard as above - without it, a
+        // TOKEN_REFRESHED arriving while AuthCallbackView is mid-challenge
+        // would tear down the AAL1 session before verification completes.
+        if (this._pendingMFAVerification) {
+          debug.log(`${event} during pending MFA verification - skipping`)
+          return
+        }
+        const isValid = await this.validateSessionForMFA(session);
+        if (latestEventUserId !== newUserId) return
+        if (!isValid) {
+          debug.warn(`${event} blocked: AAL1 session with MFA enabled`)
+          await this.refuseEventSession(currentUserId)
+          return
+        }
+        this._mfaValidatedForSession = session.access_token
+        if (currentUserId) await this.adoptEventSession(session);
+        else this.session = session;
+      }
+    },
+
+    /**
+     * Adopts a validated session an event brought, with the setup of a sign-in. An account this tab
+     * held goes first; a later event of another account, or a sign-out, has the last word.
+     */
+    async adoptEventSession(session: Session) {
+      const replaced = await this.clearForAccount(session.user?.id);
+      if (latestEventUserId !== (session.user?.id ?? null)) {
+        if (replaced && !this.session) await this.returnToSignIn();
+        return;
+      }
+      this.isPasswordResetMode = false;
+      this.session = session;
+      if (session.user?.id) {
+        userStorage.setCurrentUser(session.user.id);
+        this.setupOfflineHandlers(session.user.id);
+        this.initializeUserSettings(session.user.id);
+        const activityPubStore = useActivityPubStore();
+        void activityPubStore.initialize().catch((err) =>
+          debug.error('ActivityPub initialize after SIGNED_IN failed:', err)
+        );
+      }
+    },
+
+    /** Drops a session that may not be adopted, and an account it displaced in storage. */
+    async refuseEventSession(heldUserId: string | undefined) {
+      this.session = null;
+      await signOutAndForget();
+      userStorage.clearCurrentUser();
+      this.cleanupNotificationSystem();
+      if (heldUserId) await this.returnToSignIn();
+    },
+
+    /**
+     * Before `userId`'s session is adopted: another account this tab holds goes, its call, stores and
+     * caches with it, and a clearing already under way ends. No navigation. True when another account
+     * was held.
+     */
+    async clearForAccount(userId: string | undefined): Promise<boolean> {
+      const held = this.session?.user?.id;
+      const replaced = !!held && !!userId && held !== userId;
+      if (replaced) {
+        debug.log('Another account takes this tab - clearing the first one');
+        // A running call ends with it.
+        this.session = null;
+        this._mfaValidatedForSession = null;
+        this.cleanupOfflineHandlers();
+        userStorage.clearCurrentUser();
+        void this.clearAccount(this.cleanupNotificationSystem());
+      }
+      if (clearing) await withTimeout(clearing, ACCOUNT_CLEAR_TIMEOUT_MS);
+      return replaced;
+    },
+
+    /** clearAccountState, with `also`; sign-ins wait for it (clearForAccount). */
+    clearAccount(also?: Promise<unknown> | void): Promise<unknown> {
+      const run: Promise<unknown> = Promise.allSettled([this.clearAccountState(), also])
+        .finally(() => { if (clearing === run) clearing = null; });
+      clearing = run;
+      return run;
     },
 
     /** Ends this tab's presence; profiles.status keeps the chosen status. */
@@ -684,6 +752,7 @@ export const useAuthStore = defineStore('auth', {
         // adoption and post-login setup happen here. Mirrors the
         // `event === 'SIGNED_IN'` block in `onAuthStateChange` so both paths
         // produce identical state.
+        await this.clearForAccount(data.session?.user?.id);
         this._pendingMFAVerification = false;
         this.isPasswordResetMode = false;
         this.session = data.session;
@@ -731,7 +800,7 @@ export const useAuthStore = defineStore('auth', {
         // checked against a fresh challenge instead of failing the sign-in.
         const verifyOnce = async (id: string): Promise<{ data: unknown; error: unknown }> => {
           const verify = supabase.auth.mfa.verify({ factorId, challengeId: id, code });
-          const outcome = await withVerifyTimeout(verify);
+          const outcome = await withTimeout(verify, MFA_VERIFY_TIMEOUT_MS);
           if (outcome !== TIMED_OUT) return outcome;
           // GoTrue stores the session and emits MFA_CHALLENGE_VERIFIED before mfa.verify resolves.
           if (this.session && this.getAAL(this.session) === 'aal2') {
@@ -845,6 +914,7 @@ export const useAuthStore = defineStore('auth', {
         }
       }
 
+      await this.clearForAccount(session.user?.id);
       this.session = session;
       this._mfaValidatedForSession = session.access_token;
       this.isPasswordResetMode = false;
@@ -884,6 +954,7 @@ export const useAuthStore = defineStore('auth', {
      */
     async handleSignedOut() {
       debug.log('Auth event: SIGNED_OUT');
+      latestEventUserId = null;
       const signedInUserId = this.session?.user?.id;
       const recovering = this.isPasswordResetMode || window.location.pathname === '/reset-password';
       this.isPasswordResetMode = false;
@@ -903,13 +974,14 @@ export const useAuthStore = defineStore('auth', {
       if (!data.session && this.session) await this.handleSignedOut();
     },
 
-    /** Sign-in, with nothing of the account kept. The components unmount before the stores reset. */
+    /** Sign-in, with nothing of the account kept. Its views unmount before the stores reset. */
     async returnToSignIn(query?: Record<string, string>) {
       const { default: router } = await import('@/router');
-      void Promise.resolve(router.push(query ? { path: '/login', query } : '/login'))
+      const opened = Promise.resolve(router.push(query ? { path: '/login', query } : '/login'))
         .catch((error) => debug.warn('Return to sign-in failed:', error));
       userStorage.clearCurrentUser();
-      await this.clearAccountState();
+      if (await withTimeout(opened, SIGN_IN_NAVIGATION_TIMEOUT_MS) === TIMED_OUT) debug.warn('Return to sign-in is slow');
+      await this.clearAccount();
     },
 
     /** `captchaToken` answers the sign-up hook's check (src/utils/signupCaptcha.ts). */
@@ -920,6 +992,7 @@ export const useAuthStore = defineStore('auth', {
         ...(captchaToken ? { options: { data: { captcha_token: captchaToken } } } : {}),
       });
       if (error) throw error;
+      if (data.session) await this.clearForAccount(data.session.user?.id);
       this.session = data.session;
     },
 
@@ -969,6 +1042,14 @@ export const useAuthStore = defineStore('auth', {
 
     /** Order is irrelevant once the components have unmounted. */
     async clearAccountState() {
+      try {
+        // Its own listener follows SIGNED_OUT and SIGNED_IN only.
+        const { authContextService } = await import('@/services/AuthContextService')
+        authContextService.clearCache()
+      } catch (error) {
+        debug.error('Error clearing the auth context:', error)
+      }
+
       try {
         const { dmCallSignaling } = await import('@/services/DMCallSignaling')
         dmCallSignaling.cleanup()
@@ -1168,16 +1249,14 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    // Called on logout.
-    cleanupNotificationSystem() {
-      try {
-        debug.log('Cleaning up notification system');
+    /** Every path that ends an account's session here runs it; resolves once its caches are dropped. */
+    cleanupNotificationSystem(): Promise<unknown> {
+      debug.log('Cleaning up notification system');
 
-        // Every sign-out path runs this; logout() resets the outbox earlier, while
-        // the session still exists.
-        void resetOutbox();
-        
-        Promise.all([
+      const steps: Array<[what: string, work: Promise<unknown>]> = [
+        // logout() resets the outbox earlier, while the session still exists.
+        ['outbox', resetOutbox()],
+        ['notifications', Promise.all([
           import('@/stores/useNotification').then(({ useNotificationStore }) => {
             useNotificationStore().resetForLogout();
           }),
@@ -1188,21 +1267,13 @@ export const useAuthStore = defineStore('auth', {
           // its registration so the next sign-in registers them again.
           import('@/stores/useDM').then(({ useDMStore }) => {
             useDMStore().cleanup();
-          })
-        ]).then(() => {
-          debug.log('Notification system cleaned up');
-        }).catch(error => {
-          debug.error('Error during notification cleanup:', error);
-        });
-        
-        import('@/services/ViewContextTracker').then(({ viewContextTracker }) => {
+          }),
+        ])],
+        ['view context', import('@/services/ViewContextTracker').then(({ viewContextTracker }) => {
           viewContextTracker.reset();
-        }).catch(error => {
-          debug.error('Error resetting view context:', error);
-        });
-
+        })],
         // Send-path answers, signed media URLs and quick replies belong to the account that made them.
-        Promise.all([
+        ['account caches', Promise.all([
           import('@/services/ServiceWorkerManager').then(({ forgetQuickReplies }) => forgetQuickReplies()),
           import('@/services/ChannelEncryptionService').then(({ forgetChannelEncryption }) => forgetChannelEncryption()),
           import('@/services/conversationEncryption').then(({ forgetConversationEncryption }) => forgetConversationEncryption()),
@@ -1214,21 +1285,14 @@ export const useAuthStore = defineStore('auth', {
           import('@/stores/useBotInteractions').then(({ useBotInteractionsStore }) => useBotInteractionsStore().reset()),
           import('@/stores/playTogether').then(({ usePlayTogetherStore }) => usePlayTogetherStore().reset()),
           import('@/stores/activities').then(({ useActivitiesStore }) => useActivitiesStore().reset()),
-        ]).catch(error => {
-          debug.error('Error clearing account caches:', error);
-        });
-
+        ])],
         // Lock encryption and clear stored session keys from IndexedDB
-        import('@/services/encryption/MegolmMessageEncryptionService').then(async ({ megolmMessageEncryptionService }) => {
+        ['encryption', import('@/services/encryption/MegolmMessageEncryptionService').then(async ({ megolmMessageEncryptionService }) => {
           await megolmMessageEncryptionService.lockEncryption();
           debug.log('Encryption locked on logout');
-        }).catch(error => {
-          debug.error('Error locking encryption:', error);
-        });
-        
-      } catch (error) {
-        debug.error('Error cleaning up notification system:', error);
-      }
+        })],
+      ];
+      return Promise.all(steps.map(([what, work]) => work.catch((error) => debug.error(`Error clearing ${what}:`, error))));
     },
 
     /**

@@ -432,6 +432,8 @@ test('a game started in the call\'s pop-out runs in that window, and follows the
   await other.context.close()
 })
 
+// The launcher is no part of the sign-in page, whatever the store holds: the sign-in that follows, in
+// the same page, shows whether it was closed.
 test('an account that signs out in another tab has its launcher closed here', async ({ browser }) => {
   test.setTimeout(120_000)
   const a = await open(browser, bob)
@@ -446,7 +448,18 @@ test('an account that signs out in another tab has its launcher closed here', as
   await dismissAnnouncements(tab)
   await tab.getByRole('button', { name: 'Log out' }).click()
   await expect(tab).toHaveURL(/\/login/, { timeout: 30_000 })
-  await expect(page.getByTestId('activities-launcher')).toHaveCount(0, { timeout: 15_000 })
+  await expect(page).toHaveURL(/\/login/, { timeout: 15_000 })
+  await expect(page.getByTestId('activities-launcher')).toHaveCount(0)
+
+  await page.evaluate(() => { (window as unknown as { __samePage?: boolean }).__samePage = true })
+  await page.getByTestId('auth-email').fill(bob.email)
+  await page.getByTestId('auth-password').fill(bob.password)
+  await page.getByTestId('auth-submit').click()
+  await expect(page).toHaveURL(/\/chat/, { timeout: 30_000 })
+  await expect(page.getByRole('region', { name: 'Your account' })).toContainText(bob.displayName, { timeout: 30_000 })
+  expect(await page.evaluate(() => (window as unknown as { __samePage?: boolean }).__samePage)).toBe(true)
+  await page.waitForTimeout(500)
+  await expect(page.getByTestId('activities-launcher')).toHaveCount(0)
   await a.context.close()
 })
 

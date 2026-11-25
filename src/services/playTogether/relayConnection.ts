@@ -1,3 +1,4 @@
+import { isAuthError, isAuthRetryableFetchError } from '@supabase/supabase-js'
 import { supabase } from '@/supabase'
 import { activityRelayUrl } from './catalog'
 import {
@@ -9,10 +10,11 @@ import {
 
 /**
  * The client's socket to the instance relay (federation-backend src/activities/relay.ts) for one
- * session. Reconnects with backoff after a drop; refusals, a replacement by another tab and the
- * session's end are final. Sends the refreshed access token as `auth` so the relay keeps the socket
- * past the token's expiry. Measures the relay clock from pings: offset = serverTime minus the local
- * midpoint of the round trip with the shortest round trip of the last PING_SAMPLES.
+ * session. Reconnects with backoff after a drop, or while the account's token cannot be refreshed;
+ * refusals, a replacement by another tab, a sign-out and the session's end are final. Sends the
+ * refreshed access token as `auth` so the relay keeps the socket past the token's expiry. Measures the
+ * relay clock from pings: offset = serverTime minus the local midpoint of the round trip with the
+ * shortest round trip of the last PING_SAMPLES.
  */
 
 const PING_MS = 15_000
@@ -35,6 +37,12 @@ export interface RelayHandlers {
   status(status: ConnectionStatus): void
   clock(offset: number): void
   final(reason: FinalReason): void
+}
+
+/** A token that could not be read or refreshed for the network, the lock or the server, rather than for the session. */
+function isRetryable(error: unknown): boolean {
+  if (!error) return false
+  return !isAuthError(error) || isAuthRetryableFetchError(error) || (error.status ?? 0) >= 500
 }
 
 export class RelayConnection {
@@ -87,10 +95,12 @@ export class RelayConnection {
 
   private async open(): Promise<void> {
     if (this.stopped) return
-    const { data } = await supabase.auth.getSession()
+    const { data, error } = await supabase.auth.getSession()
+      .catch((thrown: unknown) => ({ data: { session: null }, error: thrown }))
     const token = data.session?.access_token
     if (this.stopped) return
-    if (!token) return this.finish({ kind: 'unauthorized' })
+    // No session and a retryable error: auth-js keeps the stored session for its next attempt.
+    if (!token) return isRetryable(error) ? this.retry() : this.finish({ kind: 'unauthorized' })
 
     let ws: WebSocket
     try {
@@ -123,11 +133,15 @@ export class RelayConnection {
       if (FINAL_CODES.has(event.code)) {
         return this.finish(this.lastFinal ?? (event.code === 4009 ? { kind: 'replaced' } : event.code === 4001 ? { kind: 'unauthorized' } : { kind: 'closed' }))
       }
-      this.handlers.status(this.attempt === 0 ? 'reconnecting' : 'offline')
-      const delay = BACKOFF_MS[Math.min(this.attempt, BACKOFF_MS.length - 1)]
-      this.attempt++
-      this.retryTimer = setTimeout(() => void this.open(), delay)
+      this.retry()
     }
+  }
+
+  private retry(): void {
+    this.handlers.status(this.attempt === 0 ? 'reconnecting' : 'offline')
+    const delay = BACKOFF_MS[Math.min(this.attempt, BACKOFF_MS.length - 1)]
+    this.attempt++
+    this.retryTimer = setTimeout(() => void this.open(), delay)
   }
 
   private onFrame(frame: RelayFrame): void {

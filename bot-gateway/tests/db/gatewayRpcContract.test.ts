@@ -498,10 +498,10 @@ describe('bridge_upload_reserve, two overlapping claims of one server', () => {
     const second = sql(claim('00000000-0000-0000-0000-00000000f002'))
     expect(await firstDone).toBe(0)
     expect(second.ok, why(second)).toBe(true)
-    expect(second.rows[0]?.[0]).toBe('f')
+    expect(second.rows[0]?.[0]).toBe('busy')
     expect(sql(`SELECT sum(bytes) FROM public.bridge_upload_reservations WHERE server_id = '${SERVER_ID}'`).rows[0]?.[0]).toBe('600000')
 
     sql(`SELECT public.bridge_upload_release('00000000-0000-0000-0000-00000000f001')`)
-    expect(sql(claim('00000000-0000-0000-0000-00000000f002')).rows[0]?.[0]).toBe('t')
+    expect(sql(claim('00000000-0000-0000-0000-00000000f002')).rows[0]?.[0]).toBe('reserved')
   }, 60_000)
 })

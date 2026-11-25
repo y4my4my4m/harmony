@@ -884,51 +884,60 @@ const initializeBackgroundData = async (userId: string, _strategy: any) => {
 
 
 
+// Teardown of the account whose session ended here. Another account's session can follow in this
+// layout (stores/auth clearForAccount): its start-up waits.
+let accountTeardown: Promise<void> = Promise.resolve()
+
 watch(() => authStore.session?.user?.id, async (userId) => {
-  if (userId && !globalDMCallListener.isInitialized()) {
+  await accountTeardown
+  if (userId && authStore.session?.user?.id === userId && !globalDMCallListener.isInitialized()) {
     await globalDMCallListener.initialize(userId)
   }
 }, { immediate: true })
 
 watch(() => authStore.session, async (newSession, oldSession) => {
   if (!oldSession && newSession) {
-    await initializeApp()
+    await accountTeardown
+    if (authStore.session?.user?.id === newSession.user?.id) await initializeApp()
   }
   else if (oldSession && !newSession) {
-    
-    try {
-      const { userDataService } = await import('@/services/userDataService')
-      await userDataService.cleanup()
-      debug.log('Global presence cleanup completed')
-    } catch (error) {
-      debug.error('Failed to cleanup user data:', error)
-    }
-    
-    try {
-      const { statePersistence } = await import('@/services/StatePersistence')
-      await statePersistence.cleanup()
-      debug.log('State persistence cleanup completed')
-    } catch (error) {
-      debug.error('Failed to cleanup state persistence:', error)
-    }
-    
-    try {
-      const { cleanupViewContext } = await import('@/composables/useViewContext')
-      await cleanupViewContext()
-      
-      const typingService = await import('@/services/TypingIndicatorService')
-      await typingService.typingIndicatorService.cleanup()
-      debug.log('Session heartbeat cleanup completed')
-    } catch (error) {
-      debug.error('Failed to cleanup session heartbeat:', error)
-    }
-    
-    globalDMCallListener.cleanup()
-    
-    isAppInitialized.value = false
-    hasServersLoaded.value = false
+    accountTeardown = tearDownAccount()
   }
 })
+
+async function tearDownAccount(): Promise<void> {
+  try {
+    const { userDataService } = await import('@/services/userDataService')
+    await userDataService.cleanup()
+    debug.log('Global presence cleanup completed')
+  } catch (error) {
+    debug.error('Failed to cleanup user data:', error)
+  }
+
+  try {
+    const { statePersistence } = await import('@/services/StatePersistence')
+    await statePersistence.cleanup()
+    debug.log('State persistence cleanup completed')
+  } catch (error) {
+    debug.error('Failed to cleanup state persistence:', error)
+  }
+
+  try {
+    const { cleanupViewContext } = await import('@/composables/useViewContext')
+    await cleanupViewContext()
+
+    const typingService = await import('@/services/TypingIndicatorService')
+    await typingService.typingIndicatorService.cleanup()
+    debug.log('Session heartbeat cleanup completed')
+  } catch (error) {
+    debug.error('Failed to cleanup session heartbeat:', error)
+  }
+
+  globalDMCallListener.cleanup()
+
+  isAppInitialized.value = false
+  hasServersLoaded.value = false
+}
 
 // Presence refresh on route change, debounced against rapid navigation.
 let presenceRefreshTimeout: ReturnType<typeof setTimeout> | null = null

@@ -23,11 +23,14 @@ import { requireInstanceAdmin } from '../utils/instanceAdmin.js'
 import { safeFetch } from '../utils/ssrfProtection.js'
 import { logger } from '../utils/logger.js'
 import { PACKAGE_MAX_BYTES, PackageError, parsePackage, type ParsedPackage } from './packages.js'
+import { within } from './within.js'
 
 const APP_ID = /^[a-z][a-z0-9-]{1,39}$/
 const FILE = /^([0-9a-f]{64})\.(js|svg|png|webp)$/
 const SHA = /^[0-9a-f]{64}$/
 const CACHE_MAX_BYTES = 64 * 1024 * 1024
+/** Every request for a file waits on one read of it. */
+const READ_TIMEOUT_MS = 10_000
 
 const installLimit = createStrictKeyedLimit({
   name: 'admin-activity-packages',
@@ -69,17 +72,24 @@ function remember(key: string, value: CachedFile): void {
   }
 }
 
-/** A stored file, null for none; throws when it cannot be read. */
+/** A stored file, null for none; throws when it cannot be read within READ_TIMEOUT_MS. */
 async function readFile(appId: string, sha: string): Promise<CachedFile | null> {
-  const { data, error } = await getSupabaseClient()
+  const abort = new AbortController()
+  const read = async () => getSupabaseClient()
     .from('activity_app_files')
     .select('content_type, bytes')
     .eq('app_id', appId)
     .eq('sha256', sha)
+    .abortSignal(abort.signal)
     .maybeSingle()
-  if (error) throw new Error(error.message)
-  const bytes = decodeBytea(data?.bytes)
-  return data && bytes ? { type: data.content_type as string, bytes } : null
+  try {
+    const { data, error } = await within(read(), READ_TIMEOUT_MS)
+    if (error) throw new Error(error.message)
+    const bytes = decodeBytea(data?.bytes)
+    return data && bytes ? { type: data.content_type as string, bytes } : null
+  } finally {
+    abort.abort()
+  }
 }
 
 /** readFile, cached unless the package is removed meanwhile. */

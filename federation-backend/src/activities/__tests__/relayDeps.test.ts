@@ -26,7 +26,8 @@ const { supabaseRelayDeps } = await import('../relayDeps.js')
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const USER = { id: 'aaaaaaaa-0000-4000-8000-000000000001', aud: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z', factors: [] }
 const PROFILE = 'bbbbbbbb-0000-4000-8000-000000000001'
-const token = (exp: number) => `h.${Buffer.from(JSON.stringify({ exp, sub: USER.id })).toString('base64url')}.s`
+const token = (exp: number, aal = 'aal1') => `h.${Buffer.from(JSON.stringify({ exp, sub: USER.id, aal })).toString('base64url')}.s`
+const FACTOR = { id: 'cccccccc-0000-4000-8000-000000000001', factor_type: 'totp', status: 'verified', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
 
 const verify = () => supabaseRelayDeps().verifyToken(token(2_000_000_000))
 
@@ -44,10 +45,19 @@ describe('relay token check', () => {
   it.each([
     ['401', () => json(401, { message: 'Invalid authentication credentials' })],
     ['403 bad_jwt', () => json(403, { code: 403, error_code: 'bad_jwt', msg: 'invalid JWT' })],
+    ['403 user_not_found', () => json(403, { code: 403, error_code: 'user_not_found', msg: 'User from sub claim in JWT does not exist' })],
     ['403 session_not_found', () => json(403, { code: 403, error_code: 'session_not_found', msg: 'Session from session_id claim in JWT does not exist' })],
   ])('refuses a token GoTrue answers %s', async (_name, answer) => {
     answers.user = answer
     expect(await verify()).toBeNull()
+  })
+
+  it('refuses a token below aal2 of an account with a verified factor', async () => {
+    answers.user = () => json(200, { ...USER, factors: [FACTOR] })
+    expect(await supabaseRelayDeps().verifyToken(token(2_000_000_000, 'aal1'))).toBeNull()
+    expect(await supabaseRelayDeps().verifyToken(token(2_000_000_000, 'aal2'))).toEqual({ profileId: PROFILE, expiresAt: 2_000_000_000_000 })
+    answers.user = () => json(200, { ...USER, factors: [{ ...FACTOR, status: 'unverified' }] })
+    expect(await supabaseRelayDeps().verifyToken(token(2_000_000_000, 'aal1'))).toEqual({ profileId: PROFILE, expiresAt: 2_000_000_000_000 })
   })
 
   it('refuses a token whose account has no local profile', async () => {

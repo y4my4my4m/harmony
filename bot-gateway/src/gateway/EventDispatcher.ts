@@ -5,7 +5,15 @@ import { OutgoingWebhookRoutes, OUTGOING_WEBHOOK_REFRESH_MS } from './outgoingWe
 import { withSignedMessageMedia } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
 import { bridgedMessageAuthor } from '../bridge/bridgeAuthors.js'
-import { consentSubject, consentingReaders } from '../bridge/memberConsent.js'
+import { bridgeMappingOf } from '../bridge/bridgeMapping.js'
+import {
+  type ConsentSource,
+  consentSubjects,
+  consentingReaders,
+  namedThreadId,
+  threadNameWithheldFrom,
+  withoutThreadName,
+} from '../bridge/memberConsent.js'
 import { absoluteEmojiUrl, isAnimatedEmojiUrl, isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import {
   type EveryoneLayer,
@@ -243,10 +251,40 @@ export class EventDispatcher {
     this.webhookRefreshInterval = this.schedulePoll('webhook-routes', OUTGOING_WEBHOOK_REFRESH_MS, () => this.webhooks.refresh())
   }
 
-  /** Sends an event to its reading bots' connections and queues it for the webhooks taking it. */
-  private async dispatch(type: string, serverId: string, channelId: string | null, botIds: string[], d: Record<string, unknown>) {
-    if (botIds.length > 0) this.gateway.sendToMultipleBots(botIds, { op: 0, t: type, d })
-    await this.webhooks.enqueue(type, serverId, channelId, botIds, d)
+  /**
+   * Sends an event to its reading bots' connections and queues it for the webhooks taking it. The
+   * readers in `reduced` get its `d` instead.
+   */
+  private async dispatch(
+    type: string,
+    serverId: string,
+    channelId: string | null,
+    botIds: string[],
+    d: Record<string, unknown>,
+    reduced: { readers: ReadonlySet<string>; d: Record<string, unknown> } | null = null,
+  ) {
+    const full = reduced ? botIds.filter(id => !reduced.readers.has(id)) : botIds
+    if (full.length > 0) this.gateway.sendToMultipleBots(full, { op: 0, t: type, d })
+    await this.webhooks.enqueue(type, serverId, channelId, full, d)
+    if (!reduced || full.length === botIds.length) return
+    const rest = botIds.filter(id => reduced.readers.has(id))
+    this.gateway.sendToMultipleBots(rest, { op: 0, t: type, d: reduced.d })
+    await this.webhooks.enqueue(type, serverId, channelId, rest, reduced.d, true)
+  }
+
+  /** Of `readers`, those a thread_created notice reaches without its thread's name; none for any other row. */
+  private async threadNameWithheld(message: ConsentSource, readers: string[], serverId: string, channelId: string): Promise<ReadonlySet<string>> {
+    const threadId = namedThreadId(message)
+    if (threadId === null) return new Set()
+    return (await threadNameWithheldFrom(readers, serverId, channelId, [threadId])).get(threadId)!
+  }
+
+  /** MESSAGE_CREATE or MESSAGE_UPDATE of a row, to `botIds`. */
+  private async dispatchMessage(type: 'MESSAGE_CREATE' | 'MESSAGE_UPDATE', message: any, serverId: string, botIds: string[]) {
+    const d = await this.formatMessage(message, serverId)
+    const withheld = await this.threadNameWithheld(message, botIds, serverId, message.channel_id)
+    await this.dispatch(type, serverId, message.channel_id, botIds, d,
+      withheld.size > 0 ? { readers: withheld, d: { ...d, metadata: withoutThreadName(message).metadata } } : null)
   }
 
   // Members and moderation
@@ -507,7 +545,7 @@ export class EventDispatcher {
     // A removal reaches every reader: a bridge that relayed the reaction removes its copy.
     const readers = await this.resolveReaders(serverId, channelId)
     const botIds = type === 'MESSAGE_REACTION_ADD'
-      ? await consentingReaders(readers, serverId, channelId, reaction.user_id ?? null)
+      ? await consentingReaders(readers, serverId, channelId, reaction.user_id ? [reaction.user_id] : [])
       : readers
     if (botIds.length === 0 && !this.webhooks.wants(type, serverId, botIds)) return
 
@@ -758,7 +796,10 @@ export class EventDispatcher {
         if (this.deletedIds.get(row.id)) return
         this.deletedIds.set(row.id, true)
         await this.handleMessageDelete({
-          old: { id: row.id, channel_id: row.channel_id, thread_id: row.thread_id ?? null, metadata: row.metadata },
+          old: {
+            id: row.id, channel_id: row.channel_id, thread_id: row.thread_id ?? null,
+            user_id: row.user_id, bot_id: row.bot_id, is_system: row.is_system, metadata: row.metadata,
+          },
         })
       } else {
         await this.handleMessageUpdate({ new: row, old: { id: row.id } })
@@ -783,7 +824,7 @@ export class EventDispatcher {
    * MESSAGE_DELETE for a row removed through the bot REST API. A hard-deleted row leaves nothing
    * in the change feed, so the caller passes what it read before the delete.
    */
-  async messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown }) {
+  async messageHardDeleted(message: ConsentSource & { id: string; channel_id: string | null; thread_id: string | null }) {
     if (this.deletedIds.get(message.id)) return
     this.deletedIds.set(message.id, true)
     await this.handleMessageDelete({ old: message })
@@ -860,7 +901,7 @@ export class EventDispatcher {
       return
     }
     
-    const botIds = await consentingReaders(await this.resolveReaders(serverId, message.channel_id), serverId, message.channel_id, consentSubject(message))
+    const botIds = await consentingReaders(await this.resolveReaders(serverId, message.channel_id), serverId, message.channel_id, consentSubjects(message))
     
     console.log(`Found ${botIds.length} bots that can read channel ${message.channel_id} in server ${serverId}`);
     
@@ -868,7 +909,7 @@ export class EventDispatcher {
       return
     }
     
-    await this.dispatch('MESSAGE_CREATE', serverId, message.channel_id, botIds, await this.formatMessage(message, serverId))
+    await this.dispatchMessage('MESSAGE_CREATE', message, serverId, botIds)
     
     console.log(`Dispatched MESSAGE_CREATE to ${botIds.length} bots:`, botIds)
   }
@@ -887,10 +928,10 @@ export class EventDispatcher {
     if (!serverId) return
     
     const botIds = await consentingReaders(
-      await this.resolveReaders(serverId, message.channel_id, message.created_at), serverId, message.channel_id, consentSubject(message))
+      await this.resolveReaders(serverId, message.channel_id, message.created_at), serverId, message.channel_id, consentSubjects(message))
     if (botIds.length === 0 && !this.webhooks.wants('MESSAGE_UPDATE', serverId, botIds)) return
     
-    await this.dispatch('MESSAGE_UPDATE', serverId, message.channel_id, botIds, await this.formatMessage(message, serverId))
+    await this.dispatchMessage('MESSAGE_UPDATE', message, serverId, botIds)
     
     console.log(`Dispatched MESSAGE_UPDATE to ${botIds.length} bots`)
   }
@@ -920,12 +961,20 @@ export class EventDispatcher {
       return
     }
     
-    await this.dispatch('MESSAGE_DELETE', serverId, message.channel_id, botIds, {
+    // A delete reaches every reader. One the row itself, or its thread's name, is withheld from gets
+    // the mapping alone: metadata also holds link previews, a thread's name, a removal's reason.
+    const readable = new Set(await consentingReaders(botIds, serverId, message.channel_id, consentSubjects(message)))
+    const unnamed = await this.threadNameWithheld(message, botIds, serverId, message.channel_id)
+    const d = {
       id: message.id,
       server_id: serverId,
       channel_id: message.channel_id,
       thread_id: message.thread_id ?? null,
       metadata: message.metadata
+    }
+    await this.dispatch('MESSAGE_DELETE', serverId, message.channel_id, botIds, d, {
+      readers: new Set(botIds.filter(id => !readable.has(id) || unnamed.has(id))),
+      d: { ...d, metadata: bridgeMappingOf(message.metadata) },
     })
     
     console.log(`Dispatched MESSAGE_DELETE to ${botIds.length} bots`)

@@ -6,7 +6,7 @@
 --   b2        alice's Matrix bot, bound to general
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(33);
+SELECT plan(37);
 
 INSERT INTO public.servers (id, name, owner) VALUES
   ('f3840000-0000-0000-0000-0000000000e2', 'Server 384', '11111111-0000-0000-0000-000000000001');
@@ -89,6 +89,16 @@ UPDATE public.instance_config SET config_value = '1'::jsonb WHERE config_key = '
 SELECT is(public.bridge_mirror_allows('66666666-0000-0000-0000-000000000006', 1048576 - 13500), true, 'a 1 MB cap has the rest left');
 SELECT is(public.bridge_mirror_allows('66666666-0000-0000-0000-000000000006', 1048576 - 13499), false, 'and not a byte more');
 
+
+UPDATE public.profiles SET is_admin = true WHERE id = '11111111-0000-0000-0000-000000000001';
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT is((public.bridge_mirror_status() ->> 'stored_bytes')::bigint, 13564::bigint, 'the admin status counts the avatars of every server');
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT throws_ok($$SELECT public.bridge_mirror_status()$$, '42501', 'Only instance admins can read the mirror queue', 'and is read by admins alone');
+SELECT tests.authenticate_as_anon();
+SELECT throws_ok($$SELECT public.bridge_mirror_status()$$, '42501', NULL, 'anon cannot read it');
+SELECT tests.clear_authentication();
+
 UPDATE storage.objects SET metadata = '{"size": 1500}'
  WHERE bucket_id = 'avatars' AND name = 'bridges/f3840000-0000-0000-0000-0000000000b1/55555555-0000-0000-0000-000000000005/a.png';
 SELECT is(pg_temp.usage('b1', '55555555-0000-0000-0000-000000000005'), '3:3500', 'a size written again replaces the old one');
@@ -127,6 +137,9 @@ SELECT pg_temp.hours_pass();
 SELECT is(pg_temp.unbound(), 'b1@f384,b2@5555', 'so are those of a server whose paired channels are gone');
 DELETE FROM public.servers WHERE id = 'f3840000-0000-0000-0000-0000000000e2';
 SELECT is(pg_temp.unbound(), 'b1@f384,b2@5555', 'and of a deleted server');
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT is((public.bridge_mirror_status() ->> 'stored_bytes')::bigint, 12000::bigint, 'which no cap counts, nor does the status');
+SELECT tests.clear_authentication();
 SELECT is((SELECT count(*)::int FROM public.bridge_avatar_unbound(1)), 1, 'the list is as long as asked');
 
 DELETE FROM storage.objects WHERE bucket_id = 'avatars' AND name LIKE 'bridges/f3840000-0000-0000-0000-0000000000b2/%';

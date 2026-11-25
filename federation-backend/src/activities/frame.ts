@@ -7,19 +7,22 @@
  * installed package's is <APP_URL>/api/federation/activities/pkg/<appId>/<sha256>.js
  * (packageRoutes.ts). The Content-Security-Policy carries `sandbox allow-scripts
  * allow-pointer-lock`, so the document runs in an opaque origin even when opened directly, never
- * with the instance's storage, and refuses every network connection (connect-src 'none'). Scripts,
- * styles, images, media and fonts load from the app's own folder, data: and blob: only;
- * frame-ancestors names the web app and the native apps.
+ * with the instance's storage, and refuses every network connection (connect-src 'none'). Styles,
+ * images, media and fonts load from the app's own folder, data: and blob: only; frame-ancestors
+ * names the web app and the native apps.
+ *
+ * An activity is one script. The loader adds it, then a second policy that takes none
+ * (AFTER_SCRIPT_CSP). A script is checked against the policies when its load starts: the activity's
+ * runs, and none it adds does. The first policy alone would take one from any host under its nonce.
  *
  * connect-src does not cover WebRTC, and Chromium 148, Firefox 150 and WebKit 26.4 recognize no CSP
  * `webrtc` directive: the loader deletes the constructors before the activity runs. A nested
- * document has its own and frame-src does not cover srcdoc, so a second policy (loaderCsp), which
- * every script must pass too, takes inline scripts by the loader's hash and others only when a
- * running script adds them: a nested document runs the loader or nothing. An about:blank child is
- * another opaque origin.
+ * document would have its own, and frame-src does not cover srcdoc; it inherits both policies and
+ * runs no script. An about:blank child is another opaque origin. In those three browsers no policy
+ * covers `preconnect` and `dns-prefetch` links, nor Chromium's `prerender` links (a whole GET).
  */
 
-import { createHash, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import { Router, type Request, type Response } from 'express'
 import config from '../config/index.js'
 import { corsOrigins } from '../config/nativeOrigins.js'
@@ -63,11 +66,12 @@ export function frameCsp(appId: string, nonce: string, packaged = false): string
   ].join('; ')
 }
 
-/** Its 'strict-dynamic' ignores the folder; Safari before 15.4 ignores 'strict-dynamic'. */
-export function loaderCsp(loader: string, folder: string): string {
-  const hash = createHash('sha256').update(loader).digest('base64')
-  return [`script-src 'sha256-${hash}' 'strict-dynamic' ${folder}`, 'worker-src blob:'].join('; ')
-}
+/**
+ * worker-src falls back to script-src; a blob: worker inherits the policies and imports nothing.
+ * No policy holds 'strict-dynamic': with it WebKit 26.4 loads modules and worker imports from every
+ * host, whatever the other policies say.
+ */
+const AFTER_SCRIPT_CSP = "script-src 'none'; worker-src blob:"
 
 /** Text of the document's inline script. */
 export function frameLoader(scriptSrc: string): string {
@@ -92,6 +96,10 @@ export function frameLoader(scriptSrc: string): string {
   var script = document.createElement('script');
   script.src = ${JSON.stringify(scriptSrc).replace(/</g, '\\u003c')};
   document.head.appendChild(script);
+  var policy = document.createElement('meta');
+  policy.httpEquiv = 'Content-Security-Policy';
+  policy.content = ${JSON.stringify(AFTER_SCRIPT_CSP)};
+  document.head.appendChild(policy);
 })();
 `
 }
@@ -128,13 +136,12 @@ router.get('/frame/:appId', (req: Request, res: Response) => {
   res.removeHeader('Cross-Origin-Embedder-Policy')
   res.removeHeader('Origin-Agent-Cluster')
   const folder = appFolder(appId, packaged)
-  const loader = frameLoader(`${folder}${entry}`)
-  res.setHeader('Content-Security-Policy', [frameCsp(appId, nonce, packaged), loaderCsp(loader, folder)])
+  res.setHeader('Content-Security-Policy', frameCsp(appId, nonce, packaged))
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), display-capture=(), usb=(), serial=(), hid=(), payment=(), clipboard-read=()')
   res.setHeader('Referrer-Policy', 'no-referrer')
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Cache-Control', 'no-store')
-  res.type('text/html').send(frameHtml(loader, nonce))
+  res.type('text/html').send(frameHtml(frameLoader(`${folder}${entry}`), nonce))
 })
 
 export default router

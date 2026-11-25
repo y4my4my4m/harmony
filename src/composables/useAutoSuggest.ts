@@ -49,6 +49,8 @@ export { clearBridgedUsersCache };
 // Bridge bot presence is a server-level fact; cached per server id.
 const bridgeBotCheckCache = new Map<string, { hasBridge: boolean; timestamp: number }>();
 const BRIDGE_BOT_CHECK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+/** Postgres: the select names a column the instance lacks; PostgREST answers 400 with it. */
+const UNDEFINED_COLUMN = '42703';
 
 // In-flight checks per server id; concurrent callers share one request.
 const bridgeBotCheckPending = new Map<string, Promise<boolean>>();
@@ -842,17 +844,14 @@ export function useAutoSuggest(
     
     const requestPromise = (async () => {
       try {
-        const { data, error } = await supabase
+        const readBots = (columns: string) => supabase
           .from('bot_server_permissions')
-          .select(`
-            bot:bots(
-              id,
-              bot_type,
-              bridge_platform
-            )
-          `)
+          .select(`bot:bots(${columns})`)
           .eq('server_id', serverId)
           .eq('is_active', true);
+        let { data, error } = await readBots('id, bot_type, bridge_platform');
+        // bots.bridge_platform is 1.9.8 (20261117900001); the native app also opens older instances.
+        if (error?.code === UNDEFINED_COLUMN) ({ data, error } = await readBots('id, bot_type'));
         
         if (error) {
           debug.warn('Failed to check for bridge bots:', error);

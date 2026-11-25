@@ -31,6 +31,7 @@ import { voiceE2EEService } from '@/services/encryption/VoiceE2EEService';
 import { callRequiresE2EE, promptCallEncryptionSetup } from '@/services/voice/voiceEncryptionGate';
 import { supabase } from '@/supabase';
 import { userEventChannel } from '@/services/UserEventChannel';
+import { currentMemberToken } from '@/services/realtimeMemberToken';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { grantsFromRolePermissions, type VoiceGrants } from '@/services/voice/voiceGrants';
@@ -603,7 +604,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Gate must be current before the mic publishes; a PTT join must not go out hot.
       this.syncTransmitGate();
       const webrtcSuccess = livekit
-        ? await webrtcManager.joinWithToken(livekit.wsUrl, livekit.token, channelId, userId)
+        ? await webrtcManager.joinWithToken(livekit.wsUrl, livekit.token, channelId, userId, abortSignal)
         : await webrtcManager.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE);
       
       if (abortSignal?.aborted) {
@@ -822,13 +823,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             
             // Gate must be current before the mic publishes.
             this.syncTransmitGate();
-            const success = await webrtcManager.joinWithToken(livekitUrl, token, channelId, userId);
+            const success = await webrtcManager.joinWithToken(livekitUrl, token, channelId, userId, abortSignal);
             
+            // What cancelled it has reset this store, which a later join may hold by now.
             if (abortSignal?.aborted) {
               if (success) {
                 await webrtcManager.leaveChannel();
               }
-              abortHandler();
+              reject(new DOMException('Connection cancelled', 'AbortError'));
               return;
             }
             
@@ -1648,7 +1650,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           const channelId = this.isConnected ? this.currentChannelId : this.optimisticChannelId;
           const userId = this.localState.userId || authStore.session?.user?.id;
           if (!serverId || !channelId || !userId || serverId === 'dm' || this.isFederatedChannel) return;
-          serverUsersStore.leaveVoiceChannelOnUnload(serverId, channelId, userId, authStore.session?.access_token);
+          // The store's session keeps the token it was signed in with.
+          serverUsersStore.leaveVoiceChannelOnUnload(serverId, channelId, userId, currentMemberToken() ?? authStore.session?.access_token);
         });
       }
       

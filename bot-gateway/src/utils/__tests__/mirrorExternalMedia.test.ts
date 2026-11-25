@@ -32,7 +32,7 @@ const mirrorMode = () => configRead({ data: { config_value: '"mirror"' }, error:
 beforeEach(() => {
   mocks.from.mockReset()
   mocks.rpc.mockReset()
-  mocks.rpc.mockResolvedValue({ data: true, error: null })
+  mocks.rpc.mockResolvedValue({ data: 'reserved', error: null })
 })
 
 afterEach(() => {
@@ -91,7 +91,7 @@ describe('applyBridgeAttachmentPolicy and the server cap', () => {
 
   it('keeps the Discord link and defers, without a download, when the cap refuses a file of known size', async () => {
     mirrorMode()
-    mocks.rpc.mockResolvedValue({ data: false, error: null })
+    mocks.rpc.mockResolvedValue({ data: 'full', error: null })
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)
 
@@ -102,7 +102,7 @@ describe('applyBridgeAttachmentPolicy and the server cap', () => {
 
   it('keeps the Discord link and defers, the body unread, when the cap refuses the Content-Length', async () => {
     mirrorMode()
-    mocks.rpc.mockResolvedValue({ data: false, error: null })
+    mocks.rpc.mockResolvedValue({ data: 'full', error: null })
     const cancel = vi.fn(async () => {})
     const body = new ReadableStream<Uint8Array>({ pull(c) { c.enqueue(new Uint8Array(4)) }, cancel })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: 200, headers: { 'content-type': 'image/png', 'content-length': '4096' } })))

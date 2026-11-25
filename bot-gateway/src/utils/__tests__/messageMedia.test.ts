@@ -58,7 +58,7 @@ beforeEach(() => {
   mocks.from.mockReset()
   // bridge_upload_reserve: the server cap has room.
   mocks.rpc.mockReset()
-  mocks.rpc.mockResolvedValue({ data: true, error: null })
+  mocks.rpc.mockResolvedValue({ data: 'reserved', error: null })
   mocks.createSignedUrls.mockImplementation(async (paths: string[]) => ({
     data: paths.map((path) => ({ path, signedUrl: `http://kong:8000/storage/v1/object/sign/message_media/${path}?token=t`, error: null })),
     error: null,

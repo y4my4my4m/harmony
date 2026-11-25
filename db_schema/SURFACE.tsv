@@ -73,6 +73,7 @@ apply_account_move	p_origin_id uuid, p_target_id uuid	uuid	invoker	pg_catalog, p
 apply_category_permissions	p_channel_id uuid, p_category_id uuid	void	definer	public, pg_temp	service_role	unreferenced
 apply_channel_name_rule		trigger	invoker	public, pg_temp	service_role	trigger
 apply_domain_limit_on_profile_insert		trigger	invoker	public, pg_temp	service_role	trigger
+apply_federated_group_invite	p_actor_id uuid, p_recipient_ids uuid[], p_remote_conversation_id text	jsonb	definer	public, pg_temp	service_role	client
 apply_federated_message_poll_state	p_poll_id uuid, p_votes integer[], p_voters integer, p_expires_at timestamp with time zone	boolean	definer	public, pg_temp	service_role	client
 apply_group_voice_state	p_server_id uuid, p_user_id uuid, p_muted boolean, p_deafened boolean	boolean	definer	public, pg_temp	service_role	client
 apply_instance_federation_switches		void	definer	public, pg_temp	service_role	unreferenced
@@ -220,7 +221,7 @@ bridge_remove_server_emoji	p_bot_id uuid, p_server_id uuid, p_emoji_id uuid	text
 bridge_require_server_bot	p_bot_id uuid, p_server_id uuid	void	definer	public, pg_temp		unreferenced
 bridge_retire_server_sticker	p_bot_id uuid, p_server_id uuid, p_sticker_id uuid	text	definer	public, pg_temp	service_role	client
 bridge_upload_release	p_reservation_id uuid	void	definer	public, pg_temp	service_role	client
-bridge_upload_reserve	p_reservation_id uuid, p_channel_id uuid, p_bytes bigint, p_avatar_bot_id uuid, p_max_avatars integer	boolean	definer	public, pg_temp	service_role	client
+bridge_upload_reserve	p_reservation_id uuid, p_channel_id uuid, p_bytes bigint, p_avatar_bot_id uuid, p_max_avatars integer	text	definer	public, pg_temp	service_role	client
 broadcast_bot_installation_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_bot_presence_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_category_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger

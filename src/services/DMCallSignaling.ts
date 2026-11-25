@@ -142,6 +142,9 @@ class DMCallSignalingService {
   private ringTimeoutHandlers: Set<(conversationId: string) => void> = new Set()
   // Channels this client removed: their CLOSED is no server close.
   private releasedChannels = new WeakSet<RealtimeChannel>()
+  // Channels still joining, and the count of cleanups: one that joined across a cleanup is released.
+  private openingChannels: Set<RealtimeChannel> = new Set()
+  private generation = 0
   private closeBackoffs: Map<string, ChannelCloseBackoff> = new Map()
   private rebuildTimers: Map<string, number> = new Map()
 
@@ -177,18 +180,21 @@ class DMCallSignalingService {
   private ensureChannel(conversationId: string): Promise<RealtimeChannel> {
     let setup = this.channelSetup.get(conversationId)
     if (!setup) {
-      setup = this.createChannel(conversationId).catch(error => {
-        this.channelSetup.delete(conversationId)
+      const created: Promise<RealtimeChannel> = this.createChannel(conversationId).catch(error => {
+        if (this.channelSetup.get(conversationId) === created) this.channelSetup.delete(conversationId)
         throw error
       })
+      setup = created
       this.channelSetup.set(conversationId, setup)
     }
     return setup
   }
 
   private async createChannel(conversationId: string): Promise<RealtimeChannel> {
+    const { generation } = this
     // Presence key is the profile id; participant identity is profile ids throughout.
     const profileId = await authContextService.getCurrentProfileId().catch(() => null)
+    if (generation !== this.generation) throw new Error('Call channels closed')
 
     // realtime-js keeps one channel per topic and the first config wins, so
     // this is the only place the topic is opened.
@@ -216,20 +222,26 @@ class DMCallSignalingService {
         this.presenceWaiters.get(conversationId)?.forEach(resolve => resolve())
       })
 
-    await new Promise<void>((resolve, reject) => {
-      channel.subscribe((status) => {
-        debug.log(`Call channel dm-call:${conversationId} status:`, status)
-        if (status === 'SUBSCRIBED') {
-          this.closeBackoff(conversationId).joined()
-          resolve()
-        } else if (status === 'CLOSED') {
-          reject(new Error('Channel CLOSED'))
-          this.handleChannelClosed(conversationId, channel)
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          reject(new Error(`Channel ${status}`))
-        }
+    this.openingChannels.add(channel)
+    try {
+      await new Promise<void>((resolve, reject) => {
+        channel.subscribe((status) => {
+          debug.log(`Call channel dm-call:${conversationId} status:`, status)
+          if (status === 'SUBSCRIBED') {
+            this.closeBackoff(conversationId).joined()
+            resolve()
+          } else if (status === 'CLOSED') {
+            reject(new Error('Channel CLOSED'))
+            this.handleChannelClosed(conversationId, channel)
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            reject(new Error(`Channel ${status}`))
+          }
+        })
       })
-    })
+    } finally {
+      this.openingChannels.delete(channel)
+    }
+    if (generation !== this.generation) throw new Error('Call channels closed')
 
     this.channels.set(conversationId, channel)
 
@@ -1382,8 +1394,9 @@ class DMCallSignalingService {
     return this.activeCalls.get(conversationId)?.isFederated ?? false
   }
 
-  /** Clear every timer before dropping channels; no signals are sent. */
+  /** Clear every timer before dropping channels, those still joining included; no signals are sent. */
   cleanup(): void {
+    this.generation++
     this.activeCalls.forEach(call => {
       if (call.timeoutTimer) {
         clearTimeout(call.timeoutTimer)
@@ -1394,11 +1407,12 @@ class DMCallSignalingService {
 
     this.rebuildTimers.forEach(timer => clearTimeout(timer))
     this.rebuildTimers.clear()
-    this.channels.forEach(channel => {
+    for (const channel of [...this.channels.values(), ...this.openingChannels]) {
       this.releasedChannels.add(channel)
       channel.unsubscribe()
-    })
+    }
     this.channels.clear()
+    this.openingChannels.clear()
     this.channelSetup.clear()
     this.listeners.clear()
     this.activeCalls.clear()

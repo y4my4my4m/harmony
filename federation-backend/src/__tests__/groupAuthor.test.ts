@@ -106,6 +106,22 @@ describe('a Matrix person on the wire', () => {
     expect(a?.id).not.toBe(parse197(sent(long('b')))?.id)
   })
 
+  it('keeps its id and name well formed where a cut falls inside a character', () => {
+    // "matrix:@" and 54 letters are 62 UTF-16 units: the emoji is units 63 and 64.
+    const across = (last: string) => ({ ...sam, id: `matrix:@${'s'.repeat(54)}\u{1f600}${'s'.repeat(100)}${last}:example.org`, name: 'Emoji' })
+    const wire = sent(across('a'))
+    expect(wire.id).toHaveLength(128)
+    expect(wire.id.isWellFormed()).toBe(true)
+    expect(parse197(wire)?.id).toBe(wire.id)
+    expect(wire.id).not.toBe(sent(across('b')).id)
+    expect(parseGroupAuthor(wire)).toEqual(across('a'))
+
+    const named = groupAuthorOf({ bot_id: 'b1', metadata: { matrix_user: { id: '@sam:example.org', username: 'sam', display_name: `${'n'.repeat(99)}\u{1f600}` } } }, BOT)
+    expect(named?.name).toHaveLength(100)
+    expect(named?.name.isWellFormed()).toBe(true)
+    expect(parseGroupAuthor({ kind: 'bot', id: 'b1', name: 'a\ud83d' })?.name.isWellFormed()).toBe(true)
+  })
+
   it('is a webhook when bridgeId or source does not name a Matrix person', () => {
     const id = crypto.randomUUID()
     for (const extra of [{ source: 'matrix' }, { source: 'matrix', bridgeId: 'sam' }, { source: 'matrix', bridgeId: 'discord:42' }, { bridgeId: sam.id }, { source: 'discord', bridgeId: sam.id }]) {

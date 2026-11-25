@@ -108,9 +108,8 @@ SET LOCAL role service_role;
 SELECT is(public.get_or_create_federated_group_conversation(
               'c2963000-0000-0000-0000-000000000001', ARRAY[pg_temp.u(1)], 'remote-c296'),
           current_setting('tests.remote_group')::uuid, 'its next message finds it');
-SELECT lives_ok(format($q$INSERT INTO public.conversation_participants (conversation_id, user_id, role)
-                          VALUES (%L, %L, 'member')$q$, current_setting('tests.remote_group'), pg_temp.u(12)),
-                'and takes another participant its host names');
+SELECT is(public.apply_federated_group_invite('c2963000-0000-0000-0000-000000000001', ARRAY[pg_temp.u(12)], 'remote-c296') -> 'added',
+          jsonb_build_array(pg_temp.u(12)), 'and an invite from its host adds another participant');
 RESET ROLE;
 SELECT is(pg_temp.active(current_setting('tests.remote_group')::uuid), 13, 'past 10');
 

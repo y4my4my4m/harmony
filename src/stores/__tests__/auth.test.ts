@@ -76,6 +76,17 @@ function jwtWithAALAndAMR(aal: 'aal1' | 'aal2', methods: string[]): string {
   return `header.${encoded}.signature`
 }
 
+/** Fires an auth event and waits for the store to handle it; the listener itself returns at once. */
+async function fire(store: ReturnType<typeof useAuthStore>, listener: (event: any, session: any) => unknown, event: string, session: any) {
+  let handled: Promise<void> | null = null
+  const stop = store.$onAction(({ name, after, onError }) => {
+    if (name === 'handleAuthEvent') handled = new Promise((resolve) => { after(() => resolve()); onError(() => resolve()) })
+  })
+  listener(event, session)
+  stop()
+  await handled
+}
+
 describe('useAuthStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -288,10 +299,10 @@ describe('useAuthStore', () => {
 
       // Supabase fires SIGNED_IN with a brand-new AAL1 session for an
       // MFA-enrolled user. The store must not adopt it.
-      await handler!('SIGNED_IN', {
+      await fire(store, handler!, 'SIGNED_IN', {
         access_token: jwtWithAAL('aal1'),
         user: { id: 'new-user' },
-      } as any)
+      })
 
       // Local scope: a global logout from an aal1 token deletes the account's aal2 sessions too.
       const { signOutAndForget } = await import('@/supabase')
@@ -316,10 +327,10 @@ describe('useAuthStore', () => {
       const store = useAuthStore()
       await store.initializeAuth()
 
-      await handler!('SIGNED_IN', {
+      await fire(store, handler!, 'SIGNED_IN', {
         access_token: jwtWithAAL('aal1'),
         user: { id: 'valid-user' },
-      } as any)
+      })
 
       expect(store.session?.user?.id).toBe('valid-user')
     })
@@ -417,7 +428,7 @@ describe('useAuthStore', () => {
 
       // Simulate gotrue-js firing INITIAL_SESSION post-URL-exchange while
       // `_pendingMFAVerification` is still set by the callback path-check.
-      await stateChangeHandler!('INITIAL_SESSION', oauthSession)
+      await fire(store, stateChangeHandler!, 'INITIAL_SESSION', oauthSession)
 
       // The handler early-returns before `validateSessionForMFA`: no signOut,
       // no listFactors call.
@@ -456,7 +467,7 @@ describe('useAuthStore', () => {
       const store = useAuthStore()
       await store.initializeAuth()
 
-      await stateChangeHandler!('TOKEN_REFRESHED', refreshedSession)
+      await fire(store, stateChangeHandler!, 'TOKEN_REFRESHED', refreshedSession)
 
       expect(signOutSpy).not.toHaveBeenCalled()
       expect(listFactorsSpy).not.toHaveBeenCalled()
@@ -727,7 +738,7 @@ describe('useAuthStore', () => {
         await vi.advanceTimersByTimeAsync(VERIFY_TIMEOUT_MS)
         await failed
 
-        await handler!('MFA_CHALLENGE_VERIFIED', aal2Session)
+        await fire(store, handler!, 'MFA_CHALLENGE_VERIFIED', aal2Session)
         expect(store.session).toBeNull()
 
         ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session: aal2Session } })

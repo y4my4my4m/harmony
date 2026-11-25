@@ -16,8 +16,9 @@
  * The database row hears every membership change (activity_session_sync, debounced) and a heartbeat
  * every heartbeatMs; every readmitMs each member's token is checked and the member admitted again,
  * so signing out, leaving a conversation or call, losing a channel or the app being turned off
- * removes them within that time. A member whose token or admission cannot be checked
- * ADMIT_FAILURES times in a row is disconnected with UNAVAILABLE, which its client retries.
+ * removes them within that time. At most readmitConcurrency checks run at once in this process; a
+ * pass slower than readmitMs delays its session's next one. A member whose token or admission cannot
+ * be checked ADMIT_FAILURES times in a row is disconnected with UNAVAILABLE, which its client retries.
  *
  * Players: a joiner plays while fewer than max_players play, else spectates; spectators never host.
  * Outbound bytes are charged to the sender: a frame fanned out to n members costs n times its size.
@@ -52,6 +53,7 @@ import {
   type SessionContext,
   type SessionInfo,
 } from './protocol.js'
+import { Timeout, within } from './within.js'
 
 export const RELAY_PATHS = ['/activities/socket', '/api/federation/activities/socket']
 
@@ -108,6 +110,8 @@ export interface RelayOptions {
   maxPendingPerAddress: number
   /** verifyToken and admit answers slower than this close the connection (4013). */
   depTimeoutMs: number
+  /** Members checked at a time on readmit, across every session. */
+  readmitConcurrency: number
   /** WebSocket upgrades per address: sustained per second and burst. */
   upgradesPerSecond: number
   upgradeBurst: number
@@ -138,6 +142,7 @@ const DEFAULTS: RelayOptions = {
   maxPendingConnections: 256,
   maxPendingPerAddress: 8,
   depTimeoutMs: 8_000,
+  readmitConcurrency: 16,
   upgradesPerSecond: 1,
   upgradeBurst: 20,
   maxSessions: 2_000,
@@ -174,7 +179,7 @@ export function addressKey(ip: string): string {
 }
 const STRIKE_WINDOW_MS = 10_000
 const ADMIT_FAILURES = 3
-/** Members of one session checked at a time on readmit. */
+/** Members of one session checked at a time on readmit; readmitConcurrency bounds all sessions together. */
 const READMIT_CONCURRENCY = 8
 /** Profiles a session remembers (join order, member state) across reconnects. */
 const SEEN_LIMIT = 256
@@ -196,18 +201,6 @@ function refuseUpgrade(socket: Duplex, status: string, headers = ''): void {
   socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n${headers}\r\n`)
 }
 
-class Timeout extends Error {}
-
-function within<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Timeout('timeout')), ms)
-    promise.then(
-      (value) => { clearTimeout(timer); resolve(value) },
-      (error) => { clearTimeout(timer); reject(error) },
-    )
-  })
-}
-
 /** Token bucket: `rate` per second, holding at most `burst`. */
 class Bucket {
   private tokens: number
@@ -226,6 +219,23 @@ class Bucket {
     if (this.tokens < amount) return false
     this.tokens -= amount
     return true
+  }
+}
+
+/** At most `free` holders at a time; waiters take their turn in order. */
+class Slots {
+  private readonly waiting: Array<() => void> = []
+  constructor(private free: number) {}
+
+  async take(): Promise<void> {
+    if (this.free > 0) this.free--
+    else await new Promise<void>((resolve) => this.waiting.push(resolve))
+  }
+
+  give(): void {
+    const next = this.waiting.shift()
+    if (next) next()
+    else this.free++
   }
 }
 
@@ -320,10 +330,12 @@ export class ActivityRelay {
   private readonly upgrades = new Map<string, Bucket>()
   private readonly dropped = new Map<string, number>()
   private storeBytes = 0
+  private readonly readmitSlots: Slots
   private pinger: ReturnType<typeof setInterval> | null = null
 
   constructor(private readonly deps: RelayDeps, options: Partial<RelayOptions> = {}) {
     this.options = { ...DEFAULTS, ...options }
+    this.readmitSlots = new Slots(this.options.readmitConcurrency)
     this.wss = new WebSocketServer({ noServer: true, maxPayload: RELAY_FRAME_MAX_BYTES, perMessageDeflate: false })
     this.pinger = setInterval(() => this.pingAll(), this.options.pingIntervalMs)
     this.pinger.unref?.()
@@ -812,7 +824,15 @@ export class ActivityRelay {
     try {
       const queue = [...session.conns]
       const worker = async () => {
-        for (let next = queue.shift(); next && !session.ended; next = queue.shift()) await this.readmitMember(session, next[0], next[1])
+        for (let next = queue.shift(); next && !session.ended; next = queue.shift()) {
+          const [id, conn] = next
+          await this.readmitSlots.take()
+          try {
+            if (!session.ended && session.conns.get(id) === conn) await this.readmitMember(session, id, conn)
+          } finally {
+            this.readmitSlots.give()
+          }
+        }
       }
       await Promise.all(Array.from({ length: READMIT_CONCURRENCY }, worker))
     } finally {

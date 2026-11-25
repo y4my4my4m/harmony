@@ -17,7 +17,7 @@ vi.mock('../../config/supabase.js', () => ({
   },
   config: {},
 }))
-import { GoneError, OverQuotaError, TooLargeError } from '../../utils/mirrorFile.js'
+import { GoneError, OverQuotaError, QuotaBusyError, TooLargeError } from '../../utils/mirrorFile.js'
 import { discardMirroredParts, isDatabaseRefusal, removeUnreferencedMirrors } from '../mirrorEnqueue.js'
 
 const NOW = 1_800_000_000_000
@@ -310,6 +310,23 @@ describe('MirrorWorker.tick', () => {
     await both.worker.tick()
     expect(both.finish()[0]).toMatchObject({ p_state: 'over_quota' })
     const failing = setup({ content, mirror: refuse({ a: new OverQuotaError(9), b: new Error('boom'), c: new TooLargeError(9) }) })
+    await failing.worker.tick()
+    expect(failing.finish()[0]).toMatchObject({ p_state: 'queued', p_attempts: 1, p_retry_seconds: 60 })
+  })
+
+  it('asks again in 300 s, without an attempt, while files in flight hold the cap', async () => {
+    const refuse = (errors: Record<string, Error>) => vi.fn(async (url: string) => {
+      const name = url.includes('/a.png') ? 'a' : 'b'
+      throw errors[name]
+    })
+    const content = [{ type: 'file', url: fresh('a') }, { type: 'file', url: fresh('b') }]
+    for (const other of [new QuotaBusyError(9), new OverQuotaError(9), new TooLargeError(9), new GoneError(404)]) {
+      const t = setup({ content, mirror: refuse({ a: new QuotaBusyError(9), b: other }) })
+      await t.worker.tick()
+      expect(t.finish()[0]).toMatchObject({ p_state: 'queued', p_attempts: 0, p_retry_seconds: 300 })
+    }
+    // A part that fails for another reason is bounded by its attempts.
+    const failing = setup({ content, mirror: refuse({ a: new QuotaBusyError(9), b: new Error('boom') }) })
     await failing.worker.tick()
     expect(failing.finish()[0]).toMatchObject({ p_state: 'queued', p_attempts: 1, p_retry_seconds: 60 })
   })

@@ -39,11 +39,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   in the server cannot play: the notice and the banner give the reason instead of **Join**, and a
   member who loses the permission mid-game is removed within 30 seconds. A conversation with someone
   who blocks you answers as any conversation you cannot play in. Activities run sandboxed with no
-  access to your account, your messages or the desktop app, open no network or WebRTC connections of
-  their own, and talk through a relay in the federation backend that limits connections per IPv4
-  address or IPv6 /64, sockets not yet signed in and bytes queued for slow readers; a slow avatar
-  address delays nobody's game. Instance admins turn each activity on or off in **Admin** →
-  **Activities**. Developers: see the Activities SDK in the docs.
+  access to your account, your messages or the desktop app. They cannot use WebRTC or load scripts
+  from other sites (a browser may still follow an activity's `preconnect` and `prerender` hints),
+  and they talk through a relay in the federation backend that limits connections per IPv4 address
+  or IPv6 /64, sockets not yet signed in and bytes queued for slow readers; a slow avatar address
+  delays nobody's game. Instance admins turn each activity on or off in **Admin** → **Activities**.
+  Developers: see the Activities SDK in the docs.
 - **Install activities.** **Admin** → **Activities** → **Install an activity** takes an activity
   package (a `.zip` of at most 32 entries and 6 MB unpacked, uploaded or from an `https://` address),
   shows what it is and its SHA-256 before installing, installs it switched off, and later checks its
@@ -61,14 +62,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Role for new members.** **Server settings** → **Roles** → **Role for new members** gives a role
   to everyone who joins from then on. A role that has permissions @everyone lacks, or sits above one
   that does, cannot be chosen and is not given; one stored by an earlier version is cleared.
-- **Bots can give roles and post files.** `PUT` and `DELETE /servers/{id}/members/{user}/roles/{role}`
-  give a member a role or take it away, within the bot's **Manage roles** reach; the server audit log
-  names the bot. `POST /channels/{id}/attachments` uploads a file (an edited image, a chart) that the
-  bot then sends in a message or a slash-command reply; it needs the new **Attach files** permission,
-  on by default, counts toward the server's stored-bot-files limit, and loses its location and camera
-  metadata like any upload. Three uploads of a bot run at once and ten more wait, and the instance's
-  upload limit applies behind the shipped proxies. Message and reaction events now carry `server_id`,
-  and the member list shows each member's role IDs.
+- **Bots can give roles and post files.** `PUT` and `DELETE
+  /servers/{id}/members/{user}/roles/{role}` give a member a role or take it away, within the bot's
+  **Manage roles** reach; the server audit log names the bot. `POST /channels/{id}/attachments`
+  uploads a file (an edited image, a chart) that the bot then sends in a message or a slash-command
+  reply; it needs the new **Attach files** permission, on by default, counts toward the server's
+  stored-bot-files limit, and loses its location and camera metadata like any upload. Three uploads
+  of a bot run at once and ten more wait, a bot upload may take up to 30 minutes, the answer is 429
+  rather than 507 while other uploads hold the server's cap, and the instance's upload limit applies
+  behind the shipped proxies. Message and reaction events now carry `server_id`, and the member list
+  shows each member's role IDs.
 - **Matrix bridge.** Harmony works with the [Matrix bridge](https://github.com/y4my4my4m/harmony-matrix-bridge),
   an application service an instance operator runs beside a Matrix homeserver. Messages, replies,
   images and files cross both ways between a paired channel and Matrix room, in channels without
@@ -79,7 +82,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   **Server settings** → **Bridges** → **Matrix**. Server managers remove a Matrix person from the
   bridge and erase what it relayed there, as for Discord people. Matrix people's avatars count
   toward the server's limit on stored bridge files, at most 1000 per bridge bot, and are deleted an
-  hour after the bridge is removed. On other instances' copies of the server, a Matrix person's
+  hour after the bridge is removed. Past 1000 avatars in a server, a new one replaces the one unused
+  longest. On other instances' copies of the server, a Matrix person's
   messages carry their name and picture; instances on 1.9.7 and older show them as a webhook's.
   (#197, ZaneH)
 - **One Bridges page.** **Server settings** → **Bridges** holds the Discord and Matrix bridges on two
@@ -92,10 +96,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Keep your messages off a bridge.** **Bridge privacy** in a server's menu stops its Discord or
   Matrix bridge, each on its own, from relaying your messages, edits, reactions and the bots' public
   answers to your slash commands. Deleting a message still reaches the bridge, so a copy relayed
-  before is removed too. The notice that a member who opted out started a thread is withheld, and
-  the bridge reads their thread's name as "Thread"; other people's replies there still cross. The
-  entry shows only in servers with a bridge, and the choice lasts when you leave and rejoin.
-  (#197, ZaneH)
+  before is removed too. A bridge also never gets what an opted-out member wrote through a system
+  notice: the name of a thread started on their message reads "Thread", notices of a kick or ban and
+  AutoMod alerts about them are withheld, and the delete of a withheld message carries only the
+  bridge's own mapping. Other people's replies in those threads still cross. The entry shows only in
+  servers with a bridge, and the choice lasts when you leave and rejoin. (#197, ZaneH)
 - **Discord history import through every bridge.** **Admin** → **Config** → **General** →
   **Discord bridge** → **Discord history import** has a third choice, **All bridges**: besides
   bridges their server's owner runs, the instance's Discord bot and the own-bot bridges the instance
@@ -110,8 +115,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Self-host: uploads in an S3-compatible bucket.** `STORAGE_BACKEND=s3` with the `STORAGE_S3_*`
   keys (`BUCKET`, `ENDPOINT`, `REGION`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `FORCE_PATH_STYLE`) in
   `supabase/.env` keeps uploads in Cloudflare R2, MinIO or AWS S3 instead of
-  `supabase/volumes/storage`. AWS variables exported in your shell never reach it. Unset, storage
-  stays on disk.
+  `supabase/volumes/storage`. AWS variables exported in your shell never reach it. An endpoint, key
+  or path style not set as `STORAGE_S3_*` is not passed to storage, so what a compose override of
+  your own gives is kept. `harmony doctor` warns when storage runs with `STORAGE_BACKEND=s3` and
+  without a bucket or keys. Unset, storage stays on disk.
 
 ### Fixed
 
@@ -152,6 +159,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   microphone open and the room's signals connected.
 - **Signing out during a call leaves it at once.** The leave was sent after the session ended and
   refused, so others saw you until the connection timed out.
+- **A session the server no longer refreshes returns to sign-in.** The tab, and every other tab of the
+  browser, stopped answering until a reload.
+- **Another account signed in elsewhere in the browser takes the tab over cleanly.** The first account's
+  servers, conversations, caches and call go first; an unfinished two-factor sign-in is refused.
+- **A member of a peer-to-peer call whose app crashed leaves the call.** Their tile and count stayed
+  until they came back.
+- **A call cancelled at its microphone prompt no longer disturbs the next one.** The late microphone is
+  stopped; before, it replaced the next call's and ended it.
+- **Joining a federated call can be cancelled while it loads,** and a camera or screen prompt answered
+  after the call releases the device.
+- **Closing a tab open over an hour leaves its voice channel at once.**
 - **A call ends when its session does, and the microphone with it.** Signing out in another tab, or a
   session revoked from elsewhere, left a running call up in this tab with the microphone on, and the
   other-tab case stayed on the page. The call closes at once and the page returns to sign-in.
@@ -195,6 +213,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   one's bridged people for a moment either, and a bot gateway that does not answer has 15 seconds.
 - **`@` suggests bridged people whichever bot bridges them.** A bridge bot that is private suggested
   its people to its owner only.
+- **People added later to a group chat from another instance join it.** Someone here who is added to
+  a group this instance already holds becomes a member of it and reads it, earlier messages included,
+  and people added together when the group is made all join. Each gets one notice, with the group's
+  name. An invite from someone you block, or whom your message setting refuses, does nothing.
 - **Add people in a conversation lists everyone in it.** Opened from the header of a group, the
   picker listed nobody already there, and an account whose profile id differs from its sign-in id
   was offered as someone to add.

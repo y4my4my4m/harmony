@@ -98,6 +98,13 @@ function bridgeMembers(channelId: string, username: string) {
   byChannel.set(channelId, new Map([[BRIDGE_BOT, [{ id: username, username, displayName: username, source: 'discord' }]]]))
 }
 
+describe('the HTTP server', () => {
+  it('gives a request body 1800 s, an upload reservation\'s lease, and its headers 60 s', () => {
+    expect(mod.server.requestTimeout).toBe(1_800_000)
+    expect(mod.server.headersTimeout).toBe(60_000)
+  })
+})
+
 describe('GET /status', () => {
   connect(BRIDGE_BOT, 'public-bridge')
   connect(PRIVATE_BOT, 'secret-moderation-bot')

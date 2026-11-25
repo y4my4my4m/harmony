@@ -251,15 +251,15 @@ Returns `201` with a `file` part to send in a message or an [interaction reply](
 }
 ```
 
-`url` is a signed link valid seven days; `path` is what the app reads. Uploads count toward the server's cap on files bots store (5 GB unless the operator changed it, together with mirrored Discord files and Matrix avatars), and a file no message names after a day is deleted. The bytes count from the start of the upload: send a `Content-Length`, and a file the cap has no room for is refused before it is read. Three uploads of a bot run at once, ten more wait their turn unread.
+`url` is a signed link valid seven days; `path` is what the app reads. Uploads count toward the server's cap on files bots store (5 GB unless the operator changed it, together with mirrored Discord files and Matrix avatars), and a file no message names after a day is deleted. The bytes count from the start of the upload: send a `Content-Length`, and a file the cap has no room for is refused before it is read. Three uploads of a bot run at once, ten more wait their turn unread. A request has 30 minutes from its first byte to the end of its body, the wait included; past them it is cut off with `408`.
 
 | Status | `error` | Cause |
 |---|---|---|
 | `413` | `File too large` | Over the instance's upload limit; `max_bytes` gives it. |
 | `400` | `The request body is empty` | |
 | `415` | `Send the file itself as the request body, with its own Content-Type` | |
-| `429` | `Too many uploads at once` | More than 13 uploads of the bot open; `Retry-After` and `retry_after` give seconds. |
-| `507` | `This server's storage for bot files is full` | The server's cap has no room for the file. |
+| `429` | `Too many uploads at once` | More than 13 uploads of the bot open, or only files being stored at the moment keep the server's cap from taking this one; `Retry-After` and `retry_after` give seconds. |
+| `507` | `This server's storage for bot files is full` | The files stored leave the server's cap no room for this one. |
 
 The bot needs `send_messages` and `attach_files` in the channel; see [Channel access](/build/permissions-rate-limits#channel-access). The reverse proxies Harmony ships pass a file of any size to this route; a proxy or CDN of your own in front of the instance may have a lower limit (Cloudflare's is 100 MB).
 
@@ -530,7 +530,7 @@ Malformed room/mode/user IDs return `400`, missing binding or permissions `403`,
 
 These routes require an active Matrix room binding, scoped channel read/send permissions and verified plaintext channel policy. They do not change the Discord attachment-mode policy.
 
-`POST /channels/{channel.id}/bridge-files` takes the file as the request body, with `X-File-Name: <encodeURIComponent(filename)>` and `X-File-Type: <MIME type>`. Send it with `Content-Type: application/octet-stream`; a JSON, form or multipart body answers `415`. It stores the file as [`POST /channels/{channel.id}/attachments`](#upload-a-file) does: it needs **Attach files** in the channel, counts toward the server's stored-bot-files limit (`507` when full), keeps to the instance's upload ceiling (`413`) and to the bot's uploads at once (`429`), and strips location and camera metadata. Names of active content (SVG, HTML, scripts, executables) answer `415`, an empty body `400`.
+`POST /channels/{channel.id}/bridge-files` takes the file as the request body, with `X-File-Name: <encodeURIComponent(filename)>` and `X-File-Type: <MIME type>`. Send it with `Content-Type: application/octet-stream`; a JSON, form or multipart body answers `415`. It stores the file as [`POST /channels/{channel.id}/attachments`](#upload-a-file) does: it needs **Attach files** in the channel, counts toward the server's stored-bot-files limit (`507` when full, `429` while only files being stored fill it), keeps to the instance's upload ceiling (`413`) and to the bot's uploads at once (`429`), and strips location and camera metadata. Names of active content (SVG, HTML, scripts, executables) answer `415`, an empty body `400`.
 
 Returns **`201`** with the file part to send in a message: `{ "type": "file", "path": "c/CHANNEL/bridge/BOT/…", "url": "https://…", "fileType": "image", "fileName": "wave.png", "fileSize": 123, "mimeType": "image/png" }`. `fileType` is `image` or `file`; video and audio answer `file`.
 
@@ -542,7 +542,7 @@ A successful download has `Content-Type: application/octet-stream`, `Content-Len
 
 `POST /channels/{channel.id}/bridge-avatar`
 
-Requires a registered Matrix binding and read/send channel permissions. Supply `{ "data": "<standard base64>", "content_type": "image/png" }`; supported raster types are PNG, JPEG, WebP and GIF. Decoded bytes must be nonempty and at most **1 MiB**, with a matching file signature. The endpoint accepts no remote URLs or caller-selected storage paths. It strips identifying media metadata using the normal upload pipeline, stores content-addressed bytes under this bot and the channel's server in the public avatars bucket, and returns `{ "avatar_url": "https://…" }`; an image already stored there is answered without another copy. Avatars count toward the server's cap on files bots store. Invalid bytes/type/size return `400`; missing authorization `403`; a new avatar past 1000 of the bot, or past the server's cap, `507`; storage/registration failure `503`.
+Requires a registered Matrix binding and read/send channel permissions. Supply `{ "data": "<standard base64>", "content_type": "image/png" }`; supported raster types are PNG, JPEG, WebP and GIF. Decoded bytes must be nonempty and at most **1 MiB**, with a matching file signature. The endpoint accepts no remote URLs or caller-selected storage paths. It strips identifying media metadata using the normal upload pipeline, stores content-addressed bytes under this bot and the channel's server in the public avatars bucket, and returns `{ "avatar_url": "https://…" }`; an image already stored there is answered without another copy. Avatars count toward the server's cap on files bots store. A bot keeps 1000 avatars in a server: a new one past them replaces the one asked for longest ago, counted in days. Ask again for a picture in use, rather than keeping its URL for good: the answer is the same URL, and the picture is stored again if it was replaced. Invalid bytes/type/size return `400`; missing authorization `403`; a new avatar past the server's cap `507`, or `429` with `retry_after` while only files being stored fill it; storage/registration failure `503`.
 
 An hour after the bot's last binding in a server is gone (the bridge unconfigured, or the bot, the server or the paired channels deleted) its avatars there are deleted.
 

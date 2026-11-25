@@ -1,4 +1,4 @@
-import { supabase } from '@/supabase'
+import { SUPABASE_ANON_KEY, supabase } from '@/supabase'
 
 type Listener = (token: string) => void
 
@@ -11,6 +11,15 @@ let bound = false
  */
 export function currentRealtimeToken(): string {
   return String((supabase as any).realtime?.accessTokenValue ?? '')
+}
+
+/**
+ * The account's access token as Realtime holds it, kept current across refreshes; null signed out.
+ * Read without auth-js's lock, for a page that is unloading.
+ */
+export function currentMemberToken(): string | null {
+  const token = currentRealtimeToken()
+  return token && token !== SUPABASE_ANON_KEY ? token : null
 }
 
 /**

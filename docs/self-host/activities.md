@@ -55,8 +55,9 @@ The frame names the web app as its only script source: the backend reads it from
 ## Isolation
 
 - Each activity runs in an `<iframe sandbox="allow-scripts allow-pointer-lock">`: an opaque origin with no access to the account's session, storage, messages or the page around it. The frame's own `Content-Security-Policy` repeats the sandbox, so the document stays isolated even when opened directly.
-- The policy refuses every network connection (`connect-src 'none'`), form, popup, plugin and frame, and loads scripts, styles and images only from the activity's own folder.
-- The loader removes WebRTC (`RTCPeerConnection`), which that policy does not cover, from the frame before the activity runs. A second policy lets a document the activity nests in its frame run no script but the loader.
+- The policy refuses every network connection (`connect-src 'none'`), form, popup, plugin and frame, and loads styles, images, media and fonts only from the activity's own folder.
+- An activity is one script. The loader adds it and then a policy that takes no other, from its own folder or any host, in the frame and in every document nested in it.
+- The loader removes WebRTC (`RTCPeerConnection`), which no policy covers, from the frame before the activity runs. A nested document would have its own, and runs no script.
 - Players talk through the relay in the federation backend. The Harmony client holds the account's token and forwards what the activity sends after checking its size and rate; the activity never sees a token.
 - The relay admits only accounts of this instance that belong to the conversation or channel (and, in a voice channel, are in the call). In a text channel a player needs **Send Messages** there, and a member timed out in the server cannot play in its channels. Every 30 seconds it checks each member's token and membership again and removes those who signed out, left or lost the permission. While GoTrue or the database does not answer, members stay connected for three checks; after that they are disconnected, and their clients reconnect on their own. It limits each connection to 40 messages a second and 1 MB a second, counting a message once per recipient, and holds no game data after a session ends.
 - The relay counts its per-address limits by IPv4 address or IPv6 /64, limits sockets that have not yet signed in to 8 per address and 256 in all, and closes a slow reader once 128 MB are queued for sending across all connections.
@@ -70,8 +71,8 @@ The frame names the web app as its only script source: the backend reads it from
 What the sandbox cannot stop:
 
 - An activity sees what its players send it and can pass that to any player.
-- Browsers apply no content policy to DNS prefetching (Safari none to `preconnect` links either), and none to a frame navigating itself: the address of that navigation reaches the site it names, carrying whatever the activity puts in it, and that site sees the player's IP address. Harmony detaches the frame after that load, not before it.
-- Safari before 15.4 ignores the second policy: an activity can use WebRTC from a nested document there.
+- Browsers apply no content policy to `preconnect` and `dns-prefetch` links (measured in Chromium 148, Firefox 150 and WebKit 26.4): an activity can open a connection to a server it names, which sees the player's IP address and that host name, or have the name looked up.
+- Browsers apply none to a frame navigating itself, and Chromium none to `prerender` links: the address of that request reaches the site it names, carrying whatever the activity puts in it, and that site sees the player's IP address. The activity reads no answer. Harmony detaches a frame that navigated after that load, not before it.
 
 Enable activities you trust, as you would install a bot.
 

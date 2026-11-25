@@ -73,6 +73,7 @@ apply_account_move	invoker	uuid	service_role	client	called by begin_account_move
 apply_category_permissions	definer	void	service_role	client, trigger	called by channel_inherits_category_permissions, set_category_permissions, sync_channel_permissions
 apply_channel_name_rule	invoker	trigger	service_role	trigger	trigger public.channels BEFORE INSERT/UPDATE (t_channels_name_rule)
 apply_domain_limit_on_profile_insert	invoker	trigger	service_role	trigger	trigger public.profiles BEFORE INSERT (apply_domain_limit_on_profile_insert_trigger)
+apply_federated_group_invite	definer	jsonb	service_role	client	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 apply_federated_message_poll_state	definer	boolean	service_role	client	rpc in federation-backend/src/activitypub/messagePolls.ts
 apply_group_voice_state	definer	boolean	service_role	client	rpc in federation-backend/src/activitypub/voiceModerationFederation.ts
 apply_instance_federation_switches	definer	void	service_role	trigger	called by trigger_instance_federation_switches
@@ -189,7 +190,7 @@ bridge_mirror_enqueue	definer	integer	service_role	client	rpc in bot-gateway/src
 bridge_mirror_finish	definer	void	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_observe	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_restart_walk	definer	void	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
-bridge_mirror_server_bytes	definer	bigint	service_role	client	called by bridge_mirror_allows
+bridge_mirror_server_bytes	definer	bigint	service_role	client	called by bridge_mirror_allows, bridge_upload_reserve
 bridge_mirror_status	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/InstanceConfig.vue, src/components/settings/discord-bridge/bridgeApi.ts
 bridge_mirror_track_object	definer	trigger	-	trigger	trigger storage.objects AFTER DELETE (bridge_mirror_track_delete), storage.objects AFTER INSERT (bridge_mirror_track_insert), storage.objects AFTER UPDATE (bridge_mirror_track_update)
 bridge_mirror_unreferenced	definer	text[]	service_role	client	rpc in bot-gateway/src/bridge/mirrorEnqueue.ts
@@ -220,7 +221,7 @@ bridge_remove_server_emoji	definer	text	service_role	client	rpc in bot-gateway/s
 bridge_require_server_bot	definer	void	-	client	called by bridge_delete_server_sound, bridge_evict_removed_emojis, bridge_evict_retired_stickers, +5
 bridge_retire_server_sticker	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_upload_release	definer	void	service_role	client	rpc in bot-gateway/src/utils/uploadReservation.ts
-bridge_upload_reserve	definer	boolean	service_role	client	rpc in bot-gateway/src/utils/uploadReservation.ts
+bridge_upload_reserve	definer	text	service_role	client	rpc in bot-gateway/src/utils/uploadReservation.ts
 broadcast_bot_installation_change	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (broadcast_bot_installation_change)
 broadcast_bot_presence_change	definer	trigger	service_role	trigger	trigger public.bot_presence AFTER INSERT/UPDATE (broadcast_bot_presence_change)
 broadcast_category_change	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channel_categories AFTER INSERT/DELETE/UPDATE (trg_broadcast_category_change)
@@ -771,7 +772,7 @@ initialize_user_encryption	definer	jsonb	anon+authenticated+service_role	http an
 insert_ap_activity_outbound	definer	uuid	service_role	service key	nothing references it
 install_activity_package	definer	jsonb	service_role	client	rpc in federation-backend/src/activities/packageRoutes.ts
 instance_config_flag	invoker	boolean	service_role	client, trigger	called by get_public_federation_settings, instance_federation_switches, webhook_settings
-instance_count_cap	invoker	integer	service_role	client, trigger	called by bridge_import_admit, bridge_mirror_allows, bridge_mirror_observe, +3
+instance_count_cap	invoker	integer	service_role	client, trigger	called by bridge_import_admit, bridge_mirror_allows, bridge_mirror_observe, +4
 instance_emoji_import_name	invoker	text	service_role	client	called by admin_list_remote_emojis, admin_preview_emoji_imports, import_remote_emoji
 instance_emoji_name_held	definer	boolean	service_role	client	called by admin_list_remote_emojis, admin_preview_emoji_imports, import_remote_emoji
 instance_emoji_object_ok	definer	integer	service_role	client	called by import_remote_emoji, rehost_emoji
@@ -904,7 +905,7 @@ post_has_profile_media	invoker	boolean	anon+authenticated+service_role	client, d
 post_thread_created_notice	definer	uuid	authenticated+service_role	client	rpc in src/services/core/CoreMessageService.ts
 prepare_emoji_deletion	definer	trigger	service_role	trigger	trigger public.emojis BEFORE DELETE (trg_prepare_emoji_deletion)
 presence_heartbeat	definer	void	authenticated+service_role	client	rpc in src/services/userDataService.ts
-presence_offline	definer	void	authenticated+service_role	client	rpc in src/services/userDataService.ts
+presence_offline	definer	void	authenticated+service_role	client	rpc in src/services/userDataService.ts, src/stores/__tests__/authLock.test.ts
 presence_publish	definer	void	service_role	client, cron	called by presence_heartbeat, presence_offline, presence_sweep
 presence_related_ids	definer	SETOF uuid	service_role	client	rpc in federation-backend/src/routes/realtime.ts
 presence_sweep	definer	integer	service_role	cron	cron * * * * * (presence-sweep)

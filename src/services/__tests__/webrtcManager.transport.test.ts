@@ -161,6 +161,41 @@ describe('webrtcManager transport selection', () => {
   })
 })
 
+describe('webrtcManager token join', () => {
+  it('hands the join its cancellation', async () => {
+    const m = await manager()
+    const { signal } = new AbortController()
+    await expect(m.joinWithToken('wss://remote.test', 't', 'c1', 'u1', signal)).resolves.toBe(true)
+    expect(livekit.joinWithToken).toHaveBeenCalledWith('wss://remote.test', 't', 'c1', 'u1', signal)
+  })
+
+  it('cancelled before it starts, reaches no transport', async () => {
+    const m = await manager()
+    await expect(m.joinWithToken('wss://remote.test', 't', 'c1', 'u1', AbortSignal.abort())).resolves.toBe(false)
+    expect(livekit.joinWithToken).not.toHaveBeenCalled()
+    expect(m.getActiveService()).toBeNull()
+  })
+
+  it.each([
+    ['its transport ends it', () => Promise.reject(new DOMException('Connection cancelled', 'AbortError'))],
+    ['it connects all the same', () => Promise.resolve(true)],
+  ])('cancelled while it connects, leaves the transport directly: %s', async (_what, end) => {
+    const m = await manager()
+    const errors = vi.fn()
+    m.on('error', errors)
+    const controller = new AbortController()
+    livekit.joinWithToken.mockImplementation(async () => {
+      controller.abort()
+      return end()
+    })
+    await expect(m.joinWithToken('wss://remote.test', 't', 'c1', 'u1', controller.signal)).resolves.toBe(false)
+    expect(livekit.leaveChannel).toHaveBeenCalledTimes(1)
+    expect(m.getActiveService()).toBeNull()
+    expect(m.getLastJoinError()).toBeNull()
+    expect(errors).not.toHaveBeenCalled()
+  })
+})
+
 describe('webrtcManager soundboard', () => {
   it('sends plays on the active transport only', async () => {
     tokens.fetchLiveKitConfig.mockResolvedValue(unconfigured)

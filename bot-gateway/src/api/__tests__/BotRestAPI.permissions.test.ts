@@ -585,7 +585,10 @@ describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
       .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
 
     expect(res.status).toBe(204)
-    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: null, metadata: { bot: true } }])
+    expect(deleted).toEqual([{
+      id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: null,
+      user_id: null, bot_id: BOT_ID, is_system: undefined, metadata: { bot: true },
+    }])
   })
 
   it('reports the thread of a deleted thread message', async () => {
@@ -596,7 +599,10 @@ describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
       .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
 
     expect(res.status).toBe(204)
-    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: THREAD_ID, metadata: { bot: true } }])
+    expect(deleted).toEqual([{
+      id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: THREAD_ID,
+      user_id: null, bot_id: BOT_ID, is_system: undefined, metadata: { bot: true },
+    }])
   })
 
   it('reports nothing for a refused delete or an already soft-deleted row', async () => {

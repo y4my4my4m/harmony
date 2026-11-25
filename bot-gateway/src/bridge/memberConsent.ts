@@ -2,8 +2,9 @@
  * Harmony members' bridge opt-outs (bridge_member_optouts), applied to what the gateway sends a
  * bridge. A bridge reader is a bot whose platform for the channel is set (bridge_channel_platform);
  * only bots with bot_type 'bridge' or a bridge_platform can be one. Creates, edits and reaction
- * adds of a member who opted out of a reader's platform are withheld from that reader; deletes and
- * reaction removals always go through.
+ * adds of a member who opted out of a reader's platform are withheld from that reader; deletes
+ * (with the bridge's own mapping as their metadata) and reaction removals always go through. The
+ * name of a thread speaks for its creator and for the author of its starter message.
  *
  * Caches: bridge candidacy per bot 60 s, platform per (bot, channel) 10 s, a server's opt-outs per
  * platform 5 s. An opt-out reaches dispatch within 5 s; a pairing change within 10 s.
@@ -97,33 +98,39 @@ export interface ConsentSource {
 }
 
 /**
- * The Harmony member a row speaks for: its author, or the invoker of a bot's interaction reply. A
- * system row has no author (messages_system_authorless): the member who acted is metadata.actor_id,
- * or metadata.subject_id where a member's own join or leave names no actor.
+ * The Harmony members a row speaks for: its author, or the invoker of a bot's interaction reply. A
+ * system row has no author (messages_system_authorless); it speaks for every member its metadata
+ * names: actor_id, who acted; subject_id, whom it is about (a join, a leave, a kick, a ban);
+ * automod.user_id, whose message an AutoMod alert quotes.
  */
-export function consentSubject(source: ConsentSource | null | undefined): string | null {
-  if (!source) return null
-  if (typeof source.user_id === 'string' && source.user_id) return source.user_id
+export function consentSubjects(source: ConsentSource | null | undefined): string[] {
+  if (!source) return []
+  if (typeof source.user_id === 'string' && source.user_id) return [source.user_id]
   const metadata = source.metadata
-  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
-  const fields = metadata as { interaction?: { user_id?: unknown }; actor_id?: unknown; subject_id?: unknown }
-  const member = source.is_system === true
-    ? fields.actor_id ?? fields.subject_id
-    : source.bot_id ? fields.interaction?.user_id : null
-  return typeof member === 'string' && member ? member : null
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return []
+  const fields = metadata as {
+    interaction?: { user_id?: unknown } | null
+    actor_id?: unknown
+    subject_id?: unknown
+    automod?: { user_id?: unknown } | null
+  }
+  const members = source.is_system === true
+    ? [fields.actor_id, fields.subject_id, fields.automod?.user_id]
+    : source.bot_id ? [fields.interaction?.user_id] : []
+  return [...new Set(members.filter((id): id is string => typeof id === 'string' && id !== ''))]
 }
 
 /**
- * `readers` without the bridge readers whose platform `subject` opted out of in `serverId`. A
- * failed lookup withholds from every reader not known to be an ordinary bot.
+ * `readers` without the bridge readers whose platform one of `subjects` opted out of in `serverId`.
+ * A failed lookup withholds from every reader not known to be an ordinary bot.
  */
 export async function consentingReaders(
   readers: string[],
   serverId: string,
   channelId: string,
-  subject: string | null,
+  subjects: readonly string[],
 ): Promise<string[]> {
-  if (!subject || readers.length === 0) return readers
+  if (subjects.length === 0 || readers.length === 0) return readers
   let bridges: Set<string>
   try {
     bridges = await bridgeCandidates(readers)
@@ -139,15 +146,120 @@ export async function consentingReaders(
     }
     try {
       const platform = await bridgeChannelPlatform(botId, channelId)
-      if (!platform || !(await memberOptOuts(serverId, platform)).has(subject)) kept.push(botId)
+      const optedOut = platform ? await memberOptOuts(serverId, platform) : null
+      if (!optedOut || !subjects.some(id => optedOut.has(id))) kept.push(botId)
     } catch {
-      // Withheld: the reader is a bridge and its subject's choice is unknown.
+      // Withheld: the reader is a bridge and its subjects' choice is unknown.
     }
   }
   return kept
 }
 
-/** Whether `subject`'s rows may reach `botId` in `channelId` (the bridge-consent endpoint, history reads). */
-export async function relayAllowed(botId: string, serverId: string, channelId: string, subject: string | null): Promise<boolean> {
-  return (await consentingReaders([botId], serverId, channelId, subject)).length === 1
+/** Whether a row speaking for `subjects` may reach `botId` in `channelId`. */
+export async function relayAllowed(botId: string, serverId: string, channelId: string, subjects: readonly string[]): Promise<boolean> {
+  return (await consentingReaders([botId], serverId, channelId, subjects)).length === 1
+}
+
+// Thread names
+
+/** The title bot_create_thread gives an opted-out Discord author's thread. */
+export const WITHHELD_THREAD_NAME = 'Thread'
+
+export interface ThreadNameSource {
+  id: string
+  created_by?: string | null
+  parent_message_id: string | null
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const NO_READERS: ReadonlySet<string> = new Set()
+
+/** The bridges of `channelId` among `readers`, and the bots whose part in it is unknown. */
+export async function bridgeReaders(readers: string[], channelId: string): Promise<string[]> {
+  let bridges: Set<string>
+  try {
+    bridges = await bridgeCandidates(readers)
+  } catch {
+    return readers.filter(id => candidates.get(id)?.value !== false)
+  }
+  const found: string[] = []
+  for (const botId of readers) {
+    if (!bridges.has(botId)) continue
+    try {
+      if ((await bridgeChannelPlatform(botId, channelId)) !== null) found.push(botId)
+    } catch {
+      found.push(botId)
+    }
+  }
+  return found
+}
+
+/**
+ * The members a thread's name speaks for, by thread id: its creator, and those of its starter
+ * message, whose first 50 characters are the app's default name. A thread whose starter message is
+ * gone is left out. Throws when the starter messages cannot be read.
+ */
+export async function threadNameSubjects(threads: readonly ThreadNameSource[]): Promise<Map<string, string[]>> {
+  const starterIds = [...new Set(threads.flatMap(thread => thread.parent_message_id ?? []))]
+  if (starterIds.length === 0) return new Map()
+  const { data, error } = await supabase
+    .from('messages')
+    .select('id, user_id, bot_id, is_system, metadata')
+    .in('id', starterIds)
+  if (error || !Array.isArray(data)) throw new Error(error?.message ?? 'Thread starter messages unavailable')
+  const starters = new Map((data as Array<ConsentSource & { id: string }>).map(row => [row.id, row]))
+  const subjects = new Map<string, string[]>()
+  for (const thread of threads) {
+    const starter = thread.parent_message_id ? starters.get(thread.parent_message_id) : undefined
+    if (!starter) continue
+    subjects.set(thread.id, [...new Set([...(thread.created_by ? [thread.created_by] : []), ...consentSubjects(starter)])])
+  }
+  return subjects
+}
+
+/** metadata.thread_id of a thread_created notice that names its thread ('' without one); null for any other row. */
+export function namedThreadId(source: ConsentSource): string | null {
+  const metadata = source.metadata
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
+  const fields = metadata as { type?: unknown; thread_id?: unknown; thread_name?: unknown }
+  if (fields.type !== 'thread_created' || typeof fields.thread_name !== 'string') return null
+  return typeof fields.thread_id === 'string' ? fields.thread_id : ''
+}
+
+/**
+ * The readers a thread_created notice of each thread reaches without the thread's name: the bridge
+ * readers whose platform a member it speaks for opted out of, and every bridge reader when the
+ * thread or its starter message cannot be read.
+ */
+export async function threadNameWithheldFrom(
+  readers: string[],
+  serverId: string,
+  channelId: string,
+  threadIds: readonly string[],
+): Promise<Map<string, ReadonlySet<string>>> {
+  const withheld = new Map<string, ReadonlySet<string>>(threadIds.map(id => [id, NO_READERS]))
+  if (threadIds.length === 0) return withheld
+  const bridges = await bridgeReaders(readers, channelId)
+  if (bridges.length === 0) return withheld
+  let subjects = new Map<string, string[]>()
+  try {
+    const { data, error } = await supabase
+      .from('threads')
+      .select('id, created_by, parent_message_id')
+      .in('id', threadIds.filter(id => UUID.test(id)))
+    if (!error && Array.isArray(data)) subjects = await threadNameSubjects(data as ThreadNameSource[])
+  } catch {
+    // Withheld from every bridge reader: no thread has subjects.
+  }
+  for (const id of withheld.keys()) {
+    const members = subjects.get(id)
+    const reading = new Set(members ? await consentingReaders(bridges, serverId, channelId, members) : [])
+    withheld.set(id, new Set(bridges.filter(botId => !reading.has(botId))))
+  }
+  return withheld
+}
+
+/** A thread_created notice as a reader its thread's name is withheld from gets it. */
+export function withoutThreadName<T extends ConsentSource>(notice: T): T {
+  return { ...notice, metadata: { ...(notice.metadata as Record<string, unknown>), thread_name: WITHHELD_THREAD_NAME } }
 }

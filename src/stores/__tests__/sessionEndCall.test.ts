@@ -10,7 +10,9 @@ const dm = vi.hoisted(() => ({ cleanup: vi.fn(), leaveCall: vi.fn(async () => un
 const serverUsers = vi.hoisted(() => ({ leaveVoiceChannel: vi.fn(async () => true) }))
 const db = vi.hoisted(() => ({ rpc: vi.fn(async () => ({ data: null, error: null })), from: vi.fn() }))
 const auth$ = vi.hoisted(() => ({
+  /** Fires an event and resolves once the store has handled it; the listener itself returns at once. */
   event: null as unknown as (event: string, session: unknown) => Promise<void>,
+  listener: null as unknown as (event: string, session: unknown) => unknown,
   rejected: null as unknown as (reason: string) => void,
   stored: null as unknown,
   signOut: vi.fn(async () => {}),
@@ -27,8 +29,8 @@ vi.mock('@/supabase', () => ({
     auth: {
       storageKey: 'sb-test-auth-token',
       getSession: async () => ({ data: { session: auth$.stored }, error: null }),
-      onAuthStateChange: (callback: typeof auth$.event) => {
-        auth$.event = callback
+      onAuthStateChange: (callback: typeof auth$.listener) => {
+        auth$.listener = callback
         return { data: { subscription: { unsubscribe: () => {} } } }
       },
       mfa: { listFactors: async () => ({ data: { totp: [{ status: 'verified' }] }, error: null }) },
@@ -91,6 +93,15 @@ beforeAll(async () => {
   auth.setUserOffline = vi.fn(async () => {})
   auth.initializeUserSettings = vi.fn()
   await auth.initializeAuth()
+
+  const handled: Array<Promise<void>> = []
+  auth.$onAction(({ name, after, onError }: any) => {
+    if (name === 'handleAuthEvent') handled.push(new Promise((resolve) => { after(() => resolve()); onError(() => resolve()) }))
+  })
+  auth$.event = async (event, next) => {
+    expect(auth$.listener(event, next)).toBeUndefined()
+    await Promise.all(handled.splice(0))
+  }
 })
 
 beforeEach(() => {

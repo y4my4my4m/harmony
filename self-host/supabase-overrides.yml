@@ -156,17 +156,23 @@ services:
   # Compose prefers the calling shell's variables over supabase/.env. Under the names
   # storage-api reads (AWS_* through the AWS SDK, REGION), an admin's exported AWS CLI
   # variables would replace the bucket's, so supabase/.env has names of its own.
+  # An endpoint, key or path style that is not set is left out: `environment` beats `env_file`
+  # even when its value is empty, and an override file may give the bucket's settings there. The
+  # entry is then the bare name of the unset key, which Compose does not find and does not pass.
+  # Without STORAGE_S3_BUCKET the path style goes under S3_FORCE_PATH_STYLE, a name storage-api
+  # does not read. GLOBAL_S3_BUCKET and REGION are `stub` in the stack's own environment too; the
+  # file backend's directory is named by the former.
   storage:
     image: ${STORAGE_IMAGE:-supabase/storage-api:v1.90.0}
     environment:
-      FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-52428800}
-      STORAGE_BACKEND: ${STORAGE_BACKEND:-file}
-      GLOBAL_S3_BUCKET: ${STORAGE_S3_BUCKET:-stub}
-      GLOBAL_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-}
-      GLOBAL_S3_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-true}
-      AWS_ACCESS_KEY_ID: ${STORAGE_S3_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${STORAGE_S3_SECRET_ACCESS_KEY:-}
-      REGION: ${STORAGE_S3_REGION:-stub}
+      - FILE_SIZE_LIMIT=${FILE_SIZE_LIMIT:-52428800}
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-file}
+      - GLOBAL_S3_BUCKET=${STORAGE_S3_BUCKET:-stub}
+      - ${STORAGE_S3_ENDPOINT:+GLOBAL_S3_ENDPOINT=}${STORAGE_S3_ENDPOINT:-STORAGE_S3_ENDPOINT}
+      - ${STORAGE_S3_BUCKET:+GLOBAL_}S3_FORCE_PATH_STYLE=${STORAGE_S3_FORCE_PATH_STYLE:-true}
+      - ${STORAGE_S3_ACCESS_KEY_ID:+AWS_ACCESS_KEY_ID=}${STORAGE_S3_ACCESS_KEY_ID:-STORAGE_S3_ACCESS_KEY_ID}
+      - ${STORAGE_S3_SECRET_ACCESS_KEY:+AWS_SECRET_ACCESS_KEY=}${STORAGE_S3_SECRET_ACCESS_KEY:-STORAGE_S3_SECRET_ACCESS_KEY}
+      - REGION=${STORAGE_S3_REGION:-stub}
 
   # Animated emoji and large images: frames count toward the source resolution
   # limit (megapixels). v4.0.22 in place of the stack's v3.8.0: it decodes every

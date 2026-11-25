@@ -294,6 +294,9 @@ const db = vi.hoisted(() => ({
   /** Reads of activity_app_files, and how long one takes, ms. */
   fileReads: 0,
   fileDelay: 0,
+  /** A read that never answers, and whether it was aborted. */
+  fileStalls: false,
+  fileSignal: null as AbortSignal | null,
   existing: null as null | { version: string | null; enabled: boolean; builtin: boolean },
   rpc: vi.fn(),
 }))
@@ -304,9 +307,14 @@ vi.mock('../../config/supabase.js', () => ({
       const chain = {
         select: () => chain,
         eq: () => chain,
+        abortSignal: (signal: AbortSignal) => {
+          db.fileSignal = signal
+          return chain
+        },
         maybeSingle: async () => {
           if (table !== 'activity_app_files') return { data: db.existing, error: null }
           db.fileReads++
+          if (db.fileStalls) return new Promise<never>(() => {})
           if (db.fileDelay) await new Promise((resolve) => setTimeout(resolve, db.fileDelay))
           return db.fileError ? { data: null, error: db.fileError } : { data: db.file, error: null }
         },
@@ -342,6 +350,8 @@ beforeEach(() => {
   db.fileError = null
   db.fileReads = 0
   db.fileDelay = 0
+  db.fileStalls = false
+  db.fileSignal = null
   db.existing = null
   db.rpc.mockReset()
 })
@@ -387,6 +397,30 @@ describe('package files', () => {
     expect(db.fileReads).toBe(0)
     expect((await supertest(server).get(paths[0])).status).toBe(200)
     expect(db.fileReads).toBe(1)
+  })
+
+  it('gives up on a read that does not answer within 10 s, for every request waiting on it', async () => {
+    const bytes = Buffer.from('stalled')
+    const path = `/activities/pkg/tictac/${sha256Hex(bytes)}.js`
+    db.fileStalls = true
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      let arrived = 0
+      const server = express().use((_req, _res, next) => { arrived++; next() }).use(app())
+      const answers = Promise.all([0, 1].map(async () => (await supertest(server).get(path)).status))
+      await vi.waitFor(() => expect(arrived).toBe(2))
+      expect(db.fileSignal?.aborted).toBe(false)
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(await answers).toEqual([503, 503])
+      expect(db.fileReads).toBe(1)
+      expect(db.fileSignal?.aborted).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+    db.fileStalls = false
+    db.file = { content_type: 'text/javascript; charset=utf-8', bytes: `\\x${bytes.toString('hex')}` }
+    expect((await supertest(app()).get(path)).status).toBe(200)
+    expect(db.fileReads).toBe(2)
   })
 
   it('answers 503 while the file cannot be read, and reads again after', async () => {

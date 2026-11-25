@@ -44,10 +44,15 @@ const MAX_ICON = 2048;
 const KINDS = new Set<GroupAuthorKind>(['bot', 'webhook', 'bridge']);
 const MATRIX_ID = /^matrix:@[^\s:]+:[^\s]+$/;
 
+/** The first `max` UTF-16 units. A surrogate without its pair becomes U+FFFD: jsonb refuses it. */
+function cut(value: string, max: number): string {
+  return value.slice(0, max).toWellFormed();
+}
+
 function text(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.replace(/[\u0000-\u001f\u007f]/g, '').trim();
-  return trimmed ? trimmed.slice(0, max) : null;
+  return trimmed ? cut(trimmed, max) : null;
 }
 
 /** An absolute https URL, or null: the default avatar and relative paths are left out. */
@@ -107,7 +112,7 @@ export function wireGroupAuthor(author: GroupAuthor): GroupAuthor & { bridgeId?:
   if (author.kind !== 'bridge' || author.source !== 'matrix') return author;
   const id = author.id.length <= MAX_ID_1_9_7
     ? author.id
-    : `${author.id.slice(0, MAX_ID_1_9_7 - 65)}:${createHash('sha256').update(author.id).digest('hex')}`;
+    : `${cut(author.id, MAX_ID_1_9_7 - 65)}:${createHash('sha256').update(author.id).digest('hex')}`;
   return { ...author, kind: 'webhook', id, bridgeId: author.id };
 }
 

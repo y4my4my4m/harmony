@@ -10,8 +10,9 @@
  * a broadcast that was not acknowledged (channel config broadcast.ack) also asks again.
  */
 
-import { supabase } from '@/supabase';
+import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from '@/supabase';
 import { hasCapability } from '@/services/instanceCapabilities';
+import { currentMemberToken } from '@/services/realtimeMemberToken';
 import { debug } from '@/utils/debug';
 
 export type SignalTopic = `harmony-voice-${string}` | `dm-call:${string}` | `easter-egg:${string}`;
@@ -66,4 +67,23 @@ export async function sendSignal(
   debug.warn('[Signals]', event, 'on', topic, 'was not taken as a broadcast:', outcome);
   if (absent && await relay(topic, event, payload)) return;
   throw new Error(`Signal not delivered: ${String(outcome)}`);
+}
+
+/**
+ * One signal through send_signal from an unloading page: a keepalive request with the token Realtime
+ * holds. supabase.rpc waits for auth-js's lock first, which such a page never gets.
+ */
+export function sendSignalOnUnload(topic: SignalTopic, event: string, payload: Record<string, unknown>): void {
+  const token = currentMemberToken();
+  if (!token) return;
+  try {
+    void fetch(`${SUPABASE_URL}/rest/v1/rpc/send_signal`, {
+      method: 'POST',
+      keepalive: true,
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_topic: topic, p_event: event, p_payload: payload }),
+    }).catch(() => {});
+  } catch {
+    // The other members drop this one once its connection has failed (unifiedWebRTC watchPeer).
+  }
 }

@@ -12,9 +12,9 @@ const OTHER_USER = '00000000-0000-0000-0000-0000000000a2'
 const MESSAGE = '00000000-0000-0000-0000-0000000000f1'
 const author = { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.example/sam.png' }
 const stored = { id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.example/sam.png' }
-const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), upload: vi.fn(), list: vi.fn(), getPublicUrl: vi.fn() }))
+const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), upload: vi.fn(), list: vi.fn(), remove: vi.fn(), getPublicUrl: vi.fn() }))
 vi.mock('../../config/supabase.js', () => ({
-  supabase: { from: mocks.from, rpc: mocks.rpc, storage: { from: () => ({ upload: mocks.upload, list: mocks.list, getPublicUrl: mocks.getPublicUrl }) } }, config: {},
+  supabase: { from: mocks.from, rpc: mocks.rpc, storage: { from: () => ({ upload: mocks.upload, list: mocks.list, remove: mocks.remove, getPublicUrl: mocks.getPublicUrl }) } }, config: {},
 }))
 vi.mock('../../auth/BotAuthMiddleware.js', () => ({
   botAuthMiddleware: (req: any, _res: any, next: any) => { req.bot = { id: BOT, username: 'matrix-bridge', scopes: ['bot'] }; next() },
@@ -32,7 +32,7 @@ let consent: unknown
 let room: unknown
 let members: unknown
 // bridge_upload_reserve's answer.
-let admitted: boolean
+let admitted: string
 const fetcher = vi.fn()
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks() })
 function app() { const a = express(); a.use(express.json({ limit: '2mb' })); a.use('/api/v1', new BotRestAPI().router); return a }
@@ -42,7 +42,7 @@ const inserted = () => db.writesTo('messages', 'insert').map(w => w.rows[0])
 beforeEach(() => {
   forgetBridgeConsent()
   platform = 'matrix'; platformFails = false; optedOut = {}; optOutsFail = false; consent = true
-  admitted = true
+  admitted = 'reserved'
   room = { room_id: '!opaqueRoom', sender_mode: 'ghost' }
   members = [{ id: USER, username: 'alice', display_name: 'Alice', avatar_url: 'alice/avatar.png', nickname: null, domain: 'profiles.example', is_local: true }]
   fetcher.mockReset(); vi.stubGlobal('fetch', fetcher)
@@ -73,7 +73,9 @@ beforeEach(() => {
     throw new Error('Unmocked RPC: ' + fn)
   })
   mocks.upload.mockResolvedValue({ error: null })
+  mocks.list.mockReset(); mocks.remove.mockReset()
   mocks.list.mockResolvedValue({ data: [], error: null })
+  mocks.remove.mockResolvedValue({ data: [], error: null })
   mocks.getPublicUrl.mockImplementation((path: string) => ({ data: { publicUrl: 'https://harmony.example/storage/v1/object/public/avatars/' + path } }))
 })
 
@@ -186,6 +188,78 @@ describe('history and single reads by a Matrix bridge', () => {
     expect(history200.status).toBe(200)
     expect(history200.body).toEqual([])
     expect((await supertest(app()).get('/api/v1/messages/' + MESSAGE)).status).toBe(404)
+  })
+
+  describe('a thread_created notice', () => {
+    const STARTER = '00000000-0000-0000-0000-0000000000f3'
+    const THREAD = '00000000-0000-0000-0000-0000000000f4'
+    const NOTICE = '00000000-0000-0000-0000-0000000000f5'
+    // OTHER_USER's thread on USER's message, named after it.
+    beforeEach(() => {
+      db.tables.threads = [{ id: THREAD, channel_id: CHANNEL, parent_message_id: STARTER, name: 'what USER wrote', created_by: OTHER_USER }]
+      db.tables.messages = [
+        {
+          id: NOTICE, channel_id: CHANNEL, user_id: null, bot_id: null, is_system: true, content: [{ type: 'text', text: 'started a thread' }],
+          metadata: { type: 'thread_created', actor_id: OTHER_USER, thread_id: THREAD, thread_name: 'what USER wrote', discord_message_id: '456' },
+          created_at: '2026-11-02T00:00:00Z',
+        },
+        { id: STARTER, channel_id: CHANNEL, user_id: USER, bot_id: null, content: [{ type: 'text', text: 'what USER wrote' }], metadata: {}, created_at: '2026-11-01T00:00:00Z' },
+      ]
+    })
+    /** The notice's thread_name on every route that answers it; undefined where it is withheld. */
+    const names = async () => {
+      const read = async (path: string) => (await supertest(app()).get(path)).body
+      return [
+        (await read(base + '/messages')).find((m: any) => m.id === NOTICE)?.metadata.thread_name,
+        (await read('/api/v1/messages/' + NOTICE)).metadata?.thread_name,
+        (await read(base + '/messages/lookup?discord_message_id=456')).metadata?.thread_name,
+      ]
+    }
+
+    it('names the thread while neither its creator nor the starter\'s author opted out', async () => {
+      expect(await names()).toEqual(Array(3).fill('what USER wrote'))
+    })
+
+    it('reads Thread, and the starter is withheld, when the starter\'s author opted out', async () => {
+      optedOut = { matrix: [USER] }
+      expect(await names()).toEqual(Array(3).fill('Thread'))
+      expect((await supertest(app()).get('/api/v1/messages/' + STARTER)).status).toBe(404)
+      expect((await supertest(app()).get(base + '/messages')).text).not.toContain('what USER wrote')
+      expect(db.rows('messages')[0].metadata.thread_name).toBe('what USER wrote')
+    })
+
+    it('is withheld when its creator opted out, alone or with the starter\'s author', async () => {
+      for (const ids of [[OTHER_USER], [OTHER_USER, USER]]) {
+        forgetBridgeConsent()
+        optedOut = { matrix: ids }
+        expect(await names()).toEqual(Array(3).fill(undefined))
+      }
+    })
+
+    it('reads Thread when the starter is gone or cannot be read', async () => {
+      db.tables.threads = []
+      expect(await names()).toEqual(Array(3).fill('Thread'))
+      db.failures.threads = { message: 'offline' }
+      expect(await names()).toEqual(Array(3).fill('Thread'))
+    })
+
+    it('is left as it is for an ordinary bot', async () => {
+      optedOut = { matrix: [USER, OTHER_USER] }
+      db.rows('bots')[0].bridge_platform = null
+      expect(await names()).toEqual(Array(3).fill('what USER wrote'))
+    })
+  })
+
+  it('hides a removal notice from a bridge when the moderator or the removed member opted out', async () => {
+    db.rows('messages')[0] = {
+      id: MESSAGE, channel_id: CHANNEL, user_id: null, bot_id: null, is_system: true, content: [],
+      metadata: { type: 'member_ban', subject_id: USER, actor_id: OTHER_USER, reason: 'private' }, created_at: '2026-11-01T00:00:00Z',
+    }
+    for (const [out, seen] of [[[], [MESSAGE]], [[USER], []], [[OTHER_USER], []]] as Array<[string[], string[]]>) {
+      forgetBridgeConsent()
+      optedOut = { matrix: out }
+      expect(ids((await history()).body)).toEqual(seen)
+    }
   })
 
   it('fills a short page from older rows, at most four further reads', async () => {
@@ -333,10 +407,78 @@ describe('bounded Matrix avatar upload', () => {
     forgetBridgeConsent(); platform = 'matrix'; mocks.upload.mockResolvedValue({ error: { message: 'unavailable' } })
     expect((await upload()).status).toBe(503)
   })
-  it('answers 507 for a new avatar past the bot\'s or the server\'s limit, and uploads nothing', async () => {
-    admitted = false
+  it('answers 507 for a new avatar past the server\'s limit, 429 while files in flight hold it, and uploads nothing', async () => {
+    mocks.upload.mockClear()
+    admitted = 'full'
     const refused = await upload()
     expect(refused.status).toBe(507); expect(refused.body).toEqual({ error: 'Bridge avatar limit reached' })
-    expect(mocks.upload).not.toHaveBeenCalled()
+    admitted = 'busy'
+    const busy = await upload()
+    expect(busy.status).toBe(429); expect(busy.headers['retry-after']).toBe('5')
+    expect(busy.body).toEqual({ error: 'Bridge avatar storage is busy', retry_after: 5 })
+    expect(mocks.upload).not.toHaveBeenCalled(); expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  describe('past the limit of avatars in the server', () => {
+    const folder = `bridges/${BOT}/${SERVER}`
+    // The folder as storage lists it: the sha256 search, or the object written longest ago.
+    let stored: Array<{ name: string; updated_at: string }>
+    beforeEach(() => {
+      mocks.upload.mockReset()
+      stored = [{ name: 'new.png', updated_at: '2026-11-20T00:00:00Z' }, { name: 'old.png', updated_at: '2026-11-01T00:00:00Z' }]
+      mocks.list.mockImplementation(async (_folder: string, options: any) => ({
+        data: options.search
+          ? stored.filter(object => object.name.startsWith(options.search))
+          : options.sortBy.column === 'updated_at' && options.sortBy.order === 'asc'
+            ? [...stored].sort((a, b) => a.updated_at.localeCompare(b.updated_at)).slice(0, options.limit) : stored,
+        error: null,
+      }))
+      mocks.remove.mockImplementation(async (paths: string[]) => {
+        stored = stored.filter(object => !paths.includes(`${folder}/${object.name}`))
+        return { data: paths, error: null }
+      })
+      mocks.upload.mockImplementation(async (path: string) => {
+        stored.push({ name: path.split('/').at(-1)!, updated_at: new Date().toISOString() })
+        return { error: null }
+      })
+      const original = mocks.rpc.getMockImplementation()!
+      mocks.rpc.mockImplementation(async (fn: string, args: any) => fn === 'bridge_upload_reserve'
+        ? { data: stored.length >= 2 ? 'avatars' : 'reserved', error: null } : original(fn, args))
+    })
+
+    it('replaces the object written longest ago, and claims again before the upload', async () => {
+      const res = await upload()
+      expect(res.status).toBe(200)
+      expect(mocks.remove.mock.calls).toEqual([[[`${folder}/old.png`]]])
+      expect(stored.map(object => object.name)).toEqual(['new.png', (res.body.avatar_url as string).split('/').at(-1)])
+      expect(claims()).toHaveLength(2)
+      expect(new Set(claims().map(claim => claim.p_reservation_id)).size).toBe(1)
+      expect(releases()).toHaveLength(1)
+    })
+
+    it('answers 507 when other uploads take each place it makes, 503 when nothing can be removed', async () => {
+      mocks.remove.mockResolvedValue({ data: [], error: null })
+      expect((await upload()).status).toBe(507)
+      expect(mocks.remove).toHaveBeenCalledTimes(3)
+      mocks.remove.mockResolvedValue({ data: null, error: { message: 'offline' } })
+      expect((await upload()).status).toBe(503)
+      expect(mocks.upload).not.toHaveBeenCalled()
+      expect(releases()).toHaveLength(2)
+    })
+
+    it('writes an avatar still asked for again after a day, so that it is not the oldest', async () => {
+      stored = []
+      const name = ((await upload()).body.avatar_url as string).split('/').at(-1)!
+      mocks.upload.mockClear(); mocks.rpc.mockClear()
+      expect((await upload()).status).toBe(200)
+      expect(mocks.upload).not.toHaveBeenCalled()
+
+      stored = [{ name, updated_at: new Date(Date.now() - 25 * 3_600_000).toISOString() }]
+      mocks.upload.mockResolvedValueOnce({ error: { message: 'offline' } }).mockResolvedValueOnce({ error: null })
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      for (let i = 0; i < 2; i++) expect((await upload()).status).toBe(200)
+      expect(mocks.upload.mock.calls.map(([path, , options]) => [path, options.upsert])).toEqual(Array(2).fill([`${folder}/${name}`, true]))
+      expect(claims()).toEqual([])
+    })
   })
 })

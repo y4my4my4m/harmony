@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import express from 'express'
 import helmet from 'helmet'
@@ -66,31 +65,38 @@ describe('activity frame', () => {
     expect((await supertest(app()).get('/activities/frame/tictac?source=package&entry=app.js')).status).toBe(400)
   })
 
-  it('lets a nested document run the loader or nothing', async () => {
+  it('sends one policy, which takes the loader by its nonce', async () => {
     const res = await supertest(app()).get('/activities/frame/drawinphone?entry=app.1a2b3c4d.js')
     const all = policies(res.headers['content-security-policy'])
-    expect(all).toHaveLength(2)
-    const inline = /<script nonce="[^"]+">([\s\S]*?)<\/script>/.exec(res.text)![1]
-    const sources = all[1].get('script-src')!.split(' ')
-    expect(sources).toContain(`'sha256-${createHash('sha256').update(inline).digest('base64')}'`)
-    expect(sources).toContain("'strict-dynamic'")
-    expect(sources.some((source) => source.startsWith("'nonce-") || source.startsWith("'unsafe"))).toBe(false)
-    // The first policy keeps 'strict-dynamic' within the app's folder.
-    expect(all[0].get('script-src')).not.toContain("'strict-dynamic'")
-    expect(all[1].get('worker-src')).toBe('blob:')
+    expect(all).toHaveLength(1)
+    // WebKit drops every policy's host list for modules and worker imports where one holds it.
+    expect(res.headers['content-security-policy']).not.toContain("'strict-dynamic'")
   })
+
+  /** What the loader adds to its document's head, and the globals left when it added each. */
+  function run(globals: string[]) {
+    const window: Record<string, unknown> = { parent: { postMessage: () => {} }, addEventListener: () => {} }
+    for (const name of globals) window[name] = class {}
+    const added: Array<{ tag: string; src?: string; httpEquiv?: string; content?: string; left: string[] }> = []
+    const document = {
+      createElement: (tag: string) => ({ tag }),
+      head: { appendChild: (el: { tag: string }) => { added.push({ ...el, left: globals.filter((name) => name in window) }) } },
+    }
+    new Function('window', 'self', 'document', frameLoader('https://harmony.test/activities/x/app.js'))(window, { origin: 'null' }, document)
+    return added
+  }
 
   it('removes the WebRTC constructors and the shell ports before it adds the activity', () => {
     const gone = ['chrome', 'webkit', 'RTCPeerConnection', 'webkitRTCPeerConnection', 'mozRTCPeerConnection', 'RTCDataChannel']
-    const window: Record<string, unknown> = { parent: { postMessage: () => {} }, addEventListener: () => {} }
-    for (const name of gone) window[name] = class {}
-    let left: string[] | null = null
-    const document = {
-      createElement: () => ({ src: '' }),
-      head: { appendChild: () => { left = gone.filter((name) => name in window) } },
-    }
-    new Function('window', 'self', 'document', frameLoader('https://harmony.test/activities/x/app.js'))(window, { origin: 'null' }, document)
-    expect(left).toEqual([])
+    expect(run(gone)[0]).toEqual({ tag: 'script', src: 'https://harmony.test/activities/x/app.js', left: [] })
+  })
+
+  it('takes no script after the activity, in the frame or a document nested in it', () => {
+    const [script, policy, ...rest] = run([])
+    expect(script.tag).toBe('script')
+    expect(policy).toMatchObject({ tag: 'meta', httpEquiv: 'Content-Security-Policy' })
+    expect(directives(policy.content!)).toEqual(new Map([['script-src', "'none'"], ['worker-src', 'blob:']]))
+    expect(rest).toEqual([])
   })
 
   it('uses a fresh nonce per response', async () => {

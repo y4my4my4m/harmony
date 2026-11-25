@@ -52,6 +52,14 @@ export class OverQuotaError extends Error {
   }
 }
 
+/** The cap has room for `bytes` more, apart from the files being stored at the moment. */
+export class QuotaBusyError extends Error {
+  constructor(readonly bytes: number) {
+    super(`Server mirror limit held by files in flight (${bytes} bytes refused)`)
+    this.name = 'QuotaBusyError'
+  }
+}
+
 /** Discord answered 403, 404 or 410: the attachment is deleted or its link no longer works. */
 export class GoneError extends Error {
   constructor(status: number) {
@@ -354,14 +362,19 @@ async function storeLocalFile(
   return { path: storagePath, url: url ?? referenceUrl(storagePath), contentType, bytes: size }
 }
 
-/** Claims `size` bytes in all unless as many are claimed; OverQuotaError when the server's cap refuses them. */
+/**
+ * Claims `size` bytes in all unless as many are claimed; OverQuotaError or QuotaBusyError when the
+ * server's cap refuses them.
+ */
 function admitTo(reservation: Reservation) {
   let admitted = -1
   return async (size: number): Promise<void> => {
     // bridge_upload_reserve takes a bigint: whole bytes, never negative.
     const bytes = Math.max(0, Math.ceil(size))
     if (bytes <= admitted) return
-    if (!(await reservation.claim(bytes))) throw new OverQuotaError(bytes)
+    const claim = await reservation.claim(bytes)
+    if (claim === 'busy') throw new QuotaBusyError(bytes)
+    if (claim !== 'reserved') throw new OverQuotaError(bytes)
     admitted = bytes
   }
 }
@@ -371,9 +384,10 @@ function admitTo(reservation: Reservation) {
  * as c/<channel id>/bridge/<bot id>/<uuid>.<ext>, without its location and camera metadata
  * (stripMetadata.ts). The strip and the stored type follow the file's leading bytes
  * (sniffContainer), not the declared type or name. Never holds a video in memory. TooLargeError
- * for anything over `ceiling`; OverQuotaError when the server's cap refuses the file, claimed with
- * the known size before the download, with Content-Length before the body, and with the stored
- * size before the upload whenever that is the largest so far. The claim ends with the call.
+ * for anything over `ceiling`; OverQuotaError or QuotaBusyError when the server's cap refuses the
+ * file, claimed with the known size before the download, with Content-Length before the body, and
+ * with the stored size before the upload whenever that is the largest so far. The claim ends with
+ * the call.
  */
 export async function mirrorFileToStorage(
   sourceUrl: string,

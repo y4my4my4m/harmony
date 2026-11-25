@@ -2,7 +2,7 @@ import { readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { WebSocketGateway } from '../gateway/WebSocketGateway.js'
-import { GoneError, needsDiscordResign, OverQuotaError, TooLargeError, type mirrorFileToStorage } from '../utils/mirrorFile.js'
+import { GoneError, needsDiscordResign, OverQuotaError, QuotaBusyError, TooLargeError, type mirrorFileToStorage } from '../utils/mirrorFile.js'
 import { isAllowedSourceUrl, toMirroredPart, type BridgeAttachmentMode } from '../utils/mirrorExternalMedia.js'
 import { isDatabaseRefusal } from './mirrorEnqueue.js'
 
@@ -13,6 +13,9 @@ const MAX_ATTEMPTS = 5
 const REFRESH_RETRY_SECONDS = 120
 const OFFLINE_RETRY_SECONDS = 900
 const CONFLICT_RETRY_SECONDS = 60
+// A claim refused for files in flight costs one call and no download: it is asked again without
+// counting as an attempt. A file in flight holds its bytes until it is stored, 1800 s at most.
+const QUOTA_BUSY_RETRY_SECONDS = 300
 
 export interface MirrorWorkerDeps {
   /** Rejects with the PostgREST error's `code` on the Error it throws. */
@@ -253,6 +256,7 @@ export class MirrorWorker {
     let largest = 0
     let gone = false
     let overQuota = false
+    let quotaBusy = false
     let failure: any = null
     for (let index = 0; index < content.length; index++) {
       const part = content[index]
@@ -270,6 +274,7 @@ export class MirrorWorker {
       } catch (error: any) {
         if (error instanceof TooLargeError) largest = Math.max(largest, error.bytes)
         else if (error instanceof OverQuotaError) overQuota = true
+        else if (error instanceof QuotaBusyError) quotaBusy = true
         else if (error instanceof GoneError) gone = true
         else failure = error
       }
@@ -323,7 +328,9 @@ export class MirrorWorker {
       return
     }
 
-    if (gone) await this.finish(job, 'failed', attempts, { error: 'gone from Discord' })
+    if (quotaBusy && !failure) {
+      await this.finish(job, 'queued', attempts, { retry: QUOTA_BUSY_RETRY_SECONDS, error: 'server limit held by files in flight' })
+    } else if (gone) await this.finish(job, 'failed', attempts, { error: 'gone from Discord' })
     else if (failure) await this.finishWithError(job, attempts, failure)
     else if (overQuota) await this.finish(job, 'over_quota', attempts, { error: 'over the server limit' })
     else if (largest > 0) await this.finish(job, 'too_large', attempts, { largest })

@@ -122,7 +122,7 @@ To recover messages missed while disconnected, read the channels you care about 
 - **No thread events.** Messages posted in a thread arrive as `MESSAGE_CREATE` with `thread_id` set; there is no separate thread event.
 - **Interactions.** `INTERACTION_CREATE` goes only to the bot whose command was run, on every open connection, without the `read_messages` check: running the command is the member addressing that bot. The gateway reads new interactions every 250 milliseconds. One that cannot reach an open connection fails at once; one older than its 5-second answer window when the gateway reads it is dropped. Outgoing webhooks do not receive it.
 
-Bridge bots additionally respect each native member's **Bridge privacy** setting for message create/update/delete and reaction events. Public slash-command bot replies use the invoking member's consent, including their update/delete/reaction events. Preferences are checked at delivery without a consent cache; unavailable privacy state discloses no event. Ordinary bots and independent server webhooks are unaffected. This does not revoke previously delivered payloads or erase remote copies; queued bridge programs must also [recheck current consent](/build/rest#bridge-registration-and-consent).
+Bridge bots additionally respect each native member's **Bridge privacy** setting: message creates, updates and reaction adds of a member who opted out are withheld from them, with the replies of bots to that member's slash commands and the system messages that name them. Deletes and reaction removals reach every bridge bot; the `metadata` of a withheld message's delete holds only the mapping the bridge recorded. The gateway reads a preference at most 5 seconds after a change, a pairing 10; unavailable privacy state discloses no message. See [Member opt-out](/build/bridges#member-opt-out). Ordinary bots and independent server webhooks are unaffected. This does not revoke previously delivered payloads or erase remote copies; queued bridge programs must also [recheck current consent](/build/rest#bridge-registration-and-consent).
 
 ## Events
 
@@ -219,7 +219,7 @@ A system message has `is_system: true` and `author: null`: nobody wrote it. `met
 |---|---|
 | `member_join`, `member_leave` | `subject_id`: the member |
 | `member_kick`, `member_ban` | `subject_id`: the member; `actor_id`: the moderator; `reason` |
-| `thread_created` | `actor_id`, or `actor_bot_id` and `discord_user` for a thread a bridge relayed; `thread_id`, `thread_name` |
+| `thread_created` | `actor_id`, or `actor_bot_id` and `discord_user` for a thread a bridge relayed; `thread_id`, `thread_name` (`Thread` for a bridge it is [withheld](/build/bridges#member-opt-out) from) |
 | `channel_encryption_enabled`, `channel_encryption_disabled`, `channel_voice_encryption_enabled`, `channel_voice_encryption_disabled` | `actor_id` |
 | `automod_alert` | `automod` |
 
@@ -241,7 +241,7 @@ Sent once per message, when the message is deleted in the app or through the RES
 | `server_id` | UUID | Server of the channel. |
 | `channel_id` | UUID | Channel ID. |
 | `thread_id` | UUID or `null` | Thread the message was in. |
-| `metadata` | object or `null` | The message's last metadata. |
+| `metadata` | object or `null` | The message's last metadata; for a bridge the message is [withheld](/build/bridges#member-opt-out) from, the mapping it recorded alone. |
 
 A message removed from the database by other means, such as deleting its channel, produces no event.
 

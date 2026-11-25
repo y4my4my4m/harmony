@@ -51,6 +51,7 @@ import {
   EmptyFileError,
   GoneError,
   OverQuotaError,
+  QuotaBusyError,
   TooLargeError,
   discordLinkExpiresAt,
   isDiscordLinkExpired,
@@ -129,12 +130,12 @@ beforeEach(async () => {
   mocks.sign.mockReset()
   mocks.sign.mockImplementation(async (paths: string[]) => new Map(paths.map((p) => [p, `https://signed.test/${p}`])))
   mocks.rpc.mockReset()
-  mocks.rpc.mockResolvedValue({ data: true, error: null })
+  mocks.rpc.mockResolvedValue({ data: 'reserved', error: null })
   mocks.remove.mockReset()
   mocks.remove.mockImplementation(async (paths: string[]) => ({ data: paths.map((name) => ({ name })), error: null }))
   mocks.bucket.mockReset()
   mocks.allows.mockReset()
-  mocks.allows.mockResolvedValue(true)
+  mocks.allows.mockResolvedValue('reserved')
   mocks.release.mockReset()
   mocks.release.mockResolvedValue(undefined)
   mocks.stripBytes.mockClear()
@@ -532,7 +533,7 @@ describe('mirrorFileToStorage sniffs the leading bytes', () => {
 
 describe('mirrorFileToStorage and the server cap', () => {
   it('asks with the known size before any request and refuses with OverQuotaError', async () => {
-    mocks.allows.mockResolvedValue(false)
+    mocks.allows.mockResolvedValue('full')
     const fetchImpl = serve(new Uint8Array(100), { 'content-type': 'video/mp4' })
     const err = await mirrorFileToStorage(URL_OK, { ...base, knownSize: 100, tmpDir: tmp, fetchImpl }).catch((e) => e)
     expect(err).toBeInstanceOf(OverQuotaError)
@@ -543,7 +544,7 @@ describe('mirrorFileToStorage and the server cap', () => {
   })
 
   it('asks with Content-Length before reading the body, and cancels it when refused', async () => {
-    mocks.allows.mockResolvedValue(false)
+    mocks.allows.mockResolvedValue('full')
     const cancel = vi.fn(async () => {})
     const body = new ReadableStream<Uint8Array>({ pull(c) { c.enqueue(new Uint8Array(4)) }, cancel })
     const fetchImpl = serve(body, { 'content-type': 'video/mp4', 'content-length': '20' })
@@ -556,13 +557,24 @@ describe('mirrorFileToStorage and the server cap', () => {
   })
 
   it('asks with the stored size when none was known, and uploads nothing when refused', async () => {
-    mocks.allows.mockResolvedValue(false)
+    mocks.allows.mockResolvedValue('full')
     const body = Readable.toWeb(Readable.from([Buffer.alloc(8), Buffer.alloc(8)])) as ReadableStream<Uint8Array>
     const err = await mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: serve(body, { 'content-type': 'video/mp4' }) }).catch((e) => e)
     expect(err).toBeInstanceOf(OverQuotaError)
     expect(mocks.allows.mock.calls).toEqual([[16]])
     expect(uploads).toHaveLength(0)
     expect(await readdir(tmp)).toEqual([])
+  })
+
+  it('refuses with QuotaBusyError while only files in flight are in the way', async () => {
+    mocks.allows.mockResolvedValue('busy')
+    const fetchImpl = serve(new Uint8Array(100), { 'content-type': 'video/mp4' })
+    const err = await mirrorFileToStorage(URL_OK, { ...base, knownSize: 100, tmpDir: tmp, fetchImpl }).catch((e) => e)
+    expect(err).toBeInstanceOf(QuotaBusyError)
+    expect(err).not.toBeInstanceOf(OverQuotaError)
+    expect(err.bytes).toBe(100)
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(mocks.release).toHaveBeenCalledTimes(1)
   })
 
   it('asks once when the file is no larger than the size it was admitted with', async () => {
@@ -581,7 +593,7 @@ describe('mirrorFileToStorage and the server cap', () => {
   })
 
   it('asks again when the file is larger than the size it was admitted with', async () => {
-    mocks.allows.mockImplementation(async (bytes: number) => bytes <= 10)
+    mocks.allows.mockImplementation(async (bytes: number) => (bytes <= 10 ? 'reserved' : 'full'))
     const body = Readable.toWeb(Readable.from([Buffer.alloc(60), Buffer.alloc(40)])) as ReadableStream<Uint8Array>
     const err = await mirrorFileToStorage(URL_OK, { ...base, knownSize: 10, tmpDir: tmp, fetchImpl: serve(body, { 'content-type': 'video/mp4' }) }).catch((e) => e)
     expect(err).toBeInstanceOf(OverQuotaError)
@@ -599,7 +611,7 @@ describe('mirrorFileToStorage and the server cap', () => {
     reply = { status: 500, body: '{"message":"boom"}' }
     await expect(run()).rejects.toThrow(/^Storage upload failed: 500 /)
     expect(mocks.release).toHaveBeenCalledTimes(3)
-    mocks.allows.mockResolvedValue(false)
+    mocks.allows.mockResolvedValue('full')
     await expect(run()).rejects.toBeInstanceOf(OverQuotaError)
     expect(mocks.release).toHaveBeenCalledTimes(4)
   })
@@ -615,7 +627,7 @@ describe('mirrorFileToStorage and the server cap', () => {
     expect(released).toEqual({ p_reservation_id: claim.p_reservation_id })
     expect(uploads).toHaveLength(1)
 
-    mocks.rpc.mockResolvedValue({ data: false, error: null })
+    mocks.rpc.mockResolvedValue({ data: 'full', error: null })
     await expect(run()).rejects.toBeInstanceOf(OverQuotaError)
 
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'connection refused' } })
@@ -690,7 +702,7 @@ describe('storeBotUpload', () => {
 
   it('claims the declared size before the body is read, and releases it after the upload', async () => {
     const order: string[] = []
-    mocks.allows.mockImplementation(async (bytes: number) => { order.push(`claim ${bytes}`); return true })
+    mocks.allows.mockImplementation(async (bytes: number) => { order.push(`claim ${bytes}`); return 'reserved' })
     mocks.release.mockImplementation(async () => { order.push(`release after ${uploads.length} upload(s)`) })
     const body = new Readable({ read() { order.push('read'); this.push(Buffer.from('plain text')); this.push(null) } })
     await storeBotUpload(body, { ...upload, tmpDir: tmp, declaredSize: 10, reservation })
@@ -706,7 +718,7 @@ describe('storeBotUpload', () => {
     expect(mocks.allows.mock.calls).toEqual([[2 * MB], [4 * MB]])
 
     mocks.allows.mockReset()
-    mocks.allows.mockImplementation(async (bytes: number) => bytes <= 2 * MB)
+    mocks.allows.mockImplementation(async (bytes: number) => (bytes <= 2 * MB ? 'reserved' : 'full'))
     const err = await storeBotUpload(Readable.from(chunks), { ...upload, ceiling: 8 * MB, tmpDir: tmp, reservation }).catch((e) => e)
     expect(err).toBeInstanceOf(OverQuotaError)
     expect(uploads).toHaveLength(1)
@@ -715,11 +727,43 @@ describe('storeBotUpload', () => {
   })
 
   it('refuses a claim that lands after the last chunk', async () => {
-    mocks.allows.mockImplementation(async () => { await new Promise((r) => setTimeout(r, 30)); return false })
+    mocks.allows.mockImplementation(async () => { await new Promise((r) => setTimeout(r, 30)); return 'full' })
     const err = await storeBotUpload(Readable.from([Buffer.from('hello')]), { ...upload, tmpDir: tmp, reservation }).catch((e) => e)
     expect(err).toBeInstanceOf(OverQuotaError)
     expect(uploads).toHaveLength(0)
     expect(mocks.release).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a body whose claim only files in flight are in the way of with QuotaBusyError', async () => {
+    mocks.allows.mockResolvedValue('busy')
+    const run = (declaredSize?: number) => storeBotUpload(Readable.from([Buffer.from('hello')]), { ...upload, tmpDir: tmp, declaredSize, reservation })
+    await expect(run(5)).rejects.toBeInstanceOf(QuotaBusyError)
+    await expect(run()).rejects.toBeInstanceOf(QuotaBusyError)
+    expect(uploads).toHaveLength(0)
+    expect(mocks.release).toHaveBeenCalledTimes(2)
+  })
+
+  it('releases a claim still being asked for when the body is cut off, after its answer', async () => {
+    const order: string[] = []
+    let answer = () => {}
+    mocks.rpc.mockImplementation(async (fn: string) => {
+      order.push(fn)
+      if (fn !== 'bridge_upload_reserve') return { data: null, error: null }
+      await new Promise<void>((resolve) => { answer = resolve })
+      order.push('reserved')
+      return { data: 'reserved', error: null }
+    })
+    const body = new Readable({ read() {} })
+    body.push('half')
+    const run = storeBotUpload(body, { ...upload, tmpDir: tmp })
+    await vi.waitFor(() => expect(order).toEqual(['bridge_upload_reserve']))
+    body.destroy()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(order).toEqual(['bridge_upload_reserve'])
+    answer()
+    await expect(run).rejects.toThrow('Upload aborted')
+    expect(order).toEqual(['bridge_upload_reserve', 'reserved', 'bridge_upload_release'])
+    expect(await readdir(tmp)).toEqual([])
   })
 
   it('releases the claim and the temp folder of a body past the ceiling, an upload that failed and one cut off', async () => {
@@ -766,7 +810,7 @@ describe('storeBotUpload', () => {
     const empty = await storeBotUpload(Readable.from([]), { ...upload, tmpDir: tmp }).catch((e) => e)
     expect(empty).toBeInstanceOf(EmptyFileError)
 
-    mocks.allows.mockResolvedValue(false)
+    mocks.allows.mockResolvedValue('full')
     const full = await storeBotUpload(Readable.from([Buffer.from('hello')]), { ...upload, tmpDir: tmp, reservation }).catch((e) => e)
     expect(full).toBeInstanceOf(OverQuotaError)
     expect(uploads).toHaveLength(0)

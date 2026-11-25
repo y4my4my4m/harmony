@@ -7,8 +7,10 @@
 // on the others, the answer named by the database; a call past the account's ring limit rings no
 // one and says when the next one can. A join whose signalling topic never answers fails with the
 // microphone released. A file downloaded during a call leaves the call up, and signing out leaves
-// it at once. A session that ends elsewhere (signed out in another tab, revoked) ends the call here
-// with the microphone off and nothing sent. A callee with call notifications off declines.
+// it at once. A member whose page closes is out of the call at once, by the user-left its closing page
+// sends; one whose page is killed, or whose session ends elsewhere, once its connection has failed. A
+// session that ends elsewhere (signed out in another tab, revoked) ends the call here with the
+// microphone off and nothing sent. A callee with call notifications off declines.
 //
 // The stack runs no Realtime: a scripted server answers joins and heartbeats, delivers every row
 // the database writes to realtime.messages to the sockets that joined its topic, and relays a
@@ -261,6 +263,13 @@ async function joinVoice(page: Page, channelId: string): Promise<void> {
 }
 
 const row = (page: Page, user: SpecUser) => page.locator(`[data-testid="voice-participant-${user.id}"]`)
+/** The other members of the call this page is in, as its call view lists them. */
+const callRoster = (page: Page) => page.evaluate(() => {
+  const root = document.querySelector('#app') as unknown as {
+    __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, { allUsers: Array<{ userId: string }> }> } } } }
+  }
+  return root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')!.allUsers.map((user) => user.userId)
+})
 const speakingAvatar = (page: Page, user: SpecUser) => row(page, user).locator('.speaking')
 const toast = (page: Page, text: string | RegExp) => page.locator('.Vue-Toastification__toast').filter({ hasText: text })
 
@@ -514,8 +523,68 @@ test('a file downloaded during a P2P call leaves the call up, and signing out le
   }
 })
 
+test('a member whose page closes is out of the call at once; one whose page is killed, once its connection has failed', async ({ browser }) => {
+  test.setTimeout(240_000)
+  const realtime = new ScriptedRealtime()
+  await realtime.start()
+  try {
+    const a = await openAs(browser, realtime, alice)
+    await openChannel(a, server.id, server.generalChannelId)
+    await joinVoice(a, lounge)
+
+    const bobJoins = async (): Promise<Page> => {
+      const b = await openAs(browser, realtime, bob)
+      await openChannel(b, server.id, server.generalChannelId)
+      await joinVoice(b, lounge)
+      for (const page of [a, b]) {
+        await expect.poll(async () => (await peerConnections(page)).map((p) => p.connection), { timeout: 30_000 }).toContain('connected')
+      }
+      await expect.poll(() => callRoster(a), { timeout: 15_000 }).toEqual([bob.id])
+      await expect(row(a, bob)).toBeVisible()
+      return b
+    }
+    const bobSaid = (type: string, since: string) => sql(`SELECT count(*) FROM realtime.messages m, jsonb_array_elements(m.payload->'messages') signal
+                                                          WHERE m.topic = 'harmony-voice-${lounge}' AND m.payload->>'from' = '${bob.id}'
+                                                            AND signal->>'type' = '${type}' AND m.inserted_at >= '${since}'`)
+
+    await test.step('Bob closes his tab: his page says so on its way out', async () => {
+      const b = await bobJoins()
+      const since = await sql('SELECT now()::timestamp::text')
+      await b.goto('about:blank')
+      await expect.poll(() => callRoster(a), { timeout: 5_000 }).toEqual([])
+      await expect(row(a, bob)).toHaveCount(0, { timeout: 5_000 })
+      expect(await bobSaid('user-left', since)).toBe('1')
+      expect((await peerConnections(a)).filter((p) => p.signaling !== 'closed')).toEqual([])
+      await b.context().close()
+    })
+
+    await test.step('Bob\'s page is killed: no word of it, and he is out once his connection has failed', async () => {
+      const b = await bobJoins()
+      const since = await sql('SELECT now()::timestamp::text')
+      const cdp = await b.context().newCDPSession(b)
+      void cdp.send('Page.crash').catch(() => {})
+      // Still there while the connection may come back.
+      await a.waitForTimeout(3_000)
+      expect(await callRoster(a)).toEqual([bob.id])
+      await expect.poll(() => callRoster(a), { timeout: 60_000 }).toEqual([])
+      await expect(row(a, bob)).toHaveCount(0, { timeout: 5_000 })
+      expect(await bobSaid('user-left', since)).toBe('0')
+      expect((await peerConnections(a)).filter((p) => p.signaling !== 'closed')).toEqual([])
+      await b.context().close()
+    })
+
+    await test.step('back after it, he is in the call again', async () => {
+      const b = await bobJoins()
+      await b.context().close()
+    })
+    await a.context().close()
+  } finally {
+    realtime.stop()
+  }
+})
+
 test('a session that ends elsewhere ends the call in this tab: microphone off, sign-in shown, nothing sent', async ({ browser }) => {
-  test.setTimeout(180_000)
+  test.setTimeout(240_000)
   const realtime = new ScriptedRealtime()
   await realtime.start()
   // An account of its own: its sessions are ended.
@@ -558,6 +627,9 @@ test('a session that ends elsewhere ends the call in this tab: microphone off, s
       await c.waitForTimeout(1_500)
       expect(sent).toEqual([])
       await expect.poll(async () => (await peerConnections(a)).filter((p) => p.connection === 'connected').length, { timeout: 30_000 }).toBe(0)
+      // Nothing was said: Alice lists her until the connection has failed for a while.
+      await expect.poll(() => callRoster(a), { timeout: 60_000 }).toEqual([])
+      await expect(row(a, carol)).toHaveCount(0, { timeout: 5_000 })
     }
 
     await test.step('signed out in another tab', async () => {
@@ -576,9 +648,11 @@ test('a session that ends elsewhere ends the call in this tab: microphone off, s
       await signIn(c, carol)
       await enterCall()
       await sql(`DELETE FROM auth.sessions WHERE user_id = '${carol.id}'`)
-      await c.locator('[data-testid="message-input"] .rich-text-editor').click()
-      await c.keyboard.type('anyone here?')
-      await c.keyboard.press('Enter')
+      // A request of the page's own can be the next one: the composer is gone with it.
+      await c.locator('[data-testid="message-input"] .rich-text-editor').click({ timeout: 5_000 })
+        .then(() => c.keyboard.type('anyone here?'))
+        .then(() => c.keyboard.press('Enter'))
+        .catch(() => {})
       await expectOut(/\/login\?reason=session_revoked$/)
     })
     for (const page of [a, c]) await page.context().close()
