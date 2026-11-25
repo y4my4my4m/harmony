@@ -128,6 +128,22 @@ async function enterCall(page: Page, user: SpecUser, overlay: boolean): Promise<
   }, { serverId: server.id, channelId: voiceId, userId: user.id, roster: [alice.id, bob.id], overlay })
 }
 
+/** Leaves the call as the voice store's leave does: channel cleared, call view closed. */
+async function leaveCall(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    type Store = { $patch: (fn: (state: Record<string, any>) => void) => void }
+    const root = document.querySelector('#app') as unknown as {
+      __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, Store> } } } }
+    }
+    root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')!.$patch((state) => {
+      state.isConnected = false
+      state.currentChannelId = null
+      state.currentServerId = null
+      state.isOverlayVisible = false
+    })
+  })
+}
+
 test.afterAll(async () => {
   test.setTimeout(120_000)
   await admin.from('activity_apps').delete().eq('id', 'tictac')
@@ -411,8 +427,14 @@ test('a call plays DrawinPhone on its stage, and the frame takes input over the 
   const row = await must('session', admin.from('activity_sessions').select('context, status').eq('channel_id', voiceId).eq('status', 'active').single())
   expect(row.data!.context).toBe('voice')
 
+  // Leaving the call leaves its game: no corner card whose Return has no call to go back to.
+  await leaveCall(b.page)
+  await expect(b.page.getByTestId('play-together-panel')).toHaveCount(0)
+  await expect(b.page.getByTestId('play-together-mini')).toHaveCount(0)
+  await expect(stage.locator('.pt-panel__people')).toHaveAttribute('aria-label', '1 playing', { timeout: 30_000 })
+
   await a.page.getByTestId('play-together-end').click()
-  await expect(b.page.getByTestId('play-together-status')).toHaveText(/Ended/)
+  await expect(a.page.getByTestId('play-together-status')).toHaveText(/Ended/)
   await a.context.close()
   await b.context.close()
 })

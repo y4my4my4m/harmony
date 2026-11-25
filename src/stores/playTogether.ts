@@ -323,6 +323,13 @@ export const usePlayTogetherStore = defineStore('playTogether', () => {
 
   watch(visible, (value) => joined.value?.runtime.setVisible(value))
 
+  // A voice channel's game belongs to its call, as on Discord: leaving the call or moving to another
+  // leaves the game. A reconnecting call keeps its channel.
+  watch(() => useUnifiedVoiceChannelStore().currentChannelId, (channelId) => {
+    const target = joined.value?.target
+    if (target?.kind === 'channel' && target.voice && channelId !== target.id) leave()
+  })
+
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
       pageVisible.value = document.visibilityState === 'visible'

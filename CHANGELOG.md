@@ -33,7 +33,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   from the notice it posts; nobody needs to be in a call. It is a button in a text channel's header
   and in a call, and an entry of **More options** (⋮) in a DM or a group. In a call the activity
   takes the stage like a shared screen, and until you join it, it is a tile beside the participants
-  with **Join**, as watch and listen together are. Player names show their custom emojis. The panel
+  with **Join**, as watch and listen together are; leaving the call leaves its game. Player names
+  show their custom emojis. The panel
   docks above the messages at a height you drag,
   expands over them, and keeps running behind a corner card when you open another conversation. A
   game ends when its last player selects **Leave**; one whose last player only lost the connection

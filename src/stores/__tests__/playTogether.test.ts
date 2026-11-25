@@ -14,14 +14,18 @@ const h = vi.hoisted(() => ({
 vi.mock('vue-toastification', () => ({ useToast: () => ({ info: vi.fn(), error: vi.fn() }) }))
 vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key, locale: { value: 'en' } } } }))
 vi.mock('@/services/downloads', () => ({ saveFile: vi.fn() }))
-vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => ({ isOverlayVisible: false }) }))
+vi.mock('@/stores/unifiedVoiceChannel', async () => {
+  const { reactive } = await import('vue')
+  const voice = reactive({ isOverlayVisible: false, currentChannelId: null as string | null })
+  return { useUnifiedVoiceChannelStore: () => voice, voice }
+})
 vi.mock('@/utils/avatarUtils', () => ({ getAvatarUrl: (url: string) => url }))
 vi.mock('@/services/playTogether/frameSupport', () => ({ frameRefusal: () => null }))
 vi.mock('@/services/playTogether/catalog', () => ({
   fetchCatalog: async () => [],
   fetchAppRows: async () => [],
   localizedApp: (app: { name: string }) => ({ name: app.name, description: '' }),
-  mergeApps: () => [{ id: 'drawinphone', name: 'DrawinPhone', enabled: true, contexts: ['direct'] }],
+  mergeApps: () => [{ id: 'drawinphone', name: 'DrawinPhone', enabled: true, contexts: ['direct', 'voice'] }],
 }))
 vi.mock('@/services/playTogether/sessions', async (load) => ({
   ...(await load<typeof import('@/services/playTogether/sessions')>()),
@@ -40,12 +44,18 @@ vi.mock('@/services/playTogether/activityRuntime', () => ({
 }))
 
 import { usePlayTogetherStore } from '@/stores/playTogether'
+import * as voiceModule from '@/stores/unifiedVoiceChannel'
+import { nextTick } from 'vue'
+
+const voice = (voiceModule as unknown as { voice: { isOverlayVisible: boolean; currentChannelId: string | null } }).voice
 
 const DM = { kind: 'conversation' as const, id: 'conv-a' }
 const session = { id: 's1', app_id: 'drawinphone', app_name: 'DrawinPhone', context: 'direct', status: 'active', conversation_id: 'conv-a', members: [] } as any
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  voice.isOverlayVisible = false
+  voice.currentChannelId = null
   h.runtimes.length = 0
   h.getSessions.mockReset().mockResolvedValue([session])
   h.startSession.mockReset().mockResolvedValue({ session, existing: false })
@@ -104,6 +114,46 @@ describe('reset', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('a voice channel\'s game', () => {
+  const VOICE = { kind: 'channel' as const, id: 'v1', serverId: 'srv', voice: true }
+  const voiceSession = { ...session, id: 's2', context: 'voice', conversation_id: null, channel_id: 'v1', server_id: 'srv' }
+
+  async function inCallGame() {
+    h.getSessions.mockResolvedValue([voiceSession])
+    voice.currentChannelId = 'v1'
+    const store = usePlayTogetherStore()
+    await store.refresh(VOICE)
+    await store.join(voiceSession)
+    expect(store.joined?.target).toMatchObject({ id: 'v1', voice: true })
+    return store
+  }
+
+  it('is left with the call', async () => {
+    const store = await inCallGame()
+    voice.currentChannelId = null
+    await nextTick()
+    expect(store.joined).toBeNull()
+    expect(h.runtimes.at(-1)).toMatchObject({ destroyed: true })
+  })
+
+  it('is left when the member moves to another channel\'s call', async () => {
+    const store = await inCallGame()
+    voice.currentChannelId = 'v2'
+    await nextTick()
+    expect(store.joined).toBeNull()
+  })
+
+  it('leaves a DM\'s game alone when a call ends', async () => {
+    const store = usePlayTogetherStore()
+    voice.currentChannelId = 'v1'
+    await store.refresh(DM)
+    await store.join(session)
+    voice.currentChannelId = null
+    await nextTick()
+    expect(store.joined).not.toBeNull()
   })
 })
 
