@@ -223,6 +223,9 @@ cmd_up() {
   # init.sql does not run twice over itself; start from an empty database.
   cmd_down
 
+  # After down, whatever answers on the port is another stack, and seed writes to the port.
+  curl -s -o /dev/null --max-time 3 "$BASE_URL/" && die "port $PORT is in use; set E2E_PORT"
+
   write_env
   write_idp
   rm -rf "$AUTH_CONFIG_DIR"
