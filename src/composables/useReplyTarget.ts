@@ -1,10 +1,9 @@
-import { maskSpoilers } from '@/utils/spoiler'
 import { pollPreview } from '@/utils/messagePoll'
 import { computed, shallowRef, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { useMessageAuthorPresentation } from '@/composables/useMessageAuthorPresentation'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
-import { messagePartsToPlainText } from '@/utils/messageContentUtils'
+import { messagePreviewRuns, textRun, type PreviewRun } from '@/utils/previewRuns'
 import { isUndecrypted } from '@/utils/channelEncryption'
 import { i18n } from '@/i18n'
 import type { Message } from '@/types'
@@ -75,12 +74,12 @@ export function useReplyTarget(
     serverId: () => toValue(context).serverId,
   })
 
-  const previewText = computed(() => {
-    if (isLoading.value) return 'Loading...'
-    if (!replyMessage.value) return 'Deleted message'
-    if (isUndecrypted(replyMessage.value)) return i18n.global.t('channelEncryption.encryptedMessage')
-    return pollPreview(replyMessage.value.content)
-      ?? maskSpoilers(messagePartsToPlainText(replyMessage.value.content))
+  const previewRuns = computed<PreviewRun[]>(() => {
+    if (isLoading.value) return [textRun('Loading...')]
+    if (!replyMessage.value) return [textRun('Deleted message')]
+    if (isUndecrypted(replyMessage.value)) return [textRun(i18n.global.t('channelEncryption.encryptedMessage'))]
+    const poll = pollPreview(replyMessage.value.content)
+    return poll === null ? messagePreviewRuns(replyMessage.value.content) : [textRun(poll)]
   })
 
   const authorLabel = computed(() => {
@@ -91,7 +90,7 @@ export function useReplyTarget(
   return {
     replyMessage,
     isLoading,
-    previewText,
+    previewRuns,
     authorLabel,
     ...author,
   }

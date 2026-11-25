@@ -23,7 +23,7 @@
       <span v-if="contentWarning" class="reply-context-snippet reply-context-cw">
         {{ t('activitypub.replyContext.contentWarning', { text: contentWarning }) }}
       </span>
-      <span v-else-if="snippet" class="reply-context-snippet">{{ snippet }}</span>
+      <span v-else-if="snippet.length" class="reply-context-snippet"><PreviewRuns :runs="snippet" /></span>
       <span v-else-if="mediaLabel" class="reply-context-snippet reply-context-media">
         <Icon :name="mediaIcon" :size="12" class="reply-context-inline-icon" />{{ mediaLabel }}
       </span>
@@ -63,7 +63,8 @@ import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { safeHref } from '@/utils/sanitize'
-import { replySnippet } from '@/services/replyContext'
+import PreviewRuns from '@/components/common/PreviewRuns.vue'
+import { replySnippetRuns } from '@/services/replyContext'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import type { ReplyContext } from '@/types/activitypub'
 
@@ -109,11 +110,7 @@ const parentRoute = computed(() => {
 
 const contentWarning = computed(() => props.context?.content_warning?.trim() || '')
 
-const snippet = computed(() => {
-  const ctx = props.context
-  if (!ctx) return ''
-  return ctx.content_preview ?? replySnippet(ctx.content)
-})
+const snippet = computed(() => (props.context ? replySnippetRuns(props.context) : []))
 
 const media = computed(() => props.context?.media_attachments ?? [])
 

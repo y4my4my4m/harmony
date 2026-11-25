@@ -4,6 +4,9 @@
 // The pack's SVGs carry a viewBox and no width or height; an unsized <img> of one lays out at
 // 300px and raises the reply line to that height. The line stays one text line tall whether the
 // emoji is visible or past the ellipsis, and whether the reply is local or a federated copy.
+//
+// Custom emojis are images there too, this instance's and another's; one whose image is gone is
+// named, and one under a spoiler stays covered.
 
 import { randomUUID } from 'node:crypto'
 import { test, expect, type Locator } from '@playwright/test'
@@ -28,6 +31,8 @@ let user: SpecUser
 let server: SeededServer
 const remote = { id: randomUUID(), username: `rpr${marker}` }
 const replies = { localTrailing: '', remoteTrailing: '', plain: '' }
+const custom = { remote: '', local: '', gone: '', spoiler: '' }
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
 
 async function insert(row: Record<string, unknown>): Promise<string> {
   const { data, error } = await admin.from('messages').insert(row).select('id').single()
@@ -78,6 +83,28 @@ test.beforeAll(async () => {
     channel_id: channel, user_id: user.id, reply_to: plain, created_at: at(200),
     content: [{ type: 'text', text: `plain reply ${marker}` }],
   })
+
+  const emoji = (name: string, url: string) => ({ type: 'emoji', emoji: { id: randomUUID(), name, url } })
+  const pog = emoji('pog', `https://${REMOTE_DOMAIN}/emoji/pog.png`)
+  const targets = {
+    remote: [{ type: 'text', text: 'alright, lets update guys ' }, pog],
+    local: [{ type: 'text', text: 'ours ' }, emoji('wave', `${server.id}/wave.png`)],
+    gone: [{ type: 'text', text: 'lost ' }, emoji('gone', `https://${REMOTE_DOMAIN}/emoji/gone.png`)],
+    spoiler: [{ type: 'text', text: 'hidden ||' }, pog, { type: 'text', text: '||' }],
+  }
+  let age = 180
+  for (const [key, content] of Object.entries(targets)) {
+    const federated = key === 'local' ? { user_id: user.id } : {
+      user_id: remote.id,
+      metadata: { federated: true, from_domain: REMOTE_DOMAIN, ap_id: `https://${REMOTE_DOMAIN}/messages/${randomUUID()}` },
+    }
+    const message = await insert({ channel_id: channel, content, created_at: at(age), ...federated })
+    custom[key as keyof typeof custom] = await insert({
+      channel_id: channel, user_id: user.id, reply_to: message, created_at: at(age - 5),
+      content: [{ type: 'text', text: `answer ${key} ${marker}` }],
+    })
+    age -= 20
+  }
 })
 
 test.afterAll(async () => {
@@ -125,4 +152,31 @@ test('an emoji in the replied-to text keeps the reply line one text line tall', 
     expect(await height(emojiImage(id))).toBeLessThanOrEqual(fontSize * 1.5)
     expect(Math.abs((await height(line(id))) - plainHeight)).toBeLessThanOrEqual(1)
   }
+})
+
+test('the reply line draws custom emojis of this instance and of another', async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.route(`https://${REMOTE_DOMAIN}/emoji/*`, (route) => (route.request().url().endsWith('/gone.png')
+    ? route.fulfill({ status: 404 })
+    : route.fulfill({ contentType: 'image/png', body: PNG })))
+  await page.route('**/storage/v1/**/emojis/**', (route) => route.fulfill({ contentType: 'image/png', body: PNG }))
+  await signIn(page, user)
+  await openChannel(page, server.id, server.generalChannelId)
+  const list = messageList(page)
+  const preview = (replyId: string) => list.locator(`#msg-reply-${replyId}`).getByTestId('reply-preview')
+  for (const id of Object.values(custom)) await list.locator(`#msg-reply-${id}`).scrollIntoViewIfNeeded()
+
+  for (const [id, name, words] of [[custom.remote, 'pog', 'alright, lets update guys'], [custom.local, 'wave', 'ours']] as const) {
+    await expect(preview(id)).toContainText(words, { timeout: 30000 })
+    const image = preview(id).locator(`img[alt=":${name}:"]`)
+    await expect(image).toHaveCount(1)
+    await expect.poll(() => image.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0)
+    expect(await preview(id).innerText()).not.toContain(`:${name}:`)
+    const fontSize = await preview(id).evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+    expect((await image.boundingBox())!.height).toBeLessThanOrEqual(fontSize * 1.5)
+  }
+  await expect(preview(custom.gone)).toHaveText(/^lost\s+:gone:$/)
+  await expect(preview(custom.gone).locator('img')).toHaveCount(0)
+  await expect(preview(custom.spoiler)).toHaveText(/^hidden ▒+$/)
+  await expect(preview(custom.spoiler).locator('img')).toHaveCount(0)
 })

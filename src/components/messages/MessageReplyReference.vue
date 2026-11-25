@@ -13,7 +13,7 @@
         truncate
       />
       <span class="reply-preview" data-testid="reply-preview">
-        <TwemojiText :text="previewText" />
+        <PreviewRuns :runs="previewRuns" />
       </span>
     </span>
   </button>
@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { computed, toRef } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
-import TwemojiText from '@/components/common/TwemojiText.vue'
+import PreviewRuns from '@/components/common/PreviewRuns.vue'
 import MessageAuthorLabel from '@/components/messages/MessageAuthorLabel.vue'
 import { useReplyTarget } from '@/composables/useReplyTarget'
 import { useT } from '@/composables/useT'
@@ -46,7 +46,7 @@ const {
   bridgeSource,
   avatarUrl,
   usernameColor,
-  previewText,
+  previewRuns,
 } = useReplyTarget(
   toRef(props, 'replyToMessageId'),
   computed(() => ({

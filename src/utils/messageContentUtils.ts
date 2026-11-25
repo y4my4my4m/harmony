@@ -201,9 +201,12 @@ export function hasCopyableText(parts: MessagePart[] | null | undefined): boolea
 }
 
 /**
- * Extract plain text from MessagePart[] for previews
+ * Extract plain text from MessagePart[] for previews. `emojiText` spells a custom emoji; default :name:
  */
-export function messagePartsToPlainText(parts: MessagePart[]): string {
+export function messagePartsToPlainText(
+  parts: MessagePart[],
+  emojiText: (emoji: { name?: string; url?: string } | undefined) => string = (emoji) => (emoji?.name ? `:${emoji.name}:` : ''),
+): string {
   if (!Array.isArray(parts)) {
     return '';
   }
@@ -218,7 +221,7 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
         return unescapeMarkup(part.text || '');
       
       case 'emoji':
-        return part.emoji?.name ? `:${part.emoji.name}:` : '';
+        return emojiText(part.emoji);
       
       case 'mention':
         return bridgedMentionPlainText(part) ?? ((part as any).mention || (part.username ? `@${part.username}` : ''));
@@ -249,7 +252,10 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
  * Unlike messagePartsToPlainText, keeps remote-mention domains and hashtags
  * round-trippable and drops file placeholders.
  */
-export function messagePartsToRawText(parts: MessagePart[] | string): string {
+export function messagePartsToRawText(
+  parts: MessagePart[] | string,
+  emojiText?: (emoji: { name?: string; url?: string } | undefined) => string,
+): string {
   if (!Array.isArray(parts)) return typeof parts === 'string' ? parts : '';
   return parts.map((part: any) => {
     switch (part?.type) {
@@ -261,7 +267,7 @@ export function messagePartsToRawText(parts: MessagePart[] | string): string {
         if (isMassMentionWord(part.username) && !part.isBridged) return massWordHandle(part);
         return `@${part.username}`;
       }
-      case 'emoji': return discordEmojiPartText(part.emoji) ?? `:${part.emoji?.name || 'emoji'}:`;
+      case 'emoji': return emojiText ? emojiText(part.emoji) : discordEmojiPartText(part.emoji) ?? `:${part.emoji?.name || 'emoji'}:`;
       case 'hashtag': return `#${part.name}`;
       case 'channel_mention': return part.name ? `#${part.name}` : '';
       case 'role_mention': return part.roleId ? `@role:${part.roleId}` : '';
