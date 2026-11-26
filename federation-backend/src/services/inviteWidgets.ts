@@ -56,6 +56,13 @@ const TEXT: Record<string, WidgetText> = {
     online: (n) => `${n} en ligne`,
     invalid: "Cette invitation n'est plus valide",
   },
+  nl: {
+    join: 'Deelnemen',
+    joinOn: (i) => `Doe mee op ${i}`,
+    members: (n, c) => `${n} ${c === 1 ? 'lid' : 'leden'}`,
+    online: (n) => `${n} online`,
+    invalid: 'Uitnodiging niet meer geldig',
+  },
   ja: {
     join: '参加',
     joinOn: (i) => `${i}で参加`,

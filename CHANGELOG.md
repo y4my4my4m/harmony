@@ -7,6 +7,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- **Dutch.** **User settings** → **Language** offers **Nederlands**, and a browser set to Dutch starts
+  in it. The public profile and post pages, the invite badges and cards, and DrawinPhone speak Dutch
+  too, and activity packages may carry an `nl` name and description.
+
 ## [1.9.8] - 2026-11-25
 
 ### Added

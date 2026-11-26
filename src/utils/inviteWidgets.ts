@@ -21,7 +21,7 @@ export interface InviteWidgetSnippets {
   cardHtml: string
 }
 
-const LANGS = new Set(['de', 'es', 'fr', 'ja', 'ko', 'zh'])
+const LANGS = new Set(['de', 'es', 'fr', 'nl', 'ja', 'ko', 'zh'])
 
 function escapeMarkdownLabel(text: string): string {
   return text.replace(/[\\[\]]/g, '\\$&')

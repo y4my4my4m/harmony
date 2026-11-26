@@ -1,4 +1,4 @@
-/** UI strings for en es fr de ja ko zh; anything missing falls back to English. */
+/** UI strings for en es fr de nl ja ko zh; anything missing falls back to English. */
 
 const en = {
   tagline: 'Write. Draw. Guess. Laugh at the chaos.',
@@ -203,6 +203,42 @@ const de: Table = {
   skipped: 'übersprungen', react: 'Mit {emoji} reagieren', left: 'gegangen', replay: 'Nochmal ansehen', end: 'Für alle beenden',
 }
 
+const nl: Table = {
+  tagline: 'Schrijven. Tekenen. Raden. Lachen om de chaos.',
+  yourTurn: 'Jouw beurt: {what}',
+  connecting: 'Verbinden met de host…',
+  players: 'Spelers', you: 'jij', host: 'Host',
+  waitHost: 'Wachten tot {name} begint', start: 'Spel starten',
+  needMore: 'Minstens 2 spelers nodig', best: 'Het leukst met 4 of meer spelers',
+  settings: 'Spelinstellingen', mode: 'Modus',
+  mode_classic: 'Klassiek', mode_speed: 'Snel', mode_marathon: 'Marathon',
+  hint_classic: 'Eén stap per speler', hint_speed: 'Korte timers, snelle chaos', hint_marathon: 'Twee keer de tafel rond',
+  drawTime: 'Tekentijd', writeTime: 'Schrijftijd', seconds: '{n} s',
+  stepOf: 'Stap {n} van {total}', kind_write: 'Schrijven', kind_draw: 'Tekenen', kind_describe: 'Beschrijven',
+  writeTitle: 'Schrijf iets wat iemand anders moet tekenen', writePlaceholder: 'Een kat die een onderzeeër bestuurt…',
+  inspire: 'Geef me een idee', drawTitle: 'Teken dit', describeTitle: 'Wat staat er op deze tekening?',
+  describePlaceholder: 'Beschrijf wat je ziet…', submit: 'Klaar!', edit: 'Antwoord wijzigen',
+  waitingTitle: 'Mooi! Wachten op de anderen', waitingCount: 'Nog bezig: {n}',
+  spectating: 'Je kijkt mee met dit spel', spectatingBody: 'Bij het volgende spel doe je mee.',
+  blankDrawing: 'Er is niets getekend', autoPicked: 'De tijd was om, dus het spel heeft dit gekozen',
+  revealTitle: 'De onthulling', chainOf: 'Ketting van {name}', chainProgress: 'Ketting {n} van {total}',
+  next: 'Volgende', nextChain: 'Volgende ketting', showAwards: 'Prijzen tonen', autoplay: 'Automatisch afspelen',
+  save: 'Opslaan als afbeelding', saved: 'Opgeslagen', saveFailed: 'De afbeelding kon niet worden opgeslagen',
+  favourite: 'Favoriet', presenting: '{name} presenteert', awardsTitle: 'Prijzen',
+  award_favourite: 'Publiekslieveling', award_reactions: 'Meeste reacties', award_speed: 'Snelste handen',
+  award_detail: 'Meeste details', awardVotes: 'Stemmen: {n}', awardReactions: 'Reacties: {n}',
+  awardSeconds: '{n} s per stap', awardMarks: 'Streken: {n}', noAwards: 'Deze keer geen prijzen',
+  playAgain: 'Opnieuw spelen', waitAgain: 'Wachten tot {name} een nieuw spel start',
+  endedTitle: 'De activiteit is afgelopen', endedBody: 'Bedankt voor het spelen!',
+  tool_brush: 'Penseel', tool_eraser: 'Gum', tool_fill: 'Vullen', tool_line: 'Lijn',
+  tool_rect: 'Rechthoek', tool_ellipse: 'Ellips', tool_picker: 'Kleur kiezen',
+  size: 'Grootte', opacity: 'Dekking', color: 'Kleur {n}', customColor: 'Eigen kleur',
+  undo: 'Ongedaan maken', redo: 'Opnieuw', clear: 'Alles wissen',
+  canvasFull: 'De tekening is vol. Maak iets ongedaan of wis alles om verder te gaan.', reconnecting: 'Opnieuw verbinden…',
+  newHost: '{name} is nu de host', timeUp: 'Tijd is om!', canvasLabel: 'Tekenvlak',
+  skipped: 'overgeslagen', react: 'Reageren met {emoji}', left: 'vertrokken', replay: 'Opnieuw bekijken', end: 'Voor iedereen beëindigen',
+}
+
 const ja: Table = {
   tagline: '書いて、描いて、当てて、カオスを笑おう。',
   yourTurn: 'あなたの番：{what}',
@@ -311,7 +347,7 @@ const zh: Table = {
   skipped: '已跳过', react: '用 {emoji} 回应', left: '已离开', replay: '重播', end: '为所有人结束',
 }
 
-const TABLES: Record<string, Table> = { en, es, fr, de, ja, ko, zh }
+const TABLES: Record<string, Table> = { en, es, fr, de, nl, ja, ko, zh }
 
 export const LOCALES = Object.keys(TABLES)
 
