@@ -315,7 +315,7 @@ check_message_emoji_reaction_limit	definer	trigger	service_role	trigger	trigger 
 check_message_sticker_parts	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (check_message_sticker_parts)
 check_reaction_emoji	definer	trigger	service_role	trigger	trigger public.reactions BEFORE INSERT/UPDATE (b_reactions_emoji_check)
 claim_ap_activity	definer	boolean	service_role	client	rpc in federation-backend/src/activitypub/GroupService.ts, federation-backend/src/activitypub/InboxHandler.ts
-claim_bot_interactions	definer	jsonb	service_role	client	rpc in bot-gateway/src/gateway/InteractionPoller.ts
+claim_bot_interactions	definer	jsonb	service_role	client	rpc in bot-gateway/src/gateway/InteractionPoller.ts, bot-gateway/src/utils/__tests__/upstreamBackoff.test.ts
 claim_device_recovery_trust	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 claim_following_import_batch	definer	jsonb	service_role	client	rpc in federation-backend/src/queue/handlers/followingImportHandler.ts
 claim_outgoing_webhook_delivery	definer	TABLE(delivery_id uuid, webhook_id uuid, url text, secret text, event text, payload jsonb, attempts integer, created_at timestamp with time zone, defer_ms integer)	service_role	client	rpc in federation-backend/src/services/OutgoingWebhookSender.ts
