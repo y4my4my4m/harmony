@@ -3650,7 +3650,9 @@
     "loadFailed": "{kind} konnten nicht geladen werden",
     "tryDifferentSearch": "Versuche einen anderen Suchbegriff",
     "noFavoritesOf": "Noch keine favorisierten {kind}",
-    "noneFound": "Keine {kind} gefunden"
+    "noneFound": "Keine {kind} gefunden",
+    "results": "{kind}-Ergebnisse",
+    "clip": "Clip"
   },
   "emoji": {
     "messageReactionLimit": "Diese Nachricht hat {count} verschiedene Reaktionen. Schließe dich einer davon an.",

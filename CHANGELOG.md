@@ -62,6 +62,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   original beside it), and starts the stack. `harmony doctor` names oversized logs, containers
   without log rotation, and a damaged Redis file. See
   [After the disk filled](https://docs.mony.lol/self-host/troubleshooting#disk-full).
+- **The `/gif` results magnify like the macOS Dock.** Resting the pointer on the strip above the
+  message box grows the result under it to full size, uncropped, so the text in it can be read; the
+  results beside it grow less and the row spreads around it, following the pointer along the strip.
+  The same holds for `/sticker`, `/clip`, `/meme` and `/aiemoji`. A click sends the result under the
+  pointer. **↑** in the message box moves into the results, **←**/**→** move between them, **Enter**
+  sends and **Esc** returns to the message box. On a touchscreen, press and hold a result; letting
+  go sends nothing.
 
 ### Changed
 

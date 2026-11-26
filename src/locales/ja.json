@@ -4005,7 +4005,9 @@
     "loadFailed": "{kind} を読み込めませんでした",
     "tryDifferentSearch": "別の検索語句をお試しください",
     "noFavoritesOf": "お気に入りの {kind} はまだありません",
-    "noneFound": "{kind} が見つかりません"
+    "noneFound": "{kind} が見つかりません",
+    "results": "{kind} の検索結果",
+    "clip": "クリップ"
   },
   "federation": {
     "joinRemoteServer": "リモートサーバーに参加",

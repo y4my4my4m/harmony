@@ -3650,7 +3650,9 @@
     "loadFailed": "Impossible de charger : {kind}",
     "tryDifferentSearch": "Essayez un autre terme de recherche",
     "noFavoritesOf": "Aucun favori ({kind}) pour le moment",
-    "noneFound": "Aucun résultat ({kind})"
+    "noneFound": "Aucun résultat ({kind})",
+    "results": "Résultats ({kind})",
+    "clip": "Clip"
   },
   "emoji": {
     "messageReactionLimit": "Ce message a {count} réactions différentes. Ajoutez-vous à l'une d'elles.",

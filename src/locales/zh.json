@@ -3650,7 +3650,9 @@
     "loadFailed": "无法加载{kind}",
     "tryDifferentSearch": "请尝试其他搜索词",
     "noFavoritesOf": "暂无收藏的{kind}",
-    "noneFound": "未找到{kind}"
+    "noneFound": "未找到{kind}",
+    "results": "{kind}结果",
+    "clip": "片段"
   },
   "emoji": {
     "messageReactionLimit": "此消息已有 {count} 种不同的反应。请在现有反应中选择一个。",

@@ -4005,7 +4005,9 @@
     "loadFailed": "No se pudieron cargar {kind}",
     "tryDifferentSearch": "Prueba con otro término de búsqueda",
     "noFavoritesOf": "Aún no hay {kind} favoritos",
-    "noneFound": "No se encontraron {kind}"
+    "noneFound": "No se encontraron {kind}",
+    "results": "Resultados de {kind}",
+    "clip": "Clip"
   },
   "federation": {
     "joinRemoteServer": "Unirse a servidor remoto",

@@ -36,9 +36,11 @@
     <!-- Live media results for /gif, /sticker, /clip, /meme, /aiemoji -->
     <InlineGifPicker
       v-if="inlineMediaType"
+      ref="inlineGifPickerRef"
       :query="modelValue || ''"
       :media-type="inlineMediaType"
       @selectGif="handleInlineGifSelect"
+      @exit="richEditorRef?.focus?.()"
     />
     <!-- Command parameter hint bar; mirrors Discord. -->
     <div v-if="autoSuggest.activeCommand.value" class="command-param-bar">
@@ -500,6 +502,7 @@ const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const isEditorFocused = ref(false);
 const composerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
+const inlineGifPickerRef = ref<InstanceType<typeof InlineGifPicker> | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const isVoiceRecording = ref(false);
 const voiceUploading = ref(false);
@@ -979,6 +982,12 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       if (event.key === 'Escape' && props.replyMessageId) {
         event.preventDefault();
         emit('update:replyMessageId', '');
+        return;
+      }
+
+      // Up arrow while /gif and its kin show results → keyboard focus moves into them.
+      if (event.key === 'ArrowUp' && inlineMediaType.value && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+        if (inlineGifPickerRef.value?.focusResults?.()) event.preventDefault();
         return;
       }
 

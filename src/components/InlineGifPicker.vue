@@ -9,24 +9,43 @@
       icon="search"
       :title="$t('gif.noneFound', { kind: mediaNoun })"
     />
-    <div v-else class="inline-gif-grid" data-testid="inline-gif-grid" @wheel="onGridWheel">
+    <div
+      v-else
+      ref="gridRef"
+      class="inline-gif-grid"
+      :class="{ docked: dockActive }"
+      data-testid="inline-gif-grid"
+      role="group"
+      :aria-label="$t('gif.results', { kind: mediaNoun })"
+      v-bind="dock.stripListeners"
+      @wheel="onGridWheel"
+      @keydown="onGridKeydown"
+    >
       <template v-for="item in items" :key="item.id">
         <GifAdSlot
           v-if="item.kind === 'ad'"
+          :data-dock-item="item.id"
           layout="inline"
           :content="item.content"
           :width="item.width"
           :height="item.height"
         />
-        <div 
+        <div
           v-else
           class="inline-gif-item"
-          @click="$emit('selectGif', withGifMessageUrl(item, kind))"
+          :data-dock-item="item.id"
           @mouseover="hoveredGif = item.id"
           @mouseleave="isClips ? handleClipItemLeave(item.id, $event) : (hoveredGif = null)"
         >
-          <template v-if="isClips">
+          <button
+            type="button"
+            class="inline-gif-pick"
+            :data-gif-tile="item.id"
+            :aria-label="isClips ? item.title || $t('gif.clip') : undefined"
+            @click="$emit('selectGif', withGifMessageUrl(item, kind))"
+          >
             <video
+              v-if="isClips"
               :src="stripFragment(item.media_formats.mp4.url)"
               :poster="stripFragment(item.media_formats.gifpreview.url)"
               class="inline-gif-media"
@@ -37,27 +56,31 @@
               @mouseenter="(e) => playPreview(e)"
               @mouseleave="(e) => pausePreview(e)"
             ></video>
-            <button
-              class="clip-audio-button"
-              :class="{ visible: hoveredGif === item.id || isMobile || audioClipId === item.id }"
-              :title="audioClipId === item.id ? $t('gif.clipMute') : $t('gif.clipUnmute')"
-              @click.stop="(e) => toggleClipAudio(item.id, e)"
+            <img
+              v-else
+              :src="inlineGifSrc(item)"
+              :alt="item.title || 'GIF'"
+              loading="lazy"
+              draggable="false"
             >
-              <svg v-if="audioClipId === item.id" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-              <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-            </button>
-          </template>
-          <img 
-            v-else
-            :src="inlineGifSrc(item)" 
-            :alt="item.title || 'GIF'"
-            loading="lazy"
+          </button>
+          <button
+            v-if="isClips"
+            type="button"
+            class="clip-audio-button"
+            :class="{ visible: hoveredGif === item.id || isMobile || audioClipId === item.id }"
+            :title="audioClipId === item.id ? $t('gif.clipMute') : $t('gif.clipUnmute')"
+            @click.stop="(e) => toggleClipAudio(item.id, e)"
           >
+            <svg v-if="audioClipId === item.id" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+            <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          </button>
         </div>
       </template>
       <!-- Required KLIPY attribution -->
       <a
         class="inline-gif-attribution"
+        data-dock-item="attribution"
         href="https://klipy.com"
         target="_blank"
         rel="noopener noreferrer nofollow"
@@ -65,6 +88,16 @@
         title="Powered by KLIPY"
       >KLIPY</a>
     </div>
+    <InlineGifDock
+      :strip="gridRef"
+      :bounds="pickerRef"
+      :items="dockItems"
+      :state="dock.state.value"
+      :tile-listeners="dock.tileListeners"
+      @select="selectById"
+      @wheel="onGridWheel"
+      @active="onDockActive"
+    />
   </div>
 </template>
 
@@ -74,6 +107,9 @@ import { useLayoutState } from '@/composables/useLayoutState';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
+import InlineGifDock, { type DockMedia } from '@/components/InlineGifDock.vue';
+import { useGifDock } from '@/composables/useGifDock';
+import { useRovingTabindex } from '@/composables/useRovingTabindex';
 import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
 import { debug } from '@/utils/debug';
 import { horizontalWheelDelta } from '@/utils/wheelToHorizontal';
@@ -94,14 +130,19 @@ const props = withDefaults(defineProps<Props>(), {
   mediaType: 'gifs',
 });
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'selectGif', gif: Gif): void;
+  /** Keyboard focus leaves the results for the composer (Escape, or Down from the strip). */
+  (e: 'exit'): void;
 }>();
 
 const { isMobile } = useLayoutState();
 
 const items = ref<GifResultItem[]>([]);
 const hoveredGif = ref<string | null>(null);
+const gridRef = ref<HTMLElement | null>(null);
+// True while the magnification covers the strip; the strip's own tiles are hidden under it.
+const dockActive = ref(false);
 const kind = computed(() => mediaTypeToKind(props.mediaType));
 const isClips = computed(() => props.mediaType === 'clips');
 const mediaNoun = computed(() => {
@@ -116,8 +157,10 @@ const mediaNoun = computed(() => {
 
 const stripFragment = (url: string) => stripKlipyAttributionFragment(url);
 
+// Also bound to the magnified tiles, which sit over the strip.
 const onGridWheel = (event: WheelEvent) => {
-  const grid = event.currentTarget as HTMLElement;
+  const grid = gridRef.value;
+  if (!grid) return;
   const px = horizontalWheelDelta(event, grid);
   if (px === null) return;
   grid.scrollLeft += px;
@@ -140,7 +183,7 @@ const resetClipAudio = () => {
 
 const playPreview = (e: Event) => {
   const v = e.target as HTMLVideoElement;
-  if (v === audioClipEl) return;
+  if (v === audioClipEl || dockActive.value) return;
   v.muted = true;
   v.play?.().catch(() => {});
 };
@@ -189,15 +232,91 @@ const toggleClipAudio = (itemId: string, e: Event) => {
   audioClipId.value = itemId;
 };
 
-const inlineGifSrc = (item: Gif) => {
-  const url =
-    hoveredGif.value === item.id
-      ? item.media_formats.gif.url
-      : item.media_formats.gifpreview.url;
-  return stripKlipyAttributionFragment(url);
-};
 const isLoading = ref(false);
 const pickerRef = ref<HTMLElement | null>(null);
+
+// The strip shows thumbnails; a result's full rendition loads in the magnification, for the one in focus.
+const inlineGifSrc = (item: Gif) => stripKlipyAttributionFragment(item.media_formats.gifpreview.url);
+
+const dockItems = computed<DockMedia[]>(() => [
+  ...items.value.map((item): DockMedia =>
+    item.kind === 'ad'
+      ? { id: item.id, kind: 'ad' }
+      : {
+          id: item.id,
+          kind: 'gif',
+          thumb: stripKlipyAttributionFragment(item.media_formats.gifpreview.url),
+          full: stripKlipyAttributionFragment(isClips.value ? item.media_formats.mp4.url : item.media_formats.gif.url),
+          video: isClips.value,
+        },
+  ),
+  { id: 'attribution', kind: 'attribution' },
+]);
+
+const dock = useGifDock({
+  hovering: () => !!gridRef.value?.matches(':hover') || !!document.querySelector('[data-dock-tile]:hover'),
+  keyboardTile: () => {
+    const el = document.activeElement as HTMLElement | null;
+    if (!el || !gridRef.value?.contains(el) || !el.matches(':focus-visible')) return null;
+    return el.getAttribute('data-gif-tile');
+  },
+});
+
+// Clips in the strip stop while the magnification plays the one in focus.
+const onDockActive = (active: boolean) => {
+  dockActive.value = active;
+  if (!active) return;
+  resetClipAudio();
+  gridRef.value?.querySelectorAll('video').forEach((v) => {
+    v.pause?.();
+    v.currentTime = 0;
+  });
+};
+
+const selectById = (id: string) => {
+  const item = items.value.find((i) => i.kind !== 'ad' && i.id === id);
+  if (item && item.kind !== 'ad') emit('selectGif', withGifMessageUrl(item, kind.value));
+};
+
+const roving = useRovingTabindex(gridRef, {
+  itemSelector: '[data-gif-tile]',
+  orientation: 'horizontal',
+  loop: false,
+  onActivate: (el) => el.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }),
+});
+
+const leaveResults = () => {
+  dock.collapse();
+  emit('exit');
+};
+
+const onGridKeydown = (event: KeyboardEvent) => {
+  if (event.defaultPrevented) return;
+  const onTile = (event.target as HTMLElement | null)?.hasAttribute?.('data-gif-tile');
+  if (event.key === 'Escape' || (onTile && event.key === 'ArrowDown')) {
+    event.preventDefault();
+    event.stopPropagation();
+    leaveResults();
+    return;
+  }
+  // Up has nowhere to go from the strip; it scrolls nothing either.
+  if (onTile && event.key === 'ArrowUp') {
+    event.preventDefault();
+    return;
+  }
+  roving.onKeydown(event);
+};
+
+/** Moves keyboard focus to the strip's Tab stop. False when there are no results. */
+const focusResults = () => {
+  const list = roving.items();
+  if (list.length === 0) return false;
+  const stop = list.findIndex((el) => el.getAttribute('tabindex') === '0');
+  roving.focusItem(stop < 0 ? 0 : stop);
+  return list.includes(document.activeElement as HTMLElement);
+};
+
+defineExpose({ focusResults });
 const adSlotWidth = ref<number | undefined>();
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 let currentRequestId = 0;
@@ -345,6 +464,30 @@ onUnmounted(() => {
 
 .inline-gif-item:hover {
   filter: brightness(1.1);
+}
+
+.inline-gif-grid.docked > * {
+  opacity: 0;
+}
+
+.inline-gif-pick {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.inline-gif-pick:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 .inline-gif-item img,

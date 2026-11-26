@@ -3650,7 +3650,9 @@
     "loadFailed": "{kind}을(를) 불러오지 못했습니다",
     "tryDifferentSearch": "다른 검색어를 입력해 보세요",
     "noFavoritesOf": "아직 즐겨찾는 {kind}이(가) 없습니다",
-    "noneFound": "{kind}을(를) 찾을 수 없습니다"
+    "noneFound": "{kind}을(를) 찾을 수 없습니다",
+    "results": "{kind} 결과",
+    "clip": "클립"
   },
   "emoji": {
     "messageReactionLimit": "이 메시지에는 이미 {count}가지 반응이 있습니다. 기존 반응 중 하나에 추가하세요.",

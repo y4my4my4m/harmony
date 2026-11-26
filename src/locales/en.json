@@ -3706,7 +3706,9 @@
     "loadFailed": "Couldn't load {kind}",
     "tryDifferentSearch": "Try a different search term",
     "noFavoritesOf": "No favorite {kind} yet",
-    "noneFound": "No {kind} found"
+    "noneFound": "No {kind} found",
+    "results": "{kind} results",
+    "clip": "Clip"
   },
   "emoji": {
     "messageReactionLimit": "This message has {count} different reactions. Add to one of them.",
