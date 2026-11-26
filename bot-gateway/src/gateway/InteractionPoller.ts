@@ -2,6 +2,7 @@ import { supabase } from '../config/supabase.js'
 import type { WebSocketGateway } from './WebSocketGateway.js'
 import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
 import { relayAllowed, serverOfChannel } from '../bridge/memberConsent.js'
+import { upstream } from '../utils/upstreamBackoff.js'
 
 export const INTERACTION_POLL_MS = 250
 export const INTERACTION_CLAIM_LIMIT = 50
@@ -44,7 +45,8 @@ export function interactionEvent(row: Json): Json {
  * claim_bot_interactions marks the pending rows of the connected bots delivered and answers
  * them; each goes to every connection of its bot as INTERACTION_CREATE. A row that reaches no
  * socket fails 'offline' at once. Claims lock with SKIP LOCKED, so several gateway processes
- * share the queue. A tick that finds its previous run unfinished is skipped.
+ * share the queue. A tick that finds its previous run unfinished is skipped, and so is one while the
+ * API is down (upstreamBackoff).
  */
 export class InteractionPoller {
   private timer: NodeJS.Timeout | null = null
@@ -65,7 +67,7 @@ export class InteractionPoller {
   }
 
   async poll(): Promise<void> {
-    if (this.polling) return
+    if (this.polling || !upstream.ready()) return
     const botIds = Array.from(new Set(this.gateway.getConnectedBots().map((conn) => conn.botId)))
     if (botIds.length === 0) return
     this.polling = true

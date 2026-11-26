@@ -24,6 +24,7 @@ vi.mock('../../config/supabase.js', () => ({
 
 import { EventDispatcher, timestampMicros } from '../EventDispatcher.js'
 import { forgetBridgeConsent } from '../../bridge/memberConsent.js'
+import { upstream } from '../../utils/upstreamBackoff.js'
 
 let db: FakeDb
 let sent: Array<{ botIds: string[]; event: any }>
@@ -908,6 +909,32 @@ describe('install changes reach the permission cache within the refresh bound', 
       await vi.advanceTimersByTimeAsync(30_000)
       expect(refresh).toHaveBeenCalledTimes(1)
     } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('skips every poll while the API is down, then polls again', async () => {
+    vi.useFakeTimers()
+    try {
+      const d = dispatcher as any
+      const polls = ['pollMessages', 'pollMessageChanges', 'pollReactions', 'pollMemberChanges', 'pollModerationEvents']
+        .map((name) => vi.spyOn(d, name).mockResolvedValue(undefined))
+      // Third failure in a row: a 4 s pause, past the 1 s and 2 s periods.
+      upstream.failed('HTTP 503')
+      await vi.advanceTimersByTimeAsync(1_000)
+      upstream.failed('HTTP 503')
+      await vi.advanceTimersByTimeAsync(2_000)
+      upstream.failed('HTTP 503')
+      expect(upstream.remainingMs()).toBe(4_000)
+      await dispatcher.start()
+      await vi.advanceTimersByTimeAsync(3_900)
+      expect(polls.map((p) => p.mock.calls.length)).toEqual([0, 0, 0, 0, 0])
+
+      await vi.advanceTimersByTimeAsync(200)
+      expect(polls.map((p) => p.mock.calls.length)).toEqual([1, 1, 1, 1, 1])
+      await dispatcher.shutdown()
+    } finally {
+      upstream.succeeded()
       vi.useRealTimers()
     }
   })

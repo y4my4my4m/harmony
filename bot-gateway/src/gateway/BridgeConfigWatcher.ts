@@ -2,6 +2,7 @@ import { supabase, config } from '../config/supabase.js'
 import type { WebSocketGateway } from './WebSocketGateway.js'
 import { BRIDGE_COLUMNS, type BridgeRow, buildBridgeConfig, configuredBaseUrl } from '../bridge/bridgeConfig.js'
 import { MATRIX_BRIDGE_COLUMNS, type MatrixBridgeRow, buildMatrixBridgeConfig } from '../bridge/matrixBridgeConfig.js'
+import { upstream } from '../utils/upstreamBackoff.js'
 
 // Bot ids per lookup; 36 characters each in the query string.
 const LOOKUP_CHUNK = 100
@@ -62,7 +63,7 @@ export class BridgeConfigWatcher {
   }
 
   async poll(): Promise<void> {
-    if (this.polling) return
+    if (this.polling || !upstream.ready()) return
     this.polling = true
     try {
       const sessionsByBot = new Map<string, string[]>()

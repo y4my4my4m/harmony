@@ -21,6 +21,7 @@ vi.mock('../../config/supabase.js', () => ({
 
 import { BridgeConfigWatcher } from '../BridgeConfigWatcher.js'
 import type { WebSocketGateway } from '../WebSocketGateway.js'
+import { upstream } from '../../utils/upstreamBackoff.js'
 
 let db: FakeDb
 let sessions: Array<{ botId: string; sessionId: string }>
@@ -225,5 +226,18 @@ describe('BridgeConfigWatcher', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('reads nothing while the API is down', async () => {
+    const watcher = new BridgeConfigWatcher(makeGateway(), 1_000)
+    upstream.failed('HTTP 503')
+    try {
+      await watcher.poll()
+      expect(sent).toHaveLength(0)
+    } finally {
+      upstream.succeeded()
+    }
+    await watcher.poll()
+    expect(sent).toHaveLength(1)
   })
 })

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import * as dotenv from 'dotenv'
+import { backoffFetch } from '../utils/upstreamBackoff.js'
 
 dotenv.config()
 
@@ -30,7 +31,8 @@ export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   global: {
     headers: {
       apikey: supabaseServiceKey
-    }
+    },
+    fetch: backoffFetch(fetch),
   }
 })
 
