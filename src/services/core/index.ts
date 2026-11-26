@@ -8,8 +8,7 @@ export type { CreatePostData, UpdatePostData, CorePostServiceError } from './Cor
 export { CoreProfileService, coreProfileService } from './CoreProfileService'
 export type {
   ProfileData,
-  CoreProfileServiceError,
-  UserStats
+  CoreProfileServiceError
 } from './CoreProfileService'
 
 export { CoreInteractionService, coreInteractionService } from './CoreInteractionService'

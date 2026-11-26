@@ -107,6 +107,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   darker still on hover. The name's shading now fades out cleanly into the banner. The banner also
   fits the channel list's width, so its picture is centred under the name; it was shifted right,
   with part of it cut off at the edge.
+- A profile card's Posts, Following, Followers, Messages and Voice time no longer flicker between
+  0 and a dash while it opens. The card reads the profile once per open instead of four times, each
+  figure goes from a dash straight to its value, and a card opened again shows its figures at once.
 
 ## [1.9.8] - 2026-11-25
 

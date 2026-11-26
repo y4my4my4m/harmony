@@ -189,21 +189,23 @@
             <span class="stat-label">Status</span>
           </div>
           
-          <!-- ActivityPub/Federated User Stats (clickable to navigate to profile) -->
-          <div v-if="socialStats" class="stat-item clickable" @click="navigateToProfile" title="View all posts">
-            <span class="stat-value">{{ formatSocialCount(socialStats.posts) }}</span>
-            <span class="stat-label">Posts</span>
-          </div>
-          <div v-if="socialStats" class="stat-item clickable" @click="navigateToProfile" title="View following">
-            <span class="stat-value">{{ formatSocialCount(socialStats.following) }}</span>
-            <span class="stat-label">{{ t('activitypub.following') }}</span>
-          </div>
-          <div v-if="socialStats" class="stat-item clickable" @click="navigateToProfile" title="View followers">
-            <span class="stat-value">{{ formatSocialCount(socialStats.followers) }}</span>
-            <span class="stat-label">{{ t('activitypub.followers') }}</span>
-          </div>
-          
-          <!-- Chat User Stats -->
+          <!-- Post and follow counts (clickable to navigate to profile) -->
+          <template v-if="showSocialStats">
+            <div class="stat-item clickable" @click="navigateToProfile" title="View all posts">
+              <span class="stat-value" data-testid="profile-stat-posts">{{ socialStats ? formatSocialCount(socialStats.posts) : STAT_PLACEHOLDER }}</span>
+              <span class="stat-label">Posts</span>
+            </div>
+            <div class="stat-item clickable" @click="navigateToProfile" title="View following">
+              <span class="stat-value" data-testid="profile-stat-following">{{ socialStats ? formatSocialCount(socialStats.following) : STAT_PLACEHOLDER }}</span>
+              <span class="stat-label">{{ t('activitypub.following') }}</span>
+            </div>
+            <div class="stat-item clickable" @click="navigateToProfile" title="View followers">
+              <span class="stat-value" data-testid="profile-stat-followers">{{ socialStats ? formatSocialCount(socialStats.followers) : STAT_PLACEHOLDER }}</span>
+              <span class="stat-label">{{ t('activitypub.followers') }}</span>
+            </div>
+          </template>
+
+          <!-- No profiles row came: role count instead -->
           <div v-else class="stat-item">
             <span class="stat-value">{{ getUserRoles(user).length || 0 }}</span>
             <span class="stat-label">Roles</span>
@@ -283,7 +285,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Messages</span>
-                  <span class="activity-value">{{ isLoadingActivity ? '-' : getUserMessageCount(user) }}</span>
+                  <span class="activity-value" data-testid="profile-activity-messages">{{ activityCounts ? activityCounts.messages : STAT_PLACEHOLDER }}</span>
                 </div>
               </div>
               
@@ -293,7 +295,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Voice time</span>
-                  <span class="activity-value">{{ isLoadingActivity ? '-' : formatVoiceTime(getUserVoiceTime(user)) }}</span>
+                  <span class="activity-value" data-testid="profile-activity-voice">{{ activityCounts ? formatVoiceTime(activityCounts.voiceMinutes) : STAT_PLACEHOLDER }}</span>
                 </div>
               </div>
             </template>
@@ -306,7 +308,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Posts</span>
-                  <span class="activity-value">{{ formatSocialCount(socialStats ? socialStats.posts : 0) }}</span>
+                  <span class="activity-value">{{ socialStats ? formatSocialCount(socialStats.posts) : STAT_PLACEHOLDER }}</span>
                 </div>
               </div>
               
@@ -474,7 +476,6 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { moderationRejectionFromError } from '@/services/AutoModService'
 import { useRouter, useRoute } from 'vue-router'
-import { supabase } from '@/supabase'
 import { useActivityPubStore } from '../stores/useActivityPub'
 import { useServerChannelStore } from '../stores/useServerChannel'
 import { instanceStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadge'
@@ -484,7 +485,6 @@ import { useLayoutState } from '@/composables/useLayoutState'
 import { getBannerUrl, getRawBannerUrl } from '@/utils/bannerUtils'
 import BannerImage from '@/components/common/BannerImage.vue'
 import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
-import { coreProfileService } from '@/services/core/CoreProfileService'
 import { interactionService } from '@/services/InteractionService'
 import { roleService, type ServerRole, Permission } from '@/services/RoleService'
 import BaseModal from './common/BaseModal.vue'
@@ -511,6 +511,7 @@ import CopyHandleButton from './common/CopyHandleButton.vue'
 import { copyableHandle, useCopyHandle, type CopyHandleAccount } from '@/composables/useCopyHandle'
 import { activityPubService } from '@/services/activityPubService'
 import { profileCount, remoteCountFields, type ProfileCountSource } from '@/utils/profileCounts'
+import { knownProfileCardRow, readProfileCardRow, updateKnownProfileCardRow, type ProfileCardRow } from '@/services/profileCardRow'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -569,13 +570,13 @@ let bridgedIdCopiedTimer: ReturnType<typeof setTimeout> | null = null
 const userNote = ref('')
 const instanceInfo = ref<{ status: string; software?: string } | null>(null)
 const isLoadingInstanceInfo = ref(false)
-// The profiles row read on open: local counters and, for a remote account, its origin's totals.
-const fetchedUserStats = ref<ProfileCountSource | null>(null)
-const fetchedCreatedAt = ref<string | null>(null)
-const fetchedActivity = ref<{ message_count: number; voice_minutes: number } | null>(null)
-const fetchedLocked = ref<boolean | null>(null)
-const isLoadingUserStats = ref(false)
-const isLoadingActivity = ref(false)
+// The card's profiles row: the last one read for this account until this open's read lands.
+const cardRow = ref<ProfileCardRow | null>(null)
+// This open's read has finished, with or without a row.
+const cardRowSettled = ref(false)
+let cardReadSeq = 0
+// A figure not known yet.
+const STAT_PLACEHOLDER = '–'
 
 // Server roles scoped to the current server context.
 const fetchedUserRoles = ref<ServerRole[]>([])
@@ -598,81 +599,14 @@ const availableServers = computed(() => {
 
 const currentDomain = runtimeConfig.domain as string
 
-function applyActivityFromStats(stats: { message_count?: number; voice_minutes?: number } | null | undefined) {
-  if (stats == null) return
-  if (stats.message_count === undefined && stats.voice_minutes === undefined) return
-  fetchedActivity.value = {
-    message_count: Number(stats.message_count ?? 0),
-    voice_minutes: Number(stats.voice_minutes ?? 0),
-  }
-}
-
-async function loadUserStats(userId: string) {
-  if (isLoadingUserStats.value) {
-    // Stats load already in flight - still fetch activity (cheap PK read).
-    void loadUserActivity(userId)
-    return
-  }
-
-  isLoadingUserStats.value = true
-  try {
-    const stats = await coreProfileService.getUserStats(userId)
-    if (stats) {
-      fetchedUserStats.value = { ...(fetchedUserStats.value ?? {}), ...stats }
-      applyActivityFromStats(stats)
-      debug.log('Loaded user stats:', fetchedUserStats.value)
-    }
-
-    // created_at is not always present on the user object.
-    const { profileService } = await import('@/services/ProfileService')
-    const profile = await profileService.fetchProfile(userId)
-    if (profile?.created_at) {
-      fetchedCreatedAt.value = profile.created_at
-      debug.log('Loaded user created_at:', fetchedCreatedAt.value)
-    }
-  } catch (error) {
-    debug.error('Failed to load user stats:', error)
-  } finally {
-    isLoadingUserStats.value = false
-    // Always load activity even if social stats / created_at failed.
-    await loadUserActivity(userId)
-  }
-}
-
-/**
- * Activity counters (denormalized columns on `profiles`, maintained by
- * triggers - see migrations/20260524_bot_grants_and_activity_counters.sql).
- * One SELECT on the PK; no count(*) scans. Kept separate so it still runs
- * when `loadUserStats` is skipped because the caller already had
- * post/follow counts.
- */
-async function loadUserActivity(userId: string) {
-  if (!userId) return
-  isLoadingActivity.value = true
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('message_count, voice_minutes, manually_approves_followers')
-      .eq('id', userId)
-      .maybeSingle()
-    if (error) {
-      // PGRST204 = column not in schema cache (migration not applied / not reloaded)
-      debug.error('Failed to load user activity counters:', error.code, error.message, error)
-      return
-    }
-    if (data) {
-      fetchedActivity.value = {
-        message_count: Number(data.message_count ?? 0),
-        voice_minutes: Number(data.voice_minutes ?? 0),
-      }
-      if (props.user?.id === userId) fetchedLocked.value = data.manually_approves_followers === true
-      debug.log('Loaded user activity:', fetchedActivity.value)
-    }
-  } catch (err) {
-    debug.error('Failed to load user activity counters:', err)
-  } finally {
-    isLoadingActivity.value = false
-  }
+/** This open's read of the card's row. False when the card closed or switched user before it landed. */
+async function loadCardRow(userId: string): Promise<boolean> {
+  const seq = ++cardReadSeq
+  const row = await readProfileCardRow(userId)
+  if (seq !== cardReadSeq) return false
+  if (row) cardRow.value = row
+  cardRowSettled.value = true
+  return true
 }
 
 async function loadUserRoles(userId: string) {
@@ -867,10 +801,10 @@ const socialStats = computed(() => {
                          user.following_count !== undefined || 
                          user.followers_count !== undefined;
   
-  if (!hasSocialStats && !fetchedUserStats.value) return null;
+  if (!hasSocialStats && !cardRow.value) return null;
 
   // The profiles row stands over the user object, which lacks a remote account's totals.
-  const source: ProfileCountSource = { ...user, ...(fetchedUserStats.value ?? {}) };
+  const source: ProfileCountSource = { ...user, ...(cardRow.value ?? {}) };
   return {
     posts: profileCount(source, 'posts'),
     following: profileCount(source, 'following'),
@@ -878,18 +812,36 @@ const socialStats = computed(() => {
   }
 })
 
+// Posts, Following and Followers hold their place while the row is read; Roles stands in when no row came.
+const showSocialStats = computed(() => !!socialStats.value || !cardRowSettled.value)
+
 const interactionsCount = computed(() => {
   const stats = socialStats.value
   if (!stats || (stats.followers === null && stats.following === null)) return null
   return (stats.followers ?? 0) + (stats.following ?? 0)
 })
 
+/** Message count and voice minutes: the card's row, else the user object; null while neither has them. */
+const activityCounts = computed(() => {
+  const user = props.user as any
+  const row = cardRow.value
+  const messages = row?.message_count ?? user?.message_count ?? user?.profile?.message_count
+  // `voice_time` is the legacy column name.
+  const voiceMinutes = row?.voice_minutes ?? user?.voice_minutes ?? user?.voice_time
+    ?? user?.profile?.voice_minutes ?? user?.profile?.voice_time
+  if (messages == null && voiceMinutes == null && !row) return null
+  return { messages: Number(messages ?? 0), voiceMinutes: Number(voiceMinutes ?? 0) }
+})
+
 /** Re-reads a remote account's totals through the federation backend when they are stale. */
 async function refreshRemoteCounts(user: FederatedUser) {
   if (!user.username || !user.domain) return
   const result = await activityPubService.refreshRemoteProfile(`${user.username}@${user.domain}`)
-  if (!result || props.user?.id !== user.id || result.user.id !== user.id) return
-  fetchedUserStats.value = { ...(fetchedUserStats.value ?? {}), is_local: false, ...remoteCountFields(result.user) }
+  if (!result || result.user.id !== user.id) return
+  const fields: ProfileCardRow = { is_local: false, ...remoteCountFields(result.user) }
+  updateKnownProfileCardRow(user.id, fields)
+  if (props.user?.id !== user.id || !props.show) return
+  cardRow.value = { ...(cardRow.value ?? {}), ...fields }
 }
 
 const userStatus = computed(() => {
@@ -1036,8 +988,8 @@ const handleAvatarError = (event: Event) => {
 }
 
 const formatJoinDate = (dateString: string | undefined) => {
-  // Fetched created_at stands in when the user object carries none.
-  const effectiveDate = dateString || fetchedCreatedAt.value
+  // The card's row stands in when the user object carries no created_at.
+  const effectiveDate = dateString || cardRow.value?.created_at
   if (!effectiveDate) return 'Unknown'
   const date = new Date(effectiveDate)
   return date.toLocaleDateString('en-US', { 
@@ -1202,8 +1154,9 @@ const followBusy = ref(false)
 // A locked or remote account holds the follow as a request until it answers.
 const followRequested = ref(false)
 
-const isLockedAccount = computed(() =>
-  fetchedLocked.value ?? ((props.user as FederatedUser | null)?.manually_approves_followers === true))
+const isLockedAccount = computed(() => (cardRow.value
+  ? cardRow.value.manually_approves_followers === true
+  : (props.user as FederatedUser | null)?.manually_approves_followers === true))
 const { action: followAction } = useFollowAction(() => (props.show ? props.user as FederatedUser | null : null), () => isLockedAccount.value)
 
 // The store tracks accepted follows only; a pending request is read from the follows row.
@@ -1494,27 +1447,6 @@ const getUserBio = (user: any) => {
   return user?.bio || user?.profile?.bio || user?.about
 }
 
-const getUserMessageCount = (user: any) => {
-  return (
-    fetchedActivity.value?.message_count
-    ?? user?.message_count
-    ?? user?.profile?.message_count
-    ?? 0
-  )
-}
-
-const getUserVoiceTime = (user: any) => {
-  // Unit is minutes. `voice_time` is the legacy column name, kept as fallback.
-  return (
-    fetchedActivity.value?.voice_minutes
-    ?? user?.voice_minutes
-    ?? user?.voice_time
-    ?? user?.profile?.voice_minutes
-    ?? user?.profile?.voice_time
-    ?? 0
-  )
-}
-
 const getUserIsLocal = (user: any) => {
   return user?.is_local ?? true // Default to local if not specified
 }
@@ -1577,35 +1509,56 @@ const cleanupProfilePresence = async () => {
   }
 }
 
+// Each open or close supersedes the open before it, whose remaining steps then stop.
+let openSeq = 0
+
 watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVal) => {
   if (newVal.userId !== oldVal?.userId) {
     followRequested.value = false
     optimisticFollowing.value = null
-    fetchedLocked.value = null
   }
   if (!newVal.show || !newVal.userId) {
     // Modal closed or no user: tear down. The dropdown is reset so the next
-    // open does not restore a stale "..." menu state.
+    // open does not restore a stale "..." menu state. State resets precede the
+    // await, so a reopen during it keeps its own.
+    openSeq++
+    cardReadSeq++
     showActionsMenu.value = false
     bridgedIdCopied.value = false
     if (bridgedIdCopiedTimer) {
       clearTimeout(bridgedIdCopiedTimer)
       bridgedIdCopiedTimer = null
     }
-    await cleanupProfilePresence()
     instanceInfo.value = null
-    fetchedUserStats.value = null
-    fetchedCreatedAt.value = null
-    fetchedActivity.value = null
-    isLoadingActivity.value = false
+    cardRow.value = null
+    cardRowSettled.value = false
     fetchedUserRoles.value = []
+    await cleanupProfilePresence()
   } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
     // Modal opened or user switched: the dropdown must not carry over, and
     // the previous presence subscription is torn down before the new one.
+    const open = ++openSeq
     showActionsMenu.value = false
-    await cleanupProfilePresence()
+    const user = props.user
+    const bridged = !!bridgedProfilePlatform(user)
 
-    if (bridgedProfilePlatform(props.user)) {
+    // The card's row: one read per open, started before presence setup. A row
+    // remembered from an earlier open shows meanwhile.
+    cardRow.value = bridged ? null : knownProfileCardRow(newVal.userId)
+    cardRowSettled.value = false
+    if (user && !bridged) {
+      // A remote account's totals live on its profiles row, not on the user object.
+      if (isFederatedUser(user)) {
+        void loadCardRow(user.id).then((current) => { if (current) void refreshRemoteCounts(user) })
+      } else {
+        void loadCardRow(user.id)
+      }
+    }
+
+    await cleanupProfilePresence()
+    if (open !== openSeq) return
+
+    if (bridged) {
       if (isMobile.value) {
         closeMobileSidebars()
       }
@@ -1613,27 +1566,14 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     }
 
     await initializeProfilePresence()
-    
+    if (open !== openSeq) return
+
     // The mobile profile/status menu closes when the modal opens.
     if (isMobile.value) {
       closeMobileSidebars()
     }
-    
-    // Stats load for every user, not only federated ones; local users have
-    // stats too.
+
     if (props.user) {
-      const user = props.user as any
-      const hasStats = user.posts_count !== undefined || user.following_count !== undefined
-      // Activity counters always need a profile-row fetch (never on chat user blobs).
-      void loadUserActivity(props.user.id)
-      // A remote account's totals live on its profiles row, not on the user object.
-      if (isFederatedUser(props.user)) {
-        const remoteUser = props.user
-        void loadUserStats(remoteUser.id).then(() => refreshRemoteCounts(remoteUser))
-      } else if (!hasStats) {
-        void loadUserStats(props.user.id)
-      }
-      
       // Roles are scoped to the server the modal was opened in.
       loadUserRoles(props.user.id)
 

@@ -19,23 +19,6 @@ export interface CoreProfileServiceError {
   details?: any
 }
 
-export interface UserStats {
-  posts_count: number
-  followers_count: number
-  following_count: number
-  is_local?: boolean | null
-  /** Remote account: its origin's totals; null when withheld or never read. */
-  remote_posts_count?: number | null
-  remote_followers_count?: number | null
-  remote_following_count?: number | null
-  remote_counts_fetched_at?: string | null
-  profile_views: number
-  /** Denormalized chat message count (profiles.message_count). */
-  message_count?: number
-  /** Denormalized voice minutes (profiles.voice_minutes). */
-  voice_minutes?: number
-}
-
 export class CoreProfileService {
   private static instance: CoreProfileService
   
@@ -178,67 +161,6 @@ export class CoreProfileService {
       return profile
     } catch (error) {
       debug.error('Core: Failed to create profile:', error)
-      throw error
-    }
-  }
-
-  // USER STATISTICS (SECURE AGGREGATION)
-
-  /**
-   * Get user statistics with secure aggregation
-   */
-  async getUserStats(profileId: string): Promise<UserStats> {
-    try {
-      // Input validation
-      if (!profileId || typeof profileId !== 'string') {
-        throw this.createError('INVALID_INPUT', 'Profile ID is required')
-      }
-
-      debug.log(`Core: Loading user stats: ${profileId}`)
-
-      // Secure aggregation query
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select(`
-          is_local,
-          posts_count,
-          followers_count,
-          following_count,
-          remote_posts_count,
-          remote_followers_count,
-          remote_following_count,
-          remote_counts_fetched_at,
-          message_count,
-          voice_minutes
-        `)
-        .eq('id', profileId)
-        .single()
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          throw this.createError('PROFILE_NOT_FOUND', 'Profile not found')
-        }
-        throw this.createError('STATS_FAILED', 'Failed to load user statistics', error)
-      }
-
-      const stats: UserStats = {
-        posts_count: profile.posts_count || 0,
-        followers_count: profile.followers_count || 0,
-        following_count: profile.following_count || 0,
-        is_local: profile.is_local,
-        remote_posts_count: profile.remote_posts_count ?? null,
-        remote_followers_count: profile.remote_followers_count ?? null,
-        remote_following_count: profile.remote_following_count ?? null,
-        remote_counts_fetched_at: profile.remote_counts_fetched_at ?? null,
-        profile_views: 0, // Placeholder for future implementation
-        message_count: Number(profile.message_count ?? 0),
-        voice_minutes: Number(profile.voice_minutes ?? 0),
-      }
-
-      debug.log(`Core: User stats loaded successfully`)
-      return stats
-    } catch (error) {
-      debug.error('Core: Failed to load user stats:', error)
       throw error
     }
   }
