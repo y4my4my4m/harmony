@@ -984,7 +984,7 @@ purge_following_imports	definer	integer	service_role	client	rpc in federation-ba
 purge_processed_ap_activities	definer	integer	service_role	cron	cron 0 3 * * * (activitypub-cleanup-old-activities)
 purge_signup_ledger	definer	void	service_role	cron	cron 17 * * * * (signup-ledger-purge)
 purge_stale_invites	definer	integer	service_role	cron	cron 20 4 * * * (purge-stale-invites)
-queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, before_user_created_hook, +54
+queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, drive_delete_files, +54
 queue_message_media_cleanup	definer	trigger	service_role	trigger	trigger public.messages AFTER DELETE/UPDATE (z_messages_media_cleanup)
 queue_message_poll_federation	definer	void	service_role	client	called by end_federated_message_poll, end_message_poll, record_federated_message_poll_vote, +1
 queue_outgoing_webhook_ping	definer	uuid	service_role	client	called by create_outgoing_webhook, outgoing_webhook_probes, test_outgoing_webhook, +1
@@ -1174,9 +1174,12 @@ should_show_gif_ads	definer	boolean	anon+authenticated+service_role	client	rpc i
 sign_out_my_sessions	definer	integer	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts, src/supabase.ts
 signup_captcha_check	definer	jsonb	-	client	called by admin_test_signup_captcha, signup_captcha_verify
 signup_captcha_verdict	invoker	text	-	client	called by signup_captcha_check
-signup_captcha_verify	definer	text	-	nothing	called by before_user_created_hook
-signup_mailbox_hash	invoker	text	-	nothing	called by before_user_created_hook
-signup_network_contains	invoker	boolean	-	nothing	called by before_user_created_hook
+signup_captcha_verify	definer	text	-	nothing	called by signup_limits_check
+signup_invite_pass	definer	void	service_role	client	rpc in federation-backend/src/routes/adminInvites.ts
+signup_limits_check	definer	jsonb	-	nothing	called by before_user_created_hook
+signup_mailbox_hash	invoker	text	-	nothing	called by signup_limits_check
+signup_network_contains	invoker	boolean	-	nothing	called by signup_limits_check
+signup_registration_refusal	invoker	jsonb	-	nothing	called by before_user_created_hook
 signup_review_welcome_server	definer	uuid	service_role	client	called by staff_recent_signups, staff_signup_groups
 signup_spike_status	definer	TABLE(rule text, fired boolean, signups integer, window_signups integer, prior_signups integer)	-	nothing	nothing references it
 skip_deleted_discord_import	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT (a_messages_skip_deleted_discord_import)

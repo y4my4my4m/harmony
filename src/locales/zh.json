@@ -573,7 +573,12 @@
       "domainCap": "今天使用此电子邮件域名创建的账号过多。请明天再试，或向此实例的管理员申请邀请。",
       "mailboxCap": "此邮箱已达到此实例的账号数量上限。",
       "blockedDomain": "此电子邮件服务商不能用于在此实例注册。请使用其他地址。",
-      "blockedNetwork": "此实例不接受来自该网络的注册。请向此实例的管理员申请邀请。"
+      "blockedNetwork": "此实例不接受来自该网络的注册。请向此实例的管理员申请邀请。",
+      "closed": "此实例不接受新账号。",
+      "inviteOnly": "此实例仅通过邀请接受新账号。请向管理员申请邀请。",
+      "otherDomain": "通过此登录方式创建的新账号仅限部分电子邮件域名，此地址不在其中。",
+      "unverified": "通过此登录方式创建新账号需要登录服务已验证的电子邮件地址。",
+      "unavailable": "暂时无法注册。请稍后再试。"
     },
     "captcha": {
       "asked": "完成验证即可完成注册。",
@@ -9008,6 +9013,24 @@
     "refusalMailHost": "邮件服务器",
     "refusalBlockedNetwork": "被拒绝的地址"
   },
+  "adminSignupProviders": {
+    "title": "通过登录服务创建新账号",
+    "intro": "设置通过各登录服务首次登录时为谁创建账号。已有账号的人无论如何都可以登录。",
+    "follow": "与注册设置相同",
+    "open": "所有通过它登录的人",
+    "domains": "这些域名下已验证的地址",
+    "domainsLabel": "{provider} 的电子邮件域名",
+    "domainsHint": "每行一个，例如 myschool.edu。子域名也包括在内。登录服务必须将该地址标记为已验证。",
+    "publicOpen": "任何拥有 {provider} 账号的人都能在这里创建账号。",
+    "switchOn": "认证服务仍会拒绝所有新账号。请在服务器上运行 harmony registration，使这些设置生效。",
+    "none": "没有已启用的登录服务。内置服务在“配置”中设置，实例自己的服务用 harmony auth add-provider 添加。",
+    "save": "保存",
+    "saved": "登录服务注册设置已保存",
+    "saveFailed": "无法保存注册设置。",
+    "loadFailed": "无法加载登录服务。",
+    "invalidDomain": "{domain} 不是域名。",
+    "noDomains": "请为 {provider} 至少添加一个域名。"
+  },
   "adminSignupCaptcha": {
     "title": "注册验证",
     "intro": "仅在注册看起来是自动化时才要求的验证码，大多数人不会看到。通过 Google、GitHub、Twitch 或此实例自有登录服务的注册不会被要求验证。",
@@ -9064,6 +9087,8 @@
     "modeOpenHint": "任何人都可以在注册页面创建账号。",
     "modeClosed": "注册：仅限邀请。",
     "modeClosedHint": "注册页面不会创建账号；新用户通过邀请加入。",
+    "modeShut": "注册：已关闭。",
+    "modeShutHint": "注册页面不会创建账号。邀请仍然有效。",
     "modeUnknown": "注册：未知。",
     "modeUnknownHint": "认证服务没有告知注册是否开启。",
     "advertisedOpen": "其他服务器看到的是注册开放（实例设置 open_registration）。",

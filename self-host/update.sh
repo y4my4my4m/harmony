@@ -19,7 +19,9 @@
 #      stack is untouched
 #   4. back up the database and the config files into backups/
 #   5. apply new migrations while the old containers keep running; a name from
-#      step 2 replaces Harmony in instance_config (instance_name_default_renamed)
+#      step 2 replaces Harmony in instance_config (instance_name_default_renamed);
+#      invite and closed registration move from the auth service's sign-up switch
+#      to the sign-up hook once the hook applies them (registration_hand_over, lib.sh)
 #   6. recreate the containers whose image or configuration changed
 #   7. delete update backups past the newest 5 of each kind, when this run wrote
 #      one (prune_update_backups, lib.sh)
@@ -121,6 +123,7 @@ main() {
 	STEP=migrate
 	bash "$SCRIPT_DIR/bootstrap.sh" --migrations-only
 	if $name_unchosen; then instance_name_default_renamed; fi
+	registration_hand_over
 
 	# --- 6. restart --------------------------------------------------------------
 	STEP=restart

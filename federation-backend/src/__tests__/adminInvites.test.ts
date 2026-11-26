@@ -32,21 +32,26 @@ vi.mock('../middleware/rateLimit.js', () => ({
 const getUser = vi.fn()
 const caller = vi.fn()
 const advertised = vi.fn()
+const policy = vi.fn()
 const rpc = vi.fn()
 const generateLink = vi.fn()
 const inviteUserByEmail = vi.fn()
 
-function query(result: () => unknown) {
+// .eq('config_key', key) names the instance_config row read.
+function query(result: (key: unknown) => unknown) {
   const chain: Record<string, unknown> = {}
-  for (const name of ['select', 'eq']) chain[name] = () => chain
-  chain.maybeSingle = async () => result()
+  let key: unknown
+  chain.select = () => chain
+  chain.eq = (_column: string, value: unknown) => { key = value; return chain }
+  chain.maybeSingle = async () => result(key)
   return chain
 }
 
 vi.mock('../config/supabase.js', () => ({
   getSupabaseClientWithAuth: () => ({ auth: { getUser: () => getUser() } }),
   getSupabaseClient: () => ({
-    from: (table: string) => query(() => (table === 'profiles' ? caller() : advertised())),
+    from: (table: string) => query((key) =>
+      table === 'profiles' ? caller() : key === 'registration_policy' ? policy() : advertised()),
     rpc: (...args: unknown[]) => rpc(...args),
     auth: { admin: { generateLink: (...a: unknown[]) => generateLink(...a), inviteUserByEmail: (...a: unknown[]) => inviteUserByEmail(...a) } },
   }),
@@ -75,13 +80,14 @@ function rpcAnswers(answers: Record<string, unknown>) {
 }
 
 beforeEach(() => {
-  for (const fn of [getUser, caller, advertised, rpc, generateLink, inviteUserByEmail, settings]) fn.mockReset()
+  for (const fn of [getUser, caller, advertised, policy, rpc, generateLink, inviteUserByEmail, settings]) fn.mockReset()
   allow.value = true
   cfg.GOTRUE_SMTP_HOST = ''
   cfg.APP_URL = undefined
   getUser.mockResolvedValue({ data: { user: { id: 'auth-admin' } }, error: null })
   caller.mockReturnValue({ data: ADMIN, error: null })
   advertised.mockReturnValue({ data: { config_value: false }, error: null })
+  policy.mockReturnValue({ data: null, error: null })
   settings.mockResolvedValue(new Response(JSON.stringify({ disable_signup: true }), { status: 200 }))
   generateLink.mockResolvedValue({
     data: {
@@ -157,7 +163,7 @@ describe('admin invites: listing', () => {
     })
     const res = await supertest(app).get('/admin/invites').set(auth)
     expect(res.status).toBe(200)
-    expect(res.body.registration).toEqual({ signup: 'closed', advertised_open: false })
+    expect(res.body.registration).toEqual({ signup: 'closed', policy: null, advertised_open: false })
     expect(res.body.email_available).toBe(false)
     expect(res.body.link_lifetime_seconds).toBe(86400)
     expect(rpc).toHaveBeenCalledWith('admin_instance_invites', { p_limit: 200 })
@@ -173,6 +179,53 @@ describe('admin invites: listing', () => {
     rpcAnswers({ admin_instance_invites: [] })
     const res = await supertest(app).get('/admin/invites').set(auth)
     expect(res.body.registration.signup).toBe('unknown')
+  })
+
+  it('reads email sign-up as closed when the hook\'s policy is, with GoTrue\'s switch off', async () => {
+    settings.mockImplementation(async () => new Response(JSON.stringify({ disable_signup: false }), { status: 200 }))
+    rpcAnswers({ admin_instance_invites: [] })
+    for (const [stored, signup, named] of [
+      ['invite', 'closed', 'invite'], ['closed', 'closed', 'closed'], [' Open ', 'open', 'open'], ['maybe', 'closed', 'closed'],
+    ] as const) {
+      policy.mockReturnValue({ data: { config_value: stored }, error: null })
+      const res = await supertest(app).get('/admin/invites').set(auth)
+      expect(res.body.registration, stored).toEqual({ signup, policy: named, advertised_open: false })
+    }
+  })
+
+  it('reads an unknown switch as closed while the policy is closed', async () => {
+    settings.mockRejectedValue(new Error('down'))
+    policy.mockReturnValue({ data: { config_value: 'closed' }, error: null })
+    rpcAnswers({ admin_instance_invites: [] })
+    const res = await supertest(app).get('/admin/invites').set(auth)
+    expect(res.body.registration.signup).toBe('closed')
+  })
+})
+
+describe('admin invites: the invite pass', () => {
+  it('takes a pass for the address before GoTrue makes the invited account', async () => {
+    rpcAnswers({ admin_instance_invite_account: [], admin_record_instance_invite: 'i1' })
+    const res = await supertest(app).post('/admin/invites').set(auth).send({ email: 'Ada@Example.org' })
+    expect(res.status).toBe(201)
+    expect(rpc).toHaveBeenCalledWith('signup_invite_pass', { p_email: 'ada@example.org' })
+    const passAt = rpc.mock.invocationCallOrder[rpc.mock.calls.findIndex(([name]) => name === 'signup_invite_pass')]
+    expect(passAt).toBeLessThan(generateLink.mock.invocationCallOrder[0])
+  })
+
+  it('invites on a database without the function', async () => {
+    rpc.mockImplementation(async (name: string) => name === 'signup_invite_pass'
+      ? { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } }
+      : { data: name === 'admin_instance_invite_account' ? [] : 'i1', error: null })
+    const res = await supertest(app).post('/admin/invites').set(auth).send({ email: 'ada@example.org' })
+    expect(res.status).toBe(201)
+    expect(generateLink).toHaveBeenCalled()
+  })
+
+  it('takes no pass for a new link to an existing invitation', async () => {
+    rpcAnswers({ admin_instance_invite_account: [account()], admin_record_instance_invite: 'i1' })
+    const res = await supertest(app).post(`/admin/invites/${USER_ID}/link`).set(auth).send({})
+    expect(res.status).toBe(200)
+    expect(rpc).not.toHaveBeenCalledWith('signup_invite_pass', expect.anything())
   })
 })
 

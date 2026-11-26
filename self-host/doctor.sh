@@ -387,16 +387,7 @@ check_database() {
 		report WARN admin "no admin account" "harmony admin create"
 	fi
 
-	local policy disable live open_reg
-	policy="$(env_get "$ENV_FILE" REGISTRATION)"; policy="${policy:-open}"
-	live="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$(svc_id auth)" 2>/dev/null | sed -n 's/^GOTRUE_DISABLE_SIGNUP=//p')"
-	open_reg="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'open_registration'" 2>/dev/null)"
-	if [[ "$policy" == open ]]; then disable=false; else disable=true; fi
-	if [[ "$live" == "$disable" && "$open_reg" == "$( [[ $disable == true ]] && echo false || echo true)" ]]; then
-		report OK registration "$policy"
-	else
-		report WARN registration ".env says $policy; sign-up disabled=${live:-?}, open_registration=${open_reg:-?}" "harmony registration $policy"
-	fi
+	check_registration
 
 	if db_sql -c "SELECT 1 FROM pg_roles WHERE rolname = 'harmony_listener'" 2>/dev/null | grep -q 1; then
 		report OK listener "harmony_listener role exists"
@@ -757,6 +748,38 @@ check_auth_linking() {
 		report OK "auth linking" "$builtin${builtin:+${custom:+ }}$custom join existing accounts by verified address; the others are kept apart"
 	else
 		report OK "auth linking" "your sign-in providers keep their accounts apart"
+	fi
+}
+
+# Registration (admin.sh registration). Email sign-up follows REGISTRATION through the auth
+# service's sign-up switch (DISABLE_SIGNUP) or, with the switch off, through the sign-up hook
+# (instance_config.registration_policy, 20261126500001). Sign-in providers set to create
+# accounts (signup_providers) create none while the switch is on.
+check_registration() {
+	local policy env live open_reg stored hook=false opened want_open
+	policy="$(env_get "$ENV_FILE" REGISTRATION | lower)"; policy="${policy:-open}"
+	[[ "$policy" != invite-only ]] || policy=invite
+	env="$(auth_env)"
+	live="$(printf '%s\n' "$env" | sed -n 's/^GOTRUE_DISABLE_SIGNUP=//p' | head -1)"
+	open_reg="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'open_registration'" 2>/dev/null)"
+	stored="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'registration_policy'" 2>/dev/null)"
+	if grep -qx 'GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED=true' <<<"$env" && hook_applies_registration; then hook=true; fi
+	opened="$(signup_modes | awk -F '\t' '$2 == "open" || $2 == "domains" { print $1 }' | tr '\n' ' ')"
+	opened="${opened% }"
+	if [[ "$policy" == open ]]; then want_open=true; else want_open=false; fi
+
+	if [[ "$live" == false && "$policy" != open && ( "$hook" != true || "$stored" != "$policy" ) ]]; then
+		report FAIL registration ".env says $policy, but the auth service takes new accounts and its sign-up hook does not apply $policy: anyone can sign up" \
+			"harmony registration $policy"
+	elif [[ -z "$live" || "$open_reg" != "$want_open" || ( "$policy" == open && ( "$live" != false || ( -n "$stored" && "$stored" != open ) ) ) ]]; then
+		report WARN registration ".env says $policy; sign-up disabled=${live:-?}, registration_policy=${stored:-unset}, open_registration=${open_reg:-?}" \
+			"harmony registration $policy"
+	elif [[ "$live" == true && -n "$opened" ]]; then
+		report WARN registration "$policy; the auth service refuses every new account, so $opened create none" "harmony registration $policy"
+	elif [[ "$live" == false && "$policy" != open ]]; then
+		report OK registration "$policy, applied by the sign-up hook${opened:+; providers that create accounts: $opened}"
+	else
+		report OK registration "$policy${opened:+; providers with their own rule: $opened}"
 	fi
 }
 

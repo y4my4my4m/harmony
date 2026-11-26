@@ -573,7 +573,12 @@
       "domainCap": "Mit dieser E-Mail-Domain wurden heute zu viele Konten erstellt. Versuche es morgen erneut oder bitte die Administration dieser Instanz um eine Einladung.",
       "mailboxCap": "Dieses E-Mail-Postfach hat die Kontogrenze dieser Instanz erreicht.",
       "blockedDomain": "Mit diesem E-Mail-Anbieter ist auf dieser Instanz keine Registrierung möglich. Verwende eine andere Adresse.",
-      "blockedNetwork": "Registrierungen aus diesem Netzwerk sind auf dieser Instanz nicht möglich. Bitte die Admins dieser Instanz um eine Einladung."
+      "blockedNetwork": "Registrierungen aus diesem Netzwerk sind auf dieser Instanz nicht möglich. Bitte die Admins dieser Instanz um eine Einladung.",
+      "closed": "Diese Instanz nimmt keine neuen Konten an.",
+      "inviteOnly": "Diese Instanz nimmt neue Konten nur mit Einladung an. Bitte die Administration um eine.",
+      "otherDomain": "Neue Konten über diese Anmeldung sind auf bestimmte E-Mail-Domains beschränkt, und diese Adresse gehört zu keiner davon.",
+      "unverified": "Neue Konten über diese Anmeldung brauchen eine E-Mail-Adresse, die der Anmeldedienst bestätigt hat.",
+      "unavailable": "Die Registrierung ist gerade nicht verfügbar. Versuche es später erneut."
     },
     "captcha": {
       "asked": "Schließe die Prüfung ab, um die Registrierung fertigzustellen.",
@@ -9008,6 +9013,24 @@
     "refusalMailHost": "Mailserver",
     "refusalBlockedNetwork": "Abgelehnte Adresse"
   },
+  "adminSignupProviders": {
+    "title": "Neue Konten über Anmeldedienste",
+    "intro": "Für wen eine erste Anmeldung über den jeweiligen Dienst ein Konto anlegt. Wer schon ein Konto hat, meldet sich in jedem Fall an.",
+    "follow": "Wie die Registrierung",
+    "open": "Alle, die er anmeldet",
+    "domains": "Bestätigte Adressen dieser Domains",
+    "domainsLabel": "E-Mail-Domains für {provider}",
+    "domainsHint": "Eine pro Zeile, etwa myschool.edu. Subdomains zählen mit. Der Dienst muss die Adresse als bestätigt melden.",
+    "publicOpen": "Dann kann jede Person mit einem {provider}-Konto hier ein Konto anlegen.",
+    "switchOn": "Der Authentifizierungsdienst lehnt weiterhin jedes neue Konto ab. Führe auf dem Server harmony registration aus, damit diese Einstellungen gelten.",
+    "none": "Kein Anmeldedienst ist aktiv. Eingebaute Dienste werden unter Konfiguration eingerichtet, eigene mit harmony auth add-provider.",
+    "save": "Speichern",
+    "saved": "Registrierung über Anmeldedienste gespeichert",
+    "saveFailed": "Die Registrierungseinstellungen konnten nicht gespeichert werden.",
+    "loadFailed": "Die Anmeldedienste konnten nicht geladen werden.",
+    "invalidDomain": "{domain} ist kein Domainname.",
+    "noDomains": "Gib mindestens eine Domain für {provider} an."
+  },
   "adminSignupCaptcha": {
     "title": "Prüfung bei der Registrierung",
     "intro": "Ein Captcha, das nur erscheint, wenn eine Registrierung automatisiert wirkt. Die meisten Menschen sehen es nie. Registrierungen über Google, GitHub, Twitch oder die eigenen Anmeldedienste dieser Instanz werden nie geprüft.",
@@ -9064,6 +9087,8 @@
     "modeOpenHint": "Jede Person kann auf der Registrierungsseite ein Konto anlegen.",
     "modeClosed": "Registrierung: nur mit Einladung.",
     "modeClosedHint": "Die Registrierungsseite legt keine Konten an; neue Personen kommen mit einer Einladung.",
+    "modeShut": "Registrierung: geschlossen.",
+    "modeShutHint": "Die Registrierungsseite legt keine Konten an. Einladungen funktionieren weiterhin.",
     "modeUnknown": "Registrierung: unbekannt.",
     "modeUnknownHint": "Der Anmeldedienst hat nicht gemeldet, ob die Registrierung an ist.",
     "advertisedOpen": "Anderen Servern wird eine offene Registrierung gemeldet (Instanzeinstellung open_registration).",

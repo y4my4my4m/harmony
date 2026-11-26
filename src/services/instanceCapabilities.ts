@@ -22,6 +22,7 @@ export const KNOWN_CAPABILITIES = [
   'supporter-messages',
   'signup-limits',
   'signup-captcha',
+  'signup-methods',
   'instance-limits',
   'invite-widgets',
   'thread-departures',

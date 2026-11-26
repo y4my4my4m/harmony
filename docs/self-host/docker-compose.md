@@ -439,6 +439,12 @@ then `harmony studio off` when done) with its address
 confirmed, sign in to Harmony and choose a username. Then open sign-up if you
 want it, and set `instance_config.open_registration` to match.
 
+`DISABLE_SIGNUP=true` refuses every new account, a sign-in provider's included. To keep email
+sign-up closed while a provider makes accounts ([New accounts per provider](/self-host/oauth#new-accounts-per-provider)),
+set `instance_config.registration_policy` to `"invite"` or `"closed"` first, then
+`DISABLE_SIGNUP=false`: the sign-up hook (`GOTRUE_HOOK_BEFORE_USER_CREATED_*`, as in
+`supabase-overrides.yml`) applies the policy. Without that hook, keep `DISABLE_SIGNUP=true`.
+
 ### Update a root compose setup
 
 ```bash

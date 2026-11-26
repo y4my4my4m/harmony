@@ -389,6 +389,77 @@ db_sql() {
 
 db_ready() { docker exec "$(db_container)" pg_isready -U postgres -h localhost >/dev/null 2>&1; }
 
+# Registration. GoTrue's sign-up switch (DISABLE_SIGNUP) refuses every new account, those of
+# sign-in providers included. The sign-up hook applies instance_config.registration_policy per
+# sign-in method and signup_providers per provider (20261126500001); where the auth service runs
+# that hook, the switch stays off.
+
+# The auth service, as compose renders it, calls public.before_user_created_hook.
+auth_runs_signup_hook() {
+	local cfg
+	cfg="$(compose config auth 2>/dev/null)" || return 1
+	grep -Eq '^[[:space:]]+GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED: "?true"?$' <<<"$cfg" &&
+		grep -Eq '^[[:space:]]+GOTRUE_HOOK_BEFORE_USER_CREATED_URI: "?pg-functions://postgres/public/before_user_created_hook"?$' <<<"$cfg"
+}
+
+# The database's sign-up hook applies the registration policy.
+hook_applies_registration() {
+	[[ "$(db_sql -c "SELECT coalesce((SELECT p.prosrc LIKE '%signup_registration_refusal%' FROM pg_proc p WHERE p.oid = to_regprocedure('public.before_user_created_hook(jsonb)')), false)" 2>/dev/null)" == t ]]
+}
+
+registration_by_hook() { auth_runs_signup_hook && hook_applies_registration; }
+
+# registration_policy_store POLICY: instance_config.registration_policy (open, invite, closed).
+registration_policy_store() {
+	db_sql -c "INSERT INTO public.instance_config (config_key, config_value, description)
+		VALUES ('registration_policy', '\"$1\"'::jsonb, 'Who may create an account by email: open, invite or closed (harmony registration)')
+		ON CONFLICT (config_key) DO UPDATE SET config_value = excluded.config_value, updated_at = now()" >/dev/null
+}
+
+# An install whose switch is on at REGISTRATION invite or closed hands the policy to the hook once
+# the hook applies it: the policy is stored, then DISABLE_SIGNUP=false is written for the next
+# recreation of the auth service. One at open with the switch on (no admin yet) keeps the switch.
+registration_hand_over() {
+	local policy
+	truthy "$(env_get "$SB_ENV" DISABLE_SIGNUP)" || return 0
+	policy="$(env_get "$ENV_FILE" REGISTRATION | lower)"
+	case "$policy" in
+		invite|invite-only) policy=invite ;;
+		closed) ;;
+		*) return 0 ;;
+	esac
+	registration_by_hook || return 0
+	if ! registration_policy_store "$policy"; then
+		warn "could not store instance_config.registration_policy; sign-up stays off in the auth service"
+		return 0
+	fi
+	env_set "$SB_ENV" DISABLE_SIGNUP false
+}
+
+# Lines PROVIDER<TAB>MODE<TAB>DOMAINS of instance_config.signup_providers; empty when unread.
+signup_modes() {
+	db_sql -c "SELECT e.key || E'\t' || coalesce(lower(e.value ->> 'mode'), '') || E'\t' ||
+		coalesce((SELECT string_agg(d, ',') FROM jsonb_array_elements_text(
+			CASE WHEN jsonb_typeof(e.value -> 'domains') = 'array' THEN e.value -> 'domains' ELSE '[]'::jsonb END) d), '')
+		FROM public.instance_config ic, jsonb_each(ic.config_value) e
+		WHERE ic.config_key = 'signup_providers' AND jsonb_typeof(ic.config_value) = 'object'
+		  AND jsonb_typeof(e.value) = 'object'
+		ORDER BY 1" 2>/dev/null || true
+}
+
+# signup_mode_label LINES PROVIDER: who a provider's first sign-in makes an account for.
+signup_mode_label() {
+	local line mode domains
+	line="$(printf '%s\n' "$1" | awk -F '\t' -v p="$2" '$1 == p { print; exit }')"
+	mode="$(printf '%s' "$line" | cut -f2)"
+	domains="$(printf '%s' "$line" | cut -f3)"
+	case "$mode" in
+		open) printf 'anyone' ;;
+		domains) printf 'at %s' "${domains:-no domain}" ;;
+		*) printf 'as registration' ;;
+	esac
+}
+
 # Runs JavaScript (stdin) with node in the federation-server container, which
 # carries SUPABASE_URL (Kong on the compose network) and the Supabase keys.
 fed_node() {

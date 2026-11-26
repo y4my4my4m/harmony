@@ -16,7 +16,8 @@
 #   harmony admin reset-password (--email E | --username U) [--password P]
 #   harmony admin invite <email> [--send]
 #   harmony registration [open | invite | closed]
-#   harmony auth providers          sign-in providers and how each treats existing accounts
+#   harmony auth providers          sign-in providers, how each treats existing accounts and
+#                                   whom its first sign-in makes an account for
 #   harmony auth add-provider ID --name N --issuer URL --client-id C [...]
 #                                   add or update one (OIDC; OAuth 2.0 takes
 #                                   --authorize-url, --token-url, --userinfo-url);
@@ -27,6 +28,9 @@
 #   harmony auth remove-provider ID
 #   harmony auth linking PROVIDER --separate-accounts | --link-existing-accounts
 #                                   how discord, github, google, twitch, ... treat existing accounts
+#   harmony auth sign-up PROVIDER --follow-registration | --open | --domains D[,D...]
+#                                   whom a provider makes new accounts for: as registration
+#                                   says, anyone it signs in, or verified addresses at D
 #   harmony config                  change the answers (configure.sh), apply
 #   harmony config --upload-ceiling [SIZE]
 #                                   largest file storage accepts (500MB, 2GB);
@@ -51,7 +55,7 @@ SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 # shellcheck source=lib.sh
 source "$(dirname "$SELF")/lib.sh"
 
-usage() { sed -n '2,46p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,/^# Each command is a thin layer/p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 need_config() { [[ -f "$ENV_FILE" ]] || die "not installed yet: $SELF_HOST_DIR/harmony install"; }
 

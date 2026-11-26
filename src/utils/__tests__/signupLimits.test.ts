@@ -31,6 +31,33 @@ describe('signupRefusalKey', () => {
       expect(ja.auth.signupRefused[name]).not.toBe(texts[name])
     }
   })
+})
+
+describe('signupRefusalKey: registration per sign-in method', () => {
+  const methods = readFileSync(
+    resolve(__dirname, '../../../db_schema/migrations/20261126500001_signup_methods.sql'),
+    'utf8',
+  )
+  const texts = {
+    closed: 'This instance is not taking new accounts.',
+    inviteOnly: 'This instance takes new accounts by invitation only. Ask its admin for one.',
+    otherDomain: 'New accounts through this sign-in are limited to some email domains, and this address is not at one of them.',
+    unverified: 'New accounts through this sign-in need an email address the sign-in provider has verified.',
+    unavailable: 'Sign-up is unavailable right now. Try again later.',
+  } as const
+
+  it.each(Object.entries(texts))('maps the hook text of %s', (name, text) => {
+    expect(signupRefusalKey({ message: text, status: 403 })).toBe(`auth.signupRefused.${name}`)
+    expect(methods).toContain(`'${text.replace(/'/g, "''")}'`)
+  })
+
+  it('has every translation', () => {
+    for (const name of Object.keys(texts) as Array<keyof typeof texts>) {
+      expect(en.auth.signupRefused[name]).toBe(texts[name])
+      expect(ja.auth.signupRefused[name]).toBeTruthy()
+      expect(ja.auth.signupRefused[name]).not.toBe(texts[name])
+    }
+  })
 
   it('leaves any other error to authErrorMessage', () => {
     expect(signupRefusalKey({ message: 'User already registered', status: 422 })).toBeNull()

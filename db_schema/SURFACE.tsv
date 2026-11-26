@@ -1175,8 +1175,11 @@ sign_out_my_sessions	p_scope text	integer	definer	public, pg_temp	authenticated+
 signup_captcha_check	p_provider text, p_secret text, p_token text, p_remote_ip text	jsonb	definer	public, pg_temp		unreferenced
 signup_captcha_verdict	p_status integer, p_content text	text	invoker	pg_temp		unreferenced
 signup_captcha_verify	p_provider text, p_secret text, p_token text, p_remote_ip text	text	definer	public, pg_temp		unreferenced
+signup_invite_pass	p_email text	void	definer	public, pg_temp	service_role	client
+signup_limits_check	event jsonb	jsonb	definer	public, pg_temp		unreferenced
 signup_mailbox_hash	p_email text	text	invoker	pg_temp		unreferenced
 signup_network_contains	p_network text, p_ip inet	boolean	invoker	pg_temp		unreferenced
+signup_registration_refusal	event jsonb	jsonb	invoker	public, pg_temp		unreferenced
 signup_review_welcome_server		uuid	definer	public, pg_temp	service_role	unreferenced
 signup_spike_status	p_burst integer, p_domain_min integer, p_domain_share integer, p_domain_prior_max integer, p_daily integer, p_refused integer	TABLE(rule text, fired boolean, signups integer, window_signups integer, prior_signups integer)	definer	public, pg_temp		unreferenced
 skip_deleted_discord_import		trigger	definer	public, pg_temp	service_role	trigger

@@ -176,17 +176,18 @@ const pending = computed(() => (overview.value?.invites ?? []).filter((i) => i.s
 const closed = computed(() => (overview.value?.invites ?? []).filter((i) => i.status !== 'pending'))
 const lifetimeHours = computed(() => Math.round((overview.value?.link_lifetime_seconds ?? 86400) / 3600))
 
+// A closed policy is told apart from invite only; GoTrue's switch alone does not say which.
 const registrationLabel = computed(() => {
-  const signup = overview.value?.registration.signup
-  if (signup === 'open') return t('adminInvites.modeOpen')
-  if (signup === 'closed') return t('adminInvites.modeClosed')
+  const r = overview.value?.registration
+  if (r?.signup === 'open') return t('adminInvites.modeOpen')
+  if (r?.signup === 'closed') return r.policy === 'closed' ? t('adminInvites.modeShut') : t('adminInvites.modeClosed')
   return t('adminInvites.modeUnknown')
 })
 
 const registrationExplanation = computed(() => {
-  const signup = overview.value?.registration.signup
-  if (signup === 'open') return t('adminInvites.modeOpenHint')
-  if (signup === 'closed') return t('adminInvites.modeClosedHint')
+  const r = overview.value?.registration
+  if (r?.signup === 'open') return t('adminInvites.modeOpenHint')
+  if (r?.signup === 'closed') return r.policy === 'closed' ? t('adminInvites.modeShutHint') : t('adminInvites.modeClosedHint')
   return t('adminInvites.modeUnknownHint')
 })
 

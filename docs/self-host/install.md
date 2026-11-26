@@ -204,22 +204,38 @@ harmony registration invite    # only people you invite
 harmony registration closed    # no new accounts
 ```
 
-| Policy | Sign-up (`DISABLE_SIGNUP` in `supabase/.env`) | `instance_config.open_registration` |
+| Policy | Email sign-up | `instance_config.open_registration` |
 |---|---|---|
-| `open` | on | `true` |
-| `invite` | off | `false` |
-| `closed` | off | `false` |
+| `open` | anyone | `true` |
+| `invite` | invited addresses | `false` |
+| `closed` | no one; invitations still work | `false` |
 
-The command records the policy as `REGISTRATION` in `self-host/.env`,
-updates both settings and restarts the auth service. `open` refuses to run
-before an admin account exists. With sign-up off, new accounts through OAuth
-providers are refused too. NodeInfo advertises the policy to other servers
+The command records the policy as `REGISTRATION` in `self-host/.env` and in
+`instance_config.registration_policy`, which the sign-up hook applies, updates
+`open_registration` and restarts the auth service. `open` refuses to run before
+an admin account exists. NodeInfo advertises the policy to other servers
 (`openRegistrations`).
+
+Sign-in providers (Google, Discord, your own identity provider) follow the
+policy by default. Each can have a rule of its own, on the admin panel's
+**Invites** tab or with `harmony auth sign-up`: anyone it signs in, or only
+addresses it has verified at domains you list. A school or company that closes
+registration and lets its own sign-in make accounts for `@myschool.edu` runs:
+
+```bash
+harmony registration closed
+harmony auth sign-up school --domains myschool.edu
+```
+
+See [harmony auth](/self-host/cli#harmony-auth).
 
 ### Invite someone
 
 An invitation makes an account for one email address. It works in every
-registration policy, also while sign-up is off.
+registration policy, also while sign-up is off. Make it in the admin panel or
+with `harmony admin invite`: while registration is `invite` or `closed`, the
+sign-up hook admits a new address only with the pass these take first, so an
+invitation sent from Supabase Studio is refused.
 
 In the admin panel, open **Invites**:
 

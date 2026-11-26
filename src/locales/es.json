@@ -573,7 +573,12 @@
       "domainCap": "Hoy se han creado demasiadas cuentas con este dominio de correo. Vuelve a intentarlo mañana o pide una invitación a la administración de esta instancia.",
       "mailboxCap": "Este buzón de correo ha alcanzado el límite de cuentas de esta instancia.",
       "blockedDomain": "Este proveedor de correo no se puede usar para registrarse en esta instancia. Usa otra dirección.",
-      "blockedNetwork": "Los registros desde esta red no están disponibles en esta instancia. Pide una invitación a la administración de esta instancia."
+      "blockedNetwork": "Los registros desde esta red no están disponibles en esta instancia. Pide una invitación a la administración de esta instancia.",
+      "closed": "Esta instancia no acepta cuentas nuevas.",
+      "inviteOnly": "Esta instancia solo acepta cuentas nuevas con invitación. Pide una a su administración.",
+      "otherDomain": "Las cuentas nuevas con este inicio de sesión están limitadas a algunos dominios de correo, y esta dirección no es de ninguno.",
+      "unverified": "Las cuentas nuevas con este inicio de sesión necesitan una dirección de correo que el proveedor haya verificado.",
+      "unavailable": "El registro no está disponible ahora mismo. Vuelve a intentarlo más tarde."
     },
     "captcha": {
       "asked": "Completa la verificación para terminar el registro.",
@@ -9008,6 +9013,24 @@
     "refusalMailHost": "Servidor de correo",
     "refusalBlockedNetwork": "Dirección rechazada"
   },
+  "adminSignupProviders": {
+    "title": "Cuentas nuevas con proveedores de inicio de sesión",
+    "intro": "Para quién crea una cuenta el primer inicio de sesión con cada proveedor. Quien ya tiene cuenta entra de cualquier modo.",
+    "follow": "Igual que el registro",
+    "open": "Cualquiera que inicie sesión con él",
+    "domains": "Direcciones verificadas de estos dominios",
+    "domainsLabel": "Dominios de correo para {provider}",
+    "domainsHint": "Uno por línea, por ejemplo myschool.edu. Los subdominios también cuentan. El proveedor tiene que indicar que la dirección está verificada.",
+    "publicOpen": "Cualquiera con una cuenta de {provider} podrá crear una cuenta aquí.",
+    "switchOn": "El servicio de autenticación sigue rechazando toda cuenta nueva. En el servidor, ejecuta harmony registration para que estos ajustes se apliquen.",
+    "none": "No hay ningún proveedor de inicio de sesión activo. Los integrados se configuran en Configuración y los propios de la instancia con harmony auth add-provider.",
+    "save": "Guardar",
+    "saved": "Registro con proveedores guardado",
+    "saveFailed": "No se pudieron guardar los ajustes de registro.",
+    "loadFailed": "No se pudieron cargar los proveedores de inicio de sesión.",
+    "invalidDomain": "{domain} no es un nombre de dominio.",
+    "noDomains": "Añade al menos un dominio para {provider}."
+  },
   "adminSignupCaptcha": {
     "title": "Verificación de registro",
     "intro": "Un captcha que solo aparece cuando un registro parece automatizado, así que la mayoría de las personas no lo ve nunca. Los registros con Google, GitHub, Twitch o los proveedores de inicio de sesión propios de esta instancia nunca se verifican.",
@@ -9064,6 +9087,8 @@
     "modeOpenHint": "Cualquiera puede crear una cuenta en la página de registro.",
     "modeClosed": "Registro: solo con invitación.",
     "modeClosedHint": "La página de registro no crea cuentas; las personas nuevas entran con una invitación.",
+    "modeShut": "Registro: cerrado.",
+    "modeShutHint": "La página de registro no crea cuentas. Las invitaciones siguen funcionando.",
     "modeUnknown": "Registro: desconocido.",
     "modeUnknownHint": "El servicio de autenticación no indicó si el registro está activo.",
     "advertisedOpen": "A otros servidores se les indica que el registro está abierto (ajuste de instancia open_registration).",

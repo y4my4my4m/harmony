@@ -183,7 +183,7 @@ certificates, Federation, Services, Security, Versions.
 | `upload-limits` | The `storage_upload_limit` trigger exists on `storage.objects` with its settings; the storage container's `FILE_SIZE_LIMIT`, the one in `supabase/.env` and `instance_config.upload_ceiling_bytes` agree | FAIL when the trigger or the settings are missing: per-account upload limits are not enforced. WARN when storage runs another `FILE_SIZE_LIMIT` than `supabase/.env`, or the database holds another ceiling | Run `db_schema/migrations/20261031100001_upload_limits.sql` as printed (safe to re-run); for a WARN, `harmony config --upload-ceiling SIZE` |
 | `domain` | `instance_config.domain` equals `DOMAIN` in `.env` | FAIL when unset or still `localhost`; FAIL when the two differ, since handles and ActivityPub ids disagree | `bash bootstrap.sh`; for a difference, see [Domain mismatch](/self-host/troubleshooting#domain-mismatch) |
 | `admin` | A local admin account exists | WARN when none does | `harmony admin create` |
-| `registration` | `REGISTRATION` in `.env` matches the auth service's sign-up setting and `instance_config.open_registration` | WARN on a mismatch | `harmony registration POLICY` |
+| `registration` | `REGISTRATION` in `.env` matches the auth service's sign-up switch, `instance_config.registration_policy` and `open_registration`; with the switch off, the sign-up hook applies the policy | FAIL when the switch is off for `invite` or `closed` and the hook does not apply the policy: anyone can sign up. WARN on a mismatch, and when providers set to make accounts cannot because the switch is on | `harmony registration POLICY` |
 | `listener` | The `harmony_listener` role exists | WARN: queued jobs wait for the periodic sweep | `bash bootstrap.sh && docker compose restart federation-worker` |
 | `stored logs` | Size of `_supabase._analytics`, where log collection keeps its logs | WARN above 1 GB | `harmony analytics off --delete-logs`; `harmony analytics on` afterwards collects again, from empty |
 | `logflare slot` | Write-ahead log a `cainophile_…` replication slot (Logflare's) holds back | WARN above 1 GB; Postgres keeps up to 4 GB (`max_slot_wal_keep_size`) | Same |
@@ -440,21 +440,28 @@ as made outside Harmony.
 harmony registration [open | invite | closed]
 ```
 
-Sets who can create an account. Without an argument it applies
+Sets who can create an account with an email address. Without an argument it applies
 `REGISTRATION` from `.env` (default `open`). `invite-only` is accepted for
 `invite`.
 
-| Policy | Sign-up | `open_registration` |
+| Policy | Email sign-up | `open_registration` |
 |---|---|---|
-| `open` | on (`DISABLE_SIGNUP=false`) | `true` |
-| `invite` | off; invitations through `harmony admin invite` or the admin panel's **Invites** | `false` |
-| `closed` | off | `false` |
+| `open` | anyone | `true` |
+| `invite` | invited addresses only, through `harmony admin invite` or the admin panel's **Invites** | `false` |
+| `closed` | no one; invitations still work | `false` |
 
-It writes `REGISTRATION` to `.env`, `DISABLE_SIGNUP` to `supabase/.env` and
-`open_registration` to `instance_config`, then recreates the auth service
-when `DISABLE_SIGNUP` changed. `open` stops with `no admin exists yet; create
-one first (harmony admin create), then open registration` while there is no
-admin.
+A sign-in provider follows the policy unless `harmony auth sign-up` gives it a
+rule of its own.
+
+It writes `REGISTRATION` to `.env`, the policy to `instance_config.registration_policy`
+and `open_registration`, then `DISABLE_SIGNUP` to `supabase/.env`, and recreates
+the auth service when `DISABLE_SIGNUP` changed. The sign-up hook applies the policy.
+`DISABLE_SIGNUP` is the auth service's own switch: on, it refuses every new account,
+a sign-in provider's included. It is off for every policy where the auth service runs
+the sign-up hook and the database's hook applies the policy, and on for `invite` and
+`closed` otherwise. `harmony update` makes the same move once both hold. `open` stops
+with `no admin exists yet; create one first (harmony admin create), then open
+registration` while there is no admin.
 
 ## harmony auth
 
@@ -467,6 +474,7 @@ harmony auth add-provider ID [--name N] (--issuer URL [--discovery-url URL] [--u
                              [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 harmony auth remove-provider ID
 harmony auth linking PROVIDER (--separate-accounts | --link-existing-accounts [--provider-verifies-email])
+harmony auth sign-up PROVIDER (--follow-registration | --open | --domains D[,D...])
 ```
 
 Sign-in through an OpenID Connect or OAuth 2.0 provider you run, such as
@@ -476,7 +484,9 @@ walks through it.
 `providers` lists the built-in providers (`discord`, `github`, `google`, `twitch`, and
 any other the auth service has on), whether the auth service has each on, and
 what a first sign-in does with an existing account that has the same address
-(**EXISTING ACCOUNTS**: `separate`, `by address`, or `shared: NAME`). Then it
+(**EXISTING ACCOUNTS**: `separate`, `by address`, or `shared: NAME`), and whom a
+first sign-in makes a new account for (**NEW ACCOUNTS**: `as registration`, `anyone`
+or `at DOMAINS`; see `sign-up` below). Then it
 lists your own providers the same way, with where the sign-in service reads
 each person's address and name (**ADDRESS FROM**: `userinfo` or `ID token`),
 whether the sign-in page shows them, and the redirect (callback) URL to
@@ -525,8 +535,8 @@ the auth service before the provider is saved. An update without either
 keeps the provider's setting. See
 [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts).
 
-`remove-provider` deletes the provider and its button, then its entry in
-`PROVIDER_LINKING_DOMAINS`. An account that signed in only through it has no
+`remove-provider` deletes the provider and its button, then its entries in
+`PROVIDER_LINKING_DOMAINS` and in the sign-up rules. An account that signed in only through it has no
 way in: one the provider joined by address gets a password with
 `harmony admin reset-password`; one it kept apart signs in only through the
 provider, so adding the provider back under the same id restores it.
@@ -543,6 +553,23 @@ address on the account, unverified ones included. A change recreates the auth
 service. `configure.sh` keeps the built-in providers apart while addresses
 are confirmed automatically and leaves an entry written here alone; see
 [Existing accounts](/self-host/oauth#existing-accounts).
+
+`sign-up` sets whom a first sign-in through a provider makes a new account for.
+`PROVIDER` is a built-in provider (`discord`, `google`, ...) or your own, with or
+without `custom:`. People who already have an account sign in whatever the rule.
+
+| Option | New accounts through the provider |
+|---|---|
+| `--follow-registration` | As `harmony registration` allows email sign-up. The default |
+| `--open` | Anyone the provider signs in, while registration is `invite` or `closed` too |
+| `--domains D[,D...]` | Addresses the provider reports as verified at a listed domain or a subdomain of one; `myschool.edu` admits `cs.myschool.edu`, not `evilmyschool.edu`. Also limits the provider while registration is `open` |
+
+Use `--open` for an identity provider only your people have accounts at; with a
+public service such as Discord or Google it opens the instance to everyone there.
+The rule is stored in `instance_config.signup_providers`, which the admin panel's
+**Invites** tab also edits. When the auth service's switch still refuses every new
+account, `sign-up` hands registration to the sign-up hook first (as
+`harmony registration` does), or says why it cannot.
 
 Messages from the auth service come through as they are, for example
 `adding the provider failed (HTTP 400: URL cannot resolve to private network

@@ -573,7 +573,12 @@
       "domainCap": "Too many accounts were created with this email domain today. Try again tomorrow, or ask this instance's admin for an invitation.",
       "mailboxCap": "This email inbox has reached the limit of accounts on this instance.",
       "blockedDomain": "This email provider cannot be used to sign up on this instance. Use another address.",
-      "blockedNetwork": "Sign-ups from this network are not available on this instance. Ask this instance's admin for an invitation."
+      "blockedNetwork": "Sign-ups from this network are not available on this instance. Ask this instance's admin for an invitation.",
+      "closed": "This instance is not taking new accounts.",
+      "inviteOnly": "This instance takes new accounts by invitation only. Ask its admin for one.",
+      "otherDomain": "New accounts through this sign-in are limited to some email domains, and this address is not at one of them.",
+      "unverified": "New accounts through this sign-in need an email address the sign-in provider has verified.",
+      "unavailable": "Sign-up is unavailable right now. Try again later."
     },
     "captcha": {
       "asked": "Complete the check to finish signing up.",
@@ -9004,6 +9009,24 @@
     "refusalMailHost": "Mail host",
     "refusalBlockedNetwork": "Refused address"
   },
+  "adminSignupProviders": {
+    "title": "New accounts through sign-in providers",
+    "intro": "Whom a first sign-in through each provider makes an account for. People who already have an account sign in either way.",
+    "follow": "Same as registration",
+    "open": "Anyone it signs in",
+    "domains": "Verified addresses at these domains",
+    "domainsLabel": "Email domains for {provider}",
+    "domainsHint": "One per line, such as myschool.edu. Subdomains count too. The provider has to report the address as verified.",
+    "publicOpen": "Anyone with a {provider} account can then create an account here.",
+    "switchOn": "The auth service still refuses every new account. On the server, run harmony registration so these settings apply.",
+    "none": "No sign-in provider is on. Built-in providers are set up under Configuration, the instance’s own with harmony auth add-provider.",
+    "save": "Save",
+    "saved": "Sign-up through providers saved",
+    "saveFailed": "Could not save the sign-up settings.",
+    "loadFailed": "Could not load the sign-in providers.",
+    "invalidDomain": "{domain} is not a domain name.",
+    "noDomains": "Add at least one domain for {provider}."
+  },
   "adminSignupCaptcha": {
     "title": "Sign-up check",
     "intro": "A captcha asked only when a sign-up looks automated, so most people never see it. Sign-ups through Google, GitHub, Twitch or this instance's own sign-in providers are never asked.",
@@ -9060,6 +9083,8 @@
     "modeOpenHint": "Anyone can create an account on the sign-up page.",
     "modeClosed": "Registration: invite only.",
     "modeClosedHint": "The sign-up page creates no accounts; new people join with an invitation.",
+    "modeShut": "Registration: closed.",
+    "modeShutHint": "The sign-up page creates no accounts. Invitations still work.",
     "modeUnknown": "Registration: unknown.",
     "modeUnknownHint": "The auth service did not say whether sign-up is on.",
     "advertisedOpen": "Other servers are told registration is open (instance setting open_registration).",

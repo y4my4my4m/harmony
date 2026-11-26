@@ -49,6 +49,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **For bridge programs:** `GET /api/v1/channels/{id}/bridge-check` answers binding, room, sender
   mode, encryption, consent and member of a Matrix pair in one request (400 a minute per channel,
   capability `matrix_bridge_check`); `bridge-members` takes `user_id`.
+- **New accounts per sign-in provider.** **Admin** → **Invites** → **New accounts through sign-in
+  providers** sets, for each provider, whom a first sign-in makes an account for: the same as
+  registration, anyone it signs in, or only addresses it has verified at email domains you list
+  (`myschool.edu` admits `cs.myschool.edu` too). A school or company can keep email sign-up closed
+  and let its own sign-in make accounts for its people. Self-hosters can also run
+  `harmony auth sign-up PROVIDER --open | --domains D | --follow-registration`; `harmony auth
+  providers` shows each rule. See
+  [New accounts per provider](https://docs.mony.lol/self-host/oauth#new-accounts-per-provider).
 
 ### Changed
 
@@ -65,6 +73,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- With registration set to invite only or closed, sign-in through the instance's own identity
+  provider made no account for new people ("Signups not allowed for this instance"). The sign-up
+  hook now applies the registration policy per sign-in method, and `harmony update` moves invite
+  and closed registration to it; email sign-up stays as closed as before, and invitations work as
+  before. The refusal now says why: closed, invitation only, or not at an allowed domain.
 - The Matrix setup steps said that whoever runs the instance sets the bridge service up. Anyone can
   run one.
 - The line above a reply, in chats and in the social feed, draws custom emojis, this instance's and

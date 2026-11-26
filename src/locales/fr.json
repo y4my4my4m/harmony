@@ -573,7 +573,12 @@
       "domainCap": "Trop de comptes ont été créés avec ce domaine de messagerie aujourd’hui. Réessayez demain ou demandez une invitation à l’administration de cette instance.",
       "mailboxCap": "Cette boîte mail a atteint la limite de comptes de cette instance.",
       "blockedDomain": "Ce fournisseur de messagerie ne permet pas de s’inscrire sur cette instance. Utilisez une autre adresse.",
-      "blockedNetwork": "Les inscriptions depuis ce réseau ne sont pas disponibles sur cette instance. Demandez une invitation à l'administration de cette instance."
+      "blockedNetwork": "Les inscriptions depuis ce réseau ne sont pas disponibles sur cette instance. Demandez une invitation à l'administration de cette instance.",
+      "closed": "Cette instance n’accepte pas de nouveaux comptes.",
+      "inviteOnly": "Cette instance n’accepte de nouveaux comptes que sur invitation. Demandez-en une à son administration.",
+      "otherDomain": "Les nouveaux comptes par cette connexion sont limités à certains domaines de messagerie, et cette adresse n’en fait pas partie.",
+      "unverified": "Les nouveaux comptes par cette connexion demandent une adresse e-mail vérifiée par le fournisseur de connexion.",
+      "unavailable": "L’inscription n’est pas disponible pour le moment. Réessayez plus tard."
     },
     "captcha": {
       "asked": "Complétez la vérification pour finir votre inscription.",
@@ -9008,6 +9013,24 @@
     "refusalMailHost": "Serveur de messagerie",
     "refusalBlockedNetwork": "Adresse refusée"
   },
+  "adminSignupProviders": {
+    "title": "Nouveaux comptes par les fournisseurs de connexion",
+    "intro": "Pour qui une première connexion par chaque fournisseur crée un compte. Les personnes qui ont déjà un compte se connectent dans tous les cas.",
+    "follow": "Comme les inscriptions",
+    "open": "Toute personne qu’il connecte",
+    "domains": "Adresses vérifiées de ces domaines",
+    "domainsLabel": "Domaines de messagerie pour {provider}",
+    "domainsHint": "Un par ligne, par exemple myschool.edu. Les sous-domaines comptent aussi. Le fournisseur doit indiquer l’adresse comme vérifiée.",
+    "publicOpen": "Toute personne ayant un compte {provider} pourra alors créer un compte ici.",
+    "switchOn": "Le service d’authentification refuse toujours tout nouveau compte. Sur le serveur, lancez harmony registration pour que ces réglages s’appliquent.",
+    "none": "Aucun fournisseur de connexion n’est actif. Les fournisseurs intégrés se configurent dans Configuration, ceux de l’instance avec harmony auth add-provider.",
+    "save": "Enregistrer",
+    "saved": "Inscriptions par fournisseur enregistrées",
+    "saveFailed": "Impossible d’enregistrer les réglages d’inscription.",
+    "loadFailed": "Impossible de charger les fournisseurs de connexion.",
+    "invalidDomain": "{domain} n’est pas un nom de domaine.",
+    "noDomains": "Ajoutez au moins un domaine pour {provider}."
+  },
   "adminSignupCaptcha": {
     "title": "Vérification d'inscription",
     "intro": "Un captcha demandé seulement quand une inscription semble automatisée : la plupart des gens ne le voient jamais. Les inscriptions via Google, GitHub, Twitch ou les fournisseurs de connexion propres à cette instance ne sont jamais vérifiées.",
@@ -9064,6 +9087,8 @@
     "modeOpenHint": "Tout le monde peut créer un compte sur la page d’inscription.",
     "modeClosed": "Inscriptions : sur invitation.",
     "modeClosedHint": "La page d’inscription ne crée aucun compte ; les nouvelles personnes arrivent avec une invitation.",
+    "modeShut": "Inscriptions : fermées.",
+    "modeShutHint": "La page d’inscription ne crée aucun compte. Les invitations fonctionnent toujours.",
     "modeUnknown": "Inscriptions : inconnu.",
     "modeUnknownHint": "Le service d’authentification n’a pas indiqué si l’inscription est active.",
     "advertisedOpen": "Les autres serveurs voient des inscriptions ouvertes (réglage d’instance open_registration).",
