@@ -46,6 +46,7 @@ describe('renderInviteBadge', () => {
   it('draws the icon style square, and the join style in the locale', () => {
     expect(renderInviteBadge(preview, NAME, { style: 'icon' })).toContain('width="28" height="28"');
     expect(renderInviteBadge(preview, NAME, { style: 'join', lang: 'ja' })).toContain('Example Chatで参加');
+    expect(renderInviteBadge(preview, NAME, { style: 'join', lang: 'nl' })).toContain('Doe mee op Example Chat');
   });
 
   it('names the instance in the label and the join line', () => {
