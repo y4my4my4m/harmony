@@ -7,6 +7,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Fixed
+
+- **Encryption edits in Server settings survive a section switch.** A change under **Privacy
+  settings** was dropped without warning when another section opened, and **Save changes** went
+  disabled. It now stays, keeps **Save changes** enabled and saves from any section. An encryption
+  change that fails to save says **Failed to update server** instead of **Server updated**.
+
 ## [1.9.8] - 2026-11-25
 
 ### Added

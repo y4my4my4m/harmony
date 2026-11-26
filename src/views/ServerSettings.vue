@@ -242,25 +242,28 @@
           />
 
           <!-- Privacy Settings Section -->
-          <template v-if="activeSection === 'privacy'">
-            <ServerPrivacySettings
-              :serverId="serverId"
-              v-model:isPublic="server.public"
-              :category="server.category ?? null"
-              @update:category="server.category = $event"
-              :federationEnabled="server.federation_enabled ?? false"
-              @update:federationEnabled="server.federation_enabled = $event"
-              :federationDiscoverable="server.federation_discoverable ?? false"
-              @update:federationDiscoverable="server.federation_discoverable = $event"
-              :loading="loading"
-              :permissions="permissions"
-            />
+          <ServerPrivacySettings
+            v-if="activeSection === 'privacy'"
+            :serverId="serverId"
+            v-model:isPublic="server.public"
+            :category="server.category ?? null"
+            @update:category="server.category = $event"
+            :federationEnabled="server.federation_enabled ?? false"
+            @update:federationEnabled="server.federation_enabled = $event"
+            :federationDiscoverable="server.federation_discoverable ?? false"
+            @update:federationDiscoverable="server.federation_discoverable = $event"
+            :loading="loading"
+            :permissions="permissions"
+          />
+          <!-- Kept alive, so unsaved encryption edits survive a section switch. -->
+          <KeepAlive>
             <ServerEncryptionSettings
-              ref="encryptionSettingsRef"
+              v-if="activeSection === 'privacy' && permissions.canChangePrivacySettings"
+              :key="serverId"
+              :ref="keepEncryptionSettings"
               :server-id="serverId"
-              v-if="permissions.canChangePrivacySettings"
             />
-          </template>
+          </KeepAlive>
 
           <!-- Advanced Settings Section -->
           <template v-if="activeSection === 'advanced'">
@@ -303,7 +306,7 @@
 <script setup lang="ts">
 import { hasOpenLayer } from '@/utils/a11y/layers'
 import { hasCapability } from '@/services/instanceCapabilities'
-import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent, nextTick, useId } from 'vue'
+import { onMounted, ref, shallowRef, computed, watch, onUnmounted, defineAsyncComponent, nextTick, useId } from 'vue'
 import { badgeCount, refreshServerPendingReports, useReportQueueCounts } from '@/composables/useReportQueueCounts'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
@@ -425,7 +428,15 @@ const server = ref<Server>({
 })
 
 const originalServer = ref<Server | null>(null)
-const encryptionSettingsRef = ref<InstanceType<typeof ServerEncryptionSettings> | null>(null)
+type EncryptionSettings = InstanceType<typeof ServerEncryptionSettings>
+const encryptionSettingsRef = shallowRef<EncryptionSettings | null>(null)
+// Vue clears a template ref when KeepAlive deactivates the component; the kept instance stays
+// valid, so its edits still count and save from any section.
+const keepEncryptionSettings = (el: unknown) => {
+  if (el) encryptionSettingsRef.value = el as EncryptionSettings
+}
+// Another server's settings start from that server's own instance (keyed by serverId).
+watch(() => props.serverId, () => { encryptionSettingsRef.value = null })
 
 const currentSectionLabel = computed(() => {
   const section = availableSections.value.find(s => s.id === activeSection.value)
@@ -758,6 +769,8 @@ const handleSave = async () => {
 
     if (encryptionSettingsRef.value?.hasChanges) {
       await encryptionSettingsRef.value.saveSettings()
+      // saveSettings reports its own failure inline, which another section hides.
+      if (encryptionSettingsRef.value?.hasChanges) throw new Error('Encryption settings not saved')
     }
 
     toast.success(t('server.serverUpdatedSuccess'))
