@@ -35,23 +35,32 @@ In order, it:
    unless `INSTANCE_NAME_CHOSEN=true` marks Harmony as chosen. Files the new code brings
    are made readable to the containers, which a umask of 077 or 027 keeps
    them from ([A restrictive umask](/self-host/troubleshooting#umask)).
-3. **Downloads the new images**, or builds Harmony's with `HARMONY_BUILD=1`.
-   The running instance is untouched so far, log collection aside.
-4. **Backs up** the database, the database roles and the configuration into
+3. **Checks disk space.** Container logs over 100 MB, which only containers
+   created without [log rotation](/self-host/docker-compose#container-logs)
+   reach, are emptied, with one line naming the space freed. The update stops
+   when less than 1 GB stays free where `self-host/` lives or in Docker's data
+   directory.
+4. **Downloads the new images**, or builds Harmony's with `HARMONY_BUILD=1`.
+   The running instance is untouched so far, log collection and container
+   logs aside.
+5. **Backs up** the database, the database roles and the configuration into
    `self-host/backups/TIME-OLD-to-NEW/` (no uploads). `HARMONY_SKIP_BACKUP=1`
    skips this, for when a backup was taken another way.
-5. **Applies new database migrations** while the old containers keep
+6. **Applies new database migrations** while the old containers keep
    running. A name step 2 gave replaces Harmony in the database too, with one
    line saying so; a name set in the admin panel stays.
-6. **Recreates the containers** whose image or configuration changed, and
-   restarts Caddy when the Caddyfile changed.
-7. **Deletes old update backups**, keeping the newest 5 of each kind (see
+7. **Recreates the containers** whose image or configuration changed, and
+   restarts Caddy when the Caddyfile changed. A Redis that cannot load its
+   append-only file gets it repaired, as
+   [harmony repair](/self-host/cli#harmony-repair) does.
+8. **Deletes old update backups**, keeping the newest 5 of each kind (see
    [Delete old backups](#delete-old-backups)).
 
 It ends with a table of the containers and `Update complete (VERSION).`;
 then run `harmony doctor`. Nothing in an update deletes volumes, data
-directories or any other backup. It deletes the logs of log collection only
-when it turns log collection off (step 2).
+directories or any other backup. It empties container logs over 100 MB
+(step 3), and deletes the logs of log collection only when it turns log
+collection off (step 2).
 
 ### The apps and an older instance
 
@@ -122,6 +131,7 @@ A failure stops the update at its step and prints
 |---|---|
 | `code` | The checkout is unchanged or at the target; no container was touched |
 | `configure` | The new code is checked out; containers still run the previous version |
+| `space` | The new code is checked out; containers still run the previous version and the database is unchanged. Free space, see [After the disk filled](/self-host/troubleshooting#disk-full) |
 | `images` | Containers still run the previous version; the database is unchanged. Re-run once the images are available |
 | `backup` | No migration was applied; containers still run the previous version |
 | `migrate` | The database is at the last migration that succeeded; containers still run the previous version. The message names the pre-update backup |
@@ -188,6 +198,12 @@ writes `self-host/backups/YYYYmmdd-HHMMSS/`, readable only by its owner:
 | `config.tar` | `.env`, `federation.env`, `bot-gateway.env`, `discord-bridge.env`, `matrix-bridge.env`, `livekit.yaml` and `supabase/.env` (those that exist), and `supabase/pgsodium_root.key`, the key Supabase Vault encrypts its secrets with |
 | `storage.tar` | Uploaded files (`supabase/volumes/storage`) with their extended attributes, where Supabase Storage keeps each file's content type. Absent with `--no-storage` |
 | `manifest` | `created`, `commit`, `version`, `domain`, `supabase_ref`, `migration` (the newest applied) and `contents` |
+
+A backup leaves at least 1 GB free beside it: it refuses to start with less,
+or when the newest backup's dump plus the uploads would not fit, and stops a
+dump that brings free space below 1 GB. A failed backup deletes what it wrote
+and stops the database again when it started it. See
+[harmony backup](/self-host/cli#harmony-backup).
 
 `--label TEXT` appends `-TEXT` to the directory name. Other backups land
 in the same place: each `harmony update` writes one labelled `OLD-to-NEW`,

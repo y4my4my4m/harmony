@@ -4,14 +4,24 @@
 #
 # Requires Docker Compose 2.24.4 or later (include with a file list, !reset).
 
+# Container logs bounded as docker-compose.yml's x-logging; anchors do not cross files.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+    compress: "true"
+
 services:
   # Edge runtime: federation runs as its own Node service.
   # Supavisor: the federation listener connects to db directly as
   # harmony_listener; supavisor would also publish Postgres on the host.
   # A profile no command enables keeps both defined and never started.
   functions:
+    logging: *logging
     profiles: [supabase-unused]
   supavisor:
+    logging: *logging
     profiles: [supabase-unused]
 
   # Caddy reaches Kong as supabase-kong:8000 on the shared network; Logflare
@@ -29,6 +39,7 @@ services:
   # KONG_DNS_NOT_FOUND_TTL: a service just started, such as Studio, answers within 1 s.
   kong:
     image: kong:3.9.4
+    logging: *logging
     ports: !reset []
     depends_on:
       analytics: { condition: service_healthy, required: false }
@@ -51,15 +62,18 @@ services:
   # stack's vector.yml.
   analytics:
     image: supabase/logflare:1.50.15
+    logging: *logging
     ports: !reset []
     profiles: [logs]
   vector:
     image: timberio/vector:0.53.0-alpine
+    logging: *logging
     profiles: [logs]
     volumes: !override
       - ../vector.yml:/etc/vector/vector.yml:ro,z
       - ${DOCKER_SOCKET_LOCATION}:/var/run/docker.sock:ro,z
   db:
+    logging: *logging
     # Parallel VACUUM, CREATE INDEX and hash joins allocate shared memory in
     # /dev/shm, which Docker caps at 64 MB per container. A parallel VACUUM of a
     # 1 GB table asked for 67151776 bytes there and failed: "could not resize
@@ -77,6 +91,7 @@ services:
   # rate-limiting plugin, and Studio's SQL editor reaches the whole database. No other service
   # depends on either; Kong answers 503 on their routes while they are absent.
   studio:
+    logging: *logging
     profiles: [studio]
     image: supabase/studio:2026.11.02-sha-a05e7ec
     depends_on:
@@ -90,6 +105,7 @@ services:
       PGRST_DB_MAX_ROWS: ${PGRST_DB_MAX_ROWS:-1000}
       PGRST_DB_EXTRA_SEARCH_PATH: ${PGRST_DB_EXTRA_SEARCH_PATH:-public}
   meta:
+    logging: *logging
     profiles: [studio]
     image: supabase/postgres-meta:v0.100.0
     depends_on:
@@ -122,6 +138,7 @@ services:
   # next delivery. Editing a server writes one row per member.
   realtime:
     image: ${REALTIME_IMAGE:-supabase/realtime:v2.153.6}
+    logging: *logging
     depends_on:
       analytics: { condition: service_healthy, required: false }
     environment:
@@ -140,6 +157,7 @@ services:
   # which PostgREST 13 and later refuse at startup.
   rest:
     image: ${POSTGREST_IMAGE:-postgrest/postgrest:v14.18}
+    logging: *logging
     depends_on:
       analytics: { condition: service_healthy, required: false }
     environment:
@@ -164,6 +182,7 @@ services:
   # file backend's directory is named by the former.
   storage:
     image: ${STORAGE_IMAGE:-supabase/storage-api:v1.90.0}
+    logging: *logging
     environment:
       - FILE_SIZE_LIMIT=${FILE_SIZE_LIMIT:-52428800}
       - STORAGE_BACKEND=${STORAGE_BACKEND:-file}
@@ -184,6 +203,7 @@ services:
   # list keep them, as v3.8 did.
   imgproxy:
     image: darthsim/imgproxy:v4.0.22
+    logging: *logging
     environment:
       IMGPROXY_AUTO_WEBP: ${IMGPROXY_ENABLE_WEBP_DETECTION:-true}
       IMGPROXY_PREFERRED_FORMATS: jpeg,png,gif,webp,avif
@@ -238,6 +258,7 @@ services:
   # function fails every sign-up.
   auth:
     image: ${GOTRUE_IMAGE:-supabase/gotrue:v2.197.0}
+    logging: *logging
     command: ["auth", "--config-dir", "/etc/harmony-auth"]
     depends_on:
       analytics: { condition: service_healthy, required: false }

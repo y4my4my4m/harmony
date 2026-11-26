@@ -130,8 +130,8 @@ check_host() {
 		kb_free="$(df -Pk "$dir" 2>/dev/null | awk 'NR==2 {print $4}')"
 		local pct; pct="$(df -P "$dir" 2>/dev/null | awk 'NR==2 {gsub("%","",$5); print $5}')"
 		[[ -n "$kb_free" ]] || continue
-		if (( kb_free < 1048576 )); then
-			report FAIL disk "$((kb_free / 1024)) MB free on $mount ($dir)" "free space: old backups in self-host/backups, 'docker image prune' for unused images"
+		if (( kb_free < DISK_RESERVE_KB )); then
+			report FAIL disk "$((kb_free / 1024)) MB free on $mount ($dir): Postgres cannot start and Redis cannot write on a full disk, and harmony backup refuses to start" "free space: harmony repair (empties container logs over $(human_kb "$LOG_TRIM_KB")), old backups in self-host/backups, 'docker image prune' for unused images"
 		elif (( kb_free < 5242880 || pct > 90 )); then
 			report WARN disk "$((kb_free / 1048576)) GB free on $mount, ${pct}% used" "free space before uploads and the database fill it"
 		else
@@ -140,6 +140,7 @@ check_host() {
 		[[ "$mount" == "$(df -P "$SELF_HOST_DIR" | awk 'NR==2 {print $6}')" && "$dir" != "$SELF_HOST_DIR" ]] && break
 	done
 
+	check_container_logs
 	check_files
 
 	local last age
@@ -153,6 +154,34 @@ check_host() {
 		else
 			report OK backup "last backup $(basename "$last") ($age days old)"
 		fi
+	fi
+}
+
+# Logs of this stack's containers (container_logs, lib.sh). A json-file log without max-size keeps
+# every line; containers created from docker-compose.yml's x-logging rotate theirs. Past
+# LOG_TRIM_KB: WARN, FAIL from 1 GB in all.
+check_container_logs() {
+	local svc name max bytes path total=0 n=0 level=WARN
+	local -a open=() big=()
+	while IFS=$'\t' read -r svc name max bytes path; do
+		[[ -n "$name" ]] || continue
+		n=$((n + 1))
+		[[ "$max" != none ]] || open+=("$svc")
+		if [[ "$bytes" =~ ^[0-9]+$ ]] && (( bytes / 1024 > LOG_TRIM_KB )); then
+			big+=("$name $(human_kb $((bytes / 1024)))")
+			total=$((total + bytes / 1024))
+		fi
+	done < <(container_logs)
+	(( n > 0 )) || return 0
+	if [[ ${#big[@]} -gt 0 ]]; then
+		(( total < 1048576 )) || level=FAIL
+		report "$level" logs "$(human_kb "$total") in container logs over $(human_kb "$LOG_TRIM_KB"): ${big[*]}" "harmony repair (empties them)"
+	fi
+	if [[ ${#open[@]} -gt 0 ]]; then
+		report WARN "log rotation" "${#open[@]} containers keep every log line, created before log rotation: ${open[*]}" \
+			"harmony update, or in self-host/: docker compose up -d (recreates them with rotation)"
+	elif [[ ${#big[@]} -eq 0 ]]; then
+		report OK logs "all $n containers rotate their logs"
 	fi
 }
 
@@ -201,6 +230,18 @@ check_containers() {
 		fi
 	done < <(compose config --services 2>/dev/null)
 	(( bad )) || report OK containers "all $n services running"
+
+	# A Redis down at this point may be one that cannot load its append-only file.
+	local aof rc=0
+	case "${seen[redis]:-}" in
+		restarting/*|exited/*|dead/*|running/unhealthy)
+			aof="$(redis_aof_check)" || rc=$?
+			if (( rc == 3 )); then
+				report FAIL "redis file" "Redis cannot load its append-only file: $aof is damaged, by a write cut short (a full disk, a crash)" \
+					"harmony repair (truncates it at the damage and keeps the original beside it)"
+			fi
+			;;
+	esac
 
 	# Containers run the image the configuration names.
 	local id want have stale=()

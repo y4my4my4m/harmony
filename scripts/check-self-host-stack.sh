@@ -129,6 +129,16 @@ if [ "$RUN_IMAGES" = 1 ]; then
   # shellcheck disable=SC2086
   check_platforms $(printf '%s\n' "$IMAGES" | grep -vE "$OWN_IMAGES")
 
+  log "container logs"
+  # Every service of every profile rotates its json-file log; one without max-size keeps every line.
+  UNBOUNDED="$(cd "$STACK" && docker compose "${ALL_PROFILES[@]}" --profile supabase-unused config --format json 2>/dev/null | python3 -c '
+import json, sys
+for name, svc in sorted(json.load(sys.stdin)["services"].items()):
+    log = svc.get("logging") or {}
+    if log.get("driver") != "json-file" or not (log.get("options") or {}).get("max-size"):
+        print(name)')"
+  if [ -n "$UNBOUNDED" ]; then fail "services without log rotation: $(printf '%s' "$UNBOUNDED" | tr '\n' ' ')"; else printf 'ok   every service rotates its log\n'; fi
+
   log "storage environment"
   # expect_storage NAME EXPECTED: the storage container's bucket settings, '|' between them.
   expect_storage() {

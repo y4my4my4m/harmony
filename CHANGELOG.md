@@ -57,6 +57,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `harmony auth sign-up PROVIDER --open | --domains D | --follow-registration`; `harmony auth
   providers` shows each rule. See
   [New accounts per provider](https://docs.mony.lol/self-host/oauth#new-accounts-per-provider).
+- **`harmony repair`** brings a self-hosted instance back after its disk filled: it empties
+  container logs over 100 MB, repairs a Redis append-only file Redis cannot load (keeping the
+  original beside it), and starts the stack. `harmony doctor` names oversized logs, containers
+  without log rotation, and a damaged Redis file. See
+  [After the disk filled](https://docs.mony.lol/self-host/troubleshooting#disk-full).
 
 ### Changed
 
@@ -73,6 +78,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- **Self-hosted container logs filled the disk.** No container's log rotated, and Kong writes a line
+  per request: one instance's `supabase-kong` log reached 4.5 GB of a 16 GB disk. Every container
+  now keeps about 100 MB of log, compressed. `harmony update` applies it, and empties logs over
+  100 MB before it pulls anything; it stops, changing nothing else, when less than 1 GB stays free.
+- **`harmony backup` could fill the disk** and leave the database unable to start. It now refuses
+  with less than 1 GB free, or when the last dump and the uploads would not leave 1 GB, and stops
+  a dump that brings free space below that. A failed backup deletes what it wrote and stops the
+  database again when it started it. When Postgres does not start on a full disk, it says so.
+- **A Redis that could not load its data kept the whole instance offline.** The proxy waited for
+  the federation server, which waited for Redis, so nothing was reachable. The site and the
+  database now start without Redis; `harmony update` repairs a damaged Redis file.
+- **The bot gateway polled at full rate while the database was down**, up to 7.5 requests a
+  second, each an error line. Its polls now pause from 1 s up to 60 s while the API answers 502, 503 or 504
+  or does not answer, and resume at its first answer.
 - With registration set to invite only or closed, sign-in through the instance's own identity
   provider made no account for new people ("Signups not allowed for this instance"). The sign-up
   hook now applies the registration policy per sign-in method, and `harmony update` moves invite

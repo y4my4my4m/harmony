@@ -9,6 +9,9 @@
 #   harmony backup [--no-storage]   database, configuration and uploads into
 #                                   self-host/backups/<time>/
 #   harmony restore <backup> [--yes]
+#   harmony repair                  after a full disk: empties container logs
+#                                   over 100 MB, repairs a Redis append-only
+#                                   file Redis cannot load, starts the stack
 #   harmony status                  containers, version, URL
 #   harmony logs [service] [-n N] [--no-follow]
 #                                   federation = server + worker
@@ -93,6 +96,35 @@ cmd_status() {
 	printf '  backup     %s\n' "$(basename "$(latest_backup)" 2>/dev/null | sed 's/^$/none/')"
 	echo
 	compose ps --format 'table {{.Service}}\t{{.Status}}\t{{.Image}}'
+}
+
+# Recovery after a full disk: space first (logs of containers created without rotation), then Redis,
+# whose append-only file a cut-short write leaves unloadable, then every service. Nothing else is
+# deleted; a repaired Redis file keeps its original beside it (redis_aof_repair, lib.sh).
+cmd_repair() {
+	need_config
+	[[ $# -eq 0 ]] || die "usage: harmony repair"
+	local dir free low=false
+	info "Container logs..."
+	trim_container_logs || true
+	for dir in "$SELF_HOST_DIR" "$(docker_root)"; do
+		[[ -n "$dir" ]] || continue
+		free="$(free_kb "$dir")"
+		[[ "$free" =~ ^[0-9]+$ ]] || continue
+		if (( free < DISK_RESERVE_KB )); then
+			warn "$(human_kb "$free") free on $(mount_of "$dir") ($dir): Postgres and Redis cannot start on a full disk."
+			low=true
+		fi
+	done
+	$low && die "free space first: old backups in $BACKUP_DIR can go once copied off this machine; docker image prune removes unused images. Then run harmony repair again."
+	info "Redis..."
+	redis_recover || true
+	info "Starting the stack..."
+	compose up -d
+	redis_recover || true
+	wait_healthy db 60 || warn "the database is not healthy yet: harmony logs db"
+	compose ps --format 'table {{.Service}}\t{{.Status}}'
+	ok "Done. Check the instance: harmony doctor. Then take a backup: harmony backup"
 }
 
 cmd_logs() {
@@ -454,6 +486,7 @@ case "$cmd" in
 	doctor) exec bash "$SELF_HOST_DIR/doctor.sh" "$@" ;;
 	backup) need_config; exec bash "$SELF_HOST_DIR/backup.sh" create "$@" ;;
 	restore) exec bash "$SELF_HOST_DIR/backup.sh" restore "$@" ;;
+	repair) cmd_repair "$@" ;;
 	status) cmd_status ;;
 	logs) cmd_logs "$@" ;;
 	admin)

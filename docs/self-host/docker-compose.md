@@ -103,6 +103,33 @@ guard keeps seeing the public address for its own domain.
 | Matrix bridge host | volume `matrix-bridge-data` |
 | Sign-in provider credentials for the auth service | volume `auth-config`, written by `federation-server`; the database holds the source |
 
+### Container logs {#container-logs}
+
+Every service, Harmony's and Supabase's, writes its log with Docker's
+`json-file` driver, `max-size: 20m`, `max-file: "5"` and `compress: "true"`:
+20 MB in the current file and four rotated files, gzip-compressed. That is
+about 100 MB of log text per container. `docker logs` and `harmony logs` read
+all of them. `docker-compose.yml` and `supabase-overrides.yml` each set this
+in an `x-logging` block; it takes precedence over the log settings of Docker's
+`daemon.json`.
+
+Without `max-size` the driver keeps every line. Kong writes one per request,
+and the bot gateway's polls alone come to 3 to 3.5 requests a second, 4 more
+with a bot connected; one instance's `supabase-kong` log reached 4.5 GB.
+Containers created before 1.9.9 have no rotation until they are recreated;
+`harmony update` recreates them and empties any log over 100 MB first.
+`harmony doctor` names containers without rotation and logs over 100 MB, and
+`harmony repair` empties those logs.
+
+### Which services wait for which
+
+A service that only needs another one at run time starts without it. Caddy
+does not wait for `web`, `federation-server` or `media-cache` to start, and
+answers 502 for one that is down. `federation-server`, `federation-worker` and
+`livekit` wait for Redis to be healthy, but start without it when Redis cannot
+start; `federation-server` then runs without cache, rate-limit counters or
+presence until it restarts. The database waits for nothing.
+
 ### Build Harmony's images yourself
 
 For forks and development builds, in `self-host/`:

@@ -40,6 +40,9 @@ harmony logs SERVICE      # one service's log; federation, supabase for groups
 | The proxy answers 502 | The federation server is down or unhealthy | `docker compose ps` (it reports `healthy` once `/health` answers 200); `docker exec harmony-caddy wget -qO- http://federation-server:3001/health`; `harmony logs federation-server` |
 | A new install stops at `Realtime (…) is restarting/unhealthy after 300 s`; `harmony logs db` shows `Permission denied` on a file in `/docker-entrypoint-initdb.d/` | Supabase's init scripts were written under a umask of 077 or 027 and left private, and Postgres could not read them when it created the database | See [A restrictive umask](#umask) |
 | Services restart in a loop; `docker compose ps` shows `Exited (137)` | The kernel killed them for lack of memory | Add swap or memory; the `memory` row of `harmony doctor` |
+| The disk fills; a file under `/var/lib/docker/containers/` is gigabytes, typically `supabase-kong`'s `*-json.log` | The container was created without [log rotation](/self-host/docker-compose#container-logs), before 1.9.9, and keeps every line; Kong writes one per request. The `logs` and `log rotation` rows of `harmony doctor` name them | See [After the disk filled](#disk-full) |
+| After a full disk, `harmony logs redis` shows `Bad file format reading the append only file appendonly.aof.N.incr.aof` and Redis restarts in a loop | A write to Redis's append-only file was cut short. The `redis file` row of `harmony doctor` names the file | `harmony repair`; see [After the disk filled](#disk-full) |
+| `harmony backup` stops with `Postgres did not become ready within 240 s` | Postgres cannot start on a full disk: crash recovery writes to `pg_wal` first (`could not write to file "pg_wal/xlogtemp.N": No space left on device` in `harmony logs db`) | See [After the disk filled](#disk-full) |
 | The disk fills; most of the database is the `_supabase` database or the write-ahead log (`supabase/volumes/db/data/pg_wal`) | [Log collection](/self-host/#log-collection) stores every request and deletes none, and its replication slot holds up to 4 GB of write-ahead log. The `stored logs`, `logflare slot` and `log collection` rows of `harmony doctor` warn above 1 GB | `harmony analytics off --delete-logs`. On an instance whose `.env` has no `ENABLE_ANALYTICS`, `harmony update` does the same |
 | Forgot the admin password | | `harmony admin reset-password --email you@example.com` |
 | `harmony doctor` warns `no admin account` | No admin was created, for example after an interrupted install | `harmony admin create` |
@@ -101,6 +104,7 @@ harmony logs SERVICE      # one service's log; federation, supabase for groups
 | `git could not switch to branch … (local changes to tracked files?…)`, `git could not check out …` | Same | Same |
 | `branch … has diverged from …; reconcile it by hand` | Local commits on the branch | Reset or rebase the branch by hand |
 | `… is no branch, tag or commit of origin` | `--version` names nothing | Check the version; release `X.Y.Z` means tag `vX.Y.Z` |
+| `… free on … (…); an update pulls images and writes a backup, and leaves at least 1.0 GB free.` | Less than 1 GB free once container logs over 100 MB are emptied. Nothing but those logs changed | Free space and run `harmony update` again; see [After the disk filled](#disk-full) |
 | `Update stopped during: …` | A step failed | [When an update stops](/self-host/update-backup#when-an-update-stops) lists each state |
 
 ## Admin and registration messages
@@ -122,6 +126,10 @@ harmony logs SERVICE      # one service's log; federation, supabase for groups
 | Message | Cause | Fix |
 |---|---|---|
 | `pg_dump failed; no backup written`, `pg_dump wrote nothing; no backup written` | The database did not answer, or the disk is full | `harmony logs db`; free space |
+| `… free on …; a backup leaves at least 1.0 GB free, …` | Less than 1 GB free where `self-host/backups` lives. Nothing was written | Free space: `harmony repair` empties container logs over 100 MB; old backups can go once copied off the server; `docker image prune` |
+| `the backup needs about … and leaves 1.0 GB free; … is free on …` | The newest backup's dump plus the uploads would not leave 1 GB | Free space, or `harmony backup --no-storage` and copy `supabase/volumes/storage` off the server another way |
+| `stopped: free space on … fell below 1.0 GB during the dump` (or `while archiving uploads`) | The backup grew past the estimate. The partial backup is deleted | Free space and run it again |
+| `Postgres did not become ready within 240 s, with … free on …: Postgres cannot start on a full disk` | Postgres stops at start without space for its write-ahead log | See [After the disk filled](#disk-full) |
 | `Postgres did not become ready within 240 s; check: docker compose logs db` | The database container is not starting | `harmony logs db` |
 | `restore replaces the running instance's data; pass --yes to confirm` | `harmony restore` without a terminal | Add `--yes` |
 | `a database-only backup needs a configured install; run harmony install first` | Restoring a bare `.dump` on a server without configuration | Install first, then restore |
@@ -130,6 +138,45 @@ harmony logs SERVICE      # one service's log; federation, supabase for groups
 | `the restored database has no migration ledger; see …. The previous data is in: …` | The dump did not load | Read the log; the previous database and uploads are kept under the names printed |
 | `could not write the Vault key into the db-config volume` | The database image could not run to write the key | `harmony logs db` |
 | `could not extract uploads; the database is restored` | `storage.tar` could not be unpacked | Check disk space, then run the restore again |
+
+## After the disk filled {#disk-full}
+
+A full disk stops more than the write that filled it:
+
+- Postgres stops at start, when its crash recovery cannot write to `pg_wal`.
+- Redis leaves an append-only file it refuses to load, and restarts in a
+  loop.
+- `harmony backup` cannot start the database.
+
+The database itself is intact: Postgres replays its write-ahead log once it has
+space.
+
+1. Find what grew. `sudo du -xh --max-depth=2 /var/lib/docker | sort -h | tail`
+   and `du -sh /opt/harmony/self-host/backups/*`. A container log of
+   gigabytes is one created without
+   [log rotation](/self-host/docker-compose#container-logs).
+2. Run `harmony repair`. It empties container logs over 100 MB, checks that
+   1 GB is free, repairs Redis's append-only file when Redis cannot load it,
+   keeping the original beside it, and starts the stack. When it says
+   `free space first`, delete old backups you have copied elsewhere, or run
+   `docker image prune`, and run it again.
+3. `harmony doctor`, then `harmony backup`, and copy the backup off the
+   server.
+4. `harmony update`. From 1.9.9 every container rotates its log.
+
+On a release before 1.9.9, which has no `harmony repair`, the same by hand,
+in `self-host/` as root:
+
+```bash
+truncate -s 0 "$(docker inspect -f '{{.LogPath}}' supabase-kong)"
+docker compose stop redis
+docker compose run --rm --no-deps --entrypoint sh redis -c \
+  'cd /data && cp -a appendonlydir appendonlydir.damaged && cd appendonlydir && redis-check-aof --fix appendonly.aof.manifest'
+docker compose up -d
+```
+
+`redis-check-aof --fix` asks before it truncates; answer `y`. The commands after
+the damage are lost. Repeat the `truncate` line for any other large log.
 
 ## Domain mismatch {#domain-mismatch}
 

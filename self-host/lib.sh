@@ -753,6 +753,211 @@ prune_update_backups() {
 	fi
 }
 
+# --- disk space ------------------------------------------------------------------
+# Free space a backup and an update's image pulls leave, KiB. On a full disk Postgres cannot finish
+# crash recovery and stops at start ("could not write to file pg_wal/xlogtemp.N: No space left on
+# device"), and Redis leaves an append-only file it cannot load.
+# shellcheck disable=SC2034
+DISK_RESERVE_KB=1048576
+
+# free_kb PATH: KiB an unprivileged writer may use on PATH's filesystem; empty when unknown.
+free_kb() { df -Pk "$1" 2>/dev/null | awk 'NR == 2 { print $4 }'; }
+
+# mount_of PATH: mount point of PATH's filesystem.
+mount_of() { df -Pk "$1" 2>/dev/null | awk 'NR == 2 { print $6 }'; }
+
+# human_kb KB: N.N GB from 1 GB, else N MB.
+human_kb() { awk -v k="${1:-0}" 'BEGIN { if (k >= 1048576) printf "%.1f GB", k / 1048576; else printf "%d MB", k / 1024 }'; }
+
+# docker_root: Docker's data directory (images, containers and their logs).
+docker_root() { docker info -f '{{.DockerRootDir}}' 2>/dev/null || true; }
+
+# --- container logs ----------------------------------------------------------------
+# Containers created from docker-compose.yml's x-logging keep at most 20 MB plus four compressed
+# rotated files; a log past LOG_TRIM_KB is one written without rotation.
+LOG_TRIM_KB=102400
+
+# helper_image: a local image of this stack with a POSIX shell, stat and du, for work on root-owned
+# host paths; empty when none.
+helper_image() {
+	local img
+	for img in $(compose ps -a --format '{{.Service}} {{.Image}}' 2>/dev/null | awk '$1 ~ /^(redis|caddy|db)$/ { print $2 }'); do
+		docker image inspect "$img" >/dev/null 2>&1 && { printf '%s' "$img"; return 0; }
+	done
+	return 0
+}
+
+# on_host_files SCRIPT DIR FILE...: runs sh -c SCRIPT with FILE... as its arguments, each inside DIR.
+# Directly when every FILE is readable and writable by this user; else as root in a helper_image
+# container with DIR mounted at /h, the arguments then given relative to /h. label=disable reaches
+# DIR under SELinux without relabelling Docker's own files (:z would).
+on_host_files() {
+	local script="$1" dir="$2" f img direct=true
+	shift 2
+	for f in "$@"; do [[ -r "$f" && -w "$f" ]] || { direct=false; break; }; done
+	if $direct; then
+		sh -c "$script" sh "$@"
+		return
+	fi
+	img="$(helper_image)"
+	[[ -n "$img" ]] || return 1
+	local -a inside=()
+	for f in "$@"; do inside+=("/h${f#"$dir"}"); done
+	docker run --rm --network none --user 0:0 --security-opt label=disable -v "$dir:/h" --entrypoint sh "$img" -c "$script" sh "${inside[@]}"
+}
+
+# container_logs: one line per container of this stack, SERVICE CONTAINER MAX_SIZE BYTES LOG_PATH,
+# tab-separated. MAX_SIZE is "none" for a json-file log without rotation and "-" for another
+# driver; BYTES is "-" when unread; LOG_PATH is "-" for another driver. The files sit under
+# DockerRootDir/containers, root-owned.
+container_logs() {
+	local ids dir svc name driver max path size row
+	local -a rows=() paths=()
+	local -A sizes=()
+	ids="$(compose ps -aq 2>/dev/null)"
+	[[ -n "$ids" ]] || return 0
+	# An empty field is possible: '|' separates, which read does not merge as it merges tabs.
+	# shellcheck disable=SC2086
+	while IFS='|' read -r svc name driver max path; do
+		[[ -n "$name" ]] || continue
+		if [[ "$driver" == json-file && -n "$path" ]]; then
+			paths+=("$path")
+		else
+			max=-; path=-
+		fi
+		rows+=("${svc:--}|${name#/}|${max:-none}|$path")
+	done < <(docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}|{{.Name}}|{{.HostConfig.LogConfig.Type}}|{{index .HostConfig.LogConfig.Config "max-size"}}|{{.LogPath}}' $ids 2>/dev/null)
+	dir="$(docker_root)/containers"
+	if [[ ${#paths[@]} -gt 0 && "$dir" == /* ]]; then
+		while read -r size path; do
+			[[ "$size" =~ ^[0-9]+$ ]] && sizes["$dir${path#/h}"]="$size"
+		done < <(on_host_files 'for f; do [ -f "$f" ] && echo "$(stat -c %s "$f" 2>/dev/null || wc -c < "$f") $f"; done; true' "$dir" "${paths[@]}" 2>/dev/null |
+			awk -v d="$dir" '{ p = $2; if (index(p, d) == 1) p = "/h" substr(p, length(d) + 1); print $1, p }')
+	fi
+	for row in ${rows[@]+"${rows[@]}"}; do
+		IFS='|' read -r svc name max path <<<"$row"
+		printf '%s\t%s\t%s\t%s\t%s\n' "$svc" "$name" "$max" "${sizes[$path]:--}" "$path"
+	done
+}
+
+# trim_container_logs: empties the logs of this stack's containers past LOG_TRIM_KB and prints one
+# line naming them and the space freed. Docker appends to an open json-file log (O_APPEND), so a
+# truncated file stays valid and frees its space at once; a deleted one would hold it until the
+# container stops. Status 1 when a log over the limit could not be emptied.
+trim_container_logs() {
+	local svc name max bytes path dir total=0
+	local -a big=() names=()
+	dir="$(docker_root)/containers"
+	while IFS=$'\t' read -r svc name max bytes path; do
+		[[ "$bytes" =~ ^[0-9]+$ && "$path" == /* ]] || continue
+		(( bytes / 1024 > LOG_TRIM_KB )) || continue
+		big+=("$path"); names+=("$name $(human_kb $((bytes / 1024)))")
+		total=$((total + bytes / 1024))
+	done < <(container_logs)
+	[[ ${#big[@]} -gt 0 ]] || return 0
+	if on_host_files 'for f; do : > "$f"; done' "$dir" "${big[@]}"; then
+		ok "Container logs over $(human_kb "$LOG_TRIM_KB") emptied, $(human_kb "$total") freed: ${names[*]}"
+	else
+		warn "Container logs over $(human_kb "$LOG_TRIM_KB") were not emptied (${names[*]}). As root: truncate -s 0 ${big[*]}"
+		return 1
+	fi
+}
+
+# --- Redis append-only file --------------------------------------------------------
+# redis_state: STATE/HEALTH of the redis container (running/healthy, restarting/, exited/, ...);
+# empty when there is none.
+redis_state() { compose ps -a --format '{{.State}}/{{.Health}}' redis 2>/dev/null | head -1; }
+
+# redis_aof_check: status 0 when the append-only file in the redis-data volume loads or there is
+# none, 3 when redis-check-aof finds damage (the damaged file's name on stdout), 1 when the check
+# did not run. One-off container of the redis service; read only.
+redis_aof_check() {
+	local out rc=0
+	out="$(compose run --rm --no-deps -T --entrypoint sh redis -c '
+		cd /data/appendonlydir 2>/dev/null || exit 0
+		set -- *.manifest
+		[ -f "$1" ] || exit 0
+		out="$(redis-check-aof "$1" 2>&1)" && exit 0
+		bad="$(printf "%s\n" "$out" | sed -n "s/^.*AOF \([^ ]*\) is not valid.*/\1/p" | head -1)"
+		[ -n "$bad" ] || bad="$(printf "%s\n" "$out" | sed -n "s/^.*Checking RDB file \.\/\([^ ]*\).*/\1/p" | tail -1)"
+		echo "${bad:-$1}"
+		exit 3' 2>/dev/null)" || rc=$?
+	[[ $rc -ne 3 ]] || printf '%s\n' "$out" | tail -1
+	return "$rc"
+}
+
+# redis_aof_repair: stops redis, copies the append-only file to appendonlydir.damaged-<time> in the
+# same volume, truncates the damaged file at its first unreadable command (redis-check-aof --fix;
+# the commands after it are lost), starts redis and restarts the services that connected without
+# it. A base file --fix cannot mend moves aside whole and Redis starts empty: queued federation
+# deliveries, caches and presence are lost, the database keeps everything else. Prints the outcome;
+# status 1 when Redis does not run healthy afterwards.
+redis_aof_repair() {
+	local stamp out svc
+	stamp="$(date +%Y%m%d-%H%M%S)"
+	compose stop redis >/dev/null 2>&1 || true
+	if ! out="$(compose run --rm --no-deps -T --entrypoint sh redis -c '
+		s="$1"
+		cd /data || exit 1
+		[ -d appendonlydir ] || { echo none; exit 0; }
+		if ! cp -a appendonlydir "appendonlydir.damaged-$s" 2>/tmp/cp.err; then
+			rm -rf "appendonlydir.damaged-$s"
+			echo "the copy failed: $(tail -1 /tmp/cp.err)"
+			exit 1
+		fi
+		cd appendonlydir || exit 1
+		set -- *.manifest
+		echo y | redis-check-aof --fix "$1" >/dev/null 2>&1
+		if redis-check-aof "$1" >/dev/null 2>&1; then echo fixed; else cd /data && rm -rf appendonlydir && echo emptied; fi' sh "$stamp" 2>&1)"; then
+		compose up -d --no-deps redis >/dev/null 2>&1 || true
+		warn "Redis: its append-only file was not repaired, nothing changed: $(printf '%s' "$out" | tail -1). The copy kept first needs as much free space as the file; free space and run harmony repair again."
+		return 1
+	fi
+	compose up -d --no-deps redis >/dev/null 2>&1 || true
+	case "$(printf '%s' "$out" | tail -1)" in
+		none) ;;
+		fixed) ok "Redis: the damaged append-only file is truncated at the damage; the commands after it are dropped. The original: appendonlydir.damaged-$stamp in the redis-data volume." ;;
+		emptied) warn "Redis: its append-only file could not be repaired; Redis starts empty (queued federation deliveries, caches and presence are lost). The original: appendonlydir.damaged-$stamp in the redis-data volume." ;;
+	esac
+	if ! wait_healthy redis 30; then
+		warn "Redis is still not healthy: harmony logs redis"
+		return 1
+	fi
+	for svc in federation-server federation-worker livekit; do
+		[[ -z "$(svc_id "$svc")" ]] || compose restart "$svc" >/dev/null 2>&1 || true
+	done
+	return 0
+}
+
+# redis_recover: when the redis container restarts, has exited or is unhealthy, checks its
+# append-only file and repairs a damaged one (redis_aof_repair). Status 1 when Redis stays down.
+redis_recover() {
+	local state bad rc=0
+	state="$(redis_state)"
+	case "$state" in
+		""|running/healthy|running/) return 0 ;;
+		running/starting) wait_healthy redis 30 && return 0 ;;
+		restarting/*|exited/*|dead/*|running/unhealthy) ;;
+		*) return 0 ;;
+	esac
+	bad="$(redis_aof_check)" || rc=$?
+	case "$rc" in
+		3)
+			warn "Redis cannot load its append-only file: $bad is damaged (a write cut short, typically by a full disk). Repairing..."
+			redis_aof_repair
+			;;
+		0)
+			if wait_healthy redis 15; then return 0; fi
+			warn "Redis is not healthy and its append-only file is intact: harmony logs redis"
+			return 1
+			;;
+		*)
+			warn "Redis is not healthy and its append-only file could not be checked: harmony logs redis"
+			return 1
+			;;
+	esac
+}
+
 # wait_healthy SERVICE [TRIES]: 0 once the service runs and its health check,
 # if any, passes; 2 s per try.
 wait_healthy() {

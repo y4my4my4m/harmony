@@ -23,6 +23,7 @@ harmony update [--version V]
 harmony doctor [--offline]
 harmony backup [--no-storage] [--label TEXT]
 harmony restore <backup> [--yes]
+harmony repair
 harmony status
 harmony logs [service ...] [-n N] [--no-follow]
 harmony admin create [--email E] [--username U] [--password P] [--display-name N]
@@ -52,7 +53,7 @@ harmony help
   `!` and go to standard error. Colours appear only on a terminal.
 - An error prints `Error: ` and a message on standard error, and exits with
   status 1. Exceptions are noted per command below.
-- `status`, `logs`, `backup`, `admin`, `registration` and `config` need an
+- `status`, `logs`, `backup`, `repair`, `admin`, `registration` and `config` need an
   installed instance; without `self-host/.env` they stop with
   `not installed yet: /opt/harmony/self-host/harmony install`.
 - An unknown command stops with `unknown command: NAME (harmony help)`.
@@ -99,6 +100,14 @@ An instance whose `.env` has no `ENABLE_STUDIO` ran Supabase Studio without
 choosing it. The update writes `ENABLE_STUDIO=false`, removes `studio` and `meta`
 and prints one line. `HARMONY_STUDIO=y harmony update`, or `harmony studio on`
 afterwards, keeps it on. Nothing in the database changes.
+
+Before it pulls images, the update empties container logs over 100 MB, which
+only containers created without [log rotation](/self-host/docker-compose#container-logs)
+reach, and prints one line with the space freed. It stops there, with
+`Update stopped during: space` and nothing else changed, when less than 1 GB
+stays free where `self-host/` lives or in Docker's data directory. After it
+recreates the containers, a Redis that cannot load its append-only file gets it
+repaired, as [harmony repair](#harmony-repair) does.
 
 | Option | Effect |
 |---|---|
@@ -157,7 +166,9 @@ certificates, Federation, Services, Security, Versions.
 |---|---|---|---|
 | `compose` | The Docker Compose version | FAIL when missing or older than 2.24.4 | Upgrade the `docker-compose-plugin` package, or re-run `https://get.docker.com` |
 | `memory` | RAM, available memory and swap | WARN under 1900 MB of RAM; with no swap and under 3900 MB; with under 256 MB available | A larger server or a 2 GB swap file; `docker stats` names the service using the memory |
-| `disk` | Free space where `self-host/` lives, and in Docker's data directory when that is another filesystem | FAIL under 1 GB free; WARN under 5 GB or over 90% used | Delete old backups in `self-host/backups`; `docker image prune` removes unused images |
+| `disk` | Free space where `self-host/` lives, and in Docker's data directory when that is another filesystem | FAIL under 1 GB free: Postgres cannot start and Redis cannot write on a full disk, and `harmony backup` refuses to start; WARN under 5 GB or over 90% used | `harmony repair` empties container logs over 100 MB; delete old backups in `self-host/backups`; `docker image prune` removes unused images |
+| `logs` | Size of each container's log, and whether it rotates | FAIL when logs over 100 MB add up to 1 GB or more; WARN under that; OK when every container rotates its log | `harmony repair` empties them |
+| `log rotation` | Containers whose json-file log has no `max-size`: created before log rotation | WARN, naming them | `harmony update`, or `docker compose up -d` in `self-host/`, recreates them with rotation |
 | `files` | The files the containers read are readable to every user: the files git tracks in the checkout and their directories, and `self-host/supabase/` less its data, its `.env` files, `test.http` and `docker-compose.override.yml` | FAIL when one in `supabase/` is not (`supabase-db` and `kong` run as their own users), or one anywhere with `HARMONY_BUILD=1`; WARN otherwise. Names the first | `bash configure.sh --non-interactive` in `self-host/` (keeps every answer; `harmony update` runs it). See [A restrictive umask](/self-host/troubleshooting#umask) |
 | `backup` | The newest backup in `self-host/backups` | WARN when there is none, or when it is more than 7 days old | `harmony backup`, then copy it off the server; [schedule it](/self-host/update-backup#schedule-backups) |
 
@@ -167,6 +178,7 @@ certificates, Federation, Services, Security, Versions.
 |---|---|---|---|
 | the service's name | Each service of the enabled profiles is created, running and healthy | FAIL `not created`, a stopped state, or `running, unhealthy`; WARN `running, health check starting` | `docker compose up -d`, then `harmony logs SERVICE`; for a starting check, wait a minute and re-run |
 | `containers` | Reported OK when every service runs | | |
+| `redis file` | When `redis` restarts, has stopped or is unhealthy: its append-only file, with `redis-check-aof` in a one-off container | FAIL when a file is damaged, naming it | `harmony repair` |
 | `images` | `web`, `federation-server`, `federation-worker` and `bot-gateway` run the image the configuration names | WARN when one runs an older image | `docker compose up -d` |
 
 ### Database
@@ -290,16 +302,57 @@ harmony backup [--no-storage] [--label TEXT]
 
 Writes `self-host/backups/YYYYmmdd-HHMMSS[-TEXT]/` with the database, the
 database roles, the configuration files and the Vault key, and the uploads.
-It starts the database first when it is not running.
+It starts the database alone first when it is not running.
 [Backups](/self-host/update-backup#back-up-an-instance) lists the contents.
+
+A backup leaves at least 1 GB free on the filesystem of `self-host/backups`:
+below it Postgres cannot start and Redis cannot write.
+
+- With less than 1 GB free it refuses before it starts anything.
+- It refuses when the newest backup's dump plus the uploads would not leave
+  1 GB free, and names the sizes.
+- A dump or upload archive that brings free space below 1 GB is stopped.
+
+Each refusal says where space comes from: `harmony repair` (container logs),
+old backups, `docker image prune`, and `--no-storage` when the uploads do not
+fit.
 
 | Option | Effect |
 |---|---|
 | `--no-storage` | Leaves out the uploads (`storage.tar`) |
 | `--label TEXT` | Appends `-TEXT` to the directory name; characters other than letters, digits, `.`, `_` and `-` become `-` |
 
-Exit status: 0 with `Backup: DIRECTORY (SIZE)`. 1 on a failure; a failed
-database dump leaves no backup directory behind.
+Exit status: 0 with `Backup: DIRECTORY (SIZE)`. 1 on a failure. A failed
+backup deletes what it wrote, and stops the database again when it started it.
+When Postgres does not become ready within 240 s on a disk with less than 1 GB
+free, the error says the disk is full.
+
+## harmony repair
+
+```text
+harmony repair
+```
+
+Brings an instance back after its disk filled:
+
+1. Empties container logs over 100 MB and prints the space freed. Only a
+   container created without [log rotation](/self-host/docker-compose#container-logs)
+   has one.
+2. Stops with `free space first` when less than 1 GB is still free where
+   `self-host/` lives or in Docker's data directory. Postgres cannot start on a
+   full disk.
+3. When `redis` restarts, has stopped or is unhealthy, checks its append-only
+   file with `redis-check-aof`. A damaged file is copied to
+   `appendonlydir.damaged-TIME` in the `redis-data` volume, then truncated at
+   the first command Redis cannot read (`redis-check-aof --fix`). The commands
+   after it are lost. When the base file itself cannot be mended, Redis starts
+   empty: queued federation deliveries, caches and presence are lost, and the
+   database keeps everything else. Once Redis is healthy, `federation-server`,
+   `federation-worker` and `livekit` restart and connect to it.
+4. Runs `docker compose up -d` and prints the services' status.
+
+Nothing else is deleted. Exit status: 0 once the stack is started, even when
+Redis stays unhealthy (a warning says so); 1 when the disk is still full.
 
 ## harmony restore
 
