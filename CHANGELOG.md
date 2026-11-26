@@ -103,6 +103,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   other instances', instead of their names.
 - Inbox previews draw a message's custom emojis, which they left out; a message of emojis alone no
   longer reads "New message". Spoilers in them stay covered.
+- A server banner shown above the channel list had a dark line across it under the server name,
+  darker still on hover. The name's shading now fades out cleanly into the banner. The banner also
+  fits the channel list's width, so its picture is centred under the name; it was shifted right,
+  with part of it cut off at the edge.
 
 ## [1.9.8] - 2026-11-25
 

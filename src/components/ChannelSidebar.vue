@@ -1811,15 +1811,17 @@ onUnmounted(() => {
   top: 0;
 }
 
+/* The scrim's box is border-box: from the default padding box the gradient tiles into the
+   transparent 1px bottom border, repeating its 0.55 top row as a line across the banner. */
 .server-header.over-banner .server-name {
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0));
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0)) border-box;
   border-bottom-color: transparent;
   color: #fff;
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
 }
 
 .server-header.over-banner .server-name:hover {
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.7), rgb(0 0 0 / 0.1));
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.7), rgb(0 0 0 / 0.1)) border-box;
 }
 
 .server-header.over-banner .server-name-chevron {
@@ -1827,9 +1829,13 @@ onUnmounted(() => {
 }
 
 /* 16:5, the stored crop; a 112px floor keeps it taller than the name bar on a narrow
-   sidebar, trimming the sides. 47px under the name bar, pulled up beneath it. */
+   sidebar, trimming the sides. 47px under the name bar, pulled up beneath it.
+   The floor carries through the ratio to the width (358px at 112px); max-width holds the
+   box to the sidebar, where it would otherwise pass the right edge and centre the art
+   off the visible box. */
 .server-banner {
   position: relative;
+  max-width: 100%;
   aspect-ratio: 16 / 5;
   min-height: 112px;
   margin-top: -47px;
