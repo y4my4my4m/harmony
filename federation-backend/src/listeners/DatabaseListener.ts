@@ -22,7 +22,8 @@ import { getCategoryRecipientGroups, getChannelRecipientGroups, getRemoteMemberG
 import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
 import { categoryFlagProperties, channelFlagProperties } from '../activitypub/channelFlags.js';
 import { channelPosition, HARMONY_CROSS_SERVER_EMOJIS, HARMONY_EMOJIS, HARMONY_ROLES } from '../activitypub/copyMirror.js';
-import { loadApEmojis, loadApRoles } from '../activitypub/GroupService.js';
+import { loadApEmojis, loadApRoles, loadApWelcome } from '../activitypub/GroupService.js';
+import { HARMONY_WELCOME } from '../activitypub/groupWelcome.js';
 import { DIRECTORY_CONTEXT, groupDiscoverability, instanceFederationOpen } from '../activitypub/serverDirectory.js';
 import { dmPollQuestion, harmonyPollExtension, hasPollPart, loadMessagePolls, QUESTION_CONTEXT, sendsQuestionTo } from '../activitypub/messagePolls.js';
 
@@ -951,7 +952,9 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     if (!roles) throw new ServerRolesUnreadError(`Roles of server ${server.id} not read; Update(Group) not sent`);
     const emojis = await loadApEmojis(getSupabaseClient(), server.id, serverUrl);
     if (!emojis) throw new ServerRolesUnreadError(`Emojis of server ${server.id} not read; Update(Group) not sent`);
-    
+    // Absent when unread: copies keep their screen until a later Update or read of the Group.
+    const welcome = await loadApWelcome(getSupabaseClient(), server.id, server.rules);
+
     const iconUrl = getFullServerIconUrl(server.icon) ?? undefined;
     const bannerUrl = getFullServerBannerUrl(server.banner) ?? undefined;
 
@@ -977,6 +980,7 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
         [HARMONY_ROLES]: roles,
         [HARMONY_EMOJIS]: emojis,
         [HARMONY_CROSS_SERVER_EMOJIS]: server.allow_cross_server_emojis !== false,
+        ...(welcome ? { [HARMONY_WELCOME]: welcome } : {}),
         updated: new Date().toISOString(),
       },
       published: new Date().toISOString(),

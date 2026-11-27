@@ -47,7 +47,12 @@ A chat server lives on one instance, the one where it was created. That instance
 - A **public** server with federation enabled can be found by its handle, `slug@host`, shown in **Server settings** → **Privacy settings** → **Server handle**. The handle resolves through WebFinger.
 - A public, federated server is listed in its host's server directory, an ActivityPub collection that NodeInfo names (see [Server directory](/federation/reference#server-directory)), unless its owner turns off **Discoverable across federation**. People on other Harmony instances find it under **Discover communities** → **Other instances**, which lists the servers of every instance theirs knows, and join from there; their own instance reads the directories for them.
 - A **private** server needs an invite link. The joining instance first checks that the invite's server is a genuine `Group` on the same host as the link. The `Join` it sends carries the invite code, and the host checks the code (expiry, use count, revocation) before it accepts.
+- Before joining, **Join remote server** lists the host instance's rules, then the server's, for an invite and for a server found by its handle or in a directory. Joining means agreeing to them.
 - The host refuses a `Join` from a suspended account, from a banned account, and from an account that moved from a banned account.
+
+### Welcome screen and rules
+
+A server's welcome screen and rules reach the instances of its members, which show them as the host does. When the server requires new members to accept its rules, a member on another instance accepts on their own instance, and that instance holds their messages to the server until they do. The acceptance stays there: the host does not check it. An instance running Harmony before 1.9.9 shows no welcome screen for servers hosted elsewhere and does not ask.
 
 ### What travels between instances
 

@@ -151,6 +151,7 @@ import { caseHostStaff } from './cases/hostStaff.ts'
 import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
 import { caseCopyDisplay } from './cases/copyDisplay.ts'
 import { caseCopyEmojis } from './cases/copyEmojis.ts'
+import { caseServerWelcome } from './cases/serverWelcome.ts'
 import { caseChannelHostFlags } from './cases/channelHostFlags.ts'
 import { caseStickers } from './cases/stickers.ts'
 import { caseDiscovery } from './cases/discovery.ts'
@@ -3086,6 +3087,17 @@ async function main() {
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, signedGetHeaders,
       assert, eq,
       ids: { bob: BOB, remote: REMOTE, hostedServer: PRIV_SERVER, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL },
+    })
+    await caseServerWelcome({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, signedGetHeaders,
+      assert, eq,
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE, hostedServer: PRIV_SERVER, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
     })
     await caseChannelHostFlags({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, signedGetHeaders,

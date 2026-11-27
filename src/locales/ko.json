@@ -4074,6 +4074,8 @@
     },
     "haveInviteLink": "초대 링크가 있나요? 여기에 붙여넣으세요",
     "inviteLink": "초대 링크",
+    "serverRules": "규칙",
+    "rulesAgreeNote": "참여하면 이 규칙에 동의하게 됩니다.",
     "invitedBy": "초대한 사람",
     "expires": "만료까지",
     "remoteServer": "원격 서버",

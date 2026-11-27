@@ -27,6 +27,10 @@ export interface RemoteServer {
   instance: string
   /** False: the server refuses members from other instances. Null: it does not say (before 1.8.10). */
   federationEnabled: boolean | null
+  /** Server rules, shown before joining; empty from a server that sends none (before 1.9.9). */
+  serverRules?: string[]
+  /** Rules of the server's home instance, shown before joining. */
+  instanceRules?: string[]
 }
 
 export interface RemoteChannel {
@@ -56,6 +60,10 @@ export interface InviteInfo {
 export type RefusedHere = 'server_blocked_here' | 'kept_out_here'
 
 const REFUSED_HERE = new Set<string>(['server_blocked_here', 'kept_out_here'])
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim() !== '') : []
+}
 
 function refusedHere(code: unknown): { refusedHere: RefusedHere } | Record<string, never> {
   return typeof code === 'string' && REFUSED_HERE.has(code) ? { refusedHere: code as RefusedHere } : {}
@@ -272,6 +280,8 @@ export class FederationServerService {
         discoverable: data.server.discoverable,
         instance: serverInstance,
         federationEnabled: typeof data.server.federationEnabled === 'boolean' ? data.server.federationEnabled : null,
+        serverRules: stringList(data.server.rules),
+        instanceRules: stringList(data.server.instanceRules),
       }
 
       debug.log(`Found remote server: ${server.name} on ${server.instance}`)

@@ -4074,6 +4074,8 @@
     },
     "haveInviteLink": "Haben Sie einen Einladungslink? Fügen Sie ihn hier ein",
     "inviteLink": "Einladungslink",
+    "serverRules": "Regeln",
+    "rulesAgreeNote": "Mit dem Beitritt stimmst du diesen Regeln zu.",
     "invitedBy": "Eingeladen von",
     "expires": "Läuft ab in",
     "remoteServer": "Remote-Server",

@@ -33,6 +33,13 @@ import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata, type GroupAutho
 import { applyPagePollState, preparePoll, storeInboundPoll } from '../activitypub/messagePolls.js';
 import { federationSwitches } from './FederationSwitches.js';
 import {
+  HARMONY_INSTANCE_RULES,
+  HARMONY_WELCOME,
+  parseGroupWelcome,
+  parseInstanceRules,
+  ruleTitles,
+} from '../activitypub/groupWelcome.js';
+import {
   HARMONY_MEMBER_ROLES,
   HARMONY_PINNED_AT,
   HARMONY_PINS,
@@ -217,6 +224,9 @@ router.get(
         federationEnabled: !ownInstance && typeof serverData['harmony:federationEnabled'] === 'boolean'
           ? serverData['harmony:federationEnabled']
           : null,
+        // Shown before joining, as an invite's are (groupWelcome.ts). Empty from Harmony before 1.9.9.
+        rules: ruleTitles(parseGroupWelcome(serverData[HARMONY_WELCOME])),
+        instanceRules: parseInstanceRules(serverData[HARMONY_INSTANCE_RULES]),
       },
     });
   })
@@ -1945,6 +1955,8 @@ export class ServerDiscoveryService {
       if (roles) await CopyMirrorService.applyGroupRoles(serverId, server.ap_id, roles);
       const emojis = parseGroupEmojis(remoteServer[HARMONY_EMOJIS], server.ap_id);
       if (emojis) await CopyMirrorService.applyGroupEmojis(serverId, server.ap_id, emojis);
+      const welcome = parseGroupWelcome(remoteServer[HARMONY_WELCOME]);
+      if (welcome) await CopyMirrorService.applyGroupWelcome(serverId, welcome);
       await this.syncAdvertisedPins(serverId, server.ap_id, remoteServer['harmony:channels'], signer);
 
       logger.info(`Synced remote server: ${remoteServer.name}`);

@@ -117,6 +117,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - A profile card's Posts, Following, Followers, Messages and Voice time no longer flicker between
   0 and a dash while it opens. The card reads the profile once per open instead of four times, each
   figure goes from a dash straight to its value, and a card opened again shows its figures at once.
+- **Members from other instances skipped a server's rules.** Joining a server hosted elsewhere by
+  its handle or from a directory showed no rules; only an invite did. **Join remote server** now
+  lists the host instance's rules and the server's for every join. A server's welcome screen and
+  rules now reach its members' instances: they see the welcome screen there, and when the server
+  requires accepting the rules, their own instance holds their messages until they accept, as the
+  host does for its own members. Servers hosted on Harmony before 1.9.9 send neither.
 
 ## [1.9.8] - 2026-11-25
 

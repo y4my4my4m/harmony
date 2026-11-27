@@ -4074,6 +4074,8 @@
     },
     "haveInviteLink": "有邀请链接吗? 粘贴在此处",
     "inviteLink": "邀请链接",
+    "serverRules": "规则",
+    "rulesAgreeNote": "加入即表示你同意这些规则。",
     "invitedBy": "邀请者",
     "expires": "过期时间",
     "remoteServer": "远程服务器",

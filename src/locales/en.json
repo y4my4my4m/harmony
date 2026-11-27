@@ -4065,6 +4065,8 @@
     },
     "haveInviteLink": "Have an invite link? Paste it here",
     "inviteLink": "Invite link",
+    "serverRules": "Rules",
+    "rulesAgreeNote": "By joining, you agree to these rules.",
     "invitedBy": "Invited by",
     "expires": "Expires in",
     "remoteServer": "Remote server",

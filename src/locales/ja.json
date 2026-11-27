@@ -4074,6 +4074,8 @@
     },
     "haveInviteLink": "招待リンクをお持ちですか?ここに貼り付けてください",
     "inviteLink": "招待リンク",
+    "serverRules": "ルール",
+    "rulesAgreeNote": "参加すると、これらのルールに同意したことになります。",
     "invitedBy": "招待者",
     "expires": "有効期限",
     "remoteServer": "リモートサーバー",

@@ -107,7 +107,8 @@ There is no join approval queue or verification level. What exists is a rules ga
 - Members who join after you save this see an **Accept rules** button instead of the message box until they accept. They can read channels meanwhile.
 - "Current members are not asked. Only people who join after you save this must accept."
 - The owner and members with **Manage Server** or **Administrator** are exempt.
-- Members of other instances, bots and bridges are not checked.
+- Members on other instances are asked by their own instance, which shows them the welcome screen and holds their messages until they accept. An instance running Harmony before 1.9.9 does not ask.
+- Bots and bridges are not checked.
 
 The welcome screen itself is covered in [Setting up a server](/run/setup#welcome-screen-and-rules).
 
