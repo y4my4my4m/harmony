@@ -11,6 +11,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- **Speak a message aloud.** **Speak message** in a message's options menu reads it with
+  this browser's own voice, or an ElevenLabs-compatible API you configure, and **Stop
+  speaking** ends it. The settings and any key stay on this device, per account, are
+  never sent to a Harmony server, and are removed when you sign out. Spoilers
+  are not read, and the action is hidden until an encrypted message is unlocked. See
+  [Privacy and security](docs/use/privacy-security.md#spoken-messages).
+
 - **Limits on call signals and calls placed.** Each account may send 300 call signals and place 10
   calls a minute by default, calls to other instances included, set in **Admin** → **Anti-spam**. A
   call past the limit says when the next one can ring; hanging up is never refused.

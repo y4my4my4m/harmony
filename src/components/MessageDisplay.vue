@@ -611,6 +611,10 @@
     :can-edit="contextMenuMessage ? canEditMessage(contextMenuMessage) : false"
     :can-delete="contextMenuMessage ? canDeleteMessage(contextMenuMessage) : false"
     :hides-on-instance="contextMenuMessage ? isInstanceHide(contextMenuMessage) : false"
+    :system-user-name="systemUserName"
+    :system-bot-name="botDisplayName"
+    :author-name="contextMenuMessage ? getAuthorDisplayName(contextMenuMessage).value : ''"
+    :reply-author-name="contextMenuReplyAuthorName"
     @close="closeContextMenu"
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
@@ -1445,6 +1449,15 @@ const getBotDisplayName = (botId: string): ComputedRef<string> => {
 };
 
 const botDisplayName = (botId: string): string => getBotDisplayName(botId).value;
+// Plain name of a member a system notice names, from the same cache its DisplayName reads.
+const systemUserName = (userId: string): string => getUserDisplayName(userId).value;
+// Spoken author of the message the open menu answers, from the reply the row
+// shows (loaded list, then the chat or DM reply cache). '' when it is not readable.
+const contextMenuReplyAuthorName = computed(() => {
+  const replyId = contextMenuMessage.value?.reply_to;
+  const reply = replyId ? getReplyMessage(replyId) : null;
+  return reply ? getAuthorDisplayName(reply).value : '';
+});
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getBotAvatarUrl = (botId: string): ComputedRef<string> => {

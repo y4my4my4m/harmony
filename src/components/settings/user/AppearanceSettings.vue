@@ -996,6 +996,7 @@
         </div>
       </div>
       <MessageAnnouncementSetting />
+      <SpeakMessageSettings />
     </div>
 
     <Transition name="savebar">
@@ -1017,6 +1018,7 @@
 import { ref, computed, reactive, watch, nextTick, onMounted, onBeforeUnmount, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MessageAnnouncementSetting from '@/components/a11y/MessageAnnouncementSetting.vue'
+import SpeakMessageSettings from '@/components/a11y/SpeakMessageSettings.vue'
 import { useToast } from 'vue-toastification'
 import type { User, Emoji } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'

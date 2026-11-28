@@ -1394,6 +1394,9 @@
       "revealed": "Spoiler: {text}"
     },
     "speech": {
+      "said": "{author} said:",
+      "repliedTo": "{author} replied to {replyAuthor}:",
+      "replied": "{author} replied:",
       "encrypted": "encrypted message",
       "spoiler": "spoiler",
       "imageWithAlt": "image: {alt}",
@@ -1414,6 +1417,37 @@
     "setting": {
       "label": "Announce new messages",
       "description": "Screen readers read out messages that arrive in the open channel, conversation or thread. Your own messages are not read."
+    }
+  },
+  "messageTts": {
+    "menu": {
+      "speak": "Speak message",
+      "stop": "Stop speaking"
+    },
+    "settings": {
+      "label": "Spoken messages",
+      "description": "Read messages aloud from their options menu.",
+      "provider": "Voice source",
+      "providerBrowser": "This browser",
+      "providerExternal": "ElevenLabs-compatible API",
+      "baseUrl": "API base URL",
+      "baseUrlHint": "The origin or prefix before /v1, for example https://api.elevenlabs.io. Harmony adds /v1/text-to-speech/ and the voice ID.",
+      "voiceId": "Voice ID",
+      "modelId": "Model ID (optional)",
+      "apiKey": "API key (optional)",
+      "apiKeyHint": "Required for ElevenLabs; optional for some local engines.",
+      "disclosure": "Settings and keys stay in this browser's local storage, not an encrypted vault or Harmony's servers, and are cleared on sign-out. This API receives your key and message text—even decrypted messages—and may retain them.",
+      "privacy": "Harmony saves no generated audio or changes to the message. Browser voices may use online services. Screen-reader settings are unchanged.",
+      "saveError": "Couldn't save these settings on this device. Please try again."
+    },
+    "errors": {
+      "unsupported": "This browser cannot speak messages.",
+      "invalidUrl": "Enter an https API base URL, or http on localhost.",
+      "missingVoiceId": "Enter a voice ID.",
+      "missingKey": "The official ElevenLabs API needs an API key.",
+      "http": "The voice service refused the request (status {status}). Check the base URL, voice ID and key.",
+      "network": "Could not reach the voice service. Check the base URL and that the service allows this page (CORS).",
+      "audio": "The voice service returned no playable audio."
     }
   },
   "messageSearch": {

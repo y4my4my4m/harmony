@@ -43,7 +43,7 @@ vi.mock('@/stores/useServerChannel', () => ({
 }))
 vi.mock('@/stores/useServerRoles', () => ({ useServerRolesStore: () => loose({ getUserRoleColor: () => null }) }))
 vi.mock('@/stores/useChat', () => ({
-  useChatStore: () => loose({ hasNewerMessages: false, allMessagesLoaded: true, loadingOlderMessages: false }),
+  useChatStore: () => loose({ hasNewerMessages: false, allMessagesLoaded: true, loadingOlderMessages: false, replyMessageCache: new Map() }),
 }))
 vi.mock('@/stores/useDM', () => ({ useDMStore: () => loose({ allMessagesLoaded: true, hasNewerMessages: false }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => loose({ session: { user: { id: 'auth-1' } } }) }))
@@ -78,7 +78,7 @@ vi.mock('@/composables/useChannelMessagePermissions', () => ({
 vi.mock('@/composables/useUserData', () => ({
   DEFAULT_USER_COLOR: '#fff',
   useUserData: () => ({
-    getUserDisplayName: () => ref('me'),
+    getUserDisplayName: (userId: string) => ref({ alice: 'Alice', bob: 'Bob' }[userId] ?? 'me'),
     getUserColor: () => ref('#fff'),
     getUserAvatarUrl: () => ref(''),
     ensureProfilesAvailable: vi.fn(async () => {}),
@@ -401,6 +401,41 @@ describe('MessageDisplay keyboard', () => {
       await nextTick()
       expect(menu().props('isVisible')).toBe(false)
     }
+  })
+})
+
+describe('MessageDisplay Speak message names', () => {
+  const openMenu = async (index: number) => {
+    const row = rows()[index].element as HTMLElement
+    row.focus()
+    await press(row, 'Enter')
+    return wrapper!.findComponent({ name: 'MessageContextMenu' })
+  }
+
+  it('hands the menu the displayed author of the message and of the reply it answers', async () => {
+    await mountList([
+      message('m1', 0, { user_id: 'bob' }),
+      message('m2', 1, { user_id: 'alice', reply_to: 'm1' }),
+    ])
+    const menu = await openMenu(1)
+    expect(menu.props('message')).toMatchObject({ id: 'm2' })
+    expect(menu.props('authorName')).toBe('Alice')
+    expect(menu.props('replyAuthorName')).toBe('Bob')
+  })
+
+  it('names a bridged reply author as shown, and leaves an unreadable one empty', async () => {
+    await mountList([
+      message('m1', 0, {
+        user_id: undefined,
+        metadata: { discord_user: { id: 'd1', username: 'bridge_bob', display_name: 'Bridged Bob' } },
+      } as Partial<Message>),
+      message('m2', 1, { user_id: 'alice', reply_to: 'm1' }),
+      message('m3', 2, { user_id: 'alice', reply_to: 'not-loaded' }),
+    ])
+    expect((await openMenu(1)).props('replyAuthorName')).toBe('Bridged Bob')
+    const menu = await openMenu(2)
+    expect(menu.props('authorName')).toBe('Alice')
+    expect(menu.props('replyAuthorName')).toBe('')
   })
 })
 
