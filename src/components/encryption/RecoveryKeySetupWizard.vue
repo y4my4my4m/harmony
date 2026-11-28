@@ -3,8 +3,8 @@
     <div class="wizard-modal">
       <!-- Header -->
       <div class="wizard-header">
-        <h2>Set up message encryption</h2>
-        <button class="close-btn" @click="$emit('close')" :disabled="isProcessing" aria-label="Close"><Icon name="x" :size="20" /></button>
+        <h2>{{ $t('encryption.recoverySetup.title') }}</h2>
+        <button class="close-btn" @click="$emit('close')" :disabled="isProcessing" :aria-label="$t('common.close')"><Icon name="x" :size="20" /></button>
       </div>
 
       <!-- Progress Steps -->
@@ -32,56 +32,54 @@
         <div v-if="currentStep === 0" class="step-content">
           <div class="intro-card">
             <div class="intro-icon"><Icon name="shield" :size="40" /></div>
-            <h3>End-to-end encryption</h3>
+            <h3>{{ $t('channelEncryption.create.label') }}</h3>
             <p>
-              Your messages will be encrypted so only you and your recipients can read them.
-              Not even Harmony's servers can access your message content.
+              {{ $t('encryption.recoverySetup.introText') }}
             </p>
           </div>
 
           <div class="feature-grid">
             <div class="feature-card">
               <span class="feature-icon"><Icon name="key" :size="18" /></span>
-              <h4>Recovery key</h4>
-              <p>A 12-word phrase that protects all your encryption keys</p>
+              <h4>{{ $t('encryption.recoverySetup.featureRecoveryKey') }}</h4>
+              <p>{{ $t('encryption.recoverySetup.featureRecoveryKeyText') }}</p>
             </div>
             <div class="feature-card">
               <span class="feature-icon"><Icon name="database" :size="18" /></span>
-              <h4>Encrypted backup</h4>
-              <p>Your keys are backed up to the server, encrypted with your recovery key</p>
+              <h4>{{ $t('encryption.recoverySetup.featureBackup') }}</h4>
+              <p>{{ $t('encryption.recoverySetup.featureBackupText') }}</p>
             </div>
             <div class="feature-card">
               <span class="feature-icon"><Icon name="smartphone" :size="18" /></span>
-              <h4>Multi-device</h4>
+              <h4>{{ $t('encryption.recoverySetup.featureMultiDevice') }}</h4>
               <p>{{ $t('encryption.recoverySetup.multiDevice') }}</p>
             </div>
             <div class="feature-card">
               <span class="feature-icon"><Icon name="refresh-cw" :size="18" /></span>
-              <h4>Recovery</h4>
-              <p>If you clear your cache, just enter your recovery key to restore access</p>
+              <h4>{{ $t('encryption.recoverySetup.featureRecovery') }}</h4>
+              <p>{{ $t('encryption.recoverySetup.featureRecoveryText') }}</p>
             </div>
           </div>
 
           <div class="warning-box">
             <span class="warning-icon"><Icon name="alert-triangle" :size="18" /></span>
-            <p>
-              <strong>Important:</strong> Write down your recovery key and store it safely.
-              If you lose it and your devices, you won't be able to read your encrypted messages.
-            </p>
+            <i18n-t keypath="encryption.recoverySetup.importantWarning" tag="p">
+              <template #label><strong>{{ $t('encryption.recoverySetup.importantLabel') }}</strong></template>
+            </i18n-t>
           </div>
         </div>
 
         <!-- Step 2: Generate Recovery Key -->
         <div v-if="currentStep === 1" class="step-content">
           <div class="recovery-key-section">
-            <h3>Your recovery key</h3>
+            <h3>{{ $t('encryption.recoverySetup.keyHeading') }}</h3>
             <p class="instruction">
-              Write down these 12 words in order. Store them somewhere safe - you'll need them to recover your encryption keys.
+              {{ $t('encryption.recoverySetup.keyInstruction') }}
             </p>
 
             <div v-if="isGenerating" class="generating">
               <LoadingSpinner :size="40" />
-              <p>Generating your recovery key...</p>
+              <p>{{ $t('encryption.recoverySetup.generating') }}</p>
             </div>
 
             <div v-else-if="recoveryWords.length > 0" class="recovery-words">
@@ -101,14 +99,14 @@
                 @click="copyRecoveryKey"
                 :disabled="recoveryWords.length === 0"
               >
-                Copy
+                {{ $t('common.copy') }}
               </button>
               <button
                 class="btn btn-secondary"
                 @click="downloadRecoveryKey"
                 :disabled="recoveryWords.length === 0"
               >
-                Download
+                {{ $t('common.download') }}
               </button>
             </div>
 
@@ -124,15 +122,17 @@
             </button>
 
             <div v-if="showQRCode && qrCodeDataUrl" class="qr-code-panel">
-              <img :src="qrCodeDataUrl" alt="Recovery key QR code" class="qr-code-image" />
+              <img :src="qrCodeDataUrl" :alt="$t('encryption.recoverySetup.qrAlt')" class="qr-code-image" />
               <p class="hint">
                 {{ $t('encryption.recoverySetup.qrHint') }}
               </p>
             </div>
 
             <div class="verification-code" v-if="verificationCode">
-              <p>Verification code: <strong>{{ verificationCode }}</strong></p>
-              <p class="hint">Save this code to verify you have the correct phrase later</p>
+              <i18n-t keypath="encryption.recoverySetup.verificationCode" tag="p">
+                <template #code><strong>{{ verificationCode }}</strong></template>
+              </i18n-t>
+              <p class="hint">{{ $t('encryption.recoverySetup.verificationCodeHint') }}</p>
             </div>
           </div>
         </div>
@@ -140,9 +140,9 @@
         <!-- Step 3: Verify Recovery Key -->
         <div v-if="currentStep === 2" class="step-content">
           <div class="verify-section">
-            <h3>Verify your recovery key</h3>
+            <h3>{{ $t('encryption.recoverySetup.verifyHeading') }}</h3>
             <p class="instruction">
-              To make sure you've saved your recovery key correctly, please enter the words at these positions:
+              {{ $t('encryption.recoverySetup.verifyInstruction') }}
             </p>
 
             <div class="verification-inputs">
@@ -151,11 +151,11 @@
                 :key="pos"
                 class="verify-input"
               >
-                <label>Word #{{ pos + 1 }}</label>
+                <label>{{ $t('encryption.recoverySetup.wordLabel', { n: pos + 1 }) }}</label>
                 <input 
                   type="text" 
                   v-model="verifyInputs[pos]"
-                  :placeholder="`Enter word ${pos + 1}`"
+                  :placeholder="$t('encryption.recoverySetup.wordPlaceholder', { n: pos + 1 })"
                   @input="checkVerification"
                 />
                 <span 
@@ -178,19 +178,18 @@
         <div v-if="currentStep === 3" class="step-content">
           <div class="complete-section">
             <div class="success-icon"><Icon name="check-circle" :size="40" /></div>
-            <h3>Encryption is set up</h3>
+            <h3>{{ $t('encryption.recoverySetup.doneHeading') }}</h3>
             <p>
-              Your end-to-end encryption is now active. Your messages will be encrypted
-              and backed up securely to the server.
+              {{ $t('encryption.recoverySetup.doneText') }}
             </p>
 
             <div class="summary-card">
-              <h4>What's set up</h4>
+              <h4>{{ $t('encryption.recoverySetup.summaryHeading') }}</h4>
               <ul>
-                <li>Recovery key generated and verified</li>
-                <li>Encryption keys created</li>
-                <li>Encrypted backup stored on the server</li>
-                <li>Ready to send encrypted messages</li>
+                <li>{{ $t('encryption.recoverySetup.summaryKey') }}</li>
+                <li>{{ $t('encryption.recoverySetup.summaryKeys') }}</li>
+                <li>{{ $t('encryption.recoverySetup.summaryBackup') }}</li>
+                <li>{{ $t('encryption.recoverySetup.summaryReady') }}</li>
               </ul>
             </div>
 
@@ -205,7 +204,9 @@
             <div class="reminder-box">
               <span class="reminder-icon"><Icon name="pin" :size="16" /></span>
               <p>
-                <strong>Remember:</strong> Keep your 12-word recovery key safe.
+                <i18n-t keypath="encryption.recoverySetup.rememberKeep" tag="span">
+                  <template #label><strong>{{ $t('encryption.recoverySetup.rememberLabel') }}</strong></template>
+                </i18n-t>
                 {{ $t('encryption.recoverySetup.rememberNeed') }}
               </p>
             </div>
@@ -221,7 +222,7 @@
           @click="previousStep"
           :disabled="isProcessing"
         >
-          ← Back
+          ← {{ $t('common.back') }}
         </button>
         <div class="spacer"></div>
         <button 
@@ -232,10 +233,10 @@
         >
           <span v-if="isProcessing">
             <span class="btn-spinner"></span>
-            Processing...
+            {{ $t('encryption.recoverySetup.processing') }}
           </span>
           <span v-else>
-            {{ currentStep === 2 ? 'Complete setup' : 'Continue' }} →
+            {{ currentStep === 2 ? $t('encryption.recoverySetup.completeSetup') : $t('common.continue') }} →
           </span>
         </button>
         <button 
@@ -243,7 +244,7 @@
           class="btn btn-primary"
           @click="$emit('complete')"
         >
-          Done
+          {{ $t('common.done') }}
         </button>
       </div>
     </div>
@@ -256,8 +257,10 @@ import { ref, computed, onMounted } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 
 const toast = useToast()
+const { t } = useI18n()
 // eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits(['close', 'complete'])
 
@@ -286,7 +289,7 @@ const toggleQRCode = async () => {
       qrCodeDataUrl.value = await QRCode.toDataURL(payload, { width: 220, margin: 1 })
     } catch (err) {
       debug.error('Failed to generate recovery QR code:', err)
-      toast.error('Could not generate QR code')
+      toast.error(t('encryption.recoverySetup.toast.qrFailed'))
       return
     }
   }
@@ -300,7 +303,12 @@ const verificationError = ref('')
 const isVerified = ref(false)
 
 // Steps
-const steps = ['Introduction', 'Recovery Key', 'Verify', 'Complete']
+const steps = computed(() => [
+  t('encryption.recoverySetup.steps.intro'),
+  t('encryption.recoverySetup.steps.key'),
+  t('encryption.recoverySetup.steps.verify'),
+  t('encryption.recoverySetup.steps.complete'),
+])
 
 // Can proceed to next step?
 const canProceed = computed(() => {
@@ -347,26 +355,21 @@ async function copyRecoveryKey() {
   try {
     const text = recoveryWords.value.join(' ')
     await navigator.clipboard.writeText(text)
-    toast.success('Recovery key copied')
+    toast.success(t('encryption.recoverySetup.toast.copied'))
   } catch (error) {
-    toast.error('Failed to copy to clipboard')
+    toast.error(t('encryption.recoverySetup.toast.copyFailed'))
   }
 }
 
 // Download recovery key as file
 function downloadRecoveryKey() {
-  const text = `Harmony Recovery Key
-====================
-Generated: ${new Date().toISOString()}
-
-Your 12-word recovery phrase:
-${recoveryWords.value.map((word, i) => `${i + 1}. ${word}`).join('\n')}
-
-Verification Code: ${verificationCode.value}
-
-IMPORTANT: Keep this file safe and private.
-Anyone with these words can access your encrypted messages.
-`
+  const title = t('encryption.recoverySetup.file.title')
+  const body = t('encryption.recoverySetup.file.body', {
+    date: new Date().toISOString(),
+    words: recoveryWords.value.map((word, i) => `${i + 1}. ${word}`).join('\n'),
+    code: verificationCode.value,
+  })
+  const text = `${title}\n${'='.repeat(title.length)}\n${body}\n`
   
   const blob = new Blob([text], { type: 'text/plain' })
   const url = URL.createObjectURL(blob)
@@ -376,7 +379,7 @@ Anyone with these words can access your encrypted messages.
   a.click()
   URL.revokeObjectURL(url)
   
-  toast.success('Recovery key downloaded')
+  toast.success(t('encryption.recoverySetup.toast.downloaded'))
 }
 
 // Navigate steps
@@ -416,7 +419,7 @@ async function generateRecoveryKey() {
     debug.log('Recovery key generated')
   } catch (error: any) {
     debug.error('Failed to generate recovery key:', error)
-    toast.error('Failed to generate recovery key')
+    toast.error(t('encryption.recoverySetup.toast.generateFailed'))
   } finally {
     isGenerating.value = false
   }
@@ -425,7 +428,7 @@ async function generateRecoveryKey() {
 // Complete the setup
 async function completeSetup() {
   if (!isVerified.value) {
-    verificationError.value = 'Please verify all words correctly'
+    verificationError.value = t('encryption.recoverySetup.verifyError')
     return
   }
 
@@ -448,10 +451,10 @@ async function completeSetup() {
     await megolmMessageEncryptionService.completeSetupWithWords(recoveryWords.value)
 
     currentStep.value = 3
-    toast.success('Encryption is set up')
+    toast.success(t('encryption.recoverySetup.doneHeading'))
   } catch (error: any) {
     debug.error('Failed to complete setup:', error)
-    toast.error(error.message || 'Failed to complete setup')
+    toast.error(error.message || t('encryption.recoverySetup.toast.setupFailed'))
   } finally {
     isProcessing.value = false
   }

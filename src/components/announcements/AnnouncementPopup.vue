@@ -103,6 +103,7 @@
 import { ref, onMounted } from 'vue'
 import { useDialog } from '@/composables/useDialog'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { renderAnnouncementHtml } from '@/utils/announcementContent'
 import { announcementIcon } from '@/utils/announcementIcon'
 import { useInstanceEmojiUrls } from '@/composables/useInstanceEmojiUrls'
@@ -123,11 +124,12 @@ const { titleId } = useDialog({
   onClose: () => dismiss(),
 })
 
+const { locale } = useI18n()
 const instanceEmoji = useInstanceEmojiUrls()
 const sanitizeContent = (content: string) => renderAnnouncementHtml(content, instanceEmoji.value)
 
 const formatDate = (dateStr: string): string => {
-  return new Date(dateStr).toLocaleDateString(undefined, {
+  return new Date(dateStr).toLocaleDateString(locale.value, {
     year: 'numeric', month: 'short', day: 'numeric'
   })
 }

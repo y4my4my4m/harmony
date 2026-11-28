@@ -23,7 +23,7 @@ vi.mock('@/supabase', () => ({
 vi.mock('@/stores/useActivityPub', () => ({ useActivityPubStore: () => ({ federationApiUrl: '/api/federation' }) }))
 
 import {
-  REPLY_PARENT_EMBED, replyContextCache, replyContextOf, replySnippet, requestReplyContext,
+  REPLY_PARENT_EMBED, replyContextCache, replyContextOf, replySnippet, replySnippetRuns, requestReplyContext,
   resetReplyContextCache, withReplyContext,
 } from '../replyContext'
 
@@ -49,6 +49,26 @@ beforeEach(() => {
   reads.calls.length = 0
   reads.rows = []
   vi.unstubAllGlobals()
+})
+
+describe('replySnippetRuns', () => {
+  const pog = { type: 'emoji', emoji: { id: 'e', name: 'pog', url: 'https://remote.example/pog.png' } }
+
+  it('keeps the parent\'s custom emojis, without the mentions it opens with', () => {
+    expect(replySnippetRuns({ content: [{ type: 'mention', username: 'a', isLocal: true }, { type: 'text', text: '  nice ' }, pog, { type: 'text', text: ' one' }] })).toEqual([
+      { text: 'nice ', emoji: null }, { text: '', emoji: { name: 'pog', url: pog.emoji.url } }, { text: ' one', emoji: null },
+    ])
+    expect(replySnippetRuns({ content: [pog] })).toHaveLength(1)
+  })
+
+  it('reads as replySnippet without emojis, cuts as long, and takes a preview alone', () => {
+    expect(replySnippetRuns({ content: [{ type: 'text', text: 'two\n  lines' }] })).toEqual([{ text: 'two lines', emoji: null }])
+    const [run] = replySnippetRuns({ content: [{ type: 'text', text: 'x'.repeat(1000) }] })
+    expect(run.text).toBe(`${'x'.repeat(280)}…`)
+    expect(replySnippetRuns({ content_preview: 'stored' })).toEqual([{ text: 'stored', emoji: null }])
+    expect(replySnippetRuns({ content_preview: '' })).toEqual([])
+    expect(replySnippetRuns({})).toEqual([])
+  })
 })
 
 describe('replySnippet', () => {

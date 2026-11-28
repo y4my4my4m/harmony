@@ -1,12 +1,15 @@
 <template>
   <NotFound404 
-    title="Server Not Found"
-    description="The server you're looking for doesn't exist or you don't have access to it."
-    home-button-text="Browse Servers"
+    :title="t('notFound.serverTitle')"
+    :description="t('notFound.serverNotFound')"
+    :home-button-text="t('notFound.browseServers')"
     suggested-route="/browse-servers"
   />
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import NotFound404 from '@/components/error/NotFound404.vue'
+
+const { t } = useI18n()
 </script>

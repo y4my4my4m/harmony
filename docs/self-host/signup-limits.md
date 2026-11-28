@@ -12,7 +12,9 @@ account stays under the defaults. Nothing here needs configuring: `harmony updat
 
 The limits run in the auth service's `before-user-created` hook,
 `public.before_user_created_hook`, before an account exists. A refused sign-up makes no
-account and sends no email.
+account and sends no email. The same hook applies the registration policy first
+([Choose who can register](/self-host/install#choose-who-can-register)); a sign-up the policy
+refuses never reaches the limits and is not counted.
 
 ## The limits
 

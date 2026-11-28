@@ -20,7 +20,11 @@ vi.mock('@/services/DMCallSignaling', () => ({
 const listener = vi.hoisted(() => ({ dismissIncomingCall: vi.fn() }))
 vi.mock('@/services/GlobalDMCallListener', () => ({ globalDMCallListener: listener }))
 vi.mock('@/services/AuthContextService', () => ({ authContextService: { getCurrentProfileId: async () => 'me' } }))
-vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
+vi.mock('@/i18n', async () => {
+  const { createI18n } = await import('vue-i18n')
+  const en = (await import('@/locales/en.json')).default
+  return { i18n: createI18n({ legacy: false, locale: 'en', messages: { en } }) }
+})
 const toast = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn() }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
 const callSwitch = vi.hoisted(() => ({ leaveCurrentCallFor: vi.fn(async () => true) }))
@@ -115,6 +119,6 @@ describe('useDMCallJoin', () => {
     calls.active.set('conv', { ringing: true })
     voice.joinVoiceChannel.mockResolvedValue(false)
     await expect(useDMCallJoin().joinConversationCall('conv')).resolves.toBe(false)
-    expect(toast.error).toHaveBeenCalledWith('voice.joinCallFailed')
+    expect(toast.error).toHaveBeenCalledWith('Could not join the call')
   })
 })

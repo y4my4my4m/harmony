@@ -166,7 +166,7 @@ describe('emoji autosuggest benchmark (5000 custom + unicode set)', () => {
     expect(suggestions.value[0].emoji?.native).toBe('😂')
     expect(suggestions.value[0].name).toBe('joy')
     // Custom emoji stay listed with their server label, current server first.
-    const custom = suggestions.value.find(s => s.server_name !== 'Emojis')
+    const custom = suggestions.value.find(s => s.server_name !== 'server.emojis')
     expect(custom?.name).toMatch(/^joyful_/)
     expect(custom?.server_name).toBe('Server 0')
     expect(m).toBeLessThan(50)

@@ -1,26 +1,26 @@
 <template>
-  <div class="db-card" data-testid="bridge-mode-chooser">
-    <h3 class="db-card-title">{{ t('discordBridge.start.title') }}</h3>
-    <p class="db-muted">{{ t(instanceBotEnabled ? 'discordBridge.start.needsInstance' : 'discordBridge.start.needs') }}</p>
+  <div class="db-card" data-testid="bridge-mode-chooser" :data-platform="platform">
+    <h3 class="db-card-title">{{ t(key('title')) }}</h3>
+    <p class="db-muted">{{ t(key(instanceBotEnabled ? 'needsInstance' : 'needs')) }}</p>
 
     <article
       v-if="instanceBotEnabled"
       class="mode-option mode-option--featured"
       data-testid="mode-instance"
-      aria-labelledby="bridge-mode-instance-title"
+      :aria-labelledby="`${uid}-instance`"
     >
       <div class="mode-head">
         <Icon name="zap" :size="20" aria-hidden="true" />
-        <h4 id="bridge-mode-instance-title">{{ t('discordBridge.start.instance.title', { instance: instanceName }) }}</h4>
-        <span class="db-badge db-badge--ok">{{ t('discordBridge.start.instance.recommended') }}</span>
+        <h4 :id="`${uid}-instance`">{{ t(key('instance.title'), { instance: instanceName }) }}</h4>
+        <span class="db-badge db-badge--ok">{{ t(key('instance.recommended')) }}</span>
       </div>
       <ul class="mode-points">
-        <li>{{ t('discordBridge.start.instance.point1') }}</li>
-        <li>{{ t('discordBridge.start.instance.point2') }}</li>
+        <li>{{ t(key('instance.point1')) }}</li>
+        <li>{{ t(key('instance.point2')) }}</li>
       </ul>
       <p class="mode-tradeoff">
         <Icon name="alert-triangle" :size="14" aria-hidden="true" />
-        <span>{{ t('discordBridge.start.instance.tradeoff') }}</span>
+        <span>{{ t(key('instance.tradeoff')) }}</span>
       </p>
       <button
         type="button"
@@ -29,26 +29,26 @@
         data-testid="choose-instance"
         @click="emit('choose', 'instance')"
       >
-        {{ t('discordBridge.start.instance.choose', { instance: instanceName }) }}
+        {{ t(key('instance.choose'), { instance: instanceName }) }}
       </button>
     </article>
 
-    <p v-if="instanceBotEnabled" class="db-card-sub alternatives">{{ t('discordBridge.start.ownBot') }}</p>
+    <p v-if="instanceBotEnabled" class="db-card-sub alternatives">{{ t(key('ownBot')) }}</p>
 
-    <div class="mode-grid" :class="{ single: !hostingEnabled }">
-      <article v-if="hostingEnabled" class="mode-option" data-testid="mode-hosted" aria-labelledby="bridge-mode-hosted-title">
+    <div class="mode-grid" :class="{ single: !hostingEnabled && !ownProgram }">
+      <article v-if="hostingEnabled" class="mode-option" data-testid="mode-hosted" :aria-labelledby="`${uid}-hosted`">
         <div class="mode-head">
           <Icon name="server" :size="20" aria-hidden="true" />
-          <h4 id="bridge-mode-hosted-title">{{ t('discordBridge.start.hosted.title') }}</h4>
+          <h4 :id="`${uid}-hosted`">{{ t(key('hosted.title')) }}</h4>
         </div>
-        <p class="mode-lead" data-testid="hosted-lead">{{ t('discordBridge.start.hosted.lead') }}</p>
+        <p class="mode-lead" data-testid="hosted-lead">{{ t(key('hosted.lead')) }}</p>
         <ul class="mode-points">
-          <li>{{ t('discordBridge.start.hosted.point1') }}</li>
-          <li>{{ t('discordBridge.start.hosted.point2') }}</li>
+          <li>{{ t(key('hosted.point1')) }}</li>
+          <li>{{ t(key('hosted.point2')) }}</li>
         </ul>
         <p class="mode-tradeoff">
           <Icon name="alert-triangle" :size="14" aria-hidden="true" />
-          <span>{{ t('discordBridge.start.hosted.tradeoff') }}</span>
+          <span>{{ t(key('hosted.tradeoff')) }}</span>
         </p>
         <button
           type="button"
@@ -57,22 +57,22 @@
           data-testid="choose-hosted"
           @click="emit('choose', 'hosted')"
         >
-          {{ t('discordBridge.start.hosted.choose') }}
+          {{ t(key('hosted.choose')) }}
         </button>
       </article>
 
-      <article class="mode-option" data-testid="mode-self" aria-labelledby="bridge-mode-self-title">
+      <article class="mode-option" data-testid="mode-self" :aria-labelledby="`${uid}-self`">
         <div class="mode-head">
           <Icon name="monitor" :size="20" aria-hidden="true" />
-          <h4 id="bridge-mode-self-title">{{ t('discordBridge.start.self.title') }}</h4>
+          <h4 :id="`${uid}-self`">{{ t(key('self.title')) }}</h4>
         </div>
         <ul class="mode-points">
-          <li>{{ t('discordBridge.start.self.point1') }}</li>
-          <li>{{ t('discordBridge.start.self.point2') }}</li>
+          <li>{{ t(key('self.point1')) }}</li>
+          <li>{{ t(key('self.point2')) }}</li>
         </ul>
         <p class="mode-tradeoff">
           <Icon name="info" :size="14" aria-hidden="true" />
-          <span>{{ t('discordBridge.start.self.tradeoff') }}</span>
+          <span>{{ t(key('self.tradeoff')) }}</span>
         </p>
         <button
           type="button"
@@ -81,36 +81,62 @@
           data-testid="choose-self"
           @click="emit('choose', 'self')"
         >
-          {{ t('discordBridge.start.self.choose') }}
+          {{ t(key('self.choose')) }}
+        </button>
+      </article>
+
+      <article v-if="ownProgram" class="mode-option" data-testid="mode-custom" :aria-labelledby="`${uid}-custom`">
+        <div class="mode-head">
+          <Icon name="wrench" :size="20" aria-hidden="true" />
+          <h4 :id="`${uid}-custom`">{{ t(key('custom.title')) }}</h4>
+        </div>
+        <ul class="mode-points">
+          <li>{{ t(key('custom.point1')) }}</li>
+          <li>{{ t(key('custom.point2')) }}</li>
+        </ul>
+        <p class="mode-tradeoff">
+          <Icon name="info" :size="14" aria-hidden="true" />
+          <span>{{ t(key('custom.tradeoff')) }}</span>
+        </p>
+        <button type="button" class="btn btn-secondary" :disabled="busy" data-testid="choose-custom" @click="emit('choose-custom')">
+          {{ t(key('custom.choose')) }}
         </button>
       </article>
     </div>
 
-    <p v-if="!hostingEnabled" class="db-muted" data-testid="hosting-unavailable">{{ t('discordBridge.start.hostingUnavailable') }}</p>
-    <p class="db-muted">{{ t('discordBridge.start.bothWays') }}</p>
-    <p class="db-muted">{{ t('discordBridge.start.presenceNote') }}</p>
+    <p v-if="!hostingEnabled && (platform === 'discord' || !instanceBotEnabled)" class="db-muted" data-testid="hosting-unavailable">{{ t(key('hostingUnavailable')) }}</p>
+    <p class="db-muted">{{ t(key('bothWays')) }}</p>
+    <p v-if="platform === 'discord'" class="db-muted">{{ t(key('presenceNote')) }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import type { BridgeMode } from '@/utils/discordBridgeSetup'
+import type { BridgeRemotePlatform } from './bridgeApi'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     hostingEnabled: boolean
     busy: boolean
     /** discord_bridge_instance_bot_enabled: the instance's own Discord bot is offered first. */
     instanceBotEnabled?: boolean
     instanceName?: string
+    platform?: BridgeRemotePlatform
+    /** A bridge program of any make, with a bot of the manager's, is offered last. */
+    ownProgram?: boolean
   }>(),
-  { instanceBotEnabled: false, instanceName: '' },
+  { instanceBotEnabled: false, instanceName: '', platform: 'discord', ownProgram: false },
 )
 
-const emit = defineEmits<{ choose: [mode: BridgeMode] }>()
+const emit = defineEmits<{ choose: [mode: BridgeMode]; 'choose-custom': [] }>()
 
 const { t } = useI18n()
+const uid = `bridge-mode-${useId()}`
+const START_KEYS: Record<BridgeRemotePlatform, string> = { discord: 'discordBridge.start', matrix: 'matrixBridge.start' }
+const key = (name: string) => `${START_KEYS[props.platform]}.${name}`
 </script>
 
 <style scoped src="./bridge.css"></style>

@@ -71,6 +71,7 @@
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
       :allow-polls="pollsAllowed"
+      :allow-activities="!!activities"
       :allow-role-menus="roleMenusAllowed"
       :encrypted-room="composerEncrypted"
       :draft-key="draftKey"
@@ -84,6 +85,7 @@
       @edit-last-message="handleEditLastMessage"
       @sendGif="handleSendGif"
       @createPoll="openPollModal"
+      @openActivities="openActivities"
     >
       <!-- Shares the strip under the field with the typing indicator. -->
       <template #status-end>
@@ -216,6 +218,7 @@
   import { useActivityPubStore } from '@/stores/useActivityPub';
   import { useThemeStore } from '@/stores/useTheme';
   import { useDraftsStore } from '@/stores/drafts';
+  import { usePlayTogetherStore } from '@/stores/playTogether';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailure';
   import { useOutboxStore, withPendingRows } from '@/stores/useOutbox';
@@ -293,6 +296,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
   const draftsStore = useDraftsStore();
+  const playTogether = usePlayTogetherStore();
   const outbox = useOutboxStore();
   const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
 
@@ -383,6 +387,24 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   const openPollModal = () => {
     if (pollsAllowed.value) showPollModal.value = true;
   };
+
+  // DMs, groups, and text channels of servers this instance hosts. A voice channel's game starts from the call.
+  const activities = computed(() => {
+    if (props.isDM) {
+      const conversation = dmStore.conversations.find(c => c.id === props.conversationId);
+      if (!conversation || !playTogether.appsFor(conversation.type === 'group' ? 'group' : 'direct').length) return null;
+      return { target: { kind: 'conversation' as const, id: conversation.id }, type: conversation.type };
+    }
+    const channel = serverChannelStore.channels.find(ch => ch.id === (props.channelId || serverChannelStore.currentChannelId));
+    const serverId = serverChannelStore.currentServerId;
+    if (!channel || !serverId || Number(channel.type ?? 0) !== 0 || serverChannelStore.currentServer?.is_local_server === false
+      || !playTogether.appsFor('channel').length) return null;
+    return { target: { kind: 'channel' as const, id: channel.id, serverId, voice: false }, type: null };
+  });
+  const openActivities = () => {
+    if (activities.value) playTogether.openLauncher(activities.value.target, activities.value.type);
+  };
+  onMounted(() => { void playTogether.loadApps(); });
   const handlePollCreated = (row: Record<string, any>) => {
     showPollModal.value = false;
     handleDontReply();
@@ -625,12 +647,12 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           if (svc.isInitialized() && svc.isUnlocked()) {
             const hasKey = await svc.hasRecoveryKey()
             if (hasKey) {
-              encryptionStatusData.value = { level: 'active', icon: 'lock', text: 'End-to-end encrypted' }
+              encryptionStatusData.value = { level: 'active', icon: 'lock', text: t('channelEncryption.status.active') }
             } else {
               encryptionStatusData.value = {
                 level: 'locked',
                 icon: 'unlock',
-                text: 'Encryption enabled but keys not set up',
+                text: t('channelEncryption.dmStatus.noKeys'),
                 showSetup: true
               }
             }
@@ -640,14 +662,14 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
               encryptionStatusData.value = {
                 level: 'locked',
                 icon: 'unlock',
-                text: 'Encryption enabled - unlock to read encrypted messages',
+                text: t('channelEncryption.dmStatus.locked'),
                 showUnlock: true
               }
             } else {
               encryptionStatusData.value = {
                 level: 'locked',
                 icon: 'unlock',
-                text: 'Encryption enabled - set up your keys to participate',
+                text: t('channelEncryption.dmStatus.setup'),
                 showSetup: true
               }
             }
@@ -726,8 +748,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         // went out unencrypted, which is also surfaced here.
         const detail = (e as CustomEvent).detail || {}
         sendError.value = detail.failClosed
-          ? 'Encryption failed - message NOT sent (confirm fallback to send unencrypted)'
-          : 'Encryption failed - message sent unencrypted'
+          ? t('channelEncryption.sendFallback.notSent')
+          : t('channelEncryption.sendFallback.sentUnencrypted')
         setTimeout(() => { sendError.value = null }, 6000)
       };
 
@@ -1180,7 +1202,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
             // rather than a "send plaintext" prompt. A refusal carrying a
             // reason has its own toast and setup or unlock prompt.
             if (!error?.reason) {
-              toast.error(msg || 'This channel requires end-to-end encryption.')
+              toast.error(msg || t('channelEncryption.sendFallback.required'))
             }
             messageInputRef.value?.flashRejection?.()
             restoreDraft()
@@ -1250,7 +1272,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
 
         const outcome = await sendToTarget(target, authorId, messageParts, replyMessageId, { turn })
         if (outcome === 'declined') {
-          sendError.value = 'Message was not sent.'
+          sendError.value = t('channelEncryption.sendFallback.declined')
           setTimeout(() => { sendError.value = null }, 6000)
           return 'declined'
         }

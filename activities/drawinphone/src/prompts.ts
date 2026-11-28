@@ -56,6 +56,15 @@ const PROMPTS: Record<string, string[]> = {
     'Ein Kaktus verteilt Umarmungen', 'Ein Hamster beim Bodybuilding', 'Eine Wolke regnet Spaghetti',
     'Ein Ritter kämpft gegen einen Staubsauger', 'Eine Giraffe im Aufzug', 'Eine Detektiv-Ente',
   ],
+  nl: [
+    'Een kat die een onderzeeër bestuurt', 'Oma wint een breakdancebattle', 'Een sneeuwpop op strandvakantie',
+    'De maan eet een boterham', 'Een draak die bang is in het donker', 'Een robot leert breien',
+    'Pinguïns met een bakkerij', 'Een spook doet de was', 'Een octopus speelt drums',
+    'Een hond die burgemeester werd', 'Piraten op sollicitatiegesprek', 'Een verkouden vulkaan',
+    'Een tovenaar in de file', 'Een dinosaurus bij de tandarts', 'Een haai verkoopt ijsjes',
+    'Een cactus die knuffels geeft', 'Een hamster die aan bodybuilding doet', 'Een wolk die spaghetti regent',
+    'Een ridder vecht tegen een stofzuiger', 'Een giraf in een lift', 'Een detective-eend',
+  ],
   ja: [
     '潜水艦を操縦するネコ', 'ブレイクダンスで優勝するおばあちゃん', 'ビーチでバカンス中の雪だるま',
     'サンドイッチを食べる月', '暗いところが怖いドラゴン', '編み物を習うロボット',

@@ -112,8 +112,8 @@ const dismissPrompt = () => {
 const shareApp = async () => {
   const url = resolveHarmonyBaseUrl()
   const success = await pwaManager.shareContent({
-    title: 'Harmony - Secure Chat App',
-    text: 'Harmony is a secure, private chat app.',
+    title: t('pwa.shareTitle'),
+    text: t('pwa.shareText'),
     url
   })
   

@@ -670,7 +670,7 @@ import { uid } from '@/utils/a11y/focus'
 // Ids pairing each switch with its visible label.
 const a11yId = uid('notification-settings')
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 // Stores
 const notificationStore = useNotificationStore()
@@ -1176,7 +1176,7 @@ const formatDate = (dateStr: string): string => {
     const weeks = Math.floor(diffDays / 7)
     return weeks === 1 ? t('time.weekAgo') : t('time.weeksAgo', { count: weeks })
   }
-  return date.toLocaleDateString()
+  return date.toLocaleDateString(locale.value)
 }
 
 // Check notification permission on mount

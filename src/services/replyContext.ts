@@ -14,6 +14,7 @@ import { supabase } from '@/supabase'
 import { apiUrl } from '@/services/instanceConfig'
 import { debug } from '@/utils/debug'
 import { messagePartsToRawText } from '@/utils/messageContentUtils'
+import { cutRuns, emojiRuns, textRun, type PreviewRun } from '@/utils/previewRuns'
 import type { MediaAttachment, ReplyContext } from '@/types/activitypub'
 
 /** Parent columns. posts RLS applies to the embedded row: a parent the reader may not read is null. */
@@ -45,6 +46,11 @@ interface ReplyRow {
  */
 export function replySnippet(content: unknown): string {
   if (!Array.isArray(content)) return typeof content === 'string' ? content.slice(0, SNIPPET_CHARS) : ''
+  const text = messagePartsToRawText(withoutLeadingMentions(content)).replace(/\s+/g, ' ').trim()
+  return text.length > SNIPPET_CHARS ? `${text.slice(0, SNIPPET_CHARS - 1)}…` : text
+}
+
+function withoutLeadingMentions(content: any[]): any[] {
   let start = 0
   while (start < content.length) {
     const part = content[start]
@@ -52,9 +58,18 @@ export function replySnippet(content: unknown): string {
     if (part?.type === 'text' && !String(part.text ?? '').trim()) { start++; continue }
     break
   }
-  const parts = start < content.length ? content.slice(start) : content
-  const text = messagePartsToRawText(parts).replace(/\s+/g, ' ').trim()
-  return text.length > SNIPPET_CHARS ? `${text.slice(0, SNIPPET_CHARS - 1)}…` : text
+  return start < content.length ? content.slice(start) : content
+}
+
+/** replySnippet with the parent's custom emojis; its text alone when the content was not read. */
+export function replySnippetRuns(context: Pick<ReplyContext, 'content' | 'content_preview'>): PreviewRun[] {
+  const { content, content_preview: preview } = context
+  if (!Array.isArray(content)) {
+    const text = preview ?? replySnippet(content)
+    return text ? [textRun(text)] : []
+  }
+  const runs = emojiRuns((emojiText) => messagePartsToRawText(withoutLeadingMentions(content), emojiText).replace(/\s+/g, ' ').trim())
+  return cutRuns(runs, SNIPPET_CHARS)
 }
 
 /** Reply context of a row read with REPLY_PARENT_EMBED or from get_home_timeline_page. */

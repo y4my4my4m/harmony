@@ -17,13 +17,13 @@
         />
       </div>
       <span class="reply-text">
-        <span class="reply-count">{{ formatReplyCount(thread.message_count) }}</span>
+        <span class="reply-count">{{ t('chatNav.thread.replies', { count: thread.message_count }, thread.message_count) }}</span>
         <span class="reply-time" v-if="thread.last_message_at">
-          Last reply {{ formatRelativeTime(thread.last_message_at) }}
+          {{ t('chatNav.thread.lastReply', { time: formatRelativeTime(thread.last_message_at) }) }}
         </span>
       </span>
     </div>
-    <span class="view-thread">View Thread</span>
+    <span class="view-thread">{{ t('chatNav.thread.view') }}</span>
     <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M10 17l5-5-5-5v10z"/>
     </svg>
@@ -32,7 +32,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { formatDistanceToNow } from 'date-fns'
+import { useI18n } from 'vue-i18n'
+import { formatSpokenRelativeTime } from '@/utils/shortRelativeTime'
 import Avatar from '@/components/common/Avatar.vue'
 import { useUserData } from '@/composables/useUserData'
 
@@ -52,6 +53,7 @@ interface Props {
 const props = defineProps<Props>()
 defineEmits<{ open: [thread: ThreadData] }>()
 
+const { t, locale } = useI18n()
 const { getUserAvatarUrl } = useUserData()
 
 const displayParticipants = computed(() => {
@@ -63,19 +65,9 @@ const getParticipantAvatar = (userId: string): string => {
   return getUserAvatarUrl(userId).value || '/default_avatar.webp'
 }
 
-const formatReplyCount = (count: number) => {
-  if (count === 1) return '1 Reply'
-  return `${count} Replies`
-}
-
 const formatRelativeTime = (date: Date | string | null | undefined) => {
   if (!date) return ''
-  try {
-    const d = typeof date === 'string' ? new Date(date) : date
-    return formatDistanceToNow(d, { addSuffix: false })
-  } catch {
-    return ''
-  }
+  return formatSpokenRelativeTime(date, { locale: locale.value })
 }
 </script>
 

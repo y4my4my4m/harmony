@@ -669,6 +669,28 @@ export function isBlockingIssue(issue: ChannelIssue): boolean {
   return issue !== 'cannot_manage_webhooks'
 }
 
+export interface HarmonyChannelGroup {
+  /** The category's name; empty outside a category. */
+  label: string
+  channels: HarmonyChannelOption[]
+}
+
+/** Text channels left to pair, under their category, in the given order. */
+export function groupHarmonyTextChannels(
+  channels: readonly HarmonyChannelOption[],
+  paired: ReadonlySet<string>,
+): HarmonyChannelGroup[] {
+  const groups: HarmonyChannelGroup[] = []
+  for (const channel of channels) {
+    if (channel.voice || paired.has(channel.id)) continue
+    const label = channel.categoryName ?? ''
+    let group = groups.find((g) => g.label === label)
+    if (!group) groups.push((group = { label, channels: [] }))
+    group.channels.push(channel)
+  }
+  return groups
+}
+
 /** Lowercase letters and digits joined by '-': "💬 General Chat" and "general-chat" match. */
 export function normalizeChannelName(name: string): string {
   return name

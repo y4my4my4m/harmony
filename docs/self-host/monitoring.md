@@ -91,7 +91,7 @@ harmony logs caddy -n 500 --no-follow     # the last 500 lines, then exit
 
 Any compose service name works: `caddy`, `web`, `federation-server`,
 `federation-worker`, `redis`, `bot-gateway`, `discord-bridge-host`,
-`livekit`, and Supabase's services. [The harmony command](/self-host/cli#harmony-logs)
+`matrix-bridge-host`, `livekit`, and Supabase's services. [The harmony command](/self-host/cli#harmony-logs)
 describes the options.
 
 The federation backend logs at `LOG_LEVEL` (`error`, `warn`, `info` or

@@ -25,7 +25,29 @@
     <div class="body">
       <div class="line">
         <span class="summary">
-          <template v-if="actorLayout">
+          <i18n-t v-if="actionKey" :keypath="actionKey" tag="span" class="action" scope="global">
+            <template #actor>
+              <DisplayName
+                v-if="actorUserId"
+                :user-id="actorUserId"
+                :fallback="actorName"
+                :truncate="true"
+                class="actor"
+              />
+              <span v-else class="actor">{{ actorName }}</span>
+              <BridgeSourceBadge v-if="bridgeAuthor" :source="bridgeAuthor.platform" />
+            </template>
+            <template #emoji>
+              <img
+                v-if="reactionEmoji?.url"
+                :src="reactionEmoji.url"
+                :alt="reactionEmoji.name"
+                class="inline-emoji"
+              />
+              <span v-else-if="reactionEmoji" class="inline-emoji-text">{{ reactionEmoji.text }}</span>
+            </template>
+          </i18n-t>
+          <template v-else-if="actorLayout">
             <DisplayName
               v-if="actorUserId"
               :user-id="actorUserId"
@@ -35,25 +57,14 @@
             />
             <span v-else class="actor">{{ actorName }}</span>
             <BridgeSourceBadge v-if="bridgeAuthor" :source="bridgeAuthor.platform" />
-            <template v-if="isReaction">
-              <span class="action"> reacted </span>
-              <img
-                v-if="reactionEmoji?.url"
-                :src="reactionEmoji.url"
-                :alt="reactionEmoji.name"
-                class="inline-emoji"
-              />
-              <span v-else-if="reactionEmoji" class="inline-emoji-text">{{ reactionEmoji.text }}</span>
-              <span class="action">{{ reactionSuffix }}</span>
-            </template>
-            <span v-else class="action">{{ actionText }}</span>
+            <span class="action">{{ actionText }}</span>
           </template>
           <span v-else class="actor">{{ formatted.title }}</span>
         </span>
         <time class="time" :datetime="notification.created_at" :title="fullTimestamp">{{ relative }}</time>
       </div>
 
-      <p v-if="preview" class="preview">{{ preview }}</p>
+      <p v-if="previewRuns.length" class="preview" data-testid="notification-preview"><PreviewRuns :runs="previewRuns" /></p>
 
       <div v-if="isFollowRequest" class="quick-actions">
         <button type="button" class="quick-btn primary" :disabled="busy" @click="respondToFollow(true)">
@@ -89,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { bridgedMentionPlainText } from '@/utils/bridgedMentions'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
@@ -102,6 +113,10 @@ import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { urlPartPlainText } from '@/utils/maskedLinks'
+import { previewContent, requestPreviewContent, type PreviewKind } from '@/services/previewContent'
+import { cutRuns, messagePreviewRuns, runsText, textRun } from '@/utils/previewRuns'
+import { maskSpoilers } from '@/utils/spoiler'
+import PreviewRuns from '@/components/common/PreviewRuns.vue'
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 
 const props = defineProps<{
@@ -118,20 +133,25 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 
-const ACTION_OVERRIDES: Record<string, string> = {
-  activitypub_follow: ' followed you',
-  activitypub_follow_request: ' requested to follow you',
+// Sentence keys with {actor} (and {emoji} for reactions) replace the formatter's English action.
+const ACTION_KEYS: Record<string, string> = {
+  activitypub_follow: 'inbox.followedYou',
+  activitypub_follow_request: 'inbox.requestedFollow',
+  reaction: 'inbox.reactedToMessage',
+  activitypub_reaction: 'inbox.reactedToPost',
 }
 
 const data = computed<Record<string, any>>(() => props.notification.data || {})
 const formatted = computed(() => NotificationFormatter.formatNotification(props.notification))
 
+const actionKey = computed<string | null>(() => ACTION_KEYS[props.notification.type] ?? null)
+
 const actionText = computed(() =>
-  ACTION_OVERRIDES[props.notification.type] ?? NotificationFormatter.getTitleAction(props.notification)
+  actionKey.value ? '' : NotificationFormatter.getTitleAction(props.notification)
 )
 
 // Rows that read "<actor> <action>"; the rest show the formatted title.
-const actorLayout = computed(() => !!actionText.value || isReaction.value)
+const actorLayout = computed(() => !!actionText.value || !!actionKey.value)
 
 const actor = computed(() => {
   const d = data.value
@@ -153,9 +173,6 @@ const isReaction = computed(() =>
   props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction'
 )
 
-const reactionSuffix = computed(() =>
-  props.notification.type === 'activitypub_reaction' ? ' to your post' : ' to your message'
-)
 
 const reactionEmoji = computed(() => {
   if (!isReaction.value) return null
@@ -197,7 +214,7 @@ function partsText(content: any): string | null {
 const preview = computed(() => {
   const v = data.value
   const type = props.notification.type
-  if (v.encrypted === true || v.message?.encrypted === true) return 'Encrypted message'
+  if (v.encrypted === true || v.message?.encrypted === true) return t('channelEncryption.encryptedMessage')
   if (!actorLayout.value) {
     return formatted.value.message && formatted.value.message !== formatted.value.title ? formatted.value.message : null
   }
@@ -210,15 +227,34 @@ const preview = computed(() => {
   return partsText(v.message?.content_preview) || partsText(v.preview || v.content_preview) || partsText(v.message?.content || v.content)
 })
 
+// The row the preview is of. Its text is the server's, which holds no custom emojis: one that has some
+// is drawn from its content.
+const PREVIEW_CHARS = 100
+const source = computed<{ kind: PreviewKind; id: string } | null>(() => {
+  const v = data.value
+  if (v.encrypted === true || v.message?.encrypted === true || !actorLayout.value || !preview.value) return null
+  const post = props.notification.type.startsWith('activitypub_')
+  const id = post ? v.post?.id ?? v.post_id : v.message?.id ?? v.message_id
+  return typeof id === 'string' ? { kind: post ? 'post' : 'message', id } : null
+})
+watch(source, (row) => { if (row) requestPreviewContent(row.kind, row.id) }, { immediate: true })
+const previewRuns = computed(() => {
+  const content = source.value && previewContent(source.value.kind, source.value.id)
+  if (content) return cutRuns(messagePreviewRuns(content), PREVIEW_CHARS)
+  return preview.value ? [textRun(maskSpoilers(preview.value))] : []
+})
+
 const relative = computed(() => shortRelativeTime(props.notification.created_at, props.now, locale.value))
 const fullTimestamp = computed(() => new Date(props.notification.created_at).toLocaleString(locale.value))
 
 const accessibleLabel = computed(() => {
   const summary = actorLayout.value
-    ? `${actorName.value}${isReaction.value ? ` reacted${reactionSuffix.value}` : actionText.value}`
+    ? (actionKey.value
+      ? t(actionKey.value, { actor: actorName.value, emoji: reactionEmoji.value?.name || reactionEmoji.value?.text || '' })
+      : `${actorName.value}${actionText.value}`)
     : formatted.value.title
   const state = props.notification.is_read ? '' : `${t('inbox.unread')}. `
-  return `${state}${summary}. ${preview.value ?? ''} ${fullTimestamp.value}`.trim()
+  return `${state}${summary}. ${runsText(previewRuns.value)} ${fullTimestamp.value}`.trim()
 })
 
 const TYPE_ICONS: Record<string, { icon: string; tone: string }> = {

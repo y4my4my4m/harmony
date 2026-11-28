@@ -173,7 +173,84 @@ beforeEach(() => {
     user_roles: [],
     messages: [],
     instance_server_blocks: [],
+    server_welcome_screens: [],
   }
+})
+
+describe('welcome screen', () => {
+  const WELCOME = {
+    rules: [{ title: 'Be kind', description: 'To everyone.' }],
+    enabled: true,
+    message: 'Hi',
+    enabledAt: '2026-11-01T00:00:00Z',
+    requireAcceptance: true,
+    acceptanceRequiredAt: '2026-11-02T00:00:00Z',
+  }
+  const group = (extra: Record<string, unknown> = {}) => ({
+    id: GROUP, type: 'Group', name: 'Hall', inbox: `${GROUP}/inbox`, 'harmony:channels': [], ...extra,
+  })
+  const welcomeWrites = () => writes.filter(w => w.table === 'server_welcome_screens' && w.op === 'upsert')
+
+  async function sync(doc: Record<string, unknown>) {
+    const spies = [
+      vi.spyOn(ServerDiscoveryService, 'fetchServerByUrl').mockResolvedValue(doc as any),
+      vi.spyOn(ServerDiscoveryService as any, 'resolveGroupOwner').mockResolvedValue(undefined),
+      vi.spyOn(ServerDiscoveryService as any, 'syncRemoteStructure').mockResolvedValue(undefined),
+      vi.spyOn(ServerDiscoveryService as any, 'syncAdvertisedPins').mockResolvedValue(undefined),
+    ]
+    try {
+      await ServerDiscoveryService.syncRemoteServer(REF, { asUserId: 'bob' })
+    } finally {
+      for (const s of spies) s.mockRestore()
+    }
+  }
+
+  it('a sync stores the Group\'s screen as the copy\'s, set by no one here', async () => {
+    await sync(group({ 'harmony:welcome': WELCOME }))
+    expect(welcomeWrites()).toHaveLength(1)
+    expect(welcomeWrites()[0].rows).toMatchObject({
+      server_id: REF,
+      enabled: true,
+      message: 'Hi',
+      rules: [{ title: 'Be kind', description: 'To everyone.' }],
+      require_acceptance: true,
+      enabled_at: '2026-11-01T00:00:00.000Z',
+      acceptance_required_at: '2026-11-02T00:00:00.000Z',
+      updated_by: null,
+    })
+  })
+
+  it('a Group without harmony:welcome (before 1.9.9) leaves the copy\'s screen as it is', async () => {
+    await sync(group())
+    expect(welcomeWrites()).toHaveLength(0)
+  })
+
+  it('writes nothing when the copy already holds that screen', async () => {
+    db.server_welcome_screens = [{
+      server_id: REF, enabled: true, message: 'Hi', rules: [{ title: 'Be kind', description: 'To everyone.' }],
+      require_acceptance: true, enabled_at: '2026-11-01T00:00:00+00:00', acceptance_required_at: '2026-11-02T00:00:00+00:00',
+    }]
+    await sync(group({ 'harmony:welcome': WELCOME }))
+    expect(welcomeWrites()).toHaveLength(0)
+  })
+
+  it('discovery lists the server\'s rule titles and its home instance\'s rules, empty for a Group with none', async () => {
+    const fetchGroup = vi.spyOn(ServerDiscoveryService, 'fetchServerByUrl')
+    try {
+      fetchGroup.mockResolvedValue(group({ 'harmony:welcome': WELCOME, 'harmony:instanceRules': ['Follow the law'] }) as any)
+      const found = await supertest(app()).get('/servers/discover').query({ url: GROUP })
+      expect(found.status).toBe(200)
+      expect(found.body.server.rules).toEqual(['Be kind'])
+      expect(found.body.server.instanceRules).toEqual(['Follow the law'])
+
+      fetchGroup.mockResolvedValue(group() as any)
+      const older = await supertest(app()).get('/servers/discover').query({ url: GROUP })
+      expect(older.body.server.rules).toEqual([])
+      expect(older.body.server.instanceRules).toEqual([])
+    } finally {
+      fetchGroup.mockRestore()
+    }
+  })
 })
 
 describe('member sync', () => {

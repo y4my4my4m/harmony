@@ -103,8 +103,8 @@ In order:
 | Admin password | 8 characters or more, asked twice. Not asked when an admin exists | Enter generates one, shown once after the summary |
 | Instance name | Shown in the app, and to other servers as the instance's name (NodeInfo, the instance actor). It cannot be blank or contain `$`, `#`, `"`, `\` or a backtick, or start with a quote; the admin panel accepts any name later. Harmony, the software's name, asks for a confirmation | the domain; the current name on a re-run, and the domain for an instance still named Harmony by an earlier installer |
 | Enable voice and video? | Voice channels, calls and screen sharing (LiveKit). Needs the `live.` record and ports 7881/tcp and 7882/udp | `y` |
-| Enable bots? | The bot gateway, for bots and Discord bridges | `n` |
-| Host Discord bridges on this server? | Asked when bots are on. Communities paste their Discord bot token into Harmony and this server runs their bridge; see [Discord bridges](/self-host/discord-bridges) | `n` |
+| Which bridges should this instance run? | `none`, `discord`, `matrix` or `both`: this server then runs that bridge for your communities, with their own bot or account or with this instance's; see [Discord bridges](/self-host/discord-bridges) and [Matrix bridges](/self-host/matrix-bridges). It turns the bot gateway on. `harmony bridges` adds or removes one later | `none` |
+| Enable bots? | Asked with `none`. The bot gateway, for bots and the bridges people run themselves; about 45 MB of RAM when idle | `y` on a new install |
 | Run Supabase log collection? | Logflare and vector store every service's logs in the database for Supabase Studio's Logs pages, for 0.7 to 2 GB of memory; `harmony logs` works without them. `harmony analytics on\|off` changes it later; see [Log collection](/self-host/#log-collection) | `n`, also on an instance installed before the question existed; answered `n` there, the installer removes `analytics` and `vector` and deletes the logs they stored |
 | Set up email (SMTP) now? | Then: SMTP server, SMTP port, SMTP username, SMTP password, sender address. Without it, accounts work but nobody can reset a forgotten password; see [Email](/self-host/email) | `n`; port `587`, sender `noreply@` your domain |
 | Registration | `open`: anyone can sign up. `invite`: only people you invite. `closed`: no new accounts | `open` |
@@ -204,22 +204,38 @@ harmony registration invite    # only people you invite
 harmony registration closed    # no new accounts
 ```
 
-| Policy | Sign-up (`DISABLE_SIGNUP` in `supabase/.env`) | `instance_config.open_registration` |
+| Policy | Email sign-up | `instance_config.open_registration` |
 |---|---|---|
-| `open` | on | `true` |
-| `invite` | off | `false` |
-| `closed` | off | `false` |
+| `open` | anyone | `true` |
+| `invite` | invited addresses | `false` |
+| `closed` | no one; invitations still work | `false` |
 
-The command records the policy as `REGISTRATION` in `self-host/.env`,
-updates both settings and restarts the auth service. `open` refuses to run
-before an admin account exists. With sign-up off, new accounts through OAuth
-providers are refused too. NodeInfo advertises the policy to other servers
+The command records the policy as `REGISTRATION` in `self-host/.env` and in
+`instance_config.registration_policy`, which the sign-up hook applies, updates
+`open_registration` and restarts the auth service. `open` refuses to run before
+an admin account exists. NodeInfo advertises the policy to other servers
 (`openRegistrations`).
+
+Sign-in providers (Google, Discord, your own identity provider) follow the
+policy by default. Each can have a rule of its own, on the admin panel's
+**Invites** tab or with `harmony auth sign-up`: anyone it signs in, or only
+addresses it has verified at domains you list. A school or company that closes
+registration and lets its own sign-in make accounts for `@myschool.edu` runs:
+
+```bash
+harmony registration closed
+harmony auth sign-up school --domains myschool.edu
+```
+
+See [harmony auth](/self-host/cli#harmony-auth).
 
 ### Invite someone
 
 An invitation makes an account for one email address. It works in every
-registration policy, also while sign-up is off.
+registration policy, also while sign-up is off. Make it in the admin panel or
+with `harmony admin invite`: while registration is `invite` or `closed`, the
+sign-up hook admits a new address only with the pass these take first, so an
+invitation sent from Supabase Studio is refused.
 
 In the admin panel, open **Invites**:
 
@@ -281,8 +297,9 @@ Answers:
 | `HARMONY_ADMIN_PASSWORD` | Admin password, 8 characters or more | generated, shown once after the summary or written to a file ([After the installer finishes](#after-the-installer-finishes)) |
 | `HARMONY_INSTANCE_NAME` | Instance name; `Harmony` is taken with a warning | the domain; the current name on a re-run |
 | `HARMONY_VOICE` | `y` or `n`: voice and video | `y` |
-| `HARMONY_BOTS` | `y` or `n`: bot gateway | `n` |
-| `HARMONY_DISCORD` | `y` or `n`: Discord bridge hosting; `y` turns bots on | `n` |
+| `HARMONY_BOTS` | `y` or `n`: bot gateway | `y` on a new install |
+| `HARMONY_DISCORD` | `y` or `n`: run Discord bridges for your communities; `y` turns bots on | `n` |
+| `HARMONY_MATRIX` | `y` or `n`: run Matrix bridges for your communities; `y` turns bots on | `n` |
 | `HARMONY_ANALYTICS` | `y` or `n`: Supabase's log collection (Logflare and vector) | `n`; the current setting on a re-run, `n` when the instance never answered |
 | `HARMONY_REGISTRATION` | `open`, `invite` or `closed` | `open` |
 | `HARMONY_SMTP_HOST` | SMTP server; setting it configures email | unset: no email |

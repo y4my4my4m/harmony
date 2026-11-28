@@ -12,12 +12,13 @@
         <span v-if="u.states" class="overlay-sr">, {{ u.states }}</span>
       </li>
     </ul>
-    <div v-else class="overlay-empty">Not in a call</div>
+    <div v-else class="overlay-empty">{{ i18n.global.t('voice.overlay.notInCall') }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, nextTick, onMounted, onUnmounted, watch } from 'vue';
+import { i18n } from '@/i18n';
 
 interface RosterEntry {
   userId: string;

@@ -24,7 +24,10 @@ const library = [
 const h = vi.hoisted(() => ({ store: null as any, voice: null as any, muted: false }))
 const { stub } = vi.hoisted(() => ({ stub: (name: string) => ({ __esModule: true, default: { name, render: () => null } }) }))
 
-vi.mock('vue-i18n', () => ({
+// Partial: the import graph reaches @/i18n, which calls createI18n.
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
+ 
   useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => (params?.name ? `${key}:${params.name}` : key) }),
 }))
 vi.mock('@/supabase', () => ({ supabase: {} }))

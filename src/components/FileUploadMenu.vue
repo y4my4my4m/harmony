@@ -1,5 +1,5 @@
 <!--
-  FileUploadMenu - the composer's + menu (upload a file, create a poll) on
+  FileUploadMenu - the composer's + menu (upload a file, create a poll, activities) on
   components/a11y/AppMenu.vue, anchored to the attach button. The file input
   stays mounted outside the menu: the menu closes while the system file picker
   is open, and the input must still receive its change event.
@@ -32,6 +32,10 @@
       <Icon name="bar-chart-2" :size="20" class="menu-icon" />
       <span>{{ t('polls.create') }}</span>
     </button>
+    <button v-if="allowActivities" type="button" role="menuitem" class="menu-item" data-testid="upload-menu-activities" @click="handleOpenActivities">
+      <Icon name="popcorn" :size="20" class="menu-icon" />
+      <span>{{ t('activities.launcherTitle') }}</span>
+    </button>
   </AppMenu>
   <input
     ref="fileInput"
@@ -57,6 +61,8 @@ withDefaults(defineProps<{
   allowPoll?: boolean;
   /** Offers files from Drive; the parent handles `pick-drive`. */
   allowDrive?: boolean;
+  /** Offers Activities; the parent handles `open-activities`. */
+  allowActivities?: boolean;
   /** The attach button: the menu opens beside it and focus returns to it. */
   anchor?: HTMLElement | null;
   menuId?: string;
@@ -65,6 +71,7 @@ withDefaults(defineProps<{
   isVisible: false,
   allowPoll: false,
   allowDrive: false,
+  allowActivities: false,
   anchor: null,
   menuId: undefined,
   initialFocus: 'first',
@@ -75,6 +82,7 @@ const emit = defineEmits<{
   close: [reason?: MenuCloseReason];
   'create-poll': [];
   'pick-drive': [];
+  'open-activities': [];
 }>();
 
 const { t } = useT();
@@ -92,6 +100,10 @@ const handleFileUpload = () => {
 
 const handleCreatePoll = () => {
   emit('create-poll');
+};
+
+const handleOpenActivities = () => {
+  emit('open-activities');
 };
 
 const onFileSelect = (event: Event) => {

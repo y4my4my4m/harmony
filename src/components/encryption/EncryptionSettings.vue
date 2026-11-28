@@ -2,14 +2,14 @@
   <div class="encryption-settings">
     <div v-if="!isInitialized" class="loading-state">
       <LoadingSpinner :size="48" />
-      <p>Loading encryption status...</p>
+      <p>{{ $t('encryption.settings.loadingStatus') }}</p>
     </div>
     
     <div v-else>
       <div class="subsection">
-        <h4 class="subsection-title">Encryption status</h4>
+        <h4 class="subsection-title">{{ $t('encryption.settings.statusHeading') }}</h4>
         <p class="subsection-description">
-          End-to-end encryption protects your messages so only you and your recipients can read them.
+          {{ $t('encryption.settings.statusDescription') }}
         </p>
         
         <div class="status-card" :class="statusClass">
@@ -23,56 +23,56 @@
             @click="showSetupWizard = true"
             class="btn btn-primary btn-sm"
           >
-            Set up encryption
+            {{ $t('encryption.settings.setUp') }}
           </button>
           <button 
             v-else-if="!encryptionStatus.enabled"
             @click="showRecoveryModal = true"
             class="btn btn-primary btn-sm"
           >
-            Unlock message history
+            {{ $t('encryption.settings.unlockHistory') }}
           </button>
         </div>
       </div>
       
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
-        <h4 class="subsection-title">Recovery key</h4>
+        <h4 class="subsection-title">{{ $t('encryption.settings.recoveryKeyHeading') }}</h4>
         
         <div class="info-card">
           <Icon name="key" class="info-icon" :size="24" />
           <div class="info-content">
-            <strong>Recovery key active</strong>
-            <p>Your encryption keys are protected by a 12-word recovery phrase.</p>
+            <strong>{{ $t('encryption.settings.recoveryKeyActive') }}</strong>
+            <p>{{ $t('encryption.settings.recoveryKeyActiveDescription') }}</p>
           </div>
           <div class="info-actions">
             <button @click="showViewRecoveryInfo = true" class="btn btn-secondary btn-sm">
-              View info
+              {{ $t('encryption.settings.viewInfo') }}
             </button>
           </div>
         </div>
 
         <div class="backup-status" v-if="encryptionStatus.hasBackup">
           <Icon name="server" class="backup-icon" :size="18" />
-          <span>Encrypted backup stored on server</span>
+          <span>{{ $t('encryption.settings.backupStored') }}</span>
           <span class="backup-time" v-if="lastBackupTime">
-            Last backup: {{ formatTime(lastBackupTime) }}
+            {{ $t('encryption.settings.lastBackup', { time: formatTime(lastBackupTime) }) }}
           </span>
         </div>
       </div>
       
       <div v-if="encryptionStatus.enabled" class="subsection">
-        <h4 class="subsection-title">Session keys</h4>
+        <h4 class="subsection-title">{{ $t('encryption.settings.sessionKeys') }}</h4>
         
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-value">{{ sessionStats.outbound }}</div>
-            <div class="stat-label">Active rooms</div>
-            <div class="stat-description">Rooms where you can send encrypted messages</div>
+            <div class="stat-label">{{ $t('encryption.settings.activeRooms') }}</div>
+            <div class="stat-description">{{ $t('encryption.settings.activeRoomsDescription') }}</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">{{ sessionStats.inbound }}</div>
-            <div class="stat-label">Received keys</div>
-            <div class="stat-description">Keys received from other users</div>
+            <div class="stat-label">{{ $t('encryption.settings.receivedKeys') }}</div>
+            <div class="stat-description">{{ $t('encryption.settings.receivedKeysDescription') }}</div>
           </div>
         </div>
         
@@ -81,32 +81,32 @@
           :disabled="isSyncing"
           class="btn btn-secondary"
         >
-          <span v-if="isSyncing">Syncing...</span>
-          <span v-else class="sync-label"><Icon name="refresh-cw" :size="16" /> Sync keys</span>
+          <span v-if="isSyncing">{{ $t('encryption.settings.syncing') }}</span>
+          <span v-else class="sync-label"><Icon name="refresh-cw" :size="16" /> {{ $t('encryption.settings.syncKeys') }}</span>
         </button>
       </div>
 
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
-        <h4 class="subsection-title">Diagnostics</h4>
+        <h4 class="subsection-title">{{ $t('encryption.settings.diagnostics') }}</h4>
         <p class="subsection-description">
-          Checks your identity keys, server backup and device trust in one pass.
+          {{ $t('encryption.settings.diagnosticsDescription') }}
         </p>
         <button @click="runDiagnostics" :disabled="isDiagnosing" class="btn btn-secondary">
-          {{ isDiagnosing ? 'Checking...' : 'Run diagnosis' }}
+          {{ isDiagnosing ? $t('encryption.settings.checking') : $t('encryption.settings.runDiagnosis') }}
         </button>
         <ul v-if="diagnostics.length" class="diagnostic-list">
-          <li v-for="d in diagnostics" :key="d.label" class="diagnostic-row">
+          <li v-for="d in diagnostics" :key="d.labelKey" class="diagnostic-row">
             <span class="diagnostic-state" :class="d.ok === true ? 'ok' : d.ok === false ? 'fail' : 'na'">
               <Icon :name="d.ok === true ? 'check' : d.ok === false ? 'x' : 'minus'" :size="14" />
             </span>
-            <span class="diagnostic-label">{{ d.label }}</span>
-            <span class="diagnostic-detail">{{ d.detail }}</span>
+            <span class="diagnostic-label">{{ t(d.labelKey) }}</span>
+            <span class="diagnostic-detail">{{ d.params && 'count' in d.params ? t(d.detailKey, d.params, Number(d.params.count)) : t(d.detailKey, d.params ?? {}) }}</span>
           </li>
         </ul>
       </div>
       
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
-        <h4 class="subsection-title">Your devices</h4>
+        <h4 class="subsection-title">{{ $t('encryption.settings.devicesHeading') }}</h4>
         <p class="subsection-description">
           {{ $t('encryption.settings.devicesDescription') }}
         </p>
@@ -114,40 +114,40 @@
       </div>
 
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
-        <h4 class="subsection-title">Backup & recovery</h4>
+        <h4 class="subsection-title">{{ $t('encryption.settings.backupHeading') }}</h4>
         
         <div class="backup-options">
           <div class="option-card">
             <Icon name="server" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Create backup now</strong>
-              <p>Manually trigger an encrypted backup to the server</p>
+              <strong>{{ $t('encryption.settings.createBackup') }}</strong>
+              <p>{{ $t('encryption.settings.createBackupDescription') }}</p>
             </div>
             <button 
               @click="createBackup"
               :disabled="isBackingUp"
               class="btn btn-secondary"
             >
-              {{ isBackingUp ? 'Backing up...' : 'Backup' }}
+              {{ isBackingUp ? $t('encryption.settings.backingUp') : $t('encryption.settings.backup') }}
             </button>
           </div>
           
           <div class="option-card">
             <Icon name="save" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Export backup file</strong>
-              <p>Download an encrypted backup file to store locally</p>
+              <strong>{{ $t('encryption.settings.exportFile') }}</strong>
+              <p>{{ $t('encryption.settings.exportFileDescription') }}</p>
             </div>
-            <button @click="exportBackupFile" class="btn btn-secondary">Export</button>
+            <button @click="exportBackupFile" class="btn btn-secondary">{{ $t('encryption.settings.export') }}</button>
           </div>
           
           <div class="option-card">
             <Icon name="upload" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Import backup file</strong>
-              <p>Restore from an exported backup file</p>
+              <strong>{{ $t('encryption.settings.importFile') }}</strong>
+              <p>{{ $t('encryption.settings.importFileDescription') }}</p>
             </div>
-            <button @click="showImportModal = true" class="btn btn-secondary">Import</button>
+            <button @click="showImportModal = true" class="btn btn-secondary">{{ $t('encryption.settings.import') }}</button>
           </div>
           
           <div class="option-card">
@@ -178,41 +178,41 @@
       </div>
 
       <div v-if="!encryptionStatus.hasRecoveryKey" class="subsection">
-        <h4 class="subsection-title">Recovery</h4>
+        <h4 class="subsection-title">{{ $t('encryption.settings.recoveryHeading') }}</h4>
         
         <div class="backup-options">
           <div class="option-card">
             <Icon name="key" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Restore with recovery key</strong>
-              <p>Have a recovery phrase? Enter it to restore your encryption</p>
+              <strong>{{ $t('encryption.settings.restoreWithKey') }}</strong>
+              <p>{{ $t('encryption.settings.restoreWithKeyDescription') }}</p>
             </div>
             <button @click="showRecoveryModal = true" class="btn btn-secondary">
-              Enter recovery key
+              {{ $t('encryption.settings.enterRecoveryKey') }}
             </button>
           </div>
           
           <div class="option-card">
             <Icon name="upload" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Import backup file</strong>
-              <p>Restore from an exported backup file</p>
+              <strong>{{ $t('encryption.settings.importFile') }}</strong>
+              <p>{{ $t('encryption.settings.importFileDescription') }}</p>
             </div>
-            <button @click="showImportModal = true" class="btn btn-secondary">Import</button>
+            <button @click="showImportModal = true" class="btn btn-secondary">{{ $t('encryption.settings.import') }}</button>
           </div>
         </div>
       </div>
       
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection danger-zone">
-        <h4 class="subsection-title">Danger zone</h4>
+        <h4 class="subsection-title">{{ $t('server.dangerZone') }}</h4>
         
         <div class="option-card warning">
           <Icon name="alert-triangle" class="option-icon" :size="22" />
           <div class="option-info">
-            <strong>Reset encryption</strong>
-            <p>Delete all encryption keys and start fresh. You will lose access to all encrypted messages.</p>
+            <strong>{{ $t('encryption.settings.reset') }}</strong>
+            <p>{{ $t('encryption.settings.resetDescription') }}</p>
           </div>
-          <button @click="confirmReset = true" class="btn btn-danger">Reset</button>
+          <button @click="confirmReset = true" class="btn btn-danger">{{ $t('common.reset') }}</button>
         </div>
       </div>
     </div>
@@ -239,31 +239,31 @@
     <Teleport to="body">
       <div v-if="showViewRecoveryInfo" class="modal-overlay" @click.self="showViewRecoveryInfo = false">
         <div class="modal">
-          <h2 class="modal-title-with-icon"><Icon name="key" :size="24" /> Recovery key information</h2>
+          <h2 class="modal-title-with-icon"><Icon name="key" :size="24" /> {{ $t('encryption.settings.infoTitle') }}</h2>
           <div class="recovery-info-content">
             <div class="info-item">
-              <span class="label">Status:</span>
-              <span class="value success">Active</span>
+              <span class="label">{{ $t('encryption.settings.infoStatus') }}</span>
+              <span class="value success">{{ $t('encryption.settings.infoActive') }}</span>
             </div>
             <div class="info-item" v-if="recoveryMetadata">
-              <span class="label">Word Count:</span>
-              <span class="value">{{ recoveryMetadata.word_count }} words</span>
+              <span class="label">{{ $t('encryption.settings.infoWordCount') }}</span>
+              <span class="value">{{ $t('encryption.settings.infoWords', { count: recoveryMetadata.word_count }, recoveryMetadata.word_count) }}</span>
             </div>
             <div class="info-item" v-if="recoveryMetadata">
-              <span class="label">Verification Code:</span>
+              <span class="label">{{ $t('encryption.settings.infoVerificationCode') }}</span>
               <span class="value code">{{ recoveryMetadata.verification_code }}</span>
             </div>
             <div class="info-item" v-if="recoveryMetadata?.storage_hint">
-              <span class="label">Storage Hint:</span>
+              <span class="label">{{ $t('encryption.settings.infoStorageHint') }}</span>
               <span class="value">{{ recoveryMetadata.storage_hint }}</span>
             </div>
           </div>
           <div class="warning-note">
-            <p><Icon name="alert-triangle" class="inline-warning-icon" :size="16" /> Your recovery key is never stored on the server. Only you have it.</p>
-            <p>If you've lost your recovery key, you should set up new encryption.</p>
+            <p><Icon name="alert-triangle" class="inline-warning-icon" :size="16" /> {{ $t('encryption.settings.infoNeverStored') }}</p>
+            <p>{{ $t('encryption.settings.infoLost') }}</p>
           </div>
           <div class="modal-actions">
-            <button @click="showViewRecoveryInfo = false" class="btn btn-primary">Close</button>
+            <button @click="showViewRecoveryInfo = false" class="btn btn-primary">{{ $t('common.close') }}</button>
           </div>
         </div>
       </div>
@@ -272,18 +272,18 @@
     <Teleport to="body">
       <div v-if="confirmReset" class="modal-overlay" @click.self="confirmReset = false">
         <div class="modal">
-          <h2 class="modal-title-with-icon"><Icon name="alert-triangle" :size="24" /> Reset encryption?</h2>
+          <h2 class="modal-title-with-icon"><Icon name="alert-triangle" :size="24" /> {{ $t('encryption.settings.resetConfirmTitle') }}</h2>
           <p>
-            This will permanently delete all your encryption keys and backups.
-            <strong>You will not be able to read any previously encrypted messages.</strong>
+            {{ $t('encryption.settings.resetConfirmText') }}
+            <strong>{{ $t('encryption.settings.resetConfirmWarning') }}</strong>
           </p>
           <p class="warning-text">
-            This action cannot be undone.
+            {{ $t('encryption.settings.resetConfirmUndone') }}
           </p>
           <div class="modal-actions">
-            <button @click="confirmReset = false" class="btn btn-secondary">Cancel</button>
+            <button @click="confirmReset = false" class="btn btn-secondary">{{ $t('common.cancel') }}</button>
             <button @click="resetEncryption" :disabled="isResetting" class="btn btn-danger">
-              {{ isResetting ? 'Resetting...' : 'Reset encryption' }}
+              {{ isResetting ? $t('encryption.settings.resetting') : $t('encryption.settings.reset') }}
             </button>
           </div>
         </div>
@@ -293,10 +293,10 @@
     <Teleport to="body">
       <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
         <div class="modal">
-          <h2 class="modal-title-with-icon"><Icon name="upload" :size="24" /> Import backup file</h2>
-          <p>Select your encrypted backup file to restore your encryption keys.</p>
+          <h2 class="modal-title-with-icon"><Icon name="upload" :size="24" /> {{ $t('encryption.settings.importFile') }}</h2>
+          <p>{{ $t('encryption.settings.importModalText') }}</p>
           <div class="form-group">
-            <label>Backup file</label>
+            <label>{{ $t('encryption.settings.backupFileLabel') }}</label>
             <input 
               type="file" 
               accept=".harmony-backup,.txt,.json"
@@ -305,13 +305,13 @@
           </div>
           <p v-if="importError" class="error-text">{{ importError }}</p>
           <div class="modal-actions">
-            <button @click="closeImportModal" class="btn btn-secondary">Cancel</button>
+            <button @click="closeImportModal" class="btn btn-secondary">{{ $t('common.cancel') }}</button>
             <button 
               @click="importBackupFile"
               :disabled="!selectedFile || isImporting"
               class="btn btn-primary"
             >
-              {{ isImporting ? 'Importing...' : 'Import' }}
+              {{ isImporting ? $t('encryption.settings.importing') : $t('encryption.settings.import') }}
             </button>
           </div>
         </div>
@@ -331,9 +331,10 @@ import DeviceManager from './DeviceManager.vue'
 import DeviceLinkModal from './DeviceLinkModal.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import type { DiagnosticRow } from '@/services/encryption/MegolmMessageEncryptionService'
 
 const toast = useToast()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const isInitialized = ref(false)
 const encryptionStatus = ref({
@@ -377,19 +378,19 @@ const statusIcon = computed(() => {
 })
 
 const statusTitle = computed(() => {
-  if (!encryptionStatus.value.hasRecoveryKey) return 'Encryption not set up'
-  if (!encryptionStatus.value.enabled) return 'Encryption locked'
-  return 'Encryption active'
+  if (!encryptionStatus.value.hasRecoveryKey) return t('encryption.settings.statusNotSetUp')
+  if (!encryptionStatus.value.enabled) return t('encryption.settings.statusLocked')
+  return t('encryption.settings.statusActive')
 })
 
 const statusDescription = computed(() => {
   if (!encryptionStatus.value.hasRecoveryKey) {
-    return 'Set up a recovery key to enable end-to-end encryption'
+    return t('encryption.settings.statusNotSetUpDescription')
   }
   if (!encryptionStatus.value.enabled) {
-    return 'Enter your recovery phrase, or approve this device from another one, to unlock your message history'
+    return t('encryption.settings.statusLockedDescription')
   }
-  return 'Your messages are protected with end-to-end encryption'
+  return t('encryption.settings.statusActiveDescription')
 })
 
 async function loadEncryptionStatus() {
@@ -438,7 +439,7 @@ async function loadEncryptionStatus() {
     isInitialized.value = true
   } catch (error) {
     debug.error('Failed to load encryption status:', error)
-    toast.error('Failed to load encryption settings')
+    toast.error(t('encryption.settings.toast.loadFailed'))
     isInitialized.value = true
   }
 }
@@ -448,13 +449,13 @@ function formatTime(isoString: string): string {
   const now = new Date()
   const diff = now.getTime() - date.getTime()
   
-  if (diff < 60000) return 'Just now'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)} minutes ago`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`
-  return date.toLocaleDateString()
+  if (diff < 60000) return t('time.justNow')
+  if (diff < 3600000) return t('time.minutesAgo', { count: Math.floor(diff / 60000) })
+  if (diff < 86400000) return t('time.hoursAgo', { count: Math.floor(diff / 3600000) })
+  return date.toLocaleDateString(locale.value)
 }
 
-const diagnostics = ref<Array<{ label: string; ok: boolean | null; detail: string }>>([])
+const diagnostics = ref<DiagnosticRow[]>([])
 const isDiagnosing = ref(false)
 
 async function runDiagnostics() {
@@ -463,7 +464,7 @@ async function runDiagnostics() {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     diagnostics.value = await megolmMessageEncryptionService.runDiagnostics()
   } catch (error: any) {
-    toast.error(error?.message || 'Diagnosis failed')
+    toast.error(error?.message || t('encryption.settings.toast.diagnosisFailed'))
   } finally {
     isDiagnosing.value = false
   }
@@ -483,20 +484,20 @@ async function syncKeys() {
       const msg = String(restoreErr?.message || restoreErr)
       if (msg.includes('invalid recovery key')) {
         toast.warning(
-          'Your server key backup was created under a different recovery phrase and can\'t be opened with the current one. New messages are unaffected.',
+          t('encryption.settings.toast.backupWrongPhrase'),
           { timeout: 10000 },
         )
       } else {
-        toast.error(`Key backup restore failed: ${msg}`, { timeout: 10000 })
+        toast.error(t('encryption.settings.toast.backupRestoreFailed', { error: msg }), { timeout: 10000 })
       }
     }
 
     const claimed = await megolmMessageEncryptionService.claimPendingSessionShares()
 
     if (restoredCount > 0 || claimed > 0) {
-      toast.success(`Synced ${restoredCount} backup sessions, ${claimed} new session keys`)
+      toast.success(t('encryption.settings.toast.synced', { restored: restoredCount, claimed }))
     } else {
-      toast.info('No new keys to sync')
+      toast.info(t('encryption.settings.toast.nothingToSync'))
     }
 
     // Re-decrypt visible messages. Runs even when claimed == 0: an unlock may
@@ -509,7 +510,7 @@ async function syncKeys() {
 
     await loadEncryptionStatus()
   } catch (error: any) {
-    toast.error(error.message || 'Failed to sync keys')
+    toast.error(error.message || t('encryption.settings.toast.syncFailed'))
   } finally {
     isSyncing.value = false
   }
@@ -520,10 +521,10 @@ async function createBackup() {
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     await megolmMessageEncryptionService.backupSessions()
-    toast.success('Backup created')
+    toast.success(t('encryption.settings.toast.backupCreated'))
     await loadEncryptionStatus()
   } catch (error: any) {
-    toast.error(error.message || 'Failed to create backup')
+    toast.error(error.message || t('encryption.settings.toast.backupFailed'))
   } finally {
     isBackingUp.value = false
   }
@@ -542,9 +543,9 @@ async function exportBackupFile() {
     a.click()
     URL.revokeObjectURL(url)
     
-    toast.success('Backup file exported')
+    toast.success(t('encryption.settings.toast.exported'))
   } catch (error: any) {
-    toast.error(error.message || 'Failed to export backup')
+    toast.error(error.message || t('encryption.settings.toast.exportFailed'))
   }
 }
 
@@ -565,11 +566,11 @@ async function importBackupFile() {
     const { megolmKeyBackupService } = await import('@/services/encryption/MegolmKeyBackupService')
     const result = await megolmKeyBackupService.importFromFile(text)
     
-    toast.success(`Imported ${result.outboundCount + result.inboundCount} sessions`)
+    toast.success(t('encryption.settings.toast.imported', { count: result.outboundCount + result.inboundCount }, result.outboundCount + result.inboundCount))
     closeImportModal()
     await loadEncryptionStatus()
   } catch (error: any) {
-    importError.value = error.message || 'Failed to import backup'
+    importError.value = error.message || t('encryption.settings.toast.importFailed')
   } finally {
     isImporting.value = false
   }
@@ -593,17 +594,17 @@ async function resetEncryption() {
     if (voiceStore.isConnected && voiceStore.isEncrypted) {
       debug.log('Reset encryption: leaving active encrypted voice call first')
       await voiceStore.leaveVoiceChannel()
-      toast.info('Left the encrypted voice call (its keys were reset)')
+      toast.info(t('encryption.settings.toast.leftVoice'))
     }
 
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     await megolmMessageEncryptionService.resetEncryption()
     
     confirmReset.value = false
-    toast.success('Encryption has been reset')
+    toast.success(t('encryption.settings.toast.resetDone'))
     await loadEncryptionStatus()
   } catch (error: any) {
-    toast.error(error.message || 'Failed to reset encryption')
+    toast.error(error.message || t('encryption.settings.toast.resetFailed'))
   } finally {
     isResetting.value = false
   }
@@ -612,14 +613,14 @@ async function resetEncryption() {
 async function handleSetupComplete() {
   showSetupWizard.value = false
   await loadEncryptionStatus()
-  toast.success('Encryption enabled')
+  toast.success(t('encryption.settings.toast.enabled'))
   await autoSyncAfterEnable()
 }
 
 async function handleRecoveryComplete() {
   showRecoveryModal.value = false
   await loadEncryptionStatus()
-  toast.success('Encryption restored')
+  toast.success(t('encryption.settings.toast.restored'))
   await autoSyncAfterEnable()
 }
 
@@ -628,7 +629,7 @@ async function autoSyncAfterEnable() {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     const claimed = await megolmMessageEncryptionService.claimPendingSessionShares()
     if (claimed > 0) {
-      toast.info(`Synced ${claimed} session key${claimed > 1 ? 's' : ''}`)
+      toast.info(t('encryption.settings.toast.syncedKeys', { count: claimed }, claimed))
     }
 
     const { useChatStore } = await import('@/stores/useChat')

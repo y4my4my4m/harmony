@@ -45,6 +45,7 @@ import {
   parseMemberRolesObject,
   pinsTargetChannel,
 } from './copyMirror.js';
+import { HARMONY_WELCOME, parseGroupWelcome } from './groupWelcome.js';
 import { hostFlagsOf } from './channelFlags.js';
 import { audienceOf, authorActorUrl, recipientsOf, visibilityOf } from './audience.js';
 import { CopyMirrorService } from '../services/CopyMirrorService.js';
@@ -1799,6 +1800,8 @@ export class ActivityProcessor {
       if (roles) await CopyMirrorService.applyGroupRoles(existingServer.id, serverActorUrl, roles);
       const emojis = parseGroupEmojis(object[HARMONY_EMOJIS], serverActorUrl);
       if (emojis) await CopyMirrorService.applyGroupEmojis(existingServer.id, serverActorUrl, emojis);
+      const welcome = parseGroupWelcome(object[HARMONY_WELCOME]);
+      if (welcome) await CopyMirrorService.applyGroupWelcome(existingServer.id, welcome);
     } else if (object.type === MEMBER_ROLES_TYPE) {
       await this.processMemberRolesUpdate(actorUrl, object);
     }

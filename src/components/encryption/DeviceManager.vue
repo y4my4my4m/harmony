@@ -13,7 +13,7 @@
       <div v-for="req in pendingApprovals" :key="req.id" class="dm-pending-row">
         <Icon name="alert-triangle" :size="18" class="dm-pending-icon" />
         <div class="dm-pending-info">
-          <strong>New login{{ req.requesting_label ? ` on ${req.requesting_label}` : '' }}</strong>
+          <strong>{{ req.requesting_label ? $t('encryption.approval.newLoginOn', { device: req.requesting_label }) : $t('encryption.approval.newLogin') }}</strong>
           <span v-if="isPairingRequest(req)">{{ $t('encryption.devices.pendingPairing') }}</span>
           <span v-else>{{ $t('encryption.devices.pendingPlain') }}</span>
         </div>
@@ -25,12 +25,12 @@
             @click="linkMode = 'scan'"
           >{{ $t('encryption.devices.scanCode') }}</button>
           <button v-else class="btn btn-sm btn-primary" :disabled="busyId === req.id" @click="onApprove(req)">{{ $t('encryption.approval.thatWasMe') }}</button>
-          <button class="btn btn-sm btn-secondary" :disabled="busyId === req.id" @click="onDeny(req)">Deny</button>
+          <button class="btn btn-sm btn-secondary" :disabled="busyId === req.id" @click="onDeny(req)">{{ $t('encryption.devices.deny') }}</button>
         </div>
       </div>
     </div>
 
-    <div v-if="loading" class="dm-loading">Loading devices…</div>
+    <div v-if="loading" class="dm-loading">{{ $t('security.sessions.loading') }}</div>
 
     <EmptyState
       v-else-if="devices.length === 0"
@@ -45,7 +45,7 @@
         <Icon :name="platformIcon(d.platform)" :size="20" class="dm-item-icon" />
         <div class="dm-item-info">
           <div class="dm-item-label">
-            <span v-if="editingId !== d.id">{{ d.label || 'Unknown device' }}</span>
+            <span v-if="editingId !== d.id">{{ d.label || $t('security.sessions.unknownDevice') }}</span>
             <input
               v-else
               v-model="editLabel"
@@ -53,27 +53,27 @@
               @keyup.enter="saveRename(d)"
               @keyup.esc="editingId = null"
             />
-            <span v-if="d.device_id === thisDeviceId" class="dm-this">This device</span>
+            <span v-if="d.device_id === thisDeviceId" class="dm-this">{{ $t('security.sessions.thisDevice') }}</span>
             <span class="dm-trust" :class="`trust-${d.revoked_at ? 'revoked' : d.trust_state}`">
               {{ trustLabel(d) }}
             </span>
           </div>
           <div class="dm-item-meta">
-            {{ d.platform || 'device' }} · last active {{ formatTime(d.last_seen_at) }}
+            {{ deviceMeta(d) }}
           </div>
         </div>
         <div class="dm-item-actions">
           <template v-if="editingId === d.id">
-            <button class="btn btn-sm btn-primary" @click="saveRename(d)">Save</button>
-            <button class="btn btn-sm btn-secondary" @click="editingId = null">Cancel</button>
+            <button class="btn btn-sm btn-primary" @click="saveRename(d)">{{ $t('common.save') }}</button>
+            <button class="btn btn-sm btn-secondary" @click="editingId = null">{{ $t('common.cancel') }}</button>
           </template>
           <template v-else-if="!d.revoked_at">
-            <button class="btn btn-sm btn-secondary" @click="startRename(d)">Rename</button>
+            <button class="btn btn-sm btn-secondary" @click="startRename(d)">{{ $t('encryption.devices.rename') }}</button>
             <button
               v-if="d.device_id !== thisDeviceId"
               class="btn btn-sm btn-danger"
               @click="onRevoke(d)"
-            >Sign out</button>
+            >{{ $t('security.sessions.signOut') }}</button>
           </template>
         </div>
       </li>
@@ -84,7 +84,7 @@
     <div v-if="!loading && inactiveDevices.length" class="dm-inactive">
       <button class="dm-toggle" @click="showInactive = !showInactive">
         <Icon :name="showInactive ? 'chevron-down' : 'chevron-right'" :size="16" />
-        {{ showInactive ? 'Hide' : 'Show' }} {{ inactiveDevices.length }} signed-out device{{ inactiveDevices.length === 1 ? '' : 's' }}
+        {{ $t(showInactive ? 'encryption.devices.hideInactive' : 'encryption.devices.showInactive', { count: inactiveDevices.length }, inactiveDevices.length) }}
       </button>
 
       <ul v-if="showInactive" class="dm-list dm-list-inactive">
@@ -92,15 +92,15 @@
           <Icon :name="platformIcon(d.platform)" :size="20" class="dm-item-icon" />
           <div class="dm-item-info">
             <div class="dm-item-label">
-              <span>{{ d.label || 'Unknown device' }}</span>
-              <span class="dm-trust trust-revoked">Signed out</span>
+              <span>{{ d.label || $t('security.sessions.unknownDevice') }}</span>
+              <span class="dm-trust trust-revoked">{{ $t('encryption.devices.signedOut') }}</span>
             </div>
             <div class="dm-item-meta">
-              {{ d.platform || 'device' }} · last active {{ formatTime(d.last_seen_at) }}
+              {{ deviceMeta(d) }}
             </div>
           </div>
           <div class="dm-item-actions">
-            <button class="btn btn-sm btn-secondary" :disabled="busyId === d.id" @click="onDelete(d)">Remove</button>
+            <button class="btn btn-sm btn-secondary" :disabled="busyId === d.id" @click="onDelete(d)">{{ $t('common.remove') }}</button>
           </div>
         </li>
       </ul>
@@ -112,6 +112,7 @@
 
 <script setup lang="ts">
 import { ref, computed, defineAsyncComponent, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { useDeviceApprovals } from '@/composables/useDeviceApprovals'
@@ -126,6 +127,8 @@ import { debug } from '@/utils/debug'
 const DeviceLinkModal = defineAsyncComponent(() => import('./DeviceLinkModal.vue'))
 
 const { pendingApprovals, start, approve, deny } = useDeviceApprovals()
+
+const { t, locale } = useI18n()
 
 const devices = ref<UserDevice[]>([])
 const loading = ref(true)
@@ -163,24 +166,39 @@ function platformIcon(platform: string | null): string {
 }
 
 function trustLabel(d: UserDevice): string {
-  if (d.revoked_at) return 'Signed out'
+  if (d.revoked_at) return t('encryption.devices.signedOut')
   switch (d.trust_state) {
-    case 'verified': return 'Verified'
-    case 'recovery': return 'History unlocked'
-    case 'account': return 'New messages only'
-    case 'untrusted': return 'Limited'
+    case 'verified': return t('encryption.devices.trust.verified')
+    case 'recovery': return t('encryption.devices.trust.recovery')
+    case 'account': return t('encryption.devices.trust.account')
+    case 'untrusted': return t('encryption.devices.trust.untrusted')
     default: return d.trust_state
   }
 }
 
+function platformLabel(platform: string | null): string {
+  switch (platform) {
+    case 'web': return t('encryption.devices.platform.web')
+    case 'desktop': return t('encryption.devices.platform.desktop')
+    case 'mobile': return t('encryption.devices.platform.mobile')
+    case null:
+    case '': return t('encryption.devices.platform.other')
+    default: return platform
+  }
+}
+
+function deviceMeta(d: UserDevice): string {
+  return t('encryption.devices.lastActive', { platform: platformLabel(d.platform), time: formatTime(d.last_seen_at) })
+}
+
 function formatTime(iso: string | null): string {
-  if (!iso) return 'unknown'
+  if (!iso) return t('security.sessions.unknown')
   const date = new Date(iso)
   const diff = Date.now() - date.getTime()
-  if (diff < 60000) return 'just now'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
-  return date.toLocaleDateString()
+  if (diff < 60000) return t('time.justNow')
+  if (diff < 3600000) return t('encryption.devices.minutesAgo', { count: Math.floor(diff / 60000) })
+  if (diff < 86400000) return t('encryption.devices.hoursAgo', { count: Math.floor(diff / 3600000) })
+  return date.toLocaleDateString(locale.value)
 }
 
 async function loadDevices() {

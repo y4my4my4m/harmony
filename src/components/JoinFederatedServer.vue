@@ -122,12 +122,16 @@
             </div>
           </div>
 
-          <div v-if="isInvite && combinedRules.length > 0 && !joinedServerId" class="invite-rules">
-            <div class="invite-rules__title">{{ $t('federation.serverRules', 'Rules') }}</div>
+          <div
+            v-if="combinedRules.length > 0 && !joinedServerId && !refusesRemoteMembers"
+            class="invite-rules"
+            data-testid="join-federated-rules"
+          >
+            <div class="invite-rules__title">{{ $t('federation.serverRules') }}</div>
             <ol class="invite-rules__list">
               <li v-for="(rule, index) in combinedRules" :key="index">{{ rule }}</li>
             </ol>
-            <p class="invite-rules__note">{{ $t('federation.rulesAgreeNote', 'By joining, you agree to these rules.') }}</p>
+            <p class="invite-rules__note">{{ $t('federation.rulesAgreeNote') }}</p>
           </div>
 
           <div v-if="previewChannels.length > 0" class="channels-preview">
@@ -278,11 +282,11 @@ const inviterDisplayNameParts = computed(() => {
   return userDataService.resolveDisplayNameParts(dn)
 })
 
-// origin instance rules first, then server rules
-const combinedRules = computed(() => [
-  ...(inviteInfo.value?.instanceRules ?? []),
-  ...(inviteInfo.value?.serverRules ?? []),
-])
+// Home instance rules first, then server rules: an invite's, else the discovered Group's.
+const combinedRules = computed(() => {
+  const source = inviteInfo.value ?? discoveredServer.value
+  return [...(source?.instanceRules ?? []), ...(source?.serverRules ?? [])]
+})
 
 function close() {
   if (isJoining.value) return

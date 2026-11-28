@@ -31,7 +31,7 @@ vi.mock('@/services', () => ({
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
-  useI18n: () => ({ t: (key: string) => key }),
+  useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }),
 }))
 vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
 vi.mock('vue-router', () => ({

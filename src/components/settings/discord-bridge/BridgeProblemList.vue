@@ -1,68 +1,50 @@
 <template>
-  <ul v-if="views.length" class="problem-list" data-testid="bridge-problems" :aria-label="t('discordBridge.problems.listLabel')">
-    <li
-      v-for="problem in views"
-      :key="problem.key"
-      :class="['problem', `problem--${problem.severity}`]"
-      :data-code="problem.code"
-    >
-      <div class="problem-head">
-        <Icon :name="SEVERITY_ICON[problem.severity]" :size="16" aria-hidden="true" />
-        <strong class="problem-title">{{ problem.title }}</strong>
-      </div>
-      <p class="problem-fix">{{ problem.fix }}</p>
-      <BridgeCopyBlock
-        v-for="command in problem.commands"
-        :key="command"
-        :text="command"
-        :label="t('discordBridge.common.commandLabel')"
-      />
-      <div v-if="problem.actions.length" class="db-actions">
-        <template v-for="action in problem.actions" :key="action">
-          <a
-            v-if="action === 'invite'"
-            :href="inviteUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="btn btn-primary btn-sm"
-            data-testid="problem-invite"
-          >
-            <Icon name="external-link" :size="14" aria-hidden="true" />
-            {{ t('discordBridge.actions.invite') }}
-          </a>
-          <a
-            v-else-if="action === 'portal'"
-            :href="portalUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="btn btn-secondary btn-sm"
-          >
-            <Icon name="external-link" :size="14" aria-hidden="true" />
-            {{ t('discordBridge.actions.openPortal') }}
-          </a>
-          <button
-            v-else-if="action === 'turnOff' && problem.settingKey"
-            type="button"
-            class="btn btn-secondary btn-sm"
-            :disabled="busy"
-            :data-testid="`turn-off-${problem.settingKey}`"
-            @click="turnOff(problem.settingKey)"
-          >
-            {{ t('discordBridge.actions.turnOff', { setting: t(`discordBridge.settings.${problem.settingKey}.label`) }) }}
-          </button>
-          <button
-            v-else-if="action === 'connect' || action === 'guild' || action === 'channels'"
-            type="button"
-            class="btn btn-secondary btn-sm"
-            :data-testid="`problem-go-${action}`"
-            @click="emit('go', action)"
-          >
-            {{ t(`discordBridge.actions.go.${action}.${mode}`) }}
-          </button>
-        </template>
-      </div>
-    </li>
-  </ul>
+  <BridgeProblemCards :problems="views">
+    <template #actions="{ problem }">
+      <template v-for="action in problem.actions" :key="action">
+        <a
+          v-if="action === 'invite'"
+          :href="inviteUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn btn-primary btn-sm"
+          data-testid="problem-invite"
+        >
+          <Icon name="external-link" :size="14" aria-hidden="true" />
+          {{ t('discordBridge.actions.invite') }}
+        </a>
+        <a
+          v-else-if="action === 'portal'"
+          :href="portalUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn btn-secondary btn-sm"
+        >
+          <Icon name="external-link" :size="14" aria-hidden="true" />
+          {{ t('discordBridge.actions.openPortal') }}
+        </a>
+        <button
+          v-else-if="action === 'turnOff' && problem.settingKey"
+          type="button"
+          class="btn btn-secondary btn-sm"
+          :disabled="busy"
+          :data-testid="`turn-off-${problem.settingKey}`"
+          @click="turnOff(problem.settingKey)"
+        >
+          {{ t('discordBridge.actions.turnOff', { setting: t(`discordBridge.settings.${problem.settingKey}.label`) }) }}
+        </button>
+        <button
+          v-else-if="action === 'connect' || action === 'guild' || action === 'channels'"
+          type="button"
+          class="btn btn-secondary btn-sm"
+          :data-testid="`problem-go-${action}`"
+          @click="emit('go', action)"
+        >
+          {{ t(`discordBridge.actions.go.${action}.${mode}`) }}
+        </button>
+      </template>
+    </template>
+  </BridgeProblemCards>
 </template>
 
 <script setup lang="ts">
@@ -91,21 +73,11 @@ import {
 import { DISCORD_INTENT_NAMES } from './portalLabels'
 import { updateSettings } from './bridgeApi'
 import { bridgeErrorKey } from './bridgeErrors'
-import BridgeCopyBlock from './BridgeCopyBlock.vue'
-
-type Severity = 'error' | 'warn' | 'info'
-
-const SEVERITY_ICON: Record<Severity, string> = { error: 'alert-circle', warn: 'alert-triangle', info: 'info' }
+import BridgeProblemCards, { type BridgeProblemCard } from './BridgeProblemCards.vue'
 
 type Action = 'invite' | 'portal' | 'turnOff' | Extract<SetupStep, 'connect' | 'guild' | 'channels'>
 
-interface ProblemView {
-  key: string
-  code: string
-  severity: Severity
-  title: string
-  fix: string
-  commands: string[]
+interface ProblemView extends BridgeProblemCard {
   actions: Action[]
   settingKey?: BridgeSettingKey
 }
@@ -296,67 +268,3 @@ async function turnOff(key: BridgeSettingKey) {
 </script>
 
 <style scoped src="./bridge.css"></style>
-<style scoped>
-.problem-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.problem {
-  padding: 12px 14px;
-  border-radius: 6px;
-  border-left: 3px solid var(--error);
-  background: color-mix(in srgb, var(--error) 9%, transparent);
-  min-width: 0;
-}
-
-.problem--warn {
-  border-left-color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-}
-
-.problem--info {
-  border-left-color: var(--info);
-  background: color-mix(in srgb, var(--info) 10%, transparent);
-}
-
-.problem-head {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  color: var(--text-danger);
-}
-
-.problem--warn .problem-head,
-.problem--info .problem-head {
-  color: var(--text-primary);
-}
-
-.problem-head :deep(.icon-wrap) {
-  margin-top: 2px;
-  flex-shrink: 0;
-}
-
-.problem-title {
-  font-size: 14px;
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-}
-
-.problem-fix {
-  margin: 6px 0 10px;
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-}
-
-.problem .db-code-block:last-child,
-.problem .db-actions:last-child {
-  margin-bottom: 0;
-}
-</style>

@@ -997,8 +997,8 @@ const authorFallback = computed(() => {
   if (author.value) return null;
   return {
     id: props.post.author_id,
-    username: 'Loading...',
-    display_name: 'Loading...',
+    username: t('common.loading'),
+    display_name: t('common.loading'),
     avatar_url: null,
     domain: runtimeConfig.domain as string,
     is_local: props.post.is_local ?? true
@@ -1963,7 +1963,7 @@ const handleShowReactionTooltip = (event: MouseEvent | FocusEvent, reaction: any
   // Transform local user_reactions to the format needed for tooltip
   const localUsers = (reaction.user_reactions || []).map((ur: any) => ({
     id: ur.user_id,
-    displayName: ur.display_name || ur.username || 'Unknown User',
+    displayName: ur.display_name || ur.username || t('profileModal.unknownUser'),
     avatarUrl: ur.avatar_url || '',
     userColor: ur.user_color || '#ffffff',
     isRemote: false
@@ -1973,7 +1973,7 @@ const handleShowReactionTooltip = (event: MouseEvent | FocusEvent, reaction: any
   // render (synthetic id is not in user cache, so DisplayName cannot look up by userId).
   const remoteUsers = (reaction.reactors || []).map((reactor: any) => {
     debug.log('Remote reactor:', reactor);
-    const displayName = reactor.display_name || reactor.username || 'Unknown';
+    const displayName = reactor.display_name || reactor.username || t('activitypub.unknown');
     const rawEmojis = reactor.display_name_emojis || [];
     const pinnedEmojis = rawEmojis
       .map((e: any) => ({

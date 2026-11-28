@@ -42,7 +42,7 @@ describe('ReplyContextPreview', () => {
     const wrapper = render({ id: 'p1', state: 'post', author, content_preview: 'is this the right place?' })
     const link = wrapper.getComponent(RouterLink)
     expect(link.props('to')).toEqual({ name: 'PostDetail', params: { postId: 'p1' }, query: { highlight: 'reply-1' } })
-    expect(link.attributes('title')).toBe('activitypub.replyingTo @toonie@meow.example')
+    expect(link.attributes('title')).toBe('message.replyingTo(name=@toonie@meow.example)')
     expect(link.attributes('aria-label')).toBeUndefined()
     expect(link.text().replace(/\s+/g, ' ')).toBe('activitypub.replyingTo Toonie is this the right place?')
     expect(wrapper.get('.reply-context-name').text()).toBe('Toonie')

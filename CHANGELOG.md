@@ -7,6 +7,130 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- **Matrix bridges offer every way Discord bridges do.** **Server settings** → **Bridges** →
+  **Matrix** asks where the bridge runs: this instance's bridge (recommended), a Matrix account of
+  the community's own that the instance runs, a bridge the community runs itself, or a bridge
+  program of its own, as in 1.9.8. The first two are there where the instance's admin offers them.
+  Servers whose own program was set up before open on it, unchanged.
+- **Link a Matrix room with a code.** With the instance's bridge, a manager gets a code for a
+  channel, invites the bridge's account to a room and posts `!harmony link ML-…` there. The code is
+  valid for 30 minutes, works once, and only for someone who may change the room's settings. It
+  moves the room from whatever it was linked with; the pair that lost it says so and takes a new
+  code.
+- **Bring your own Matrix account.** A community signs in to its homeserver in the app and the
+  instance runs the bridge with that account. The password goes from the browser to the homeserver
+  alone; Harmony stores the access token, in Supabase Vault. Homeservers without password sign-in
+  take a pasted token.
+- **Run a Matrix bridge yourself, set up from the app.** **Run it yourself** gives a setup code and
+  the commands for Docker, Docker Compose or the source, as an application service of a homeserver
+  or with an ordinary Matrix account, waits for the bridge, and says what keeps it from connecting.
+  Channels are paired with rooms from the bridge's list, or with a typed address, ID or `matrix.to`
+  link; end-to-end encrypted channels and rooms are greyed out. Each pair has its direction, how
+  Harmony members appear, its state, and the fix when it does not work. Needs harmony-matrix-bridge
+  1.0.0.
+- **Everyone is relayed unless they opt out**, on Matrix as on Discord: Harmony members in **Bridge
+  privacy**, Matrix people with `!bridge-privacy opt-out`, `opt-in`, `status` and `erase` in a
+  paired room. Managers remove a Matrix person's messages on the same page as Discord's. A member's
+  opt-out reaches the bridge at once, and their Matrix user leaves the rooms.
+- **Matrix bridges in the admin panel.** **Instance admin** → **Config** → **General** → **Matrix
+  bridge** sets up the instance's bridge, as an application service with its registration file or
+  with an account, and offers communities' own accounts, with limits and counts. The Discord and
+  Matrix cards show when the bridge service was last heard from, its version and its problems, and
+  the command that starts it while it is absent.
+- **`harmony bridges`** shows, adds and removes the bridges a self-hosted instance runs, Discord's
+  and Matrix's: `harmony bridges add discord`, `matrix` or `both`, and `harmony bridges remove …`,
+  which says how many communities' bridges stop and asks. Communities' settings and the data stay.
+  The installer asks one question, which bridges to run (none, Discord, Matrix or both), in place
+  of the one about Discord hosting. Each bridge service has a secret of its own and reads its own
+  platform's tokens alone. See
+  [Hosting Matrix bridges](https://docs.mony.lol/self-host/matrix-bridges).
+- **For bridge programs:** `GET /api/v1/channels/{id}/bridge-check` answers binding, room, sender
+  mode, encryption, consent and member of a Matrix pair in one request (400 a minute per channel,
+  capability `matrix_bridge_check`); `bridge-members` takes `user_id`.
+- **New accounts per sign-in provider.** **Admin** → **Invites** → **New accounts through sign-in
+  providers** sets, for each provider, whom a first sign-in makes an account for: the same as
+  registration, anyone it signs in, or only addresses it has verified at email domains you list
+  (`myschool.edu` admits `cs.myschool.edu` too). A school or company can keep email sign-up closed
+  and let its own sign-in make accounts for its people. Self-hosters can also run
+  `harmony auth sign-up PROVIDER --open | --domains D | --follow-registration`; `harmony auth
+  providers` shows each rule. See
+  [New accounts per provider](https://docs.mony.lol/self-host/oauth#new-accounts-per-provider).
+- **`harmony repair`** brings a self-hosted instance back after its disk filled: it empties
+  container logs over 100 MB, repairs a Redis append-only file Redis cannot load (keeping the
+  original beside it), and starts the stack. `harmony doctor` names oversized logs, containers
+  without log rotation, and a damaged Redis file. See
+  [After the disk filled](https://docs.mony.lol/self-host/troubleshooting#disk-full).
+- **The `/gif` results magnify like the macOS Dock.** Resting the pointer on the strip above the
+  message box grows the result under it to full size, uncropped, so the text in it can be read; the
+  results beside it grow less and the row spreads around it, following the pointer along the strip.
+  The same holds for `/sticker`, `/clip`, `/meme` and `/aiemoji`. A click sends the result under the
+  pointer. **↑** in the message box moves into the results, **←**/**→** move between them, **Enter**
+  sends and **Esc** returns to the message box. On a touchscreen, press and hold a result; letting
+  go sends nothing.
+- **Dutch.** **User settings** → **Language** offers **Nederlands**, and a browser set to Dutch starts
+  in it. The public profile and post pages, the invite badges and cards, and DrawinPhone speak Dutch
+  too, and activity packages may carry an `nl` name and description.
+
+### Changed
+
+- **Activities moved to the message box.** In a text channel, a DM or a group, **+** beside the message
+  box offers **Activities**; the button in a text channel's header and the entry in a DM's **More
+  options** (⋮) are gone. Calls keep theirs in the call controls.
+- **New self-hosted instances preselect the bot gateway**, which bots and the bridges people run
+  themselves need; about 45 MB of memory when idle. The question is still asked when no bridge is
+  chosen. Existing instances keep what they run.
+- The encryption notice of a channel counts its Matrix bridges.
+- A managed Matrix bridge has the request limit of a linked Discord bridge, and its bot does not
+  count towards the bots an account may own.
+- Naming a Matrix room no longer reserves it: the bridge that joins and binds it has it.
+
+### Fixed
+
+- **Self-hosted container logs filled the disk.** No container's log rotated, and Kong writes a line
+  per request: one instance's `supabase-kong` log reached 4.5 GB of a 16 GB disk. Every container
+  now keeps about 100 MB of log, compressed. `harmony update` applies it, and empties logs over
+  100 MB before it pulls anything; it stops, changing nothing else, when less than 1 GB stays free.
+- **`harmony backup` could fill the disk** and leave the database unable to start. It now refuses
+  with less than 1 GB free, or when the last dump and the uploads would not leave 1 GB, and stops
+  a dump that brings free space below that. A failed backup deletes what it wrote and stops the
+  database again when it started it. When Postgres does not start on a full disk, it says so.
+- **A Redis that could not load its data kept the whole instance offline.** The proxy waited for
+  the federation server, which waited for Redis, so nothing was reachable. The site and the
+  database now start without Redis; `harmony update` repairs a damaged Redis file.
+- **The bot gateway polled at full rate while the database was down**, up to 7.5 requests a
+  second, each an error line. Its polls now pause from 1 s up to 60 s while the API answers 502, 503 or 504
+  or does not answer, and resume at its first answer.
+- With registration set to invite only or closed, sign-in through the instance's own identity
+  provider made no account for new people ("Signups not allowed for this instance"). The sign-up
+  hook now applies the registration policy per sign-in method, and `harmony update` moves invite
+  and closed registration to it; email sign-up stays as closed as before, and invitations work as
+  before. The refusal now says why: closed, invitation only, or not at an allowed domain.
+- The Matrix setup steps said that whoever runs the instance sets the bridge service up. Anyone can
+  run one.
+- The line above a reply, in chats and in the social feed, draws custom emojis, this instance's and
+  other instances', instead of their names.
+- Inbox previews draw a message's custom emojis, which they left out; a message of emojis alone no
+  longer reads "New message". Spoilers in them stay covered.
+- A server banner shown above the channel list had a dark line across it under the server name,
+  darker still on hover. The name's shading now fades out cleanly into the banner. The banner also
+  fits the channel list's width, so its picture is centred under the name; it was shifted right,
+  with part of it cut off at the edge.
+- A profile card's Posts, Following, Followers, Messages and Voice time no longer flicker between
+  0 and a dash while it opens. The card reads the profile once per open instead of four times, each
+  figure goes from a dash straight to its value, and a card opened again shows its figures at once.
+- **Members from other instances skipped a server's rules.** Joining a server hosted elsewhere by
+  its handle or from a directory showed no rules; only an invite did. **Join remote server** now
+  lists the host instance's rules and the server's for every join. A server's welcome screen and
+  rules now reach its members' instances: they see the welcome screen there, and when the server
+  requires accepting the rules, their own instance holds their messages until they accept, as the
+  host does for its own members. Servers hosted on Harmony before 1.9.9 send neither.
+- **The chosen language reaches every screen.** The admin panel, **User settings** → **Advanced**, encryption
+  setup, profiles, calls, notifications and toasts showed English text whatever the language; it now comes in the
+  user's language. Dates, times and counts follow the app's language instead of the browser's or US English.
+  Messages that come from the server stay English.
+
 ## [1.9.8] - 2026-11-25
 
 ### Added

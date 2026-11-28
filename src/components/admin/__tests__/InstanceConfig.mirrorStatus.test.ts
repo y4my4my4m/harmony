@@ -22,6 +22,7 @@ vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
 vi.mock('@/components/common/ColorPicker.vue', () => stub('ColorPicker'))
 vi.mock('@/components/admin/NewcomerAlertsDefault.vue', () => stub('NewcomerAlertsDefault'))
 vi.mock('@/components/settings/discord-bridge/BridgeAdminSection.vue', () => stub('BridgeAdminSection'))
+vi.mock('@/components/settings/matrix-bridge/MatrixAdminSection.vue', () => stub('MatrixAdminSection'))
 vi.mock('@/components/admin/UploadLimitsAdmin.vue', () => stub('UploadLimitsAdmin'))
 
 vi.mock('vue-i18n', async (importOriginal) => ({

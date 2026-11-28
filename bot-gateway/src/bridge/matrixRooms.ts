@@ -15,14 +15,44 @@ export interface MatrixBridgeMember {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export const MATRIX_ROOM_ID = /^![^\s/\u0000-\u001f\u007f]{1,254}$/
 
-export async function matrixRoomBinding(botId: string, channelId: string, initial?: MatrixRoomBinding): Promise<MatrixRoomBinding> {
-  const { data, error } = await supabase.rpc(initial ? 'matrix_bridge_bind_room' : 'matrix_bridge_room', {
-    p_bot_id: botId, p_channel_id: channelId,
-    ...(initial ? { p_room_id: initial.room_id, p_initial_sender_mode: initial.sender_mode } : {}),
-  })
+/** The channel's room; room_id null while a managed pair is not bound, or its room was linked elsewhere. */
+export async function matrixRoomOf(botId: string, channelId: string): Promise<{ room_id: string | null; sender_mode: 'ghost' | 'relay' }> {
+  const { data, error } = await supabase.rpc('matrix_bridge_room', { p_bot_id: botId, p_channel_id: channelId })
+  if (!error && data?.room_bound === false && ['ghost', 'relay'].includes(data.sender_mode)) {
+    return { room_id: null, sender_mode: data.sender_mode }
+  }
+  return binding(data, error)
+}
+
+function binding(data: any, error: unknown): MatrixRoomBinding {
   if (error || !data || typeof data.room_id !== 'string' || !MATRIX_ROOM_ID.test(data.room_id)
     || !['ghost', 'relay'].includes(data.sender_mode)) throw new Error('Matrix room binding unavailable')
   return { room_id: data.room_id, sender_mode: data.sender_mode }
+}
+
+/** A room matrix_bridge_bind_room refuses for good: bound elsewhere, or not the one the pair names. */
+export class MatrixRoomRefused extends Error {
+  constructor(readonly code: 'room_in_use' | 'room_changed') {
+    super(code === 'room_in_use' ? 'The Matrix room is bound to another channel' : 'The channel is paired with another Matrix room')
+  }
+}
+
+// SQLSTATE of matrix_bridge_bind_room; the caller has checked the room id and the sender mode.
+const ROOM_REFUSALS: Record<string, MatrixRoomRefused['code'] | undefined> = { '23505': 'room_in_use', '22023': 'room_changed' }
+
+export async function matrixRoomBinding(
+  botId: string,
+  channelId: string,
+  initial?: MatrixRoomBinding & { room_alias?: string },
+): Promise<MatrixRoomBinding> {
+  const { data, error } = await supabase.rpc(initial ? 'matrix_bridge_bind_room' : 'matrix_bridge_room', {
+    p_bot_id: botId, p_channel_id: channelId,
+    ...(initial ? { p_room_id: initial.room_id, p_initial_sender_mode: initial.sender_mode } : {}),
+    ...(initial?.room_alias ? { p_room_alias: initial.room_alias } : {}),
+  })
+  const refusal = initial && error?.code ? ROOM_REFUSALS[error.code] : undefined
+  if (refusal) throw new MatrixRoomRefused(refusal)
+  return binding(data, error)
 }
 
 // matrix_bridge_channel_members answers pages in member id order.
@@ -51,10 +81,66 @@ export async function matrixBridgeMembers(
   return members
 }
 
+/** The member alone, under the rules of the list; none when it would not name them. */
+export async function matrixBridgeMember(botId: string, channelId: string, userId: string): Promise<MatrixBridgeMember[]> {
+  const { data, error } = await supabase.rpc('matrix_bridge_channel_member', {
+    p_bot_id: botId, p_channel_id: channelId, p_user_id: userId,
+  })
+  const members = memberRows(data, error)
+  if (members.length > 1 || members.some(row => row.id !== userId.toLowerCase())) throw new Error('Matrix member consent unavailable')
+  return members
+}
+
+export interface MatrixSendCheck {
+  platform: 'matrix' | null
+  room_id: string | null
+  sender_mode: 'ghost' | 'relay' | null
+  messages_encrypted: boolean | null
+  relay_allowed: boolean | null
+  member: MatrixBridgeMember | null
+}
+export const NO_MATRIX_BINDING: MatrixSendCheck = {
+  platform: null, room_id: null, sender_mode: null, messages_encrypted: null, relay_allowed: null, member: null,
+}
+
+/**
+ * matrix_bridge_send_check: the channel's binding, room, sender mode and encryption, and with
+ * `userId` that member's consent and profile. `scoped` is false for an install without a channel
+ * list, whose sight of the channel the caller checks. Throws on anything else than a whole answer.
+ */
+export async function matrixSendCheck(
+  botId: string,
+  channelId: string,
+  userId?: string,
+): Promise<{ check: MatrixSendCheck; scoped: boolean }> {
+  const { data, error } = await supabase.rpc('matrix_bridge_send_check', {
+    p_bot_id: botId, p_channel_id: channelId, p_user_id: userId ?? null,
+  })
+  if (!error && data?.platform === null) return { check: NO_MATRIX_BINDING, scoped: true }
+  if (error || data?.platform !== 'matrix' || typeof data.messages_encrypted !== 'boolean'
+    || !['ghost', 'relay'].includes(data.sender_mode)
+    || (data.room_id !== null && (typeof data.room_id !== 'string' || !MATRIX_ROOM_ID.test(data.room_id)))
+    || (userId === undefined ? data.relay_allowed !== null : typeof data.relay_allowed !== 'boolean')
+    || (data.scoped !== undefined && data.scoped !== false)) throw new Error('Matrix send check unavailable')
+  const [member = null] = data.member === null ? [] : memberRows([data.member], null)
+  if (member && member.id !== userId?.toLowerCase()) throw new Error('Matrix send check unavailable')
+  return {
+    check: {
+      platform: 'matrix', room_id: data.room_id, sender_mode: data.sender_mode,
+      messages_encrypted: data.messages_encrypted, relay_allowed: data.relay_allowed, member,
+    },
+    scoped: data.scoped !== false,
+  }
+}
+
 async function memberPage(botId: string, channelId: string, after: string | null): Promise<MatrixBridgeMember[]> {
   const { data, error } = await supabase.rpc('matrix_bridge_channel_members', {
     p_bot_id: botId, p_channel_id: channelId, p_limit: MEMBER_PAGE, p_after: after,
   })
+  return memberRows(data, error)
+}
+
+function memberRows(data: any, error: unknown): MatrixBridgeMember[] {
   if (error || !Array.isArray(data) || data.some(row => !row || !UUID.test(row.id)
     || typeof row.username !== 'string' || !row.username.trim() || row.username.length > 100
     || (row.display_name != null && (typeof row.display_name !== 'string' || row.display_name.length > 100))

@@ -33,6 +33,7 @@ vi.mock('@/components/activities/ActivitiesLauncher.vue', () => stub('Activities
 vi.mock('@/components/activities/ActivityStage.vue', () => stub('ActivityStage'))
 vi.mock('@/components/activities/ActivityInvite.vue', () => stub('ActivityInvite'))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
 vi.mock('vue-toastification', () => ({ useToast: () => ({ error: vi.fn() }) }))
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => h.store }))
 vi.mock('@/stores/spatialAudio', () => ({ useSpatialAudioStore: () => ({ isPanelVisible: false, settings: { enabled: false }, togglePanel: vi.fn() }) }))

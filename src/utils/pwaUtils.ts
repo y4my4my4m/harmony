@@ -3,6 +3,7 @@
  */
 
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 
 const STANDALONE_DISPLAY_MODES = [
   '(display-mode: standalone)',
@@ -137,12 +138,12 @@ export async function logInstallDiagnostics(
 export function getManualInstallInstructions(): string {
   const ua = navigator.userAgent.toLowerCase()
   if (/iphone|ipad|ipod/.test(ua)) {
-    return 'Tap Share, then "Add to Home Screen".'
+    return i18n.global.t('pwa.manualInstall.ios')
   }
   if (/android/.test(ua)) {
-    return 'Use Chrome menu (⋮) → Install app, or Add to Home screen.'
+    return i18n.global.t('pwa.manualInstall.android')
   }
-  return 'Use the install icon in the address bar, or Chrome menu → "Install Harmony...".'
+  return i18n.global.t('pwa.manualInstall.desktop')
 }
 
 /**

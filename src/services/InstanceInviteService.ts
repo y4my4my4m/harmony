@@ -35,8 +35,10 @@ export interface InstanceInvite {
 
 export interface InviteOverview {
   registration: {
-    /** GoTrue's sign-up switch. */
+    /** Email sign-up: GoTrue's sign-up switch, then the sign-up hook's policy. */
     signup: 'open' | 'closed' | 'unknown'
+    /** instance_config.registration_policy; null when absent (GoTrue's switch alone decides). */
+    policy?: 'open' | 'invite' | 'closed' | null
     /** instance_config.open_registration, which NodeInfo announces. */
     advertised_open: boolean
   }

@@ -8,16 +8,16 @@
           </svg>
         </div>
         <div class="update-text">
-          <h3>Update available</h3>
-          <p>A new version of Harmony is ready to install</p>
+          <h3>{{ t('pwa.update.title') }}</h3>
+          <p>{{ t('pwa.update.body') }}</p>
         </div>
         <div class="update-actions">
           <button @click="dismissUpdate" class="update-btn secondary">
-            Later
+            {{ t('updater.later') }}
           </button>
           <button @click="installUpdate" class="update-btn primary" :disabled="updating">
-            <span v-if="updating">Updating...</span>
-            <span v-else>Update now</span>
+            <span v-if="updating">{{ t('pwa.update.updating') }}</span>
+            <span v-else>{{ t('pwa.update.now') }}</span>
           </button>
         </div>
       </div>
@@ -29,6 +29,9 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { isPWA } from '@/utils/pwaUtils'
+import { useT } from '@/composables/useT'
+
+const { t } = useT()
 
 const showUpdate = ref(false)
 const updating = ref(false)

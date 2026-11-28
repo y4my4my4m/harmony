@@ -3,6 +3,7 @@ import { FakeDb } from '../../__tests__/fakeSupabase.js'
 
 const BRIDGE_BOT = '00000000-0000-0000-0000-0000000000b0'
 const PLAIN_BOT = '00000000-0000-0000-0000-0000000000b1'
+const MATRIX_BOT = '00000000-0000-0000-0000-0000000000b2'
 const BRIDGE_ID = '00000000-0000-0000-0000-0000000000f0'
 const SERVER_ID = '00000000-0000-0000-0000-00000000005a'
 const GENERAL = '00000000-0000-0000-0000-0000000000c1'
@@ -20,6 +21,7 @@ vi.mock('../../config/supabase.js', () => ({
 
 import { BridgeConfigWatcher } from '../BridgeConfigWatcher.js'
 import type { WebSocketGateway } from '../WebSocketGateway.js'
+import { upstream } from '../../utils/upstreamBackoff.js'
 
 let db: FakeDb
 let sessions: Array<{ botId: string; sessionId: string }>
@@ -154,6 +156,62 @@ describe('BridgeConfigWatcher', () => {
     expect(sent).toHaveLength(1)
   })
 
+  describe('a managed Matrix bridge', () => {
+    const CONFIG = { bridge_id: 'm1', server_id: SERVER_ID, mode: 'self', updated_at: 'db time', privacy_version: '0:0', pairs: [] as object[] }
+    let config: { data: unknown; error: unknown }
+
+    beforeEach(() => {
+      db.rows('matrix_bridges').push({ id: 'm1', server_id: SERVER_ID, bot_id: MATRIX_BOT, updated_at: '2026-11-25T10:00:00.000Z' })
+      sessions = [{ botId: MATRIX_BOT, sessionId: 's9' }, { botId: PLAIN_BOT, sessionId: 's2' }]
+      config = { data: CONFIG, error: null }
+      mocks.rpc.mockImplementation(async (fn: string) => (fn === 'matrix_bridge_config' ? config : { data: [GENERAL], error: null }))
+    })
+
+    it('gets matrix_bridge_config on a session\'s first poll and whenever updated_at moves', async () => {
+      const watcher = new BridgeConfigWatcher(makeGateway(), 1_000)
+      await watcher.poll()
+      await watcher.poll()
+      expect(sent).toEqual([{ botId: MATRIX_BOT, event: { op: 0, t: 'BRIDGE_CONFIG_UPDATE', d: { ...CONFIG, base_url: 'https://harmony.test' } } }])
+      expect(mocks.rpc).toHaveBeenCalledWith('matrix_bridge_config', { p_bot_id: MATRIX_BOT })
+
+      Object.assign(db.rows('matrix_bridges')[0], { updated_at: '2026-11-25T10:05:00.000Z' })
+      config = { data: { ...CONFIG, pairs: [{ channel_id: GENERAL }] }, error: null }
+      await watcher.poll()
+      expect(sent).toHaveLength(2)
+      expect(sent[1].event.d.pairs).toEqual([{ channel_id: GENERAL }])
+    })
+
+    it('is retried after a failed lookup or build, and is sent nothing once its row is gone', async () => {
+      const watcher = new BridgeConfigWatcher(makeGateway(), 1_000)
+      db.failures.matrix_bridges = { message: 'connection reset' }
+      await watcher.poll()
+      delete db.failures.matrix_bridges
+      config = { data: null, error: { message: 'timeout' } }
+      await watcher.poll()
+      config = { data: null, error: null }
+      await watcher.poll()
+      expect(sent).toHaveLength(0)
+      config = { data: CONFIG, error: null }
+      await watcher.poll()
+      expect(sent).toHaveLength(1)
+      db.rows('matrix_bridges').splice(0)
+      await watcher.poll()
+      expect(sent).toHaveLength(1)
+    })
+
+    it('and a Discord bridge do not hold each other up', async () => {
+      sessions = [{ botId: MATRIX_BOT, sessionId: 's9' }, { botId: BRIDGE_BOT, sessionId: 's1' }]
+      const watcher = new BridgeConfigWatcher(makeGateway(), 1_000)
+      db.failures.discord_bridges = { message: 'connection reset' }
+      await watcher.poll()
+      expect(sent.map((s) => s.botId)).toEqual([MATRIX_BOT])
+      delete db.failures.discord_bridges
+      db.failures.matrix_bridges = { message: 'connection reset' }
+      await watcher.poll()
+      expect(sent.map((s) => s.botId)).toEqual([MATRIX_BOT, BRIDGE_BOT])
+    })
+  })
+
   it('polls on its interval', async () => {
     vi.useFakeTimers()
     try {
@@ -168,5 +226,18 @@ describe('BridgeConfigWatcher', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('reads nothing while the API is down', async () => {
+    const watcher = new BridgeConfigWatcher(makeGateway(), 1_000)
+    upstream.failed('HTTP 503')
+    try {
+      await watcher.poll()
+      expect(sent).toHaveLength(0)
+    } finally {
+      upstream.succeeded()
+    }
+    await watcher.poll()
+    expect(sent).toHaveLength(1)
   })
 })

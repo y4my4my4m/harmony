@@ -99,7 +99,11 @@ vi.mock('@/composables/useUserData', async () => {
 })
 vi.mock('@/composables/useViewContext', () => ({ useViewContextTracking: vi.fn() }))
 vi.mock('@/stores/useNotification', () => ({ useNotificationStore: () => ({ notifications: [], markAsRead: vi.fn() }) }))
-vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
+vi.mock('@/i18n', async () => {
+  const { createI18n } = await import('vue-i18n')
+  const en = (await import('@/locales/en.json')).default
+  return { i18n: createI18n({ legacy: false, locale: 'en', messages: { en } }) }
+})
 
 const toast = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn(), success: vi.fn() }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))

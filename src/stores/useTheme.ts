@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { i18n } from '@/i18n'
 import { audioThemeService } from '@/services/AudioThemeService'
 import type { AudioTheme, AudioAction, ThemePreferences } from '@/types'
 import { debug } from '@/utils/debug'
@@ -92,7 +93,7 @@ export const useThemeStore = defineStore('theme', {
           debug.log('Theme system initialized successfully')
         } catch (error) {
           debug.error('Failed to initialize theme system:', error)
-          this.lastError = error instanceof Error ? error.message : 'Unknown initialization error'
+          this.lastError = error instanceof Error ? error.message : i18n.global.t('settings.audio.themes.errors.init')
           throw error
         } finally {
           this.isLoading = false
@@ -150,7 +151,7 @@ export const useThemeStore = defineStore('theme', {
         return success
       } catch (error) {
         debug.error(`Failed to set theme ${themeId}:`, error)
-        this.lastError = error instanceof Error ? error.message : 'Theme switch failed'
+        this.lastError = error instanceof Error ? error.message : i18n.global.t('settings.audio.themes.errors.switch')
         return false
       }
     },
@@ -169,7 +170,7 @@ export const useThemeStore = defineStore('theme', {
         await audioThemeService.preloadTheme(themeId)
       } catch (error) {
         debug.warn(`Failed to preload theme ${themeId}:`, error)
-        this.lastError = `Preload failed: ${themeId}`
+        this.lastError = i18n.global.t('settings.audio.themes.errors.preload', { theme: themeId })
       } finally {
         if (this.preloadingTheme === themeId) {
           this.isPreloading = false
@@ -198,7 +199,7 @@ export const useThemeStore = defineStore('theme', {
         await audioThemeService.playAudio(action)
       } catch (error) {
         debug.warn(`Failed to play audio for ${action}:`, error)
-        this.lastError = `Audio playback failed: ${action}`
+        this.lastError = i18n.global.t('settings.audio.themes.errors.playback', { action })
       }
     },
 
@@ -207,7 +208,7 @@ export const useThemeStore = defineStore('theme', {
         await audioThemeService.testAudio(action)
       } catch (error) {
         debug.warn(`Failed to test audio for ${action}:`, error)
-        this.lastError = `Audio test failed: ${action}`
+        this.lastError = i18n.global.t('settings.audio.themes.errors.test', { action })
       }
     },
 
@@ -260,7 +261,7 @@ export const useThemeStore = defineStore('theme', {
         debug.log('Theme preferences imported successfully')
       } catch (error) {
         debug.error('Failed to import theme preferences:', error)
-        this.lastError = 'Failed to import preferences'
+        this.lastError = i18n.global.t('settings.audio.themes.errors.import')
       }
     },
 
@@ -282,7 +283,7 @@ export const useThemeStore = defineStore('theme', {
         debug.log('Theme settings reset to defaults')
       } catch (error) {
         debug.error('Failed to reset settings:', error)
-        this.lastError = 'Failed to reset settings'
+        this.lastError = i18n.global.t('settings.audio.themes.errors.reset')
       }
     }
   }

@@ -23,6 +23,8 @@ export interface PeerGroup {
   /** Listed in the directory with discoverable true; false lists it with discoverable false. */
   discoverable?: boolean
   memberCount?: number
+  /** Further properties of the Group document. */
+  extra?: Record<string, unknown>
 }
 
 export interface PeerRequest {
@@ -104,6 +106,7 @@ export async function startDirectoryPeer(groups: PeerGroup[], opts: { name?: str
       localId: channelIds.get(g.id), name: 'lobby', channelType: 'text', order: 0,
     }],
     publicKey: { id: `${groupUrl(g.id)}#main-key`, owner: groupUrl(g.id), publicKeyPem: groupKey.publicKey },
+    ...g.extra,
   })
   const routes = (url: string): { type: string; body: unknown } | null => {
     if (url === '/.well-known/nodeinfo') {

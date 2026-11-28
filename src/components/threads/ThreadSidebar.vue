@@ -1,7 +1,7 @@
 <template>
   <div class="thread-sidebar">
     <div class="sidebar-header">
-      <h3>Threads</h3>
+      <h3>{{ t('chatNav.threadsModal.title') }}</h3>
       <span class="thread-count" v-if="threads.length">{{ threads.length }}</span>
     </div>
     
@@ -10,8 +10,8 @@
         <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" class="empty-icon">
           <path d="M12 2.81a1 1 0 0 1 0-1.41l.36-.36a1 1 0 0 1 1.41 0l9.2 9.2a1 1 0 0 1 0 1.4l-.7.7a1 1 0 0 1-1.3.13l-9.54-6.72a1 1 0 0 1-.08-1.58l1-1 .65.65-1 1 7.93 5.59-7.16-7.16-.77.77Z"/>
         </svg>
-        <p>No threads yet</p>
-        <span>Start a thread from any message!</span>
+        <p>{{ t('empty.threads.title') }}</p>
+        <span>{{ t('chatNav.thread.sidebarHint') }}</span>
       </div>
       
       <button 
@@ -24,7 +24,7 @@
         <div class="thread-content">
           <div class="thread-name">{{ thread.name }}</div>
           <div class="thread-meta">
-            <span class="message-count">{{ thread.message_count }} messages</span>
+            <span class="message-count">{{ t('chatNav.thread.messageCount', { count: thread.message_count }, thread.message_count) }}</span>
             <span class="separator">•</span>
             <span class="last-activity">{{ formatRelativeTime(thread.last_message_at) }}</span>
           </div>
@@ -41,7 +41,7 @@
             width="16" height="16" 
             viewBox="0 0 24 24" 
             fill="currentColor"
-            title="Archived"
+            :title="t('chatNav.thread.archived')"
           >
             <path d="M21 8V6c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v2h18zm-2 2H5v10c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V10zm-4 3c0 .55-.45 1-1 1H10c-.55 0-1-.45-1-1s.45-1 1-1h4c.55 0 1 .45 1 1z"/>
           </svg>
@@ -59,7 +59,8 @@
 import { ref, watch, onMounted } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { threadService } from '@/services/ThreadService'
-import { formatDistanceToNow } from 'date-fns'
+import { useI18n } from 'vue-i18n'
+import { formatSpokenRelativeTime } from '@/utils/shortRelativeTime'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 
 interface Props {
@@ -72,6 +73,7 @@ const emit = defineEmits<{
   'select-thread': [thread: ThreadWithDetails]
 }>()
 
+const { t, locale } = useI18n()
 const threads = ref<ThreadWithDetails[]>([])
 const loading = ref(false)
 
@@ -98,12 +100,7 @@ const selectThread = (thread: ThreadWithDetails) => {
 
 const formatRelativeTime = (date?: Date | string | null) => {
   if (!date) return ''
-  try {
-    const d = typeof date === 'string' ? new Date(date) : date
-    return formatDistanceToNow(d, { addSuffix: true })
-  } catch {
-    return ''
-  }
+  return formatSpokenRelativeTime(date, { locale: locale.value })
 }
 
 watch(() => props.channelId, loadThreads)

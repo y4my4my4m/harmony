@@ -1,6 +1,6 @@
 <template>
   <div class="user-preview" ref="profileCard">
-    <Avatar :src="user.avatar_url" size="lg" alt="User avatar" class="preview-avatar" />
+    <Avatar :src="user.avatar_url" size="lg" :alt="$t('user.avatarAlt')" class="preview-avatar" />
     <h2>{{ user.display_name }}</h2>
     <h4>{{ user.username }}</h4>
     <div class="user-preview-details">
@@ -10,7 +10,7 @@
         </span>
       </div>
       <hr/>
-      <div class="about-title">About:</div>
+      <div class="about-title">{{ $t('user.aboutLabel') }}</div>
       <textarea class="about" :value="user.bio" readonly>
       </textarea>
     </div>

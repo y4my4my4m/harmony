@@ -27,47 +27,32 @@
           <div class="toast-content">
             <button type="button" class="toast-open" @click.stop="handleToastClick(toast)">
             <span class="toast-title">
-              <template v-if="toast.type === 'activitypub_reaction' || toast.type === 'reaction'">
-                <!-- For reactions, show emoji inline in title -->
-                <template v-if="toast.type === 'activitypub_reaction'">
-                  <span v-if="toast.actorUserId"><DisplayName :user-id="toast.actorUserId" :truncate="true" /></span>
-                  <span v-else>{{ toast.title.split('reacted')[0] }}</span>reacted
-                  <img 
-                    v-if="toast.emojiUrl"
-                    :src="toast.emojiUrl" 
-                    :alt="toast.emojiName || 'emoji'"
-                    :title="toast.emojiName ? `:${toast.emojiName}:` : ''"
-                    class="toast-emoji"
-                  />
-                  <span 
-                    v-else-if="toast.emojiName"
-                    class="toast-emoji-fallback"
-                  >
-                    {{ reactionEmojiText(toast.emojiName) }}
-                  </span>
-                  <span v-if="toast.actorUserId && toast.titleSuffix">{{ toast.titleSuffix.replace(/^.*?reacted/, '') }}</span>
-                  <span v-else>{{ toast.title.split('reacted')[1] }}</span>
+              <i18n-t
+                v-if="toast.type === 'activitypub_reaction' || toast.type === 'reaction'"
+                :keypath="toast.type === 'reaction' ? 'inbox.reactedToMessage' : 'inbox.reactedToPost'"
+                tag="span"
+                scope="global"
+              >
+                <template #actor>
+                  <DisplayName v-if="toast.actorUserId" :user-id="toast.actorUserId" :fallback="toast.actorName" :truncate="true" />
+                  <span v-else>{{ toast.actorName }}</span>
                 </template>
-                <template v-else>
-                  <template v-if="toast.actorUserId && toast.titleSuffix">
-                    <DisplayName :user-id="toast.actorUserId" :truncate="true" /><span>{{ toast.titleSuffix }}</span>
-                  </template>
-                  <template v-else>{{ toast.title }}</template>
-                  <img 
+                <template #emoji>
+                  <img
                     v-if="toast.emojiUrl"
-                    :src="toast.emojiUrl" 
-                    :alt="toast.emojiName || 'emoji'"
+                    :src="toast.emojiUrl"
+                    :alt="toast.emojiName || t('messageA11y.image.emoji')"
                     :title="toast.emojiName ? `:${toast.emojiName}:` : ''"
                     class="toast-emoji"
                   />
-                  <span 
+                  <span
                     v-else-if="toast.emojiName"
                     class="toast-emoji-fallback"
                   >
                     {{ reactionEmojiText(toast.emojiName) }}
                   </span>
                 </template>
-              </template>
+              </i18n-t>
               <template v-else-if="toast.actorUserId && toast.titleSuffix">
                 <DisplayName :user-id="toast.actorUserId" :truncate="true" /><span>{{ toast.titleSuffix }}</span>
               </template>

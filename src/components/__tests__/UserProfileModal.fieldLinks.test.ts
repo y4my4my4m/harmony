@@ -27,7 +27,7 @@ const { store, relationships, profileRow, openLink } = vi.hoisted(() => ({
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
-  useI18n: () => ({ t: (key: string) => key }),
+  useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }),
 }))
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -43,14 +43,13 @@ vi.mock('@/stores/useServerRoles', () => ({ useServerRolesStore: () => ({ rolesB
 vi.mock('@/services/InteractionService', () => ({
   interactionService: { getUserRelationships: relationships },
 }))
-vi.mock('@/services/core/CoreProfileService', () => ({
-  coreProfileService: { getUserStats: vi.fn(async () => null) },
-}))
 vi.mock('@/services/RoleService', () => ({
   roleService: { getUserRoles: vi.fn(async () => []), hasPermission: vi.fn(async () => false) },
   Permission: {},
 }))
-vi.mock('@/services/activityPubService', () => ({ activityPubService: {} }))
+vi.mock('@/services/activityPubService', () => ({
+  activityPubService: { refreshRemoteProfile: vi.fn(async () => null) },
+}))
 vi.mock('@/services/outsideLinks', () => ({ openLink }))
 vi.mock('@/composables/useLayoutState', async () => {
   const { ref } = await import('vue')

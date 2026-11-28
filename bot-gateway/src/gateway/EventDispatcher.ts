@@ -4,6 +4,7 @@ import { TTLCache } from '../utils/TTLCache.js'
 import { OutgoingWebhookRoutes, OUTGOING_WEBHOOK_REFRESH_MS } from './outgoingWebhooks.js'
 import { withSignedMessageMedia } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
+import { upstream } from '../utils/upstreamBackoff.js'
 import { bridgedMessageAuthor } from '../bridge/bridgeAuthors.js'
 import { bridgeMappingOf } from '../bridge/bridgeMapping.js'
 import {
@@ -414,10 +415,11 @@ export class EventDispatcher {
   }
 
   // A tick that finds its previous run unfinished is skipped. Overlapping runs
-  // read the same cursor window and dispatch the same event twice.
+  // read the same cursor window and dispatch the same event twice. A tick while
+  // the API is down is skipped too (upstreamBackoff); cursors hold their place.
   private schedulePoll(name: string, periodMs: number, poll: () => Promise<void>): NodeJS.Timeout {
     return setInterval(async () => {
-      if (this.pollsInFlight.has(name)) return
+      if (this.pollsInFlight.has(name) || !upstream.ready()) return
       this.pollsInFlight.add(name)
       try {
         await poll()
@@ -683,6 +685,12 @@ export class EventDispatcher {
         }
       }
     }
+  }
+
+  /** The next event of the channel's server reads its installs again. */
+  async installsChanged(channelId: string): Promise<void> {
+    const serverId = await this.resolveServerId(channelId)
+    if (serverId) this.botPermissionsCache.delete(serverId)
   }
 
   /** @everyone's layer on a channel. Failed lookups are not cached. */

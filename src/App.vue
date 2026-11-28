@@ -353,7 +353,7 @@ async function handleIdentityChanged(e: CustomEvent) {
     import('@/services/userDataService'),
   ])
 
-  let name = 'A contact'
+  let name = ''
   let avatar: string | undefined
   try {
     const profile = await userDataService.fetchUserProfile(userId)
@@ -364,8 +364,10 @@ async function handleIdentityChanged(e: CustomEvent) {
   const notifications = useNotificationStore()
   notifications.showToast(
     'server_update',
-    'Security identity changed',
-    `${name}'s encryption keys changed. This is normal if they reinstalled the app or signed in on a new device.`,
+    translate('encryption.identityChanged.title'),
+    name
+      ? translate('encryption.identityChanged.message', { name })
+      : translate('encryption.identityChanged.messageUnnamed'),
     8000,
     avatar,
     undefined,

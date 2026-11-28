@@ -28,6 +28,7 @@ vi.mock('../../config/supabase.js', () => ({
 import { BotRestAPI } from '../../api/BotRestAPI.js'
 
 let buckets: string[]
+let limits: Array<Record<string, unknown>>
 let limited: boolean
 
 function makeApp() {
@@ -46,6 +47,7 @@ function get(path: string) {
 
 beforeEach(() => {
   buckets = []
+  limits = []
   limited = true
   mocks.rpc.mockReset()
   mocks.from.mockReset()
@@ -53,8 +55,9 @@ beforeEach(() => {
     if (fn === 'verify_bot_token') {
       return { data: { valid: true, bot_id: BOT_ID, username: 'testbot', scopes: ['bot'] }, error: null }
     }
-    if (fn === 'check_and_increment_bot_rate_limit') {
+    if (fn === 'check_and_increment_bot_rate_limit' || fn === 'bot_rate_limit_check') {
       buckets.push(args.p_bucket)
+      limits.push({ fn, p_limit: args.p_limit, p_floor: args.p_floor })
       return { data: limited, error: null }
     }
     throw new Error(`test called unmocked rpc: ${fn}`)
@@ -115,6 +118,25 @@ describe('rate-limit buckets', () => {
       '/api/v1/messages/:messageId/reactions/:emoji',
       '/api/v1/messages/:messageId/reactions/:emoji',
     ])
+  })
+
+  it('admits 4 times the route limit of bridge-check, under the ceiling of every other route', async () => {
+    await get(`/api/v1/channels/${CHANNEL_A}/bridge-check`)
+    await get(`/API/V1/channels/${CHANNEL_A.toUpperCase()}/Bridge-Check/?user_id=${MESSAGE_ID}`)
+    await get('/api/v1/channels/general/bridge-check')
+    await get(`/api/v1/channels/${CHANNEL_A}/bridge-room`)
+    await get(`/api/v1/no/such/bridge-check`)
+
+    expect(buckets).toEqual([
+      `/api/v1/channels/${CHANNEL_A}/bridge-check`,
+      `/api/v1/channels/${CHANNEL_A}/bridge-check`,
+      '/api/v1/channels/:invalid/bridge-check',
+      `/api/v1/channels/${CHANNEL_A}/bridge-room`,
+      'unmatched',
+    ])
+    const check = { fn: 'bot_rate_limit_check', p_limit: 400, p_floor: 100 }
+    const other = { fn: 'check_and_increment_bot_rate_limit', p_limit: 100, p_floor: undefined }
+    expect(limits).toEqual([check, check, check, other, other])
   })
 
   it('counts requests no route matches in one shared bucket', async () => {

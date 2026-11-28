@@ -1,14 +1,15 @@
 /**
- * Matrix bridge manager RPCs. get_server_matrix_bridges and set_matrix_bridge_sender_mode need
- * MANAGE_SERVER; configure_matrix_bridge also needs the caller to own the bot.
+ * RPCs of a bridge program with a bot of the manager's own. get_server_matrix_bridges and
+ * set_matrix_bridge_sender_mode need MANAGE_SERVER; configure_matrix_bridge also needs the caller
+ * to own the bot. A managed bridge's bot is in none of them (matrixManagedApi.ts).
  */
 import { supabase } from '@/supabase'
+import { isMatrixSenderMode, type MatrixSenderMode } from '@/utils/matrixBridgeSetup'
 
 /** docs/run/matrix-bridge.md on the docs site (docs/.vitepress/config.ts: sitemap hostname, cleanUrls). */
 export const MATRIX_BRIDGE_GUIDE_URL = 'https://docs.mony.lol/run/matrix-bridge'
 
-export const MATRIX_SENDER_MODES = ['ghost', 'relay'] as const
-export type MatrixSenderMode = (typeof MATRIX_SENDER_MODES)[number]
+export { MATRIX_SENDER_MODES, isMatrixSenderMode, type MatrixSenderMode } from '@/utils/matrixBridgeSetup'
 
 /**
  * One bot/channel binding; room_id is null until the bridge service binds a room. active is
@@ -33,10 +34,6 @@ export class InvalidMatrixBridgeResponse extends Error {
 }
 
 const nonEmpty = (value: unknown): value is string => typeof value === 'string' && value.length > 0
-
-export function isMatrixSenderMode(value: unknown): value is MatrixSenderMode {
-  return typeof value === 'string' && (MATRIX_SENDER_MODES as readonly string[]).includes(value)
-}
 
 export function isMatrixBridgePair(value: unknown): value is MatrixBridgePair {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false

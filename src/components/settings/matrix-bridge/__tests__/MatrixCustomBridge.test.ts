@@ -1,4 +1,4 @@
-/** MatrixBridgeSettings.vue: Server settings → Bridges → Matrix. */
+/** MatrixCustomBridge.vue: a Matrix bridge program with a bot of the manager's own. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -32,7 +32,7 @@ vi.mock('@/stores/useProfile', async () => {
   return { useProfileStore: () => profile }
 })
 
-import MatrixBridgeSettings from '../MatrixBridgeSettings.vue'
+import MatrixCustomBridge from '../MatrixCustomBridge.vue'
 import { MATRIX_BRIDGE_GUIDE_URL, type MatrixBotInstall, type MatrixBridgePair } from '../matrixBridgeApi'
 import { useProfileStore } from '@/stores/useProfile'
 
@@ -68,8 +68,8 @@ function given({ pairs = [pair] as unknown, installs = [myBot] as unknown, chann
   api.fetchOwnedBotInstalls.mockResolvedValue(installs)
   api.fetchServerChannels.mockResolvedValue(channels)
 }
-const mountSettings = () => mount(MatrixBridgeSettings, {
-  props: { serverId: 'server' },
+const mountSettings = (props: Record<string, unknown> = {}) => mount(MatrixCustomBridge, {
+  props: { serverId: 'server', ...props },
   attachTo: document.body,
   global: { plugins: [i18n()], stubs: { BridgePrivacyPanel: PrivacyPanel } },
 })
@@ -191,7 +191,10 @@ describe('setup from the empty state', () => {
     expect(byTest('matrix-setup').exists()).toBe(false)
     const steps = byTest('matrix-guide-steps').findAll('li').map(li => li.text())
     expect(steps).toHaveLength(4)
-    expect(steps[0]).toContain('Matrix bridge service')
+    expect(steps[0]).toContain('Run the Matrix bridge')
+    // Anyone runs it: the step names the homeserver's operator, not the instance's.
+    expect(steps[0]).toContain('The operator of a Matrix homeserver')
+    expect(steps[0]).not.toContain('instance')
     expect(steps[1]).toContain('User settings → My bots')
     expect(steps[2]).toContain('Server settings → Advanced settings → Server bots')
     const link = byTest('matrix-guide-link')
@@ -392,13 +395,22 @@ describe('loading', () => {
     expect(api.fetchOwnedBotInstalls).toHaveBeenLastCalledWith('server', 'new-member')
   })
 
-  it('sits under the Bridges heading and offers the Matrix privacy panel while a pair exists', async () => {
+  it('offers the Matrix privacy panel while a pair exists, unless the managed bridge beside it shows one', async () => {
     await open()
-    expect(wrapper.get('[data-testid="matrix-bridge"] h3').text()).toBe('Matrix bridge')
     expect(wrapper.find('h2').exists()).toBe(false)
     expect(wrapper.getComponent(PrivacyPanel).props()).toEqual({ serverId: 'server', platform: 'matrix' })
+    await wrapper.setProps({ hidePrivacy: true })
+    expect(wrapper.findComponent(PrivacyPanel).exists()).toBe(false)
+    await wrapper.setProps({ hidePrivacy: false })
     api.fetchServerMatrixBridges.mockResolvedValue([])
     await reload(); await flushPromises()
     expect(wrapper.findComponent(PrivacyPanel).exists()).toBe(false)
+  })
+
+  it("leaves out the managed bridge's bot", async () => {
+    given({ pairs: [], installs: [{ ...myBot, bot_id: 'managed', bot_display_name: 'Managed Bridge' }, myBot] })
+    wrapper = mountSettings({ managedBotId: 'managed' })
+    await flushPromises()
+    expect(byTest('matrix-setup').findAll('[data-testid="matrix-setup-bot"] option').map(o => o.text())).toEqual(['Matrix Bridge'])
   })
 })

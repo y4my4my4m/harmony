@@ -103,16 +103,16 @@
         <div class="setting-group">
           <label :for="`${idBase}-distance-model`">{{ t('voice.spatialDistanceModel') }}</label>
           <select :id="`${idBase}-distance-model`" v-model="localSettings.distanceModel" @change="updateSettings" class="select-input">
-            <option value="linear">Linear</option>
-            <option value="inverse">Inverse</option>
-            <option value="exponential">Exponential</option>
+            <option value="linear">{{ t('voice.spatialModel.linear') }}</option>
+            <option value="inverse">{{ t('voice.spatialModel.inverse') }}</option>
+            <option value="exponential">{{ t('voice.spatialModel.exponential') }}</option>
           </select>
         </div>
         
         <div class="setting-group">
           <label :for="`${idBase}-panning-model`">{{ t('voice.spatialPanningModel') }}</label>
           <select :id="`${idBase}-panning-model`" v-model="localSettings.panningModel" @change="updateSettings" class="select-input">
-            <option value="equalpower">Equal power</option>
+            <option value="equalpower">{{ t('voice.spatialModel.equalPower') }}</option>
             <option value="HRTF">HRTF</option>
           </select>
         </div>
@@ -517,8 +517,8 @@ const getUserProfile = (userId: string) => {
   const profile = getUnifiedUserProfile(userId).value;
   return profile || {
     id: userId,
-    username: 'Unknown User',
-    display_name: 'Unknown User',
+    username: t('voice.unknownUser'),
+    display_name: t('voice.unknownUser'),
     avatar_url: null
   };
 };

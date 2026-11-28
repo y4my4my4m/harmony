@@ -10,16 +10,16 @@
         @click="open = !open"
       >
         <Icon name="chevron-right" :size="14" class="pi-chevron" :class="{ open }" />
-        <span class="pi-title">Palette ideas</span>
+        <span class="pi-title">{{ t('settings.appearance.palette.title') }}</span>
       </button>
       <div class="pi-actions">
-        <button type="button" class="pi-action" title="Random palette" @click="surprise">
+        <button type="button" class="pi-action" :title="t('settings.appearance.palette.random')" @click="surprise">
           <Icon name="shuffle" :size="14" />
-          <span>Surprise me</span>
+          <span>{{ t('settings.appearance.palette.surprise') }}</span>
         </button>
-        <button type="button" class="pi-action" title="Build a palette from an image" @click="fileInput?.click()">
+        <button type="button" class="pi-action" :title="t('settings.appearance.palette.fromImageTitle')" @click="fileInput?.click()">
           <Icon name="image" :size="14" />
-          <span>From image</span>
+          <span>{{ t('settings.appearance.palette.fromImage') }}</span>
         </button>
         <input
           ref="fileInput"
@@ -34,7 +34,7 @@
     </div>
 
     <div v-show="open" :id="bodyId" class="pi-body">
-    <div class="pi-moods" role="radiogroup" aria-label="Palette mood">
+    <div class="pi-moods" role="radiogroup" :aria-label="t('settings.appearance.palette.mood')">
       <button
         v-for="(m, id) in PALETTE_MOODS"
         :key="id"
@@ -44,7 +44,7 @@
         :class="{ active: mood === id }"
         :aria-checked="mood === id"
         @click="mood = id"
-      >{{ m.label }}</button>
+      >{{ t(`settings.appearance.palette.moods.${id}`) }}</button>
     </div>
 
     <div class="pi-grid">
@@ -53,7 +53,7 @@
         :key="s.id"
         type="button"
         class="pi-card"
-        :title="`${s.label}: primary ${s.colors.customPrimaryColor}, accent ${s.colors.customAccentColor}`"
+        :title="t('settings.appearance.palette.cardTitle', { scheme: schemeLabel(s.id), primary: s.colors.customPrimaryColor, accent: s.colors.customAccentColor })"
         @click="emit('apply', s.colors)"
       >
         <span class="pi-mock" :style="{ background: s.preview.main }">
@@ -65,7 +65,7 @@
             <span class="pi-mock-btn" :style="{ background: s.preview.primary }" />
           </span>
         </span>
-        <span class="pi-card-label">{{ s.label }}</span>
+        <span class="pi-card-label">{{ schemeLabel(s.id) }}</span>
       </button>
     </div>
 
@@ -86,6 +86,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import {
   PALETTE_MOODS,
@@ -106,6 +107,13 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ apply: [colors: ThemeColors] }>()
+
+const { t } = useI18n()
+
+/** Suggestion ids start with the HARMONY_SCHEMES key. */
+function schemeLabel(id: string): string {
+  return t(`settings.appearance.palette.schemes.${id.split('-')[0]}`)
+}
 
 const mood = ref<PaletteMood>('balanced')
 /** Collapsed until asked for; the header's actions stay usable while closed. */
@@ -152,7 +160,7 @@ async function onImagePicked(event: Event) {
     const swatches = extractImageSwatches(await readPixels(file))
     const colors = paletteFromImage(swatches, props.mode, mood.value)
     if (!colors) {
-      imageError.value = 'That image has no opaque pixels to sample.'
+      imageError.value = t('settings.appearance.palette.noOpaquePixels')
       return
     }
     if (imageUrl.value) URL.revokeObjectURL(imageUrl.value)
@@ -160,7 +168,7 @@ async function onImagePicked(event: Event) {
     imageSwatches.value = swatches
     emit('apply', colors)
   } catch {
-    imageError.value = 'Could not read that image.'
+    imageError.value = t('settings.appearance.palette.imageReadFailed')
   }
 }
 

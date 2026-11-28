@@ -6,6 +6,7 @@
 // completion event, and the main window takes over.
 
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 
 export const OAUTH_WINDOW_LABEL = 'oauth'
 export const OAUTH_COMPLETE_EVENT = 'harmony:oauth-complete'
@@ -39,7 +40,7 @@ export async function signInViaOAuthPopup(providerUrl: string): Promise<string> 
 
   const popup = new WebviewWindow(OAUTH_WINDOW_LABEL, {
     url: providerUrl,
-    title: 'Sign in to Harmony',
+    title: i18n.global.t('auth.oauthWindowTitle'),
     width: 520,
     height: 720,
     resizable: true,

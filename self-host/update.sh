@@ -15,13 +15,19 @@
 #      (studio_default_off, lib.sh). One still named Harmony as releases up to
 #      1.9.7 offered, without INSTANCE_NAME_CHOSEN, is named after its domain
 #      (instance_name_unchosen, lib.sh)
-#   3. pull the images (or build Harmony's with HARMONY_BUILD=1); the running
+#   3. empty container logs over 100 MB, which only a container created without
+#      log rotation reaches (trim_container_logs, lib.sh); stop when less than
+#      1 GB stays free beside self-host/ or Docker's data directory
+#   4. pull the images (or build Harmony's with HARMONY_BUILD=1); the running
 #      stack is untouched
-#   4. back up the database and the config files into backups/
-#   5. apply new migrations while the old containers keep running; a name from
-#      step 2 replaces Harmony in instance_config (instance_name_default_renamed)
-#   6. recreate the containers whose image or configuration changed
-#   7. delete update backups past the newest 5 of each kind, when this run wrote
+#   5. back up the database and the config files into backups/
+#   6. apply new migrations while the old containers keep running; a name from
+#      step 2 replaces Harmony in instance_config (instance_name_default_renamed);
+#      invite and closed registration move from the auth service's sign-up switch
+#      to the sign-up hook once the hook applies them (registration_hand_over, lib.sh)
+#   7. recreate the containers whose image or configuration changed; a Redis
+#      that cannot load its append-only file gets it repaired (redis_recover, lib.sh)
+#   8. delete update backups past the newest 5 of each kind, when this run wrote
 #      one (prune_update_backups, lib.sh)
 #
 # Usage:
@@ -55,6 +61,7 @@ on_exit() {
 	case "$STEP" in
 		code)      echo "The checkout is unchanged or at the target; no container was touched." >&2 ;;
 		configure) echo "New code is checked out; containers still run the previous version. Fix the error and re-run the update." >&2 ;;
+		space)     echo "New code is checked out; containers still run the previous version, the database is unchanged. Free space and re-run the update." >&2 ;;
 		images)    echo "Containers still run the previous version; the database is unchanged. Re-run the update once images are available." >&2 ;;
 		backup)    echo "No migration was applied; containers still run the previous version." >&2 ;;
 		migrate)   echo "The database is at the last migration that succeeded; containers still run the previous version." >&2
@@ -103,11 +110,24 @@ main() {
 	if $unchosen && ! truthy "$(env_get "$ENV_FILE" ENABLE_ANALYTICS)"; then analytics_default_off; fi
 	if $studio_unset && ! truthy "$(env_get "$ENV_FILE" ENABLE_STUDIO)"; then studio_default_off; fi
 
-	# --- 3. images ---------------------------------------------------------------
+	# --- 3. disk space ------------------------------------------------------------
+	STEP=space
+	trim_container_logs || true
+	local dir free
+	for dir in "$SCRIPT_DIR" "$(docker_root)"; do
+		[[ -n "$dir" ]] || continue
+		free="$(free_kb "$dir")"
+		[[ "$free" =~ ^[0-9]+$ ]] || continue
+		if (( free < DISK_RESERVE_KB )); then
+			die "$(human_kb "$free") free on $(mount_of "$dir") ($dir); an update pulls images and writes a backup, and leaves at least $(human_kb "$DISK_RESERVE_KB") free. Old backups in $BACKUP_DIR can go once copied off this machine; docker image prune removes unused images."
+		fi
+	done
+
+	# --- 4. images ---------------------------------------------------------------
 	STEP=images
 	pull_images
 
-	# --- 4. backup ---------------------------------------------------------------
+	# --- 5. backup ---------------------------------------------------------------
 	STEP=backup
 	if [[ "${HARMONY_SKIP_BACKUP:-}" == 1 ]]; then
 		warn "HARMONY_SKIP_BACKUP=1: no backup taken"
@@ -117,15 +137,17 @@ main() {
 		BACKUP_PATH="$(latest_backup)"
 	fi
 
-	# --- 5. migrations -----------------------------------------------------------
+	# --- 6. migrations -----------------------------------------------------------
 	STEP=migrate
 	bash "$SCRIPT_DIR/bootstrap.sh" --migrations-only
 	if $name_unchosen; then instance_name_default_renamed; fi
+	registration_hand_over
 
-	# --- 6. restart --------------------------------------------------------------
+	# --- 7. restart --------------------------------------------------------------
 	STEP=restart
 	info "Recreating changed containers..."
 	compose up -d
+	redis_recover || true
 	# The Caddyfile is bind-mounted as a file, which pins its inode; git
 	# replaces the file, so a running Caddy keeps the old one until restarted.
 	if ! git -C "$REPO_DIR" diff --quiet "$prev" "$now" -- self-host/Caddyfile; then
@@ -138,6 +160,7 @@ main() {
 	fi
 	compose ps --format 'table {{.Name}}\t{{.Image}}\t{{.Status}}'
 
+	# --- 8. old backups -------------------------------------------------------------
 	STEP=done
 	[[ -z "$BACKUP_PATH" ]] || prune_update_backups
 	echo

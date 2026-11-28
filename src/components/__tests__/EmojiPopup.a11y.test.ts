@@ -77,6 +77,8 @@ vi.mock('@/services/EmojiFavoriteService', () => ({
   },
 }))
 
+import { createI18n } from 'vue-i18n'
+import en from '@/locales/en.json'
 import EmojiPopup from '../EmojiPopup.vue'
 
 let wrapper: VueWrapper | null = null
@@ -86,7 +88,7 @@ async function mountPopup(props: Record<string, unknown> = {}) {
     props,
     global: {
       stubs: { teleport: true, LazyEmojiSection: true, ServerIcon: true, LoadingSpinner: true, Icon: true, EmptyState: true },
-      mocks: { $t: (key: string) => key },
+      plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })],
     },
     attachTo: document.body,
   })
@@ -107,9 +109,9 @@ describe('EmojiPopup as a dialog', () => {
     const dialog = w.get('.emoji-popup')
     expect(dialog.attributes('role')).toBe('dialog')
     expect(dialog.attributes('aria-modal')).toBe('true')
-    expect(dialog.attributes('aria-label')).toBe('messageA11y.emoji.reactionDialog')
+    expect(dialog.attributes('aria-label')).toBe('Add reaction')
     const search = w.get('input.search-input')
-    expect(search.attributes('aria-label')).toBe('messageA11y.emoji.search')
+    expect(search.attributes('aria-label')).toBe('Search emoji')
     expect(document.activeElement).toBe(search.element)
   })
 

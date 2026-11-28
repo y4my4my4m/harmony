@@ -20,8 +20,12 @@ Bot developers: the protocol reference is [docs/build/](../docs/build/index.md) 
 | `GET /bridge/v2/hosted`<br>`GET /bridge/v2/hosted/instance` | `X-Bridge-Host-Secret` | The bridge host's work: hosted bridges with their tokens; the instance Discord bot with its token, presence switch and linked bridges |
 | `GET /bridge/v2/discord/authorize?state=` | link state, rate limited per IP | Redirects to Discord's consent screen for the instance Discord bot (bot and applications.commands scopes, permissions `537259072`) |
 | `GET /bridge/v2/discord/callback` | link state, rate limited per IP | OAuth2 redirect URI. Exchanges the code, links the guild named in Discord's token response, and redirects to Server Settings → Discord Bridge with `linked=1` or `link_error=<code>` |
+| `POST /bridge/v2/matrix/redeem` | setup code, rate limited per IP | Trades a Matrix bridge's one-time setup code (`MX-`) for its bot's token and the instance URLs |
+| `GET /bridge/v2/matrix/config`, `POST /bridge/v2/matrix/status` | Matrix bridge bot token | A managed Matrix bridge's configuration, and its report of its health, rooms and pairs |
+| `/bridge/v2/matrix/privacy/*` | Matrix bridge bot token, or a custom Matrix bot's with `?channel_id=` | Opt-outs and erase of Matrix users |
+| `GET /bridge/v2/matrix/host`<br>`POST /bridge/v2/matrix/host/status`, `POST /bridge/v2/matrix/host/link` | `X-Bridge-Host-Secret` | The Matrix bridge host: hosted accounts and the instance's connection with their tokens, the host's report, and a room code (`ML-`) posted in a room |
 
-`/status`, `/bridged-users/*`, `/attachments/refresh` and `/bridge-setup/*` serve the Harmony web client and are not part of the Bot API. `/bridge/v2/*` serves the Discord bridge program and the instance Discord bot's OAuth2 flow.
+`/status`, `/bridged-users/*`, `/attachments/refresh` and `/bridge-setup/*` serve the Harmony web client and are not part of the Bot API. `/bridge/v2/*` serves the Discord bridge program and the instance Discord bot's OAuth2 flow, `/bridge/v2/matrix/*` the Matrix bridge program.
 
 ## Public URLs
 
@@ -57,6 +61,7 @@ The service loads `.env` from its working directory. `.env.example` (development
 | `INTERNAL_API_SECRET` | `SUPABASE_SERVICE_ROLE_KEY` | Bearer token for the link-preview request. |
 | `TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Express `trust proxy`. A number is a hop count; `true` and `false` are booleans. |
 | `BRIDGE_HOST_SECRET` | unset | Shared secret of the Discord bridge host (`X-Bridge-Host-Secret`). Under 32 characters, `GET /bridge/v2/hosted` and `/bridge/v2/hosted/instance` answer 404. |
+| `MATRIX_BRIDGE_HOST_SECRET` | unset | Shared secret of the Matrix bridge host (`X-Bridge-Host-Secret`), apart from the Discord one. Under 32 characters, the `/bridge/v2/matrix/host` routes answer 404. |
 | `BRIDGE_CONFIG_POLL_MS` | `5000` | Interval in ms, clamped to 1000-60000, of the bridge configuration poll behind `BRIDGE_CONFIG_UPDATE`. |
 
 The instance setting **Bridge attachments** (admin instance configuration, stored as `bridge_attachment_mode`) controls Discord CDN attachments: `link` stores the URL, `mirror` copies the file of a bot's message into the channel's folder of the private `message_media` bucket, photos and videos without their metadata (`src/utils/stripMetadata.ts`), `refresh` enables `POST /attachments/refresh`.

@@ -7,11 +7,11 @@
         class="copy-button"
         @click="copyCode"
         :class="{ 'copied': copied }"
-        :title="copied ? 'Copied' : 'Copy code'"
+        :title="copied ? t('common.copied') : t('codeBlock.copyCode')"
       >
         <CopyIcon v-if="!copied" />
         <CheckIcon v-else />
-        <span class="copy-text">{{ copied ? 'Copied' : 'Copy' }}</span>
+        <span class="copy-text">{{ copied ? t('common.copied') : t('common.copy') }}</span>
       </button>
     </div>
     <pre class="code-block" :data-language="language"><code
@@ -26,6 +26,7 @@
 import { defineComponent, ref, computed } from 'vue';
 import { debug } from '@/utils/debug';
 import { sanitizeHighlightedCode } from '@/utils/sanitize';
+import { i18n } from '@/i18n';
 import CopyIcon from '@/components/icons/Copy.vue';
 import CheckIcon from '@/components/icons/Check.vue';
 
@@ -335,6 +336,7 @@ export default defineComponent({
     };
 
     return {
+      t: i18n.global.t,
       showCopyButton,
       copied,
       codeElement,

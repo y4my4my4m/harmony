@@ -1,11 +1,12 @@
 <template>
   <button v-if="joinable" class="call-join-btn" @click="join">
-    Join call
+    {{ t('dm.joinCall') }}
   </button>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useDMCallJoin } from '@/composables/useDMCallJoin'
 
@@ -14,6 +15,7 @@ const props = defineProps<{
   conversationId?: string | null
 }>()
 
+const { t } = useI18n()
 const { joinConversationCall } = useDMCallJoin()
 
 // Offered while the message's call is tracked (presence-derived); a message

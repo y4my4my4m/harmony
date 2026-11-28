@@ -93,7 +93,7 @@
       "title": "Set up a Matrix bridge",
       "lead": "To pair channels here, you need a bot of your own that runs the Matrix bridge and is in this server.",
       "steps": {
-        "service": "Whoever runs this Harmony instance sets up the Matrix bridge service and registers it with the Matrix homeserver. Ask them if it isn't running yet.",
+        "service": "Run the Matrix bridge on a computer that's always on, or ask someone who runs one. The operator of a Matrix homeserver, yours or another, registers it there once.",
         "bot": "Create a bot for the bridge in {place}, and give its token to whoever runs the bridge.",
         "install": "Add the bot to this server in {place}. Give it Read messages and Send messages, then under Channels choose Selected channels and tick the channels to bridge.",
         "pair": "Come back here to pair those channels."
@@ -124,6 +124,349 @@
       "confirmMessage": "{bot} stops bridging {count} channel with Matrix. Messages already bridged stay. Ask whoever runs the bridge to take the room out of its configuration too. | {bot} stops bridging {count} channels with Matrix. Messages already bridged stay. Ask whoever runs the bridge to take the rooms out of its configuration too.",
       "done": "{bot} is unpaired from Matrix."
     },
+    "start": {
+      "title": "Where should the bridge run?",
+      "needs": "You need a Matrix account for the bridge on any homeserver, or a homeserver whose operator can register the bridge. Setup takes about fifteen minutes.",
+      "self": {
+        "title": "Run it yourself",
+        "point1": "You run one command (Docker) on any computer that's always on: a home server, a VPS, a Raspberry Pi.",
+        "point2": "Harmony members can appear in Matrix as Matrix users of their own.",
+        "tradeoff": "The bridge works only while that computer is on and online.",
+        "choose": "Run it myself"
+      },
+      "custom": {
+        "title": "Use your own bridge program",
+        "point1": "For another bridge program, or a configuration you write yourself.",
+        "point2": "You create its bot, add it to this server and choose the channels it bridges.",
+        "tradeoff": "Its Matrix rooms are set in its own configuration, and Harmony can't see whether it runs.",
+        "choose": "Use my own program"
+      },
+      "hostingUnavailable": "This instance doesn't run Matrix bridges for its communities, so the bridge runs on a computer of yours.",
+      "bothWays": "Either way, messages in bridged channels pass through this instance like any other message here. End-to-end encrypted channels and rooms can't be bridged.",
+      "needsInstance": "You need a Matrix room where you may change the settings, or someone there who may.",
+      "ownBot": "Or bridge another way:",
+      "instance": {
+        "title": "Use {instance}'s bridge",
+        "recommended": "Recommended",
+        "point1": "Nothing to install and no account to make: you invite the bridge to a room and post a code there.",
+        "point2": "This instance runs the bridge for you.",
+        "tradeoff": "The bridge belongs to this instance's operator, who can read every room you link.",
+        "choose": "Use {instance}'s bridge"
+      },
+      "hosted": {
+        "title": "Use your own Matrix account, run on this instance",
+        "lead": "Sign in with a Matrix account here; this instance runs the bridge with it.",
+        "point1": "Nothing to install.",
+        "point2": "Every message from Harmony comes from that account, with the member's name in front.",
+        "tradeoff": "This instance's operator holds the account's access token and can read every room the account is in. Use an account made for the bridge.",
+        "choose": "Use my own account here"
+      }
+    },
+    "custom": {
+      "otherPrompt": "Want a bridge you set up from here?",
+      "other": "Choose how to run it",
+      "beside": "Use your own bridge program as well",
+      "besideLead": "A program of your own bridges other channels, with a bot you create. The bridge above stays as it is."
+    },
+    "self": {
+      "lead": "The bridge is a small program that runs on a computer that stays on, such as a home server, a VPS or a Raspberry Pi.",
+      "connection": {
+        "label": "How the bridge signs in to Matrix",
+        "application_service": {
+          "title": "On a homeserver you run, or whose operator you can ask",
+          "lead": "The operator registers the bridge once. Harmony members can appear as Matrix users of their own."
+        },
+        "account": {
+          "title": "With a Matrix account",
+          "lead": "On any homeserver, matrix.org too. Every message comes from that account, with the member's name in front."
+        }
+      },
+      "needsAppService": "The homeserver has to reach the bridge: both run on the same computer or network, or the bridge has a public address.",
+      "needsAccount": "Make an account for the bridge on any homeserver, used for nothing else.",
+      "field": {
+        "homeserverUrl": {
+          "label": "Homeserver address",
+          "help": "The address Matrix apps connect to. The bridge's computer must be able to open it.",
+          "invalid": "Enter an address such as https://matrix.example.org."
+        },
+        "serverName": {
+          "label": "Server name",
+          "help": "The part after the colon in the homeserver's user IDs, such as {'@'}sam:example.org.",
+          "invalid": "Enter a name such as example.org."
+        },
+        "appserviceUrl": {
+          "label": "Address of the bridge",
+          "help": "How the homeserver reaches the computer the bridge runs on. The bridge listens on port 9009.",
+          "invalid": "Enter an address such as http://192.168.1.20:9009."
+        }
+      },
+      "fillFields": "Fill in the fields above first: the commands below take them in.",
+      "source": {
+        "name": "From source",
+        "install": "Install Git and Node.js 24, then run these commands one after another:",
+        "env": "In that folder, save this as {file}:",
+        "run": "Start the bridge there. A service manager such as systemd keeps it running:",
+        "trouble": "The bridge writes what it does to the terminal it runs in. If it says the setup code is invalid or expired, click New code above, put the new code into .env and start it again."
+      },
+      "replaceToken": "Replace {placeholder} with the access token of the bridge's Matrix account.",
+      "registration": {
+        "title": "Register the bridge on the homeserver",
+        "fromDocker": "When it starts, the bridge writes {file}. Copy it out of the container:",
+        "fromSource": "When it starts, the bridge writes {file} in that folder.",
+        "install": "Give {file} to the homeserver's operator. On Synapse they add its path to {setting} in homeserver.yaml and restart Synapse.",
+        "done": "The bridge connects by itself once the homeserver knows it.",
+        "secret": "The file holds the bridge's keys to the homeserver. Don't post it anywhere."
+      },
+      "keepData": "Keep {place}: it holds the bridge's sign-in, its registration and the Matrix users it made. Take it along when you move the bridge to another computer. Without it the bridge has to be registered again.",
+      "keepDataAccount": "Keep {place}: it holds the bridge's sign-in and what it already relayed. Take it along when you move the bridge to another computer.",
+      "copiedToken": "A token copied from a Matrix app's settings works only where tokens do not expire; on matrix.org they do, within minutes.",
+      "login": "Sign in with the account. This asks for its user name and password in the terminal and prints the access token:"
+    },
+    "check": {
+      "waiting": "Waiting for your bridge to connect. Run the command from step 1; it usually connects within a minute.",
+      "running": "Check that the bridge is running on that computer and that the command printed no error.",
+      "code": "If the log says the setup code is invalid or expired, get a new code in step 1 and run the command again.",
+      "matrix": {
+        "ok": "Bridge signed in to the homeserver",
+        "fail": "The bridge can't sign in to the homeserver",
+        "waiting": "Bridge signed in to the homeserver"
+      },
+      "account": "Check that you signed in with the account in step 1. Doing it again does no harm."
+    },
+    "managed": {
+      "starting": "Bridge is connecting to Matrix",
+      "account": "Matrix account",
+      "homeserver": "Homeserver",
+      "connection": "Signs in as",
+      "connectionKind": {
+        "application_service": "Application service",
+        "account": "Matrix account"
+      },
+      "pending": "Messages waiting",
+      "failed": "Messages not delivered",
+      "disconnectBody": "Stops bridging and removes all channel pairs and the bridge's Harmony bot. Messages that were already bridged stay. Matrix users and rooms aren't deleted.",
+      "disconnectRegistration": "The homeserver's operator can take the bridge's registration out.",
+      "confirmNote": "Also stop the program on your computer. With Docker: {command}",
+      "pairsLead": "Each pair links one channel here with one Matrix room.",
+      "inviteHint": "The bridge joins a room when you pair it. Invite {account} first to a room that isn't open to everyone.",
+      "inviteHintUnknown": "The bridge joins a room when you pair it. Invite its Matrix account first to a room that isn't open to everyone.",
+      "state": {
+        "new": "Waiting for the bridge",
+        "joining": "Joining the room",
+        "ready": "Working",
+        "error": "Not working"
+      },
+      "removeLabel": "Remove the pair {channel} and {room}",
+      "direction": {
+        "both": "Both ways",
+        "to_harmony": "Matrix → Harmony only",
+        "to_matrix": "Harmony → Matrix only"
+      },
+      "room": "Matrix room",
+      "invitations": "Invitations (accepted when you pair the room)",
+      "otherRoom": "Another room…",
+      "roomOption": "{name} ({detail})",
+      "cannotSend": "the bridge can't post there",
+      "address": "Room address or ID",
+      "addressHelp": "Such as #general:example.org. A matrix.to link works too.",
+      "addressInvalid": "That isn't a room address. It looks like #general:example.org, or !abc:example.org for a room ID.",
+      "addressEmpty": "Enter the room's address or ID.",
+      "chooseBoth": "Choose a Harmony channel and a Matrix room.",
+      "encryptedNote": "End-to-end encrypted channels and rooms are greyed out: the bridge can't read them.",
+      "roomsStale": "The bridge is offline. These are the rooms it was in when it was last connected.",
+      "hiddenChannel": "A channel you can't see",
+      "theAccount": "the bridge's account",
+      "ghostExplained": "As their own Matrix users: a Harmony member gets a Matrix user with their name and picture when they first write in the channel. In channels of up to 100 members the bridge makes them ahead, so people on Matrix can mention everyone with the usual {'@'} autocomplete. The bridge must be allowed to invite people into the room.",
+      "instanceMode": "With this instance's Matrix bridge",
+      "disconnectHosted": "The stored access token is deleted. End the session “Harmony bridge” in the account's Matrix settings as well.",
+      "disconnectAccount": "End the session “Harmony bridge” in the account's Matrix settings as well.",
+      "disconnectInstance": "This instance's bridge leaves the rooms by itself.",
+      "noRoom": "No room"
+    },
+    "pairError": {
+      "room_not_found": "The bridge found no room at {room}. Check the address, or remove this pair.",
+      "not_invited": "{room} can't be joined without an invitation. Invite {account} to it on Matrix.",
+      "room_encrypted": "{room} is end-to-end encrypted, so the bridge can't read it. Pair a room without encryption instead.",
+      "channel_encrypted": "{channel} is end-to-end encrypted, so the bridge can't read it. Pair a channel without encryption instead.",
+      "cannot_send": "{account} may not post in {room}. Messages from Matrix still arrive here. Ask an admin of the room to let it post.",
+      "room_in_use": "{room} is already bridged to another Harmony channel. Choose another room.",
+      "ghosts_unavailable": "The bridge can't add Matrix users for Harmony members to {room}. Messages from Matrix still arrive here. Allow {account} to invite people there, or choose the shared bridge account.",
+      "harmony_not_bound": "Harmony hasn't linked {room} with {channel} yet. The bridge tries again by itself; if this stays, remove the pair and add it again.",
+      "unknown": "The bridge gave no reason. Its log has the details.",
+      "room_moved": "The room was linked with another channel by a newer code. Link {channel} again with a code of its own."
+    },
+    "problems": {
+      "aRoom": "a room",
+      "theHomeserver": "the homeserver",
+      "bridge_offline": {
+        "fix": "Make sure the computer running it is on, then start the bridge. With Docker, the first command below starts it; if it stops again, the second one shows why."
+      },
+      "matrix_registration_missing": {
+        "title": "The homeserver doesn't know the bridge yet.",
+        "fix": "Give the bridge's registration.json to the homeserver's operator. With Docker, the command below copies it out of the container. The bridge connects by itself once the homeserver has it."
+      },
+      "matrix_token_invalid": {
+        "title": "The homeserver rejected the bridge's sign-in.",
+        "fixAppService": "The registration on the homeserver isn't this bridge's. Give its operator the bridge's registration.json again.",
+        "fixAccount": "Get a new access token for the bridge's Matrix account, and start the bridge with it.",
+        "fixHosted": "Sign in with the account again here, or use another one."
+      },
+      "matrix_unreachable": {
+        "title": "The bridge can't reach the homeserver.",
+        "fix": "Check that the computer running the bridge can open {homeserver}. The bridge keeps retrying.",
+        "fixHosted": "Check that {homeserver} is running and can be reached from the internet. The bridge keeps retrying."
+      },
+      "harmony_auth_failed": {
+        "fix": "Remove the container with the command below, then start the bridge again with a new setup code. Its data stays."
+      },
+      "room_encrypted": {
+        "title": "The bridge doesn't relay {room}: it is end-to-end encrypted.",
+        "fix": "Remove its pair, or pair a room without encryption."
+      },
+      "room_not_joined": {
+        "title": "The bridge isn't in {room}.",
+        "fix": "Invite the bridge's account to it on Matrix, or remove its pair."
+      },
+      "worker_stopped": {
+        "title": "The bridge stopped relaying: it can't write its data.",
+        "fix": "Check the disk of the computer running it, then restart the bridge. With Docker:"
+      },
+      "messages_skipped": {
+        "title": "Some older messages of a room weren't relayed.",
+        "fix": "Nothing to fix. New messages are relayed as usual."
+      },
+      "account_in_use": {
+        "title": "Another bridge on this instance already uses this Matrix account.",
+        "fix": "Use an account made for this bridge alone."
+      }
+    },
+    "hosted": {
+      "lead": "Sign in with the Matrix account the bridge uses. This instance runs the bridge with it.",
+      "access": "This instance's operator holds the account's access token and can read every room the account is in.",
+      "ownAccount": "Use an account made for the bridge, in the rooms you bridge alone. End-to-end encrypted rooms aren't relayed.",
+      "homeserver": "Homeserver",
+      "homeserverHelp": "Its server name, such as matrix.org, or its address.",
+      "method": {
+        "label": "Access to the account",
+        "password": "Sign in here",
+        "token": "Paste an access token"
+      },
+      "user": "User name",
+      "password": "Password",
+      "passwordHelp": "The password goes from your browser to the homeserver alone. Harmony never gets it, and it isn't kept.",
+      "token": "Access token",
+      "issue": {
+        "address": "Enter a server name such as matrix.org, or an https address.",
+        "unreachable": "The homeserver can't be reached from this browser. Check the name, try the homeserver's own address, or paste an access token instead.",
+        "not_matrix": "No Matrix homeserver answered there. Check the name, or enter the homeserver's own address.",
+        "no_password": "This homeserver doesn't sign people in with a password. Paste an access token instead.",
+        "wrong_password": "The homeserver refused the user name or the password.",
+        "deactivated": "This account is deactivated.",
+        "limited": "Too many tries. Wait a while, then try again.",
+        "limitedFor": "Too many tries. Try again in {count} second. | Too many tries. Try again in {count} seconds.",
+        "expires": "This homeserver gives out access tokens that expire, so the bridge can't keep the account. Use an account on another homeserver.",
+        "token_refused": "The homeserver doesn't know this token. It may have expired.",
+        "refused": "The homeserver refused the sign-in.",
+        "empty": "Paste the token first.",
+        "harmonyToken": "That's a Harmony bot token. You need the Matrix account's access token.",
+        "notToken": "That doesn't look like an access token.",
+        "incomplete": "Enter the user name and the password."
+      },
+      "saved": "Account saved. This instance starts your bridge within a minute or two.",
+      "busy": {
+        "password": "Signing in…",
+        "token": "Saving…"
+      },
+      "save": {
+        "password": "Sign in",
+        "token": "Save token"
+      },
+      "step": "Sign in to Matrix",
+      "blocked": "Sign in with a Matrix account to continue.",
+      "replace": "Replace the Matrix account"
+    },
+    "link": {
+      "title": "Link a room",
+      "encryptedNote": "End-to-end encrypted channels are greyed out, and an encrypted room can't be linked: the bridge can't read them.",
+      "getCode": "Get a code",
+      "chooseChannel": "Choose a Harmony channel.",
+      "codeTitle": "Link {channel} with a Matrix room",
+      "invite": "In Matrix, invite the bridge's account to the room:",
+      "noAccount": "The account isn't known yet: this instance's bridge hasn't connected to Matrix.",
+      "post": "Post this in the room once the account has joined:",
+      "command": "Message to post",
+      "appears": "The pair appears here by itself.",
+      "expiredHelp": "This code has expired. Click New code and post the new message.",
+      "who": "Only someone who may change the room's settings can link it: an admin of the room, or whoever the room allows.",
+      "moves": "The room moves here from whatever it was linked with before.",
+      "close": "Close",
+      "linked": "{channel} is linked with {room}.",
+      "again": "Link a room again"
+    },
+    "admin": {
+      "title": "Matrix bridge",
+      "lead": "Communities connect rooms on Matrix in Server settings → Bridges → Matrix. Offer them this instance's bridge, let them bring their own account, or both. Running the bridge on a computer of their own is always possible.",
+      "loadFailed": "Couldn't load the Matrix bridge settings.",
+      "saved": "Matrix bridge settings saved",
+      "saveFailed": "Couldn't save the Matrix bridge settings",
+      "cleared": "Matrix bridge removed",
+      "hostedCount": "Hosted bridges now: {count} of {limit}.",
+      "hosting": {
+        "title": "Let communities bring their own account",
+        "lead": "Communities sign in with a Matrix account of their own, and this instance runs the bridge with it. Server admins see this as “Use your own Matrix account, run on this instance”.",
+        "toggle": "Run communities' own accounts",
+        "toggleHint": "You hold each community's access token. A token gives access to every room its account is in."
+      },
+      "instance": {
+        "title": "This instance's Matrix bridge",
+        "lead": "One Matrix connection of this instance, shared by every community. They link a room by posting a code in it, with nothing to install.",
+        "linkedCount": "Servers that chose it: {count} of {limit}.",
+        "configured": "Bridge set up: {homeserver}.",
+        "notConfigured": "No bridge set up yet.",
+        "connection": {
+          "application_service": "On your own homeserver. Harmony members can appear as Matrix users of their own.",
+          "account": "An ordinary account on any homeserver. Every message comes from it."
+        },
+        "senderLocalpart": "Name of the bridge's account",
+        "invalidLocalpart": "Use a to z, 0 to 9 and . _ = - only.",
+        "tooLong": "Too long together with the server name.",
+        "login": "Get a token that doesn't expire",
+        "save": "Save bridge",
+        "clear": "Remove bridge",
+        "clearConfirm": "Remove the bridge's tokens? Communities using it stop bridging until a bridge is set up again. Their bridges and pairs stay.",
+        "registration": {
+          "title": "Registration file",
+          "made": "Made",
+          "notMade": "Not made yet",
+          "make": "Make the registration file",
+          "again": "Make a new registration file",
+          "confirm": "A new file replaces the bridge's tokens. The bridge stops until the homeserver has the new file.",
+          "downloaded": "The file is in your downloads. It can't be shown again; make a new one if it is lost.",
+          "stale": "The homeserver's registration no longer matches. Make a new file and give it to the homeserver."
+        },
+        "enable": "Offer this bridge to communities",
+        "enableHint": "Server admins see “Use this instance's bridge” first in Server settings → Bridges → Matrix.",
+        "enableNeedsConfig": "Set the bridge up first: its homeserver, and the access token or the registration file.",
+        "limit": "Maximum servers",
+        "limitHint": "New ones are refused once this many chose the bridge, linked or not."
+      }
+    },
+    "service": {
+      "title": "Bridge service",
+      "never": "The service hasn't connected yet.",
+      "version": "version {version}",
+      "absent": {
+        "discord": "Communities' Discord bridges run in a service next to this instance. Start it on the server with:",
+        "matrix": "Communities' Matrix bridges run in a service next to this instance. Start it on the server with:"
+      },
+      "problem": {
+        "matrix_registration_missing": "The homeserver doesn't know the bridge. Give it the registration file and restart it.",
+        "matrix_token_invalid": "The homeserver refuses the access token. Save a new one.",
+        "matrix_unreachable": "The homeserver can't be reached. The bridge keeps retrying.",
+        "harmony_unreachable": "The service can't reach this instance's bot gateway.",
+        "worker_stopped": "The service can't write its data. Check the disk, then restart it."
+      }
+    },
     "errors": {
       "discordBot": "This bot runs a Discord bridge, so it can't bridge Matrix too. Use a separate bot.",
       "allowlist": "A chosen channel isn't in the bot's channel list anymore. Reload and choose again.",
@@ -131,7 +474,16 @@
       "permission": "Only the bot's owner, with Manage Server on this server, can pair its channels.",
       "save": "Could not save the paired channels. Reload and try again.",
       "unpair": "Could not unpair the bot. Reload and try again.",
-      "installs": "Could not load your bots, so channels can't be paired from here right now. Reload to try again."
+      "installs": "Could not load your bots, so channels can't be paired from here right now. Reload to try again.",
+      "unavailable": "The Matrix bridge isn't available on this instance yet. Its admin needs to update Harmony.",
+      "gone": "The bridge was removed in the meantime. Reload the page.",
+      "roomTaken": "That room is already paired with another channel.",
+      "change": "Couldn't save the change. Try again.",
+      "exists": "This server already has a Matrix bridge. Reload the page to see it.",
+      "notOffered": "This instance doesn't offer that at the moment. Choose another way to run the bridge.",
+      "full": "This instance already runs as many Matrix bridges as it allows. Choose another way, or ask the instance's admin.",
+      "account": "Couldn't save the account. Try again.",
+      "roomCode": "Couldn't get a code. Try again."
     },
     "privacy": {
       "lead": "Remove a Matrix user here to delete everything this server's bridge brought from them and stop bringing their messages.",
@@ -156,7 +508,8 @@
     "tabs": {
       "discord": "Discord",
       "matrix": "Matrix"
-    }
+    },
+    "encrypted": "end-to-end encrypted"
   },
   "bridgePrivacy": {
     "title": "Bridge privacy",
@@ -220,7 +573,12 @@
       "domainCap": "Too many accounts were created with this email domain today. Try again tomorrow, or ask this instance's admin for an invitation.",
       "mailboxCap": "This email inbox has reached the limit of accounts on this instance.",
       "blockedDomain": "This email provider cannot be used to sign up on this instance. Use another address.",
-      "blockedNetwork": "Sign-ups from this network are not available on this instance. Ask this instance's admin for an invitation."
+      "blockedNetwork": "Sign-ups from this network are not available on this instance. Ask this instance's admin for an invitation.",
+      "closed": "This instance is not taking new accounts.",
+      "inviteOnly": "This instance takes new accounts by invitation only. Ask its admin for one.",
+      "otherDomain": "New accounts through this sign-in are limited to some email domains, and this address is not at one of them.",
+      "unverified": "New accounts through this sign-in need an email address the sign-in provider has verified.",
+      "unavailable": "Sign-up is unavailable right now. Try again later."
     },
     "captcha": {
       "asked": "Complete the check to finish signing up.",
@@ -322,7 +680,8 @@
       "emailRequired": "Email is required",
       "passwordRequired": "Password is required",
       "emailServiceUnavailable": "Email service is not configured. Contact the instance administrator.",
-      "oauthFailed": "Could not sign in with {provider}"
+      "oauthFailed": "Could not sign in with {provider}",
+      "authRequired": "Authentication required"
     },
     "showPassword": "Show password",
     "showNewPassword": "Show new password",
@@ -360,7 +719,8 @@
       "invalidTitle": "This invitation link does not work",
       "invalidBody": "The link was already used, has expired or was revoked. Ask the person who invited you for a new one.",
       "subtitleNoEmail": "You were invited to make an account here. Choose the password you will sign in with."
-    }
+    },
+    "oauthWindowTitle": "Sign in to Harmony"
   },
   "server": {
     "create": "Create server",
@@ -566,12 +926,7 @@
     "filesTooLargeSkipped": "{count} file(s) skipped: larger than 25 MB",
     "noValidImageFiles": "No valid image files selected",
     "cannotUploadEmojisLimit": "Cannot upload {count} emoji(s): would exceed the limit of {max} (currently {current})",
-    "emojisUploadedSuccess": "{count} emoji{plural} uploaded",
-    "emojisFailedToUpload": "{count} emoji{plural} failed to upload",
     "failedToUploadEmojis": "Failed to upload emojis",
-    "confirmDeleteEmojis": "Are you sure you want to delete {count} emoji(s)? This cannot be undone.",
-    "emojisDeletedSuccess": "{count} emoji(s) deleted",
-    "emojisFailedToDelete": "{count} emoji(s) failed to delete",
     "failedToDeleteEmojis": "Failed to delete emojis",
     "emojiRenamedSuccess": "Emoji renamed to \"{name}\"",
     "failedToRenameEmoji": "Failed to rename emoji",
@@ -590,7 +945,9 @@
       "nameTooLong": "Server name must be less than 50 characters",
       "invalidName": "Server name contains invalid characters",
       "notSignedIn": "Sign in to create a server.",
-      "createFailed": "Couldn't create the server. Please try again."
+      "createFailed": "Couldn't create the server. Please try again.",
+      "iconUploadFailedDetail": "Server created, but the icon couldn't be uploaded: {error}. You can update it later in server settings.",
+      "iconUploadFailed": "Server created, but the icon couldn't be uploaded. You can update it later in server settings."
     },
     "bannedFromServer": "You're banned from this server.",
     "joinRequiresInvite": "This server is joined through an invite.",
@@ -935,7 +1292,14 @@
       "expression": "Expression",
       "integrations": "Integrations",
       "moderation": "Moderation"
-    }
+    },
+    "alreadyMember": "You're already a member of this server!",
+    "joinFailed": "Failed to join server. Please try again.",
+    "emojisUploaded": "{count} emoji uploaded | {count} emojis uploaded",
+    "emojisUploadFailed": "{count} emoji failed to upload | {count} emojis failed to upload",
+    "confirmDeleteEmojiCount": "Are you sure you want to delete {count} emoji? This cannot be undone. | Are you sure you want to delete {count} emojis? This cannot be undone.",
+    "emojisDeleted": "{count} emoji deleted | {count} emojis deleted",
+    "emojisDeleteFailed": "{count} emoji failed to delete | {count} emojis failed to delete"
   },
   "channel": {
     "create": "Create channel",
@@ -1268,7 +1632,43 @@
       "unmark": "Remove spoiler"
     },
     "jumpLoading": "Loading the message…",
-    "jumpFailed": "That message couldn't be loaded."
+    "jumpFailed": "That message couldn't be loaded.",
+    "copyText": "Copy text",
+    "copyImage": "Copy image",
+    "saveImage": "Save image",
+    "saveVideo": "Save video",
+    "saveAudio": "Save audio",
+    "copyMessageLink": "Copy message link",
+    "copyLinkUrl": "Copy Link URL",
+    "copyMediaUrl": "Copy Media URL",
+    "badge": {
+      "bot": "BOT",
+      "admin": "ADMIN",
+      "mod": "MOD"
+    },
+    "unknownServer": "Unknown Server",
+    "decryptFailed": "Could not decrypt message",
+    "composer": {
+      "dismissCommand": "Dismiss (Esc)",
+      "enterValue": "Enter a value...",
+      "slowmodeWait": "Slowmode: you can send again in {seconds}s",
+      "slowmodeOn": "Slowmode is on: one message every {seconds}s",
+      "checkingPermissions": "Checking permissions...",
+      "noPermissionThread": "You do not have permission to send messages in this thread.",
+      "noPermissionChannel": "You do not have permission to send messages in this channel.",
+      "tooLongCount": "Message too long ({count} / {max})",
+      "tooLongToast": "Message too long ({count} / {max}). Trim it and try again.",
+      "slowmodeToast": "Slowmode is on - you can send again in {seconds}s",
+      "attachmentNeedsRoom": "Attachments need a channel or conversation"
+    },
+    "replyingTo": "Replying to {name}",
+    "removeAttachmentConfirm": "This will remove this attachment from this message permanently.",
+    "brokenEmoji": "Broken emoji",
+    "unknownRole": "Unknown Role",
+    "editedAt": "Edited at {time}",
+    "deleteConfirmUndone": "Are you sure you want to delete this message? This action cannot be undone.",
+    "yesterdayAt": "Yesterday at {time}",
+    "composerPlaceholder": "Type a message…"
   },
   "messageA11y": {
     "list": {
@@ -1368,7 +1768,10 @@
       "uploading": "Uploading...",
       "listLabel": "Attachments",
       "progressLabel": "Uploading {name}",
-      "remove": "Remove {name}"
+      "remove": "Remove {name}",
+      "statusUploading": "Uploading",
+      "statusUploaded": "Uploaded",
+      "statusFailed": "Failed"
     },
     "alt": {
       "saved": "Description saved for {name}",
@@ -1387,7 +1790,15 @@
       "forged": "Message hidden: its signature does not match its sender",
       "forgedHint": "This encrypted message's signature does not verify against its sender's key. It was altered, or it is not from the person it names, so it is not decrypted.",
       "replayed": "Repeated",
-      "replayedHint": "This message repeats an earlier encrypted message from the same sender. The server stored one message twice, which can show an old message in a new place."
+      "replayedHint": "This message repeats an earlier encrypted message from the same sender. The server stored one message twice, which can show an old message in a new place.",
+      "unverified": "Unverified author",
+      "unverifiedHint": "This message was decrypted but the sender's identity could not be cryptographically verified. The sender may be running an older client, or the message may have been tampered with.",
+      "lostHint": "This message was encrypted with a previous key that no longer exists on this account, so it can't be decrypted.",
+      "decryptingTitle": "Decrypting...",
+      "clickToDecrypt": "Click to decrypt",
+      "lostIdentityHint": "This message can't be decrypted: it was encrypted before your current encryption identity was created (e.g. before a key reset), and the key that could unlock it no longer exists on this account.",
+      "lockClickHint": "End-to-end encrypted - click the message text to decrypt",
+      "lockUnlockHintPath": "End-to-end encrypted - unlock encryption ({settings} → {privacy} → {encryption}) to decrypt"
     },
     "spoiler": {
       "hidden": "Spoiler, hidden. Activate to reveal",
@@ -1709,6 +2120,29 @@
     "toolbar": {
       "controls": "Voice controls",
       "call": "Call"
+    },
+    "encryption": {
+      "encryptedTitle": "End-to-end encrypted — media is encrypted before it reaches the server",
+      "notEncryptedTitle": "Not end-to-end encrypted — media is secured in transit (DTLS-SRTP) but the server can access it",
+      "e2ee": "E2EE",
+      "notE2ee": "Not E2EE"
+    },
+    "spatialModel": {
+      "linear": "Linear",
+      "inverse": "Inverse",
+      "exponential": "Exponential",
+      "equalPower": "Equal power"
+    },
+    "overlay": {
+      "notInCall": "Not in a call"
+    },
+    "connectionLost": {
+      "title": "Disconnected from voice",
+      "message": "The connection to the voice server was lost."
+    },
+    "microphoneUnavailable": {
+      "title": "Microphone unavailable",
+      "message": "Joined muted: the microphone could not be opened."
     }
   },
   "dm": {
@@ -1805,7 +2239,112 @@
       "deleted": "Group deleted",
       "deleteFailed": "Failed to delete group"
     },
-    "callUndeliverable": "Your call could not be placed."
+    "callUndeliverable": "Your call could not be placed.",
+    "header": {
+      "federatedUserFrom": "Federated user from {domain}",
+      "callInProgress": "Call in progress",
+      "lastSeen": "Last seen {when}",
+      "lastSeenUnknown": "some time ago",
+      "startVoiceCall": "Start voice call",
+      "endVoiceCall": "End voice call",
+      "searchInConversation": "Search in conversation",
+      "addPeople": "Add people",
+      "startVideoCall": "Start video call",
+      "turnOffCamera": "Turn off camera",
+      "muteConversation": "Mute conversation",
+      "unmuteConversation": "Unmute conversation",
+      "enableEncryption": "Enable encryption",
+      "disableEncryption": "Disable encryption",
+      "closeDm": "Close DM",
+      "encryptionSetup": {
+        "title": "Encryption setup required",
+        "intro": "To enable encrypted DMs, you need to set up end-to-end encryption first.",
+        "step1": "Go to {path}",
+        "step2": "Create your recovery key (12-word phrase)",
+        "step3": "Come back here and enable encryption for this conversation",
+        "note": "Your recovery key is the only way to decrypt your messages. Keep it safe.",
+        "goToSettings": "Go to settings"
+      },
+      "encryptionSetupFirst": "Set up encryption in settings first",
+      "clickToDisableEncryption": "Click to disable encryption",
+      "clickToEnableEncryption": "Click to enable encryption",
+      "federatedEncryptionWarning": "The other user is on a federated server that may not support Harmony's end-to-end encryption. Encrypted messages may not be readable by them. Do you still want to enable encryption?",
+      "enable": "Enable",
+      "encryptionEnabled": "Encryption enabled for this conversation",
+      "encryptionDisabled": "Encryption disabled for this conversation",
+      "encryptionUpdateFailed": "Failed to update encryption setting",
+      "callEnded": "Call ended",
+      "conversationMuted": "Conversation muted",
+      "conversationUnmuted": "Conversation unmuted",
+      "notificationUpdateFailed": "Failed to update notification setting",
+      "startCallFailed": "Failed to start call",
+      "noLocalMembersToCall": "No members on this instance to call. Group calls do not reach other instances.",
+      "noParticipantsToCall": "No participants to call",
+      "cannotCallUser": "Cannot call this user",
+      "noFederatedIdentity": "Cannot determine federated identity for this user",
+      "profileInfoFailed": "Failed to get profile info",
+      "federatedCallFailed": "Failed to initiate federated call",
+      "cannotJoinCall": "Cannot join this call",
+      "joinCallFailed": "Failed to join call",
+      "toggleCameraFailed": "Failed to toggle camera",
+      "defaultNameCount": "Group chat ({count} member) | Group chat ({count} members)"
+    },
+    "followers": {
+      "loadFailed": "Failed to load following users",
+      "startFailed": "Failed to start conversation"
+    },
+    "groupInvite": {
+      "searchHintNew": "Search for users to create a group chat with",
+      "searchHintAdd": "Search for users to add to this conversation",
+      "selectedUsers": "Selected users ({count})",
+      "clearAll": "Clear all",
+      "removeUser": "Remove {name}",
+      "configureHint": "Configure your new group chat",
+      "groupNameOptional": "Group name (optional)",
+      "groupNamePlaceholder": "Chat with {names}",
+      "privateGroup": "Private group",
+      "privateHintManual": "Only invited members can join. Members must be added manually.",
+      "privateHintInvite": "Only invited members can join. Members can invite others.",
+      "currentParticipants": "Current participants ({count})",
+      "federatedTitle": "Federated group chat",
+      "federatedText": "This conversation includes users from other servers. Messages will be federated according to ActivityPub standards.",
+      "searchFailed": "Failed to search users",
+      "createGroupChat": "Create group chat",
+      "subtitleNew": "Start a conversation with multiple people",
+      "subtitleAdd": "Add more people to this conversation",
+      "processing": "Processing...",
+      "createChat": "Create chat",
+      "createGroup": "Create group ({count})",
+      "addPeopleCount": "Add {count} person | Add {count} people",
+      "requestFailed": "Failed to process request",
+      "conversationCreated": "Conversation created",
+      "groupCreated": "Group conversation created",
+      "groupCreateFailed": "Failed to create group conversation",
+      "groupCreatedWith": "Created group conversation with {count} additional user | Created group conversation with {count} additional users",
+      "usersAdded": "Added {count} user to conversation | Added {count} users to conversation",
+      "addFailed": "Failed to add users to conversation"
+    },
+    "groupCall": "Group call",
+    "callEnded": "Call ended",
+    "callDeclined": "Call declined",
+    "noAnswer": "No answer",
+    "callPermission": {
+      "blockedByYou": "You have blocked this user",
+      "blocked": "You cannot call this user",
+      "dnd": "This user is in Do Not Disturb mode",
+      "busy": "User is currently in another call",
+      "notificationsDisabled": "This user has disabled call notifications",
+      "checkFailed": "Could not verify call permissions - please try again.",
+      "decline": {
+        "blocked": "Call cannot be completed",
+        "busy": "User is busy",
+        "dnd": "User is in Do Not Disturb mode",
+        "muted": "User has muted this conversation",
+        "notificationsDisabled": "User has call notifications disabled",
+        "timeout": "No answer",
+        "declined": "Call declined"
+      }
+    }
   },
   "announcements": {
     "title": "Announcements",
@@ -1847,7 +2386,9 @@
     "joined": "Joined",
     "placeholders": {
       "bio": "Tell us about yourself..."
-    }
+    },
+    "avatarAlt": "User avatar",
+    "aboutLabel": "About:"
   },
   "settings": {
     "title": "Settings",
@@ -2047,7 +2588,247 @@
       },
       "savedThemeNameHint": "e.g. Late night",
       "fluxDockBottom": "Bar at the bottom",
-      "fluxDockBottomDesc": "The server dock, the channel strip and your capsule run along the bottom of the window instead of the top; menus from the bar open upward. Needs the horizontal layout."
+      "fluxDockBottomDesc": "The server dock, the channel strip and your capsule run along the bottom of the window instead of the top; menus from the bar open upward. Needs the horizontal layout.",
+      "importExport": "Import and export",
+      "importExportHelp": "Export your theme as JSON or import a previously exported theme",
+      "exportTheme": "Export theme",
+      "importTheme": "Import theme",
+      "skins": {
+        "title": "Skins",
+        "description": "Skins go beyond colour switching - they bundle a theme, a font, and a set of CSS rules that change borders, corners, decorative overlays and more. Picking one overrides the matching settings above; you can still tweak colours afterwards. Pick \"None\" to clear the skin layer.",
+        "none": "None",
+        "noneDescription": "Use the raw theme + font you've set above.",
+        "decorations": "{skin} - decorations",
+        "sdr001": {
+          "description": "Noir cyberpunk after Snatcher: blood-red accents and slate-steel labels on blue-black night surfaces, pixel typography, square frames with hard drop shadows, pixel-art icons and an optional CRT scanline overlay. Pairs with the Neo Kobe sound pack. Toggle the decorations below.",
+          "options": {
+            "scanline": {
+              "label": "CRT scanlines",
+              "description": "Static horizontal-line overlay across the viewport. Off while blur effects are disabled."
+            },
+            "viewportFrame": {
+              "label": "Viewport edge frame",
+              "description": "Hairline red border pinned to the screen edges."
+            },
+            "hudBadge": {
+              "label": "SDR-001 HUD badge",
+              "description": "Small \"SDR-001\" tag in the top-right corner on wide screens."
+            },
+            "tacticalLabels": {
+              "label": "Tactical text labels",
+              "description": "Terminal readouts: \"//\" before channel categories, a cursor on the open channel, \"COMMS //\" on the voice dock, \"TRANSMISSION //\" on the voice overlay and bracketed status on the user bar."
+            },
+            "iconFlicker": {
+              "label": "Icon flicker and cursor blink",
+              "description": "Occasional CRT flicker on rail icons and a blinking channel cursor. Off when reduced motion is requested."
+            }
+          }
+        },
+        "skyglass": {
+          "description": "Glossy, airy and bright: frosted-glass panels floating over a sky of clouds, light rays and bubbles, or a painted meadow. Gel buttons, glass-orb servers and avatars, chat bubbles and springy menus. Switch the theme to dark for a night lagoon; primary and accent recolour the drawn sky. Pairs with the Skyglass sound pack of glass bells and water drops.",
+          "options": {
+            "sky": {
+              "label": "Sky scene",
+              "description": "Clouds, sun glow and light rays over the drawn sky, with the painted wallpaper off. Off leaves a plain gradient."
+            },
+            "wallpaper": {
+              "label": "Painted wallpaper",
+              "description": "A meadow of glossy grass, bubbles and light ribbons; an aurora lagoon in dark theme. Off draws the sky from the theme colours."
+            },
+            "bubbles": {
+              "label": "Bubbles",
+              "description": "Glossy bubbles floating in the backdrop."
+            },
+            "drift": {
+              "label": "Drifting bubbles",
+              "description": "Bubbles rise slowly. Keeps the GPU busy while glass blur is on; off when reduced motion is requested."
+            },
+            "gloss": {
+              "label": "Gel gloss",
+              "description": "Split highlights on buttons, badges, server orbs and avatars."
+            },
+            "chatBubbles": {
+              "label": "Chat bubbles",
+              "description": "Message text sits in glass bubbles instead of flat rows."
+            },
+            "uiSounds": {
+              "label": "Interface sounds",
+              "description": "A soft droplet on button and list clicks, from the active sound pack."
+            }
+          }
+        },
+        "lattice": {
+          "description": "Crystal-and-concrete AI console: floating framed panels on a dotted canvas, monospaced labels, inverted pill buttons, a centred conversation column with a holographic prompt bar, and one signal colour. Obsidian in dark mode, bone paper with black frames in light. Pairs with the Lattice sound pack of FM crystal pings and relay ticks.",
+          "options": {
+            "bento": {
+              "label": "Floating panels",
+              "description": "Rail, channels, header, chat and members as separate frames with gaps. Off joins them edge to edge."
+            },
+            "focusColumn": {
+              "label": "Centred conversation",
+              "description": "Messages and the prompt bar in a centred reading column on wide windows."
+            },
+            "prism": {
+              "label": "Holographic accents",
+              "description": "Iridescent glow on the canvas, the prompt bar edge, the active server and channel titles. Off is pure monochrome."
+            },
+            "marks": {
+              "label": "Registration marks",
+              "description": "Corner brackets on every frame and numbered channel categories."
+            },
+            "drift": {
+              "label": "Drifting glow",
+              "description": "The holographic glow moves slowly. Off when reduced motion is requested."
+            },
+            "uiSounds": {
+              "label": "Interface sounds",
+              "description": "A relay tick on button and list clicks, from the active sound pack."
+            }
+          }
+        },
+        "flux": {
+          "description": "Liquid glass and a new layout. Servers float in a glass dock across the top, channels run as a tab strip, the conversation sits in a centred column under a glass prompt, all over a drifting metaball field. Glass has thickness, rim light and colour fringing, and bends what is behind it where the browser allows. Takes your primary and accent colours. Pairs with the Flux sound pack of resonant liquid synth.",
+          "options": {
+            "dock": {
+              "label": "Horizontal layout",
+              "description": "Servers in a dock across the top, channels as a tab strip, the conversation in a centred column and you in a capsule at the top right. Windows narrower than 1024px keep the side-by-side layout. Reorder servers with this off."
+            },
+            "lens": {
+              "label": "Lens refraction",
+              "description": "Glass controls bend what is behind their rims. Chromium-based browsers and the Windows app only; elsewhere the glass keeps its rim light without the bend."
+            },
+            "liquid": {
+              "label": "Liquid field",
+              "description": "Metaballs drifting behind the glass. Off leaves a still aurora."
+            },
+            "drift": {
+              "label": "Living drift",
+              "description": "The field moves at 20 frames a second while the window is focused. Off, it holds still and draws only when something changes."
+            },
+            "orbits": {
+              "label": "Orbit rings",
+              "description": "Thin colour rings turning slowly behind the liquid."
+            },
+            "morph": {
+              "label": "Morphing shapes",
+              "description": "Servers and avatars melt into moving blobs under the pointer."
+            },
+            "uiSounds": {
+              "label": "Interface sounds",
+              "description": "A liquid blip on button and list clicks, from the active sound pack."
+            }
+          }
+        },
+        "paper": {
+          "description": "A paper desktop with 1-bit windows: newsprint desk, warm ink and the mascot blue. Dialogs and settings open as windows with a striped title bar and a square close box, the chat sits in a framed window, and every frame casts a hard ink shadow. A highlighter marks the open channel and your mentions, headings are a heavy condensed grotesque, labels and times are monospaced and code prints on a dark screen. Switch the theme to dark for pale frames on a dark desk.",
+          "options": {
+            "shadows": {
+              "label": "Ink shadows",
+              "description": "Hard offset shadows under windows, menus, buttons and server icons. Off leaves the ink frames flat on the desk."
+            },
+            "jelly": {
+              "label": "Jelly motion",
+              "description": "Buttons, reactions and server icons squash and settle when you point at them. Off when reduced motion is requested."
+            },
+            "grain": {
+              "label": "Paper grain",
+              "description": "Fine noise across the desk behind the windows."
+            },
+            "glyphs": {
+              "label": "Glyph wallpaper",
+              "description": "Faint monospaced chat text behind the messages, laid along the nodal lines of a vibrating plate. Static."
+            }
+          }
+        }
+      },
+      "typography": "Typography",
+      "font": "Font",
+      "fontDescription": "Choose the typeface used across the entire app. Custom fonts are lazy-loaded, so picking the default doesn't download any extras.",
+      "fontDefault": "Default (Figtree)",
+      "fontSample": "The quick brown fox 0123",
+      "emojiStyle": "Emoji style",
+      "emojiPack": "Emoji pack",
+      "emojiPackDescription": "Choose which emoji style to use throughout the app",
+      "effects": "Effects",
+      "glassEffects": "Enable blur & glass effects",
+      "glassEffectsDescription": "Many surfaces (modals, popovers, the voice dock, the sidebar) use {property} for a frosted-glass look. Turn off for a flat / sharper UI, or if your device struggles with blur in voice / video calls.",
+      "invalidCssColour": "Not a CSS colour: {value}",
+      "palette": {
+        "title": "Palette ideas",
+        "random": "Random palette",
+        "surprise": "Surprise me",
+        "fromImageTitle": "Build a palette from an image",
+        "fromImage": "From image",
+        "mood": "Palette mood",
+        "moods": {
+          "soft": "Soft",
+          "balanced": "Balanced",
+          "vivid": "Vivid",
+          "neon": "Neon"
+        },
+        "schemes": {
+          "mono": "Mono",
+          "analogous": "Analogous",
+          "complement": "Complement",
+          "split": "Split",
+          "triad": "Triad",
+          "dusk": "Dusk"
+        },
+        "cardTitle": "{scheme}: primary {primary}, accent {accent}",
+        "noOpaquePixels": "That image has no opaque pixels to sample.",
+        "imageReadFailed": "Could not read that image."
+      },
+      "presets": {
+        "harmonyTeal": {
+          "name": "Harmony Teal",
+          "description": "The signature Harmony look - fresh, modern, and inviting"
+        },
+        "emerald": {
+          "name": "Emerald",
+          "description": "Growth, balance, and natural harmony"
+        },
+        "coral": {
+          "name": "Coral",
+          "description": "Warm, energetic, and community-driven"
+        },
+        "violet": {
+          "name": "Violet",
+          "description": "Creative and distinctive with deep purple tones"
+        },
+        "rose": {
+          "name": "Rose",
+          "description": "Bold, warm, and community-focused"
+        },
+        "oceanBlue": {
+          "name": "Ocean Blue",
+          "description": "A deep ocean blue theme with cool tones"
+        },
+        "sakura": {
+          "name": "Sakura",
+          "description": "Cherry blossom inspired pink theme"
+        },
+        "forest": {
+          "name": "Forest",
+          "description": "Natural green forest tones"
+        },
+        "amber": {
+          "name": "Amber",
+          "description": "Warm amber and gold tones"
+        }
+      },
+      "variableGroups": {
+        "navigationRail": "Navigation Rail",
+        "brand": "Brand",
+        "primaryLayout": "Primary (Layout)",
+        "backgroundSurfaces": "Background Surfaces",
+        "text": "Text",
+        "icons": "Icons",
+        "status": "Status",
+        "semantic": "Semantic",
+        "borders": "Borders",
+        "alphaTransparency": "Alpha / Transparency",
+        "tooltipsOverlays": "Tooltips & Overlays"
+      }
     },
     "audio": {
       "title": "Sounds",
@@ -2087,7 +2868,156 @@
         "cacheStats": "{sounds} sounds cached, {themes} themes loaded",
         "exportSettings": "Export settings",
         "importSettings": "Import settings",
-        "resetDefaults": "Reset to defaults"
+        "resetDefaults": "Reset to defaults",
+        "cachedCount": "{size}/{max} cached",
+        "pickerLabel": "Audio theme",
+        "status": {
+          "ready": "Ready • {theme}",
+          "unknownTheme": "Unknown",
+          "loading": "Loading theme system...",
+          "preloading": "Preloading {theme}...",
+          "error": "System error detected",
+          "uninitialized": "Not initialized",
+          "unknown": "Unknown status"
+        },
+        "toasts": {
+          "changeFailed": {
+            "title": "Failed to Change Theme",
+            "message": "Could not switch to the selected audio theme"
+          },
+          "error": {
+            "title": "Theme Error",
+            "message": "Unknown error occurred"
+          },
+          "testDone": {
+            "title": "Audio Test",
+            "message": "Theme test completed"
+          },
+          "testFailed": {
+            "title": "Audio Test Failed",
+            "message": "Could not play test sound"
+          },
+          "preview": {
+            "title": "Theme Preview",
+            "message": "Testing {theme}"
+          },
+          "previewFailed": {
+            "title": "Test Failed",
+            "message": "Could not preview theme audio"
+          },
+          "cacheCleared": {
+            "title": "Cache Cleared",
+            "message": "Audio cache has been cleared successfully"
+          },
+          "cacheClearFailed": {
+            "title": "Clear Cache Failed",
+            "message": "Could not clear audio cache"
+          },
+          "exported": {
+            "title": "Settings Exported",
+            "message": "Audio theme settings have been downloaded"
+          },
+          "exportFailed": {
+            "title": "Export Failed",
+            "message": "Could not export theme settings"
+          },
+          "imported": {
+            "title": "Settings Imported",
+            "message": "Audio theme settings have been restored"
+          },
+          "importFailed": {
+            "title": "Import Failed",
+            "message": "Could not import theme settings. Please check the file format."
+          },
+          "reset": {
+            "title": "Settings Reset",
+            "message": "Audio theme settings have been reset to defaults"
+          },
+          "resetFailed": {
+            "title": "Reset Failed",
+            "message": "Could not reset theme settings"
+          }
+        },
+        "packs": {
+          "default": {
+            "name": "Default",
+            "description": "Clean and minimal sound effects for focused productivity"
+          },
+          "futuristic": {
+            "name": "Futuristic",
+            "description": "Futuristic audio cues for a modern and engaging experience"
+          },
+          "neokobe": {
+            "description": "Noir-cyberpunk UI sounds for the SDR-001 skin"
+          },
+          "skyglass": {
+            "description": "Glass bells, water drops and bubbles for the Skyglass skin"
+          },
+          "lattice": {
+            "description": "FM crystal pings, relay ticks and sweeps for the Lattice skin"
+          },
+          "flux": {
+            "description": "Resonant liquid synth, sub swells and glass sparkle for the Flux skin"
+          }
+        },
+        "errors": {
+          "init": "Unknown initialization error",
+          "switch": "Theme switch failed",
+          "preload": "Preload failed: {theme}",
+          "playback": "Audio playback failed: {action}",
+          "test": "Audio test failed: {action}",
+          "import": "Failed to import preferences",
+          "reset": "Failed to reset settings"
+        }
+      },
+      "page": {
+        "description": "Choose the sounds played for notifications, calls and interface actions.",
+        "testDescription": "Test how different actions will sound with your current theme",
+        "packsTitle": "Import & export theme packs",
+        "packsDescription": "Export a full audio theme (sounds + metadata) to share or backup. Import a pack to add it as a custom theme.",
+        "exporting": "Exporting...",
+        "exportPack": "Export pack",
+        "importPack": "Import pack",
+        "statusTitle": "Audio system status",
+        "statusDescription": "Current status of the audio theme system",
+        "status": {
+          "ready": "Ready",
+          "loading": "Loading",
+          "preloading": "Preloading",
+          "error": "Error",
+          "uninitialized": "Not initialized"
+        },
+        "clearCacheDescription": "Clear cached audio files to force reload of all sounds",
+        "soundsLoaded": "{size}/{max} sounds loaded",
+        "resetDescription": "Reset all audio settings to defaults",
+        "toast": {
+          "soundTest": "Sound test",
+          "played": "Played {sound}",
+          "soundTestFailed": "Sound test failed",
+          "testFailed": "Failed to test {sound}",
+          "cacheCleared": "Cache cleared",
+          "audioCacheCleared": "Audio cache cleared",
+          "cacheClearFailed": "Couldn't clear cache",
+          "audioCacheClearFailed": "Failed to clear audio cache",
+          "reset": "Audio reset",
+          "resetDone": "Audio settings restored to defaults",
+          "resetFailed": "Reset failed",
+          "resetFailedDetail": "Failed to reset audio system",
+          "themeChanged": "Theme changed",
+          "switchedTheme": "Switched to {theme} theme",
+          "packExported": "Pack exported",
+          "packExportedDetail": "Audio theme pack downloaded as ZIP",
+          "exportFailed": "Export failed",
+          "exportFailedDetail": "Could not export theme pack",
+          "fileTooLarge": "File too large",
+          "fileTooLargeDetail": "Pack must be under {size}",
+          "packImported": "Pack imported",
+          "packImportedDetail": "{theme} added as custom theme",
+          "importFailed": "Import failed",
+          "invalidPack": "Invalid audio pack format",
+          "initFailed": "Initialization failed",
+          "initFailedDetail": "Failed to initialize audio system"
+        }
       }
     },
     "voice": {
@@ -2169,7 +3099,24 @@
       "inputThreshold": "Threshold",
       "decibels": "{db} dB",
       "inputMeterHint": "The bar turns green while your microphone is sent.",
-      "inputMeterIdle": "Join a voice channel to see your level here."
+      "inputMeterIdle": "Join a voice channel to see your level here.",
+      "videoOption": {
+        "res360": "360p (Low)",
+        "res480": "480p (SD)",
+        "res720": "720p (HD)",
+        "res1080": "1080p (Full HD)",
+        "source": "Source (Native)",
+        "fps": "{n} FPS",
+        "fpsLow": "{n} FPS (Low)",
+        "fpsCinema": "{n} FPS (Cinema)",
+        "kbpsLow": "{n} kbps (Low)",
+        "kbpsVoice": "{n} kbps (Voice)",
+        "kbpsStandard": "{n} kbps (Standard)",
+        "kbpsHigh": "{n} kbps (High)"
+      },
+      "quality480": "480p (Standard)",
+      "quality720": "720p (HD)",
+      "quality1080": "1080p (Full HD)"
     },
     "notifications": {
       "title": "Notifications",
@@ -2452,6 +3399,38 @@
           "title": "Test notification",
           "message": "This is a test notification"
         }
+      },
+      "android": {
+        "title": "Push on this device",
+        "openSettings": "Open notification settings",
+        "allow": "Allow notifications",
+        "unavailable": "Push status is unavailable in this build. Notifications still appear while Harmony runs.",
+        "service": "Push service",
+        "noDistributor": "To receive push without Google services, install a UnifiedPush distributor such as ntfy, then pick it here.",
+        "sendTest": "Send test push",
+        "testSent": "Test push sent",
+        "testFailed": "Failed to send test push",
+        "off": "Off",
+        "auto": "Automatic",
+        "fcmThrough": "Google (FCM) through {host}",
+        "unifiedPushVia": "UnifiedPush via {name}",
+        "note": {
+          "notAllowed": "notifications are not allowed",
+          "chooseService": "pick a push service below",
+          "noService": "no push service is available",
+          "active": "active",
+          "registering": "registering"
+        },
+        "hint": {
+          "notInBuild": "Not included in this build",
+          "needsPlay": "Needs Google Play Services",
+          "googleRelayed": "Delivered through Google, relayed by {host}",
+          "notConfigured": "Not configured on this server",
+          "google": "Delivered through Google",
+          "auto": "A push service you picked, else Google, else a sole UnifiedPush app",
+          "ownService": "Delivered through your own push service",
+          "off": "Notifications only while Harmony runs"
+        }
       }
     },
     "announcements": {
@@ -2539,6 +3518,14 @@
           "name": "Exit / close",
           "description": "Leave full screen or focus view, close panels, then minimize the call view. Works with focus inside the call view."
         }
+      },
+      "mouse": {
+        "left": "Left Click",
+        "middle": "Middle Click",
+        "right": "Right Click",
+        "back": "Mouse {n} (Back)",
+        "forward": "Mouse {n} (Forward)",
+        "numbered": "Mouse {n}"
       }
     },
     "advanced": {
@@ -2550,7 +3537,41 @@
       "copyRawData": "Copy raw data",
       "reportBugSection": "Help",
       "reportBug": "Report a bug",
-      "reportBugDescription": "Open GitHub to report a bug or request a feature."
+      "reportBugDescription": "Open GitHub to report a bug or request a feature.",
+      "installApp": "Install app",
+      "installAppDescription": "Install Harmony as an app for faster loading and notifications. On desktop, use the install icon in your browser address bar if the button below is unavailable.",
+      "runOnLogin": "Start Harmony when you sign in",
+      "runOnLoginEnabled": "You've enabled this from {url}. Tap below for instructions if you ever need to change it.",
+      "runOnLoginAvailable": "{browser} can launch Harmony automatically every time you log into your computer.",
+      "runOnLoginChange": "Change",
+      "runOnLoginSetUp": "Set up",
+      "betaFeatures": "Beta features",
+      "todayDashboard": "Today dashboard",
+      "todayDashboardDescription": "A daily digest of channels with unread activity, threads you're part of, and trending posts. Adds a sun icon to the server sidebar.",
+      "aiSummaries": "On-device AI summaries",
+      "aiSummariesDescription": "Summarize the Today digest with your browser's built-in AI model (Chrome's Gemini Nano). Runs entirely on your device - nothing is sent to a server.",
+      "aiSummariesUnsupported": "Not supported by this browser.",
+      "desktopApp": "Desktop app",
+      "launchAtStartup": "Launch at startup",
+      "launchAtStartupDescription": "Start Harmony automatically when you log into your computer. It launches minimized to the tray.",
+      "launchAtStartupFailed": "Failed to update launch at startup",
+      "richPresence": "Game activity (rich presence)",
+      "richPresenceDescription": "Show the game you're playing as your status. Detection runs locally; only the game name is shared, as your status text.",
+      "gameOverlay": "In-game voice overlay",
+      "gameOverlayDescription": "Floating, click-through voice tiles over your game while in a call. Press Ctrl+Shift+O to toggle interaction.",
+      "developerSettings": "Developer settings",
+      "dataManagement": "Data management",
+      "clearCache": "Clear cache",
+      "clearCacheDescription": "Clears the service-worker caches, the in-memory emoji cache, and the locally cached background-image manifest. Your messages, identity keys and settings are preserved.",
+      "clearingCache": "Clearing...",
+      "cacheCleared": "Cleared {count} cache and reset the emoji cache | Cleared {count} caches and reset the emoji cache",
+      "clearCacheFailed": "Failed to clear cache",
+      "deleteAccount": "Delete account",
+      "deleteAccountTitle": "Delete your account?",
+      "deleteConfirmType": "Type {word} to confirm",
+      "deleting": "Deleting…",
+      "deleteForever": "Delete account forever",
+      "accountDeleted": "Your account has been deleted."
     },
     "buildInfo": {
       "status": "Service status",
@@ -2610,7 +3631,9 @@
       "unsavedChanges": "You have unsaved profile changes",
       "changesReset": "Profile changes reset",
       "handleCopied": "Handle copied",
-      "copyFailed": "Could not copy"
+      "copyFailed": "Could not copy",
+      "dateUnknown": "Unknown",
+      "emailNotProvided": "Not provided"
     },
     "dmPolicy": {
       "title": "Direct messages",
@@ -2620,6 +3643,20 @@
       "known": "Server members and people I follow",
       "following": "Only people I follow",
       "failed": "Could not save who can start a conversation with you"
+    },
+    "privacyPage": {
+      "description": "Control who can interact with you, manage your account security, and control how your data is used.",
+      "accountSecurity": "Account security",
+      "encryption": "Encryption settings",
+      "dataPrivacy": "Data & privacy",
+      "stripTrackers": "Strip tracking parameters from URLs",
+      "stripTrackersDescription": "Automatically remove tracking parameters (like ?si=...) from URLs in your messages for YouTube, X/Twitter, TikTok, Instagram, and Facebook.",
+      "blockedUsers": "Blocked users",
+      "mutedUsers": "Muted users",
+      "userUnblocked": "User unblocked",
+      "unblockFailed": "Failed to unblock user",
+      "userUnmuted": "User unmuted",
+      "unmuteFailed": "Failed to unmute user"
     }
   },
   "navigation": {
@@ -3180,7 +4217,26 @@
       "feedLabel": "Posts from {domain}"
     },
     "instanceStatusFilter": "Status",
-    "instanceSoftwareFilter": "Software"
+    "instanceSoftwareFilter": "Software",
+    "fediverseUser": "Fediverse user",
+    "userNotFound": "User not found",
+    "altBadge": "ALT",
+    "postInteractions": {
+      "invalidUser": "Invalid user ID",
+      "invalidPost": "Invalid post ID",
+      "unknown": "Unknown error"
+    },
+    "requestFailed": "Request failed",
+    "interactionErrors": {
+      "favorite": "Couldn't favorite the post",
+      "boost": "Couldn't boost the post",
+      "bookmark": "Couldn't bookmark the post"
+    },
+    "shareSheet": {
+      "title": "Harmony post",
+      "text": "Check out this post"
+    },
+    "mediaKindAlt": "{kind}: {alt}"
   },
   "moderation": {
     "reportAlert": {
@@ -3311,6 +4367,20 @@
       "moderators": "{server}'s moderators",
       "outcomeBy": "{server}'s moderators: {outcome}",
       "reviewedTitle": "{server}'s moderators reviewed your report"
+    },
+    "reportModal": {
+      "reportedMessage": "Reported message",
+      "reportedPost": "Reported post",
+      "whyReporting": "Why are you reporting this?",
+      "additionalDetails": "Additional details (optional)",
+      "detailsPlaceholder": "Provide any additional context...",
+      "submitting": "Submitting…",
+      "submitted": "Report submitted",
+      "thanks": "Thank you for helping keep the community safe. We'll review your report shortly.",
+      "hideMessage": "Hide this message",
+      "hidePost": "Hide this post",
+      "hideHint": "Remove it from your view",
+      "keepVisible": "Keep visible"
     }
   },
   "files": {
@@ -3348,7 +4418,18 @@
     "loadFailed": "Couldn't load {kind}",
     "tryDifferentSearch": "Try a different search term",
     "noFavoritesOf": "No favorite {kind} yet",
-    "noneFound": "No {kind} found"
+    "noneFound": "No {kind} found",
+    "results": "{kind} results",
+    "clip": "Clip",
+    "viaKlipy": "via KLIPY",
+    "adFrame": "Advertisement",
+    "kind": {
+      "stickers": "stickers",
+      "clips": "clips",
+      "memes": "memes",
+      "aiEmoji": "AI emoji",
+      "gifs": "GIFs"
+    }
   },
   "emoji": {
     "messageReactionLimit": "This message has {count} different reactions. Add to one of them.",
@@ -3375,7 +4456,35 @@
     "symbols": "Symbols",
     "flags": "Flags",
     "custom": "Custom",
-    "noResults": "No emoji found"
+    "noResults": "No emoji found",
+    "picker": {
+      "favorites": "Favorites",
+      "favoritesHint": "Right-click (or touch and hold) any emoji to add it here.",
+      "frequent": "Frequently used",
+      "loading": "Loading emojis...",
+      "favorite": "Favorite emoji",
+      "unfavorite": "Unfavorite emoji",
+      "copyId": "Copy emoji ID",
+      "removeFrequent": "Remove from frequently used",
+      "copiedImageLink": "Copied image link",
+      "addedFavorite": "Added :{name}: to favorites",
+      "removedFavorite": "Removed :{name}: from favorites",
+      "copied": "Copied :{name}:",
+      "removedFrequent": "Removed :{name}: from frequently used"
+    },
+    "reactionPicker": {
+      "title": "Choose a reaction",
+      "currentPack": "Current: {pack}",
+      "systemPack": "System",
+      "loading": "Loading emojis...",
+      "frequent": "Frequently used"
+    },
+    "groups": {
+      "mine": "My Emoji",
+      "instance": "{name} Emoji",
+      "instanceUnnamed": "Instance Emoji",
+      "ai": "AI Generated"
+    }
   },
   "emojiInfo": {
     "dialog": "Emoji",
@@ -3447,7 +4556,11 @@
       "socialHint": "Follows, likes and boosts from the fediverse show up here.",
       "unread": "Nothing unread",
       "unreadHint": "Read notifications stay under All."
-    }
+    },
+    "reactedToMessage": "{actor} reacted {emoji} to your message",
+    "reactedToPost": "{actor} reacted {emoji} to your post",
+    "followedYou": "{actor} followed you",
+    "requestedFollow": "{actor} requested to follow you"
   },
   "newcomerAlerts": {
     "notification": {
@@ -3544,7 +4657,10 @@
     "activityStarted": "{actor} started {app}.",
     "activityEnded": "{actor} started {app}: {players} players, {duration}.",
     "activityEndedAlone": "{actor} started {app}: {duration}.",
-    "activityFallback": "an activity"
+    "activityFallback": "an activity",
+    "legacyJoin": "Everyone welcome {name}!",
+    "legacyInvitedBy": "They were invited by {name}.",
+    "legacyLeave": "{name} has left the server."
   },
   "time": {
     "now": "now",
@@ -3614,12 +4730,7 @@
     "filesTooLargeSkipped": "{count} file(s) skipped: over 1MB size limit",
     "noValidImageFiles": "No valid image files selected",
     "cannotUploadEmojisLimit": "Cannot upload {count} emojis. Server limit is {max} emojis (currently {current})",
-    "emojisUploadedSuccess": "Uploaded {count} emoji{plural}",
-    "emojisFailedToUpload": "{count} emoji{plural} failed to upload",
     "failedToUploadEmojis": "Failed to upload emojis",
-    "confirmDeleteEmojis": "Are you sure you want to delete {count} emoji{plural}?",
-    "emojisDeletedSuccess": "Deleted {count} emoji{plural}",
-    "emojisFailedToDelete": "{count} emoji{plural} failed to delete",
     "failedToDeleteEmojis": "Failed to delete emojis",
     "emojiRenamedSuccess": "Emoji renamed to :{name}:",
     "failedToRenameEmoji": "Failed to rename emoji",
@@ -3701,10 +4812,15 @@
       "advertisedEmptyTitle": "No servers listed yet",
       "advertisedEmpty": "Servers whose owners list them across federation appear here. No instance this one knows lists one yet: browse another instance by its domain.",
       "hostedOn": "Hosted on {instance}",
-      "advertisedErrorTitle": "Couldn't read the known instances"
+      "advertisedErrorTitle": "Couldn't read the known instances",
+      "signInToJoin": "Sign in to join servers",
+      "joinFailed": "Couldn't join server. Try again.",
+      "profileFailed": "Couldn't load user profile"
     },
     "haveInviteLink": "Have an invite link? Paste it here",
     "inviteLink": "Invite link",
+    "serverRules": "Rules",
+    "rulesAgreeNote": "By joining, you agree to these rules.",
     "invitedBy": "Invited by",
     "expires": "Expires in",
     "remoteServer": "Remote server",
@@ -3838,13 +4954,15 @@
       "agree": "Agree and join"
     },
     "joined": "Joined {server}",
-    "joinFailed": "Could not join the server"
+    "joinFailed": "Could not join the server",
+    "acceptAs": "Accept as {name}"
   },
   "languages": {
     "en": "English",
     "es": "Español",
     "fr": "Français",
     "de": "Deutsch",
+    "nl": "Nederlands",
     "ja": "日本語",
     "ko": "한국어",
     "zh": "中文"
@@ -3865,7 +4983,10 @@
     "chatNotFound": "This chat or conversation doesn't exist or you don't have access to it.",
     "settingsNotFound": "This settings page doesn't exist.",
     "defaultNotFound": "The page you're looking for doesn't exist or has been moved.",
-    "requestedAddress": "Requested address"
+    "requestedAddress": "Requested address",
+    "serverTitle": "Server not found",
+    "serverNotFound": "The server you're looking for doesn't exist or you don't have access to it.",
+    "browseServers": "Browse servers"
   },
   "onboarding": {
     "title": "Set up your profile",
@@ -4418,6 +5539,17 @@
       "unlock": "This voice channel is end-to-end encrypted. Unlock encryption with your recovery key to join.",
       "dmSetup": "Calls in this conversation are end-to-end encrypted. Set up encryption to call or answer.",
       "dmUnlock": "Calls in this conversation are end-to-end encrypted. Unlock encryption with your recovery key to call or answer."
+    },
+    "dmStatus": {
+      "noKeys": "Encryption is on, but your keys are not set up",
+      "locked": "Encryption is on. Unlock it to read encrypted messages",
+      "setup": "Encryption is on. Set up your keys to take part"
+    },
+    "sendFallback": {
+      "notSent": "Encryption failed. The message was not sent.",
+      "sentUnencrypted": "Encryption failed. The message was sent unencrypted.",
+      "required": "This channel requires end-to-end encryption.",
+      "declined": "The message was not sent."
     }
   },
   "today": {
@@ -5173,7 +6305,22 @@
     "installDescription": "Faster loading and offline access",
     "install": "Install",
     "installing": "Installing…",
-    "dismiss": "Dismiss install prompt"
+    "dismiss": "Dismiss install prompt",
+    "update": {
+      "title": "Update available",
+      "body": "A new version of Harmony is ready to install",
+      "updating": "Updating...",
+      "now": "Update now"
+    },
+    "shareTitle": "Harmony - Secure Chat App",
+    "shareText": "Harmony is a secure, private chat app.",
+    "manualInstall": {
+      "ios": "Tap Share, then \"Add to Home Screen\".",
+      "android": "Use Chrome menu (⋮) → Install app, or Add to Home screen.",
+      "desktop": "Use the install icon in the address bar, or Chrome menu → \"Install Harmony...\"."
+    },
+    "installUnavailable": "Install is not available from this page right now. {hint}",
+    "installFailed": "Install was dismissed or could not start. {hint}"
   },
   "security": {
     "subtitle": "Your password, two-factor authentication and the devices signed in to your account.",
@@ -5505,7 +6652,27 @@
       "linkHint": "Sign in on the new device, then scan the code it shows.",
       "pendingPairing": "Waiting to be linked. Scan the code it shows.",
       "pendingPlain": "Signed in and unlocked your encrypted messages.",
-      "scanCode": "Scan code"
+      "scanCode": "Scan code",
+      "deny": "Deny",
+      "rename": "Rename",
+      "signedOut": "Signed out",
+      "showInactive": "Show {count} signed-out device | Show {count} signed-out devices",
+      "hideInactive": "Hide {count} signed-out device | Hide {count} signed-out devices",
+      "trust": {
+        "verified": "Verified",
+        "recovery": "History unlocked",
+        "account": "New messages only",
+        "untrusted": "Limited"
+      },
+      "platform": {
+        "web": "web",
+        "desktop": "desktop",
+        "mobile": "mobile",
+        "other": "device"
+      },
+      "lastActive": "{platform} · last active {time}",
+      "minutesAgo": "{count}m ago",
+      "hoursAgo": "{count}h ago"
     },
     "approval": {
       "pairingText": "That device is waiting for your encrypted messages. If it is yours and in front of you, scan the code it shows: keys go only to the device whose code you scan.",
@@ -5515,7 +6682,20 @@
       "plainText": "A new device signed in to your account and unlocked your encrypted messages itself; nothing is sent from here. If this wasn't you, secure your account.",
       "thatWasMe": "That was me",
       "staysSignedIn": "{device} stays signed in.",
-      "newDeviceFallback": "The new device"
+      "newDeviceFallback": "The new device",
+      "newLogin": "New login",
+      "newLoginOn": "New login on {device}",
+      "secureAccount": "No, secure my account",
+      "moreWaiting": "+{count} more login waiting | +{count} more logins waiting",
+      "waitingTitle": "Approve this login on another device",
+      "waitingText": "Open Harmony on a device where you're already signed in and tap {button} to unlock your encrypted message history here. New messages still work in the meantime.",
+      "notMeThisLogin": "This wasn't me",
+      "approveFailed": "Could not approve login",
+      "tryAgain": "Please try again.",
+      "secureFailed": "Could not secure account",
+      "signOutFailed": "Could not sign out",
+      "signOutFailedHint": "Please sign out manually from the user menu.",
+      "secureFailedHintPath": "Please try again from {settings} → {privacy}."
     },
     "settings": {
       "devicesDescription": "Devices signed in to your account. To give a new device your encrypted messages, link it: sign in there and scan the code it shows from a device that is already unlocked.",
@@ -5524,7 +6704,91 @@
       "pairingCopyTitle": "Keys kept for linking",
       "pairingCopyDescription": "This device keeps a readable copy of your encryption keys so it can link devices without the recovery phrase. Remove it and linking from here asks for the phrase again.",
       "pairingCopyRemoved": "Removed the copy of your keys from this device",
-      "pairingCopyRemoveFailed": "Could not remove the copy of your keys"
+      "pairingCopyRemoveFailed": "Could not remove the copy of your keys",
+      "loadingStatus": "Loading encryption status...",
+      "statusHeading": "Encryption status",
+      "statusDescription": "End-to-end encryption protects your messages so only you and your recipients can read them.",
+      "setUp": "Set up encryption",
+      "unlockHistory": "Unlock message history",
+      "recoveryKeyHeading": "Recovery key",
+      "recoveryKeyActive": "Recovery key active",
+      "recoveryKeyActiveDescription": "Your encryption keys are protected by a 12-word recovery phrase.",
+      "viewInfo": "View info",
+      "backupStored": "Encrypted backup stored on server",
+      "lastBackup": "Last backup: {time}",
+      "sessionKeys": "Session keys",
+      "activeRooms": "Active rooms",
+      "activeRoomsDescription": "Rooms where you can send encrypted messages",
+      "receivedKeys": "Received keys",
+      "receivedKeysDescription": "Keys received from other users",
+      "syncing": "Syncing...",
+      "syncKeys": "Sync keys",
+      "diagnostics": "Diagnostics",
+      "diagnosticsDescription": "Checks your identity keys, server backup and device trust in one pass.",
+      "checking": "Checking...",
+      "runDiagnosis": "Run diagnosis",
+      "devicesHeading": "Your devices",
+      "backupHeading": "Backup & recovery",
+      "createBackup": "Create backup now",
+      "createBackupDescription": "Manually trigger an encrypted backup to the server",
+      "backingUp": "Backing up...",
+      "backup": "Backup",
+      "exportFile": "Export backup file",
+      "exportFileDescription": "Download an encrypted backup file to store locally",
+      "export": "Export",
+      "importFile": "Import backup file",
+      "importFileDescription": "Restore from an exported backup file",
+      "import": "Import",
+      "importing": "Importing...",
+      "importModalText": "Select your encrypted backup file to restore your encryption keys.",
+      "backupFileLabel": "Backup file",
+      "recoveryHeading": "Recovery",
+      "restoreWithKey": "Restore with recovery key",
+      "restoreWithKeyDescription": "Have a recovery phrase? Enter it to restore your encryption",
+      "enterRecoveryKey": "Enter recovery key",
+      "reset": "Reset encryption",
+      "resetDescription": "Delete all encryption keys and start fresh. You will lose access to all encrypted messages.",
+      "infoTitle": "Recovery key information",
+      "infoStatus": "Status:",
+      "infoActive": "Active",
+      "infoWordCount": "Word Count:",
+      "infoWords": "{count} word | {count} words",
+      "infoVerificationCode": "Verification Code:",
+      "infoStorageHint": "Storage Hint:",
+      "infoNeverStored": "Your recovery key is never stored on the server. Only you have it.",
+      "infoLost": "If you've lost your recovery key, you should set up new encryption.",
+      "resetConfirmTitle": "Reset encryption?",
+      "resetConfirmText": "This will permanently delete all your encryption keys and backups.",
+      "resetConfirmWarning": "You will not be able to read any previously encrypted messages.",
+      "resetConfirmUndone": "This action cannot be undone.",
+      "resetting": "Resetting...",
+      "statusNotSetUp": "Encryption not set up",
+      "statusLocked": "Encryption locked",
+      "statusActive": "Encryption active",
+      "statusNotSetUpDescription": "Set up a recovery key to enable end-to-end encryption",
+      "statusLockedDescription": "Enter your recovery phrase, or approve this device from another one, to unlock your message history",
+      "statusActiveDescription": "Your messages are protected with end-to-end encryption",
+      "toast": {
+        "loadFailed": "Failed to load encryption settings",
+        "diagnosisFailed": "Diagnosis failed",
+        "backupWrongPhrase": "Your server key backup was created under a different recovery phrase and can't be opened with the current one. New messages are unaffected.",
+        "backupRestoreFailed": "Key backup restore failed: {error}",
+        "synced": "Synced {restored} backup sessions, {claimed} new session keys",
+        "nothingToSync": "No new keys to sync",
+        "syncFailed": "Failed to sync keys",
+        "backupCreated": "Backup created",
+        "backupFailed": "Failed to create backup",
+        "exported": "Backup file exported",
+        "exportFailed": "Failed to export backup",
+        "imported": "Imported {count} session | Imported {count} sessions",
+        "importFailed": "Failed to import backup",
+        "leftVoice": "Left the encrypted voice call (its keys were reset)",
+        "resetDone": "Encryption has been reset",
+        "resetFailed": "Failed to reset encryption",
+        "enabled": "Encryption enabled",
+        "restored": "Encryption restored",
+        "syncedKeys": "Synced {count} session key | Synced {count} session keys"
+      }
     },
     "recovery": {
       "anotherDevice": "Another device",
@@ -5534,7 +6798,25 @@
       "qrPasteLabel": "Or paste the QR code data",
       "pairingCodeScanned": "That is a device pairing code. Use the Another device tab.",
       "notRecoveryKey": "That QR code is not a Harmony recovery key",
-      "qrReadFailed": "Failed to read the QR code"
+      "qrReadFailed": "Failed to read the QR code",
+      "title": "Restore encryption",
+      "phraseTab": "Recovery phrase",
+      "phraseDescription": "Enter your 12-word recovery phrase to restore access to your encrypted messages.",
+      "wordPlaceholder": "Word {n}",
+      "verificationLabel": "Verification code (optional)",
+      "verificationPlaceholder": "6-character code",
+      "verificationHint": "If you saved a verification code, enter it here to confirm you have the correct phrase",
+      "restoring": "Restoring...",
+      "valid": "Valid recovery phrase",
+      "invalid": "Invalid recovery phrase. Check for typos.",
+      "validationFailed": "Validation failed",
+      "pastedPhrase": "Pasted 12-word recovery phrase",
+      "phrasePasted": "Recovery phrase pasted",
+      "wrongWordCount": "Expected 12 words, got {count}",
+      "clipboardFailed": "Failed to read clipboard",
+      "qrRead": "QR code read",
+      "codeMismatch": "Verification code does not match",
+      "restoreFailed": "Failed to restore encryption"
     },
     "recoverySetup": {
       "multiDevice": "Link a new device by scanning a QR code from this one; your recovery key is the fallback",
@@ -5543,11 +6825,95 @@
       "qrHint": "Anyone who sees this code can read your encrypted messages; don't screenshot it. To set up another device, link it instead: sign in there and scan the code it shows from this device.",
       "newDeviceLabel": "New device?",
       "newDeviceReminder": "{label} Sign in there and choose {another}, then scan its code from this device. Your messages unlock without typing the recovery key.",
-      "rememberNeed": "You'll need it if you lose access to all your signed-in devices or clear your browser data."
+      "rememberNeed": "You'll need it if you lose access to all your signed-in devices or clear your browser data.",
+      "title": "Set up message encryption",
+      "introText": "Your messages will be encrypted so only you and your recipients can read them. Not even Harmony's servers can access your message content.",
+      "featureRecoveryKey": "Recovery key",
+      "featureRecoveryKeyText": "A 12-word phrase that protects all your encryption keys",
+      "featureBackup": "Encrypted backup",
+      "featureBackupText": "Your keys are backed up to the server, encrypted with your recovery key",
+      "featureMultiDevice": "Multi-device",
+      "featureRecovery": "Recovery",
+      "featureRecoveryText": "If you clear your cache, just enter your recovery key to restore access",
+      "importantLabel": "Important:",
+      "importantWarning": "{label} Write down your recovery key and store it safely. If you lose it and your devices, you won't be able to read your encrypted messages.",
+      "keyHeading": "Your recovery key",
+      "keyInstruction": "Write down these 12 words in order. Store them somewhere safe - you'll need them to recover your encryption keys.",
+      "generating": "Generating your recovery key...",
+      "qrAlt": "Recovery key QR code",
+      "verificationCode": "Verification code: {code}",
+      "verificationCodeHint": "Save this code to verify you have the correct phrase later",
+      "verifyHeading": "Verify your recovery key",
+      "verifyInstruction": "To make sure you've saved your recovery key correctly, please enter the words at these positions:",
+      "wordLabel": "Word #{n}",
+      "wordPlaceholder": "Enter word {n}",
+      "verifyError": "Please verify all words correctly",
+      "doneHeading": "Encryption is set up",
+      "doneText": "Your end-to-end encryption is now active. Your messages will be encrypted and backed up securely to the server.",
+      "summaryHeading": "What's set up",
+      "summaryKey": "Recovery key generated and verified",
+      "summaryKeys": "Encryption keys created",
+      "summaryBackup": "Encrypted backup stored on the server",
+      "summaryReady": "Ready to send encrypted messages",
+      "rememberLabel": "Remember:",
+      "rememberKeep": "{label} Keep your 12-word recovery key safe.",
+      "processing": "Processing...",
+      "completeSetup": "Complete setup",
+      "steps": {
+        "intro": "Introduction",
+        "key": "Recovery Key",
+        "verify": "Verify",
+        "complete": "Complete"
+      },
+      "toast": {
+        "qrFailed": "Could not generate QR code",
+        "copied": "Recovery key copied",
+        "copyFailed": "Failed to copy to clipboard",
+        "downloaded": "Recovery key downloaded",
+        "generateFailed": "Failed to generate recovery key",
+        "setupFailed": "Failed to complete setup"
+      },
+      "file": {
+        "title": "Harmony Recovery Key",
+        "body": "Generated: {date}\n\nYour 12-word recovery phrase:\n{words}\n\nVerification Code: {code}\n\nIMPORTANT: Keep this file safe and private.\nAnyone with these words can access your encrypted messages."
+      }
     },
     "keyShareFailed": {
       "title": "Some members may not be able to read your message",
       "body": "The key to read it did not reach {count} member. Their app asks for it again when they open the message. | The key to read it did not reach {count} members. Their apps ask for it again when they open the message."
+    },
+    "diagnosticRows": {
+      "unlocked": "Encryption unlocked",
+      "profile": "Profile",
+      "identity": "Identity key",
+      "signing": "Signing key",
+      "backup": "Key backup",
+      "device": "Device trust",
+      "unlockedYes": "Keys are loaded in this session",
+      "unlockedNo": "Enter your recovery phrase to unlock",
+      "profileMissing": "Encryption service has no resolved profile id",
+      "identityUnpublished": "No published identity key - run encryption setup",
+      "identityNoLocal": "Published key exists but no local private key - unlock with your recovery phrase",
+      "identityMatch": "Local private key matches the published public key",
+      "identityMismatch": "Local key does NOT match the published key - re-unlock to repair",
+      "identityUnverified": "Pairing unverified (legacy record) - re-unlock to verify",
+      "signingPublished": "Message signing key published",
+      "signingMissing": "No signing key - minted automatically on next unlock",
+      "identityLookupFailed": "Lookup failed: {error}",
+      "backupNone": "No server backup yet - created automatically as you use encryption",
+      "backupLocked": "Backup exists ({count} session) - unlock to verify it | Backup exists ({count} sessions) - unlock to verify it",
+      "backupOk": "Backup decrypts with your current phrase ({count} session) | Backup decrypts with your current phrase ({count} sessions)",
+      "backupWrongPhrase": "Backup exists but does NOT decrypt with your current recovery phrase (created under an older phrase)",
+      "backupCheckFailed": "Backup check failed: {error}",
+      "deviceUnregistered": "This device is not registered yet",
+      "deviceRevoked": "This device was revoked",
+      "deviceTrust": "Trust level: {level}",
+      "deviceUnreadable": "Could not read device state"
+    },
+    "identityChanged": {
+      "title": "Security identity changed",
+      "message": "{name}'s encryption keys changed. This is normal if they reinstalled the app or signed in on a new device.",
+      "messageUnnamed": "A contact's encryption keys changed. This is normal if they reinstalled the app or signed in on a new device."
     }
   },
   "admin": {
@@ -5600,7 +6966,26 @@
         "reporter": "Reporter",
         "reported": "Reported user",
         "server": "Server"
-      }
+      },
+      "title": "Reports & moderation",
+      "pendingCount": "{count} pending",
+      "filters": {
+        "pending": "Pending",
+        "investigating": "Investigating",
+        "resolved": "Resolved",
+        "dismissed": "Dismissed",
+        "all": "All"
+      },
+      "reporterComment": "Reporter's comment",
+      "deletedSince": "Deleted since the report",
+      "sensitive": "Sensitive",
+      "contentWarning": "CW: {warning}",
+      "viewRemote": "View on remote instance",
+      "deleteMedia": "Delete media ({count})",
+      "deleteMediaTitle": "Delete media",
+      "deleteMediaMessage": "Delete {count} media file from storage? This cannot be undone. | Delete {count} media files from storage? This cannot be undone.",
+      "deleteMediaDone": "Deleted {count} media file | Deleted {count} media files",
+      "deleteMediaFailed": "Failed to delete media files"
     },
     "federation": {
       "limited": "Limited",
@@ -5618,7 +7003,78 @@
       "ignoreReportsConfirmBody": "Reports sent from {domain} are dropped from now on. Reports already received stay in the queue, and nothing changes for {domain} itself.",
       "reportsIgnoredToast": "Reports from {domain} are ignored",
       "reportsAcceptedToast": "Reports from {domain} are accepted again",
-      "reportsFailed": "Could not change how reports from this domain are handled"
+      "reportsFailed": "Could not change how reports from this domain are handled",
+      "title": "Federation management",
+      "addInstance": "Add instance",
+      "refresh": "Refresh",
+      "statTotal": "Total instances",
+      "statActive7d": "Active (7 days)",
+      "trusted": "Trusted",
+      "blocked": "Blocked",
+      "active": "Active",
+      "inactive": "Inactive",
+      "endpointHealth": "Endpoint health",
+      "successRate": "{rate}% success rate",
+      "totalEndpoints": "Total endpoints",
+      "deadEndpoints": "Dead endpoints",
+      "healthyEndpoints": "Healthy",
+      "failingEndpoints": "With failures",
+      "deadWarning": "{count} endpoint marked as dead and removed from follows | {count} endpoints marked as dead and removed from follows",
+      "purgeAll": "Purge all",
+      "endpointFailures": "{count} failure | {count} failures",
+      "lastFailure": "Last failure: {time}",
+      "removeEndpoint": "Remove this endpoint",
+      "maintenance": "Federation maintenance",
+      "keysOk": "All local users have valid key pairs",
+      "keysIssues": "Users missing keys: {missing}. With inconsistent state: {inconsistent}.",
+      "keySweepTitle": "Key generation sweep",
+      "keySweepDesc": "Generate missing RSA keys for local users who don't have them",
+      "runSweep": "Run sweep",
+      "orphanTitle": "Orphan cleanup",
+      "orphanDesc": "Fix users with inconsistent key states (public without private or vice versa)",
+      "runCleanup": "Run cleanup",
+      "scheduleNote": "Maintenance jobs run automatically: key sweep at 03:00 UTC, orphan cleanup at 04:00 UTC",
+      "directory": "Instance directory",
+      "filterAll": "All instances",
+      "searchPlaceholder": "Search instances…",
+      "loadingInstances": "Loading instances…",
+      "userCount": "{count} user | {count} users",
+      "postCount": "{count} post | {count} posts",
+      "lastSeen": "Last seen: {time}",
+      "refreshInstance": "Refresh instance info",
+      "markTrusted": "Mark as trusted",
+      "removeTrust": "Remove trust",
+      "blockInstance": "Block instance",
+      "unblockInstance": "Unblock instance",
+      "deleteInstance": "Delete instance",
+      "pageRange": "{from}-{to} of {total}",
+      "discovery": "Instance discovery",
+      "tabInteractions": "From interactions",
+      "tabSearch": "Search & add",
+      "interactionCount": "{count} interaction | {count} interactions",
+      "domainPlaceholder": "Enter domain (e.g., mastodon.social)",
+      "discovering": "Discovering…",
+      "federationEnabled": "Federation enabled",
+      "apiAvailable": "API available",
+      "detailSoftware": "Software:",
+      "detailDescription": "Description:",
+      "detailUsers": "Users:",
+      "detailPosts": "Posts:",
+      "detailAdmin": "Admin:",
+      "addAsTrusted": "Add as trusted instance",
+      "purgeConfirmTitle": "Purge dead endpoints",
+      "purgeConfirmBody": "Permanently remove {count} dead endpoint and its failed deliveries? This cannot be undone. | Permanently remove all {count} dead endpoints and their failed deliveries? This cannot be undone.",
+      "purgeConfirm": "Purge",
+      "refreshFailed": "Failed to refresh instance info",
+      "trustFailed": "Failed to update instance trust",
+      "blockConfirmBody": "Block this instance?",
+      "blockConfirm": "Block",
+      "blockFailed": "Failed to update instance block status",
+      "deleteConfirmBody": "Are you sure you want to delete this instance? This will remove all federation data.",
+      "deleteFailed": "Failed to delete instance",
+      "addFailed": "Failed to add instance",
+      "discoverFailed": "Failed to discover instance. Check if the domain is valid and supports ActivityPub.",
+      "instanceAdded": "Instance added"
     },
     "instance": {
       "mirrorStatusProgress": "Storing Discord files: {queued} waiting, {size} stored",
@@ -5660,7 +7116,126 @@
       "maxInstanceStickers": "Instance stickers",
       "maxInstanceStickersHint": "0 to 500. Every local account can send instance stickers. 0 turns them off.",
       "maxPersonalStickers": "Personal stickers per user",
-      "maxPersonalStickersHint": "0 to 100. 0, the default, turns personal stickers off."
+      "maxPersonalStickersHint": "0 to 100. 0, the default, turns personal stickers off.",
+      "title": "Configuration",
+      "tabGeneral": "General",
+      "tabFederation": "Federation",
+      "tabBranding": "Branding",
+      "tabAuth": "Authentication",
+      "chatSettings": "Chat settings",
+      "maxServerSize": "Max server size",
+      "maxServersPerUser": "Servers one account can own",
+      "maxServersPerUserHint": "Local servers, instance admins and moderators excepted. 0 = no limit. Default: 100.",
+      "maxBotsPerUser": "Bots one account can own",
+      "maxBotsPerUserHint": "Channel webhooks and linked Discord and Matrix bridges are not counted. 0 = no limit. Default: 25.",
+      "maxMessageLength": "Max message length",
+      "maxMediaAttachments": "Max media attachments per post/message",
+      "maxMediaAttachmentsHint": "Maximum images/videos/files per post or chat message. Default: 20.",
+      "allowFileUploads": "Allow file uploads",
+      "enableVoiceChannels": "Enable voice channels",
+      "bridgeAttachmentsTitle": "Bridge attachments",
+      "bridgeAttachmentsHint": "Instance-wide policy for bridged images/files from external platforms (Discord, etc.). Bot owners cannot override this.",
+      "attachmentHandling": "Attachment handling",
+      "attachmentModeLink": "Link only (external CDN URLs — may expire)",
+      "attachmentModeRefresh": "Refresh on demand (re-sign expired URLs when viewed; no extra disk)",
+      "attachmentModeMirror": "Mirror to storage (permanent; uses disk — grows with traffic)",
+      "attachmentMirrorWarning": "Warning: every bridged attachment is copied into {table}. Busy bridged channels can consume significant storage.",
+      "attachmentRefreshHint": "Requires the bot gateway. Expired Discord links are re-signed when someone views them (no disk use, no “edited” badge): by the bridge that posted them while it is connected, otherwise by this instance's Discord bot, which links people post on Harmony also need.",
+      "klipyTitle": "Media picker (Klipy)",
+      "klipyHint": "GIF/media search is proxied through the federation backend. API keys live in the backend environment ({ads} / {noads}), not here.",
+      "klipyAdsGroup": "Ads & attribution",
+      "gifAdsTitle": "GIF ads",
+      "gifAdsNoteLabel": "Note:",
+      "gifAdsNote": "{note} This setting only affects the mobile GIF picker. Desktop users never see ads. This is a limitation of KLIPY as an ad distributor.",
+      "gifAdsDesc": "Non-supporters see Klipy ads in the mobile GIF picker; ad-free supporters never do. Klipy only fills ads on mobile browsers (including installed PWAs) — desktop never receives ads per their API. When off, nobody sees ads. Also requires an ad-enabled Klipy key and ads enabled in the Klipy Partner Dashboard. Per-tier ad-free lives under Funding & Supporters.",
+      "klipyWatermarkTitle": "KLIPY watermark on sent media",
+      "klipyWatermarkDesc": "Adds a small KLIPY badge to shared GIFs/stickers. The “Search KLIPY” picker label is always shown (required attribution); this watermark is optional but recommended.",
+      "optionalCollections": "Optional collections",
+      "optionalCollectionsHint": "GIFs and Stickers are always available. Enabling these adds picker tabs and slash commands; when off they are hidden everywhere.",
+      "clipsTitle": "Clips",
+      "clipsDesc": "Short looping videos (with optional audio).",
+      "memesTitle": "Memes",
+      "memesDesc": "Klipy's meme collection.",
+      "aiEmojiBrowseTitle": "AI Emoji browse",
+      "aiEmojiBrowseDesc": "Browse Klipy's AI emoji. Picking one inserts it into the composer as an emoji (it is not hosted here — it behaves like a remote emoji and counts toward frequently-used).",
+      "aiEmojiGenGroup": "AI emoji generation",
+      "aiEmojiGenTitle": "Allow AI emoji generation",
+      "aiEmojiGenDesc": "Members generate their own custom emoji from a text prompt; these are hosted on this instance and appear in the emoji picker's “AI Generated” category. Klipy caps generation at 20 per day per instance (shared) plus a per-user daily limit.",
+      "trendingTitle": "Trending & discovery",
+      "trendingPosts": "Trending posts",
+      "refreshing": "Refreshing…",
+      "refreshTrending": "Refresh trending now",
+      "refreshTrendingHint": "Manually recalculate trending posts. Normally runs every 15 minutes.",
+      "federationSettings": "Federation settings",
+      "maxPostLength": "Max post length",
+      "retryAttempts": "Delivery retry attempts",
+      "maxCustomEmojis": "Max custom emojis per server",
+      "maxCustomEmojisHint": "Maximum custom emojis allowed per server. 0 = unlimited.",
+      "emojiQuality": "Custom emoji image quality",
+      "emojiQualityHint": "JPEG/WebP quality (20-100) for resized custom emoji images from storage. Default 80. Lower values reduce bandwidth at the cost of artifacts.",
+      "allowEmojiNames": "Allow custom emojis in display names",
+      "allowEmojiNamesHint": "When off, emojis won't display in names and users can't add them.",
+      "brandingTitle": "Instance branding",
+      "instanceName": "Instance name",
+      "namePlaceholder": "Harmony Instance",
+      "nameHint": "This name appears on the login/register page. Changes will be visible to all users.",
+      "instanceDescription": "Instance description",
+      "descriptionPlaceholder": "A federated social platform",
+      "descriptionHint": "This description appears as the subtitle on the login/register page.",
+      "instanceRules": "Instance rules",
+      "rulesPlaceholder": "One rule per line, e.g.\nBe respectful\nNo spam",
+      "rulesHint": "Shown once to users joining a server here, and to federated users joining via an invite link.",
+      "instanceIcon": "Instance icon",
+      "uploadIcon": "Upload icon",
+      "iconHint": "Your instance's logo. Shown to other federated instances and in the instances directory.",
+      "instanceBanner": "Instance banner",
+      "uploadBanner": "Click to upload banner",
+      "changeBanner": "Change banner",
+      "bannerHint": "A hero image for your instance. Shown in the instances directory and exposed via NodeInfo.",
+      "themeColor": "Theme color",
+      "themeColorHint": "Your instance's accent color. Exposed via NodeInfo for other instances to use.",
+      "defaultTheme": "Default theme for new users",
+      "defaultThemeHint": "Import a theme JSON file (exported from Appearance settings) to set as the default for new and non-signed-in users.",
+      "importTheme": "Import theme JSON",
+      "clearTheme": "Clear default theme",
+      "themeSet": "Default theme is set",
+      "legalTitle": "Legal & contact",
+      "termsUrl": "Terms of Service URL",
+      "termsHint": "Link to your Terms of Service. Shown on the registration page. Leave empty to hide.",
+      "privacyUrl": "Privacy Policy URL",
+      "privacyHint": "Link to your Privacy Policy. Shown on the registration page. Leave empty to hide.",
+      "maintainerName": "Maintainer name",
+      "maintainerNamePlaceholder": "Admin",
+      "maintainerNameHint": "Public contact name for this instance's administrator.",
+      "maintainerEmail": "Maintainer email",
+      "maintainerEmailHint": "Public contact email. Exposed via NodeInfo for federation transparency.",
+      "saving": "Saving…",
+      "saveBranding": "Save branding",
+      "webrtcTitle": "WebRTC / voice settings",
+      "webrtcMode": "WebRTC mode",
+      "modeHybrid": "Hybrid (SFU when configured, else P2P)",
+      "modeSfu": "SFU only (LiveKit)",
+      "modeP2p": "P2P only (peer-to-peer)",
+      "modeHint": "Hybrid uses the LiveKit server when one is configured and P2P otherwise. Every participant of a call uses the same transport.",
+      "livekitUrl": "LiveKit server URL",
+      "livekitUrlHint": "WebSocket URL for the LiveKit server (configured in backend .env)",
+      "maxStageListeners": "Max stage listeners",
+      "maxStageListenersHint": "Maximum audience size for stage events (speaker mode)",
+      "trendingRefreshed": "Trending posts refreshed",
+      "trendingRefreshFailed": "Failed to refresh trending posts",
+      "mustLogInConfig": "You must be logged in to save configuration",
+      "federationSaveFailed": "Failed to save federation settings",
+      "voiceSaveFailed": "Failed to save voice settings",
+      "configSaved": "Configuration saved",
+      "configSaveFailed": "Failed to save configuration",
+      "mustLogInBranding": "You must be logged in to save instance branding",
+      "brandingSaved": "Instance branding saved",
+      "brandingSaveFailed": "Failed to save instance branding",
+      "invalidThemeJson": "Invalid theme JSON file",
+      "themeImported": "Default theme imported and saved",
+      "themeParseFailed": "Failed to parse theme JSON file",
+      "themeCleared": "Default theme cleared",
+      "themeClearFailed": "Failed to clear default theme"
     },
     "signInProviders": {
       "title": "Sign-in providers",
@@ -5715,7 +7290,23 @@
         "maxPersonalEmojisPerUser": "Personal emojis per user",
         "maxStickersPerServer": "Stickers per server",
         "maxInstanceStickers": "Instance stickers",
-        "maxPersonalStickersPerUser": "Personal stickers per user"
+        "maxPersonalStickersPerUser": "Personal stickers per user",
+        "instanceName": "Instance name",
+        "instanceDescription": "Instance description",
+        "termsUrl": "Terms URL",
+        "privacyUrl": "Privacy URL",
+        "maxPostLength": "Max post length",
+        "maxServerSize": "Max server size",
+        "maxServersPerUser": "Servers per account",
+        "maxBotsPerUser": "Bots per account",
+        "driveInstanceLimit": "Drive storage across the instance",
+        "maxMessageLength": "Max message length",
+        "maxCustomEmojisPerServer": "Max custom emojis per server",
+        "customEmojiQuality": "Custom emoji image quality",
+        "allowFileUploads": "Allow file uploads",
+        "enableVoiceChannels": "Enable voice channels",
+        "federationRetryAttempts": "Federation retry attempts",
+        "oauthProviders": "OAuth providers"
       },
       "staff": {
         "someServer": "a server",
@@ -5744,6 +7335,26 @@
         "inviteEmailed": "Emailed an invitation to {email}",
         "inviteReissued": "Made a new invitation link for {email}",
         "inviteRevoked": "Revoked the invitation for {email}"
+      },
+      "title": "Recent activity",
+      "filter": {
+        "all": "All events",
+        "federation": "Federation",
+        "moderation": "Moderation",
+        "security": "Security"
+      },
+      "source": "Admin: {name}",
+      "emptyValue": "(empty)",
+      "event": "Event",
+      "configChanged": "{label}: {value} (was {old})",
+      "configSet": "{label}: {value}",
+      "userShort": "user {id}…",
+      "userId": "user: {id}",
+      "userAction": {
+        "suspended": "Suspended {who}",
+        "deleted": "Deleted {who}",
+        "unsuspended": "Unsuspended {who}",
+        "moderated": "Moderated {who}"
       }
     },
     "antiSpam": {
@@ -5787,7 +7398,7 @@
         "title": "Bots",
         "hint": "Requests per minute across all routes of one bot, on top of the per-route limit. A bot whose owner is exempt has no such ceiling. 0 = no limit.",
         "requestsPerMinute": "Requests per minute, per bot",
-        "bridgeRequestsPerMinute": "Requests per minute, per linked Discord bridge"
+        "bridgeRequestsPerMinute": "Requests per minute, per linked Discord or Matrix bridge"
       },
       "federation": {
         "title": "Federation mention spam",
@@ -6051,6 +7662,192 @@
           "waiting": "Waiting"
         }
       }
+    },
+    "performance": {
+      "title": "Performance Monitoring",
+      "subtitle": "Metrics and insights for your Harmony instance.",
+      "cronNote": "Overview, latency, and slow queries require a pg_cron job calling {fn} to populate data.",
+      "fullscreen": "Fullscreen",
+      "exitFullscreen": "Exit fullscreen",
+      "range": {
+        "lastHour": "Last hour",
+        "last6Hours": "Last 6 hours",
+        "last24Hours": "Last 24 hours",
+        "last7Days": "Last 7 days",
+        "lastMonth": "Last month",
+        "last3Months": "Last 3 months"
+      },
+      "refresh": "Refresh",
+      "refreshing": "Refreshing…",
+      "totalRequests": "Total Requests",
+      "avgResponseTime": "Avg Response Time",
+      "errorRate": "Error Rate",
+      "federationSuccess": "Federation Success",
+      "status": {
+        "excellent": "Excellent",
+        "good": "Good",
+        "slow": "Slow",
+        "healthy": "Healthy",
+        "elevated": "Elevated",
+        "critical": "Critical",
+        "degraded": "Degraded",
+        "issues": "Issues"
+      },
+      "latencyChart": "Request Latency Over Time",
+      "noChartData": "No data available for the selected time range",
+      "barTitle": "{label}: {value}ms",
+      "slowQueries": "Slow Queries",
+      "queryTable": "Table: {table}",
+      "queryRows": "Rows: {rows}",
+      "federationHealth": "Federation Health",
+      "unknownSoftware": "Unknown",
+      "statSuccess": "Success",
+      "statLatency": "Latency",
+      "lastSeen": "Last seen: {time}"
+    },
+    "announcements": {
+      "hint": "Instance-wide announcements shown to users. Create and manage them here.",
+      "newTitle": "New announcement",
+      "editTitle": "Edit announcement",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Announcement title",
+      "contentLabel": "Content (supports basic HTML)",
+      "contentPlaceholder": "Announcement content",
+      "iconLabel": "Icon (an emoji, or info, warning, megaphone, maintenance, update, security)",
+      "imageUrlLabel": "Image URL (optional)",
+      "startsAtLabel": "Starts at (optional)",
+      "startsAtHint": "Leave empty to publish immediately. Times are interpreted in your local timezone.",
+      "endsAtLabel": "Ends at (optional)",
+      "endsAtHint": "Leave empty for no expiration. After this time the announcement is hidden from users automatically.",
+      "pinned": "Pinned",
+      "showPopup": "Show popup",
+      "active": "Active",
+      "inactive": "Inactive",
+      "endBeforeStart": "The end time must be after the start time",
+      "updated": "Announcement updated",
+      "created": "Announcement created",
+      "saveFailed": "Failed to save announcement",
+      "deleteTitle": "Delete announcement",
+      "deleteMessage": "Delete this announcement?",
+      "deleted": "Announcement deleted",
+      "deleteFailed": "Failed to delete the announcement"
+    },
+    "featured": {
+      "title": "Featured communities",
+      "hint": "Pin public servers to the top of the community discovery page. Featured servers appear first.",
+      "loading": "Loading communities…",
+      "addTitle": "Add to featured",
+      "removeTitle": "Remove from featured",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "added": "Featured “{name}”",
+      "removed": "Removed “{name}” from featured",
+      "toggleFailed": "Failed to update featured status"
+    },
+    "panel": {
+      "title": "Instance control panel",
+      "moderationTitle": "Moderation",
+      "tabs": {
+        "overview": "Overview",
+        "federation": "Federation",
+        "users": "Users",
+        "reports": "Reports",
+        "content": "Content",
+        "config": "Config",
+        "funding": "Funding",
+        "tools": "Tools"
+      },
+      "overviewTitle": "System overview",
+      "healthTitle": "System health",
+      "performanceTitle": "Performance monitoring",
+      "approximate": "Approximate",
+      "approximately": "approximately",
+      "database": "Database",
+      "responseMs": "{ms}ms",
+      "connections": "{count} connection | {count} connections",
+      "federationQueue": "Federation queue",
+      "pendingDeliveries": "pending deliveries",
+      "databaseSize": "Database size",
+      "totalSize": "total size",
+      "stats": {
+        "users": "Total users",
+        "servers": "Chat servers",
+        "instances": "Federated instances",
+        "posts": "Total posts",
+        "newLast24h": "+{count} in the last 24 hours",
+        "activeLast30d": "{count} active in the last 30 days"
+      },
+      "updating": "Updating…",
+      "updated": "Updated {age}",
+      "statsUnavailable": "Statistics unavailable",
+      "allOperational": "All systems operational",
+      "unavailable": "Unavailable",
+      "healthy": "Healthy"
+    },
+    "users": {
+      "title": "User management",
+      "searchPlaceholder": "Search users…",
+      "searchLabel": "Search users",
+      "filterCount": "{label} ({count})",
+      "filters": {
+        "all": "All users",
+        "local": "Local",
+        "federated": "Federated",
+        "suspended": "Suspended"
+      },
+      "badgeAdmin": "Admin",
+      "badgeMod": "Mod",
+      "badgeForceSensitive": "F-Sensitive",
+      "forceSensitiveTitle": "All media from this user is force-marked sensitive",
+      "badgeSilenced": "Silenced",
+      "silencedTitle": "This user is silenced (hidden from public timelines)",
+      "joined": "Joined {date}",
+      "postCount": "{count} post | {count} posts",
+      "serverCount": "{count} server | {count} servers",
+      "federatedStat": "federated",
+      "makeModerator": "Make moderator",
+      "removeModerator": "Remove moderator",
+      "forceSensitive": "Force all media as sensitive",
+      "removeForceSensitive": "Remove force-sensitive",
+      "silence": "Silence (hide from public timelines)",
+      "removeSilence": "Remove silence",
+      "suspendUser": "Suspend user",
+      "unsuspendUser": "Unsuspend user",
+      "deleteUser": "Delete user",
+      "serversFor": "Servers for {name}",
+      "loadingServers": "Loading servers…",
+      "viewServer": "View server",
+      "moderatorStatus": "Moderator status",
+      "promoteConfirm": "Make {name} a moderator?",
+      "demoteConfirm": "Remove {name} as a moderator?",
+      "promoted": "{name} is now a moderator",
+      "demoted": "{name} is no longer a moderator",
+      "moderatorFailed": "Failed to update moderator status",
+      "suspend": "Suspend",
+      "unsuspend": "Unsuspend",
+      "suspendConfirm": "Suspend {name}?",
+      "suspended": "User {name} suspended",
+      "unsuspendConfirm": "Unsuspend {name}?",
+      "unsuspended": "User {name} unsuspended",
+      "deleteConfirm": "Delete {name}? This cannot be undone.",
+      "deleted": "User {name} deleted",
+      "forceSensitiveTitleDialog": "Force media sensitive",
+      "forceSensitiveConfirm": "Mark all media from {name} as sensitive?",
+      "forceSensitiveDone": "All future media from {name} will be marked sensitive",
+      "removeForceSensitiveConfirm": "Remove force-sensitive from {name}?",
+      "removeForceSensitiveDone": "Force-sensitive removed from {name}",
+      "silenceUser": "Silence user",
+      "silenceConfirm": "Hide {name} from public timelines?",
+      "silenceButton": "Silence",
+      "silenced": "User {name} silenced",
+      "removeSilenceConfirm": "Remove silence from {name}?",
+      "unsilenced": "User {name} unsilenced",
+      "actionFailed": "Action on {name} failed: {error}",
+      "unknownError": "Unknown error"
+    },
+    "format": {
+      "never": "Never",
+      "justNow": "Just now"
     }
   },
   "discordBridge": {
@@ -6922,14 +8719,22 @@
       "collapse": "Collapse folder",
       "expand": "Expand folder",
       "ungroup": "Ungroup folder",
-      "serverCount": "{count} server | {count} servers"
+      "serverCount": "{count} server | {count} servers",
+      "nameLabel": "Folder name",
+      "namePlaceholder": "Leave empty for no name",
+      "color": "Folder color",
+      "createFailed": "Failed to create folder",
+      "updateFailed": "Failed to update folder",
+      "deleteFailed": "Failed to delete folder"
     },
     "leave": {
       "confirm": "Leave \"{name}\"? You will lose access to all of its channels and messages.",
       "button": "Leave",
       "done": "Left server",
       "failed": "Couldn't leave the server"
-    }
+    },
+    "serverDeleted": "Server \"{name}\" has been deleted",
+    "serverDeletedUnnamed": "This server has been deleted"
   },
   "chatNav": {
     "channel": {
@@ -6984,7 +8789,19 @@
       "draftHint": "Send a message to start this thread",
       "loading": "Loading messages…",
       "loadingOlder": "Loading…",
-      "loadOlder": "Load older messages"
+      "loadOlder": "Load older messages",
+      "lockPrevent": "Lock thread (prevent new messages)",
+      "archive": "Archive thread",
+      "archiveNote": "Archived threads can still be viewed but won't appear in the active list.",
+      "lastReply": "Last reply {time}",
+      "view": "View Thread",
+      "sidebarHint": "Start a thread from any message!",
+      "messageCount": "{count} message | {count} messages",
+      "archived": "Archived",
+      "backToChannel": "Back to channel",
+      "channelFallback": "channel",
+      "renameMessage": "Rename this thread.",
+      "deleteConfirm": "Are you sure you want to delete \"{name}\"? This cannot be undone."
     },
     "header": {
       "pinnedCount": "{count} pinned message | {count} pinned messages",
@@ -7020,7 +8837,13 @@
       "dismissNamed": "Dismiss conversation with {name}",
       "restored": "Conversation with {name} restored",
       "restoreFailed": "Couldn't restore the conversation",
-      "joinCallWith": "Join call with {name}"
+      "joinCallWith": "Join call with {name}",
+      "groupNamesMore": "{names}, and {count} other | {names}, and {count} others",
+      "groupFallback": "Group chat ({count} member) | Group chat ({count} members)",
+      "ageMinutes": "{count}m",
+      "ageHours": "{count}h",
+      "ownPreview": "You: {text}",
+      "previewMessage": "Message"
     },
     "members": {
       "search": "Search members",
@@ -7078,7 +8901,17 @@
       "clips": "Clips",
       "memes": "Memes",
       "aiEmoji": "AI Emoji"
-    }
+    },
+    "voiceJoinFailed": "Could not join voice",
+    "deleteConfirm": {
+      "channelMessage": "Are you sure you want to delete #{name}?",
+      "channelDetail": "This action cannot be undone. All messages in this channel will be permanently deleted.",
+      "cannotUndo": "This action cannot be undone.",
+      "namedMessage": "Are you sure you want to delete \"{name}\"?",
+      "categoryChannels": "This category contains {count} channel. It will be moved to the top of the channel list (uncategorized). To also delete it, type \"{name} DELETE\" instead of just \"{name}\". | This category contains {count} channels. They will be moved to the top of the channel list (uncategorized). To also delete all channels, type \"{name} DELETE\" instead of just \"{name}\".",
+      "threadDetail": "This will permanently delete the thread and all its messages. This action cannot be undone."
+    },
+    "channelFallback": "Channel"
   },
   "embeds": {
     "popOut": "Pop out",
@@ -7106,14 +8939,30 @@
       "open": "Go to server",
       "joining": "Joining…",
       "invalid": "Invalid invite",
-      "loading": "Loading invite…"
+      "loading": "Loading invite…",
+      "loadFailed": "Failed to load invite details"
     },
     "remoteInvite": {
       "hostedOn": "Hosted on {instance}",
       "notFound": "Invite not found or has expired",
       "closedTitle": "Closed to other instances",
       "closedMessage": "Only people on {instance} can join this server."
-    }
+    },
+    "showContent": "Show content",
+    "hideContent": "Hide content",
+    "replies": "Replies",
+    "loadingHarmonyPost": "Loading Harmony post...",
+    "loadingFediversePost": "Loading fediverse post...",
+    "platformPost": "{platform} post",
+    "fediversePost": "Fediverse post",
+    "serverInvite": "Server invite",
+    "driveFile": "Drive file",
+    "linkPreview": "Link preview",
+    "postUnavailable": "Post unavailable",
+    "harmonyPostFailed": "Unable to load Harmony post",
+    "noFediverseData": "No fediverse data",
+    "remotePostFailed": "Could not load this post from the remote instance",
+    "postFailed": "Could not load this post"
   },
   "outsideLink": {
     "title": "Leaving Harmony",
@@ -7557,7 +9406,9 @@
     "position": "Playback position",
     "positionValue": "{current} of {total}",
     "speed": "Playback speed {speed}x",
-    "playFailed": "Couldn't play this voice message."
+    "playFailed": "Couldn't play this voice message.",
+    "remaining": "{time} left",
+    "record": "Record voice message"
   },
   "a11y": {
     "unreadNotifications": "{count} unread notification | {count} unread notifications",
@@ -8229,7 +10080,103 @@
         "pending": "Awaiting approval",
         "approved": "Shown",
         "hidden": "Hidden"
-      }
+      },
+      "fundingTitle": "Funding & supporters",
+      "saveChanges": "Save changes",
+      "goalTitle": "Funding goal",
+      "enableFunding": "Enable funding",
+      "showInBar": "Show in context bar",
+      "showProgress": "Show progress bar",
+      "goalAmount": "Goal amount",
+      "currency": "Currency",
+      "period": "Period",
+      "periodMonthly": "Monthly (resets each month)",
+      "periodAll": "All time",
+      "periodHint": "Total is computed from donation history; period controls which donations count.",
+      "description": "Description",
+      "descriptionPlaceholder": "What the funding is for…",
+      "thankYou": "Thank you message",
+      "thankYouPlaceholder": "Message shown to supporters",
+      "donationLinks": "Donation links",
+      "linkUrl": "Link URL",
+      "linkLabel": "Label (optional)",
+      "removeLink": "Remove link",
+      "platformPlaceholder": "Platform…",
+      "platformCustom": "Custom",
+      "kofiTitle": "Ko-fi webhook",
+      "automation": "Automation",
+      "kofiIntro": "Auto-record donations from Ko-fi. Requires a Ko-fi Gold subscription. Paste your verification token from {link} and set the webhook URL to:",
+      "kofiSettingsLink": "Ko-fi Settings → API",
+      "copyUrl": "Copy URL",
+      "kofiToken": "Verification token",
+      "kofiTokenPlaceholder": "Paste from Ko-fi Settings → API",
+      "showSecret": "Show",
+      "hideSecret": "Hide",
+      "autoAssignTier": "Auto-assign supporter tier based on donation amount",
+      "kofiHint": "Donors include their handle ({handle}) anywhere in their Ko-fi message - the webhook auto-attributes it and recomputes their tier based on cumulative cycle donations. Donations without a matched handle land in the {queue} queue below, and you (and instance moderators) get a notification.",
+      "stripeIntro": "Donations through a Stripe Payment Link are credited to the donor's account: Harmony opens the link with their account id, and Stripe reports the payment to this webhook. In the Stripe Dashboard, create a Payment Link (for any amount, choose {choice}; a recurring price makes a monthly donation) and add it under Donation links with the platform {platform}. Then, under {link}, add an endpoint with this URL:",
+      "webhookCopied": "Webhook URL copied",
+      "stripeEvents": "listening for {first}, {second} and {third}, and paste its signing secret here.",
+      "signingSecret": "Signing secret",
+      "stripeHint": "Payments from a Payment Link opened outside Harmony carry no account and land in the {queue} queue below, as do renewals of subscriptions started that way. Checkout payments that did not come from a Payment Link are ignored.",
+      "pendingTitle": "Pending donations",
+      "pendingHint": "Webhook donations that couldn't be auto-matched to a user. Search for the recipient or dismiss.",
+      "pendingFrom": "From:",
+      "pendingSearch": "Search user by username…",
+      "attribute": "Attribute",
+      "dismiss": "Dismiss",
+      "adFree": "Ad-free GIFs",
+      "adFreeTitle": "Supporters on this tier see no GIF ads",
+      "pickEmoji": "Pick emoji",
+      "tierMin": "Min: {amount}",
+      "editTier": "Edit tier",
+      "deleteTier": "Delete tier",
+      "tierName": "Tier name",
+      "minAmount": "Min amount",
+      "tierIcon": "Icon",
+      "badgeColor": "Badge color",
+      "activeSupporters": "Active supporters",
+      "noTier": "No tier",
+      "editSupporter": "Edit supporter",
+      "recordDonation": "Record donation",
+      "removeSupporter": "Remove supporter",
+      "addSupporterPlaceholder": "Username to add as supporter…",
+      "amount": "Amount",
+      "platform": "Platform",
+      "tier": "Tier",
+      "editSupporterFor": "Edit supporter: {name}",
+      "recordDonationFor": "Record donation for {name}",
+      "platformExample": "e.g. Patreon, Ko-fi",
+      "note": "Note",
+      "notePlaceholder": "Optional note…",
+      "record": "Record",
+      "historyTitle": "Donation history",
+      "totalDonated": "Total donated",
+      "donations": "Donations",
+      "uniqueDonors": "Unique donors",
+      "copyFailed": "Failed to copy",
+      "attributed": "Donation attributed",
+      "attributeFailed": "Failed to attribute donation",
+      "dismissTitle": "Dismiss donation",
+      "dismissMessage": "Dismiss this donation? It will not be attributed to any user.",
+      "dismissed": "Donation dismissed",
+      "dismissFailed": "Failed to dismiss the donation",
+      "saved": "Funding settings saved",
+      "saveFailed": "Failed to save funding settings",
+      "tierCreated": "Tier created",
+      "tierUpdated": "Tier updated",
+      "deleteTierMessage": "Delete this tier? Supporters on this tier will keep their status but lose the tier badge.",
+      "tierDeleted": "Tier deleted",
+      "userNotFound": "User not found",
+      "supporterAdded": "Supporter added",
+      "supporterUpdated": "Supporter updated",
+      "removeSupporterMessage": "Remove this supporter?",
+      "supporterRemoved": "Supporter removed",
+      "donationRecorded": "Donation recorded",
+      "donationUpdated": "Donation updated",
+      "deleteDonation": "Delete donation",
+      "deleteDonationMessage": "Delete this donation record?",
+      "donationDeleted": "Donation deleted"
     }
   },
   "driveAdmin": {
@@ -8651,6 +10598,24 @@
     "refusalMailHost": "Mail host",
     "refusalBlockedNetwork": "Refused address"
   },
+  "adminSignupProviders": {
+    "title": "New accounts through sign-in providers",
+    "intro": "Whom a first sign-in through each provider makes an account for. People who already have an account sign in either way.",
+    "follow": "Same as registration",
+    "open": "Anyone it signs in",
+    "domains": "Verified addresses at these domains",
+    "domainsLabel": "Email domains for {provider}",
+    "domainsHint": "One per line, such as myschool.edu. Subdomains count too. The provider has to report the address as verified.",
+    "publicOpen": "Anyone with a {provider} account can then create an account here.",
+    "switchOn": "The auth service still refuses every new account. On the server, run harmony registration so these settings apply.",
+    "save": "Save",
+    "saved": "Sign-up through providers saved",
+    "saveFailed": "Could not save the sign-up settings.",
+    "loadFailed": "Could not load the sign-in providers.",
+    "invalidDomain": "{domain} is not a domain name.",
+    "noDomains": "Add at least one domain for {provider}.",
+    "noneTab": "No sign-in provider is on. Built-in providers are set up under {tab}, the instance’s own with harmony auth add-provider."
+  },
   "adminSignupCaptcha": {
     "title": "Sign-up check",
     "intro": "A captcha asked only when a sign-up looks automated, so most people never see it. Sign-ups through Google, GitHub, Twitch or this instance's own sign-in providers are never asked.",
@@ -8707,6 +10672,8 @@
     "modeOpenHint": "Anyone can create an account on the sign-up page.",
     "modeClosed": "Registration: invite only.",
     "modeClosedHint": "The sign-up page creates no accounts; new people join with an invitation.",
+    "modeShut": "Registration: closed.",
+    "modeShutHint": "The sign-up page creates no accounts. Invitations still work.",
     "modeUnknown": "Registration: unknown.",
     "modeUnknownHint": "The auth service did not say whether sign-up is on.",
     "advertisedOpen": "Other servers are told registration is open (instance setting open_registration).",
@@ -9258,5 +11225,255 @@
     "saved": "ICE servers saved",
     "saveFailed": "The ICE servers could not be saved.",
     "loadFailed": "The ICE servers could not be loaded."
+  },
+  "pushPrompt": {
+    "title": "Enable push notifications",
+    "body": "Get notified of new messages even when Harmony is closed",
+    "enabling": "Enabling...",
+    "enable": "Enable"
+  },
+  "runOnLogin": {
+    "prompt": {
+      "title": "Launch Harmony at sign in?",
+      "body": "{browser} can start Harmony automatically when you log into your computer.",
+      "showHow": "Show me how"
+    },
+    "modal": {
+      "title": "Start Harmony when you sign in",
+      "subtitle": "{browser} can launch Harmony automatically every time you log into your computer.",
+      "step1": "Open the apps page",
+      "step1Hint": "Paste it into a new browser tab. The link can't be opened directly from inside the app for security reasons.",
+      "step2": "Right-click Harmony, then choose {option}",
+      "menuOpen": "Open",
+      "menuOpenWindow": "Open in window",
+      "menuStartApp": "Start app when you sign in",
+      "menuShortcuts": "Create shortcuts...",
+      "menuRemove": "Remove from {browser}",
+      "step3": "That's it - Harmony will launch the next time you sign in to your computer.",
+      "footnote": "Available in {browser} 91+ on Windows, macOS, Linux and ChromeOS. You can change it any time from {url}.",
+      "enabled": "I enabled it",
+      "copyFailed": "Couldn't copy. Type {url} into a new browser tab.",
+      "saved": "Saved. Harmony will start when you sign in."
+    }
+  },
+  "profileModal": {
+    "sendServerInvite": "Send server invite",
+    "kickFromServer": "Kick from server",
+    "banFromServer": "Ban from server",
+    "viewAllPosts": "View all posts",
+    "viewFollowing": "View following",
+    "viewFollowers": "View followers",
+    "federationInfo": "Federation info",
+    "instanceLabel": "Instance:",
+    "profileUrlLabel": "Profile URL:",
+    "viewOn": "View on {domain}",
+    "lastActiveLabel": "Last active:",
+    "about": "About",
+    "profileFields": "Profile fields",
+    "fieldVerified": "Verified",
+    "activity": "Activity",
+    "messages": "Messages",
+    "voiceTime": "Voice time",
+    "interactions": "Interactions",
+    "chooseServer": "Choose a server:",
+    "activeNow": "Active in the last hour",
+    "activeToday": "Active today",
+    "activeRecently": "Active in the last 3 days",
+    "unknownUser": "Unknown user"
+  },
+  "instanceDetail": {
+    "trusted": "Trusted",
+    "blocked": "Blocked",
+    "statistics": "Instance statistics",
+    "users": "Users",
+    "connections": "Connections",
+    "about": "About this instance",
+    "descriptionLabel": "Description:",
+    "adminContactLabel": "Admin contact:",
+    "typeLabel": "Instance type:",
+    "firstDiscoveredLabel": "First discovered:",
+    "federationStatus": "Federation status",
+    "federationEnabled": "Federation enabled",
+    "trustedInstance": "Trusted instance",
+    "standardInstance": "Standard instance",
+    "recentPosts": "Recent posts",
+    "loadingPosts": "Loading posts...",
+    "visitInstance": "Visit instance",
+    "copyUrl": "Copy URL",
+    "viewAllPosts": "View all posts",
+    "noActivity": "No activity recorded",
+    "activeToday": "Active today",
+    "activeThisWeek": "Active this week",
+    "lastActive": "Last active {time}",
+    "typeNamed": "{name} instance",
+    "typeActivityPub": "ActivityPub instance",
+    "minutesAgo": "{minutes}m ago",
+    "yearsAgo": "{years}y ago"
+  },
+  "searchInput": {
+    "placeholder": "Search..."
+  },
+  "platformIcon": {
+    "donate": "Donate"
+  },
+  "codeBlock": {
+    "copyCode": "Copy code"
+  },
+  "autoSuggest": {
+    "headers": {
+      "serverMembers": "Server Members",
+      "users": "Users"
+    },
+    "commands": {
+      "kick": "Kick a member from the server",
+      "ban": "Ban a member from the server",
+      "gif": "Search KLIPY for a GIF",
+      "sticker": "Search KLIPY for a sticker",
+      "clip": "Search KLIPY for a Clip",
+      "meme": "Search KLIPY for a meme",
+      "aiemoji": "Search KLIPY for an AI emoji",
+      "rolemenu": "Post a menu members pick their roles from"
+    }
+  },
+  "notificationText": {
+    "dm": {
+      "addedTo": " added you to {name}",
+      "addedToUnnamed": " added you to a conversation",
+      "calling": " is calling you",
+      "sentMessage": " sent you a message",
+      "short": "DM from {name}",
+      "shortInvite": "Invited by {name}"
+    },
+    "mention": {
+      "action": " mentioned you in #{channel}",
+      "actionNoChannel": " mentioned you",
+      "short": "Mention in #{channel}",
+      "shortNoChannel": "New mention"
+    },
+    "reply": {
+      "action": " replied to your message in #{channel}",
+      "actionNoChannel": " replied to your message",
+      "short": "Reply in #{channel}",
+      "shortNoChannel": "New reply",
+      "noPreview": "Click to view reply"
+    },
+    "threadReply": {
+      "action": " replied in a thread in #{channel}",
+      "actionNoChannel": " replied in a thread",
+      "short": "Thread reply in #{channel}",
+      "shortNoChannel": "Thread reply",
+      "noPreview": "Click to view thread"
+    },
+    "call": {
+      "started": " started a call",
+      "incomingOpen": "📞 Incoming call — click to open",
+      "incomingJoin": "📞 Incoming call — click to join",
+      "shortFrom": "Call from {name}"
+    },
+    "chatMessage": {
+      "short": "Message from {name}"
+    },
+    "reaction": {
+      "action": " reacted to your message",
+      "short": "Reaction"
+    },
+    "acceptOrDecline": "Click to accept or decline",
+    "serverInvite": {
+      "title": "{inviter} invited you to join {server}",
+      "short": "Server invite"
+    },
+    "followRequest": {
+      "title": "{name} wants to follow you",
+      "message": "{handle} sent you a follow request",
+      "short": "Follow request"
+    },
+    "voiceActivity": {
+      "title": "Voice activity in {channel}",
+      "message": "Someone joined the voice channel",
+      "short": "Voice activity"
+    },
+    "serverUpdate": {
+      "title": "Server update",
+      "message": "Server has been updated"
+    },
+    "emojiAdded": {
+      "title": "New emoji added: {name}",
+      "message": "{name} is now available in {server}",
+      "short": "New emoji"
+    },
+    "apFollow": {
+      "title": "{name} ({handle}) started following you",
+      "message": "{handle} is now following you",
+      "short": "New follower"
+    },
+    "apFavorite": {
+      "action": " favorited your post",
+      "short": "Post favorited"
+    },
+    "apReblog": {
+      "action": " reblogged your post",
+      "short": "Post reblogged"
+    },
+    "viewPost": "Click to see the post",
+    "apMention": {
+      "noPreview": "Click to see the mention",
+      "short": "Federated mention"
+    },
+    "apReply": {
+      "action": " replied to your post",
+      "noPreview": "Click to see the reply",
+      "short": "New reply"
+    },
+    "apReaction": {
+      "action": " reacted to your post",
+      "noPreview": "Click to view post"
+    },
+    "followAccepted": {
+      "action": " accepted your follow request",
+      "message": "You are now following {handle}",
+      "messageNoHandle": "You are now following them",
+      "short": "Request accepted"
+    },
+    "reportUpdate": {
+      "investigatingTitle": "Your report is being reviewed",
+      "resolvedTitle": "Your report has been resolved",
+      "dismissedTitle": "Your report has been reviewed",
+      "updatedTitle": "Report status updated",
+      "investigatingMessage": "Moderators are looking into your report.",
+      "resolvedMessage": "Your report has been resolved.",
+      "dismissedMessage": "Your report has been dismissed.",
+      "updatedMessage": "Your report has been updated.",
+      "withNote": "{message} Note: {note}",
+      "short": "Report update"
+    },
+    "donation": {
+      "title": "New {platform} donation needs review",
+      "titleNoPlatform": "New donation needs review",
+      "message": "{amount} couldn't be matched to a user - open the admin panel to attribute it.",
+      "messageFrom": "{amount} from {donor} couldn't be matched to a user - open the admin panel to attribute it.",
+      "short": "Donation needs review"
+    },
+    "fallback": {
+      "title": "New notification",
+      "message": "You have a new notification",
+      "short": "Notification",
+      "viewDetails": "Click to view details"
+    },
+    "staffSender": "Admin/Moderator",
+    "unknownSender": "Unknown",
+    "toast": {
+      "loadFailed": "Failed to load notifications",
+      "refreshPage": "Please refresh the page",
+      "processFailed": "A notification was received but could not be processed properly",
+      "deleteFailed": "Failed to delete notification",
+      "clearFailed": "Failed to clear notifications",
+      "markReadFailed": "Couldn't mark notifications as read"
+    },
+    "native": {
+      "reaction": "Reacted to your message",
+      "apReaction": "Reacted to your post",
+      "apFavorite": "Favorited your post",
+      "apReblog": "Reblogged your post"
+    }
   }
 }

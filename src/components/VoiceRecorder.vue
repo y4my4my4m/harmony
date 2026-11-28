@@ -2,7 +2,7 @@
   <div class="voice-recorder" :class="{ recording: isRecording }">
     <Transition name="recorder-fade">
       <div v-if="isRecording" class="recorder-active">
-        <button class="recorder-btn cancel-btn" @click="cancel" title="Cancel">
+        <button class="recorder-btn cancel-btn" @click="cancel" :title="t('common.cancel')">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -13,7 +13,7 @@
           <div class="recording-indicator">
             <span class="rec-dot" :class="{ 'near-limit': nearLimit }" />
             <span class="rec-timer" :class="{ 'near-limit': nearLimit }">{{ formattedDuration }}</span>
-            <span v-if="nearLimit" class="rec-limit-warn">{{ formattedRemaining }} left</span>
+            <span v-if="nearLimit" class="rec-limit-warn">{{ t('voiceMessage.remaining', { time: formattedRemaining }) }}</span>
           </div>
           <div class="waveform-bars">
             <div
@@ -25,7 +25,7 @@
           </div>
         </div>
 
-        <button class="recorder-btn send-btn" @click="send" title="Send">
+        <button class="recorder-btn send-btn" @click="send" :title="t('common.send')">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
           </svg>
@@ -39,7 +39,7 @@
       :class="{ disabled: disabled }"
       @click="startRecording"
       :disabled="disabled"
-      title="Record voice message"
+      :title="t('voiceMessage.record')"
     >
       <!-- Filled capsule on a 2px stand, about 15x20 overall: beside the 23x17 GIF pill and the
            23px emoji face the mic reads as one weight; 17x22 read as the largest of the three. -->
@@ -55,6 +55,9 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useVoiceRecording, type VoiceRecordingResult } from '@/services/voiceRecordingService'
 import { debug } from '@/utils/debug'
+import { useT } from '@/composables/useT'
+
+const { t } = useT()
 
 interface Props {
   disabled?: boolean

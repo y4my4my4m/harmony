@@ -11,6 +11,7 @@
 
 import { ref, computed } from 'vue'
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 import { userStorage } from '@/utils/userScopedStorage'
 import { 
   EMOJI_CATEGORIES, 
@@ -91,7 +92,7 @@ const twemojiPack: EmojiPack = {
 // Native Unicode emoji pack (built-in)
 const nativeUnicodePack: EmojiPack = {
   id: 'native',
-  name: 'System',
+  get name() { return i18n.global.t('emoji.reactionPicker.systemPack') },
   description: 'System default Unicode emojis',
   basePath: '',
   format: 'svg',

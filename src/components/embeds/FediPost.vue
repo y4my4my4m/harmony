@@ -41,7 +41,7 @@
         <span>{{ fediverse.contentWarning }}</span>
       </div>
       <button class="fedi-post__cw-toggle" @click="showContent = !showContent">
-        {{ showContent ? 'Hide' : 'Show' }} content
+        {{ showContent ? t('embeds.hideContent') : t('embeds.showContent') }}
       </button>
     </div>
 
@@ -66,20 +66,20 @@
 
     <div class="fedi-post__footer">
       <div v-if="hasStats" class="fedi-post__stats">
-        <span v-if="fediverse.stats?.replies != null" class="fedi-post__stat" title="Replies">
+        <span v-if="fediverse.stats?.replies != null" :title="t('embeds.replies')" class="fedi-post__stat">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
           {{ formatCount(fediverse.stats.replies) }}
         </span>
-        <span v-if="fediverse.stats?.reblogs != null" class="fedi-post__stat" title="Boosts">
+        <span v-if="fediverse.stats?.reblogs != null" :title="t('activitypub.interactionsList.boosts')" class="fedi-post__stat">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
             <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
           </svg>
           {{ formatCount(fediverse.stats.reblogs) }}
         </span>
-        <span v-if="fediverse.stats?.favourites != null" class="fedi-post__stat" title="Favourites">
+        <span v-if="fediverse.stats?.favourites != null" :title="t('activitypub.interactionsList.favorites')" class="fedi-post__stat">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
           </svg>
@@ -87,7 +87,7 @@
         </span>
       </div>
       <a :href="safeHref(fediverse.postUrl)" target="_blank" rel="noopener noreferrer" class="fedi-post__view-link">
-        View on {{ sourceDomain }}
+        {{ sourceDomain ? t('activitypub.viewOnDomain', { domain: sourceDomain }) : t('activitypub.viewOriginalPost') }}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
           <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
@@ -102,7 +102,8 @@ import { safeHref } from '@/utils/sanitize';
 import Icon from '@/components/common/Icon.vue';
 import { softwareDisplayName } from '@/utils/fediverseSoftware';
 import { computed, ref } from 'vue';
-import { formatDistanceToNow, format } from 'date-fns';
+import { useI18n } from 'vue-i18n';
+import { formatFullDateTime, formatSpokenRelativeTime } from '@/utils/shortRelativeTime';
 import DOMPurify from 'dompurify';
 import type { FediverseEmbedSummary } from '@/types';
 
@@ -110,6 +111,7 @@ const props = defineProps<{
   fediverse: FediverseEmbedSummary;
 }>();
 
+const { t, locale } = useI18n();
 const showContent = ref(false);
 
 const sanitizedContent = computed(() => {
@@ -130,14 +132,14 @@ const sourceDomain = computed(() => {
   try {
     return new URL(props.fediverse.postUrl).hostname;
   } catch {
-    return 'source';
+    return '';
   }
 });
 
 const relativeTime = computed(() => {
   if (!props.fediverse.published) return '';
   try {
-    return formatDistanceToNow(new Date(props.fediverse.published), { addSuffix: true });
+    return formatSpokenRelativeTime(props.fediverse.published, { locale: locale.value });
   } catch {
     return '';
   }
@@ -146,7 +148,7 @@ const relativeTime = computed(() => {
 const fullDate = computed(() => {
   if (!props.fediverse.published) return '';
   try {
-    return format(new Date(props.fediverse.published), 'PPP p');
+    return formatFullDateTime(props.fediverse.published, locale.value) || props.fediverse.published;
   } catch {
     return props.fediverse.published;
   }
@@ -158,13 +160,11 @@ const hasStats = computed(() => {
 });
 
 function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
+  return new Intl.NumberFormat(locale.value, { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 }
 
 
-const platformLabel = computed(() => softwareDisplayName(props.fediverse.platform) || 'Fediverse');
+const platformLabel = computed(() => softwareDisplayName(props.fediverse.platform) || t('a11y.rail.fediverse'));
 </script>
 
 <style scoped>

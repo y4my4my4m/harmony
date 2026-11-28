@@ -38,6 +38,9 @@ export const CAPABILITIES = [
   // Sign-up captcha: the signup_captcha_* keys of instance_config and signup_captcha_counts, read by
   // before_user_created_hook, and its 428 answer (20261111100001).
   'signup-captcha',
+  // Registration per sign-in method: instance_config.registration_policy and signup_providers,
+  // read by before_user_created_hook, and signup_invite_pass (20261126500001).
+  'signup-methods',
   // leave_thread and thread_departures (20261110300001).
   'thread-departures',
   // Invite widgets for websites: GET /widget/invite/:code and its badge.svg.

@@ -8,19 +8,19 @@
           </svg>
         </div>
         <div class="banner-text">
-          <h3>Enable push notifications</h3>
-          <p>Get notified of new messages even when Harmony is closed</p>
+          <h3>{{ t('pushPrompt.title') }}</h3>
+          <p>{{ t('pushPrompt.body') }}</p>
         </div>
         <div class="banner-actions">
           <button @click="dismissBanner" class="banner-btn secondary">
-            Not now
+            {{ t('activities.notNow') }}
           </button>
           <button @click="enablePush" class="banner-btn primary" :disabled="enabling">
-            <span v-if="enabling">Enabling...</span>
-            <span v-else>Enable</span>
+            <span v-if="enabling">{{ t('pushPrompt.enabling') }}</span>
+            <span v-else>{{ t('pushPrompt.enable') }}</span>
           </button>
         </div>
-        <button @click="closeBanner" class="close-btn" aria-label="Close">
+        <button @click="closeBanner" :aria-label="t('common.close')" class="close-btn">
           <svg viewBox="0 0 24 24" width="18" height="18">
             <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
           </svg>
@@ -38,6 +38,9 @@ import { isPWA, isMobileUserAgent } from '@/utils/pwaUtils'
 import { supportsWebPush } from '@/utils/platform'
 import { useAuthStore } from '@/stores/auth'
 import { isAndroidApp } from '@/services/androidPush'
+import { useT } from '@/composables/useT'
+
+const { t } = useT()
 
 const authStore = useAuthStore()
 const showBanner = ref(false)

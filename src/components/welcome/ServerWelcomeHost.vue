@@ -44,13 +44,12 @@ const action = computed<'accept' | 'ok'>(() => {
   return w.require_acceptance && w.is_member && !w.can_manage && !w.rules_accepted_at ? 'accept' : 'ok'
 })
 
-// The screen is served by the server's home instance; remote servers have none.
+// A copy of a server hosted elsewhere holds the host's screen (groupWelcome.ts, federation backend).
 watch(
   () => [serverChannelStore.currentServerId, props.isDm] as const,
   ([serverId, isDm]) => {
     if (!serverId || isDm) return
-    const server = serverChannelStore.servers.find((s) => s.id === serverId)
-    if (!server || server.is_local_server === false) return
+    if (!serverChannelStore.servers.some((s) => s.id === serverId)) return
     void welcomeStore.visit(serverId)
   },
   { immediate: true },

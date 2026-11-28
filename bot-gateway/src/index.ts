@@ -10,6 +10,7 @@ import { EventDispatcher } from './gateway/EventDispatcher.js'
 import { InteractionPoller } from './gateway/InteractionPoller.js'
 import { BotRestAPI } from './api/BotRestAPI.js'
 import { BridgeV2API, MIN_HOST_SECRET_LENGTH } from './api/BridgeV2API.js'
+import { MatrixBridgeAPI } from './api/MatrixBridgeAPI.js'
 import { BridgeConfigWatcher } from './gateway/BridgeConfigWatcher.js'
 import { TTLCache } from './utils/TTLCache.js'
 import { getBridgeAttachmentMode, getUploadCeilingBytes, hasDiscordCdnFilePart, readBridgeAttachmentMode } from './utils/mirrorExternalMedia.js'
@@ -18,6 +19,7 @@ import { MirrorWorker } from './bridge/mirrorWorker.js'
 import { startAvatarPurge } from './bridge/avatarPurge.js'
 import { startEraseResume } from './bridge/bridgePrivacy.js'
 import { DISCORD_PLATFORM } from './bridge/bridgeConfig.js'
+import { MATRIX_PLATFORM } from './bridge/matrixBridgeConfig.js'
 import { removeUnreferencedMirrors } from './bridge/mirrorEnqueue.js'
 import { meetsAssurance } from './utils/sessionAssurance.js'
 import { DiscordLinkRefresher, expiredDiscordAttachmentUrls } from './bridge/discordLinkRefresh.js'
@@ -65,9 +67,11 @@ const interactionPoller = new InteractionPoller(gateway)
 interactionPoller.start()
 
 // Bot API routes require bot token authentication.
-const botAPI = new BotRestAPI(eventDispatcher)
+const botAPI = new BotRestAPI(eventDispatcher, eventDispatcher)
 app.use('/api/v1', botAPI.router)
 
+// Managed Matrix bridges: setup-code redeem, the bridge bot's config, status and privacy, and the host.
+app.use('/bridge/v2/matrix', new MatrixBridgeAPI({}, eventDispatcher).router)
 // Discord bridge v2: setup-code redeem, hosted list, and the bridge bot's config, status and pairs.
 app.use('/bridge/v2', new BridgeV2API().router)
 
@@ -105,6 +109,9 @@ const stopEraseResume = startEraseResume()
 const stopAvatarPurge = startAvatarPurge()
 if (config.bridge.hostSecret && config.bridge.hostSecret.length < MIN_HOST_SECRET_LENGTH) {
   console.warn(`BRIDGE_HOST_SECRET is shorter than ${MIN_HOST_SECRET_LENGTH} characters; GET /bridge/v2/hosted stays disabled`)
+}
+if (config.bridge.matrixHostSecret && config.bridge.matrixHostSecret.length < MIN_HOST_SECRET_LENGTH) {
+  console.warn(`MATRIX_BRIDGE_HOST_SECRET is shorter than ${MIN_HOST_SECRET_LENGTH} characters; /bridge/v2/matrix/host stays disabled`)
 }
 
 // USER-AUTHENTICATED ENDPOINTS
@@ -233,7 +240,7 @@ async function bridgeOptOutIds(serverId: string): Promise<Set<string> | null> {
     .from('bridge_remote_optouts')
     .select('remote_user_id')
     .eq('server_id', serverId)
-    .in('platform', [DISCORD_PLATFORM, 'matrix'])
+    .in('platform', [DISCORD_PLATFORM, MATRIX_PLATFORM])
   if (error || !Array.isArray(data)) {
     console.error(`bridged-users: bridge_remote_optouts lookup for ${serverId} failed:`, error?.message)
     return null

@@ -27,7 +27,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="${CONTAINER_NAME:-harmony-stackcheck}"
 OWN_IMAGES='^ghcr\.io/y4my4my4m/harmony-(web|federation|bot-gateway):'
 REQUIRED_PLATFORMS='linux/amd64 linux/arm64'
-ALL_PROFILES=(--profile voice --profile bots --profile discord --profile logs --profile studio)
+ALL_PROFILES=(--profile voice --profile bots --profile discord --profile matrix --profile logs --profile studio)
 
 log() { printf '\033[36m==>\033[0m %s\n' "$*"; }
 err() { printf '\033[31mFAIL\033[0m %s\n' "$*" >&2; }
@@ -122,12 +122,22 @@ curl -fsSL --retry 3 "$RAW/volumes/api/kong.yml" -o "$STACK/supabase/volumes/api
 
 if [ "$RUN_IMAGES" = 1 ]; then
   log "image platforms ($REQUIRED_PLATFORMS)"
-  touch "$STACK/federation.env" "$STACK/bot-gateway.env" "$STACK/discord-bridge.env"
+  touch "$STACK/federation.env" "$STACK/bot-gateway.env" "$STACK/discord-bridge.env" "$STACK/matrix-bridge.env"
   grep -ohE '\$\{[A-Z0-9_]+:\?' "$STACK/docker-compose.yml" | sed -E 's/\$\{([A-Z0-9_]+):\?/\1=check/' | sort -u > "$STACK/.env"
   IMAGES="$(cd "$STACK" && docker compose "${ALL_PROFILES[@]}" config --images 2>/dev/null | sort -u)"
   [ -n "$IMAGES" ] || { err "compose rendered no images"; exit 1; }
   # shellcheck disable=SC2086
   check_platforms $(printf '%s\n' "$IMAGES" | grep -vE "$OWN_IMAGES")
+
+  log "container logs"
+  # Every service of every profile rotates its json-file log; one without max-size keeps every line.
+  UNBOUNDED="$(cd "$STACK" && docker compose "${ALL_PROFILES[@]}" --profile supabase-unused config --format json 2>/dev/null | python3 -c '
+import json, sys
+for name, svc in sorted(json.load(sys.stdin)["services"].items()):
+    log = svc.get("logging") or {}
+    if log.get("driver") != "json-file" or not (log.get("options") or {}).get("max-size"):
+        print(name)')"
+  if [ -n "$UNBOUNDED" ]; then fail "services without log rotation: $(printf '%s' "$UNBOUNDED" | tr '\n' ' ')"; else printf 'ok   every service rotates its log\n'; fi
 
   log "storage environment"
   # expect_storage NAME EXPECTED: the storage container's bucket settings, '|' between them.

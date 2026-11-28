@@ -55,6 +55,7 @@ INTERNAL_TLS=false; [[ "$TLS" == internal ]] && INTERNAL_TLS=true
 VOICE=false; truthy "$(env_get "$ENV_FILE" ENABLE_VOICE)" && VOICE=true
 BOTS=false; truthy "$(env_get "$ENV_FILE" ENABLE_BOTS)" && BOTS=true
 DISCORD=false; truthy "$(env_get "$ENV_FILE" ENABLE_DISCORD_BRIDGE)" && DISCORD=true
+MATRIX=false; truthy "$(env_get "$ENV_FILE" ENABLE_MATRIX_BRIDGE)" && MATRIX=true
 VERSION="$(env_get "$ENV_FILE" HARMONY_VERSION)"
 
 # Local entry point: HARMONY_HTTPS_PORT is [address:]port.
@@ -129,8 +130,8 @@ check_host() {
 		kb_free="$(df -Pk "$dir" 2>/dev/null | awk 'NR==2 {print $4}')"
 		local pct; pct="$(df -P "$dir" 2>/dev/null | awk 'NR==2 {gsub("%","",$5); print $5}')"
 		[[ -n "$kb_free" ]] || continue
-		if (( kb_free < 1048576 )); then
-			report FAIL disk "$((kb_free / 1024)) MB free on $mount ($dir)" "free space: old backups in self-host/backups, 'docker image prune' for unused images"
+		if (( kb_free < DISK_RESERVE_KB )); then
+			report FAIL disk "$((kb_free / 1024)) MB free on $mount ($dir): Postgres cannot start and Redis cannot write on a full disk, and harmony backup refuses to start" "free space: harmony repair (empties container logs over $(human_kb "$LOG_TRIM_KB")), old backups in self-host/backups, 'docker image prune' for unused images"
 		elif (( kb_free < 5242880 || pct > 90 )); then
 			report WARN disk "$((kb_free / 1048576)) GB free on $mount, ${pct}% used" "free space before uploads and the database fill it"
 		else
@@ -139,6 +140,7 @@ check_host() {
 		[[ "$mount" == "$(df -P "$SELF_HOST_DIR" | awk 'NR==2 {print $6}')" && "$dir" != "$SELF_HOST_DIR" ]] && break
 	done
 
+	check_container_logs
 	check_files
 
 	local last age
@@ -152,6 +154,34 @@ check_host() {
 		else
 			report OK backup "last backup $(basename "$last") ($age days old)"
 		fi
+	fi
+}
+
+# Logs of this stack's containers (container_logs, lib.sh). A json-file log without max-size keeps
+# every line; containers created from docker-compose.yml's x-logging rotate theirs. Past
+# LOG_TRIM_KB: WARN, FAIL from 1 GB in all.
+check_container_logs() {
+	local svc name max bytes path total=0 n=0 level=WARN
+	local -a open=() big=()
+	while IFS=$'\t' read -r svc name max bytes path; do
+		[[ -n "$name" ]] || continue
+		n=$((n + 1))
+		[[ "$max" != none ]] || open+=("$svc")
+		if [[ "$bytes" =~ ^[0-9]+$ ]] && (( bytes / 1024 > LOG_TRIM_KB )); then
+			big+=("$name $(human_kb $((bytes / 1024)))")
+			total=$((total + bytes / 1024))
+		fi
+	done < <(container_logs)
+	(( n > 0 )) || return 0
+	if [[ ${#big[@]} -gt 0 ]]; then
+		(( total < 1048576 )) || level=FAIL
+		report "$level" logs "$(human_kb "$total") in container logs over $(human_kb "$LOG_TRIM_KB"): ${big[*]}" "harmony repair (empties them)"
+	fi
+	if [[ ${#open[@]} -gt 0 ]]; then
+		report WARN "log rotation" "${#open[@]} containers keep every log line, created before log rotation: ${open[*]}" \
+			"harmony update, or in self-host/: docker compose up -d (recreates them with rotation)"
+	elif [[ ${#big[@]} -eq 0 ]]; then
+		report OK logs "all $n containers rotate their logs"
 	fi
 }
 
@@ -200,6 +230,18 @@ check_containers() {
 		fi
 	done < <(compose config --services 2>/dev/null)
 	(( bad )) || report OK containers "all $n services running"
+
+	# A Redis down at this point may be one that cannot load its append-only file.
+	local aof rc=0
+	case "${seen[redis]:-}" in
+		restarting/*|exited/*|dead/*|running/unhealthy)
+			aof="$(redis_aof_check)" || rc=$?
+			if (( rc == 3 )); then
+				report FAIL "redis file" "Redis cannot load its append-only file: $aof is damaged, by a write cut short (a full disk, a crash)" \
+					"harmony repair (truncates it at the damage and keeps the original beside it)"
+			fi
+			;;
+	esac
 
 	# Containers run the image the configuration names.
 	local id want have stale=()
@@ -386,16 +428,7 @@ check_database() {
 		report WARN admin "no admin account" "harmony admin create"
 	fi
 
-	local policy disable live open_reg
-	policy="$(env_get "$ENV_FILE" REGISTRATION)"; policy="${policy:-open}"
-	live="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$(svc_id auth)" 2>/dev/null | sed -n 's/^GOTRUE_DISABLE_SIGNUP=//p')"
-	open_reg="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'open_registration'" 2>/dev/null)"
-	if [[ "$policy" == open ]]; then disable=false; else disable=true; fi
-	if [[ "$live" == "$disable" && "$open_reg" == "$( [[ $disable == true ]] && echo false || echo true)" ]]; then
-		report OK registration "$policy"
-	else
-		report WARN registration ".env says $policy; sign-up disabled=${live:-?}, open_registration=${open_reg:-?}" "harmony registration $policy"
-	fi
+	check_registration
 
 	if db_sql -c "SELECT 1 FROM pg_roles WHERE rolname = 'harmony_listener'" 2>/dev/null | grep -q 1; then
 		report OK listener "harmony_listener role exists"
@@ -643,7 +676,19 @@ check_services() {
 		elif [[ -z "$(svc_id discord-bridge-host)" ]]; then
 			report FAIL discord "discord-bridge-host is not running" "docker compose up -d; harmony logs discord-bridge-host"
 		else
-			report OK discord "bridge host running; enable hosting in Admin, Instance"
+			report OK discord "bridge host running; communities see it once offered in Instance admin, Config, General"
+		fi
+	fi
+
+	if $MATRIX; then
+		local m1 m2
+		m1="$(env_get "$BOT_ENV" MATRIX_BRIDGE_HOST_SECRET)"; m2="$(env_get "$MATRIX_ENV" BRIDGE_HOST_SECRET)"
+		if [[ ${#m1} -lt 32 || "$m1" != "$m2" ]]; then
+			report FAIL matrix "MATRIX_BRIDGE_HOST_SECRET in bot-gateway.env is not BRIDGE_HOST_SECRET in matrix-bridge.env" "bash configure.sh --non-interactive, then docker compose up -d"
+		elif [[ -z "$(svc_id matrix-bridge-host)" ]]; then
+			report FAIL matrix "matrix-bridge-host is not running" "docker compose up -d; harmony logs matrix-bridge-host"
+		else
+			report OK matrix "bridge host running; communities see it once offered in Instance admin, Config, General"
 		fi
 	fi
 
@@ -744,6 +789,38 @@ check_auth_linking() {
 		report OK "auth linking" "$builtin${builtin:+${custom:+ }}$custom join existing accounts by verified address; the others are kept apart"
 	else
 		report OK "auth linking" "your sign-in providers keep their accounts apart"
+	fi
+}
+
+# Registration (admin.sh registration). Email sign-up follows REGISTRATION through the auth
+# service's sign-up switch (DISABLE_SIGNUP) or, with the switch off, through the sign-up hook
+# (instance_config.registration_policy, 20261126500001). Sign-in providers set to create
+# accounts (signup_providers) create none while the switch is on.
+check_registration() {
+	local policy env live open_reg stored hook=false opened want_open
+	policy="$(env_get "$ENV_FILE" REGISTRATION | lower)"; policy="${policy:-open}"
+	[[ "$policy" != invite-only ]] || policy=invite
+	env="$(auth_env)"
+	live="$(printf '%s\n' "$env" | sed -n 's/^GOTRUE_DISABLE_SIGNUP=//p' | head -1)"
+	open_reg="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'open_registration'" 2>/dev/null)"
+	stored="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'registration_policy'" 2>/dev/null)"
+	if grep -qx 'GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED=true' <<<"$env" && hook_applies_registration; then hook=true; fi
+	opened="$(signup_modes | awk -F '\t' '$2 == "open" || $2 == "domains" { print $1 }' | tr '\n' ' ')"
+	opened="${opened% }"
+	if [[ "$policy" == open ]]; then want_open=true; else want_open=false; fi
+
+	if [[ "$live" == false && "$policy" != open && ( "$hook" != true || "$stored" != "$policy" ) ]]; then
+		report FAIL registration ".env says $policy, but the auth service takes new accounts and its sign-up hook does not apply $policy: anyone can sign up" \
+			"harmony registration $policy"
+	elif [[ -z "$live" || "$open_reg" != "$want_open" || ( "$policy" == open && ( "$live" != false || ( -n "$stored" && "$stored" != open ) ) ) ]]; then
+		report WARN registration ".env says $policy; sign-up disabled=${live:-?}, registration_policy=${stored:-unset}, open_registration=${open_reg:-?}" \
+			"harmony registration $policy"
+	elif [[ "$live" == true && -n "$opened" ]]; then
+		report WARN registration "$policy; the auth service refuses every new account, so $opened create none" "harmony registration $policy"
+	elif [[ "$live" == false && "$policy" != open ]]; then
+		report OK registration "$policy, applied by the sign-up hook${opened:+; providers that create accounts: $opened}"
+	else
+		report OK registration "$policy${opened:+; providers with their own rule: $opened}"
 	fi
 }
 

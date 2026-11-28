@@ -188,6 +188,8 @@ beforeEach(() => {
     profiles: [],
     bots: [],
     emojis: [],
+    server_welcome_screens: [],
+    instance_config: [],
   }
 })
 
@@ -329,6 +331,63 @@ describe('emojis on the Group', () => {
   })
 })
 
+describe('welcome screen on the Group', () => {
+  const screen = (over: Record<string, unknown> = {}) => ({
+    server_id: SERVER,
+    enabled: true,
+    message: 'Hi\nthere',
+    rules: [{ title: 'Be kind', description: 'To everyone.' }, { title: 'No spam', description: '' }],
+    require_acceptance: true,
+    enabled_at: '2026-11-01T00:00:00+00:00',
+    acceptance_required_at: '2026-11-02T00:00:00+00:00',
+    ...over,
+  })
+
+  it('carries the screen: its rules, its message while enabled, and when acceptance began', async () => {
+    db.server_welcome_screens = [screen()]
+    const doc = await groupDoc()
+    expect(doc['harmony:welcome']).toEqual({
+      rules: [{ title: 'Be kind', description: 'To everyone.' }, { title: 'No spam', description: '' }],
+      enabled: true,
+      message: 'Hi\nthere',
+      enabledAt: '2026-11-01T00:00:00.000Z',
+      requireAcceptance: true,
+      acceptanceRequiredAt: '2026-11-02T00:00:00.000Z',
+    })
+  })
+
+  it('leaves out the message of a disabled screen', async () => {
+    db.server_welcome_screens = [screen({ enabled: false, enabled_at: null, require_acceptance: false, acceptance_required_at: null })]
+    const welcome = (await groupDoc())['harmony:welcome']
+    expect(welcome).toMatchObject({ enabled: false, message: '', enabledAt: null, requireAcceptance: false })
+    expect(welcome.rules.map((r: any) => r.title)).toEqual(['Be kind', 'No spam'])
+  })
+
+  it('takes servers.rules as titles for a server with no screen', async () => {
+    db.servers[0].rules = ['No spam', '  ', 'Be kind']
+    expect((await groupDoc())['harmony:welcome']).toEqual({
+      rules: [{ title: 'No spam', description: '' }, { title: 'Be kind', description: '' }],
+      enabled: false,
+      message: '',
+      enabledAt: null,
+      requireAcceptance: false,
+      acceptanceRequiredAt: null,
+    })
+  })
+
+  it('lists the instance rules, and leaves them out when there are none', async () => {
+    expect('harmony:instanceRules' in await groupDoc()).toBe(false)
+    db.instance_config = [{ config_key: 'instance_rules', config_value: ['Follow the law', 7, ''] }]
+    expect((await groupDoc())['harmony:instanceRules']).toEqual(['Follow the law'])
+  })
+
+  it('leaves harmony:welcome out when the screen cannot be read: a copy keeps its own', async () => {
+    db.server_welcome_screens = [screen()]
+    failWhen = table => table === 'server_welcome_screens'
+    expect('harmony:welcome' in await groupDoc()).toBe(false)
+  })
+})
+
 describe('members page', () => {
   const page = async () => (await supertest(app()).get(`/servers/${SERVER}/members?page=1`)).body
   const member = (n: number) => ({
@@ -385,6 +444,31 @@ describe('Update(Group)', () => {
     const again: any = vi.mocked(DeliveryQueue.enqueue).mock.calls[0][0]
     expect(again.object['harmony:emojis'].map((e: any) => e.name)).toEqual([':wave:'])
     expect(again.object['harmony:crossServerEmojis']).toBe(true)
+  })
+
+  it('carries the welcome screen, without the instance rules', async () => {
+    db.server_welcome_screens = [{
+      server_id: SERVER, enabled: false, message: 'unseen', rules: [{ title: 'Be kind', description: '' }],
+      require_acceptance: true, enabled_at: null, acceptance_required_at: '2026-11-02T00:00:00Z',
+    }]
+    db.instance_config = [{ config_key: 'instance_rules', config_value: ['Follow the law'] }]
+    await handleServerUpdated(server(), server())
+    const sent: any = vi.mocked(DeliveryQueue.enqueue).mock.calls[0][0]
+    expect(sent.object['harmony:welcome']).toMatchObject({
+      rules: [{ title: 'Be kind', description: '' }],
+      message: '',
+      requireAcceptance: true,
+      acceptanceRequiredAt: '2026-11-02T00:00:00.000Z',
+    })
+    expect('harmony:instanceRules' in sent.object).toBe(false)
+  })
+
+  it('is sent without harmony:welcome when the screen cannot be read', async () => {
+    failWhen = table => table === 'server_welcome_screens'
+    await handleServerUpdated(server(), server())
+    const sent: any = vi.mocked(DeliveryQueue.enqueue).mock.calls[0][0]
+    expect(sent.object['harmony:roles']).toBeDefined()
+    expect('harmony:welcome' in sent.object).toBe(false)
   })
 
   it('is not sent, and the job fails for a retry, when the emojis cannot be read', async () => {

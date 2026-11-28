@@ -1,53 +1,58 @@
+import { i18n, getLocale } from '@/i18n'
+
+const t = (key: string) => i18n.global.t(key)
+
 export const formatNumber = (num: number | undefined) => {
   if (num === undefined || num === null) return '0'
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
-  return num.toString()
+  return new Intl.NumberFormat(getLocale(), { notation: 'compact', maximumFractionDigits: 1 }).format(num)
 }
 
-/** An age in seconds: "just now", "4 min ago", "2 h ago", "3 d ago". */
+/** An age in seconds: "just now", "4 minutes ago", "2 hours ago", "3 days ago". */
 export const formatAge = (seconds: number): string => {
   const min = Math.floor(seconds / 60)
-  if (min < 1) return 'just now'
-  if (min < 60) return `${min} min ago`
+  if (min < 1) return t('time.justNow')
+  const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: 'always', style: 'long' })
+  if (min < 60) return rtf.format(-min, 'minute')
   const hours = Math.floor(min / 60)
-  if (hours < 24) return `${hours} h ago`
-  return `${Math.floor(hours / 24)} d ago`
+  if (hours < 24) return rtf.format(-hours, 'hour')
+  return rtf.format(-Math.floor(hours / 24), 'day')
 }
 
 export const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString()
+  return new Date(date).toLocaleDateString(getLocale())
 }
 
 export const formatTime = (date: Date) => {
-  return date.toLocaleTimeString()
+  return date.toLocaleTimeString(getLocale())
 }
 
 export const formatTimeAgo = (dateStr: string | null): string => {
-  if (!dateStr) return 'Never'
+  if (!dateStr) return t('admin.format.never')
   const date = new Date(dateStr)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMin = Math.floor(diffMs / 60000)
-  if (diffMin < 1) return 'Just now'
-  if (diffMin < 60) return `${diffMin}m ago`
+  if (diffMin < 1) return t('admin.format.justNow')
+  const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: 'always', style: 'narrow' })
+  if (diffMin < 60) return rtf.format(-diffMin, 'minute')
   const diffHrs = Math.floor(diffMin / 60)
-  if (diffHrs < 24) return `${diffHrs}h ago`
+  if (diffHrs < 24) return rtf.format(-diffHrs, 'hour')
   const diffDays = Math.floor(diffHrs / 24)
-  if (diffDays < 30) return `${diffDays}d ago`
-  return date.toLocaleDateString()
+  if (diffDays < 30) return rtf.format(-diffDays, 'day')
+  return date.toLocaleDateString(getLocale())
 }
 
 export const formatRelativeTime = (dateString: string) => {
-  if (!dateString) return 'Never'
+  if (!dateString) return t('admin.format.never')
   const date = new Date(dateString)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
-  return `${Math.floor(diffDays / 30)} months ago`
+  if (diffDays === 0) return t('time.today')
+  if (diffDays === 1) return t('time.yesterday')
+  const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: 'always' })
+  if (diffDays < 7) return rtf.format(-diffDays, 'day')
+  if (diffDays < 30) return rtf.format(-Math.floor(diffDays / 7), 'week')
+  return rtf.format(-Math.floor(diffDays / 30), 'month')
 }

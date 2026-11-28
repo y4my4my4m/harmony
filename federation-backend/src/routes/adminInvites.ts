@@ -8,7 +8,8 @@
  *
  * Instance admins only: a token GoTrue accepts at the account's assurance level, whose local
  * profile is an admin and not suspended. GoTrue's admin API makes the invited user and its token
- * (generate_link type invite; /invite when GoTrue emails it). The link handed out is
+ * (generate_link type invite; /invite when GoTrue emails it), after a pass for the address that
+ * the sign-up hook asks of it outside open registration (signup_invite_pass). The link handed out is
  * APP_URL/reset-password?invite=1&token_hash=…&type=…, the same as `harmony admin invite`, not
  * GoTrue's action_link: a GET of /auth/v1/verify spends the token, and link previews and mail
  * scanners GET every link they see. The page redeems the token with a POST when the person
@@ -122,6 +123,33 @@ interface AccountRow {
   revoked: boolean;
 }
 
+type RegistrationPolicy = 'open' | 'invite' | 'closed';
+
+/**
+ * instance_config.registration_policy, which the sign-up hook applies to email sign-up
+ * (20261126500001); null when absent. The hook refuses any other value as closed.
+ */
+async function registrationPolicy(): Promise<RegistrationPolicy | null> {
+  const { data } = await getSupabaseClient()
+    .from('instance_config')
+    .select('config_value')
+    .eq('config_key', 'registration_policy')
+    .maybeSingle();
+  if (!data) return null;
+  const value = typeof data.config_value === 'string' ? data.config_value.trim().toLowerCase() : '';
+  return value === 'open' || value === 'invite' ? value : 'closed';
+}
+
+/**
+ * A pass for the address, which the sign-up hook asks of a new address outside open
+ * registration; GoTrue runs the hook for an invitation to an address it has no account for. A
+ * database without the function (PGRST202) needs none.
+ */
+async function issuePass(email: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('signup_invite_pass', { p_email: email });
+  if (error && error.code !== 'PGRST202') logger.error('Admin invites: the invite pass failed:', error);
+}
+
 /** GoTrue's sign-up switch: 'open', 'closed', or 'unknown' when /settings does not answer. */
 async function signupMode(): Promise<'open' | 'closed' | 'unknown'> {
   try {
@@ -191,8 +219,9 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const admin = await instanceAdmin(req, res);
   if (!admin || !(await readLimit.take(res, admin.profileId))) return;
 
-  const [signup, advertised, list] = await Promise.all([
+  const [switchMode, policy, advertised, list] = await Promise.all([
     signupMode(),
+    registrationPolicy(),
     advertisedOpen(),
     getSupabaseClient().rpc('admin_instance_invites', { p_limit: 200 }),
   ]);
@@ -201,8 +230,10 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     res.status(500).json({ error: 'list_failed' });
     return;
   }
+  // Email sign-up: GoTrue's switch, then the hook's policy.
+  const signup = switchMode === 'closed' || (policy !== null && policy !== 'open') ? 'closed' : switchMode;
   res.json({
-    registration: { signup, advertised_open: advertised },
+    registration: { signup, policy, advertised_open: advertised },
     email_available: mailConfigured(),
     link_lifetime_seconds: config.GOTRUE_MAILER_OTP_EXP,
     invites: ((list.data ?? []) as InviteRow[]).map((row) => presentInvite(row)),
@@ -248,6 +279,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   const redirectTo = inviteRedirect();
   let user: { id: string; confirmation_sent_at?: string } | null = null;
   let link: string | null = null;
+  await issuePass(email);
   if (send) {
     const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, { redirectTo });
     if (error || !data?.user) {

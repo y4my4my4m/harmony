@@ -42,9 +42,6 @@ vi.mock('@/stores/useServerRoles', () => ({ useServerRolesStore: () => ({ rolesB
 vi.mock('@/services/InteractionService', () => ({
   interactionService: { getUserRelationships: relationships },
 }))
-vi.mock('@/services/core/CoreProfileService', () => ({
-  coreProfileService: { getUserStats: vi.fn(async () => null) },
-}))
 vi.mock('@/services/RoleService', () => ({
   roleService: { getUserRoles: vi.fn(async () => []), hasPermission: vi.fn(async () => false) },
   Permission: {},

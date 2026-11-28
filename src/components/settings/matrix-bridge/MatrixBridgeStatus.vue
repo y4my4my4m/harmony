@@ -77,22 +77,6 @@ const line = computed(() => {
 
 <style scoped src="../discord-bridge/bridge.css"></style>
 <style scoped>
-/* Status head and facts as BridgeStatusView.vue. */
-.status-head {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.status-dot {
-  width: 12px;
-  height: 12px;
-  margin-top: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--text-secondary);
-}
-
 .status-dot.connected {
   background: var(--success);
 }
@@ -101,51 +85,15 @@ const line = computed(() => {
   background: var(--warning);
 }
 
-.status-text {
-  min-width: 0;
-}
-
-.status-text .db-card-title {
-  margin-bottom: 2px;
-}
-
 .status-text .db-muted {
   margin-bottom: 0;
 }
 
 .facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 16px;
   margin: 16px 0;
-}
-
-.facts div {
-  min-width: 0;
-}
-
-.facts dt {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-secondary);
-}
-
-.facts dd {
-  margin: 2px 0 0;
-  font-size: 14px;
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
 }
 
 .unseen {
   margin-bottom: 0;
-}
-
-@media (max-width: 520px) {
-  .facts {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 </style>

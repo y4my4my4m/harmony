@@ -197,7 +197,7 @@ const expand = () => {
 const groupName = computed(() => {
   const conv = dmStore.conversations.find(c => c.id === props.conversationId)
   if (!conv || conv.type !== 'group') return ''
-  return conv.name || 'Group call'
+  return conv.name || t('dm.groupCall')
 })
 let ringtoneInterval: number | null = null
 

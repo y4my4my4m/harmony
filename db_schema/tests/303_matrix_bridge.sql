@@ -82,7 +82,7 @@ SELECT ok(has_function_privilege('authenticated', 'public.configure_matrix_bridg
           AND NOT has_function_privilege('service_role', 'public.configure_matrix_bridge(uuid, uuid, uuid[])', 'EXECUTE'),
           'the manager and member functions are for signed-in callers');
 SELECT ok(has_function_privilege('service_role', 'public.bridge_channel_platform(uuid, uuid)', 'EXECUTE')
-          AND has_function_privilege('service_role', 'public.matrix_bridge_bind_room(uuid, uuid, text, text)', 'EXECUTE')
+          AND has_function_privilege('service_role', 'public.matrix_bridge_bind_room(uuid, uuid, text, text, text)', 'EXECUTE')
           AND has_function_privilege('service_role', 'public.matrix_bridge_room(uuid, uuid)', 'EXECUTE')
           AND has_function_privilege('service_role', 'public.matrix_bridge_channel_members(uuid, uuid, integer, uuid)', 'EXECUTE')
           AND has_function_privilege('service_role', 'public.bridge_member_optout_ids(uuid, text)', 'EXECUTE')

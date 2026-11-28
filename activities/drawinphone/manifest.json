@@ -7,6 +7,7 @@
     "es": { "name": "DrawinPhone", "description": "Escribe una frase, dibuja lo que lees, adivina lo que ves. Mira cómo cada cadena se desmorona en la revelación." },
     "fr": { "name": "DrawinPhone", "description": "Écris une phrase, dessine ce que tu lis, devine ce que tu vois. Regarde chaque chaîne déraper pendant la révélation." },
     "de": { "name": "DrawinPhone", "description": "Schreib einen Satz, zeichne, was du liest, rate, was du siehst. Sieh zu, wie jede Kette bei der Auflösung entgleist." },
+    "nl": { "name": "DrawinPhone", "description": "Schrijf een zin, teken wat je leest, raad wat je ziet. Kijk hoe elke ketting bij de onthulling ontspoort." },
     "ja": { "name": "DrawinPhone", "description": "お題を書いて、読んだものを描いて、見たものを当てよう。最後の発表で伝言がどう崩れたかを楽しもう。" },
     "ko": { "name": "DrawinPhone", "description": "문장을 쓰고, 읽은 것을 그리고, 본 것을 맞혀 보세요. 공개 시간에 모든 체인이 엉망이 되는 걸 감상하세요." },
     "zh": { "name": "DrawinPhone", "description": "写一句话，画出你读到的，猜出你看到的。在揭晓环节看每条接力如何走样。" }

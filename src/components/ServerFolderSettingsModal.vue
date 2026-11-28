@@ -4,8 +4,8 @@
       <div v-if="isOpen" class="modal-overlay" @click.self="close">
         <div class="modal-container">
           <div class="modal-header">
-            <h2 class="modal-title">Folder settings</h2>
-            <button class="close-button" @click="close">
+            <h2 class="modal-title">{{ t('serverRail.folder.settings') }}</h2>
+            <button class="close-button" :aria-label="t('common.close')" @click="close">
               <svg viewBox="0 0 24 24" width="24" height="24">
                 <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
               </svg>
@@ -15,12 +15,12 @@
           <div class="modal-body">
             <!-- Folder Name -->
             <div class="form-group">
-              <label class="form-label">Folder name <span class="optional">(optional)</span></label>
+              <label class="form-label">{{ t('serverRail.folder.nameLabel') }} <span class="optional">{{ t('onboarding.optional') }}</span></label>
               <input
                 v-model="folderName"
                 type="text"
                 class="form-input"
-                placeholder="Leave empty for no name"
+                :placeholder="t('serverRail.folder.namePlaceholder')"
                 maxlength="32"
                 @keydown.enter="save"
               />
@@ -28,9 +28,9 @@
 
             <!-- Folder Color -->
             <div class="form-group">
-              <span class="form-label" aria-hidden="true">Folder color</span>
+              <span class="form-label" aria-hidden="true">{{ t('serverRail.folder.color') }}</span>
               <ColorPicker
-                label="Folder color"
+                :label="t('serverRail.folder.color')"
                 :color="selectedColor"
                 @update:color="selectedColor = $event"
                 @change="selectedColor = $event"
@@ -40,7 +40,7 @@
 
           <div class="modal-footer">
             <button class="btn btn-primary" :disabled="!isValid || isSaving" @click="save">
-              {{ isSaving ? 'Saving...' : 'Done' }}
+              {{ isSaving ? t('activitypub.saving') : t('common.done') }}
             </button>
           </div>
         </div>
@@ -53,6 +53,7 @@
 import { ref, computed, watch } from 'vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import ColorPicker from '@/components/common/ColorPicker.vue';
+import { useI18n } from 'vue-i18n';
 import type { ServerFolder } from '@/types';
 
 interface Props {
@@ -67,6 +68,7 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+const { t } = useI18n();
 
 const serverChannelStore = useServerChannelStore();
 

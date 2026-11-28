@@ -638,7 +638,7 @@ const confirmationConfig = ref({
   title: '',
   message: '',
   secondaryMessage: '',
-  confirmButtonText: 'Delete',
+  confirmButtonText: '',
   requireConfirmation: false,
   confirmationText: 'DELETE',
   onConfirm: () => {}
@@ -1206,7 +1206,7 @@ const joinVoiceChannel = async (channelId: string): Promise<boolean> => {
     themeStore.playAudio('voice_disconnect');
     triggerVoice('warning');
     if (voiceChannelStore.joinError) {
-      notificationStore.showToast('server_update', 'Could not join voice', voiceChannelStore.joinError, 6000);
+      notificationStore.showToast('server_update', t('chatNav.voiceJoinFailed'), voiceChannelStore.joinError, 6000);
     }
   }
   
@@ -1266,10 +1266,10 @@ const handleEditChannel = (channel: Channel) => {
 const handleDeleteChannel = (channel: Channel) => {
   selectedChannel.value = channel;
   confirmationConfig.value = {
-    title: 'Delete channel',
-    message: `Are you sure you want to delete #${channel.name}?`,
-    secondaryMessage: 'This action cannot be undone. All messages in this channel will be permanently deleted.',
-    confirmButtonText: 'Delete channel',
+    title: t('channel.delete'),
+    message: t('chatNav.deleteConfirm.channelMessage', { name: channel.name }),
+    secondaryMessage: t('chatNav.deleteConfirm.channelDetail'),
+    confirmButtonText: t('channel.delete'),
     requireConfirmation: true,
     confirmationText: channel.name,
     onConfirm: async () => {
@@ -1301,16 +1301,16 @@ const handleDeleteCategory = (category: Category) => {
   const channelCount = (props.categoryChannels[category.id] || []).length;
   deleteCategoryWithChannels.value = false; // Reset on each delete attempt
   
-  let secondaryMsg = 'This action cannot be undone.';
+  let secondaryMsg = t('chatNav.deleteConfirm.cannotUndo');
   if (channelCount > 0) {
-    secondaryMsg = `This category contains ${channelCount} channel(s). Channels will be moved to the top of the channel list (uncategorized). To also delete all channels, type "${category.name} DELETE" instead of just "${category.name}".`;
+    secondaryMsg = t('chatNav.deleteConfirm.categoryChannels', { count: channelCount, name: category.name }, channelCount);
   }
   
   confirmationConfig.value = {
-    title: 'Delete category',
-    message: `Are you sure you want to delete "${category.name}"?`,
+    title: t('chatNav.menu.deleteCategory'),
+    message: t('chatNav.deleteConfirm.namedMessage', { name: category.name }),
     secondaryMessage: secondaryMsg,
-    confirmButtonText: 'Delete category',
+    confirmButtonText: t('chatNav.menu.deleteCategory'),
     requireConfirmation: true,
     confirmationText: category.name,
     onConfirm: async () => {
@@ -1402,10 +1402,10 @@ const handleUnlockThread = async (thread: ThreadWithDetails) => {
 
 const handleDeleteThread = (thread: ThreadWithDetails) => {
   confirmationConfig.value = {
-    title: 'Delete thread',
-    message: `Are you sure you want to delete "${thread.name}"?`,
-    secondaryMessage: 'This will permanently delete the thread and all its messages. This action cannot be undone.',
-    confirmButtonText: 'Delete thread',
+    title: t('chatNav.thread.delete'),
+    message: t('chatNav.deleteConfirm.namedMessage', { name: thread.name }),
+    secondaryMessage: t('chatNav.deleteConfirm.threadDetail'),
+    confirmButtonText: t('chatNav.thread.delete'),
     requireConfirmation: false,
     confirmationText: thread.name,
     onConfirm: async () => {
@@ -1811,15 +1811,17 @@ onUnmounted(() => {
   top: 0;
 }
 
+/* The scrim's box is border-box: from the default padding box the gradient tiles into the
+   transparent 1px bottom border, repeating its 0.55 top row as a line across the banner. */
 .server-header.over-banner .server-name {
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0));
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0)) border-box;
   border-bottom-color: transparent;
   color: #fff;
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
 }
 
 .server-header.over-banner .server-name:hover {
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.7), rgb(0 0 0 / 0.1));
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.7), rgb(0 0 0 / 0.1)) border-box;
 }
 
 .server-header.over-banner .server-name-chevron {
@@ -1827,9 +1829,13 @@ onUnmounted(() => {
 }
 
 /* 16:5, the stored crop; a 112px floor keeps it taller than the name bar on a narrow
-   sidebar, trimming the sides. 47px under the name bar, pulled up beneath it. */
+   sidebar, trimming the sides. 47px under the name bar, pulled up beneath it.
+   The floor carries through the ratio to the width (358px at 112px); max-width holds the
+   box to the sidebar, where it would otherwise pass the right edge and centre the art
+   off the visible box. */
 .server-banner {
   position: relative;
+  max-width: 100%;
   aspect-ratio: 16 / 5;
   min-height: 112px;
   margin-top: -47px;

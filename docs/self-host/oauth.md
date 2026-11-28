@@ -34,7 +34,26 @@ A person signing in with a provider for the first time gets a new account and
 then picks a username, as after a normal registration; when an account already
 has their address, see [Existing accounts](#existing-accounts). Registration
 set to `invite` or `closed` (`harmony registration`) stops these new accounts
-too: the sign-in service refuses every new account while sign-up is disabled.
+too, unless the provider has a sign-up rule of its own: see
+[New accounts per provider](#new-accounts-per-provider).
+
+### New accounts per provider
+
+Each provider follows the registration policy unless it has a rule of its own,
+set on the admin panel's **Invites** tab or with
+[`harmony auth sign-up`](/self-host/cli#harmony-auth):
+
+| Rule | A first sign-in makes an account for |
+|---|---|
+| Same as registration (default) | Whoever email sign-up admits |
+| Anyone it signs in | Everyone with an account at the provider |
+| Verified addresses at these domains | Addresses the provider reports as verified, at a listed domain or a subdomain of one |
+
+People who already have an account sign in whatever the rule. **Anyone it
+signs in** suits an identity provider only your people have accounts at; on a
+public service such as Discord or Google it admits everyone there. A domain list
+also limits a provider while registration is open. A refused sign-in ends on the
+app's sign-in page with the reason.
 
 A first sign-in through Discord fills in the person's Discord display name and
 avatar, and suggests their Discord username.
@@ -463,7 +482,8 @@ per provider:
 | New, and an account has their address | A new, separate account with the same address | When the address counts as verified, the provider is linked to that account and they are signed in to it; otherwise a separate account is made, and it must confirm its address by email before it can sign in |
 
 Registration set to `invite` or `closed` refuses the new accounts, as it does
-for the built-in providers; existing accounts still sign in.
+for the built-in providers, unless the provider has a
+[rule of its own](#new-accounts-per-provider); existing accounts still sign in.
 
 A new provider is kept apart. `harmony auth add-provider` adds
 `custom:ID=custom:ID` to `PROVIDER_LINKING_DOMAINS` in
@@ -580,6 +600,8 @@ UPDATE public.instance_config
 | Back on Harmony: `Error getting user email from external provider`, and `harmony auth providers` says `ID token` | The provider keeps the address for userinfo (Better Auth, Authelia 4.39+) | `harmony auth add-provider ID --userinfo` |
 | Back on Harmony: `Error getting user email from external provider`, from a userinfo provider | No address from the provider | Grant the `email` scope or map an email claim; or re-add with `--email-optional` |
 | Back on Harmony: `Unverified email with custom:ID` | The provider sent `email_verified: false` and the instance confirms addresses by email | The person confirms through the email they received, or the provider marks addresses verified |
-| Back on Harmony: `Signups not allowed for this instance` | Registration is `invite` or `closed` | `harmony registration open`, or invite the person first |
+| Back on Harmony: `This instance is not taking new accounts.` or `This instance takes new accounts by invitation only.` | Registration is `closed` or `invite`, and the provider follows it | `harmony auth sign-up ID --open` or `--domains`, or invite the person first |
+| Back on Harmony: `Signups not allowed for this instance` | The auth service's own sign-up switch is on (`DISABLE_SIGNUP=true`), which refuses every new account | `harmony registration` with your policy; `harmony doctor` says why the switch stays on |
+| Back on Harmony: `New accounts through this sign-in are limited to some email domains…` or `…need an email address the sign-in provider has verified.` | The provider's domain list does not include the address, or the provider did not mark it verified | Add the domain (`harmony auth sign-up ID --domains`), or have the provider verify addresses |
 | A JSON page saying `custom provider custom:ID not found` | The button outlived its provider | `harmony auth remove-provider ID` |
 | No button | The provider has no entry in `instance_config` (`harmony auth providers` shows `no button`) | Run `harmony auth add-provider ID` again |

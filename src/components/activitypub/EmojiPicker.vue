@@ -2,7 +2,7 @@
   <div class="emoji-picker-overlay" @click.self="$emit('close')">
     <div class="emoji-picker">
       <div class="emoji-picker-header">
-        <h3>Choose a reaction</h3>
+        <h3>{{ t('emoji.reactionPicker.title') }}</h3>
         <div class="header-actions">
           <!-- Pack Switcher -->
           <div class="pack-switcher">
@@ -10,7 +10,7 @@
               class="pack-btn"
               :class="{ active: showPackMenu }"
               @click="showPackMenu = !showPackMenu"
-              :title="`Current: ${currentPackName}`"
+              :title="t('emoji.reactionPicker.currentPack', { pack: currentPackName })"
             >
               <Icon v-if="isNativePack" name="monitor" :size="16" />
               <Icon v-else-if="isTwemojiPack" name="smile" :size="16" />
@@ -32,12 +32,12 @@
                 @click="switchPack('native')"
               >
                 <Icon name="monitor" :size="16" class="pack-icon" />
-                <span class="pack-name">System</span>
+                <span class="pack-name">{{ t('emoji.reactionPicker.systemPack') }}</span>
                 <Icon v-if="currentPack === 'native'" name="check" :size="14" class="check-mark" />
               </div>
             </div>
           </div>
-          <button @click="$emit('close')" class="close-btn" title="Close">
+          <button @click="$emit('close')" class="close-btn" :title="t('common.close')">
             <Icon name="x" />
           </button>
         </div>
@@ -47,13 +47,13 @@
         <!-- Loading state -->
         <div v-if="isLoading" class="emoji-loading">
           <LoadingSpinner :size="20" />
-          <span>Loading emojis...</span>
+          <span>{{ t('emoji.reactionPicker.loading') }}</span>
         </div>
 
         <template v-else>
           <!-- Frequently used emojis (personalized) -->
           <div v-if="hasFrequentEmojis" class="quick-reactions frequent-section">
-            <div class="quick-reactions-title">Frequently used</div>
+            <div class="quick-reactions-title">{{ t('emoji.reactionPicker.frequent') }}</div>
             <div class="quick-reactions-grid">
               <button
                 v-for="emoji in frequentEmojiItems"
@@ -76,7 +76,7 @@
           
           <!-- Quick reaction emojis (common ones) -->
           <div class="quick-reactions">
-            <div class="quick-reactions-title">Quick reactions</div>
+            <div class="quick-reactions-title">{{ t('messageA11y.menu.quickReactions') }}</div>
             <div class="quick-reactions-grid">
               <button
                 v-for="emoji in quickReactionEmojis"
@@ -106,7 +106,7 @@
                 class="category-tab"
                 :class="{ active: selectedCategory === category.id }"
                 @click="selectedCategory = category.id"
-                :title="category.name"
+                :title="categoryLabel(category)"
               >
                 {{ category.icon }}
               </button>
@@ -147,6 +147,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Icon from '@/components/common/Icon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -173,6 +174,7 @@ const emit = defineEmits<{
 }>();
 
 // Composables
+const { t } = useI18n();
 const { triggerReaction } = useHapticSettings();
 const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
 const { 
@@ -197,10 +199,26 @@ const hoveredEmojiName = ref<string | null>(null);
 const currentPackName = computed(() => {
   switch (currentPack.value) {
     case 'twemoji': return 'Twemoji';
-    case 'native': return 'System';
-    default: return 'Unknown';
+    case 'native': return t('emoji.reactionPicker.systemPack');
+    default: return t('activitypub.unknown');
   }
 });
+
+const CATEGORY_LABEL_KEYS: Record<string, string> = {
+  people: 'emoji.smileys',
+  nature: 'emoji.animals',
+  food: 'emoji.food',
+  activities: 'emoji.activities',
+  travel: 'emoji.travel',
+  objects: 'emoji.objects',
+  symbols: 'emoji.symbols',
+  flags: 'emoji.flags',
+};
+
+const categoryLabel = (category: { id: string; name: string }) => {
+  const key = CATEGORY_LABEL_KEYS[category.id];
+  return key ? t(key) : category.name;
+};
 
 const displayedCategories = computed(() => {
   const cats = getCategories();

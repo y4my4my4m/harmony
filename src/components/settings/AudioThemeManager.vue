@@ -53,7 +53,7 @@
       </div>
       
       <div v-if="cacheInfo" class="cache-info">
-        <span class="cache-text">{{ cacheInfo.size }}/{{ cacheInfo.maxSize }} cached</span>
+        <span class="cache-text">{{ t('settings.audio.themes.cachedCount', { size: cacheInfo.size, max: cacheInfo.maxSize }) }}</span>
       </div>
     </div>
 
@@ -422,13 +422,13 @@ const getStatusText = (): string => {
   const currentThemeData = themeStore.getCurrentAudioTheme
   
   const texts = {
-    ready: `Ready • ${currentThemeData?.name || 'Unknown'}`,
-    loading: 'Loading theme system...',
-    preloading: `Preloading ${themeStore.preloadingTheme}...`,
-    error: 'System error detected',
-    uninitialized: 'Not initialized'
+    ready: t('settings.audio.themes.status.ready', { theme: currentThemeData?.name || t('settings.audio.themes.status.unknownTheme') }),
+    loading: t('settings.audio.themes.status.loading'),
+    preloading: t('settings.audio.themes.status.preloading', { theme: themeStore.preloadingTheme }),
+    error: t('settings.audio.themes.status.error'),
+    uninitialized: t('settings.audio.themes.status.uninitialized')
   }
-  return texts[status] || 'Unknown status'
+  return texts[status] || t('settings.audio.themes.status.unknown')
 }
 
 // Cache management

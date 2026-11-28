@@ -115,21 +115,21 @@
           <img 
             v-if="currentCustomStatus?.emoji_url" 
             :src="getEmojiUrl(currentCustomStatus.emoji_url, 20)" 
-            :alt="currentCustomStatus.emoji || 'Emoji'"
+            :alt="currentCustomStatus.emoji || t('messageA11y.image.emoji')"
             class="preview-emoji-img"
           />
           <span v-else-if="currentCustomStatus?.emoji" class="preview-emoji">{{ currentCustomStatus.emoji }}</span>
           <svg v-else-if="!currentCustomStatus?.type || currentCustomStatus?.type === 'custom'" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="emoji-placeholder">
             <path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8 8 8 0 01-8 8zm2.44-9a1.5 1.5 0 101.5-1.5 1.5 1.5 0 00-1.5 1.5zM8.5 11a1.5 1.5 0 101.5-1.5A1.5 1.5 0 008.5 11zm7.56 3.15a.76.76 0 00-1.06-.21 4.85 4.85 0 01-6 0 .76.76 0 10-.85 1.26 6.33 6.33 0 007.7 0 .76.76 0 00.21-1.05z"/>
           </svg>
-          <span class="preview-text">{{ customStatusDisplayText || 'Set custom status' }}</span>
+          <span class="preview-text">{{ customStatusDisplayText || t('statusPicker.setTitle') }}</span>
         </div>
         <button 
           v-if="currentCustomStatus" 
           type="button"
           class="clear-status-btn"
           @click.stop.prevent="clearCustomStatus"
-          title="Clear status"
+          :title="t('user.clearStatus')"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M18.3 5.71a1 1 0 00-1.42 0L12 10.59 7.11 5.7A1 1 0 105.7 7.11L10.59 12 5.7 16.89a1 1 0 101.41 1.41L12 13.41l4.89 4.89a1 1 0 001.41-1.41L13.41 12l4.89-4.89a1 1 0 000-1.4z"/>
@@ -260,7 +260,7 @@ const initializeLocalStatus = async () => {
 const currentUser = computed(() => {
   const user = getCurrentUser.value
   if (!user || !user.id) {
-    return { id: '', displayName: 'Loading...', status: UserStatus.Offline } as UserData
+    return { id: '', displayName: t('common.loading'), status: UserStatus.Offline } as UserData
   }
   return user
 })
@@ -279,16 +279,16 @@ const currentStatusDisplay = computed(() => {
   const status = currentStatus.value
   switch (status) {
     case UserStatus.Online:
-      return { class: 'status-online', text: 'Online' }
+      return { class: 'status-online', text: t('user.online') }
     case UserStatus.Away:
-      return { class: 'status-away', text: 'Away' }
+      return { class: 'status-away', text: t('user.away') }
     case UserStatus.Busy:
-      return { class: 'status-busy', text: 'Do not disturb' }
+      return { class: 'status-busy', text: t('user.dnd') }
     case UserStatus.Invisible:
-      return { class: 'status-invisible', text: 'Invisible' }
+      return { class: 'status-invisible', text: t('user.invisible') }
     case UserStatus.Offline:
     default:
-      return { class: 'status-offline', text: 'Offline' }
+      return { class: 'status-offline', text: t('user.offline') }
   }
 })
 
@@ -310,12 +310,12 @@ const currentStatusForAvatar = computed(() => {
   }
 })
 
-const statusOptions = [
-  { value: UserStatus.Online, label: 'Online', class: 'status-online' },
-  { value: UserStatus.Away, label: 'Away', class: 'status-away' },
-  { value: UserStatus.Busy, label: 'Do not disturb', class: 'status-busy' },
-  { value: UserStatus.Invisible, label: 'Invisible', class: 'status-invisible' }
-]
+const statusOptions = computed(() => [
+  { value: UserStatus.Online, label: t('user.online'), class: 'status-online' },
+  { value: UserStatus.Away, label: t('user.away'), class: 'status-away' },
+  { value: UserStatus.Busy, label: t('user.dnd'), class: 'status-busy' },
+  { value: UserStatus.Invisible, label: t('user.invisible'), class: 'status-invisible' }
+])
 
 // Use unified voice system only
 const isMicActive = computed(() => {

@@ -3,7 +3,7 @@
     <div class="settings-header">
       <h2 class="settings-title">{{ $t('settings.audio.title') }}</h2>
       <p class="settings-description">
-        Choose the sounds played for notifications, calls and interface actions.
+        {{ $t('settings.audio.page.description') }}
       </p>
     </div>
 
@@ -22,7 +22,7 @@
     <!-- Quick Test Section -->
     <div class="settings-section">
       <h3 class="section-title">{{ $t('common.preview') }}</h3>
-      <p class="section-description">Test how different actions will sound with your current theme</p>
+      <p class="section-description">{{ $t('settings.audio.page.testDescription') }}</p>
       <br>
       <div class="sound-test-grid">
         <button
@@ -43,16 +43,16 @@
 
     <!-- Import / Export audio theme packs -->
     <div class="settings-section import-export-section">
-      <h3 class="section-title">Import & export theme packs</h3>
-      <p class="section-description">Export a full audio theme (sounds + metadata) to share or backup. Import a pack to add it as a custom theme.</p>
+      <h3 class="section-title">{{ $t('settings.audio.page.packsTitle') }}</h3>
+      <p class="section-description">{{ $t('settings.audio.page.packsDescription') }}</p>
       <div class="import-export-actions">
         <button @click="exportThemePack" class="import-export-btn" :disabled="!themeStore.isReady || isExportingPack">
           <Icon :name="isExportingPack ? 'loader' : 'download'" :class="{ spinning: isExportingPack }" />
-          {{ isExportingPack ? 'Exporting...' : 'Export pack' }}
+          {{ isExportingPack ? $t('settings.audio.page.exporting') : $t('settings.audio.page.exportPack') }}
         </button>
         <button @click="importThemePack" class="import-export-btn" :disabled="!themeStore.isReady">
           <Icon name="upload" />
-          Import pack
+          {{ $t('settings.audio.page.importPack') }}
         </button>
       </div>
     </div>
@@ -63,20 +63,20 @@
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Audio system status</h4>
-          <p class="setting-description">Current status of the audio theme system</p>
+          <h4 class="setting-label">{{ $t('settings.audio.page.statusTitle') }}</h4>
+          <p class="setting-description">{{ $t('settings.audio.page.statusDescription') }}</p>
         </div>
         <div class="setting-control">
           <span :class="['status-badge', themeStore.systemStatus]">
-            {{ themeStore.systemStatus }}
+            {{ $t(`settings.audio.page.status.${themeStore.systemStatus}`) }}
           </span>
         </div>
       </div>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('common.clear') }} audio cache</h4>
-          <p class="setting-description">Clear cached audio files to force reload of all sounds</p>
+          <h4 class="setting-label">{{ $t('settings.audio.themes.clearCache') }}</h4>
+          <p class="setting-description">{{ $t('settings.audio.page.clearCacheDescription') }}</p>
         </div>
         <div class="setting-control">
           <button @click="clearCache" class="clear-cache-btn" :disabled="isLoading">
@@ -88,15 +88,15 @@
       
       <div class="setting-item" v-if="cacheInfo">
         <div class="setting-info">
-          <h4 class="setting-label">Cache information</h4>
-          <p class="setting-description">{{ cacheInfo.size }}/{{ cacheInfo.maxSize }} sounds loaded</p>
+          <h4 class="setting-label">{{ $t('settings.audio.themes.cacheInfo') }}</h4>
+          <p class="setting-description">{{ $t('settings.audio.page.soundsLoaded', { size: cacheInfo.size, max: cacheInfo.maxSize }) }}</p>
         </div>
       </div>
 
       <div class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">{{ $t('common.reset') }}</h4>
-          <p class="setting-description">Reset all audio settings to defaults</p>
+          <p class="setting-description">{{ $t('settings.audio.page.resetDescription') }}</p>
         </div>
         <div class="setting-control">
           <button @click="resetSystem" class="btn btn-danger" :disabled="isLoading">
@@ -130,12 +130,14 @@ import { useThemeStore } from '@/stores/useTheme'
 import { useNotificationStore } from '@/stores/useNotification'
 import AudioThemeManager from '@/components/settings/AudioThemeManager.vue'
 import Icon from '@/components/common/Icon.vue'
+import { useI18n } from 'vue-i18n'
 import type { AudioAction } from '@/types'
 
 // STATE
 
 const themeStore = useThemeStore()
 const notificationStore = useNotificationStore()
+const { t } = useI18n()
 
 // Local state
 const isLoading = ref(false)
@@ -167,16 +169,16 @@ const testSound = async (actionId: string): Promise<void> => {
     await themeStore.testAudio(actionId as AudioAction)
     notificationStore.showToast(
       'ui_success',
-      'Sound test',
-      `Played ${actionId}`,
+      t('settings.audio.page.toast.soundTest'),
+      t('settings.audio.page.toast.played', { sound: actionId }),
       2000
     )
   } catch (error) {
     debug.error('Failed to test sound:', error)
     notificationStore.showToast(
       'ui_error',
-      'Sound test failed',
-      `Failed to test ${actionId}`,
+      t('settings.audio.page.toast.soundTestFailed'),
+      t('settings.audio.page.toast.testFailed', { sound: actionId }),
       3000
     )
   }
@@ -188,16 +190,16 @@ const clearCache = async (): Promise<void> => {
     await themeStore.clearAudioCache()
     notificationStore.showToast(
       'ui_success',
-      'Cache cleared',
-      'Audio cache cleared',
+      t('settings.audio.page.toast.cacheCleared'),
+      t('settings.audio.page.toast.audioCacheCleared'),
       2000
     )
   } catch (error) {
     debug.error('Failed to clear cache:', error)
     notificationStore.showToast(
       'ui_error',
-      "Couldn't clear cache",
-      'Failed to clear audio cache',
+      t('settings.audio.page.toast.cacheClearFailed'),
+      t('settings.audio.page.toast.audioCacheClearFailed'),
       3000
     )
   } finally {
@@ -211,16 +213,16 @@ const resetSystem = async (): Promise<void> => {
     await themeStore.resetToDefaults()
     notificationStore.showToast(
       'ui_success',
-      'Audio reset',
-      'Audio settings restored to defaults',
+      t('settings.audio.page.toast.reset'),
+      t('settings.audio.page.toast.resetDone'),
       2000
     )
   } catch (error) {
     debug.error('Failed to reset system:', error)
     notificationStore.showToast(
       'ui_error',
-      'Reset failed',
-      'Failed to reset audio system',
+      t('settings.audio.page.toast.resetFailed'),
+      t('settings.audio.page.toast.resetFailedDetail'),
       3000
     )
   } finally {
@@ -231,8 +233,8 @@ const resetSystem = async (): Promise<void> => {
 const onThemeChanged = (themeId: string): void => {
   notificationStore.showToast(
     'ui_success',
-    'Theme changed',
-    `Switched to ${themeId} theme`,
+    t('settings.audio.page.toast.themeChanged'),
+    t('settings.audio.page.toast.switchedTheme', { theme: themeId }),
     2000
   )
 }
@@ -251,10 +253,10 @@ const exportThemePack = async (): Promise<void> => {
     a.download = `harmony-audio-pack-${String(themeName).replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.zip`
     a.click()
     URL.revokeObjectURL(url)
-    notificationStore.showToast('ui_success', 'Pack exported', 'Audio theme pack downloaded as ZIP', 2000)
+    notificationStore.showToast('ui_success', t('settings.audio.page.toast.packExported'), t('settings.audio.page.toast.packExportedDetail'), 2000)
   } catch (error) {
     debug.error('Failed to export pack:', error)
-    notificationStore.showToast('ui_error', 'Export failed', error instanceof Error ? error.message : 'Could not export theme pack', 3000)
+    notificationStore.showToast('ui_error', t('settings.audio.page.toast.exportFailed'), error instanceof Error ? error.message : t('settings.audio.page.toast.exportFailedDetail'), 3000)
   } finally {
     isExportingPack.value = false
   }
@@ -268,7 +270,7 @@ const importThemePack = (): void => {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (!file) return
     if (file.size > PACK_MAX_BYTES) {
-      notificationStore.showToast('ui_error', 'File too large', 'Pack must be under 10MB', 3000)
+      notificationStore.showToast('ui_error', t('settings.audio.page.toast.fileTooLarge'), t('settings.audio.page.toast.fileTooLargeDetail', { size: '10 MB' }), 3000)
       return
     }
     const reader = new FileReader()
@@ -276,10 +278,10 @@ const importThemePack = (): void => {
       try {
         const arrayBuffer = ev.target?.result as ArrayBuffer
         const theme = await themeStore.importThemePack(arrayBuffer)
-        notificationStore.showToast('ui_success', 'Pack imported', `${theme.name} added as custom theme`, 2000)
+        notificationStore.showToast('ui_success', t('settings.audio.page.toast.packImported'), t('settings.audio.page.toast.packImportedDetail', { theme: theme.name }), 2000)
       } catch (err) {
         debug.error('Failed to import pack:', err)
-        notificationStore.showToast('ui_error', 'Import failed', err instanceof Error ? err.message : 'Invalid audio pack format', 3000)
+        notificationStore.showToast('ui_error', t('settings.audio.page.toast.importFailed'), err instanceof Error ? err.message : t('settings.audio.page.toast.invalidPack'), 3000)
       }
     }
     reader.readAsArrayBuffer(file)
@@ -296,8 +298,8 @@ onMounted(async () => {
     debug.error('Failed to initialize audio theme store:', error)
     notificationStore.showToast(
       'ui_error',
-      'Initialization failed',
-      'Failed to initialize audio system',
+      t('settings.audio.page.toast.initFailed'),
+      t('settings.audio.page.toast.initFailedDetail'),
       3000
     )
   }

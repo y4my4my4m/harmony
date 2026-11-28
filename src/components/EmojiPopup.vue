@@ -58,7 +58,7 @@
           >
             <span aria-hidden="true" class="section-chevron" :class="{ collapsed: isSectionCollapsed('favorites') }">&#9662;</span>
             <Icon name="star" :size="12" />
-            Favorites
+            {{ t('emoji.picker.favorites') }}
           </button>
         </h3>
         <template v-if="!isSectionCollapsed('favorites')">
@@ -94,7 +94,7 @@
             </button>
           </div>
           <div v-else class="no-favorites-hint">
-            <p>Right-click (or touch and hold) any emoji to add it here.</p>
+            <p>{{ t('emoji.picker.favoritesHint') }}</p>
           </div>
         </template>
       </div>
@@ -110,7 +110,7 @@
           >
             <span aria-hidden="true" class="section-chevron" :class="{ collapsed: isSectionCollapsed('frequent') }">&#9662;</span>
             <Icon name="clock" :size="12" />
-            Frequently used
+            {{ t('emoji.picker.frequent') }}
           </button>
         </h3>
         <div v-if="!isSectionCollapsed('frequent')" class="emoji-list frequent-list">
@@ -196,7 +196,7 @@
       <!-- Unified Emojis by Category (from unified emoji service) -->
       <div v-if="unifiedLoading" class="emoji-loading">
         <LoadingSpinner :size="16" />
-        <span>Loading emojis...</span>
+        <span>{{ t('emoji.picker.loading') }}</span>
       </div>
       
       <LazyEmojiSection
@@ -213,7 +213,7 @@
               @click="toggleSection('cat-' + category.id)"
             >
               <span aria-hidden="true" class="section-chevron" :class="{ collapsed: isSectionCollapsed('cat-' + category.id) }">&#9662;</span>
-              <span aria-hidden="true">{{ category.icon }}</span> {{ category.name }}
+              <span aria-hidden="true">{{ category.icon }}</span> {{ categoryLabel(category) }}
             </button>
           </h3>
         </template>
@@ -281,18 +281,18 @@
           @click.stop
         >
           <div class="emoji-ctx-item" @click="ctxToggleFavorite">
-            <span>{{ emojiCtx.isFav ? 'Unfavorite emoji' : 'Favorite emoji' }}</span>
+            <span>{{ emojiCtx.isFav ? t('emoji.picker.unfavorite') : t('emoji.picker.favorite') }}</span>
           </div>
           <div class="emoji-ctx-item" @click="ctxCopyId">
-            <span>Copy emoji ID</span>
+            <span>{{ t('emoji.picker.copyId') }}</span>
             <span class="emoji-ctx-badge">ID</span>
           </div>
           <div v-if="emojiCtx.imageUrl" class="emoji-ctx-item" @click="ctxCopyImageLink">
-            <span>Copy image link</span>
+            <span>{{ t('emojiInfo.copyLink') }}</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           </div>
           <div v-if="emojiCtx.isFrequent" class="emoji-ctx-item emoji-ctx-item-danger" @click="ctxRemoveFrequent">
-            <span>Remove from frequently used</span>
+            <span>{{ t('emoji.picker.removeFrequent') }}</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </div>
         </div>
@@ -521,6 +521,20 @@ const shownFrequent = computed(() => topEmojisForPicker.value.filter((emoji) =>
   !refusesEmoji({ id: emoji.id, url: getFrequentEmojiDisplayUrl(emoji) })));
 
 /** Unicode categories in Unicode order; a query keeps only search-index matches. */
+// Category ids of the unicode emoji data; unknown ids keep the pack's own name.
+const CATEGORY_KEYS: Record<string, string> = {
+  people: 'emoji.smileys',
+  nature: 'emoji.animals',
+  food: 'emoji.food',
+  activities: 'emoji.activities',
+  travel: 'emoji.travel',
+  objects: 'emoji.objects',
+  symbols: 'emoji.symbols',
+  flags: 'emoji.flags',
+};
+const categoryLabel = (category: { id: string; name: string }): string =>
+  CATEGORY_KEYS[category.id] ? t(CATEGORY_KEYS[category.id]) : category.name;
+
 const displayedCategories = computed((): DisplayCategory[] => {
   if (!unifiedLoaded.value) return [];
 
@@ -782,7 +796,7 @@ function showFavToast(msg: string) {
 async function toggleFavoriteUnified(emoji: EmojiEntry) {
   try {
     const result = await emojiFavoriteService.toggleFavorite(emoji.unicode, emoji.shortcode, null, null);
-    showFavToast(result.isFavorite ? `Added :${emoji.shortcode}: to favorites` : `Removed :${emoji.shortcode}: from favorites`);
+    showFavToast(t(result.isFavorite ? 'emoji.picker.addedFavorite' : 'emoji.picker.removedFavorite', { name: emoji.shortcode }));
     await loadFavorites();
   } catch (e) {
     debug.error('Failed to toggle favorite:', e);
@@ -794,7 +808,7 @@ async function toggleFavoriteServer(emoji: ResolvedEmoji) {
   try {
     const url = emoji.url ? getEmojiUrl(emoji.url, 42) : null;
     const result = await emojiFavoriteService.toggleFavorite(emoji.id, emoji.name, url, emoji.server_id || null);
-    showFavToast(result.isFavorite ? `Added :${emoji.name}: to favorites` : `Removed :${emoji.name}: from favorites`);
+    showFavToast(t(result.isFavorite ? 'emoji.picker.addedFavorite' : 'emoji.picker.removedFavorite', { name: emoji.name }));
     await loadFavorites();
   } catch (e) {
     debug.error('Failed to toggle favorite:', e);
@@ -807,7 +821,7 @@ async function toggleFavoriteFrequent(emoji: { id: string; native?: string; name
     const emojiId = emoji.native || emoji.id;
     const url = getFrequentEmojiDisplayUrl(emoji);
     const result = await emojiFavoriteService.toggleFavorite(emojiId, emoji.name, url, null);
-    showFavToast(result.isFavorite ? `Added :${emoji.name}: to favorites` : `Removed :${emoji.name}: from favorites`);
+    showFavToast(t(result.isFavorite ? 'emoji.picker.addedFavorite' : 'emoji.picker.removedFavorite', { name: emoji.name }));
     await loadFavorites();
   } catch (e) {
     debug.error('Failed to toggle favorite:', e);
@@ -952,7 +966,7 @@ async function ctxToggleFavorite() {
   closeEmojiCtx();
   try {
     const result = await emojiFavoriteService.toggleFavorite(ctx.emojiId, ctx.emojiName, ctx.imageUrl, ctx.serverIdOrNull);
-    showFavToast(result.isFavorite ? `Added :${ctx.emojiName}: to favorites` : `Removed :${ctx.emojiName}: from favorites`);
+    showFavToast(t(result.isFavorite ? 'emoji.picker.addedFavorite' : 'emoji.picker.removedFavorite', { name: ctx.emojiName }));
     await loadFavorites();
   } catch (e) {
     debug.error('Failed to toggle favorite:', e);
@@ -964,7 +978,7 @@ async function ctxCopyId() {
   closeEmojiCtx();
   try {
     await navigator.clipboard.writeText(ctx.emojiId);
-    showFavToast(`Copied :${ctx.emojiName}:`);
+    showFavToast(t('emoji.picker.copied', { name: ctx.emojiName }));
   } catch { /* no-op */ }
 }
 
@@ -974,7 +988,7 @@ async function ctxCopyImageLink() {
   if (!ctx.imageUrl) return;
   try {
     await navigator.clipboard.writeText(ctx.imageUrl);
-    showFavToast('Copied image link');
+    showFavToast(t('emoji.picker.copiedImageLink'));
   } catch { /* no-op */ }
 }
 
@@ -982,7 +996,7 @@ function ctxRemoveFrequent() {
   const ctx = emojiCtx.value;
   closeEmojiCtx();
   removeFrequentEmoji(ctx.emojiId);
-  showFavToast(`Removed :${ctx.emojiName}: from frequently used`);
+  showFavToast(t('emoji.picker.removedFrequent', { name: ctx.emojiName }));
 }
 
 // Lazy load emoji data when popup is mounted (user opened emoji picker)

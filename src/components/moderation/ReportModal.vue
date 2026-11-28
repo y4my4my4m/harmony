@@ -43,7 +43,7 @@
 
           <!-- Proof: message preview -->
           <div v-if="reportType === 'message' && targetMessagePreview" class="proof-section">
-            <label>Reported message</label>
+            <label>{{ t('moderation.reportModal.reportedMessage') }}</label>
             <blockquote class="proof-quote">{{ targetMessagePreview }}</blockquote>
           </div>
 
@@ -56,13 +56,13 @@
 
           <!-- Proof: post preview -->
           <div v-if="reportType === 'post' && targetPostPreview" class="proof-section">
-            <label>Reported post</label>
+            <label>{{ t('moderation.reportModal.reportedPost') }}</label>
             <blockquote class="proof-quote">{{ targetPostPreview }}</blockquote>
           </div>
 
           <!-- Reason selection -->
           <div class="form-group">
-            <label>Why are you reporting this?</label>
+            <label>{{ t('moderation.reportModal.whyReporting') }}</label>
             <div class="reason-options">
               <label
                 v-for="reason in reportReasons"
@@ -82,10 +82,10 @@
 
           <!-- Additional comment -->
           <div class="form-group">
-            <label>Additional details (optional)</label>
+            <label>{{ t('moderation.reportModal.additionalDetails') }}</label>
             <textarea
               v-model="comment"
-              placeholder="Provide any additional context..."
+              :placeholder="t('moderation.reportModal.detailsPlaceholder')"
               rows="3"
               maxlength="1000"
             ></textarea>
@@ -114,13 +114,13 @@
         </div>
 
         <div class="modal-footer">
-          <button class="btn-cancel" @click="$emit('close')">Cancel</button>
+          <button class="btn-cancel" @click="$emit('close')">{{ t('common.cancel') }}</button>
           <button
             class="btn-submit"
             @click="submitReport"
             :disabled="!selectedReason || isSubmitting"
           >
-            {{ isSubmitting ? 'Submitting…' : 'Submit report' }}
+            {{ isSubmitting ? t('moderation.reportModal.submitting') : t('moderation.submit') }}
           </button>
         </div>
 
@@ -128,15 +128,15 @@
         <div v-if="submitted" class="success-overlay">
           <div class="success-content">
             <span class="success-icon"><Icon name="check" :size="28" /></span>
-            <h3>Report submitted</h3>
-            <p>Thank you for helping keep the community safe. We'll review your report shortly.</p>
+            <h3>{{ t('moderation.reportModal.submitted') }}</h3>
+            <p>{{ t('moderation.reportModal.thanks') }}</p>
             <div v-if="reportType === 'message' || reportType === 'post'" class="hide-prompt">
               <button class="btn-hide" @click="hideAndClose">
-                Hide this {{ reportType }}
+                {{ reportType === 'message' ? t('moderation.reportModal.hideMessage') : t('moderation.reportModal.hidePost') }}
               </button>
-              <span class="hide-hint">Remove it from your view</span>
+              <span class="hide-hint">{{ t('moderation.reportModal.hideHint') }}</span>
             </div>
-            <button class="btn-done" @click="$emit('close')">{{ (reportType === 'message' || reportType === 'post') ? 'Keep visible' : 'Done' }}</button>
+            <button class="btn-done" @click="$emit('close')">{{ (reportType === 'message' || reportType === 'post') ? t('moderation.reportModal.keepVisible') : t('common.done') }}</button>
           </div>
         </div>
       </div>

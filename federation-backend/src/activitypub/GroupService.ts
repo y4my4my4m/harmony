@@ -61,6 +61,13 @@ import {
   type ApRole,
   type PinSummary,
 } from './copyMirror.js';
+import {
+  HARMONY_INSTANCE_RULES,
+  HARMONY_WELCOME,
+  instanceRulesToAp,
+  welcomeToAp,
+  type ApWelcome,
+} from './groupWelcome.js';
 
 const router = Router();
 
@@ -89,6 +96,8 @@ function serverToGroup(
     pins: Map<string, PinSummary> | null;
     flags?: Map<string, Record<string, unknown>>;
     emojis?: ApEmoji[] | null;
+    welcome?: ApWelcome | null;
+    instanceRules?: string[];
   } = { roles: null, pins: null },
   instanceOpen = false,
 ): any {
@@ -163,6 +172,9 @@ function serverToGroup(
     // Custom emojis of the server (copyMirror.ts); absent when unread.
     ...(display.emojis ? { [HARMONY_EMOJIS]: display.emojis } : {}),
     [HARMONY_CROSS_SERVER_EMOJIS]: server.allow_cross_server_emojis !== false,
+    // Welcome screen and rules (groupWelcome.ts); absent when unread.
+    ...(display.welcome ? { [HARMONY_WELCOME]: display.welcome } : {}),
+    ...(display.instanceRules?.length ? { [HARMONY_INSTANCE_RULES]: display.instanceRules } : {}),
 
     // Harmony extension: Channel structure
     'harmony:channels': channels.map(c => {
@@ -310,6 +322,41 @@ export async function loadApEmojis(supabase: ReturnType<typeof getSupabaseClient
     return null;
   }
   return emojisToAp(serverUrl, (data || []).map((e: any) => ({ id: e.id, name: e.name, url: getFullEmojiUrl(e.url) })));
+}
+
+/**
+ * The server's welcome screen as harmony:welcome carries it; `serverRules` (servers.rules) stands
+ * in for a server with no screen row. Null when the screen cannot be read.
+ */
+export async function loadApWelcome(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  serverId: string,
+  serverRules: unknown,
+): Promise<ApWelcome | null> {
+  const { data, error } = await supabase
+    .from('server_welcome_screens')
+    .select('enabled, message, rules, require_acceptance, enabled_at, acceptance_required_at')
+    .eq('server_id', serverId)
+    .maybeSingle();
+  if (error) {
+    logger.error(`Welcome screen of server ${serverId} not read: ${error.message}`);
+    return null;
+  }
+  return welcomeToAp(data ?? null, serverRules);
+}
+
+/** This instance's rules as harmony:instanceRules lists them; empty when unread or unset. */
+export async function loadInstanceRules(supabase: ReturnType<typeof getSupabaseClient>): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('instance_config')
+    .select('config_value')
+    .eq('config_key', 'instance_rules')
+    .maybeSingle();
+  if (error) {
+    logger.warn(`Instance rules not read: ${error.message}`);
+    return [];
+  }
+  return instanceRulesToAp(data?.config_value);
 }
 
 /**
@@ -518,6 +565,8 @@ router.get(
         pins,
         flags,
         emojis: await loadApEmojis(supabase, server.id, serverUrl),
+        welcome: await loadApWelcome(supabase, server.id, server.rules),
+        instanceRules: await loadInstanceRules(supabase),
       },
       await instanceFederationOpen(),
     );

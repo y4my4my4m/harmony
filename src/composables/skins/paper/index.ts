@@ -33,40 +33,49 @@ export const paperSkin: Skin = {
     'your mentions, headings are a heavy condensed grotesque, labels and ' +
     'times are monospaced and code prints on a dark screen. Switch the theme ' +
     'to dark for pale frames on a dark desk.',
+  descriptionKey: 'settings.appearance.skins.paper.description',
   isBeta: true,
   preview: '/assets/skins/paper-preview.svg',
   options: [
     {
       id: 'shadows',
       label: 'Ink shadows',
+      labelKey: 'settings.appearance.skins.paper.options.shadows.label',
       description:
         'Hard offset shadows under windows, menus, buttons and server icons. ' +
         'Off leaves the ink frames flat on the desk.',
+      descriptionKey: 'settings.appearance.skins.paper.options.shadows.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'jelly',
       label: 'Jelly motion',
+      labelKey: 'settings.appearance.skins.paper.options.jelly.label',
       description:
         'Buttons, reactions and server icons squash and settle when you ' +
         'point at them. Off when reduced motion is requested.',
+      descriptionKey: 'settings.appearance.skins.paper.options.jelly.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'grain',
       label: 'Paper grain',
+      labelKey: 'settings.appearance.skins.paper.options.grain.label',
       description: 'Fine noise across the desk behind the windows.',
+      descriptionKey: 'settings.appearance.skins.paper.options.grain.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'glyphs',
       label: 'Glyph wallpaper',
+      labelKey: 'settings.appearance.skins.paper.options.glyphs.label',
       description:
         'Faint monospaced chat text behind the messages, laid along the ' +
         'nodal lines of a vibrating plate. Static.',
+      descriptionKey: 'settings.appearance.skins.paper.options.glyphs.description',
       type: 'boolean',
       default: false,
     },

@@ -8,4 +8,6 @@ export const GATEWAY_CAPABILITIES = [
   'bridge_sticker_sync',
   'bridge_history_import',
   'bridge_privacy',
+  'matrix_bridge_v2',
+  'matrix_bridge_check',
 ] as const

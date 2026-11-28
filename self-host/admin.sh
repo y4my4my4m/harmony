@@ -16,6 +16,7 @@
 #   bash admin.sh auth remove-provider ID
 #   bash admin.sh auth linking PROVIDER (--separate-accounts |
 #            --link-existing-accounts [--provider-verifies-email])
+#   bash admin.sh auth sign-up PROVIDER (--follow-registration | --open | --domains D[,D...])
 #   bash admin.sh has-admin           exit 0 when a local admin exists
 #
 # create makes an instance admin the way the app makes any account: GoTrue's
@@ -30,11 +31,21 @@
 # federation-server container (Kong on the compose network, keys from its
 # environment); nothing secret appears on a command line.
 #
-# registration maps the policy onto GoTrue and instance_config:
-#   open     sign-up on (DISABLE_SIGNUP=false), open_registration true
-#   invite   sign-up off; `invite` creates an invite link per address
-#   closed   sign-up off, no invitations
-# Without an argument it applies REGISTRATION from .env.
+# registration sets who may create an account by email (REGISTRATION,
+# instance_config.registration_policy, open_registration):
+#   open     anyone; open_registration true
+#   invite   invited addresses; `invite` makes an invitation per address
+#   closed   no one
+# Without an argument it applies REGISTRATION from .env. The sign-up hook applies the policy
+# (lib.sh registration_by_hook). GoTrue's own switch, DISABLE_SIGNUP, refuses every new account,
+# those of sign-in providers included; it stays on for invite and closed only while the auth
+# service does not run that hook.
+#
+# auth sign-up sets whom a sign-in provider's first sign-in makes an account for
+# (instance_config.signup_providers): --follow-registration, the default, applies the
+# registration policy; --open, anyone the provider signs in; --domains, addresses the provider
+# marks verified at a listed domain or a subdomain of one. While the auth service's switch still
+# refuses every account, it hands registration to the hook first.
 #
 # auth manages sign-in through the instance's own OAuth 2.0 / OIDC providers (GoTrue
 # custom providers, identifier custom:ID). add-provider creates or updates one. The secret
@@ -245,7 +256,8 @@ out({ ok: true, email: user.email });
 # such a GET, with no password and no profile, gets a recovery token instead (GoTrue makes no
 # invite token for a confirmed address). The invitation is recorded in instance_invites
 # (source cli), as the admin panel records its own; without that table (database not updated)
-# it is listed there as made outside Harmony.
+# it is listed there as made outside Harmony. A pass for the address comes first: GoTrue runs
+# the sign-up hook for an address it has no account for.
 NODE_INVITE='
 const email = arg("email").toLowerCase();
 const redirect = arg("redirect");
@@ -257,6 +269,9 @@ const linkTo = (hash, type) => {
   return u.toString();
 };
 let type = "invite";
+// The sign-up hook admits a new address outside open registration only with a pass
+// (20261126500001); a database without the function answers 404 and needs none.
+await call("POST", "/rest/v1/rpc/signup_invite_pass", { body: { p_email: email } });
 let r = send
   ? await call("POST", `/auth/v1/invite?redirect_to=${encodeURIComponent(redirect)}`, { body: { email } })
   : await call("POST", "/auth/v1/admin/generate_link", { body: { type, email, redirect_to: redirect } });
@@ -670,9 +685,12 @@ registration() {
 		die "no admin exists yet; create one first (harmony admin create), then open registration"
 	fi
 	env_set "$ENV_FILE" REGISTRATION "$policy"
-	env_set "$SB_ENV" DISABLE_SIGNUP "$disable"
+	# The policy is stored before the switch turns off.
+	registration_policy_store "$policy" || die "could not update instance_config.registration_policy"
 	db_sql -c "UPDATE public.instance_config SET config_value = '$open_reg'::jsonb, updated_at = now() WHERE config_key = 'open_registration'" >/dev/null ||
 		die "could not update instance_config.open_registration"
+	if [[ "$disable" == true ]] && registration_by_hook; then disable=false; fi
+	env_set "$SB_ENV" DISABLE_SIGNUP "$disable"
 	# Recreated only when DISABLE_SIGNUP changed.
 	compose up -d auth >/dev/null 2>&1 || die "could not apply DISABLE_SIGNUP to the auth service"
 	wait_healthy auth || warn "the auth service is not healthy yet: docker compose logs auth"
@@ -681,6 +699,9 @@ registration() {
 		invite) ok "Registration: invite only (harmony admin invite EMAIL)" ;;
 		closed) ok "Registration: closed" ;;
 	esac
+	if [[ "$disable" == true && -n "$(signup_modes | awk -F '\t' '$2 == "open" || $2 == "domains"')" ]]; then
+		warn "the auth service refuses every new account, so sign-in providers set to create accounts (harmony auth providers) create none: it does not run the sign-up hook that applies the policy (harmony doctor)"
+	fi
 }
 
 # --- auth providers ------------------------------------------------------------
@@ -753,7 +774,7 @@ say_linking() {
 # auth service has on, with their mode; warns about one on that links by address while
 # addresses are confirmed automatically.
 auth_builtin_providers() {
-	local value="$1" on pid state mode list rows="" open=""
+	local value="$1" modes="$2" on pid state mode list rows="" open=""
 	on=" $(oauth_enabled) "
 	list="$BUILTIN_OAUTH_PROVIDERS"
 	for pid in $on; do
@@ -766,16 +787,16 @@ auth_builtin_providers() {
 			state=on
 			[[ "$mode" != "by address" ]] || open+="${open:+ }$pid"
 		fi
-		rows+="$pid"$'\t'"$state"$'\t'"$mode"$'\n'
+		rows+="$pid"$'\t'"$state"$'\t'"$mode"$'\t'"$(signup_mode_label "$modes" "$pid")"$'\n'
 	done
-	printf 'PROVIDER\tAUTH SERVICE\tEXISTING ACCOUNTS\n%s' "$rows" | align_tabs
+	printf 'PROVIDER\tAUTH SERVICE\tEXISTING ACCOUNTS\tNEW ACCOUNTS\n%s' "$rows" | align_tabs
 	if [[ -n "$open" ]] && autoconfirm_on; then
 		warn "$open join existing accounts by address, and ENABLE_EMAIL_AUTOCONFIRM=true counts every address they send as verified (harmony auth linking ID --separate-accounts keeps them apart)"
 	fi
 }
 
 auth_providers() {
-	local res rows stale value pid pname ptype pstate pwhere ids="" orphans="" open=""
+	local res rows stale value pid pname ptype pstate pwhere ids="" orphans="" open="" modes
 	node_call res "$NODE_PROVIDER_LIB$NODE_PROVIDER_LIST"
 	rows="$(printf '%s' "$(json_field "$res" rows)" | base64 -d)"
 	value="$(linking_value)"
@@ -783,15 +804,17 @@ auth_providers() {
 		warn "PROVIDER_LINKING_DOMAINS in supabase/.env is not provider=domain pairs ('$value'); the auth service does not start with it"
 		value=""
 	fi
-	auth_builtin_providers "$value"
+	modes="$(signup_modes)"
+	auth_builtin_providers "$value" "$modes"
 	echo
 	if [[ -z "$rows" ]]; then
 		info "No custom sign-in providers (harmony auth add-provider adds one)"
 	else
 		{
-			printf 'ID\tNAME\tADDRESS FROM\tSIGN-IN PAGE\tEXISTING ACCOUNTS\tISSUER OR AUTHORIZE URL\n'
+			printf 'ID\tNAME\tADDRESS FROM\tSIGN-IN PAGE\tEXISTING ACCOUNTS\tNEW ACCOUNTS\tISSUER OR AUTHORIZE URL\n'
 			while IFS=$'\t' read -r pid pname ptype pstate pwhere; do
-				printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$pname" "$ptype" "$pstate" "$(linking_mode "$value" "$pid")" "$pwhere"
+				printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$pname" "$ptype" "$pstate" "$(linking_mode "$value" "$pid")" \
+					"$(signup_mode_label "$modes" "$pid")" "$pwhere"
 			done <<<"$rows"
 		} | align_tabs
 		while IFS=$'\t' read -r pid _; do
@@ -944,6 +967,9 @@ auth_remove_provider() {
 		apply_linking "$(linking_set "$linking" "$id")"
 		ok "$id removed from PROVIDER_LINKING_DOMAINS"
 	fi
+	# A provider added again under this id follows registration.
+	db_sql -c "UPDATE public.instance_config SET config_value = config_value - '$id', updated_at = now()
+		WHERE config_key = 'signup_providers' AND jsonb_typeof(config_value) = 'object' AND config_value ? '$id'" >/dev/null 2>&1 || true
 }
 
 auth_linking() {
@@ -981,6 +1007,86 @@ auth_linking() {
 	[[ " $(oauth_enabled) " == *" $id "* ]] || info "$id is off in the auth service; this applies once it is on"
 }
 
+auth_sign_up() {
+	local id="${1:-}" mode="" raw="" d list="" entry sql usage
+	local -a parts=()
+	usage="usage: harmony auth sign-up PROVIDER (--follow-registration | --open | --domains example.edu[,example.org])"
+	[[ $# -gt 0 ]] && shift
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--follow-registration|--open|--domains|--domains=*)
+				[[ -z "$mode" ]] || die "--follow-registration, --open and --domains exclude each other" ;;
+		esac
+		case "$1" in
+			--follow-registration) mode=follow ;;
+			--open) mode=open ;;
+			--domains) [[ $# -ge 2 ]] || die "$usage"; mode=domains; raw="$2"; shift ;;
+			--domains=*) mode=domains; raw="${1#--domains=}" ;;
+			*) die "unknown argument: $1 (harmony help)" ;;
+		esac
+		shift
+	done
+	[[ -n "$id" && -n "$mode" ]] || die "$usage"
+	id="$(printf '%s' "$id" | lower)"
+	[[ " $GOTRUE_OAUTH_PROVIDERS " == *" $id "* ]] || id="$(provider_id "$id")"
+	if [[ "$mode" == domains ]]; then
+		IFS=',' read -r -a parts <<<"$raw"
+		for d in "${parts[@]}"; do
+			d="$(printf '%s' "$d" | tr -d '[:space:]' | lower)"
+			d="${d#@}"
+			[[ -n "$d" ]] || continue
+			[[ ${#d} -le 253 && "$d" =~ ^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9-]{2,}$ ]] ||
+				die "'$d' is not a domain name (example.edu)"
+			[[ ",$list," == *",$d,"* ]] || list+="${list:+,}$d"
+		done
+		[[ -n "$list" ]] || die "--domains needs at least one domain (example.edu)"
+	fi
+	db_ready || die "the database is not running: harmony start"
+
+	# id and domains are checked above: a-z, 0-9, ':', '-' and '.' only.
+	if [[ "$mode" == follow ]]; then
+		sql="UPDATE public.instance_config
+			SET config_value = (CASE WHEN jsonb_typeof(config_value) = 'object' THEN config_value ELSE '{}'::jsonb END) - '$id',
+			    updated_at = now()
+			WHERE config_key = 'signup_providers'"
+	else
+		if [[ "$mode" == open ]]; then
+			entry='{"mode": "open"}'
+		else
+			entry="{\"mode\": \"domains\", \"domains\": [\"$(printf '%s' "$list" | sed 's/,/", "/g')\"]}"
+		fi
+		sql="INSERT INTO public.instance_config (config_key, config_value, description)
+			VALUES ('signup_providers', jsonb_build_object('$id', '$entry'::jsonb),
+			        'Sign-up through each sign-in provider: {\"provider\": {\"mode\": \"open\" | \"domains\", \"domains\": [...]}}; a provider absent follows registration_policy')
+			ON CONFLICT (config_key) DO UPDATE
+			SET config_value = (CASE WHEN jsonb_typeof(public.instance_config.config_value) = 'object'
+			                         THEN public.instance_config.config_value ELSE '{}'::jsonb END) || jsonb_build_object('$id', '$entry'::jsonb),
+			    updated_at = now()"
+	fi
+	db_sql -c "$sql" >/dev/null || die "could not update instance_config.signup_providers"
+
+	case "$mode" in
+		follow)  ok "New accounts through $id: as registration allows ($(env_get "$ENV_FILE" REGISTRATION | lower))" ;;
+		open)    ok "New accounts through $id: anyone it signs in" ;;
+		domains) ok "New accounts through $id: addresses it has verified at ${list//,/, } (and their subdomains)" ;;
+	esac
+	[[ "$mode" != follow ]] || return 0
+
+	if ! hook_applies_registration; then
+		warn "the database's sign-up hook does not read this yet: harmony update"
+	elif truthy "$(env_get "$SB_ENV" DISABLE_SIGNUP)"; then
+		if registration_by_hook && [[ "$(env_get "$ENV_FILE" REGISTRATION | lower)" =~ ^(invite|invite-only|closed)$ ]]; then
+			info "Handing registration to the sign-up hook, which applies it per sign-in method..."
+			registration
+		else
+			warn "the auth service refuses every new account (DISABLE_SIGNUP=true in supabase/.env), so $id creates none: harmony doctor"
+		fi
+	fi
+	if [[ "$id" != custom:* && " $(oauth_enabled) " != *" $id "* ]]; then
+		info "$id is off in the auth service; this applies once it is on"
+	fi
+}
+
 auth_cmd() {
 	local sub="${1:-}"
 	[[ $# -gt 0 ]] && shift
@@ -989,7 +1095,8 @@ auth_cmd() {
 		add-provider) auth_add_provider "$@" ;;
 		remove-provider) auth_remove_provider "$@" ;;
 		linking) auth_linking "$@" ;;
-		*) die "usage: harmony auth providers | add-provider | remove-provider | linking" ;;
+		sign-up) auth_sign_up "$@" ;;
+		*) die "usage: harmony auth providers | add-provider | remove-provider | linking | sign-up" ;;
 	esac
 }
 

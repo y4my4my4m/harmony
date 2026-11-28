@@ -3,17 +3,17 @@
 <div class="admin-module config-module">
   <div class="module-header">
     <Icon name="settings" :size="20" />
-    <h2>Configuration</h2>
+    <h2>{{ t('admin.instance.title') }}</h2>
   </div>
   <div class="config-tabs">
     <button
       v-for="tab in [
-        { key: 'general', label: 'General', icon: 'settings' },
-        { key: 'federation', label: 'Federation', icon: 'globe' },
-        { key: 'branding', label: 'Branding', icon: 'image' },
-        { key: 'oauth', label: 'Authentication', icon: 'shield' },
-        { key: 'webrtc', label: 'Voice & video', icon: 'mic' },
-        { key: 'uploads', label: $t('uploadLimits.title'), icon: 'upload' },
+        { key: 'general', label: t('admin.instance.tabGeneral'), icon: 'settings' },
+        { key: 'federation', label: t('admin.instance.tabFederation'), icon: 'globe' },
+        { key: 'branding', label: t('admin.instance.tabBranding'), icon: 'image' },
+        { key: 'oauth', label: t('admin.instance.tabAuth'), icon: 'shield' },
+        { key: 'webrtc', label: t('settings.voice.title'), icon: 'mic' },
+        { key: 'uploads', label: t('uploadLimits.title'), icon: 'upload' },
       ]"
       :key="tab.key"
       :class="['config-tab-btn', { active: configTab === tab.key }]"
@@ -30,90 +30,89 @@
 
     <!-- General / Chat Settings -->
     <fieldset v-if="configTab === 'general'" class="config-section" :disabled="!configLoaded">
-      <h3>Chat settings</h3>
+      <h3>{{ t('admin.instance.chatSettings') }}</h3>
       <div class="setting-group">
-        <label>Max server size</label>
+        <label>{{ t('admin.instance.maxServerSize') }}</label>
         <input v-model.number="config.chat.maxServerSize" type="number" class="cyber-input" />
       </div>
       <div v-if="limitsSupported" class="setting-group">
-        <label>Servers one account can own</label>
+        <label>{{ t('admin.instance.maxServersPerUser') }}</label>
         <input v-model.number="config.chat.maxServersPerUser" type="number" min="0" class="cyber-input" data-testid="config-max-servers-per-user" />
-        <span class="setting-hint">Local servers, instance admins and moderators excepted. 0 = no limit. Default: 100.</span>
+        <span class="setting-hint">{{ t('admin.instance.maxServersPerUserHint') }}</span>
       </div>
       <div v-if="limitsSupported" class="setting-group">
-        <label>Bots one account can own</label>
+        <label>{{ t('admin.instance.maxBotsPerUser') }}</label>
         <input v-model.number="config.chat.maxBotsPerUser" type="number" min="0" class="cyber-input" data-testid="config-max-bots-per-user" />
-        <span class="setting-hint">Channel webhooks and linked Discord bridges are not counted. 0 = no limit. Default: 25.</span>
+        <span class="setting-hint">{{ t('admin.instance.maxBotsPerUserHint') }}</span>
       </div>
       <div class="setting-group">
-        <label>Max message length</label>
+        <label>{{ t('admin.instance.maxMessageLength') }}</label>
         <input v-model.number="config.chat.maxMessageLength" type="number" class="cyber-input" />
       </div>
       <div class="setting-group">
-        <label>Max media attachments per post/message</label>
+        <label>{{ t('admin.instance.maxMediaAttachments') }}</label>
         <input v-model.number="config.chat.maxMediaAttachmentsPerPost" type="number" class="cyber-input" min="1" />
-        <span class="setting-hint">Maximum images/videos/files per post or chat message. Default: 20.</span>
+        <span class="setting-hint">{{ t('admin.instance.maxMediaAttachmentsHint') }}</span>
       </div>
       <div class="setting-row">
         <label class="toggle-label">
           <input type="checkbox" v-model="config.chat.allowFileUploads" />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">Allow file uploads</span>
+          <span class="toggle-text">{{ t('admin.instance.allowFileUploads') }}</span>
         </label>
         <label class="toggle-label">
           <input type="checkbox" v-model="config.chat.enableVoiceChannels" />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">Enable voice channels</span>
+          <span class="toggle-text">{{ t('admin.instance.enableVoiceChannels') }}</span>
         </label>
       </div>
 
       <NewcomerAlertsDefault />
 
-      <h3 style="margin-top: 24px;">Bridge attachments</h3>
+      <h3 style="margin-top: 24px;">{{ t('admin.instance.bridgeAttachmentsTitle') }}</h3>
       <p class="setting-hint" style="margin-bottom: 12px;">
-        Instance-wide policy for bridged images/files from external platforms (Discord, etc.). Bot owners cannot override this.
+        {{ t('admin.instance.bridgeAttachmentsHint') }}
       </p>
       <div class="setting-group">
-        <label>Attachment handling</label>
+        <label>{{ t('admin.instance.attachmentHandling') }}</label>
         <select v-model="config.chat.bridgeAttachmentMode" class="cyber-input">
-          <option value="link">Link only (external CDN URLs — may expire)</option>
-          <option value="refresh">Refresh on demand (re-sign expired URLs when viewed; no extra disk)</option>
-          <option value="mirror">Mirror to storage (permanent; uses disk — grows with traffic)</option>
+          <option value="link">{{ t('admin.instance.attachmentModeLink') }}</option>
+          <option value="refresh">{{ t('admin.instance.attachmentModeRefresh') }}</option>
+          <option value="mirror">{{ t('admin.instance.attachmentModeMirror') }}</option>
         </select>
-        <span class="setting-hint" v-if="config.chat.bridgeAttachmentMode === 'mirror'">
-          Warning: every bridged attachment is copied into <code>message_media</code>. Busy bridged channels can consume significant storage.
-        </span>
+        <i18n-t v-if="config.chat.bridgeAttachmentMode === 'mirror'" keypath="admin.instance.attachmentMirrorWarning" scope="global" tag="span" class="setting-hint">
+          <template #table><code>message_media</code></template>
+        </i18n-t>
         <span v-if="config.chat.bridgeAttachmentMode === 'mirror' && mirrorStatusText" class="setting-hint" data-testid="mirror-status" role="status">
           {{ mirrorStatusText }}
         </span>
         <span class="setting-hint" v-else-if="config.chat.bridgeAttachmentMode === 'refresh'">
-          Requires the bot gateway. Expired Discord links are re-signed when someone views them (no disk use, no “edited” badge): by the bridge that posted them while it is connected, otherwise by this instance's Discord bot, which links people post on Harmony also need.
+          {{ t('admin.instance.attachmentRefreshHint') }}
         </span>
       </div>
 
       <BridgeAdminSection />
 
-      <h3 style="margin-top: 24px;">Media picker (Klipy)</h3>
-      <p class="setting-hint" style="margin-bottom: 16px;">
-        GIF/media search is proxied through the federation backend. API keys live in the backend
-        environment (<code>KLIPY_API_KEY_ADS</code> / <code>KLIPY_API_KEY_NOADS</code>), not here.
-      </p>
+      <MatrixAdminSection />
+
+      <h3 style="margin-top: 24px;">{{ t('admin.instance.klipyTitle') }}</h3>
+      <i18n-t keypath="admin.instance.klipyHint" scope="global" tag="p" class="setting-hint" style="margin-bottom: 16px;">
+        <template #ads><code>KLIPY_API_KEY_ADS</code></template>
+        <template #noads><code>KLIPY_API_KEY_NOADS</code></template>
+      </i18n-t>
 
       <div class="klipy-settings">
-        <div class="klipy-group-label">Ads &amp; attribution</div>
+        <div class="klipy-group-label">{{ t('admin.instance.klipyAdsGroup') }}</div>
 
         <div class="klipy-setting">
           <div class="klipy-setting-text">
-            <span class="klipy-setting-title">GIF ads</span>
+            <span class="klipy-setting-title">{{ t('admin.instance.gifAdsTitle') }}</span>
             <span class="klipy-setting-desc">
-              <strong>Note:</strong> This setting only affects the mobile GIF picker. Desktop users will always not see ads.
-              This is a limitation of KLIPY as an ad distributor at the moment
+              <i18n-t keypath="admin.instance.gifAdsNote" scope="global" tag="span">
+                <template #note><strong>{{ t('admin.instance.gifAdsNoteLabel') }}</strong></template>
+              </i18n-t>
               <br>
-              Non-supporters see Klipy ads in the mobile GIF picker; ad-free supporters never do. Klipy only
-              fills ads on mobile browsers (including installed PWAs) — desktop never receives ads per their API.
-              When off, nobody sees ads. Also requires an ad-enabled Klipy key and ads enabled in the Klipy
-              Partner Dashboard.
-              Per-tier ad-free lives under Funding &amp; Supporters.
+              {{ t('admin.instance.gifAdsDesc') }}
             </span>
           </div>
           <label class="toggle-label klipy-toggle">
@@ -124,11 +123,8 @@
 
         <div class="klipy-setting">
           <div class="klipy-setting-text">
-            <span class="klipy-setting-title">KLIPY watermark on sent media</span>
-            <span class="klipy-setting-desc">
-              Adds a small KLIPY badge to shared GIFs/stickers. The “Search KLIPY” picker label is always
-              shown (required attribution); this watermark is optional but recommended.
-            </span>
+            <span class="klipy-setting-title">{{ t('admin.instance.klipyWatermarkTitle') }}</span>
+            <span class="klipy-setting-desc">{{ t('admin.instance.klipyWatermarkDesc') }}</span>
           </div>
           <label class="toggle-label klipy-toggle">
             <input type="checkbox" v-model="config.chat.gifKlipyWatermarkEnabled" />
@@ -136,16 +132,13 @@
           </label>
         </div>
 
-        <div class="klipy-group-label">Optional collections</div>
-        <p class="klipy-group-hint">
-          GIFs and Stickers are always available. Enabling these adds picker tabs and slash commands; when
-          off they are hidden everywhere.
-        </p>
+        <div class="klipy-group-label">{{ t('admin.instance.optionalCollections') }}</div>
+        <p class="klipy-group-hint">{{ t('admin.instance.optionalCollectionsHint') }}</p>
 
         <div class="klipy-setting">
           <div class="klipy-setting-text">
-            <span class="klipy-setting-title">Clips <code>/clip</code></span>
-            <span class="klipy-setting-desc">Short looping videos (with optional audio).</span>
+            <span class="klipy-setting-title">{{ t('admin.instance.clipsTitle') }} <code>/clip</code></span>
+            <span class="klipy-setting-desc">{{ t('admin.instance.clipsDesc') }}</span>
           </div>
           <label class="toggle-label klipy-toggle">
             <input type="checkbox" v-model="config.chat.gifClipsEnabled" />
@@ -155,8 +148,8 @@
 
         <div class="klipy-setting">
           <div class="klipy-setting-text">
-            <span class="klipy-setting-title">Memes <code>/meme</code></span>
-            <span class="klipy-setting-desc">Klipy's meme collection.</span>
+            <span class="klipy-setting-title">{{ t('admin.instance.memesTitle') }} <code>/meme</code></span>
+            <span class="klipy-setting-desc">{{ t('admin.instance.memesDesc') }}</span>
           </div>
           <label class="toggle-label klipy-toggle">
             <input type="checkbox" v-model="config.chat.gifMemesEnabled" />
@@ -166,11 +159,8 @@
 
         <div class="klipy-setting">
           <div class="klipy-setting-text">
-            <span class="klipy-setting-title">AI Emoji browse <code>/aiemoji</code></span>
-            <span class="klipy-setting-desc">
-              Browse Klipy's AI emoji. Picking one inserts it into the composer as an emoji (it is not
-              hosted here — it behaves like a remote emoji and counts toward frequently-used).
-            </span>
+            <span class="klipy-setting-title">{{ t('admin.instance.aiEmojiBrowseTitle') }} <code>/aiemoji</code></span>
+            <span class="klipy-setting-desc">{{ t('admin.instance.aiEmojiBrowseDesc') }}</span>
           </div>
           <label class="toggle-label klipy-toggle">
             <input type="checkbox" v-model="config.chat.gifAiEmojisEnabled" />
@@ -178,16 +168,12 @@
           </label>
         </div>
 
-        <div class="klipy-group-label">AI emoji generation</div>
+        <div class="klipy-group-label">{{ t('admin.instance.aiEmojiGenGroup') }}</div>
 
         <div class="klipy-setting">
           <div class="klipy-setting-text">
-            <span class="klipy-setting-title">Allow AI emoji generation</span>
-            <span class="klipy-setting-desc">
-              Members generate their own custom emoji from a text prompt; these are hosted on this instance
-              and appear in the emoji picker's “AI Generated” category. Klipy caps generation at 20/day per
-              instance (shared) plus a per-user daily limit.
-            </span>
+            <span class="klipy-setting-title">{{ t('admin.instance.aiEmojiGenTitle') }}</span>
+            <span class="klipy-setting-desc">{{ t('admin.instance.aiEmojiGenDesc') }}</span>
           </div>
           <label class="toggle-label klipy-toggle">
             <input type="checkbox" v-model="config.chat.gifAiEmojiGenerationEnabled" />
@@ -196,38 +182,38 @@
         </div>
       </div>
 
-      <h3 style="margin-top: 24px;">Trending & discovery</h3>
+      <h3 style="margin-top: 24px;">{{ t('admin.instance.trendingTitle') }}</h3>
       <div class="setting-group">
-        <label>Trending posts</label>
+        <label>{{ t('admin.instance.trendingPosts') }}</label>
         <div class="setting-control-row">
           <button type="button" class="primary-btn-sm refresh-trending-btn" @click="refreshTrendingPosts" :disabled="loadingStates.trendingRefresh">
             <Icon v-if="loadingStates.trendingRefresh" name="loader" :size="16" class="spin" />
             <Icon v-else name="refresh-cw" :size="16" />
-            {{ loadingStates.trendingRefresh ? 'Refreshing…' : 'Refresh trending now' }}
+            {{ loadingStates.trendingRefresh ? t('admin.instance.refreshing') : t('admin.instance.refreshTrending') }}
           </button>
-          <span class="setting-hint">Manually recalculate trending posts. Normally runs every 15 minutes.</span>
+          <span class="setting-hint">{{ t('admin.instance.refreshTrendingHint') }}</span>
         </div>
       </div>
 
       <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
         <Icon name="save" :size="16" />
-        Save changes
+        {{ t('server.saveChanges') }}
       </button>
     </fieldset>
 
     <!-- Federation Settings -->
     <fieldset v-if="configTab === 'federation'" class="config-section" :disabled="!configLoaded">
-      <h3>Federation settings</h3>
+      <h3>{{ t('admin.instance.federationSettings') }}</h3>
       <div class="setting-group">
-        <label>Max post length</label>
+        <label>{{ t('admin.instance.maxPostLength') }}</label>
         <input v-model.number="config.federation.maxPostLength" type="number" class="cyber-input" />
       </div>
       <div class="setting-group">
-        <label>Delivery retry attempts</label>
+        <label>{{ t('admin.instance.retryAttempts') }}</label>
         <input v-model.number="config.federation.retryAttempts" type="number" class="cyber-input" />
       </div>
       <div class="setting-group">
-        <label>{{ $t('admin.instance.maxPostReactions') }}</label>
+        <label>{{ t('admin.instance.maxPostReactions') }}</label>
         <input
           v-model.number="config.federation.maxPostReactionsPerUser"
           type="number"
@@ -236,15 +222,15 @@
           max="100"
           data-testid="max-post-reactions-input"
         />
-        <span class="setting-hint">{{ $t('admin.instance.maxPostReactionsHint') }}</span>
+        <span class="setting-hint">{{ t('admin.instance.maxPostReactionsHint') }}</span>
       </div>
       <div class="setting-group">
-        <label>Max custom emojis per server</label>
+        <label>{{ t('admin.instance.maxCustomEmojis') }}</label>
         <input v-model.number="config.federation.maxCustomEmojisPerServer" type="number" class="cyber-input" min="0" />
-        <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
+        <span class="setting-hint">{{ t('admin.instance.maxCustomEmojisHint') }}</span>
       </div>
       <div class="setting-group">
-        <label for="max-personal-emojis">{{ $t('admin.instance.maxPersonalEmojis') }}</label>
+        <label for="max-personal-emojis">{{ t('admin.instance.maxPersonalEmojis') }}</label>
         <input
           id="max-personal-emojis"
           v-model.number="config.federation.maxPersonalEmojisPerUser"
@@ -255,10 +241,10 @@
           aria-describedby="max-personal-emojis-hint"
           data-testid="max-personal-emojis-input"
         />
-        <span id="max-personal-emojis-hint" class="setting-hint">{{ $t('admin.instance.maxPersonalEmojisHint') }}</span>
+        <span id="max-personal-emojis-hint" class="setting-hint">{{ t('admin.instance.maxPersonalEmojisHint') }}</span>
       </div>
       <div class="setting-group">
-        <label for="max-stickers-per-server">{{ $t('admin.instance.maxStickersPerServer') }}</label>
+        <label for="max-stickers-per-server">{{ t('admin.instance.maxStickersPerServer') }}</label>
         <input
           id="max-stickers-per-server"
           v-model.number="config.federation.maxStickersPerServer"
@@ -269,10 +255,10 @@
           aria-describedby="max-stickers-per-server-hint"
           data-testid="max-stickers-per-server-input"
         />
-        <span id="max-stickers-per-server-hint" class="setting-hint">{{ $t('admin.instance.maxStickersPerServerHint') }}</span>
+        <span id="max-stickers-per-server-hint" class="setting-hint">{{ t('admin.instance.maxStickersPerServerHint') }}</span>
       </div>
       <div class="setting-group">
-        <label for="max-instance-stickers">{{ $t('admin.instance.maxInstanceStickers') }}</label>
+        <label for="max-instance-stickers">{{ t('admin.instance.maxInstanceStickers') }}</label>
         <input
           id="max-instance-stickers"
           v-model.number="config.federation.maxInstanceStickers"
@@ -283,10 +269,10 @@
           aria-describedby="max-instance-stickers-hint"
           data-testid="max-instance-stickers-input"
         />
-        <span id="max-instance-stickers-hint" class="setting-hint">{{ $t('admin.instance.maxInstanceStickersHint') }}</span>
+        <span id="max-instance-stickers-hint" class="setting-hint">{{ t('admin.instance.maxInstanceStickersHint') }}</span>
       </div>
       <div class="setting-group">
-        <label for="max-personal-stickers">{{ $t('admin.instance.maxPersonalStickers') }}</label>
+        <label for="max-personal-stickers">{{ t('admin.instance.maxPersonalStickers') }}</label>
         <input
           id="max-personal-stickers"
           v-model.number="config.federation.maxPersonalStickersPerUser"
@@ -297,10 +283,10 @@
           aria-describedby="max-personal-stickers-hint"
           data-testid="max-personal-stickers-input"
         />
-        <span id="max-personal-stickers-hint" class="setting-hint">{{ $t('admin.instance.maxPersonalStickersHint') }}</span>
+        <span id="max-personal-stickers-hint" class="setting-hint">{{ t('admin.instance.maxPersonalStickersHint') }}</span>
       </div>
       <div class="setting-group">
-        <label>Custom emoji image quality</label>
+        <label>{{ t('admin.instance.emojiQuality') }}</label>
         <input
           v-model.number="config.federation.customEmojiTransformQuality"
           type="number"
@@ -308,12 +294,10 @@
           min="1"
           max="100"
         />
-        <span class="setting-hint">
-          JPEG/WebP quality (20-100) for resized custom emoji images from storage. Default 80. Lower values reduce bandwidth at the cost of artifacts.
-        </span>
+        <span class="setting-hint">{{ t('admin.instance.emojiQualityHint') }}</span>
       </div>
       <div class="setting-group">
-        <label for="federate-image-max-px">{{ $t('admin.instance.federateImageMaxPx') }}</label>
+        <label for="federate-image-max-px">{{ t('admin.instance.federateImageMaxPx') }}</label>
         <input
           id="federate-image-max-px"
           v-model.number="config.federation.federateImageMaxPx"
@@ -325,17 +309,15 @@
           aria-describedby="federate-image-max-px-hint"
           data-testid="federate-image-max-px-input"
         />
-        <span id="federate-image-max-px-hint" class="setting-hint">{{ $t('admin.instance.federateImageMaxPxHint') }}</span>
+        <span id="federate-image-max-px-hint" class="setting-hint">{{ t('admin.instance.federateImageMaxPxHint') }}</span>
       </div>
       <div class="setting-group">
         <label class="toggle-label">
           <input type="checkbox" v-model="config.federation.allowCustomEmojisInDisplayNames" />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">Allow custom emojis in display names</span>
+          <span class="toggle-text">{{ t('admin.instance.allowEmojiNames') }}</span>
         </label>
-        <span class="setting-hint">
-          When off, emojis won't display in names and users can't add them.
-        </span>
+        <span class="setting-hint">{{ t('admin.instance.allowEmojiNamesHint') }}</span>
       </div>
       <div class="setting-group">
         <label class="toggle-label">
@@ -346,9 +328,9 @@
             data-testid="public-profile-pages-toggle"
           />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">{{ $t('admin.instance.publicProfilePages') }}</span>
+          <span class="toggle-text">{{ t('admin.instance.publicProfilePages') }}</span>
         </label>
-        <span id="public-profile-pages-hint" class="setting-hint">{{ $t('admin.instance.publicProfilePagesHint') }}</span>
+        <span id="public-profile-pages-hint" class="setting-hint">{{ t('admin.instance.publicProfilePagesHint') }}</span>
       </div>
       <div class="setting-group">
         <label class="toggle-label">
@@ -360,9 +342,9 @@
             data-testid="federation-outbound-toggle"
           />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">{{ $t('admin.instance.federationOutbound') }}</span>
+          <span class="toggle-text">{{ t('admin.instance.federationOutbound') }}</span>
         </label>
-        <span id="federation-outbound-hint" class="setting-hint">{{ $t('admin.instance.federationOutboundHint') }}</span>
+        <span id="federation-outbound-hint" class="setting-hint">{{ t('admin.instance.federationOutboundHint') }}</span>
       </div>
       <div class="setting-group">
         <label class="toggle-label">
@@ -374,70 +356,70 @@
             data-testid="federation-inbound-toggle"
           />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">{{ $t('admin.instance.federationInbound') }}</span>
+          <span class="toggle-text">{{ t('admin.instance.federationInbound') }}</span>
         </label>
-        <span id="federation-inbound-hint" class="setting-hint">{{ $t('admin.instance.federationInboundHint') }}</span>
+        <span id="federation-inbound-hint" class="setting-hint">{{ t('admin.instance.federationInboundHint') }}</span>
       </div>
       <p
         v-if="!config.federation.enableInbound && !config.federation.enableOutbound"
         class="setting-hint federation-closed-warning"
         role="note"
         data-testid="federation-closed-warning"
-      >{{ $t('admin.instance.federationClosedWarning') }}</p>
+      >{{ t('admin.instance.federationClosedWarning') }}</p>
 
       <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
         <Icon name="save" :size="16" />
-        Save changes
+        {{ t('server.saveChanges') }}
       </button>
     </fieldset>
 
     <!-- Instance Branding -->
     <fieldset v-if="configTab === 'branding'" class="config-section" :disabled="!configLoaded">
-      <h3>Instance branding</h3>
+      <h3>{{ t('admin.instance.brandingTitle') }}</h3>
       <div class="setting-group">
-        <label>Instance name</label>
+        <label>{{ t('admin.instance.instanceName') }}</label>
         <input 
           v-model="instanceConfig.name" 
           type="text" 
           class="cyber-input"
-          placeholder="Harmony Instance"
+          :placeholder="t('admin.instance.namePlaceholder')"
           @input="instanceBrandingChanged = true"
         />
         <span class="setting-hint">
-          This name appears on the login/register page. Changes will be visible to all users.
+          {{ t('admin.instance.nameHint') }}
         </span>
       </div>
       <div class="setting-group">
-        <label>Instance description</label>
+        <label>{{ t('admin.instance.instanceDescription') }}</label>
         <textarea
           v-model="instanceConfig.description"
           class="cyber-input"
           rows="3"
-          placeholder="A federated social platform"
+          :placeholder="t('admin.instance.descriptionPlaceholder')"
           @input="instanceBrandingChanged = true"
         ></textarea>
         <span class="setting-hint">
-          This description appears as the subtitle on the login/register page.
+          {{ t('admin.instance.descriptionHint') }}
         </span>
       </div>
       <div class="setting-group">
-        <label>Instance rules</label>
+        <label>{{ t('admin.instance.instanceRules') }}</label>
         <textarea
           v-model="instanceRulesText"
           class="cyber-input"
           rows="5"
-          placeholder="One rule per line, e.g.&#10;Be respectful&#10;No spam"
+          :placeholder="t('admin.instance.rulesPlaceholder')"
           @input="instanceBrandingChanged = true"
         ></textarea>
         <span class="setting-hint">
-          Shown once to users joining a server here, and to federated users joining via an invite link.
+          {{ t('admin.instance.rulesHint') }}
         </span>
       </div>
 
       <div class="config-subsection">
-        <h4>Appearance</h4>
+        <h4>{{ t('settings.appearance.title') }}</h4>
         <div class="setting-group">
-          <label>Instance icon</label>
+          <label>{{ t('admin.instance.instanceIcon') }}</label>
           <div class="instance-appearance-row">
             <div
               class="instance-icon-preview"
@@ -446,14 +428,14 @@
               <img
                 v-if="instanceIconPreviewUrl"
                 :src="instanceIconPreviewUrl"
-                alt="Instance icon"
+                :alt="t('admin.instance.instanceIcon')"
                 class="instance-icon-img"
               />
               <Icon v-else name="image" :size="24" />
             </div>
             <div class="instance-appearance-controls">
               <button type="button" class="save-btn" @click="($refs.instanceIconInput as HTMLInputElement)?.click()">
-                Upload icon
+                {{ t('admin.instance.uploadIcon') }}
               </button>
               <button
                 v-if="instanceConfig.iconUrl || instanceIconFile"
@@ -462,7 +444,7 @@
                 style="background: var(--error);"
                 @click="instanceIconFile = null; instanceConfig.iconUrl = ''; instanceBrandingChanged = true"
               >
-                Remove
+                {{ t('common.remove') }}
               </button>
             </div>
           </div>
@@ -474,12 +456,12 @@
             @change="handleInstanceIconChange"
           />
           <span class="setting-hint">
-            Your instance's logo. Shown to other federated instances and in the instances directory.
+            {{ t('admin.instance.iconHint') }}
           </span>
         </div>
 
         <div class="setting-group">
-          <label>Instance banner</label>
+          <label>{{ t('admin.instance.instanceBanner') }}</label>
           <div
             class="instance-banner-preview"
             :style="instanceBannerPreviewUrl ? { backgroundImage: `url(${instanceBannerPreviewUrl})` } : {}"
@@ -487,10 +469,10 @@
           >
             <div v-if="!instanceBannerPreviewUrl" class="instance-banner-placeholder">
               <Icon name="image" :size="20" />
-              <span>Click to upload banner</span>
+              <span>{{ t('admin.instance.uploadBanner') }}</span>
             </div>
             <div v-else class="instance-banner-overlay">
-              <span>Change banner</span>
+              <span>{{ t('admin.instance.changeBanner') }}</span>
             </div>
           </div>
           <div v-if="instanceConfig.bannerUrl || instanceBannerFile" style="margin-top: 8px;">
@@ -500,7 +482,7 @@
               style="background: var(--error);"
               @click="instanceBannerFile = null; instanceConfig.bannerUrl = ''; instanceBrandingChanged = true"
             >
-              Remove banner
+              {{ t('server.banner.remove') }}
             </button>
           </div>
           <input
@@ -511,34 +493,34 @@
             @change="handleInstanceBannerChange"
           />
           <span class="setting-hint">
-            A hero image for your instance. Shown in the instances directory and exposed via NodeInfo.
+            {{ t('admin.instance.bannerHint') }}
           </span>
         </div>
 
         <div class="setting-group">
-          <span class="form-label-text" aria-hidden="true">Theme color</span>
+          <span class="form-label-text" aria-hidden="true">{{ t('admin.instance.themeColor') }}</span>
           <!-- Its sliders are not form controls: a disabled fieldset leaves them live. -->
           <div style="display: flex; align-items: center; gap: 12px;" :inert="!configLoaded">
             <ColorPicker
-              label="Theme color"
+              :label="t('admin.instance.themeColor')"
               :color="instanceConfig.themeColor || '#0EA5E9'"
               @update:color="instanceConfig.themeColor = $event; instanceBrandingChanged = true"
               @change="instanceConfig.themeColor = $event; instanceBrandingChanged = true"
             />
           </div>
           <span class="setting-hint">
-            Your instance's accent color. Exposed via NodeInfo for other instances to use.
+            {{ t('admin.instance.themeColorHint') }}
           </span>
         </div>
 
         <div class="setting-group">
-          <label>Default theme for new users</label>
+          <label>{{ t('admin.instance.defaultTheme') }}</label>
           <span class="setting-hint" style="margin-bottom: 8px;">
-            Import a theme JSON file (exported from Appearance settings) to set as the default for new and non-signed-in users.
+            {{ t('admin.instance.defaultThemeHint') }}
           </span>
           <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             <button type="button" class="save-btn" @click="($refs.defaultThemeInput as HTMLInputElement)?.click()">
-              Import theme JSON
+              {{ t('admin.instance.importTheme') }}
             </button>
             <button 
               v-if="instanceConfig.defaultThemeJson"
@@ -546,10 +528,10 @@
               class="delete-btn"
               @click="clearDefaultTheme"
             >
-              Clear default theme
+              {{ t('admin.instance.clearTheme') }}
             </button>
             <span v-if="instanceConfig.defaultThemeJson" class="setting-hint" style="margin: 0;">
-              Default theme is set
+              {{ t('admin.instance.themeSet') }}
             </span>
           </div>
           <input
@@ -563,9 +545,9 @@
       </div>
 
       <div class="config-subsection">
-        <h4>Legal & contact</h4>
+        <h4>{{ t('admin.instance.legalTitle') }}</h4>
         <div class="setting-group">
-          <label>Terms of Service URL</label>
+          <label>{{ t('admin.instance.termsUrl') }}</label>
           <input
             v-model="instanceConfig.termsUrl"
             type="url"
@@ -574,11 +556,11 @@
             @input="instanceBrandingChanged = true"
           />
           <span class="setting-hint">
-            Link to your Terms of Service. Shown on the registration page. Leave empty to hide.
+            {{ t('admin.instance.termsHint') }}
           </span>
         </div>
         <div class="setting-group">
-          <label>Privacy Policy URL</label>
+          <label>{{ t('admin.instance.privacyUrl') }}</label>
           <input
             v-model="instanceConfig.privacyUrl"
             type="url"
@@ -587,24 +569,24 @@
             @input="instanceBrandingChanged = true"
           />
           <span class="setting-hint">
-            Link to your Privacy Policy. Shown on the registration page. Leave empty to hide.
+            {{ t('admin.instance.privacyHint') }}
           </span>
         </div>
         <div class="setting-group">
-          <label>Maintainer name</label>
+          <label>{{ t('admin.instance.maintainerName') }}</label>
           <input
             v-model="instanceConfig.maintainerName"
             type="text"
             class="cyber-input"
-            placeholder="Admin"
+            :placeholder="t('admin.instance.maintainerNamePlaceholder')"
             @input="instanceBrandingChanged = true"
           />
           <span class="setting-hint">
-            Public contact name for this instance's administrator.
+            {{ t('admin.instance.maintainerNameHint') }}
           </span>
         </div>
         <div class="setting-group">
-          <label>Maintainer email</label>
+          <label>{{ t('admin.instance.maintainerEmail') }}</label>
           <input
             v-model="instanceConfig.maintainerEmail"
             type="email"
@@ -613,7 +595,7 @@
             @input="instanceBrandingChanged = true"
           />
           <span class="setting-hint">
-            Public contact email. Exposed via NodeInfo for federation transparency.
+            {{ t('admin.instance.maintainerEmailHint') }}
           </span>
         </div>
       </div>
@@ -625,7 +607,7 @@
         style="margin-top: 16px;"
       >
         <Icon name="save" :size="16" />
-        {{ savingBranding ? 'Saving…' : 'Save branding' }}
+        {{ savingBranding ? t('admin.instance.saving') : t('admin.instance.saveBranding') }}
       </button>
     </fieldset>
 
@@ -634,8 +616,8 @@
       <OAuthProvidersAdmin />
 
       <section class="custom-oauth" data-testid="admin-custom-oauth" aria-labelledby="custom-oauth-title">
-        <h4 id="custom-oauth-title">{{ $t('admin.instance.customOAuthTitle') }}</h4>
-        <p class="setting-hint">{{ $t('admin.instance.customOAuthHint') }}</p>
+        <h4 id="custom-oauth-title">{{ t('admin.instance.customOAuthTitle') }}</h4>
+        <p class="setting-hint">{{ t('admin.instance.customOAuthHint') }}</p>
         <ul v-if="customOAuthProviders.length" class="custom-oauth-list" data-testid="admin-custom-oauth-list">
           <li v-for="provider in customOAuthProviders" :key="provider.id" class="custom-oauth-item">
             <img v-if="provider.icon" :src="provider.icon" alt="" width="20" height="20" referrerpolicy="no-referrer" />
@@ -644,10 +626,10 @@
             <code class="custom-oauth-id">{{ provider.id }}</code>
           </li>
         </ul>
-        <p v-else class="setting-hint" data-testid="admin-custom-oauth-empty">{{ $t('admin.instance.customOAuthEmpty') }}</p>
-        <p class="setting-hint">{{ $t('admin.instance.customOAuthCallback') }}</p>
+        <p v-else class="setting-hint" data-testid="admin-custom-oauth-empty">{{ t('admin.instance.customOAuthEmpty') }}</p>
+        <p class="setting-hint">{{ t('admin.instance.customOAuthCallback') }}</p>
         <code class="custom-oauth-command" data-testid="admin-custom-oauth-callback">{{ customOAuthCallbackUrl }}</code>
-        <p class="setting-hint">{{ $t('admin.instance.customOAuthManage') }}</p>
+        <p class="setting-hint">{{ t('admin.instance.customOAuthManage') }}</p>
         <pre class="custom-oauth-command"><code>harmony auth add-provider authentik --name Authentik \
   --issuer https://auth.example.com/application/o/harmony/ --client-id …
 harmony auth providers
@@ -661,23 +643,23 @@ harmony auth remove-provider authentik</code></pre>
     </div>
 
     <fieldset v-if="configTab === 'webrtc'" class="config-section" :disabled="!configLoaded">
-      <h3>WebRTC / voice settings</h3>
+      <h3>{{ t('admin.instance.webrtcTitle') }}</h3>
       <p v-if="webrtcUnread" class="setting-hint federation-closed-warning" role="status" data-testid="webrtc-unread">
         {{ t('admin.instance.webrtcLoadFailed') }}
       </p>
       <div class="setting-group">
-        <label>WebRTC mode</label>
+        <label>{{ t('admin.instance.webrtcMode') }}</label>
         <select v-model="config.webrtc.mode" class="cyber-input" :disabled="webrtcUnread">
-          <option value="hybrid">Hybrid (SFU when configured, else P2P)</option>
-          <option value="sfu">SFU only (LiveKit)</option>
-          <option value="p2p">P2P only (peer-to-peer)</option>
+          <option value="hybrid">{{ t('admin.instance.modeHybrid') }}</option>
+          <option value="sfu">{{ t('admin.instance.modeSfu') }}</option>
+          <option value="p2p">{{ t('admin.instance.modeP2p') }}</option>
         </select>
         <span class="setting-hint">
-          Hybrid uses the LiveKit server when one is configured and P2P otherwise. Every participant of a call uses the same transport.
+          {{ t('admin.instance.modeHint') }}
         </span>
       </div>
       <div class="setting-group">
-        <label>LiveKit server URL</label>
+        <label>{{ t('admin.instance.livekitUrl') }}</label>
         <input 
           v-model="config.webrtc.livekitUrl" :disabled="webrtcUnread" 
           type="text" 
@@ -685,18 +667,18 @@ harmony auth remove-provider authentik</code></pre>
           placeholder="wss://livekit.yourdomain.com"
         />
         <span class="setting-hint">
-          WebSocket URL for the LiveKit server (configured in backend .env)
+          {{ t('admin.instance.livekitUrlHint') }}
         </span>
       </div>
       <div class="setting-group">
-        <label>Max stage listeners</label>
+        <label>{{ t('admin.instance.maxStageListeners') }}</label>
         <input 
           v-model.number="config.webrtc.maxStageListeners" :disabled="webrtcUnread" 
           type="number" 
           class="cyber-input"
         />
         <span class="setting-hint">
-          Maximum audience size for stage events (speaker mode)
+          {{ t('admin.instance.maxStageListenersHint') }}
         </span>
       </div>
       <div class="setting-group" data-testid="webrtc-federated-state">
@@ -707,7 +689,7 @@ harmony auth remove-provider authentik</code></pre>
 
       <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
         <Icon name="save" :size="16" />
-        Save changes
+        {{ t('server.saveChanges') }}
       </button>
     </fieldset>
     <VoiceIceSettings v-if="configTab === 'webrtc' && hasCapability('signal-relay')" />
@@ -731,6 +713,7 @@ import UploadLimitsAdmin from '@/components/admin/UploadLimitsAdmin.vue'
 import VoiceIceSettings from '@/components/admin/VoiceIceSettings.vue'
 import OAuthProvidersAdmin from '@/components/admin/OAuthProvidersAdmin.vue'
 import BridgeAdminSection from '@/components/settings/discord-bridge/BridgeAdminSection.vue'
+import MatrixAdminSection from '@/components/settings/matrix-bridge/MatrixAdminSection.vue'
 import { adminService } from '@/services/AdminService'
 import { trendingService } from '@/services/TrendingService'
 import { supabase } from '@/supabase'
@@ -758,10 +741,10 @@ const refreshTrendingPosts = async () => {
   loadingStates.value.trendingRefresh = true
   try {
     await trendingService.updateTrendingScores()
-    toast.success('Trending posts refreshed')
+    toast.success(t('admin.instance.trendingRefreshed'))
   } catch (error) {
     debug.error('Failed to refresh trending:', error)
-    toast.error('Failed to refresh trending posts')
+    toast.error(t('admin.instance.trendingRefreshFailed'))
   } finally {
     loadingStates.value.trendingRefresh = false
   }
@@ -1031,7 +1014,7 @@ const loadInstanceConfig = async () => {
 
 const saveConfig = async () => {
   if (!authStore.session?.user?.id) {
-    toast.error('You must be logged in to save configuration')
+    toast.error(t('admin.instance.mustLogInConfig'))
     return
   }
 
@@ -1056,7 +1039,7 @@ const saveConfig = async () => {
         federationEnabled: enableInbound || enableOutbound
       })
       if (!fedSuccess) {
-        toast.error('Failed to save federation settings')
+        toast.error(t('admin.instance.federationSaveFailed'))
         return
       }
       savedFederation.value = { inbound: enableInbound, outbound: enableOutbound }
@@ -1078,20 +1061,20 @@ const saveConfig = async () => {
         maxStageListeners: config.value.webrtc.maxStageListeners
       })
       if (!webrtcSaved) {
-        toast.error('Failed to save voice settings')
+        toast.error(t('admin.instance.voiceSaveFailed'))
         return
       }
       savedWebrtc.value = webrtc
     }
 
-    toast.success('Configuration saved')
+    toast.success(t('admin.instance.configSaved'))
     debug.log('Configuration saved:', config.value)
     
     const instanceSettings = useInstanceSettingsStore()
     await instanceSettings.fetchSettings(true)
   } catch (error: any) {
     debug.error('Failed to save configuration:', error)
-    toast.error(error.message || 'Failed to save configuration')
+    toast.error(error.message || t('admin.instance.configSaveFailed'))
   }
 }
 
@@ -1187,7 +1170,7 @@ const handleInstanceBannerChange = (event: Event) => {
 
 const saveInstanceBranding = async () => {
   if (!authStore.session?.user?.id) {
-    toast.error('You must be logged in to save instance branding')
+    toast.error(t('admin.instance.mustLogInBranding'))
     return
   }
 
@@ -1236,11 +1219,11 @@ const saveInstanceBranding = async () => {
     }, authStore.session.user.id)
 
     instanceBrandingChanged.value = false
-    toast.success('Instance branding saved')
+    toast.success(t('admin.instance.brandingSaved'))
     debug.log('Instance branding saved:', instanceConfig.value)
   } catch (error: any) {
     debug.error('Failed to save instance branding:', error)
-    toast.error(error.message || 'Failed to save instance branding')
+    toast.error(error.message || t('admin.instance.brandingSaveFailed'))
   } finally {
     savingBranding.value = false
   }
@@ -1253,7 +1236,7 @@ const handleDefaultThemeImport = async (event: Event) => {
     const text = await file.text()
     const parsed = JSON.parse(text)
     if (!parsed || typeof parsed !== 'object') {
-      toast.error('Invalid theme JSON file')
+      toast.error(t('admin.instance.invalidThemeJson'))
       return
     }
     instanceConfig.value.defaultThemeJson = text
@@ -1263,10 +1246,10 @@ const handleDefaultThemeImport = async (event: Event) => {
       await adminService.setInstanceConfigs({
         default_theme_json: text,
       }, authStore.session.user.id)
-      toast.success('Default theme imported and saved')
+      toast.success(t('admin.instance.themeImported'))
     }
   } catch {
-    toast.error('Failed to parse theme JSON file')
+    toast.error(t('admin.instance.themeParseFailed'))
   }
   const input = event.target as HTMLInputElement
   if (input) input.value = ''
@@ -1280,9 +1263,9 @@ const clearDefaultTheme = async () => {
       await adminService.setInstanceConfigs({
         default_theme_json: '',
       }, authStore.session.user.id)
-      toast.success('Default theme cleared')
+      toast.success(t('admin.instance.themeCleared'))
     } catch {
-      toast.error('Failed to clear default theme')
+      toast.error(t('admin.instance.themeClearFailed'))
     }
   }
 }

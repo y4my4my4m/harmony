@@ -3,20 +3,20 @@
     <!-- Header -->
     <div class="monitoring-header">
       <div class="header-content">
-        <h1>Performance Monitoring</h1>
-        <p>Metrics and insights for your Harmony instance. <span style="opacity: 0.6; font-size: 12px;">Overview, latency, and slow queries require a pg_cron job calling <code>aggregate_hourly_metrics()</code> to populate data.</span></p>
+        <h1>{{ t('admin.performance.title') }}</h1>
+        <p>{{ t('admin.performance.subtitle') }} <i18n-t keypath="admin.performance.cronNote" scope="global" tag="span" style="opacity: 0.6; font-size: 12px;"><template #fn><code>aggregate_hourly_metrics()</code></template></i18n-t></p>
       </div>
       <div class="header-actions">
-        <button @click="toggleFullscreen" class="fullscreen-btn" :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'">
+        <button @click="toggleFullscreen" class="fullscreen-btn" :title="isFullscreen ? t('admin.performance.exitFullscreen') : t('admin.performance.fullscreen')">
           {{ isFullscreen ? '⛶' : '⛶' }}
         </button>
         <select v-model="timeRange" class="time-selector">
-          <option value="1h">Last hour</option>
-          <option value="6h">Last 6 hours</option>
-          <option value="24h">Last 24 hours</option>
-          <option value="7d">Last 7 days</option>
-          <option value="30d">Last month</option>
-          <option value="90d">Last 3 months</option>
+          <option value="1h">{{ t('admin.performance.range.lastHour') }}</option>
+          <option value="6h">{{ t('admin.performance.range.last6Hours') }}</option>
+          <option value="24h">{{ t('admin.performance.range.last24Hours') }}</option>
+          <option value="7d">{{ t('admin.performance.range.last7Days') }}</option>
+          <option value="30d">{{ t('admin.performance.range.lastMonth') }}</option>
+          <option value="90d">{{ t('admin.performance.range.last3Months') }}</option>
         </select>
         <button class="refresh-btn" @click="refreshData" :disabled="loading">
           <svg 
@@ -27,7 +27,7 @@
           >
             <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
           </svg>
-          {{ loading ? 'Refreshing...' : 'Refresh' }}
+          {{ loading ? t('admin.performance.refreshing') : t('admin.performance.refresh') }}
         </button>
       </div>
     </div>
@@ -42,7 +42,7 @@
         </div>
         <div class="metric-content">
           <div class="metric-value">{{ formatNumber(metrics.totalRequests) }}</div>
-          <div class="metric-label">Total Requests</div>
+          <div class="metric-label">{{ t('admin.performance.totalRequests') }}</div>
         </div>
         <div class="metric-trend" :class="metrics.requestsTrend > 0 ? 'up' : 'down'">
           <svg v-if="metrics.requestsTrend > 0" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -63,7 +63,7 @@
         </div>
         <div class="metric-content">
           <div class="metric-value">{{ metrics.avgLatency }}<span class="unit">ms</span></div>
-          <div class="metric-label">Avg Response Time</div>
+          <div class="metric-label">{{ t('admin.performance.avgResponseTime') }}</div>
         </div>
         <div class="metric-status" :class="getLatencyStatus(metrics.avgLatency)">
           {{ getLatencyLabel(metrics.avgLatency) }}
@@ -78,7 +78,7 @@
         </div>
         <div class="metric-content">
           <div class="metric-value">{{ metrics.errorRate }}<span class="unit">%</span></div>
-          <div class="metric-label">Error Rate</div>
+          <div class="metric-label">{{ t('admin.performance.errorRate') }}</div>
         </div>
         <div class="metric-status" :class="getErrorStatus(metrics.errorRate)">
           {{ getErrorLabel(metrics.errorRate) }}
@@ -93,7 +93,7 @@
         </div>
         <div class="metric-content">
           <div class="metric-value">{{ metrics.federationSuccess }}<span class="unit">%</span></div>
-          <div class="metric-label">Federation Success</div>
+          <div class="metric-label">{{ t('admin.performance.federationSuccess') }}</div>
         </div>
         <div class="metric-status" :class="getFederationStatus(metrics.federationSuccess)">
           {{ getFederationLabel(metrics.federationSuccess) }}
@@ -104,9 +104,9 @@
     <!-- Charts Section -->
     <div class="charts-section">
       <div class="chart-container">
-        <h3>Request Latency Over Time</h3>
+        <h3>{{ t('admin.performance.latencyChart') }}</h3>
         <div class="chart-placeholder" v-if="!hasChartData">
-          <p>No data available for the selected time range</p>
+          <p>{{ t('admin.performance.noChartData') }}</p>
         </div>
         <div v-else class="simple-chart">
           <div class="chart-bars">
@@ -115,7 +115,7 @@
               :key="i"
               class="bar"
               :style="{ height: `${(point.value / maxLatency) * 100}%` }"
-              :title="`${point.label}: ${point.value}ms`"
+              :title="t('admin.performance.barTitle', { label: point.label, value: point.value })"
             >
               <span class="bar-value">{{ point.value }}</span>
             </div>
@@ -130,7 +130,7 @@
     <!-- Slow Queries Section -->
     <div class="slow-queries-section">
       <div class="section-header">
-        <h3>Slow Queries</h3>
+        <h3>{{ t('admin.performance.slowQueries') }}</h3>
         <span class="badge" v-if="slowQueries.length">{{ slowQueries.length }}</span>
       </div>
       
@@ -151,8 +151,8 @@
           </div>
           <code class="query-text">{{ truncateQuery(query.query) }}</code>
           <div class="query-meta">
-            <span v-if="query.table">Table: {{ query.table }}</span>
-            <span v-if="query.rows">Rows: {{ query.rows }}</span>
+            <span v-if="query.table">{{ t('admin.performance.queryTable', { table: query.table }) }}</span>
+            <span v-if="query.rows">{{ t('admin.performance.queryRows', { rows: query.rows }) }}</span>
           </div>
         </div>
       </div>
@@ -161,7 +161,7 @@
     <!-- Federation Health -->
     <div class="federation-section">
       <div class="section-header">
-        <h3>Federation Health</h3>
+        <h3>{{ t('admin.performance.federationHealth') }}</h3>
       </div>
       
       <EmptyState
@@ -178,19 +178,19 @@
           </div>
           <div class="server-info">
             <span class="server-domain">{{ server.domain }}</span>
-            <span class="server-type">{{ server.software || 'Unknown' }}</span>
+            <span class="server-type">{{ server.software || t('admin.performance.unknownSoftware') }}</span>
           </div>
           <div class="server-stats">
             <div class="stat">
               <span class="stat-value">{{ server.successRate }}%</span>
-              <span class="stat-label">Success</span>
+              <span class="stat-label">{{ t('admin.performance.statSuccess') }}</span>
             </div>
             <div class="stat">
               <span class="stat-value">{{ server.avgLatency }}ms</span>
-              <span class="stat-label">Latency</span>
+              <span class="stat-label">{{ t('admin.performance.statLatency') }}</span>
             </div>
           </div>
-          <span class="last-seen">Last seen: {{ formatRelativeTime(server.lastSeen) }}</span>
+          <span class="last-seen">{{ t('admin.performance.lastSeen', { time: formatRelativeTime(server.lastSeen) }) }}</span>
         </div>
       </div>
     </div>
@@ -200,8 +200,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
-import { formatDistanceToNow } from 'date-fns'
+import { useI18n } from 'vue-i18n'
 import EmptyState from '@/components/common/EmptyState.vue'
+
+const { t, locale } = useI18n()
 
 // State
 const loading = ref(false)
@@ -270,11 +272,21 @@ const formatNumber = (num: number): string => {
 
 const formatTime = (timestamp: string): string => {
   const date = new Date(timestamp)
-  return date.toLocaleTimeString()
+  return date.toLocaleTimeString(locale.value)
 }
 
+const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['year', 31_536_000], ['month', 2_592_000], ['week', 604_800],
+  ['day', 86_400], ['hour', 3_600], ['minute', 60], ['second', 1],
+]
+
 const formatRelativeTime = (date: Date): string => {
-  return formatDistanceToNow(date, { addSuffix: true })
+  const seconds = Math.round((date.getTime() - Date.now()) / 1000)
+  const rtf = new Intl.RelativeTimeFormat(locale.value, { numeric: 'auto' })
+  for (const [unit, size] of RELATIVE_UNITS) {
+    if (Math.abs(seconds) >= size || unit === 'second') return rtf.format(Math.trunc(seconds / size), unit)
+  }
+  return rtf.format(0, 'second')
 }
 
 const truncateQuery = (query: string): string => {
@@ -289,9 +301,9 @@ const getLatencyStatus = (latency: number): string => {
 }
 
 const getLatencyLabel = (latency: number): string => {
-  if (latency < 100) return 'Excellent'
-  if (latency < 300) return 'Good'
-  return 'Slow'
+  if (latency < 100) return t('admin.performance.status.excellent')
+  if (latency < 300) return t('admin.performance.status.good')
+  return t('admin.performance.status.slow')
 }
 
 const getErrorStatus = (rate: number): string => {
@@ -301,9 +313,9 @@ const getErrorStatus = (rate: number): string => {
 }
 
 const getErrorLabel = (rate: number): string => {
-  if (rate < 1) return 'Healthy'
-  if (rate < 5) return 'Elevated'
-  return 'Critical'
+  if (rate < 1) return t('admin.performance.status.healthy')
+  if (rate < 5) return t('admin.performance.status.elevated')
+  return t('admin.performance.status.critical')
 }
 
 const getFederationStatus = (rate: number): string => {
@@ -313,9 +325,9 @@ const getFederationStatus = (rate: number): string => {
 }
 
 const getFederationLabel = (rate: number): string => {
-  if (rate >= 95) return 'Healthy'
-  if (rate >= 80) return 'Degraded'
-  return 'Issues'
+  if (rate >= 95) return t('admin.performance.status.healthy')
+  if (rate >= 80) return t('admin.performance.status.degraded')
+  return t('admin.performance.status.issues')
 }
 
 const getDurationClass = (duration: number): string => {
@@ -398,7 +410,7 @@ const fetchLatencyData = async () => {
     if (error) throw error
 
     latencyData.value = (data || []).map(d => ({
-      label: new Date(d.hour).toLocaleTimeString('en-US', { hour: 'numeric' }),
+      label: new Date(d.hour).toLocaleTimeString(locale.value, { hour: 'numeric' }),
       value: Math.round(d.avg_latency || 0),
     }))
   } catch (error) {

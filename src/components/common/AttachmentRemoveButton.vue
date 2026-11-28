@@ -2,8 +2,8 @@
   <button
     type="button"
     class="attachment-remove-btn"
-    title="Delete"
-    aria-label="Remove attachment"
+    :title="t('common.delete')"
+    :aria-label="t('activitypub.removeAttachment')"
     @click.stop="$emit('click')"
   >
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -16,7 +16,11 @@
 </template>
 
 <script setup lang="ts">
+import { i18n } from '@/i18n';
+
 defineEmits<{ click: [] }>();
+
+const { t } = i18n.global;
 </script>
 
 <style>

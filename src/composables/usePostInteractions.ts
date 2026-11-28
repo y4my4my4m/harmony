@@ -3,6 +3,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub'
 import { services } from '@/services'
 import type { FederatedUser, TimelinePost } from '@/types'
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 
 // ActivityPub post/user interaction wrappers over the service layer.
 export function usePostInteractions() {
@@ -30,7 +31,7 @@ export function usePostInteractions() {
     
     if (!userId) {
       debug.error('toggleFollow: Invalid user ID:', user)
-      return { following: false, error: 'Invalid user ID' }
+      return { following: false, error: i18n.global.t('activitypub.postInteractions.invalidUser') }
     }
 
     isFollowLoading.value = true
@@ -44,7 +45,7 @@ export function usePostInteractions() {
       debug.error('Failed to toggle follow:', error)
       return { 
         following: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : i18n.global.t('activitypub.postInteractions.unknown') 
       }
     } finally {
       isFollowLoading.value = false
@@ -56,7 +57,7 @@ export function usePostInteractions() {
     
     if (!userId) {
       debug.error('followUser: Invalid user ID:', user)
-      return { success: false, error: 'Invalid user ID' }
+      return { success: false, error: i18n.global.t('activitypub.postInteractions.invalidUser') }
     }
 
     isFollowLoading.value = true
@@ -68,7 +69,7 @@ export function usePostInteractions() {
       debug.error('Failed to follow user:', error)
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : i18n.global.t('activitypub.postInteractions.unknown') 
       }
     } finally {
       isFollowLoading.value = false
@@ -80,7 +81,7 @@ export function usePostInteractions() {
     
     if (!userId) {
       debug.error('unfollowUser: Invalid user ID:', user)
-      return { success: false, error: 'Invalid user ID' }
+      return { success: false, error: i18n.global.t('activitypub.postInteractions.invalidUser') }
     }
 
     isFollowLoading.value = true
@@ -92,7 +93,7 @@ export function usePostInteractions() {
       debug.error('Failed to unfollow user:', error)
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : i18n.global.t('activitypub.postInteractions.unknown') 
       }
     } finally {
       isFollowLoading.value = false
@@ -106,7 +107,7 @@ export function usePostInteractions() {
     
     if (!postId) {
       debug.error('toggleFavorite: Invalid post ID:', post)
-      return { success: false, error: 'Invalid post ID' }
+      return { success: false, error: i18n.global.t('activitypub.postInteractions.invalidPost') }
     }
 
     isFavoriteLoading.value = true
@@ -125,7 +126,7 @@ export function usePostInteractions() {
       debug.error('Failed to toggle favorite:', error)
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : i18n.global.t('activitypub.postInteractions.unknown') 
       }
     } finally {
       isFavoriteLoading.value = false
@@ -137,7 +138,7 @@ export function usePostInteractions() {
     
     if (!postId) {
       debug.error('toggleReblog: Invalid post ID:', post)
-      return { success: false, error: 'Invalid post ID' }
+      return { success: false, error: i18n.global.t('activitypub.postInteractions.invalidPost') }
     }
 
     isReblogLoading.value = true
@@ -156,7 +157,7 @@ export function usePostInteractions() {
       debug.error('Failed to toggle reblog:', error)
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : i18n.global.t('activitypub.postInteractions.unknown') 
       }
     } finally {
       isReblogLoading.value = false
@@ -168,7 +169,7 @@ export function usePostInteractions() {
     
     if (!postId) {
       debug.error('toggleBookmark: Invalid post ID:', post)
-      return { success: false, error: 'Invalid post ID' }
+      return { success: false, error: i18n.global.t('activitypub.postInteractions.invalidPost') }
     }
 
     isBookmarkLoading.value = true
@@ -186,7 +187,7 @@ export function usePostInteractions() {
       debug.error('Failed to toggle bookmark:', error)
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : i18n.global.t('activitypub.postInteractions.unknown') 
       }
     } finally {
       isBookmarkLoading.value = false
@@ -198,7 +199,7 @@ export function usePostInteractions() {
     
     if (!postId) {
       debug.error('togglePinPost: Invalid post ID:', post)
-      return { success: false, error: 'Invalid post ID' }
+      return { success: false, error: i18n.global.t('activitypub.postInteractions.invalidPost') }
     }
 
     isPinLoading.value = true
@@ -216,7 +217,7 @@ export function usePostInteractions() {
       debug.error('Failed to toggle pin:', error)
       return { 
         success: false, 
-        error: error?.message || (error instanceof Error ? error.message : 'Unknown error')
+        error: error?.message || (error instanceof Error ? error.message : i18n.global.t('activitypub.postInteractions.unknown'))
       }
     } finally {
       isPinLoading.value = false

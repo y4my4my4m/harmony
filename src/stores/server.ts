@@ -171,13 +171,13 @@ export const useServerStore = defineStore('server', {
         }
 
         if ((data as { joined?: boolean } | null)?.joined === false) {
-          toast.info("You're already a member of this server!");
+          toast.info(i18n.global.t('server.alreadyMember'));
         }
         invalidateServerMemberCache(serverId);
         return true;
       } catch (error) {
         debug.error('Error joining server:', error);
-        toast.error("Failed to join server. Please try again.");
+        toast.error(i18n.global.t('server.joinFailed'));
         return false;
       }
     },

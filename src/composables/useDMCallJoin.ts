@@ -31,7 +31,7 @@ export function useDMCallJoin() {
       ? dmCallSignaling.getActiveCall(conversationId)
       : undefined
     if (!call) {
-      toast.info('Call ended')
+      toast.info(i18n.global.t('dm.callEnded'))
       return false
     }
     // An answered federated call names no room this client can rejoin.
@@ -57,7 +57,7 @@ export function useDMCallJoin() {
       } else {
         // Gone when the call ended during the switch prompt.
         if (!(await dmCallSignaling.joinCall(conversationId, profileId))) {
-          toast.info('Call ended')
+          toast.info(i18n.global.t('dm.callEnded'))
           return false
         }
         joined = await voiceStore.joinVoiceChannel(room!, 'dm')

@@ -17,6 +17,7 @@ import { INTERACTION_CLAIM_LIMIT, INTERACTION_POLL_MS, InteractionPoller, intera
 import type { WebSocketGateway } from '../WebSocketGateway.js'
 import { forgetBridgeConsent } from '../../bridge/memberConsent.js'
 import { FakeDb } from '../../__tests__/fakeSupabase.js'
+import { upstream } from '../../utils/upstreamBackoff.js'
 
 type Sent = { botId: string; event: any }
 
@@ -139,6 +140,26 @@ describe('InteractionPoller', () => {
     poller.stop()
     await vi.advanceTimersByTimeAsync(INTERACTION_POLL_MS * 4)
     expect(mocks.rpc).toHaveBeenCalledTimes(4)
+  })
+
+  it('claims nothing while the API is down, and resumes when the pause ends', async () => {
+    vi.useFakeTimers()
+    try {
+      mocks.rpc.mockResolvedValue({ data: [], error: null })
+      const poller = new InteractionPoller(gateway())
+      upstream.failed('HTTP 503')
+      poller.start()
+      await vi.advanceTimersByTimeAsync(INTERACTION_POLL_MS * 3)
+      expect(mocks.rpc).not.toHaveBeenCalled()
+
+      // The 1 s pause ends with the fourth tick.
+      await vi.advanceTimersByTimeAsync(INTERACTION_POLL_MS)
+      expect(mocks.rpc).toHaveBeenCalledTimes(1)
+      poller.stop()
+    } finally {
+      upstream.succeeded()
+      vi.useRealTimers()
+    }
   })
 
   it('logs a failed claim or delivery and keeps going', async () => {

@@ -420,7 +420,7 @@ export function useAutoSuggest(
         display_name: emoji.description || shown,
         url: isNativePack.value ? undefined : svgUrl || undefined,
         native: isNativePack.value || !svgUrl ? emoji.unicode : undefined,
-        server_name: 'Emojis',
+        server_name: t('server.emojis'),
         emoji: {
           id: emoji.unicode || emoji.shortcode,
           name: shown,
@@ -665,9 +665,10 @@ export function useAutoSuggest(
   interface SlashCommand {
     id: string;
     name: string;
-    description: string;
+    /** vue-i18n key; also the description of the query parameter when `params` is set. */
+    descriptionKey: string;
     permission: string;
-    params?: { name: string; description: string }[];
+    params?: { name: string }[];
     /** Optional instance-setting gate; command is hidden when this returns false. */
     enabled?: () => boolean;
   }
@@ -675,15 +676,15 @@ export function useAutoSuggest(
   const instanceSettings = useInstanceSettingsStore();
 
   const SLASH_COMMANDS: SlashCommand[] = [
-    { id: 'cmd:kick', name: 'kick', description: 'Kick a member from the server', permission: 'KICK_MEMBERS' },
-    { id: 'cmd:ban', name: 'ban', description: 'Ban a member from the server', permission: 'BAN_MEMBERS' },
-    { id: 'cmd:gif', name: 'gif', description: 'Search KLIPY for a GIF', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a GIF' }] },
-    { id: 'cmd:sticker', name: 'sticker', description: 'Search KLIPY for a sticker', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a sticker' }] },
-    { id: 'cmd:clip', name: 'clip', description: 'Search KLIPY for a Clip', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a Clip' }], enabled: () => instanceSettings.gifClipsEnabled },
-    { id: 'cmd:meme', name: 'meme', description: 'Search KLIPY for a meme', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a meme' }], enabled: () => instanceSettings.gifMemesEnabled },
-    { id: 'cmd:aiemoji', name: 'aiemoji', description: 'Search KLIPY for an AI emoji', permission: '', params: [{ name: 'query', description: 'Search KLIPY for an AI emoji' }], enabled: () => instanceSettings.gifAiEmojisEnabled },
-    { id: 'cmd:poll', name: 'poll', description: 'Create a poll', permission: '', enabled: () => finalConfig.pollsEnabled?.() === true },
-    { id: 'cmd:rolemenu', name: 'rolemenu', description: 'Post a menu members pick their roles from', permission: 'MANAGE_ROLES', enabled: () => finalConfig.roleMenusEnabled?.() === true },
+    { id: 'cmd:kick', name: 'kick', descriptionKey: 'autoSuggest.commands.kick', permission: 'KICK_MEMBERS' },
+    { id: 'cmd:ban', name: 'ban', descriptionKey: 'autoSuggest.commands.ban', permission: 'BAN_MEMBERS' },
+    { id: 'cmd:gif', name: 'gif', descriptionKey: 'autoSuggest.commands.gif', permission: '', params: [{ name: 'query' }] },
+    { id: 'cmd:sticker', name: 'sticker', descriptionKey: 'autoSuggest.commands.sticker', permission: '', params: [{ name: 'query' }] },
+    { id: 'cmd:clip', name: 'clip', descriptionKey: 'autoSuggest.commands.clip', permission: '', params: [{ name: 'query' }], enabled: () => instanceSettings.gifClipsEnabled },
+    { id: 'cmd:meme', name: 'meme', descriptionKey: 'autoSuggest.commands.meme', permission: '', params: [{ name: 'query' }], enabled: () => instanceSettings.gifMemesEnabled },
+    { id: 'cmd:aiemoji', name: 'aiemoji', descriptionKey: 'autoSuggest.commands.aiemoji', permission: '', params: [{ name: 'query' }], enabled: () => instanceSettings.gifAiEmojisEnabled },
+    { id: 'cmd:poll', name: 'poll', descriptionKey: 'polls.createTitle', permission: '', enabled: () => finalConfig.pollsEnabled?.() === true },
+    { id: 'cmd:rolemenu', name: 'rolemenu', descriptionKey: 'autoSuggest.commands.rolemenu', permission: 'MANAGE_ROLES', enabled: () => finalConfig.roleMenusEnabled?.() === true },
   ];
 
   const currentBotTarget = (): BotCommandTarget | null => {
@@ -761,9 +762,9 @@ export function useAutoSuggest(
         id: cmd.id,
         name: cmd.name,
         display_name: `/${cmd.name}`,
-        description: cmd.description,
+        description: t(cmd.descriptionKey),
         isCommand: true,
-        commandParams: cmd.params,
+        commandParams: cmd.params?.map(param => ({ name: param.name, description: t(cmd.descriptionKey) })),
       }));
     return [...builtIns, ...botCommandSuggestions(query)];
   });
@@ -806,17 +807,17 @@ export function useAutoSuggest(
   const headerText = computed((): string => {
     switch (state.value.triggerType) {
       case 'emoji':
-        return 'Emojis';
+        return t('server.emojis');
       case 'command':
         return t('bots.commands.header');
       case 'channel':
-        return 'Channels';
+        return t('server.channels');
       case 'mention':
         if (finalConfig.mode === 'chat') {
           const currentServerId = serverChannelStore.currentServerId;
-          return currentServerId ? 'Server Members' : 'Users';
+          return currentServerId ? t('autoSuggest.headers.serverMembers') : t('autoSuggest.headers.users');
         }
-        return 'Users';
+        return t('autoSuggest.headers.users');
       default:
         return '';
     }

@@ -23,6 +23,7 @@ harmony update [--version V]
 harmony doctor [--offline]
 harmony backup [--no-storage] [--label TEXT]
 harmony restore <backup> [--yes]
+harmony repair
 harmony status
 harmony logs [service ...] [-n N] [--no-follow]
 harmony admin create [--email E] [--username U] [--password P] [--display-name N]
@@ -39,6 +40,9 @@ harmony config
 harmony config --upload-ceiling [SIZE]
 harmony analytics [on | off [--delete-logs]]
 harmony studio [on | off]
+harmony bridges
+harmony bridges add discord | matrix | both
+harmony bridges remove discord | matrix [--delete-data] [--yes]
 harmony version
 harmony help
 ```
@@ -49,7 +53,7 @@ harmony help
   `!` and go to standard error. Colours appear only on a terminal.
 - An error prints `Error: ` and a message on standard error, and exits with
   status 1. Exceptions are noted per command below.
-- `status`, `logs`, `backup`, `admin`, `registration` and `config` need an
+- `status`, `logs`, `backup`, `repair`, `admin`, `registration` and `config` need an
   installed instance; without `self-host/.env` they stop with
   `not installed yet: /opt/harmony/self-host/harmony install`.
 - An unknown command stops with `unknown command: NAME (harmony help)`.
@@ -96,6 +100,14 @@ An instance whose `.env` has no `ENABLE_STUDIO` ran Supabase Studio without
 choosing it. The update writes `ENABLE_STUDIO=false`, removes `studio` and `meta`
 and prints one line. `HARMONY_STUDIO=y harmony update`, or `harmony studio on`
 afterwards, keeps it on. Nothing in the database changes.
+
+Before it pulls images, the update empties container logs over 100 MB, which
+only containers created without [log rotation](/self-host/docker-compose#container-logs)
+reach, and prints one line with the space freed. It stops there, with
+`Update stopped during: space` and nothing else changed, when less than 1 GB
+stays free where `self-host/` lives or in Docker's data directory. After it
+recreates the containers, a Redis that cannot load its append-only file gets it
+repaired, as [harmony repair](#harmony-repair) does.
 
 | Option | Effect |
 |---|---|
@@ -154,7 +166,9 @@ certificates, Federation, Services, Security, Versions.
 |---|---|---|---|
 | `compose` | The Docker Compose version | FAIL when missing or older than 2.24.4 | Upgrade the `docker-compose-plugin` package, or re-run `https://get.docker.com` |
 | `memory` | RAM, available memory and swap | WARN under 1900 MB of RAM; with no swap and under 3900 MB; with under 256 MB available | A larger server or a 2 GB swap file; `docker stats` names the service using the memory |
-| `disk` | Free space where `self-host/` lives, and in Docker's data directory when that is another filesystem | FAIL under 1 GB free; WARN under 5 GB or over 90% used | Delete old backups in `self-host/backups`; `docker image prune` removes unused images |
+| `disk` | Free space where `self-host/` lives, and in Docker's data directory when that is another filesystem | FAIL under 1 GB free: Postgres cannot start and Redis cannot write on a full disk, and `harmony backup` refuses to start; WARN under 5 GB or over 90% used | `harmony repair` empties container logs over 100 MB; delete old backups in `self-host/backups`; `docker image prune` removes unused images |
+| `logs` | Size of each container's log, and whether it rotates | FAIL when logs over 100 MB add up to 1 GB or more; WARN under that; OK when every container rotates its log | `harmony repair` empties them |
+| `log rotation` | Containers whose json-file log has no `max-size`: created before log rotation | WARN, naming them | `harmony update`, or `docker compose up -d` in `self-host/`, recreates them with rotation |
 | `files` | The files the containers read are readable to every user: the files git tracks in the checkout and their directories, and `self-host/supabase/` less its data, its `.env` files, `test.http` and `docker-compose.override.yml` | FAIL when one in `supabase/` is not (`supabase-db` and `kong` run as their own users), or one anywhere with `HARMONY_BUILD=1`; WARN otherwise. Names the first | `bash configure.sh --non-interactive` in `self-host/` (keeps every answer; `harmony update` runs it). See [A restrictive umask](/self-host/troubleshooting#umask) |
 | `backup` | The newest backup in `self-host/backups` | WARN when there is none, or when it is more than 7 days old | `harmony backup`, then copy it off the server; [schedule it](/self-host/update-backup#schedule-backups) |
 
@@ -164,6 +178,7 @@ certificates, Federation, Services, Security, Versions.
 |---|---|---|---|
 | the service's name | Each service of the enabled profiles is created, running and healthy | FAIL `not created`, a stopped state, or `running, unhealthy`; WARN `running, health check starting` | `docker compose up -d`, then `harmony logs SERVICE`; for a starting check, wait a minute and re-run |
 | `containers` | Reported OK when every service runs | | |
+| `redis file` | When `redis` restarts, has stopped or is unhealthy: its append-only file, with `redis-check-aof` in a one-off container | FAIL when a file is damaged, naming it | `harmony repair` |
 | `images` | `web`, `federation-server`, `federation-worker` and `bot-gateway` run the image the configuration names | WARN when one runs an older image | `docker compose up -d` |
 
 ### Database
@@ -180,7 +195,7 @@ certificates, Federation, Services, Security, Versions.
 | `upload-limits` | The `storage_upload_limit` trigger exists on `storage.objects` with its settings; the storage container's `FILE_SIZE_LIMIT`, the one in `supabase/.env` and `instance_config.upload_ceiling_bytes` agree | FAIL when the trigger or the settings are missing: per-account upload limits are not enforced. WARN when storage runs another `FILE_SIZE_LIMIT` than `supabase/.env`, or the database holds another ceiling | Run `db_schema/migrations/20261031100001_upload_limits.sql` as printed (safe to re-run); for a WARN, `harmony config --upload-ceiling SIZE` |
 | `domain` | `instance_config.domain` equals `DOMAIN` in `.env` | FAIL when unset or still `localhost`; FAIL when the two differ, since handles and ActivityPub ids disagree | `bash bootstrap.sh`; for a difference, see [Domain mismatch](/self-host/troubleshooting#domain-mismatch) |
 | `admin` | A local admin account exists | WARN when none does | `harmony admin create` |
-| `registration` | `REGISTRATION` in `.env` matches the auth service's sign-up setting and `instance_config.open_registration` | WARN on a mismatch | `harmony registration POLICY` |
+| `registration` | `REGISTRATION` in `.env` matches the auth service's sign-up switch, `instance_config.registration_policy` and `open_registration`; with the switch off, the sign-up hook applies the policy | FAIL when the switch is off for `invite` or `closed` and the hook does not apply the policy: anyone can sign up. WARN on a mismatch, and when providers set to make accounts cannot because the switch is on | `harmony registration POLICY` |
 | `listener` | The `harmony_listener` role exists | WARN: queued jobs wait for the periodic sweep | `bash bootstrap.sh && docker compose restart federation-worker` |
 | `stored logs` | Size of `_supabase._analytics`, where log collection keeps its logs | WARN above 1 GB | `harmony analytics off --delete-logs`; `harmony analytics on` afterwards collects again, from empty |
 | `logflare slot` | Write-ahead log a `cainophile_…` replication slot (Logflare's) holds back | WARN above 1 GB; Postgres keeps up to 4 GB (`max_slot_wal_keep_size`) | Same |
@@ -242,6 +257,7 @@ server's own port only.
 | `realtime` | always | A WebSocket upgrade at `wss://db.DOMAIN/realtime/v1/websocket` answers 101, on the server and, without internal TLS, through the public name | FAIL with the status on the server: 503, Realtime is down (`harmony logs realtime`); 401, `SUPABASE_ANON_KEY` differs from Kong's. FAIL through the public name only: with no answer, DNS, the firewall (80/443) or NAT, as for the federation checks; with another status, a proxy in front must pass WebSocket upgrades |
 | `bot-gateway` | bots on | `/bot-gateway/health` reports `"status": "ok"` through the public URL | FAIL: `harmony logs bot-gateway` |
 | `discord` | Discord bridge hosting on | `BRIDGE_HOST_SECRET` is at least 32 characters and equal in `bot-gateway.env` and `discord-bridge.env`; `discord-bridge-host` runs | FAIL: `bash configure.sh --non-interactive`, then `docker compose up -d`; `harmony logs discord-bridge-host` |
+| `matrix` | Matrix bridge hosting on | `MATRIX_BRIDGE_HOST_SECRET` in `bot-gateway.env` is at least 32 characters and equal to `BRIDGE_HOST_SECRET` in `matrix-bridge.env`; `matrix-bridge-host` runs | FAIL: `bash configure.sh --non-interactive`, then `docker compose up -d`; `harmony logs matrix-bridge-host` |
 | `livekit` | voice on | `livekit.yaml` exists and holds `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` of `federation.env`; `LIVEKIT_URL` and `LIVEKIT_PUBLIC_URL` are set; `/api/livekit/health` reports healthy | FAIL for a key mismatch: delete `self-host/livekit.yaml`, run `bash configure.sh --non-interactive`, `docker compose up -d`. Otherwise `harmony logs livekit` |
 | `signalling` | voice on | `https://live.DOMAIN` answers 200 | FAIL: `harmony logs caddy`; `harmony logs livekit` |
 | `media tcp` | voice on | A TCP connection to the published 7881 on the public address | WARN: open 7881/tcp in the firewall and at the provider; test from another machine with `nc -vz ADDRESS 7881` |
@@ -286,16 +302,57 @@ harmony backup [--no-storage] [--label TEXT]
 
 Writes `self-host/backups/YYYYmmdd-HHMMSS[-TEXT]/` with the database, the
 database roles, the configuration files and the Vault key, and the uploads.
-It starts the database first when it is not running.
+It starts the database alone first when it is not running.
 [Backups](/self-host/update-backup#back-up-an-instance) lists the contents.
+
+A backup leaves at least 1 GB free on the filesystem of `self-host/backups`:
+below it Postgres cannot start and Redis cannot write.
+
+- With less than 1 GB free it refuses before it starts anything.
+- It refuses when the newest backup's dump plus the uploads would not leave
+  1 GB free, and names the sizes.
+- A dump or upload archive that brings free space below 1 GB is stopped.
+
+Each refusal says where space comes from: `harmony repair` (container logs),
+old backups, `docker image prune`, and `--no-storage` when the uploads do not
+fit.
 
 | Option | Effect |
 |---|---|
 | `--no-storage` | Leaves out the uploads (`storage.tar`) |
 | `--label TEXT` | Appends `-TEXT` to the directory name; characters other than letters, digits, `.`, `_` and `-` become `-` |
 
-Exit status: 0 with `Backup: DIRECTORY (SIZE)`. 1 on a failure; a failed
-database dump leaves no backup directory behind.
+Exit status: 0 with `Backup: DIRECTORY (SIZE)`. 1 on a failure. A failed
+backup deletes what it wrote, and stops the database again when it started it.
+When Postgres does not become ready within 240 s on a disk with less than 1 GB
+free, the error says the disk is full.
+
+## harmony repair
+
+```text
+harmony repair
+```
+
+Brings an instance back after its disk filled:
+
+1. Empties container logs over 100 MB and prints the space freed. Only a
+   container created without [log rotation](/self-host/docker-compose#container-logs)
+   has one.
+2. Stops with `free space first` when less than 1 GB is still free where
+   `self-host/` lives or in Docker's data directory. Postgres cannot start on a
+   full disk.
+3. When `redis` restarts, has stopped or is unhealthy, checks its append-only
+   file with `redis-check-aof`. A damaged file is copied to
+   `appendonlydir.damaged-TIME` in the `redis-data` volume, then truncated at
+   the first command Redis cannot read (`redis-check-aof --fix`). The commands
+   after it are lost. When the base file itself cannot be mended, Redis starts
+   empty: queued federation deliveries, caches and presence are lost, and the
+   database keeps everything else. Once Redis is healthy, `federation-server`,
+   `federation-worker` and `livekit` restart and connect to it.
+4. Runs `docker compose up -d` and prints the services' status.
+
+Nothing else is deleted. Exit status: 0 once the stack is started, even when
+Redis stays unhealthy (a warning says so); 1 when the disk is still full.
 
 ## harmony restore
 
@@ -347,7 +404,7 @@ stops). Without a service, all of them.
 
 | Argument or option | Effect |
 |---|---|
-| `service` | A Compose service: `caddy`, `web`, `federation-server`, `federation-worker`, `redis`, `livekit`, `bot-gateway`, `discord-bridge-host`, `db`, `auth`, `rest`, `realtime`, `storage`, `imgproxy`, `kong`, `meta`, `studio`, `analytics`, `vector` |
+| `service` | A Compose service: `caddy`, `web`, `federation-server`, `federation-worker`, `redis`, `livekit`, `bot-gateway`, `discord-bridge-host`, `matrix-bridge-host`, `db`, `auth`, `rest`, `realtime`, `storage`, `imgproxy`, `kong`, `meta`, `studio`, `analytics`, `vector` |
 | `federation` | `federation-server` and `federation-worker` |
 | `supabase` | `db`, `auth`, `rest`, `realtime`, `storage` and `kong` |
 | `-n N` | Lines of history per service, default 200 |
@@ -436,21 +493,28 @@ as made outside Harmony.
 harmony registration [open | invite | closed]
 ```
 
-Sets who can create an account. Without an argument it applies
+Sets who can create an account with an email address. Without an argument it applies
 `REGISTRATION` from `.env` (default `open`). `invite-only` is accepted for
 `invite`.
 
-| Policy | Sign-up | `open_registration` |
+| Policy | Email sign-up | `open_registration` |
 |---|---|---|
-| `open` | on (`DISABLE_SIGNUP=false`) | `true` |
-| `invite` | off; invitations through `harmony admin invite` or the admin panel's **Invites** | `false` |
-| `closed` | off | `false` |
+| `open` | anyone | `true` |
+| `invite` | invited addresses only, through `harmony admin invite` or the admin panel's **Invites** | `false` |
+| `closed` | no one; invitations still work | `false` |
 
-It writes `REGISTRATION` to `.env`, `DISABLE_SIGNUP` to `supabase/.env` and
-`open_registration` to `instance_config`, then recreates the auth service
-when `DISABLE_SIGNUP` changed. `open` stops with `no admin exists yet; create
-one first (harmony admin create), then open registration` while there is no
-admin.
+A sign-in provider follows the policy unless `harmony auth sign-up` gives it a
+rule of its own.
+
+It writes `REGISTRATION` to `.env`, the policy to `instance_config.registration_policy`
+and `open_registration`, then `DISABLE_SIGNUP` to `supabase/.env`, and recreates
+the auth service when `DISABLE_SIGNUP` changed. The sign-up hook applies the policy.
+`DISABLE_SIGNUP` is the auth service's own switch: on, it refuses every new account,
+a sign-in provider's included. It is off for every policy where the auth service runs
+the sign-up hook and the database's hook applies the policy, and on for `invite` and
+`closed` otherwise. `harmony update` makes the same move once both hold. `open` stops
+with `no admin exists yet; create one first (harmony admin create), then open
+registration` while there is no admin.
 
 ## harmony auth
 
@@ -463,6 +527,7 @@ harmony auth add-provider ID [--name N] (--issuer URL [--discovery-url URL] [--u
                              [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 harmony auth remove-provider ID
 harmony auth linking PROVIDER (--separate-accounts | --link-existing-accounts [--provider-verifies-email])
+harmony auth sign-up PROVIDER (--follow-registration | --open | --domains D[,D...])
 ```
 
 Sign-in through an OpenID Connect or OAuth 2.0 provider you run, such as
@@ -472,7 +537,9 @@ walks through it.
 `providers` lists the built-in providers (`discord`, `github`, `google`, `twitch`, and
 any other the auth service has on), whether the auth service has each on, and
 what a first sign-in does with an existing account that has the same address
-(**EXISTING ACCOUNTS**: `separate`, `by address`, or `shared: NAME`). Then it
+(**EXISTING ACCOUNTS**: `separate`, `by address`, or `shared: NAME`), and whom a
+first sign-in makes a new account for (**NEW ACCOUNTS**: `as registration`, `anyone`
+or `at DOMAINS`; see `sign-up` below). Then it
 lists your own providers the same way, with where the sign-in service reads
 each person's address and name (**ADDRESS FROM**: `userinfo` or `ID token`),
 whether the sign-in page shows them, and the redirect (callback) URL to
@@ -521,8 +588,8 @@ the auth service before the provider is saved. An update without either
 keeps the provider's setting. See
 [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts).
 
-`remove-provider` deletes the provider and its button, then its entry in
-`PROVIDER_LINKING_DOMAINS`. An account that signed in only through it has no
+`remove-provider` deletes the provider and its button, then its entries in
+`PROVIDER_LINKING_DOMAINS` and in the sign-up rules. An account that signed in only through it has no
 way in: one the provider joined by address gets a password with
 `harmony admin reset-password`; one it kept apart signs in only through the
 provider, so adding the provider back under the same id restores it.
@@ -539,6 +606,23 @@ address on the account, unverified ones included. A change recreates the auth
 service. `configure.sh` keeps the built-in providers apart while addresses
 are confirmed automatically and leaves an entry written here alone; see
 [Existing accounts](/self-host/oauth#existing-accounts).
+
+`sign-up` sets whom a first sign-in through a provider makes a new account for.
+`PROVIDER` is a built-in provider (`discord`, `google`, ...) or your own, with or
+without `custom:`. People who already have an account sign in whatever the rule.
+
+| Option | New accounts through the provider |
+|---|---|
+| `--follow-registration` | As `harmony registration` allows email sign-up. The default |
+| `--open` | Anyone the provider signs in, while registration is `invite` or `closed` too |
+| `--domains D[,D...]` | Addresses the provider reports as verified at a listed domain or a subdomain of one; `myschool.edu` admits `cs.myschool.edu`, not `evilmyschool.edu`. Also limits the provider while registration is `open` |
+
+Use `--open` for an identity provider only your people have accounts at; with a
+public service such as Discord or Google it opens the instance to everyone there.
+The rule is stored in `instance_config.signup_providers`, which the admin panel's
+**Invites** tab also edits. When the auth service's switch still refuses every new
+account, `sign-up` hands registration to the sign-up hook first (as
+`harmony registration` does), or says why it cannot.
 
 Messages from the auth service come through as they are, for example
 `adding the provider failed (HTTP 400: URL cannot resolve to private network
@@ -561,15 +645,15 @@ defaults, and applies them:
 | Admin email | Let's Encrypt and Web Push contact |
 | Public HTTPS via Let's Encrypt? | `y`: public DNS and ports 80/443 reachable. `n`: Caddy's local CA |
 | Enable voice/video? | LiveKit; needs the `live.` record, UDP 7882 and TCP 7881 |
-| Enable the bot gateway? | Bots and Discord bridges |
-| Host Discord bridges for your communities? | Asked with bots on |
+| Which bridges should this instance run? | `none`, `discord`, `matrix` or `both`; a bridge turns the bot gateway on. See [harmony bridges](#harmony-bridges) |
+| Enable the bot gateway? | Asked with `none`. Bots, and bridges people run themselves |
 | Run Supabase log collection? | Logflare and vector; see [Log collection](/self-host/#log-collection) |
 | Registration | `open`, `invite` or `closed` |
 | Configure outgoing email (SMTP) now? | Then SMTP host, port, username, password (empty keeps the current one) and sender address |
 
 Then it removes the container of each service turned off (`livekit`,
-`bot-gateway`, `discord-bridge-host`, `analytics`, `vector`), pulls images, runs
-`docker compose up -d`, and re-applies the registration policy when an admin
+`bot-gateway`, `discord-bridge-host`, `matrix-bridge-host`, `analytics`, `vector`), pulls images,
+runs `docker compose up -d`, and re-applies the registration policy when an admin
 exists. It ends with `Configuration applied. Check it: harmony doctor`.
 
 It needs a terminal; without one it stops with `harmony config asks
@@ -642,6 +726,29 @@ database. Turn it on when you need it and off afterwards. Harmony does not use
 Studio or `meta`: the app, the federation backend and every `harmony` command
 work without them.
 
+## harmony bridges
+
+```text
+harmony bridges
+harmony bridges add discord | matrix | both
+harmony bridges remove discord | matrix [--delete-data] [--yes]
+```
+
+The chat bridges this instance runs for its communities. Without an argument it prints
+whether the bot gateway and each bridge host run, how many communities' bridges run there,
+and which of them the admin panel offers. It needs no terminal, except that `remove` asks
+before it stops communities' bridges.
+
+| Command or option | Effect |
+|---|---|
+| `add discord`, `add matrix`, `add both` | Turns the bot gateway on if it is off, writes the host's secret and starts `discord-bridge-host`, `matrix-bridge-host`, or both. Images already present are not updated. Communities see a bridge once you offer it in **User settings** → **Instance admin** → **Config** → **General**, under **Discord bridge** or **Matrix bridge**; see [Hosting Discord bridges](/self-host/discord-bridges) and [Hosting Matrix bridges](/self-host/matrix-bridges) |
+| `remove discord`, `remove matrix` | Says how many communities' bridges stop and asks, turns that bridge's two offers in the admin panel off, and removes the container and its secret. Communities keep their bridges' settings, and the host's volume stays. The other bridge and the bot gateway stay on |
+| `--delete-data` | With `remove`: also deletes the host's volume, `harmony_discord-bridge-data` or `harmony_matrix-bridge-data` |
+| `--yes` | With `remove`: does not ask. Without a terminal, `remove` needs it when communities' bridges run there, when the database does not answer, and with `--delete-data` |
+
+Bots and the bridges people run themselves need the bot gateway alone: `harmony config`,
+or `HARMONY_BOTS=y` for `configure.sh`.
+
 ## harmony version
 
 ```text
@@ -678,7 +785,7 @@ there (`cd /opt/harmony/self-host`) for steps the command does not expose.
 bash configure.sh [--non-interactive | --refresh-supabase]
 ```
 
-Writes `.env`, `federation.env`, `bot-gateway.env`, `discord-bridge.env`,
+Writes `.env`, `federation.env`, `bot-gateway.env`, `discord-bridge.env`, `matrix-bridge.env`,
 `livekit.yaml` and `supabase/.env`, and fetches the upstream Supabase stack
 into `supabase/` when it is absent. It never starts or touches the running
 stack; `docker compose up -d` applies its changes.
@@ -699,7 +806,7 @@ built-in sign-in provider without an entry in `PROVIDER_LINKING_DOMAINS` gets
 
 | Environment variable | Effect |
 |---|---|
-| `HARMONY_DOMAIN`, `HARMONY_INSTANCE_NAME`, `HARMONY_ADMIN_EMAIL`, `HARMONY_TLS`, `HARMONY_VOICE`, `HARMONY_BOTS`, `HARMONY_DISCORD`, `HARMONY_ANALYTICS`, `HARMONY_REGISTRATION`, `HARMONY_DB_DOMAIN`, `HARMONY_LIVEKIT_DOMAIN`, `HARMONY_SMTP_HOST`, `HARMONY_SMTP_PORT`, `HARMONY_SMTP_USER`, `HARMONY_SMTP_PASS`, `HARMONY_SMTP_SENDER` | Answers, as for the [installer](/self-host/install#scripted-installs); each defaults to the configured value. SMTP changes only when `HARMONY_SMTP_HOST` is set |
+| `HARMONY_DOMAIN`, `HARMONY_INSTANCE_NAME`, `HARMONY_ADMIN_EMAIL`, `HARMONY_TLS`, `HARMONY_VOICE`, `HARMONY_BOTS`, `HARMONY_DISCORD`, `HARMONY_MATRIX`, `HARMONY_ANALYTICS`, `HARMONY_REGISTRATION`, `HARMONY_DB_DOMAIN`, `HARMONY_LIVEKIT_DOMAIN`, `HARMONY_SMTP_HOST`, `HARMONY_SMTP_PORT`, `HARMONY_SMTP_USER`, `HARMONY_SMTP_PASS`, `HARMONY_SMTP_SENDER` | Answers, as for the [installer](/self-host/install#scripted-installs); each defaults to the configured value. SMTP changes only when `HARMONY_SMTP_HOST` is set |
 | `HARMONY_VERSION` | Image tag; default from the checkout: `X.Y.Z` at tag `vX.Y.Z`, otherwise `edge` |
 | `HARMONY_BUILD` | `1` builds Harmony's images from the checkout (`docker-compose.build.yml`); `0` returns to published images |
 | `HARMONY_HTTP_PORT`, `HARMONY_HTTPS_PORT` | `[address:]port` Caddy publishes for 80 and 443 |

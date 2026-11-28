@@ -293,7 +293,7 @@ import {
 const props = defineProps<{ serverId: string }>()
 const emit = defineEmits<{ 'status-change': [status: AutoModState['status']] }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const toast = useToast()
 const { confirm } = useConfirmDialog()
 
@@ -331,7 +331,7 @@ function formatTime(iso: string | null | undefined): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+  return d.toLocaleString(locale.value, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 function setState(next: AutoModState) {

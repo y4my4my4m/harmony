@@ -77,7 +77,7 @@
           </div>
           <div v-else class="provider-embed__skeleton">
             <span v-if="harmonyError">{{ harmonyError }}</span>
-            <span v-else>Loading Harmony post...</span>
+            <span v-else>{{ t('embeds.loadingHarmonyPost') }}</span>
           </div>
         </template>
         <template v-else-if="isFediverse">
@@ -90,7 +90,7 @@
                   <span class="fedi-badge-label">{{ fediversePlatformLabel }}</span>
                 </span>
                 <a :href="safeHref(fediverseSourceUrl)" target="_blank" rel="noopener noreferrer" class="fedi-source-link__right">
-                  View on {{ fediverseSourceDomain }}
+                  {{ fediverseSourceDomain ? t('activitypub.viewOnDomain', { domain: fediverseSourceDomain }) : t('activitypub.viewOriginalPost') }}
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                     <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
@@ -102,7 +102,7 @@
               <span>{{ fediverseError }}</span>
             </div>
             <div v-else class="provider-embed__skeleton">
-              <span>Loading fediverse post...</span>
+              <span>{{ t('embeds.loadingFediversePost') }}</span>
             </div>
           </template>
           <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />
@@ -289,37 +289,38 @@ const hasActions = computed(() => !isHarmony.value && !isFediverse.value);
 const providerLabel = computed(() => {
   switch (props.payload.provider) {
     case 'harmony-post':
-      return 'Harmony Post';
+      return t('embeds.platformPost', { platform: 'Harmony' });
     case 'harmony-invite':
     case 'harmony-remote-invite':
-      return 'Server Invite';
+      return t('embeds.serverInvite');
     case 'harmony-profile':
       return t('embeds.profile.title');
     case 'harmony-drive':
-      return 'Drive File';
+      return t('embeds.driveFile');
     case 'fediverse-post': {
       const platform = props.payload.fediverse?.platform;
-      const labels: Record<string, string> = {
-        mastodon: 'Mastodon Post',
-        misskey: 'Misskey Post',
-        pleroma: 'Pleroma Post',
-        gotosocial: 'GoToSocial Post',
-        pixelfed: 'Pixelfed Post',
-        harmony: 'Harmony Post',
-        lemmy: 'Lemmy Post',
+      const names: Record<string, string> = {
+        mastodon: 'Mastodon',
+        misskey: 'Misskey',
+        pleroma: 'Pleroma',
+        gotosocial: 'GoToSocial',
+        pixelfed: 'Pixelfed',
+        harmony: 'Harmony',
+        lemmy: 'Lemmy',
       };
-      return labels[platform || ''] || 'Fediverse Post';
+      const name = names[platform || ''];
+      return name ? t('embeds.platformPost', { platform: name }) : t('embeds.fediversePost');
     }
     case 'youtube':
       return 'YouTube';
     case 'x':
-      return 'X Post';
+      return t('embeds.platformPost', { platform: 'X' });
     case 'instagram':
-      return 'Instagram Post';
+      return t('embeds.platformPost', { platform: 'Instagram' });
     case 'bluesky':
-      return 'Bluesky Post';
+      return t('embeds.platformPost', { platform: 'Bluesky' });
     default:
-      return music.value ? musicProviderLabel(music.value.provider) : 'Link Preview';
+      return music.value ? musicProviderLabel(music.value.provider) : t('embeds.linkPreview');
   }
 });
 
@@ -485,13 +486,13 @@ async function loadHarmonyPost() {
     
     const post = await store.loadPostWithAuthor(props.payload.harmony.postId);
     if (!post) {
-      harmonyError.value = 'Post unavailable';
+      harmonyError.value = t('embeds.postUnavailable');
     }
     harmonyPost.value = post;
     handleEmbedLoad();
   } catch (error) {
     debug.warn('Failed to hydrate Harmony post:', error);
-    harmonyError.value = 'Unable to load Harmony post';
+    harmonyError.value = t('embeds.harmonyPostFailed');
     // Still emit loaded event even on error so scroll doesn't wait forever
     handleEmbedLoad();
   }
@@ -499,7 +500,7 @@ async function loadHarmonyPost() {
 
 
 const fediversePlatformLabel = computed(
-  () => softwareDisplayName(props.payload.fediverse?.platform) || 'Fediverse',
+  () => softwareDisplayName(props.payload.fediverse?.platform) || t('a11y.rail.fediverse'),
 );
 
 const fediverseSourceUrl = computed(() => {
@@ -510,14 +511,14 @@ const fediverseSourceDomain = computed(() => {
   try {
     return new URL(fediverseSourceUrl.value).hostname;
   } catch {
-    return 'source';
+    return '';
   }
 });
 
 async function loadFediversePost() {
   const fedi = props.payload.fediverse;
   if (!fedi) {
-    fediverseError.value = 'No fediverse data';
+    fediverseError.value = t('embeds.noFediverseData');
     handleEmbedLoad();
     return;
   }
@@ -570,11 +571,11 @@ async function loadFediversePost() {
       return;
     }
 
-    fediverseError.value = 'Could not load this post from the remote instance';
+    fediverseError.value = t('embeds.remotePostFailed');
     handleEmbedLoad();
   } catch (error) {
     debug.warn('Failed to load fediverse post:', error);
-    fediverseError.value = 'Could not load this post';
+    fediverseError.value = t('embeds.postFailed');
     handleEmbedLoad();
   }
 }

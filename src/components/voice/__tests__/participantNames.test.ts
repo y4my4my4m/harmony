@@ -29,7 +29,10 @@ const translate = vi.hoisted(() => (key: string, params?: Record<string, unknown
   return words[key] ?? key
 })
 
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: translate }) }))
+// Partial: the import graph reaches @/i18n, which calls createI18n.
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
+  useI18n: () => ({ t: translate }) }))
 vi.mock('@/composables/useT', () => ({ useT: () => ({ t: translate, locale: { value: 'en' } }) }))
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => h.store }))
 vi.mock('@/stores/voiceModeration', () => ({

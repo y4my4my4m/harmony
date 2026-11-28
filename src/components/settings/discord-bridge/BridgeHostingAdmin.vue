@@ -1,14 +1,14 @@
 <template>
-  <div class="hosting-admin" data-testid="bridge-hosting-admin">
-    <h4>{{ t('discordBridge.admin.title') }}</h4>
-    <p class="hint">{{ t('discordBridge.admin.lead') }}</p>
+  <div class="admin-card" data-testid="bridge-hosting-admin" :data-platform="platform">
+    <h4>{{ t(key('title')) }}</h4>
+    <p class="hint">{{ t(key('lead')) }}</p>
 
     <p v-if="loadError" class="error" role="alert">{{ t('discordBridge.admin.loadFailed') }}</p>
 
     <div class="row">
       <div class="text">
-        <span :id="`${uid}-label`" class="title">{{ t('discordBridge.admin.toggle') }}</span>
-        <span :id="`${uid}-hint`" class="hint">{{ t('discordBridge.admin.toggleHint') }}</span>
+        <span :id="`${uid}-label`" class="title">{{ t(key('toggle')) }}</span>
+        <span :id="`${uid}-hint`" class="hint">{{ t(key('toggleHint')) }}</span>
       </div>
       <ToggleSwitch
         :model-value="enabled"
@@ -35,10 +35,11 @@
         data-testid="hosting-limit"
       />
       <span :id="`${uid}-limit-hint`" class="hint">{{ t('discordBridge.admin.limitHint') }}</span>
+      <span v-if="count !== null" class="hint" data-testid="hosting-count">{{ t('matrixBridge.admin.hostedCount', { count, limit: savedLimit }) }}</span>
       <span v-if="limitInvalid" class="error" role="alert">{{ t('discordBridge.admin.limitInvalid') }}</span>
     </div>
 
-    <p class="note" data-testid="hosting-note">
+    <p v-if="platform === 'discord'" class="note" data-testid="hosting-note">
       <i18n-t keypath="discordBridge.admin.note" tag="span" scope="global">
         <template #service><code>BRIDGE_MODE=host</code></template>
         <template #docs>
@@ -67,11 +68,20 @@ import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import { debug } from '@/utils/debug'
 import {
   DEFAULT_HOSTING_LIMIT,
-  HOSTING_ENABLED_KEY,
-  HOSTING_LIMIT_KEY,
+  HOSTING_KEYS,
   fetchHostingConfig,
   saveBridgeInstanceConfig,
+  type BridgeRemotePlatform,
 } from './bridgeApi'
+
+const props = withDefaults(
+  defineProps<{
+    platform?: BridgeRemotePlatform
+    /** Hosted bridges now; null where it is not known. */
+    count?: number | null
+  }>(),
+  { platform: 'discord', count: null },
+)
 
 /** Self-host guide section the operator follows to run the bridge host service. */
 const HOSTING_DOCS_URL = 'https://github.com/y4my4my4m/harmony/blob/master/self-host/README.md#discord-bridge-hosting'
@@ -79,6 +89,10 @@ const HOSTING_DOCS_URL = 'https://github.com/y4my4my4m/harmony/blob/master/self-
 const { t } = useI18n()
 const toast = useToast()
 const uid = `bridge-hosting-${useId()}`
+
+/** Strings that name the platform live under its namespace; the rest are shared. */
+const PLATFORM_KEYS: Record<BridgeRemotePlatform, string> = { discord: 'discordBridge.admin', matrix: 'matrixBridge.admin.hosting' }
+const key = (name: string) => `${PLATFORM_KEYS[props.platform]}.${name}`
 
 const enabled = ref(false)
 const limit = ref<number>(DEFAULT_HOSTING_LIMIT)
@@ -97,7 +111,7 @@ async function setEnabled(next: boolean) {
   enabled.value = next
   switching.value = true
   try {
-    await saveBridgeInstanceConfig(HOSTING_ENABLED_KEY, next)
+    await saveBridgeInstanceConfig(HOSTING_KEYS[props.platform].enabled, next)
     toast.success(t('discordBridge.admin.saved'))
   } catch (error) {
     enabled.value = previous
@@ -113,7 +127,7 @@ async function saveLimit() {
   savingLimit.value = true
   try {
     const next = limit.value
-    await saveBridgeInstanceConfig(HOSTING_LIMIT_KEY, next)
+    await saveBridgeInstanceConfig(HOSTING_KEYS[props.platform].limit, next)
     savedLimit.value = next
     toast.success(t('discordBridge.admin.saved'))
   } catch (error) {
@@ -126,7 +140,7 @@ async function saveLimit() {
 
 onMounted(async () => {
   try {
-    const config = await fetchHostingConfig()
+    const config = await fetchHostingConfig(props.platform)
     enabled.value = config.enabled
     limit.value = config.limit
     savedLimit.value = config.limit
@@ -139,67 +153,4 @@ onMounted(async () => {
 </script>
 
 <style scoped src="../../admin/adminShared.css"></style>
-<style scoped>
-.hosting-admin {
-  margin-top: 24px;
-}
-
-.hosting-admin h4 {
-  margin: 0 0 8px;
-  font-size: 15px;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 12px 0;
-}
-
-.text,
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.field {
-  margin-bottom: 12px;
-}
-
-.title {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.hint {
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.limit-input {
-  max-width: 160px;
-}
-
-.note {
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  color: var(--text-primary);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.note a {
-  color: var(--text-link);
-}
-
-.error {
-  color: var(--text-danger);
-  font-size: 13px;
-}
-</style>
+<style scoped src="./bridgeAdmin.css"></style>

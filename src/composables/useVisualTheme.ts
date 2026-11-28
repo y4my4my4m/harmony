@@ -54,6 +54,9 @@ export const FONT_STACKS: Record<NonNullable<VisualThemeSettings['fontFamily']>,
 export interface ThemePreset {
   name: string
   description: string
+  /** vue-i18n keys for the picker card. */
+  nameKey: string
+  descriptionKey: string
   settings: Partial<VisualThemeSettings>
 }
 
@@ -73,6 +76,8 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Harmony Teal',
     description: 'The signature Harmony look - fresh, modern, and inviting',
+    nameKey: 'settings.appearance.presets.harmonyTeal.name',
+    descriptionKey: 'settings.appearance.presets.harmonyTeal.description',
     settings: {
       theme: 'custom',
       customThemeMode: 'dark',
@@ -91,6 +96,8 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Emerald',
     description: 'Growth, balance, and natural harmony',
+    nameKey: 'settings.appearance.presets.emerald.name',
+    descriptionKey: 'settings.appearance.presets.emerald.description',
     settings: {
       theme: 'custom',
       customThemeMode: 'dark',
@@ -109,6 +116,8 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Coral',
     description: 'Warm, energetic, and community-driven',
+    nameKey: 'settings.appearance.presets.coral.name',
+    descriptionKey: 'settings.appearance.presets.coral.description',
     settings: {
       theme: 'custom',
       customThemeMode: 'dark',
@@ -127,6 +136,8 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Violet',
     description: 'Creative and distinctive with deep purple tones',
+    nameKey: 'settings.appearance.presets.violet.name',
+    descriptionKey: 'settings.appearance.presets.violet.description',
     settings: {
       theme: 'custom',
       customThemeMode: 'dark',
@@ -145,6 +156,8 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Rose',
     description: 'Bold, warm, and community-focused',
+    nameKey: 'settings.appearance.presets.rose.name',
+    descriptionKey: 'settings.appearance.presets.rose.description',
     settings: {
       theme: 'custom',
       customThemeMode: 'dark',
@@ -163,6 +176,8 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Ocean Blue',
     description: 'A deep ocean blue theme with cool tones',
+    nameKey: 'settings.appearance.presets.oceanBlue.name',
+    descriptionKey: 'settings.appearance.presets.oceanBlue.description',
     settings: {
       theme: 'custom',
       customThemeMode: 'dark',
@@ -181,6 +196,8 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Sakura',
     description: 'Cherry blossom inspired pink theme',
+    nameKey: 'settings.appearance.presets.sakura.name',
+    descriptionKey: 'settings.appearance.presets.sakura.description',
     settings: {
       theme: 'custom',
       customThemeMode: 'dark',
@@ -199,6 +216,8 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Forest',
     description: 'Natural green forest tones',
+    nameKey: 'settings.appearance.presets.forest.name',
+    descriptionKey: 'settings.appearance.presets.forest.description',
     settings: {
       theme: 'custom',
       customThemeMode: 'dark',
@@ -217,6 +236,8 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Amber',
     description: 'Warm amber and gold tones',
+    nameKey: 'settings.appearance.presets.amber.name',
+    descriptionKey: 'settings.appearance.presets.amber.description',
     settings: {
       theme: 'custom',
       customThemeMode: 'dark',
@@ -1391,10 +1412,11 @@ export function useVisualTheme() {
   /**
    * Get all available CSS variable names for theming
    */
-  function getThemableVariables(): { category: string; vars: string[] }[] {
+  function getThemableVariables(): { category: string; labelKey: string; vars: string[] }[] {
     return [
       {
         category: 'Navigation Rail',
+        labelKey: 'settings.appearance.variableGroups.navigationRail',
         vars: [
           '--nav-rail-button-bg',
           '--nav-rail-button-icon',
@@ -1404,42 +1426,52 @@ export function useVisualTheme() {
       },
       {
         category: 'Brand',
+        labelKey: 'settings.appearance.variableGroups.brand',
         vars: ['--harmony-primary', '--harmony-primary-hover', '--harmony-primary-light', '--harmony-secondary', '--harmony-accent', '--h-brand']
       },
       {
         category: 'Primary (Layout)',
+        labelKey: 'settings.appearance.variableGroups.primaryLayout',
         vars: ['--h-primary', '--h-primary-light', '--h-primary-dark']
       },
       {
         category: 'Background Surfaces',
+        labelKey: 'settings.appearance.variableGroups.backgroundSurfaces',
         vars: ['--background-primary', '--background-secondary', '--background-tertiary', '--background-quaternary', '--background-quinary', '--background-senary', '--background-septenary', '--h-channel-sidebar']
       },
       {
         category: 'Text',
+        labelKey: 'settings.appearance.variableGroups.text',
         vars: ['--text-primary', '--text-secondary', '--text-tertiary', '--text-muted']
       },
       {
         category: 'Icons',
+        labelKey: 'settings.appearance.variableGroups.icons',
         vars: ['--icon-active', '--icon-primary', '--icon-secondary', '--icon-tertiary', '--icon-muted']
       },
       {
         category: 'Status',
+        labelKey: 'settings.appearance.variableGroups.status',
         vars: ['--status-online', '--status-away', '--status-busy', '--status-offline']
       },
       {
         category: 'Semantic',
+        labelKey: 'settings.appearance.variableGroups.semantic',
         vars: ['--success', '--warning', '--error', '--info']
       },
       {
         category: 'Borders',
+        labelKey: 'settings.appearance.variableGroups.borders',
         vars: ['--border-primary', '--border-secondary', '--border-hover', '--border-focus']
       },
       {
         category: 'Alpha / Transparency',
+        labelKey: 'settings.appearance.variableGroups.alphaTransparency',
         vars: ['--background-primary-alpha', '--background-secondary-alpha', '--background-tertiary-alpha', '--background-senary-alpha']
       },
       {
         category: 'Tooltips & Overlays',
+        labelKey: 'settings.appearance.variableGroups.tooltipsOverlays',
         vars: ['--tooltip-bg', '--tooltip-text', '--tooltip-arrow']
       }
     ]

@@ -49,14 +49,7 @@ When a community changes pairs or options, the gateway notices within `BRIDGE_CO
 
 Self-run bridges need only the bot gateway. Hosted bridges and the instance's bot also need the bridge host service.
 
-1. Run `harmony config` and answer yes to the bot gateway and to hosting Discord bridges. Scripted, in `self-host/`:
-
-   ```bash
-   HARMONY_BOTS=y HARMONY_DISCORD=y bash configure.sh --non-interactive
-   docker compose up -d
-   ```
-
-   Hosting turns bots on if they are off.
+1. Run `harmony bridges add discord`, or answer `discord` to the installer's bridge question. It turns the bot gateway on if it is off, and needs no terminal. `harmony bridges` shows what runs, and [`harmony bridges remove discord`](/self-host/cli#harmony-bridges) stops it.
 2. `configure.sh` generates a 64-character `BRIDGE_HOST_SECRET`, writes it to both `self-host/bot-gateway.env` and `self-host/discord-bridge.env`, sets `ENABLE_DISCORD_BRIDGE=true` and adds the `discord` profile to `COMPOSE_PROFILES`. The `discord-bridge-host` service (container `harmony-discord-bridge-host`) starts.
 3. Run `harmony doctor`. Its `discord` check fails when the two secrets differ or are shorter than 32 characters, and when `discord-bridge-host` is not running.
 

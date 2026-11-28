@@ -15,7 +15,7 @@ This section is for people who own or help run a server (a community with its ow
 - Create roles, give them permissions, and change those permissions per channel.
 - Moderate: AutoMod rules, reports, timeouts, kicks, bans and an audit log of what changed.
 - Let other services post through channel webhooks, and add bots.
-- Bridge the server to a Discord server.
+- Bridge the server to a Discord server and to Matrix rooms.
 
 Most of this lives in the server settings. Click the server name at the top of the channel list to open the server menu, then **Server settings**. Members without **Manage Server** see the same entry as **Overview** and get a read-only view.
 
@@ -42,5 +42,6 @@ The instance's own administrators and moderators are a separate group, set by wh
 | [Server stickers](/run/stickers) | Adding, describing and removing the server's stickers |
 | [Webhooks](/run/webhooks) | Creating and managing channel webhooks |
 | [Discord bridge](/run/discord-bridge) | Linking the server to a Discord server |
+| [Matrix bridge](/run/matrix-bridge) | Linking channels with Matrix rooms |
 | [Reviewing signups](/run/signup-review) | For instance staff: recent accounts, groups created together, and suspending many accounts with one reason |
 | [Instance funding](/run/funding) | For instance administrators: the Support window, payment links, supporter messages and the sign-in page strip |

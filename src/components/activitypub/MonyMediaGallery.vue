@@ -149,7 +149,7 @@
         :title="t('activitypub.altTextShow')"
         @click.stop="showAltText = !showAltText"
       >
-        ALT
+        {{ t('activitypub.altBadge') }}
       </button>
 
       <!-- Media description (alt text) -->

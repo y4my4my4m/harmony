@@ -3,21 +3,21 @@
 <div class="admin-module funding-module">
   <div class="module-header">
     <Icon name="heart" :size="20" />
-    <h2>Funding & supporters</h2>
+    <h2>{{ t('support.admin.fundingTitle') }}</h2>
     <button @click="saveFundingConfig" class="save-btn" :disabled="!fundingChanged">
       <Icon name="save" :size="16" />
-      Save changes
+      {{ t('support.admin.saveChanges') }}
     </button>
   </div>
   <div class="funding-content">
     <!-- Funding Config -->
     <div class="funding-section">
-      <h3>Funding goal</h3>
+      <h3>{{ t('support.admin.goalTitle') }}</h3>
       <div class="setting-row">
         <label class="toggle-label">
           <input type="checkbox" v-model="fundingEnabled" />
           <span class="toggle-slider"></span>
-          Enable funding
+          {{ t('support.admin.enableFunding') }}
         </label>
       </div>
       <div v-if="fundingEnabled" class="funding-fields">
@@ -25,14 +25,14 @@
           <label class="toggle-label">
             <input type="checkbox" v-model="fundingShowInBar" />
             <span class="toggle-slider"></span>
-            Show in context bar
+            {{ t('support.admin.showInBar') }}
           </label>
         </div>
         <div class="setting-row">
           <label class="toggle-label">
             <input type="checkbox" v-model="fundingShowProgress" />
             <span class="toggle-slider"></span>
-            Show progress bar
+            {{ t('support.admin.showProgress') }}
           </label>
         </div>
         <template v-if="supportsMessages">
@@ -54,11 +54,11 @@
         </template>
         <div class="funding-form-row">
           <div class="funding-field">
-            <label>Goal amount</label>
+            <label>{{ t('support.admin.goalAmount') }}</label>
             <input type="number" v-model.number="fundingGoalAmount" class="cyber-input" min="0" step="1" />
           </div>
           <div class="funding-field">
-            <label>Currency</label>
+            <label>{{ t('support.admin.currency') }}</label>
             <select v-model="fundingCurrency" class="cyber-select">
               <option value="USD">USD</option>
               <option value="EUR">EUR</option>
@@ -67,49 +67,49 @@
             </select>
           </div>
           <div class="funding-field">
-            <label>Period</label>
+            <label>{{ t('support.admin.period') }}</label>
             <select v-model="fundingPeriod" class="cyber-select">
-              <option value="monthly">Monthly (resets each month)</option>
-              <option value="all">All time</option>
+              <option value="monthly">{{ t('support.admin.periodMonthly') }}</option>
+              <option value="all">{{ t('support.admin.periodAll') }}</option>
             </select>
             <span class="setting-hint" style="display: block; margin-top: 4px;">
-              Total is computed from donation history; period controls which donations count.
+              {{ t('support.admin.periodHint') }}
             </span>
           </div>
         </div>
         <div class="funding-field" style="margin-top: 8px;">
-          <label>Description</label>
-          <input type="text" v-model="fundingDescription" class="cyber-input" placeholder="What the funding is for…" />
+          <label>{{ t('support.admin.description') }}</label>
+          <input type="text" v-model="fundingDescription" class="cyber-input" :placeholder="t('support.admin.descriptionPlaceholder')" />
         </div>
         <div class="funding-field" style="margin-top: 8px;">
-          <label>Thank you message</label>
-          <input type="text" v-model="fundingThankYou" class="cyber-input" placeholder="Message shown to supporters" />
+          <label>{{ t('support.admin.thankYou') }}</label>
+          <input type="text" v-model="fundingThankYou" class="cyber-input" :placeholder="t('support.admin.thankYouPlaceholder')" />
         </div>
 
         <!-- Funding Links -->
         <div class="funding-links-section" style="margin-top: 16px;">
-          <label style="font-size: 12px; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 8px;">Donation links</label>
+          <label style="font-size: 12px; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 8px;">{{ t('support.admin.donationLinks') }}</label>
           <div v-if="fundingLinks.length > 0" class="funding-links-list">
             <div v-for="(link, i) in fundingLinks" :key="i" class="funding-link-row">
               <select v-model="link.platform" class="cyber-select" style="width: 160px;">
                 <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
               </select>
-              <input v-model="link.url" class="cyber-input" placeholder="https://..." autocomplete="off" style="flex: 1;" />
-              <input v-model="link.label" class="cyber-input" placeholder="Label (optional)" autocomplete="off" style="width: 140px;" />
-              <button class="mod-btn delete-btn" @click="fundingLinks.splice(i, 1)" title="Remove link">
+              <input v-model="link.url" class="cyber-input" placeholder="https://..." :aria-label="t('support.admin.linkUrl')" autocomplete="off" style="flex: 1;" />
+              <input v-model="link.label" class="cyber-input" :placeholder="t('support.admin.linkLabel')" autocomplete="off" style="width: 140px;" />
+              <button class="mod-btn delete-btn" @click="fundingLinks.splice(i, 1)" :title="t('support.admin.removeLink')" :aria-label="t('support.admin.removeLink')">
                 <Icon name="delete" :size="14" />
               </button>
             </div>
           </div>
           <div class="funding-link-row" style="margin-top: 6px;">
             <select v-model="newLinkPlatform" class="cyber-select" style="width: 160px;">
-              <option value="" disabled>Platform…</option>
+              <option value="" disabled>{{ t('support.admin.platformPlaceholder') }}</option>
               <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
             </select>
-            <input v-model="newLinkUrl" class="cyber-input" placeholder="https://..." autocomplete="off" style="flex: 1;" />
-            <input v-model="newLinkLabel" class="cyber-input" placeholder="Label (optional)" autocomplete="off" style="width: 140px;" />
+            <input v-model="newLinkUrl" class="cyber-input" placeholder="https://..." :aria-label="t('support.admin.linkUrl')" autocomplete="off" style="flex: 1;" />
+            <input v-model="newLinkLabel" class="cyber-input" :placeholder="t('support.admin.linkLabel')" autocomplete="off" style="width: 140px;" />
             <button class="action-btn" @click="addFundingLink" :disabled="!newLinkPlatform || !newLinkUrl" style="white-space: nowrap;">
-              <Icon name="plus" :size="14" /> Add
+              <Icon name="plus" :size="14" /> {{ t('common.add') }}
             </button>
           </div>
         </div>
@@ -118,72 +118,71 @@
 
     <!-- Ko-fi Webhook (automation) -->
     <div class="funding-section">
-      <h3>Ko-fi webhook <span class="section-badge">Automation</span></h3>
+      <h3>{{ t('support.admin.kofiTitle') }} <span class="section-badge">{{ t('support.admin.automation') }}</span></h3>
       <p class="section-description" style="margin-bottom: 12px;">
-        Auto-record donations from Ko-fi. Requires a Ko-fi Gold subscription.
-        Paste your verification token from
-        <a href="https://ko-fi.com/manage/webhooks" target="_blank" rel="noopener noreferrer">Ko-fi Settings → API</a>
-        and set the webhook URL to:
+        <i18n-t keypath="support.admin.kofiIntro" tag="span">
+          <template #link><a href="https://ko-fi.com/manage/webhooks" target="_blank" rel="noopener noreferrer">{{ t('support.admin.kofiSettingsLink') }}</a></template>
+        </i18n-t>
       </p>
       <div class="webhook-url-display">
         <code>{{ kofiWebhookUrl }}</code>
-        <button class="mod-btn" @click="copyKofiWebhookUrl" title="Copy URL">
+        <button class="mod-btn" @click="copyKofiWebhookUrl" :title="t('support.admin.copyUrl')" :aria-label="t('support.admin.copyUrl')">
           <Icon name="copy" :size="14" />
         </button>
       </div>
       <div class="funding-form-row" style="margin-top: 12px;">
         <div class="funding-field" style="flex: 1;">
-          <label>Verification token</label>
+          <label>{{ t('support.admin.kofiToken') }}</label>
           <input
             v-model="kofiWebhookToken"
             :type="showKofiToken ? 'text' : 'password'"
             class="cyber-input"
-            placeholder="Paste from Ko-fi Settings → API"
+            :placeholder="t('support.admin.kofiTokenPlaceholder')"
             autocomplete="off"
           />
         </div>
-        <button class="mod-btn secret-toggle" type="button" @click="showKofiToken = !showKofiToken" :title="showKofiToken ? 'Hide' : 'Show'">
+        <button class="mod-btn secret-toggle" type="button" @click="showKofiToken = !showKofiToken" :title="showKofiToken ? t('support.admin.hideSecret') : t('support.admin.showSecret')" :aria-label="showKofiToken ? t('support.admin.hideSecret') : t('support.admin.showSecret')">
           <Icon :name="showKofiToken ? 'eye-off' : 'eye'" :size="14" />
         </button>
       </div>
       <label class="funding-check">
         <input type="checkbox" v-model="kofiAutoAssignTier" />
-        <span>Auto-assign supporter tier based on donation amount</span>
+        <span>{{ t('support.admin.autoAssignTier') }}</span>
       </label>
       <p class="section-hint">
-        Donors include their handle (<code>@username@{{ instanceDomain }}</code>) anywhere in their Ko-fi
-        message - the webhook auto-attributes it and recomputes their tier based on cumulative cycle
-        donations. Donations without a matched handle land in the <strong>Pending donations</strong>
-        queue below, and you (and instance moderators) get a notification.
+        <i18n-t keypath="support.admin.kofiHint" tag="span">
+          <template #handle><code>@username@{{ instanceDomain }}</code></template>
+          <template #queue><strong>{{ t('support.admin.pendingTitle') }}</strong></template>
+        </i18n-t>
       </p>
     </div>
 
     <!-- Stripe Webhook (automation) -->
     <div class="funding-section">
-      <h3>Stripe <span class="section-badge">Automation</span></h3>
+      <h3>Stripe <span class="section-badge">{{ t('support.admin.automation') }}</span></h3>
       <p class="section-description" style="margin-bottom: 12px;">
-        Donations through a Stripe Payment Link are credited to the donor's account: Harmony opens
-        the link with their account id, and Stripe reports the payment to this webhook. In the Stripe
-        Dashboard, create a Payment Link (for any amount, choose <em>Customers choose what to pay</em>;
-        a recurring price makes a monthly donation) and add it under Donation links with the platform
-        <strong>Stripe</strong>. Then, under
-        <a href="https://dashboard.stripe.com/webhooks" target="_blank" rel="noopener noreferrer">Developers → Webhooks</a>,
-        add an endpoint with this URL:
+        <i18n-t keypath="support.admin.stripeIntro" tag="span">
+          <template #choice><em>Customers choose what to pay</em></template>
+          <template #platform><strong>Stripe</strong></template>
+          <template #link><a href="https://dashboard.stripe.com/webhooks" target="_blank" rel="noopener noreferrer">Developers → Webhooks</a></template>
+        </i18n-t>
       </p>
       <div class="webhook-url-display">
         <code>{{ stripeWebhookUrl }}</code>
-        <button class="mod-btn" @click="copyText(stripeWebhookUrl, 'Webhook URL copied')" title="Copy URL">
+        <button class="mod-btn" @click="copyText(stripeWebhookUrl, t('support.admin.webhookCopied'))" :title="t('support.admin.copyUrl')" :aria-label="t('support.admin.copyUrl')">
           <Icon name="copy" :size="14" />
         </button>
       </div>
       <p class="section-description" style="margin: 8px 0 0;">
-        listening for
-        <code>checkout.session.completed</code>, <code>checkout.session.async_payment_succeeded</code>
-        and <code>invoice.paid</code>, and paste its signing secret here.
+        <i18n-t keypath="support.admin.stripeEvents" tag="span">
+          <template #first><code>checkout.session.completed</code></template>
+          <template #second><code>checkout.session.async_payment_succeeded</code></template>
+          <template #third><code>invoice.paid</code></template>
+        </i18n-t>
       </p>
       <div class="funding-form-row" style="margin-top: 12px;">
         <div class="funding-field" style="flex: 1;">
-          <label>Signing secret</label>
+          <label>{{ t('support.admin.signingSecret') }}</label>
           <input
             v-model="stripeWebhookSecret"
             :type="showStripeSecret ? 'text' : 'password'"
@@ -192,29 +191,29 @@
             autocomplete="off"
           />
         </div>
-        <button class="mod-btn secret-toggle" type="button" @click="showStripeSecret = !showStripeSecret" :title="showStripeSecret ? 'Hide' : 'Show'">
+        <button class="mod-btn secret-toggle" type="button" @click="showStripeSecret = !showStripeSecret" :title="showStripeSecret ? t('support.admin.hideSecret') : t('support.admin.showSecret')" :aria-label="showStripeSecret ? t('support.admin.hideSecret') : t('support.admin.showSecret')">
           <Icon :name="showStripeSecret ? 'eye-off' : 'eye'" :size="14" />
         </button>
       </div>
       <label class="funding-check">
         <input type="checkbox" v-model="stripeAutoAssignTier" />
-        <span>Auto-assign supporter tier based on donation amount</span>
+        <span>{{ t('support.admin.autoAssignTier') }}</span>
       </label>
       <p class="section-hint">
-        Payments from a Payment Link opened outside Harmony carry no account and land in the
-        <strong>Pending donations</strong> queue below, as do renewals of subscriptions started that way.
-        Checkout payments that did not come from a Payment Link are ignored.
+        <i18n-t keypath="support.admin.stripeHint" tag="span">
+          <template #queue><strong>{{ t('support.admin.pendingTitle') }}</strong></template>
+        </i18n-t>
       </p>
     </div>
 
     <!-- Pending Donations -->
     <div class="funding-section" v-if="pendingDonations.length > 0 || pendingDonationCount > 0">
       <h3>
-        Pending donations
+        {{ t('support.admin.pendingTitle') }}
         <span v-if="pendingDonationCount > 0" class="pending-count-badge">{{ pendingDonationCount }}</span>
       </h3>
       <p class="section-description" style="margin-bottom: 12px;">
-        Webhook donations that couldn't be auto-matched to a user. Search for the recipient or dismiss.
+        {{ t('support.admin.pendingHint') }}
       </p>
       <div v-if="pendingDonations.length > 0" class="pending-donations-list">
         <div v-for="pending in pendingDonations" :key="pending.id" class="pending-donation-item">
@@ -224,7 +223,7 @@
             <span class="pending-date">{{ formatDate(pending.received_at) }}</span>
           </div>
           <div class="pending-donation-meta">
-            <span v-if="pending.donor_name"><strong>From:</strong> {{ pending.donor_name }}</span>
+            <span v-if="pending.donor_name"><strong>{{ t('support.admin.pendingFrom') }}</strong> {{ pending.donor_name }}</span>
             <span v-if="pending.donor_email" class="pending-email">{{ pending.donor_email }}</span>
           </div>
           <div v-if="pending.donor_message" class="pending-message">
@@ -234,15 +233,15 @@
             <input
               v-model="pendingResolveSearch[pending.id]"
               class="cyber-input"
-              placeholder="Search user by username…"
+              :placeholder="t('support.admin.pendingSearch')"
               @input="onPendingResolveSearch(pending.id)"
               style="flex: 1;"
             />
             <button class="report-action-btn resolve" :disabled="!pendingResolveUserId[pending.id]" @click="resolvePending(pending)">
-              <Icon name="check" :size="14" /> Attribute
+              <Icon name="check" :size="14" /> {{ t('support.admin.attribute') }}
             </button>
             <button class="report-action-btn dismiss" @click="dismissPending(pending.id)">
-              <Icon name="x" :size="14" /> Dismiss
+              <Icon name="x" :size="14" /> {{ t('support.admin.dismiss') }}
             </button>
           </div>
           <div v-if="pendingResolveSuggestions[pending.id]?.length" class="pending-suggestions">
@@ -314,7 +313,7 @@
 
     <!-- Supporter Tiers -->
     <div class="funding-section">
-      <h3>Supporter tiers</h3>
+      <h3>{{ t('support.tiers') }}</h3>
       <div class="tiers-list" v-if="supporterTiers.length > 0">
         <div v-for="tier in supporterTiers" :key="tier.id" class="tier-item">
           <template v-if="editingTierId === tier.id">
@@ -325,7 +324,8 @@
                 type="button"
                 class="mod-btn emoji-picker-btn"
                 @click.stop="showEditTierEmojiPicker = !showEditTierEmojiPicker"
-                title="Pick emoji"
+                :title="t('support.admin.pickEmoji')"
+                :aria-label="t('support.admin.pickEmoji')"
               >
                 <SupporterBadgeIcon v-if="editTierIcon" :icon="editTierIcon" />
                 <Icon v-else name="smile-plus" :size="16" />
@@ -344,12 +344,12 @@
             <input v-model="editTierName" class="cyber-input" style="flex: 1;" />
             <input v-model.number="editTierMinAmount" type="number" class="cyber-input" style="width: 90px;" min="0" />
             <input v-model="editTierColor" type="color" class="color-input" />
-            <label class="tier-ads-toggle" title="Supporters on this tier see no GIF ads">
+            <label class="tier-ads-toggle" :title="t('support.admin.adFreeTitle')">
               <input type="checkbox" v-model="editTierRemovesAds" />
-              <span>Ad-free GIFs</span>
+              <span>{{ t('support.admin.adFree') }}</span>
             </label>
-            <button class="mod-btn" @click="saveEditTier(tier.id)" title="Save"><Icon name="check" :size="14" /></button>
-            <button class="mod-btn" @click="editingTierId = null; showEditTierEmojiPicker = false" title="Cancel"><Icon name="x" :size="14" /></button>
+            <button class="mod-btn" @click="saveEditTier(tier.id)" :title="t('common.save')" :aria-label="t('common.save')"><Icon name="check" :size="14" /></button>
+            <button class="mod-btn" @click="editingTierId = null; showEditTierEmojiPicker = false" :title="t('common.cancel')" :aria-label="t('common.cancel')"><Icon name="x" :size="14" /></button>
           </template>
           <template v-else>
             <span class="tier-icon" :style="tier.badge_color ? { color: tier.badge_color } : {}">
@@ -357,29 +357,30 @@
             </span>
             <div class="tier-info">
               <span class="tier-name">{{ tier.name }}</span>
-              <span class="tier-amount">Min: {{ tier.min_amount }}</span>
-              <span v-if="tier.removes_ads" class="tier-adfree-badge" title="Supporters on this tier see no GIF ads">Ad-free GIFs</span>
+              <span class="tier-amount">{{ t('support.admin.tierMin', { amount: tier.min_amount }) }}</span>
+              <span v-if="tier.removes_ads" class="tier-adfree-badge" :title="t('support.admin.adFreeTitle')">{{ t('support.admin.adFree') }}</span>
               <span v-if="tier.perks" class="tier-perks">{{ tier.perks }}</span>
             </div>
             <div class="tier-actions">
-              <button class="mod-btn" @click="startEditTier(tier)" title="Edit tier"><Icon name="edit" :size="14" /></button>
-              <button class="mod-btn delete-btn" @click="deleteTier(tier.id)" title="Delete tier"><Icon name="delete" :size="14" /></button>
+              <button class="mod-btn" @click="startEditTier(tier)" :title="t('support.admin.editTier')" :aria-label="t('support.admin.editTier')"><Icon name="edit" :size="14" /></button>
+              <button class="mod-btn delete-btn" @click="deleteTier(tier.id)" :title="t('support.admin.deleteTier')" :aria-label="t('support.admin.deleteTier')"><Icon name="delete" :size="14" /></button>
             </div>
           </template>
         </div>
       </div>
-      <EmptyState v-else size="sm" icon="layers" :title="$t('empty.admin.tiers.title')" />
+      <EmptyState v-else size="sm" icon="layers" :title="t('empty.admin.tiers.title')" />
       <div class="add-tier-form">
-        <input v-model="newTierName" class="cyber-input" placeholder="Tier name" />
-        <input v-model.number="newTierMinAmount" type="number" class="cyber-input" placeholder="Min amount" min="0" style="width: 120px;" />
+        <input v-model="newTierName" class="cyber-input" :placeholder="t('support.admin.tierName')" />
+        <input v-model.number="newTierMinAmount" type="number" class="cyber-input" :placeholder="t('support.admin.minAmount')" min="0" style="width: 120px;" />
         <div class="tier-icon-picker" style="position: relative;">
-          <input v-model="newTierIcon" class="cyber-input" placeholder="Icon" style="width: 60px;" />
+          <input v-model="newTierIcon" class="cyber-input" :placeholder="t('support.admin.tierIcon')" style="width: 60px;" />
           <button
             ref="newTierEmojiButtonRef"
             type="button"
             class="mod-btn emoji-picker-btn"
             @click.stop="showNewTierEmojiPicker = !showNewTierEmojiPicker"
-            title="Pick emoji"
+            :title="t('support.admin.pickEmoji')"
+            :aria-label="t('support.admin.pickEmoji')"
           >
             <SupporterBadgeIcon v-if="newTierIcon" :icon="newTierIcon" />
             <Icon v-else name="smile-plus" :size="16" />
@@ -395,20 +396,20 @@
             @resetEmojiIconClicked="() => {}"
           />
         </div>
-        <input v-model="newTierColor" type="color" class="color-input" title="Badge color" />
-        <label class="tier-ads-toggle" title="Supporters on this tier see no GIF ads">
+        <input v-model="newTierColor" type="color" class="color-input" :title="t('support.admin.badgeColor')" :aria-label="t('support.admin.badgeColor')" />
+        <label class="tier-ads-toggle" :title="t('support.admin.adFreeTitle')">
           <input type="checkbox" v-model="newTierRemovesAds" />
-          <span>Ad-free GIFs</span>
+          <span>{{ t('support.admin.adFree') }}</span>
         </label>
         <button class="action-btn" @click="addTier" :disabled="!newTierName || !newTierMinAmount">
-          <Icon name="plus" :size="16" /> Add
+          <Icon name="plus" :size="16" /> {{ t('common.add') }}
         </button>
       </div>
     </div>
 
     <!-- Supporters -->
     <div class="funding-section">
-      <h3>Active supporters</h3>
+      <h3>{{ t('support.admin.activeSupporters') }}</h3>
       <div class="supporters-list" v-if="supporters.length > 0">
         <div v-for="supporter in supporters" :key="supporter.id" class="supporter-item">
           <Avatar :src="supporter.user?.avatar_url" :alt="supporter.user?.username" size="sm" />
@@ -419,21 +420,21 @@
               <CopyIdButton v-if="supporter.user_id" :id="supporter.user_id" kind="user" :target="supporter.user?.username ? `@${supporter.user.username}` : null" />
             </span>
             <span class="supporter-meta">
-              {{ supporter.tier?.name || 'No tier' }}
+              {{ supporter.tier?.name || t('support.admin.noTier') }}
               <template v-if="supporter.amount"> &middot; {{ supporter.amount }}</template>
               <template v-if="supporter.platform"> &middot; {{ supporter.platform }}</template>
             </span>
           </div>
           <div class="supporter-actions">
-            <button class="mod-btn" @click="startEditSupporter(supporter)" title="Edit supporter"><Icon name="edit" :size="14" /></button>
-            <button class="mod-btn" @click="openRecordDonation(supporter)" title="Record donation">
+            <button class="mod-btn" @click="startEditSupporter(supporter)" :title="t('support.admin.editSupporter')" :aria-label="t('support.admin.editSupporter')"><Icon name="edit" :size="14" /></button>
+            <button class="mod-btn" @click="openRecordDonation(supporter)" :title="t('support.admin.recordDonation')" :aria-label="t('support.admin.recordDonation')">
               <Icon name="dollar-sign" :size="14" />
             </button>
-            <button class="mod-btn delete-btn" @click="removeSupporter(supporter.user_id)" title="Remove supporter"><Icon name="delete" :size="14" /></button>
+            <button class="mod-btn delete-btn" @click="removeSupporter(supporter.user_id)" :title="t('support.admin.removeSupporter')" :aria-label="t('support.admin.removeSupporter')"><Icon name="delete" :size="14" /></button>
           </div>
         </div>
       </div>
-      <EmptyState v-else size="sm" icon="heart" :title="$t('empty.admin.supporters.title')" />
+      <EmptyState v-else size="sm" icon="heart" :title="t('empty.admin.supporters.title')" />
 
       <!-- Add Supporter -->
       <div class="add-supporter-form">
@@ -442,7 +443,7 @@
             ref="supporterSearchInputRef"
             v-model="addSupporterSearch"
             class="cyber-input"
-            placeholder="Username to add as supporter…"
+            :placeholder="t('support.admin.addSupporterPlaceholder')"
             @input="onSupporterSearchInput"
             @keydown="onSupporterSearchKeydown"
             @focus="supporterSearchFocused = true"
@@ -469,87 +470,87 @@
           </div>
         </div>
         <select v-model="addSupporterTierId" class="cyber-select" style="width: 140px;">
-          <option value="">No tier</option>
-          <option v-for="t in supporterTiers" :key="t.id" :value="t.id">{{ t.name }}</option>
+          <option value="">{{ t('support.admin.noTier') }}</option>
+          <option v-for="tierOpt in supporterTiers" :key="tierOpt.id" :value="tierOpt.id">{{ tierOpt.name }}</option>
         </select>
-        <input v-model.number="addSupporterAmount" type="number" class="cyber-input" placeholder="Amount" min="0" style="width: 100px;" />
-        <input v-model="addSupporterPlatform" class="cyber-input" placeholder="Platform" style="width: 110px;" />
+        <input v-model.number="addSupporterAmount" type="number" class="cyber-input" :placeholder="t('support.admin.amount')" min="0" style="width: 100px;" />
+        <input v-model="addSupporterPlatform" class="cyber-input" :placeholder="t('support.admin.platform')" style="width: 110px;" />
         <button class="action-btn" @click="addNewSupporter" :disabled="!addSupporterSearch">
-          <Icon name="plus" :size="16" /> Add
+          <Icon name="plus" :size="16" /> {{ t('common.add') }}
         </button>
       </div>
     </div>
 
     <!-- Edit Supporter Modal (inline) -->
     <div v-if="editingSupporterData" class="funding-section edit-supporter-panel">
-      <h3>Edit supporter: <DisplayName v-if="editingSupporterData.user_id" :user-id="editingSupporterData.user_id" :fallback="editingSupporterData.user?.display_name || editingSupporterData.user?.username" /><template v-else>{{ editingSupporterData.user?.display_name || editingSupporterData.user?.username }}</template></h3>
+      <h3><i18n-t keypath="support.admin.editSupporterFor" tag="span"><template #name><DisplayName v-if="editingSupporterData.user_id" :user-id="editingSupporterData.user_id" :fallback="editingSupporterData.user?.display_name || editingSupporterData.user?.username" /><template v-else>{{ editingSupporterData.user?.display_name || editingSupporterData.user?.username }}</template></template></i18n-t></h3>
       <div class="funding-form-row">
         <div class="funding-field">
-          <label>Tier</label>
+          <label>{{ t('support.admin.tier') }}</label>
           <select v-model="editSupporterTierId" class="cyber-select">
-            <option value="">No tier</option>
-            <option v-for="t in supporterTiers" :key="t.id" :value="t.id">{{ t.name }}</option>
+            <option value="">{{ t('support.admin.noTier') }}</option>
+            <option v-for="tierOpt in supporterTiers" :key="tierOpt.id" :value="tierOpt.id">{{ tierOpt.name }}</option>
           </select>
         </div>
         <div class="funding-field">
-          <label>Amount</label>
+          <label>{{ t('support.admin.amount') }}</label>
           <input v-model.number="editSupporterAmount" type="number" class="cyber-input" min="0" />
         </div>
         <div class="funding-field">
-          <label>Platform</label>
+          <label>{{ t('support.admin.platform') }}</label>
           <input v-model="editSupporterPlatform" class="cyber-input" />
         </div>
       </div>
       <div class="report-action-buttons" style="margin-top: 8px;">
-        <button class="report-action-btn resolve" @click="saveEditSupporter">Save</button>
-        <button class="report-action-btn dismiss" @click="editingSupporterData = null">Cancel</button>
+        <button class="report-action-btn resolve" @click="saveEditSupporter">{{ t('common.save') }}</button>
+        <button class="report-action-btn dismiss" @click="editingSupporterData = null">{{ t('common.cancel') }}</button>
       </div>
     </div>
 
     <!-- Record Donation Modal (inline) -->
     <div v-if="recordDonationSupporter" class="funding-section edit-supporter-panel">
-      <h3>Record donation for <DisplayName v-if="recordDonationSupporter.user_id" :user-id="recordDonationSupporter.user_id" :fallback="recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username" /><template v-else>{{ recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username }}</template></h3>
+      <h3><i18n-t keypath="support.admin.recordDonationFor" tag="span"><template #name><DisplayName v-if="recordDonationSupporter.user_id" :user-id="recordDonationSupporter.user_id" :fallback="recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username" /><template v-else>{{ recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username }}</template></template></i18n-t></h3>
       <div class="funding-form-row">
         <div class="funding-field">
-          <label>Amount</label>
+          <label>{{ t('support.admin.amount') }}</label>
           <input v-model.number="recordDonationAmount" type="number" class="cyber-input" min="0" step="0.01" />
         </div>
         <div class="funding-field">
-          <label>Currency</label>
+          <label>{{ t('support.admin.currency') }}</label>
           <select v-model="recordDonationCurrency" class="cyber-select">
             <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="JPY">JPY</option>
           </select>
         </div>
         <div class="funding-field">
-          <label>Platform</label>
-          <input v-model="recordDonationPlatform" class="cyber-input" placeholder="e.g. Patreon, Ko-fi" />
+          <label>{{ t('support.admin.platform') }}</label>
+          <input v-model="recordDonationPlatform" class="cyber-input" :placeholder="t('support.admin.platformExample')" />
         </div>
       </div>
       <div class="funding-field" style="margin-top: 8px;">
-        <label>Note</label>
-        <input v-model="recordDonationNote" class="cyber-input" placeholder="Optional note…" />
+        <label>{{ t('support.admin.note') }}</label>
+        <input v-model="recordDonationNote" class="cyber-input" :placeholder="t('support.admin.notePlaceholder')" />
       </div>
       <div class="report-action-buttons" style="margin-top: 8px;">
-        <button class="report-action-btn resolve" @click="saveRecordDonation" :disabled="!recordDonationAmount">Record</button>
-        <button class="report-action-btn dismiss" @click="recordDonationSupporter = null">Cancel</button>
+        <button class="report-action-btn resolve" @click="saveRecordDonation" :disabled="!recordDonationAmount">{{ t('support.admin.record') }}</button>
+        <button class="report-action-btn dismiss" @click="recordDonationSupporter = null">{{ t('common.cancel') }}</button>
       </div>
     </div>
 
     <!-- Donation History -->
     <div class="funding-section">
-      <h3>Donation history</h3>
+      <h3>{{ t('support.admin.historyTitle') }}</h3>
       <div v-if="donationStats.donationCount > 0" class="donation-stats-row">
         <div class="donation-stat">
           <span class="donation-stat-value">{{ donationStats.totalDonated.toFixed(2) }}</span>
-          <span class="donation-stat-label">Total donated</span>
+          <span class="donation-stat-label">{{ t('support.admin.totalDonated') }}</span>
         </div>
         <div class="donation-stat">
           <span class="donation-stat-value">{{ donationStats.donationCount }}</span>
-          <span class="donation-stat-label">Donations</span>
+          <span class="donation-stat-label">{{ t('support.admin.donations') }}</span>
         </div>
         <div class="donation-stat">
           <span class="donation-stat-value">{{ donationStats.uniqueDonors }}</span>
-          <span class="donation-stat-label">Unique donors</span>
+          <span class="donation-stat-label">{{ t('support.admin.uniqueDonors') }}</span>
         </div>
       </div>
       <div v-if="donationHistory.length > 0" class="donations-list">
@@ -564,38 +565,38 @@
           <span v-if="donation.platform" class="donation-platform">{{ donation.platform }}</span>
           <span v-if="donation.note" class="donation-note">{{ donation.note }}</span>
           <div class="donation-actions">
-            <button class="mod-btn" @click="startEditDonation(donation)" title="Edit"><Icon name="edit" :size="12" /></button>
-            <button class="mod-btn delete-btn" @click="deleteDonation(donation.id)" title="Delete"><Icon name="delete" :size="12" /></button>
+            <button class="mod-btn" @click="startEditDonation(donation)" :title="t('common.edit')" :aria-label="t('common.edit')"><Icon name="edit" :size="12" /></button>
+            <button class="mod-btn delete-btn" @click="deleteDonation(donation.id)" :title="t('common.delete')" :aria-label="t('common.delete')"><Icon name="delete" :size="12" /></button>
           </div>
         </div>
       </div>
-      <EmptyState v-else size="sm" icon="dollar-sign" :title="$t('empty.admin.donations.title')" />
+      <EmptyState v-else size="sm" icon="dollar-sign" :title="t('empty.admin.donations.title')" />
 
       <!-- Edit Donation (inline) -->
       <div v-if="editingDonation" class="edit-donation-panel">
         <div class="funding-form-row">
           <div class="funding-field">
-            <label>Amount</label>
+            <label>{{ t('support.admin.amount') }}</label>
             <input v-model.number="editDonationAmount" type="number" class="cyber-input" min="0" step="0.01" />
           </div>
           <div class="funding-field">
-            <label>Currency</label>
+            <label>{{ t('support.admin.currency') }}</label>
             <select v-model="editDonationCurrency" class="cyber-select">
               <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="JPY">JPY</option>
             </select>
           </div>
           <div class="funding-field">
-            <label>Platform</label>
+            <label>{{ t('support.admin.platform') }}</label>
             <input v-model="editDonationPlatform" class="cyber-input" />
           </div>
           <div class="funding-field">
-            <label>Note</label>
+            <label>{{ t('support.admin.note') }}</label>
             <input v-model="editDonationNote" class="cyber-input" />
           </div>
         </div>
         <div class="report-action-buttons" style="margin-top: 8px;">
-          <button class="report-action-btn resolve" @click="saveEditDonation">Save</button>
-          <button class="report-action-btn dismiss" @click="editingDonation = null">Cancel</button>
+          <button class="report-action-btn resolve" @click="saveEditDonation">{{ t('common.save') }}</button>
+          <button class="report-action-btn dismiss" @click="editingDonation = null">{{ t('common.cancel') }}</button>
         </div>
       </div>
     </div>
@@ -814,23 +815,24 @@ const PLATFORM_LABELS: Record<FundingPlatformKey, string> = {
   'stripe': 'Stripe',
   'custom': 'Custom',
 }
-const platformLabel = (key: string): string => PLATFORM_LABELS[key as FundingPlatformKey] || key
+const platformLabel = (key: string): string =>
+  key === 'custom' ? t('support.admin.platformCustom') : PLATFORM_LABELS[key as FundingPlatformKey] || key
 
 const copyText = async (text: string, done: string) => {
   try {
     await navigator.clipboard.writeText(text)
     toast.success(done)
   } catch {
-    toast.error('Failed to copy')
+    toast.error(t('support.admin.copyFailed'))
   }
 }
 
 const copyKofiWebhookUrl = async () => {
   try {
     await navigator.clipboard.writeText(kofiWebhookUrl.value)
-    toast.success('Webhook URL copied')
+    toast.success(t('support.admin.webhookCopied'))
   } catch {
-    toast.error('Failed to copy')
+    toast.error(t('support.admin.copyFailed'))
   }
 }
 
@@ -864,27 +866,27 @@ const resolvePending = async (pending: PendingDonation) => {
   // (recompute_supporter_tier). No need to compute it here.
   const ok = await fundingService.resolvePendingDonation(pending.id, userId)
   if (ok) {
-    toast.success('Donation attributed')
+    toast.success(t('support.admin.attributed'))
     await adminService.logAdminAction({ action: 'pending_donation_resolve', targetType: 'pending_donation', targetId: pending.id, details: { userId } })
     pendingDonations.value = pendingDonations.value.filter(p => p.id !== pending.id)
     pendingDonationCount.value = pendingDonations.value.filter(p => !p.resolved_at).length
     donationHistory.value = await fundingService.getDonationHistory()
     supporters.value = await fundingService.getSupporters()
   } else {
-    toast.error('Failed to attribute donation')
+    toast.error(t('support.admin.attributeFailed'))
   }
 }
 
 const dismissPending = async (pendingId: string) => {
-  if (!(await confirm({ title: 'Dismiss donation', message: 'Dismiss this donation? It will not be attributed to any user.', confirmButtonText: 'Dismiss', dangerAction: true }))) return
+  if (!(await confirm({ title: t('support.admin.dismissTitle'), message: t('support.admin.dismissMessage'), confirmButtonText: t('support.admin.dismiss'), dangerAction: true }))) return
   const ok = await fundingService.dismissPendingDonation(pendingId)
   if (ok) {
-    toast.success('Donation dismissed')
+    toast.success(t('support.admin.dismissed'))
     await adminService.logAdminAction({ action: 'pending_donation_dismiss', targetType: 'pending_donation', targetId: pendingId })
     pendingDonations.value = pendingDonations.value.filter(p => p.id !== pendingId)
     pendingDonationCount.value = pendingDonations.value.filter(p => !p.resolved_at).length
   } else {
-    toast.error('Failed to dismiss')
+    toast.error(t('support.admin.dismissFailed'))
   }
 }
 
@@ -938,9 +940,9 @@ const saveFundingConfig = async () => {
   if (success) {
     fundingChanged.value = false
     void fundingStore.refresh()
-    toast.success('Funding settings saved')
+    toast.success(t('support.admin.saved'))
   } else {
-    toast.error(secretMessage ?? 'Failed to save funding settings')
+    toast.error(secretMessage ?? t('support.admin.saveFailed'))
   }
 }
 
@@ -962,7 +964,7 @@ const addTier = async () => {
     newTierMinAmount.value = 0
     newTierIcon.value = '⭐'
     newTierRemovesAds.value = false
-    toast.success('Tier created')
+    toast.success(t('support.admin.tierCreated'))
   }
 }
 
@@ -988,7 +990,7 @@ const saveEditTier = async (tierId: string) => {
     await adminService.logAdminAction({ action: 'tier_update', targetType: 'tier', targetId: tierId, details: { name: editTierName.value } })
     editingTierId.value = null
     supporterTiers.value = await fundingService.getTiers()
-    toast.success('Tier updated')
+    toast.success(t('support.admin.tierUpdated'))
   }
 }
 
@@ -1003,12 +1005,12 @@ const handleEditTierEmoji = (emoji: Emoji & { display_name?: string }) => {
 }
 
 const deleteTier = async (tierId: string) => {
-  if (!(await confirm({ title: 'Delete tier', message: 'Delete this tier? Supporters on this tier will keep their status but lose the tier badge.', confirmButtonText: 'Delete', dangerAction: true }))) return
+  if (!(await confirm({ title: t('support.admin.deleteTier'), message: t('support.admin.deleteTierMessage'), confirmButtonText: t('common.delete'), dangerAction: true }))) return
   const success = await fundingService.deleteTier(tierId)
   if (success) {
     await adminService.logAdminAction({ action: 'tier_delete', targetType: 'tier', targetId: tierId })
     supporterTiers.value = supporterTiers.value.filter(t => t.id !== tierId)
-    toast.success('Tier deleted')
+    toast.success(t('support.admin.tierDeleted'))
   }
 }
 
@@ -1141,7 +1143,7 @@ const addNewSupporter = async () => {
     // Fallback: try to find by username
     const { data: users } = await supabase.from('profiles').select('id').ilike('username', addSupporterSearch.value.replace(/^@/, '')).limit(1)
     if (!users?.length) {
-      toast.error('User not found')
+      toast.error(t('support.admin.userNotFound'))
       return
     }
     userId = users[0].id
@@ -1156,7 +1158,7 @@ const addNewSupporter = async () => {
     addSupporterTierId.value = ''
     addSupporterAmount.value = 0
     addSupporterPlatform.value = ''
-    toast.success('Supporter added')
+    toast.success(t('support.admin.supporterAdded'))
   }
 }
 
@@ -1179,17 +1181,17 @@ const saveEditSupporter = async () => {
     await adminService.logAdminAction({ action: 'supporter_update', targetType: 'supporter', targetId: userId })
     editingSupporterData.value = null
     supporters.value = await fundingService.getSupporters()
-    toast.success('Supporter updated')
+    toast.success(t('support.admin.supporterUpdated'))
   }
 }
 
 const removeSupporter = async (userId: string) => {
-  if (!(await confirm({ title: 'Remove supporter', message: 'Remove this supporter?', confirmButtonText: 'Remove', dangerAction: true }))) return
+  if (!(await confirm({ title: t('support.admin.removeSupporter'), message: t('support.admin.removeSupporterMessage'), confirmButtonText: t('common.remove'), dangerAction: true }))) return
   const success = await fundingService.removeSupporter(userId)
   if (success) {
     await adminService.logAdminAction({ action: 'supporter_remove', targetType: 'supporter', targetId: userId })
     supporters.value = supporters.value.filter(s => s.user_id !== userId)
-    toast.success('Supporter removed')
+    toast.success(t('support.admin.supporterRemoved'))
   }
 }
 
@@ -1211,7 +1213,7 @@ const saveRecordDonation = async () => {
     recordDonationSupporter.value = null
     donationHistory.value = await fundingService.getDonationHistory()
     donationStats.value = await fundingService.getDonationStats()
-    toast.success('Donation recorded')
+    toast.success(t('support.admin.donationRecorded'))
   }
 }
 
@@ -1236,18 +1238,18 @@ const saveEditDonation = async () => {
     editingDonation.value = null
     donationHistory.value = await fundingService.getDonationHistory()
     donationStats.value = await fundingService.getDonationStats()
-    toast.success('Donation updated')
+    toast.success(t('support.admin.donationUpdated'))
   }
 }
 
 const deleteDonation = async (donationId: string) => {
-  if (!(await confirm({ title: 'Delete donation', message: 'Delete this donation record?', confirmButtonText: 'Delete', dangerAction: true }))) return
+  if (!(await confirm({ title: t('support.admin.deleteDonation'), message: t('support.admin.deleteDonationMessage'), confirmButtonText: t('common.delete'), dangerAction: true }))) return
   const success = await fundingService.deleteDonation(donationId)
   if (success) {
     await adminService.logAdminAction({ action: 'donation_delete', targetType: 'donation', targetId: donationId })
     donationHistory.value = donationHistory.value.filter(d => d.id !== donationId)
     donationStats.value = await fundingService.getDonationStats()
-    toast.success('Donation deleted')
+    toast.success(t('support.admin.donationDeleted'))
   }
 }
 

@@ -16,6 +16,7 @@ import { authContextService } from './AuthContextService'
 import { openRebuildingChannel, type RebuildingChannel } from './rebuildingChannel'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 
 /** Answers to a ring: one from any device of the account stops the ring on the others. */
 const OWN_ANSWERS: ReadonlySet<CallSignal['type']> = new Set(['accept', 'join', 'decline', 'busy'])
@@ -168,7 +169,7 @@ class GlobalDMCallListenerService {
         debug.log('[Federated] Call rejected:', payload)
         dmCallSignaling.handleFederatedCallEvent('rejected', payload as FederatedCallEvent)
         void this.leaveFederatedRoom(payload as FederatedCallEvent)
-        useToast().info('Call declined')
+        useToast().info(i18n.global.t('dm.callDeclined'))
       }),
       // One of this account's devices took or refused a federated ring (federation backend).
       userEventChannel.on('federated_call:answered', (payload) => {
@@ -235,7 +236,7 @@ class GlobalDMCallListenerService {
       }
         
       case 'busy':
-        toast.info('User is busy')
+        toast.info(i18n.global.t('dm.busy'))
         break
         
       case 'timeout':
@@ -253,7 +254,7 @@ class GlobalDMCallListenerService {
           void this.endLostAnswer(signal.conversationId)
         } else if (signal.type === 'timeout' && !silenced && !handled) {
           // info routes to the corner toast; warn would go top-center.
-          toast.info('Missed call')
+          toast.info(i18n.global.t('dm.missedCall'))
         }
         break
       }
@@ -333,7 +334,7 @@ class GlobalDMCallListenerService {
 
     const incomingCallData: IncomingCallData = {
       callerId: signal.callerId,
-      callerName: callerData?.displayName || callerData?.username || 'Unknown',
+      callerName: callerData?.displayName || callerData?.username || i18n.global.t('voice.unknownUser'),
       callerAvatar: callerData?.avatarUrl || '/default_avatar.webp',
       callType: signal.callType,
       conversationId,
@@ -423,7 +424,7 @@ class GlobalDMCallListenerService {
 
     const incomingCallData: IncomingCallData = {
       callerId: payload.callerId,
-      callerName: payload.callerName || 'Unknown',
+      callerName: payload.callerName || i18n.global.t('voice.unknownUser'),
       callerAvatar: getAvatarUrl(payload.callerAvatar) || '/default_avatar.webp',
       callType: payload.callType,
       conversationId: payload.conversationId,
@@ -450,7 +451,7 @@ class GlobalDMCallListenerService {
     const inCall = room === `dm-${conversationId}`
       || (!!room?.startsWith('federated-dm-') && dmCallSignaling.conversationForRoom(room) === conversationId)
     if (inCall) await voiceStore.leaveVoiceChannel()
-    useToast().info('No answer')
+    useToast().info(i18n.global.t('dm.noAnswer'))
   }
 
   /**
@@ -465,7 +466,7 @@ class GlobalDMCallListenerService {
     const room = `dm-${conversationId}`
     const leave = () => {
       void voiceStore.leaveVoiceChannel()
-      useToast().info('Call ended')
+      useToast().info(i18n.global.t('dm.callEnded'))
     }
     this.lostAnswerWatches.get(conversationId)?.()
     if (voiceStore.effectiveChannelId === room) {

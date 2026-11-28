@@ -11,7 +11,7 @@
 #   ./harmony admin create   # the instance admin
 #
 # Updates: ./harmony update. Optional services are compose profiles (voice,
-# bots, discord, and logs for Supabase's log collection in supabase-overrides.yml);
+# bots, discord, matrix, and logs for Supabase's log collection in supabase-overrides.yml);
 # configure.sh lists the enabled ones in COMPOSE_PROFILES in .env.
 #
 # Harmony's own services run published images. HARMONY_BUILD=1 configure.sh
@@ -27,6 +27,18 @@
 # =============================================================================
 
 name: harmony
+
+# Container logs. The json-file driver keeps every line without max-size, and Kong writes one per
+# request: the bot gateway's polls alone are 3 to 3.5 a second, 4 more with a bot connected. One
+# instance's supabase-kong log reached 4.5 GB of a 16 GB disk. Each container keeps 20 MB and four
+# rotated files, gzip-compressed; `docker logs` and `harmony logs` read them all.
+# supabase-overrides.yml gives the Supabase services the same.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+    compress: "true"
 
 include:
   - path:
@@ -63,10 +75,13 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    # Caddy resolves its upstreams per request and answers 502 for one that is down. A required
+    # dependency that fails to start keeps Caddy, the only public entry, from starting.
     depends_on:
-      - web
-      - federation-server
-      - media-cache
+      web: { condition: service_started, required: false }
+      federation-server: { condition: service_started, required: false }
+      media-cache: { condition: service_started, required: false }
+    logging: *logging
     networks:
       default:
       # The public domain resolves to Caddy on this network, so a service on it
@@ -97,6 +112,7 @@ services:
       TERMS_URL: ${TERMS_URL:-}
       PRIVACY_URL: ${PRIVACY_URL:-}
       STATUS_URL: ${STATUS_URL:-}
+    logging: *logging
     networks:
       - default
 
@@ -113,6 +129,7 @@ services:
     volumes:
       - ./media-cache.conf:/etc/nginx/conf.d/default.conf:ro
       - media-cache-data:/var/cache/nginx/media
+    logging: *logging
     networks:
       - default
 
@@ -134,15 +151,20 @@ services:
       HARMONY_AUTH_CONFIG_DIR: /var/lib/harmony-auth
     volumes:
       - auth-config:/var/lib/harmony-auth
+    # Without Redis the server runs without cache, rate-limit counters or presence (RedisService
+    # fallback mode) until it restarts. A required dependency keeps this service, and Caddy behind
+    # it, from starting while Redis cannot load its append-only file.
     depends_on:
       redis:
         condition: service_healthy
+        required: false
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', r => process.exit(r.statusCode === 200 ? 0 : 1))"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 15s
+    logging: *logging
     networks:
       - default
 
@@ -161,14 +183,19 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+        required: false
       federation-server:
         condition: service_started
+    logging: *logging
     networks:
       - default
 
   # ---------------------------------------------------------------------------
   # Redis - BullMQ job queue, caching, presence, rate limiting, LiveKit state
   # ---------------------------------------------------------------------------
+  # Redis 7 multi-part append-only file in /data/appendonlydir (base, incr files, manifest).
+  # A write cut short by a full disk leaves an incr file Redis refuses at every start ("Bad file
+  # format reading the append only file"); redis_aof_repair (lib.sh) truncates it at the damage.
   redis:
     image: redis:7-alpine
     container_name: harmony-redis
@@ -181,6 +208,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    logging: *logging
     networks:
       - default
 
@@ -200,6 +228,7 @@ services:
       PORT: "3002"
     depends_on:
       - federation-server
+    logging: *logging
     networks:
       - default
       # FEDERATION_BACKEND_URL is https://DOMAIN: the gateway sends its secret
@@ -230,9 +259,38 @@ services:
       - discord-bridge-data:/data
     depends_on:
       - bot-gateway
+    logging: *logging
     networks:
       - default
     profiles: [discord]
+
+  # ---------------------------------------------------------------------------
+  # Matrix bridge hosting (profile: matrix, needs bots)
+  # ---------------------------------------------------------------------------
+  # Runs the Matrix bridges of communities, and the instance's own, once an admin
+  # offers them. BRIDGE_HOST_SECRET equals the gateway's MATRIX_BRIDGE_HOST_SECRET
+  # (bot-gateway.env). A homeserver reaches an application service on 9009, served
+  # at https://DOMAIN/matrix-appservice/. Its image versions separately from Harmony.
+  matrix-bridge-host:
+    image: ${MATRIX_BRIDGE_REGISTRY:-ghcr.io/y4my4my4m}/harmony-matrix-bridge:${MATRIX_BRIDGE_VERSION:-1}
+    container_name: harmony-matrix-bridge-host
+    restart: unless-stopped
+    env_file:
+      # Written by configure.sh only with Matrix bridge hosting enabled.
+      - path: ./matrix-bridge.env
+        required: false
+    environment:
+      BRIDGE_MODE: host
+      HARMONY_URL: http://bot-gateway:3002
+      HARMONY_PUBLIC_URL: https://${DOMAIN}
+    volumes:
+      - matrix-bridge-data:/data
+    depends_on:
+      - bot-gateway
+    logging: *logging
+    networks:
+      - default
+    profiles: [matrix]
 
   # ---------------------------------------------------------------------------
   # LiveKit voice/video (profile: voice)
@@ -253,6 +311,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+        required: false
+    logging: *logging
     networks:
       - default
     profiles: [voice]
@@ -265,6 +325,7 @@ volumes:
   redis-data:
   media-cache-data:
   discord-bridge-data:
+  matrix-bridge-data:
 
 networks:
   default:

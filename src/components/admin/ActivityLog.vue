@@ -2,12 +2,12 @@
 <div class="admin-module activity-module">
   <div class="module-header">
     <Icon name="activity" :size="20" />
-    <h2>Recent Activity</h2>
+    <h2>{{ i18n.t('admin.activityLog.title') }}</h2>
     <select v-model="activityFilter" class="cyber-select">
-      <option value="all">All Events</option>
-      <option value="federation">Federation</option>
-      <option value="moderation">Moderation</option>
-      <option value="security">Security</option>
+      <option value="all">{{ i18n.t('admin.activityLog.filter.all') }}</option>
+      <option value="federation">{{ i18n.t('admin.activityLog.filter.federation') }}</option>
+      <option value="moderation">{{ i18n.t('admin.activityLog.filter.moderation') }}</option>
+      <option value="security">{{ i18n.t('admin.activityLog.filter.security') }}</option>
     </select>
   </div>
   <div class="activity-feed">
@@ -72,7 +72,7 @@ const loadRecentActivity = async () => {
         author_handle: event.author_handle,
       }, getInstanceDomain(), i18n.t as unknown as (key: string, ...args: unknown[]) => string),
       timestamp: new Date(event.created_at),
-      source: `Admin: ${event.admin_username}`,
+      source: i18n.t('admin.activityLog.source', { name: event.admin_username }),
       admin_id: event.admin_id
     }))
   } catch (error) {
@@ -83,7 +83,7 @@ const loadRecentActivity = async () => {
 
 
 const formatTime = (date: Date) => {
-  return date.toLocaleTimeString()
+  return date.toLocaleTimeString(i18n.locale.value)
 }
 
 const getActivityCategory = (type: string): string => {
@@ -98,26 +98,23 @@ const getActivityCategory = (type: string): string => {
   return 'other'
 }
 
-const CONFIG_KEY_LABELS: Record<string, string> = {
-  instance_name: 'Instance name',
-  instance_description: 'Instance description',
-  terms_url: 'Terms URL',
-  privacy_url: 'Privacy URL',
-  max_post_length: 'Max post length',
-  max_server_size: 'Max server size',
-  max_servers_per_user: 'Servers per account',
-  max_bots_per_user: 'Bots per account',
-  drive_instance_limit_mb: 'Drive storage across the instance',
-  max_message_length: 'Max message length',
-  max_custom_emojis_per_server: 'Max custom emojis per server',
-  custom_emoji_transform_quality: 'Custom emoji image quality',
-  allow_file_uploads: 'Allow file uploads',
-  enable_voice_channels: 'Enable voice channels',
-  federation_retry_attempts: 'Federation retry attempts',
-  oauth_providers: 'OAuth providers'
-}
-
 const CONFIG_KEY_I18N: Record<string, string> = {
+  instance_name: 'admin.activityLog.configKeys.instanceName',
+  instance_description: 'admin.activityLog.configKeys.instanceDescription',
+  terms_url: 'admin.activityLog.configKeys.termsUrl',
+  privacy_url: 'admin.activityLog.configKeys.privacyUrl',
+  max_post_length: 'admin.activityLog.configKeys.maxPostLength',
+  max_server_size: 'admin.activityLog.configKeys.maxServerSize',
+  max_servers_per_user: 'admin.activityLog.configKeys.maxServersPerUser',
+  max_bots_per_user: 'admin.activityLog.configKeys.maxBotsPerUser',
+  drive_instance_limit_mb: 'admin.activityLog.configKeys.driveInstanceLimit',
+  max_message_length: 'admin.activityLog.configKeys.maxMessageLength',
+  max_custom_emojis_per_server: 'admin.activityLog.configKeys.maxCustomEmojisPerServer',
+  custom_emoji_transform_quality: 'admin.activityLog.configKeys.customEmojiQuality',
+  allow_file_uploads: 'admin.activityLog.configKeys.allowFileUploads',
+  enable_voice_channels: 'admin.activityLog.configKeys.enableVoiceChannels',
+  federation_retry_attempts: 'admin.activityLog.configKeys.federationRetryAttempts',
+  oauth_providers: 'admin.activityLog.configKeys.oauthProviders',
   max_post_reactions_per_user: 'admin.activityLog.configKeys.maxPostReactionsPerUser',
   max_personal_emojis_per_user: 'admin.activityLog.configKeys.maxPersonalEmojisPerUser',
   max_stickers_per_server: 'admin.activityLog.configKeys.maxStickersPerServer',
@@ -125,11 +122,24 @@ const CONFIG_KEY_I18N: Record<string, string> = {
   max_personal_stickers_per_user: 'admin.activityLog.configKeys.maxPersonalStickersPerUser',
 }
 
+const isEmptyConfigValue = (v: unknown): boolean => v == null || (typeof v === 'string' && v === '')
+
 const formatConfigValue = (v: unknown): string => {
-  if (v == null || (typeof v === 'string' && v === '')) return '(empty)'
+  if (isEmptyConfigValue(v)) return i18n.t('admin.activityLog.emptyValue')
   if (Array.isArray(v)) return v.join(', ')
   if (typeof v === 'object') return JSON.stringify(v)
   return String(v)
+}
+
+const USER_ACTION_KEYS: Record<string, string> = {
+  user_suspend: 'admin.activityLog.userAction.suspended',
+  user_delete: 'admin.activityLog.userAction.deleted',
+  user_unsuspend: 'admin.activityLog.userAction.unsuspended',
+}
+
+const userActionLine = (type: string | undefined, who: string): string | null => {
+  const key = type ? USER_ACTION_KEYS[type] : undefined
+  return key ? i18n.t(key, { who }) : null
 }
 
 const formatActivityMessage = (event: { type: string; message: string | object; targetUsername?: string; staffLine?: string | null }) => {
@@ -138,10 +148,9 @@ const formatActivityMessage = (event: { type: string; message: string | object; 
   const targetUser = event.targetUsername
   if (raw == null || raw === '') {
     if (event.type?.startsWith('user_') && targetUser) {
-      const verb = event.type === 'user_suspend' ? 'Suspended' : event.type === 'user_delete' ? 'Deleted' : event.type === 'user_unsuspend' ? 'Unsuspended' : event.type
-      return `${verb} @${targetUser}`
+      return userActionLine(event.type, `@${targetUser}`) ?? `${event.type} @${targetUser}`
     }
-    return event.type || 'Event'
+    return event.type || i18n.t('admin.activityLog.event')
   }
   try {
     const obj = typeof raw === 'string' ? JSON.parse(raw) : raw
@@ -149,28 +158,28 @@ const formatActivityMessage = (event: { type: string; message: string | object; 
 
     // Config change: key, new_value, old_value
     if (obj.key != null && ('new_value' in obj || 'old_value' in obj)) {
-      const label = (CONFIG_KEY_I18N[obj.key] && i18n.t(CONFIG_KEY_I18N[obj.key])) || CONFIG_KEY_LABELS[obj.key] || obj.key.replace(/_/g, ' ')
+      const label = (CONFIG_KEY_I18N[obj.key] && i18n.t(CONFIG_KEY_I18N[obj.key])) || obj.key.replace(/_/g, ' ')
       const newVal = formatConfigValue(obj.new_value)
       const oldVal = formatConfigValue(obj.old_value)
-      if (oldVal !== '(empty)' && newVal !== oldVal) {
-        return `${label}: ${newVal} (was ${oldVal})`
+      if (!isEmptyConfigValue(obj.old_value) && newVal !== oldVal) {
+        return i18n.t('admin.activityLog.configChanged', { label, value: newVal, old: oldVal })
       }
-      return `${label}: ${newVal}`
+      return i18n.t('admin.activityLog.configSet', { label, value: newVal })
     }
 
     // User moderation with target
     if ((event.type?.startsWith('user_') || obj.action === 'suspend' || obj.action === 'delete' || obj.action === 'unsuspend') && (targetUser || obj.user_id)) {
-      const who = targetUser ? `@${targetUser}` : (obj.user_id ? `user ${String(obj.user_id).slice(0, 8)}...` : '')
+      const who = targetUser ? `@${targetUser}` : (obj.user_id ? i18n.t('admin.activityLog.userShort', { id: String(obj.user_id).slice(0, 8) }) : '')
       const reason = obj.reason ? ` - ${obj.reason}` : ''
-      const verb = event.type === 'user_suspend' ? 'Suspended' : event.type === 'user_delete' ? 'Deleted' : event.type === 'user_unsuspend' ? 'Unsuspended' : ''
-      return `${verb || 'Moderated'} ${who}${reason}`.trim()
+      const line = userActionLine(event.type, who) ?? i18n.t('admin.activityLog.userAction.moderated', { who })
+      return `${line}${reason}`.trim()
     }
 
     const parts: string[] = []
     if (obj.domain) parts.push(obj.domain)
     if (obj.reason) parts.push(`- ${obj.reason}`)
     if (obj.action) parts.push(`(${obj.action})`)
-    if (obj.user_id && !targetUser) parts.push(`user: ${obj.user_id}`)
+    if (obj.user_id && !targetUser) parts.push(i18n.t('admin.activityLog.userId', { id: obj.user_id }))
     if (targetUser) parts.unshift(`@${targetUser}`)
     if (parts.length) return parts.join(' ')
 

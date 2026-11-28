@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache';
 import type { Emoji } from '@/types';
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n';
 import { removeFrequentEmoji } from '@/composables/useFrequentEmojis';
 import { EmojiFavoriteService } from '@/services/EmojiFavoriteService';
 import { invalidateEmojiResolverCache } from '@/services/emojiShortcodeResolver';
@@ -531,7 +532,7 @@ function registerGeneratedEmoji(raw: { id: string; name: string; url: string }):
         created_at: new Date(),
     };
     const cache = useEmojiCacheStore();
-    cache.addPersonalEmoji(PERSONAL_EMOJI_GROUPS.ai, 'AI Generated', emoji);
+    cache.addPersonalEmoji(PERSONAL_EMOJI_GROUPS.ai, i18n.global.t('emoji.groups.ai'), emoji);
     invalidateEmojiResolverCache();
     return emoji;
 }

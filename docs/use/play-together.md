@@ -10,7 +10,7 @@ Play together runs small multiplayer activities, such as the drawing game Drawin
 ## Start an activity
 
 1. Open a DM, a group or a text channel.
-2. In a text channel, select **Activities** (the popcorn) in the header, on a phone too. In a DM or a group, open **More options** (**⋮**) in the header and select **Activities**.
+2. Select **+** beside the message box, then **Activities** (the popcorn).
 3. Pick an activity.
 
 The activity opens in a panel above the messages, and a notice in the conversation tells everyone you started it, with a **Join** button.

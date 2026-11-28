@@ -8,27 +8,27 @@
     </div>
 
     <div v-if="showInstallSection" class="settings-section">
-      <h3 class="section-title">Install app</h3>
+      <h3 class="section-title">{{ $t('settings.advanced.installApp') }}</h3>
       <p v-if="!isInstalledPWA" class="setting-description install-app-help">
-        Install Harmony as an app for faster loading and notifications. On desktop, use the install icon in your browser address bar if the button below is unavailable.
+        {{ $t('settings.advanced.installAppDescription') }}
       </p>
       <PWAInstallPrompt v-if="!isInstalledPWA" variant="button" :is-in-settings="true" />
 
       <div v-if="canShowRunOnLogin" class="setting-item run-on-login-item">
         <div class="setting-info">
-          <h4 class="setting-label">Start Harmony when you sign in</h4>
+          <h4 class="setting-label">{{ $t('settings.advanced.runOnLogin') }}</h4>
           <p class="setting-description">
-            <span v-if="runOnLoginEnabled">
-              You've enabled this from <code>{{ runOnLoginUrl }}</code>. Tap below for instructions if you ever need to change it.
-            </span>
+            <i18n-t v-if="runOnLoginEnabled" keypath="settings.advanced.runOnLoginEnabled" tag="span">
+              <template #url><code>{{ runOnLoginUrl }}</code></template>
+            </i18n-t>
             <span v-else>
-              {{ runOnLoginBrowserLabel }} can launch Harmony automatically every time you log into your computer.
+              {{ $t('settings.advanced.runOnLoginAvailable', { browser: runOnLoginBrowserLabel }) }}
             </span>
           </p>
         </div>
         <div class="setting-control">
           <button class="btn btn-secondary" @click="showRunOnLoginModal = true">
-            {{ runOnLoginEnabled ? 'Change' : 'Set up' }}
+            {{ runOnLoginEnabled ? $t('settings.advanced.runOnLoginChange') : $t('settings.advanced.runOnLoginSetUp') }}
           </button>
         </div>
       </div>
@@ -37,14 +37,13 @@
     <RunOnLoginInstructionsModal v-model="showRunOnLoginModal" @enabled="onRunOnLoginEnabled" />
 
     <div class="settings-section">
-      <h3 class="section-title">Beta features</h3>
+      <h3 class="section-title">{{ $t('settings.advanced.betaFeatures') }}</h3>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label" :id="`${a11yId}-t1`">Today dashboard</h4>
+          <h4 class="setting-label" :id="`${a11yId}-t1`">{{ $t('settings.advanced.todayDashboard') }}</h4>
           <p class="setting-description" :id="`${a11yId}-t1-desc`">
-            A daily digest of channels with unread activity, threads you're part of,
-            and trending posts. Adds a sun icon to the server sidebar.
+            {{ $t('settings.advanced.todayDashboardDescription') }}
           </p>
         </div>
         <div class="setting-control">
@@ -57,12 +56,10 @@
 
       <div class="setting-item" :class="{ 'disabled-option': !todayDashboardEnabled }">
         <div class="setting-info">
-          <h4 class="setting-label" :id="`${a11yId}-t2`">On-device AI summaries</h4>
+          <h4 class="setting-label" :id="`${a11yId}-t2`">{{ $t('settings.advanced.aiSummaries') }}</h4>
           <p class="setting-description" :id="`${a11yId}-t2-desc`">
-            Summarize the Today digest with your browser's built-in AI model
-            (Chrome's Gemini Nano). Runs entirely on your device - nothing is sent
-            to a server.
-            <span v-if="!onDeviceAiSupported"> Not supported by this browser.</span>
+            {{ $t('settings.advanced.aiSummariesDescription') }}
+            <span v-if="!onDeviceAiSupported"> {{ $t('settings.advanced.aiSummariesUnsupported') }}</span>
           </p>
         </div>
         <div class="setting-control">
@@ -76,12 +73,12 @@
     </div>
 
     <div v-if="isTauriDesktop" class="settings-section">
-      <h3 class="section-title">Desktop app</h3>
+      <h3 class="section-title">{{ $t('settings.advanced.desktopApp') }}</h3>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label" :id="`${a11yId}-t3`">Launch at startup</h4>
-          <p class="setting-description" :id="`${a11yId}-t3-desc`">Start Harmony automatically when you log into your computer. It launches minimized to the tray.</p>
+          <h4 class="setting-label" :id="`${a11yId}-t3`">{{ $t('settings.advanced.launchAtStartup') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t3-desc`">{{ $t('settings.advanced.launchAtStartupDescription') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch :labelledby="`${a11yId}-t3`" :describedby="`${a11yId}-t3-desc`" v-model="launchAtLogin" @change="onLaunchAtLoginChange" />
@@ -90,8 +87,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label" :id="`${a11yId}-t4`">Game activity (rich presence)</h4>
-          <p class="setting-description" :id="`${a11yId}-t4-desc`">Show the game you're playing as your status. Detection runs locally; only the game name is shared, as your status text.</p>
+          <h4 class="setting-label" :id="`${a11yId}-t4`">{{ $t('settings.advanced.richPresence') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t4-desc`">{{ $t('settings.advanced.richPresenceDescription') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch :labelledby="`${a11yId}-t4`" :describedby="`${a11yId}-t4-desc`" v-model="richPresence" @change="onRichPresenceChange" />
@@ -100,8 +97,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label" :id="`${a11yId}-t5`">In-game voice overlay</h4>
-          <p class="setting-description" :id="`${a11yId}-t5-desc`">Floating, click-through voice tiles over your game while in a call. Press Ctrl+Shift+O to toggle interaction.</p>
+          <h4 class="setting-label" :id="`${a11yId}-t5`">{{ $t('settings.advanced.gameOverlay') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t5-desc`">{{ $t('settings.advanced.gameOverlayDescription') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch :labelledby="`${a11yId}-t5`" :describedby="`${a11yId}-t5-desc`" v-model="gameOverlay" @change="onGameOverlayChange" />
@@ -164,7 +161,7 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Developer settings</h3>
+      <h3 class="section-title">{{ $t('settings.advanced.developerSettings') }}</h3>
 
       <div class="setting-item">
         <div class="setting-info">
@@ -182,19 +179,19 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Data management</h3>
+      <h3 class="section-title">{{ $t('settings.advanced.dataManagement') }}</h3>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('common.clear') }} Cache</h4>
+          <h4 class="setting-label">{{ $t('settings.advanced.clearCache') }}</h4>
           <p class="setting-description">
-            Clears the service-worker caches, the in-memory emoji cache, and the locally cached background-image manifest. Your messages, identity keys and settings are preserved.
+            {{ $t('settings.advanced.clearCacheDescription') }}
           </p>
         </div>
         <div class="setting-control">
           <button class="btn btn-secondary" @click="clearCache" :disabled="clearingCache">
-            <span v-if="!clearingCache">{{ $t('common.clear') }} Cache</span>
-            <span v-else>Clearing...</span>
+            <span v-if="!clearingCache">{{ $t('settings.advanced.clearCache') }}</span>
+            <span v-else>{{ $t('settings.advanced.clearingCache') }}</span>
           </button>
         </div>
       </div>
@@ -225,16 +222,16 @@
     <AccountMigrationPanel />
 
     <div class="settings-section danger-zone">
-      <h3 class="section-title danger">Danger zone</h3>
+      <h3 class="section-title danger">{{ $t('server.dangerZone') }}</h3>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label danger">{{ $t('common.delete') }} account</h4>
+          <h4 class="setting-label danger">{{ $t('settings.advanced.deleteAccount') }}</h4>
           <p class="setting-description">{{ $t('security.deleteAccount.description') }}</p>
         </div>
         <div class="setting-control">
           <button class="btn btn-danger" @click="openDeleteModal">
-            {{ $t('common.delete') }} account
+            {{ $t('settings.advanced.deleteAccount') }}
           </button>
         </div>
       </div>
@@ -243,7 +240,7 @@
     <Teleport to="body">
       <div v-if="showDeleteModal" class="sec-modal-overlay" @click.self="closeDeleteModal">
         <form class="sec-modal" role="dialog" aria-modal="true" aria-labelledby="delete-title" @submit.prevent="confirmDeletion">
-          <h3 id="delete-title" class="sec-modal-title danger">Delete your account?</h3>
+          <h3 id="delete-title" class="sec-modal-title danger">{{ $t('settings.advanced.deleteAccountTitle') }}</h3>
 
           <ul class="sec-bullets">
             <li>{{ $t('security.deleteAccount.bullets.permanent') }}</li>
@@ -275,7 +272,7 @@
           </div>
 
           <div v-if="deletionMfaRequired" class="sec-field">
-            <label class="sec-label" for="delete-mfa-input">Authenticator code</label>
+            <label class="sec-label" for="delete-mfa-input">{{ $t('accountMigration.move.code') }}</label>
             <input
               id="delete-mfa-input"
               v-model="deleteMfaCode"
@@ -289,7 +286,9 @@
           </div>
 
           <div class="sec-field">
-            <label class="sec-label" for="delete-confirm-input">Type <strong>DELETE</strong> to confirm</label>
+            <i18n-t keypath="settings.advanced.deleteConfirmType" tag="label" class="sec-label" for="delete-confirm-input">
+              <template #word><strong>DELETE</strong></template>
+            </i18n-t>
             <input
               id="delete-confirm-input"
               v-model="deleteConfirmText"
@@ -310,7 +309,7 @@
               {{ $t('common.cancel') }}
             </button>
             <button type="submit" class="sec-btn sec-btn-danger" :disabled="!canConfirmDeletion || isDeleting">
-              {{ isDeleting ? 'Deleting…' : 'Delete account forever' }}
+              {{ isDeleting ? $t('settings.advanced.deleting') : $t('settings.advanced.deleteForever') }}
             </button>
           </div>
         </form>
@@ -388,7 +387,7 @@ const gameOverlay = ref(isOverlayEnabled())
 function onRichPresenceChange() { setRichPresenceEnabled(richPresence.value) }
 function onGameOverlayChange() { setOverlayEnabled(gameOverlay.value) }
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const {
   state: updaterState,
   isActive: updaterActive,
@@ -425,7 +424,7 @@ const updateStatusText = computed(() => {
       return t('updater.settings.failed', { error: s.error ?? '' })
     default: {
       if (s.lastOutcome !== 'up-to-date' || !s.lastCheckedAt) return t('updater.settings.idle')
-      const time = new Date(s.lastCheckedAt).toLocaleString()
+      const time = new Date(s.lastCheckedAt).toLocaleString(locale.value)
       return `${t('updater.settings.upToDate')} ${t('updater.settings.lastChecked', { time })}`
     }
   }
@@ -448,7 +447,7 @@ async function onLaunchAtLoginChange() {
   } catch (error) {
     debug.error('Failed to toggle launch at startup:', error)
     launchAtLogin.value = !launchAtLogin.value
-    toast.error('Failed to update launch at startup')
+    toast.error(t('settings.advanced.launchAtStartupFailed'))
   }
 }
 
@@ -540,7 +539,7 @@ const confirmDeletion = async () => {
 
     switch (result.status) {
       case 'success': {
-        toast.success('Your account has been deleted.')
+        toast.success(t('settings.advanced.accountDeleted'))
         // The auth user is gone; drop all local state and leave.
         await authStore.logout().catch(() => {})
         window.location.href = '/login'
@@ -640,10 +639,10 @@ const clearCache = async () => {
     } catch (e) {
       debug.warn('Failed to clear emoji cache store:', e)
     }
-    toast.success(`Cleared ${cleared} cache${cleared === 1 ? '' : 's'} + reset emoji cache`)
+    toast.success(t('settings.advanced.cacheCleared', { count: cleared }, cleared))
   } catch (e) {
     debug.error('Failed to clear cache:', e)
-    toast.error('Failed to clear cache')
+    toast.error(t('settings.advanced.clearCacheFailed'))
   } finally {
     clearingCache.value = false
   }

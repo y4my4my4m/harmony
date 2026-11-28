@@ -57,11 +57,11 @@
           <div :id="`${idBase}-name-${index}`" class="file-name" :title="file.name">{{ file.name }}</div>
           <div class="file-size-status">
             <span class="file-size">{{ formatFileSize(file.size) }}</span>
-            <span v-if="file.uploadStatus === 'uploading'" class="status-text uploading">• Uploading</span>
+            <span v-if="file.uploadStatus === 'uploading'" class="status-text uploading">• {{ t('messageA11y.upload.statusUploading') }}</span>
             <span v-else-if="file.fromDrive" class="status-text completed" data-testid="file-from-drive">• {{ t('drive.composer.fromDrive') }}</span>
             <span v-else-if="file.uploadStatus === 'completed' && file.reused" class="status-text completed" data-testid="file-reused" :title="t('drive.composer.reusedHint')">• {{ t('drive.composer.reused') }}</span>
-            <span v-else-if="file.uploadStatus === 'completed'" class="status-text completed">• Uploaded</span>
-            <span v-else-if="file.uploadStatus === 'error'" class="status-text error">• Failed</span>
+            <span v-else-if="file.uploadStatus === 'completed'" class="status-text completed">• {{ t('messageA11y.upload.statusUploaded') }}</span>
+            <span v-else-if="file.uploadStatus === 'error'" class="status-text error">• {{ t('messageA11y.upload.statusFailed') }}</span>
             <span v-if="file.temporary || forceTemporary" class="status-text temporary" data-testid="file-temporary">• {{ t('drive.composer.temporaryDays', { count: temporaryDays }, temporaryDays) }}</span>
           </div>
           <div v-if="file.uploadError" class="error-message">{{ file.uploadError }}</div>
@@ -233,7 +233,7 @@ const hasUploading = computed(() => {
 
     const getFileExtension = (filename: string) => {
       const ext = filename.split('.').pop()?.toLowerCase();
-      return ext ? ext.toUpperCase() : 'FILE';
+      return ext ? ext.toUpperCase() : t('activitypub.file').toUpperCase();
     };
 
     const formatFileSize = (bytes: number) => {

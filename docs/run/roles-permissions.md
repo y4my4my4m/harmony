@@ -174,7 +174,7 @@ The bit is the position in the 64-bit mask stored for roles (`server_roles.permi
 | 4 | 16 | `MANAGE_EMOJIS` | Manage Expressions | not listed | No | Add, rename and delete the server's custom emoji, stickers and soundboard sounds, and choose whether the server's sounds can be played in other servers. |
 | 5 | 32 | `VIEW_AUDIT_LOG` | View Audit Log | not listed | No | Read the **Audit log**, and see the moderator and reason on kick, ban and unban events. |
 | 6 | 64 | `MANAGE_WEBHOOKS` | Manage Webhooks | Manage Webhooks (text channels) | No | Create, edit, regenerate and delete a channel's webhooks. See [Webhooks](/run/webhooks). |
-| 7 | 128 | `MANAGE_SERVER` | Manage Server | not listed | No | Edit the server's name, description, icon, banner, public listing, category, federation, welcome screen and rules, system messages and newcomer alerts; configure AutoMod, bots and the Discord bridge; export a template. Exempt from AutoMod. Does not allow deleting the server. |
+| 7 | 128 | `MANAGE_SERVER` | Manage Server | not listed | No | Edit the server's name, description, icon, banner, public listing, category, federation, welcome screen and rules, system messages and newcomer alerts; configure AutoMod, bots and the Discord and Matrix bridges; export a template. Exempt from AutoMod. Does not allow deleting the server. |
 | 8 | 256 | `CREATE_INVITE` | Create Invite | not listed | Yes | Create invites to the server. |
 | 9 | 512 | `KICK_MEMBERS` | Kick Members | not listed | No | Kick members whose highest role is below the kicker's; see kick, ban and unban reasons. |
 | 10 | 1024 | `BAN_MEMBERS` | Ban Members | not listed | No | Ban members whose highest role is below the banner's, unban, and open the **Bans** list. |

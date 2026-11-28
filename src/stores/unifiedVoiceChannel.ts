@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { i18n } from '@/i18n';
 import { apiUrl } from '@/services/instanceConfig';
 import { nextTick, watch, type WatchStopHandle } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
@@ -541,7 +542,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
         
         debug.error('Failed to join voice channel:', error);
-        this.joinError = error instanceof Error && error.message ? error.message : 'Could not join the call.';
+        this.joinError = error instanceof Error && error.message ? error.message : i18n.global.t('voice.joinCallFailed');
         this.isConnecting = false;
         this.connectionAbortController = null;
         this.optimisticChannelId = null;
@@ -847,7 +848,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             this.currentChannelId = channelId;
             this.currentServerId = serverId;
             const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
-            this.currentChannelName = channel ? channel.name : 'Voice Channel';
+            this.currentChannelName = channel ? channel.name : i18n.global.t('voice.voiceChannel');
             this.isConnected = true;
             this.isConnecting = false;
             this.connectionAbortController = null;
@@ -1569,8 +1570,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       await this.leaveVoiceChannel({ lost: true });
       useNotificationStore().showToast(
         'server_update',
-        'Disconnected from voice',
-        'The connection to the voice server was lost.',
+        i18n.global.t('voice.connectionLost.title'),
+        i18n.global.t('voice.connectionLost.message'),
         6000
       );
     },
@@ -1936,8 +1937,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         if (!this.isConnectedOrJoining) return;
         useNotificationStore().showToast(
           'server_update',
-          'Microphone unavailable',
-          'Joined muted: the microphone could not be opened.',
+          i18n.global.t('voice.microphoneUnavailable.title'),
+          i18n.global.t('voice.microphoneUnavailable.message'),
           6000
         );
       });

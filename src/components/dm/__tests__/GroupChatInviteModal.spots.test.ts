@@ -6,6 +6,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
 import { nextTick, ref } from 'vue'
+import { createI18n } from 'vue-i18n'
+import en from '@/locales/en.json'
 import { conversationOthers } from '@/utils/groupConversation'
 
 const PROFILE = 'profile-viewer'
@@ -39,7 +41,7 @@ const people = (count: number) => Array.from({ length: count }, (_, i) => person
 const render = (props: Record<string, unknown>) => shallowMount(GroupChatInviteModal, {
   props: { show: true, ...props },
   global: {
-    mocks: { $t: (key: string, n: unknown) => `${key} ${typeof n === 'number' ? n : ''}`.trim() },
+    plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })],
     stubs: { BaseModal: { template: '<div><slot /><slot name="footer" /></div>' } },
   },
 })
@@ -49,19 +51,19 @@ beforeEach(() => { mocks.createOrGetConversation.mockClear(); mocks.addUsersToCo
 
 describe('spots left', () => {
   it('is nine for a new group', () => {
-    expect(spots(render({}))).toBe('dm.groupSpotsLeft 9')
+    expect(spots(render({}))).toBe('9 spots left')
   })
 
   it('counts a direct conversation as its two people', () => {
     const existingParticipants = conversationOthers({ type: 'direct', other_user: person('partner') })
-    expect(spots(render({ conversationId: 'c', existingParticipants }))).toBe('dm.groupSpotsLeft 8')
+    expect(spots(render({ conversationId: 'c', existingParticipants }))).toBe('8 spots left')
   })
 
   it('counts the viewer once whether or not the caller lists them', () => {
     const listed = render({ conversationId: 'c', existingParticipants: [person(PROFILE), ...people(4)] })
     const unlisted = render({ conversationId: 'c', existingParticipants: people(4) })
-    expect(spots(listed)).toBe('dm.groupSpotsLeft 5')
-    expect(spots(unlisted)).toBe('dm.groupSpotsLeft 5')
+    expect(spots(listed)).toBe('5 spots left')
+    expect(spots(unlisted)).toBe('5 spots left')
     for (const wrapper of [listed, unlisted]) {
       expect(wrapper.get('.existing-participants-section').text()).toContain('Current participants (5)')
       expect(wrapper.findAll('.you-badge')).toHaveLength(1)
@@ -71,7 +73,7 @@ describe('spots left', () => {
   it('is none in a full group, whose picker takes nobody', async () => {
     const existingParticipants = conversationOthers({ type: 'group', participants: people(9) })
     const wrapper = render({ conversationId: 'c', existingParticipants })
-    expect(spots(wrapper)).toBe('dm.groupFull')
+    expect(spots(wrapper)).toBe('This group is full: a group holds up to 10 people.')
     mocks.results.value = [person('late')]
     await nextTick()
     const result = wrapper.get('[data-testid="group-invite-result"]')

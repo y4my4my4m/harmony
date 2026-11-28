@@ -1,6 +1,7 @@
 /**
  * Sign-up limits: the text GoTrue relays from public.before_user_created_hook
- * (20261109100001_signup_limits.sql) and the values of its settings in instance_config.
+ * (20261109100001_signup_limits.sql, 20261126500001_signup_methods.sql) and the values of its
+ * settings in instance_config.
  *
  * A hook error carries a status and text, no code, so the text keys the translation. A client
  * without this table, or a hook text that differs, shows the English text GoTrue sent.
@@ -16,6 +17,13 @@ const REFUSALS: Readonly<Record<string, string>> = {
     'auth.signupRefused.blockedDomain',
   'Sign-ups from this network are not available on this instance. Ask this instance\'s admin for an invitation.':
     'auth.signupRefused.blockedNetwork',
+  'This instance is not taking new accounts.': 'auth.signupRefused.closed',
+  'This instance takes new accounts by invitation only. Ask its admin for one.': 'auth.signupRefused.inviteOnly',
+  'New accounts through this sign-in are limited to some email domains, and this address is not at one of them.':
+    'auth.signupRefused.otherDomain',
+  'New accounts through this sign-in need an email address the sign-in provider has verified.':
+    'auth.signupRefused.unverified',
+  'Sign-up is unavailable right now. Try again later.': 'auth.signupRefused.unavailable',
 }
 
 export function signupRefusalKey(error: unknown): string | null {

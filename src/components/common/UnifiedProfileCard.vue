@@ -49,8 +49,8 @@
 
       <!-- Instance & Server Badges -->
       <div v-if="!isCompact && (hasInstanceBadge || userRoles.length > 0)" class="user-roles">
-        <div v-if="user.is_admin" class="role-badge instance-admin-badge">Instance owner</div>
-        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">Instance mod</div>
+        <div v-if="user.is_admin" class="role-badge instance-admin-badge">{{ t('activitypub.followA11y.instanceOwner') }}</div>
+        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">{{ t('activitypub.followA11y.instanceMod') }}</div>
         <SupporterBadge v-if="user.id" :user-id="user.id" />
         <div
           v-for="role in userRoles"
@@ -76,7 +76,7 @@
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ formatNumber(user.posts_count || 0) }}</span>
-            <span class="stat-label">Posts</span>
+            <span class="stat-label">{{ t('activitypub.posts') }}</span>
           </div>
         </template>
         
@@ -84,15 +84,15 @@
         <template v-else>
           <div class="stat-item">
             <span class="stat-value">{{ formatJoinDate(user.created_at) }}</span>
-            <span class="stat-label">Joined</span>
+            <span class="stat-label">{{ t('user.joined') }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ user.message_count || 0 }}</span>
-            <span class="stat-label">Messages</span>
+            <span class="stat-label">{{ t('profileModal.messages') }}</span>
           </div>
           <div v-if="user.voice_time" class="stat-item">
             <span class="stat-value">{{ formatVoiceTime(user.voice_time) }}</span>
-            <span class="stat-label">Voice Time</span>
+            <span class="stat-label">{{ t('profileModal.voiceTime') }}</span>
           </div>
         </template>
       </div>
@@ -121,7 +121,7 @@
         class="action-btn message-btn"
       >
         <Icon name="message-circle" />
-        <span>Message</span>
+        <span>{{ t('chatNav.user.message') }}</span>
       </button>
 
       <!-- Mention (for federated users) -->
@@ -131,7 +131,7 @@
         class="action-btn mention-btn"
       >
         <Icon name="at-sign" />
-        <span>Mention</span>
+        <span>{{ t('chatNav.user.mention') }}</span>
       </button>
 
       <!-- More Actions -->
@@ -140,6 +140,7 @@
           @click.stop="showActionsMenu = !showActionsMenu"
           class="action-btn more-btn"
           :class="{ active: showActionsMenu }"
+          :aria-label="t('message.moreActions')"
         >
           <Icon name="more-horizontal" />
         </button>
@@ -147,17 +148,17 @@
         <div v-if="showActionsMenu" class="actions-menu" v-click-outside="closeActionsMenu">
           <button @click.stop="handleViewProfile" class="action-item">
             <Icon name="user" />
-            <span>View Profile</span>
+            <span>{{ t('user.viewProfile') }}</span>
           </button>
           
           <button v-if="!isCurrentUser" @click.stop="handleMute" class="action-item">
             <Icon name="volume-x" />
-            <span>{{ isMuted ? 'Unmute' : 'Mute' }}</span>
+            <span>{{ isMuted ? t('activitypub.profileA11y.unmute') : t('activitypub.profileA11y.mute') }}</span>
           </button>
           
           <button v-if="!isCurrentUser" @click.stop="handleBlock" class="action-item danger">
             <Icon name="user-x" />
-            <span>{{ isBlocked ? 'Unblock' : 'Block' }}</span>
+            <span>{{ isBlocked ? t('activitypub.profileA11y.unblock') : t('activitypub.profileA11y.block') }}</span>
           </button>
         </div>
       </div>
@@ -187,7 +188,7 @@ import SupporterBadge from './SupporterBadge.vue'
 import RemoteInstanceBadge from './RemoteInstanceBadge.vue'
 import type { User, FederatedUser } from '@/types'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 interface Props {
   user: User | FederatedUser
@@ -256,7 +257,7 @@ const isCurrentUser = computed(() => {
 })
 
 const displayName = computed(() => {
-  return props.user.display_name || props.user.username || 'Unknown User'
+  return props.user.display_name || props.user.username || t('profileModal.unknownUser')
 })
 
 const displayHandle = computed(() => {
@@ -341,9 +342,9 @@ const formatNumber = (num: number): string => {
 }
 
 const formatJoinDate = (dateString: string | undefined) => {
-  if (!dateString) return 'Unknown'
+  if (!dateString) return t('activitypub.unknown')
   const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', { 
+  return date.toLocaleDateString(locale.value, { 
     year: 'numeric', 
     month: 'short',
     day: 'numeric' 
@@ -351,11 +352,11 @@ const formatJoinDate = (dateString: string | undefined) => {
 }
 
 const formatVoiceTime = (minutes: number | undefined) => {
-  if (!minutes) return '0m'
-  if (minutes < 60) return `${minutes}m`
+  if (!minutes) return t('systemEvents.duration.minutes', { m: 0 })
+  if (minutes < 60) return t('systemEvents.duration.minutes', { m: minutes })
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
-  return `${hours}h ${remainingMinutes}m`
+  return t('systemEvents.duration.hoursMinutes', { h: hours, m: remainingMinutes })
 }
 
 const handleClick = () => {

@@ -25,7 +25,7 @@ export const PACKAGES_MAX = 50
 const APP_ID = /^[a-z][a-z0-9-]{1,39}$/
 const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const CONTEXTS = ['direct', 'group', 'channel', 'voice'] as const
-const LOCALES = ['en', 'es', 'fr', 'de', 'ja', 'ko', 'zh']
+const LOCALES = ['en', 'es', 'fr', 'de', 'nl', 'ja', 'ko', 'zh']
 
 export type PackageErrorCode =
   | 'NOT_A_ZIP'

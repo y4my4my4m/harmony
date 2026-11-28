@@ -181,6 +181,14 @@ interface CachedSigningKey {
   cachedAt: number
 }
 
+/** One self-test row; ok null = not applicable or unknown. Keys are vue-i18n paths. */
+export interface DiagnosticRow {
+  labelKey: string
+  ok: boolean | null
+  detailKey: string
+  params?: Record<string, string | number>
+}
+
 export class MegolmMessageEncryptionService {
   private static instance: MegolmMessageEncryptionService
   private currentUserId: string | null = null
@@ -2646,14 +2654,16 @@ export class MegolmMessageEncryptionService {
    * Structured self-test of the encryption stack, for the settings UI.
    * ok: true = pass, false = fail, null = not applicable / unknown.
    */
-  async runDiagnostics(): Promise<Array<{ label: string; ok: boolean | null; detail: string }>> {
-    const results: Array<{ label: string; ok: boolean | null; detail: string }> = []
-    const add = (label: string, ok: boolean | null, detail: string) => results.push({ label, ok, detail })
+  async runDiagnostics(): Promise<DiagnosticRow[]> {
+    const results: DiagnosticRow[] = []
+    const K = 'encryption.diagnosticRows.'
+    const add = (label: string, ok: boolean | null, detail: string, params?: Record<string, string | number>) =>
+      results.push({ labelKey: K + label, ok, detailKey: K + detail, params })
 
-    add('Encryption unlocked', this.isUnlocked(), this.isUnlocked() ? 'Keys are loaded in this session' : 'Enter your recovery phrase to unlock')
+    add('unlocked', this.isUnlocked(), this.isUnlocked() ? 'unlockedYes' : 'unlockedNo')
 
     if (!this.currentUserId) {
-      add('Profile', false, 'Encryption service has no resolved profile id')
+      add('profile', false, 'profileMissing')
       return results
     }
 
@@ -2662,25 +2672,21 @@ export class MegolmMessageEncryptionService {
       const { data } = await supabase.rpc('get_my_key_pair')
       const row = (Array.isArray(data) ? data[0] : null) as { identity_public_key?: string; identity_signing_public_key?: string } | null
       if (!row?.identity_public_key) {
-        add('Identity key', false, 'No published identity key - run encryption setup')
+        add('identity', false, 'identityUnpublished')
       } else {
         const localPrivate = await identityKeyStore.load(this.currentUserId)
         const localPublic = await identityKeyStore.loadPublicKey(this.currentUserId)
         if (!localPrivate) {
-          add('Identity key', false, 'Published key exists but no local private key - unlock with your recovery phrase')
+          add('identity', false, 'identityNoLocal')
         } else if (localPublic && localPublic === row.identity_public_key) {
-          add('Identity key', true, 'Local private key matches the published public key')
+          add('identity', true, 'identityMatch')
         } else {
-          add('Identity key', localPublic ? false : null, localPublic
-            ? 'Local key does NOT match the published key - re-unlock to repair'
-            : 'Pairing unverified (legacy record) - re-unlock to verify')
+          add('identity', localPublic ? false : null, localPublic ? 'identityMismatch' : 'identityUnverified')
         }
       }
-      add('Signing key', !!row?.identity_signing_public_key, row?.identity_signing_public_key
-        ? 'Message signing key published'
-        : 'No signing key - minted automatically on next unlock')
+      add('signing', !!row?.identity_signing_public_key, row?.identity_signing_public_key ? 'signingPublished' : 'signingMissing')
     } catch (e: any) {
-      add('Identity key', false, `Lookup failed: ${e?.message || e}`)
+      add('identity', false, 'identityLookupFailed', { error: String(e?.message || e) })
     }
 
     // Backup: exists + decryptable with the CURRENT phrase-derived key.
@@ -2691,30 +2697,34 @@ export class MegolmMessageEncryptionService {
         .eq('user_id', this.currentUserId)
         .maybeSingle()
       if (!backupRow) {
-        add('Key backup', null, 'No server backup yet - created automatically as you use encryption')
+        add('backup', null, 'backupNone')
       } else if (!recoveryKeyService.isLoaded()) {
-        add('Key backup', null, `Backup exists (${backupRow.session_count} sessions) - unlock to verify it`)
+        add('backup', null, 'backupLocked', { count: Number(backupRow.session_count) || 0 })
       } else {
         try {
           const json = await recoveryKeyService.decryptFromBackup(backupRow.encrypted_data)
           const parsed = JSON.parse(json)
           const count = (parsed?.sessions?.outbound?.length || 0) + (parsed?.sessions?.inbound?.length || 0)
-          add('Key backup', true, `Backup decrypts with your current phrase (${count} sessions)`)
+          add('backup', true, 'backupOk', { count })
         } catch {
-          add('Key backup', false, 'Backup exists but does NOT decrypt with your current recovery phrase (created under an older phrase)')
+          add('backup', false, 'backupWrongPhrase')
         }
       }
     } catch (e: any) {
-      add('Key backup', false, `Backup check failed: ${e?.message || e}`)
+      add('backup', false, 'backupCheckFailed', { error: String(e?.message || e) })
     }
 
     // Device trust
     try {
       const device = await deviceIdentityService.getMyDeviceRow(this.currentUserId)
-      if (!device) add('Device trust', null, 'This device is not registered yet')
-      else if (device.revoked_at) add('Device trust', false, 'This device was revoked')
-      else add('Device trust', ['verified', 'recovery'].includes(device.trust_state), `Trust level: ${device.trust_state}`)
-    } catch { add('Device trust', null, 'Could not read device state') }
+      if (!device) add('device', null, 'deviceUnregistered')
+      else if (device.revoked_at) add('device', false, 'deviceRevoked')
+      else {
+        const trustKey = `encryption.devices.trust.${device.trust_state}`
+        const level = i18n.global.te(trustKey) ? i18n.global.t(trustKey) : String(device.trust_state)
+        add('device', ['verified', 'recovery'].includes(device.trust_state), 'deviceTrust', { level })
+      }
+    } catch { add('device', null, 'deviceUnreadable') }
 
     return results
   }

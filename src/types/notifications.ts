@@ -219,6 +219,7 @@ export interface NotificationToast {
   emojiName?: string; // For reaction notifications - emoji name fallback
   actorUserId?: string; // Profile ID of the actor for DisplayName rendering with custom emojis
   titleSuffix?: string; // Part of the title after the actor name (used with actorUserId)
+  actorName?: string; // Actor display name, for titles rendered from a message key
   actions?: ToastAction[];
   duration: number;
   timestamp: Date;

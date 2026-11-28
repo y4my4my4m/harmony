@@ -3,17 +3,17 @@
 <div class="admin-module featured-module">
   <div class="module-header">
     <Icon name="star" :size="20" />
-    <h2>Featured Communities</h2>
+    <h2>{{ t('admin.featured.title') }}</h2>
     <button @click="loadFeaturedServers" class="action-btn" :disabled="loadingStates.featuredServers">
       <Icon v-if="loadingStates.featuredServers" name="loader" :size="16" class="spin" />
       <Icon v-else name="refresh-cw" :size="16" />
-      Refresh
+      {{ t('admin.emojis.refresh') }}
     </button>
   </div>
-  <p class="module-hint">Pin public servers to the top of the community discovery page. Featured servers appear first.</p>
+  <p class="module-hint">{{ t('admin.featured.hint') }}</p>
   <div v-if="loadingStates.featuredServers" class="loading-state">
     <LoadingSpinner :size="20" />
-    <span>Loading communities...</span>
+    <span>{{ t('admin.featured.loading') }}</span>
   </div>
   <div v-else class="featured-servers-list">
     <div
@@ -38,7 +38,7 @@
           <CopyIdButton :id="server.id" kind="server" :target="server.name" />
         </div>
         <div class="server-meta">
-          {{ server.member_count ?? 0 }} members
+          {{ t('server.membersCount', { count: server.member_count ?? 0 }, server.member_count ?? 0) }}
           <span v-if="server.is_featured" class="featured-order">#{{ server.featured_order }}</span>
         </div>
       </div>
@@ -47,24 +47,24 @@
         class="action-btn-sm"
         :class="server.is_featured ? 'unpin-btn' : 'pin-btn'"
         :disabled="featuredServerToggling.has(server.id)"
-        :title="server.is_featured ? 'Remove from featured' : 'Add to featured'"
+        :title="server.is_featured ? t('admin.featured.removeTitle') : t('admin.featured.addTitle')"
       >
         <Icon v-if="featuredServerToggling.has(server.id)" name="loader" :size="14" class="spin" />
         <Icon v-else :name="server.is_featured ? 'x' : 'star'" :size="14" />
-        {{ server.is_featured ? 'Unpin' : 'Pin' }}
+        {{ server.is_featured ? t('admin.featured.unpin') : t('admin.featured.pin') }}
       </button>
     </div>
     <EmptyState
       v-if="featuredServersList.length === 0 && !loadingStates.featuredServers"
       icon="compass"
-      :title="$t('empty.admin.featured.title')"
-      :description="$t('empty.admin.featured.description')"
+      :title="t('empty.admin.featured.title')"
+      :description="t('empty.admin.featured.description')"
     />
   </div>
   <div v-if="featuredTotal > FEATURED_PAGE" class="pagination" data-testid="featured-pagination">
-    <button class="pagination-btn" :disabled="featuredOffset === 0 || loadingStates.featuredServers" @click="pageFeatured(-1)">{{ $t('admin.instanceEmojis.previous') }}</button>
-    <span class="pagination-info">{{ $t('driveAdmin.range', { from: featuredOffset + 1, to: Math.min(featuredOffset + FEATURED_PAGE, featuredTotal), total: featuredTotal }) }}</span>
-    <button class="pagination-btn" :disabled="featuredOffset + FEATURED_PAGE >= featuredTotal || loadingStates.featuredServers" @click="pageFeatured(1)">{{ $t('admin.instanceEmojis.next') }}</button>
+    <button class="pagination-btn" :disabled="featuredOffset === 0 || loadingStates.featuredServers" @click="pageFeatured(-1)">{{ t('admin.instanceEmojis.previous') }}</button>
+    <span class="pagination-info">{{ t('driveAdmin.range', { from: featuredOffset + 1, to: Math.min(featuredOffset + FEATURED_PAGE, featuredTotal), total: featuredTotal }) }}</span>
+    <button class="pagination-btn" :disabled="featuredOffset + FEATURED_PAGE >= featuredTotal || loadingStates.featuredServers" @click="pageFeatured(1)">{{ t('admin.instanceEmojis.next') }}</button>
   </div>
 </div>
 
@@ -81,6 +81,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
@@ -91,6 +92,7 @@ import { usePublicServersStore } from '@/stores/usePublicServers'
 import { getServerIconUrl } from '@/utils/serverUtils'
 
 
+const { t } = useI18n()
 const toast = useToast()
 
 const loadingStates = ref({ featuredServers: false })
@@ -142,12 +144,12 @@ const toggleFeaturedServer = async (server: { id: string; name: string; is_featu
     const newFeatured = !server.is_featured
     const order = newFeatured ? await adminService.nextFeaturedOrder() : 0
     await adminService.setServerFeatured(server.id, newFeatured, order)
-    toast.success(newFeatured ? `Featured "${server.name}"` : `Removed "${server.name}" from featured`)
+    toast.success(newFeatured ? t('admin.featured.added', { name: server.name }) : t('admin.featured.removed', { name: server.name }))
     await loadFeaturedServers()
     usePublicServersStore().fetchPublicServers(true)
   } catch (error: any) {
     debug.error('Failed to toggle featured:', error)
-    toast.error(error.message || 'Failed to update featured status')
+    toast.error(error.message || t('admin.featured.toggleFailed'))
   } finally {
     featuredServerToggling.value = new Set([...featuredServerToggling.value].filter(id => id !== server.id))
   }

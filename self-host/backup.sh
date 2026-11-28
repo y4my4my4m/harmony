@@ -10,12 +10,18 @@
 #   database.dump     pg_dump -Fc of the whole database (auth, storage, Harmony)
 #   roles.sql         pg_dumpall --globals-only: the roles, with their password
 #                     hashes, grants and settings
-#   config.tar        .env, federation.env, bot-gateway.env, discord-bridge.env,
+#   config.tar        .env, federation.env, bot-gateway.env, discord-bridge.env, matrix-bridge.env,
 #                     livekit.yaml, supabase/.env, and supabase/pgsodium_root.key
 #                     (the key Supabase Vault secrets are encrypted with)
 #   storage.tar       uploaded files (supabase/volumes/storage) with their
 #                     extended attributes, where Supabase Storage keeps each
 #                     file's content type; absent with --no-storage
+#
+# create refuses to start below DISK_RESERVE_KB (1 GB, lib.sh) free on the
+# filesystem of backups/, or when the newest backup's dump plus the uploads
+# would not fit above it, and stops a dump or archive that brings free space
+# below it. A failed create deletes what it wrote and stops the database again
+# when it started it.
 #
 # restore takes such a directory, a tar archive of one, or a bare .dump
 # (database only). It first backs up the current database and configuration
@@ -29,20 +35,73 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 DB_DATA_DIR="$SELF_HOST_DIR/supabase/volumes/db/data"
 STORAGE_DIR="$SELF_HOST_DIR/supabase/volumes/storage"
-CONFIG_FILES=(.env federation.env bot-gateway.env discord-bridge.env livekit.yaml supabase/.env)
+CONFIG_FILES=(.env federation.env bot-gateway.env discord-bridge.env matrix-bridge.env livekit.yaml supabase/.env)
 PGSODIUM_KEY=/etc/postgresql-custom/pgsodium_root.key
 
-# storage_tar ARGS...: GNU tar with user.* xattrs, as root, in the database
-# image (busybox tar in the storage image drops xattrs), on supabase/volumes/storage.
-storage_tar() {
-	local img mode="$1"; shift
+# storage_cmd MODE TOOL: sets RUN to TOOL, as root, in the database image, on
+# supabase/volumes/storage mounted at /s with MODE (ro, rw). The image has GNU tar,
+# which keeps user.* xattrs; busybox tar in the storage image drops them.
+storage_cmd() {
+	local img
 	img="$(docker inspect -f '{{.Config.Image}}' "$(db_container)" 2>/dev/null)" ||
 		die "the database container is not running"
-	docker run --rm -i -v "$STORAGE_DIR:/s:$mode,z" --entrypoint tar "$img" \
-		--xattrs --xattrs-include='user.*' -C /s "$@"
+	RUN=(docker run --rm -i -v "$STORAGE_DIR:/s:$1,z" --entrypoint "$2" "$img")
 }
 
-usage() { sed -n '2,25p' "${BASH_SOURCE[0]}"; }
+# storage_tar ARGS...: tar with user.* xattrs on supabase/volumes/storage.
+storage_tar() {
+	local mode="$1"; shift
+	storage_cmd "$mode" tar
+	"${RUN[@]}" --xattrs --xattrs-include='user.*' -C /s "$@"
+}
+
+usage() { sed -n '2,31p' "${BASH_SOURCE[0]}"; }
+
+# guarded_write FILE CMD...: CMD's stdout into FILE, mode 600. CMD is stopped once free space on
+# backups/ falls below DISK_RESERVE_KB, checked every second; status 75 then, else CMD's.
+guarded_write() {
+	local file="$1" pid rc=0 free
+	shift
+	( umask 077; exec "$@" > "$file" ) &
+	pid=$!
+	while kill -0 "$pid" 2>/dev/null; do
+		free="$(free_kb "$BACKUP_DIR")"
+		if [[ "$free" =~ ^[0-9]+$ ]] && (( free < DISK_RESERVE_KB )); then
+			kill "$pid" 2>/dev/null || true
+			wait "$pid" 2>/dev/null || true
+			return 75
+		fi
+		sleep 1
+	done
+	wait "$pid" || rc=$?
+	return "$rc"
+}
+
+# space_hint: where space comes from, for a refusal.
+space_hint() {
+	local oldest
+	oldest="$(for m in "$BACKUP_DIR"/*/manifest; do [[ -f "$m" ]] && basename "${m%/manifest}"; done | head -1)"
+	printf 'harmony repair empties container logs over %s; ' "$(human_kb "$LOG_TRIM_KB")"
+	[[ -z "$oldest" ]] || printf 'old backups in %s (oldest %s) can go once copied off this machine; ' "$BACKUP_DIR" "$oldest"
+	printf 'docker image prune removes unused images'
+}
+
+# KiB of the newest backup's database dump; 0 when there is none. A dump of the same database
+# compresses alike, so it stands for the next one.
+last_dump_kb() {
+	local f last=""
+	for f in "$BACKUP_DIR"/*/database.dump; do [[ -f "$f" ]] && last="$f"; done
+	[[ -n "$last" ]] || { echo 0; return; }
+	echo $(( $(stat -c %s "$last" 2>/dev/null || wc -c < "$last") / 1024 ))
+}
+
+# KiB under supabase/volumes/storage, read as root in the database image; 0 when unread.
+storage_kb() {
+	local kb
+	storage_cmd ro du
+	kb="$("${RUN[@]}" -sk /s 2>/dev/null | awk 'NR == 1 { print $1 }')" || true
+	[[ "$kb" =~ ^[0-9]+$ ]] && echo "$kb" || echo 0
+}
 
 # Waits for the final Postgres server: the image's entrypoint runs a temporary
 # one on the socket while it initialises a new data directory, then restarts.
@@ -57,15 +116,41 @@ wait_db() {
 		fi
 		sleep 2
 	done
+	local free
+	free="$(free_kb "$SELF_HOST_DIR/supabase/volumes/db")"
+	if [[ "$free" =~ ^[0-9]+$ ]] && (( free < DISK_RESERVE_KB )); then
+		die "Postgres did not become ready within 240 s, with $(human_kb "$free") free on $(mount_of "$SELF_HOST_DIR/supabase/volumes/db"): Postgres cannot start on a full disk. Free space ($(space_hint)), then run this again."
+	fi
 	die "Postgres did not become ready within 240 s; check: docker compose logs db"
 }
 
+# Starts the database alone when no db container runs, and sets DB_STARTED. One that restarts in a
+# loop is left to its loop.
+DB_STARTED=false
 ensure_db() {
 	if [[ -z "$(svc_id db)" ]]; then
-		info "Starting the database..."
-		compose up -d db >/dev/null
+		case "$(compose ps -a --format '{{.State}}' db 2>/dev/null | head -1)" in
+			restarting) ;;
+			*)
+				info "Starting the database..."
+				DB_STARTED=true
+				compose up -d --no-deps db >/dev/null
+				;;
+		esac
 	fi
 	wait_db
+}
+
+# EXIT trap of create: a failed backup deletes what it wrote and stops a database it started.
+BACKUP_OUT=""
+create_failed() {
+	local rc=$?
+	(( rc != 0 )) || return 0
+	[[ -z "$BACKUP_OUT" ]] || rm -rf "$BACKUP_OUT"
+	if $DB_STARTED; then
+		compose stop db >/dev/null 2>&1 || true
+		info "The database was not running before the backup; it is stopped again."
+	fi
 }
 
 # --- create ------------------------------------------------------------------
@@ -81,10 +166,25 @@ create() {
 	done
 	[[ -f "$ENV_FILE" ]] || die "self-host/.env is missing; this is not a configured install"
 	label="$(printf '%s' "$label" | tr -c 'A-Za-z0-9._-' '-')"
+	trap create_failed EXIT
+
+	( umask 077; mkdir -p "$BACKUP_DIR" )
+	local free mount dump_kb store_kb=0 need rc
+	free="$(free_kb "$BACKUP_DIR")"
+	mount="$(mount_of "$BACKUP_DIR")"
+	if [[ "$free" =~ ^[0-9]+$ ]] && (( free < DISK_RESERVE_KB )); then
+		die "$(human_kb "$free") free on $mount; a backup leaves at least $(human_kb "$DISK_RESERVE_KB") free, which the database and Redis need to keep running. Nothing was written. To free space: $(space_hint)."
+	fi
 
 	ensure_db
+	dump_kb="$(last_dump_kb)"
+	$storage && store_kb="$(storage_kb)"
+	need=$((dump_kb + store_kb + DISK_RESERVE_KB))
+	if [[ "$free" =~ ^[0-9]+$ ]] && (( free < need )); then
+		die "the backup needs about $(human_kb $((dump_kb + store_kb))) (database $(human_kb "$dump_kb"), the size of the last dump; uploads $(human_kb "$store_kb")) and leaves $(human_kb "$DISK_RESERVE_KB") free; $(human_kb "$free") is free on $mount. Nothing was written. To free space: $(space_hint)$($storage && printf '; --no-storage leaves the uploads out')."
+	fi
+
 	stamp="$(date +%Y%m%d-%H%M%S)${label:+-$label}"
-	( umask 077; mkdir -p "$BACKUP_DIR" )
 	dir="$BACKUP_DIR/$stamp"
 	while [[ -e "$dir" ]]; do n=$((n + 1)); dir="$BACKUP_DIR/$stamp-$n"; done
 	( umask 077; mkdir "$dir" )
@@ -92,11 +192,11 @@ create() {
 
 	info "Dumping the database..."
 	# supabase_admin is a superuser: the dump covers auth, storage and Harmony.
-	if ! ( umask 077; docker exec "$(db_container)" pg_dump -U supabase_admin -h 127.0.0.1 -d postgres -Fc > "$dir/database.dump.partial" ); then
-		rm -rf "$dir"
-		die "pg_dump failed; no backup written"
-	fi
-	[[ -s "$dir/database.dump.partial" ]] || { rm -rf "$dir"; die "pg_dump wrote nothing; no backup written"; }
+	rc=0
+	guarded_write "$dir/database.dump.partial" docker exec "$(db_container)" pg_dump -U supabase_admin -h 127.0.0.1 -d postgres -Fc || rc=$?
+	(( rc != 75 )) || die "stopped: free space on $mount fell below $(human_kb "$DISK_RESERVE_KB") during the dump. The partial backup is deleted. To free space: $(space_hint)."
+	(( rc == 0 )) || die "pg_dump failed; no backup written"
+	[[ -s "$dir/database.dump.partial" ]] || die "pg_dump wrote nothing; no backup written"
 	mv "$dir/database.dump.partial" "$dir/database.dump"
 	( umask 077; docker exec "$(db_container)" pg_dumpall -U supabase_admin -h 127.0.0.1 --globals-only > "$dir/roles.sql" ) ||
 		die "pg_dumpall --globals-only failed"
@@ -117,8 +217,11 @@ create() {
 	if $storage; then
 		info "Archiving uploads..."
 		mkdir -p "$STORAGE_DIR"
-		( umask 077; storage_tar ro -cf - . > "$dir/storage.tar" ) ||
-			die "could not archive $STORAGE_DIR"
+		storage_cmd ro tar
+		rc=0
+		guarded_write "$dir/storage.tar" "${RUN[@]}" --xattrs --xattrs-include='user.*' -C /s -cf - . || rc=$?
+		(( rc != 75 )) || die "stopped: free space on $mount fell below $(human_kb "$DISK_RESERVE_KB") while archiving uploads. The partial backup is deleted. To free space: $(space_hint); --no-storage leaves the uploads out."
+		(( rc == 0 )) || die "could not archive $STORAGE_DIR"
 		contents="$contents,storage"
 	fi
 

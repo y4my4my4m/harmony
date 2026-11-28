@@ -6,12 +6,10 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
+import en from '@/locales/en.json'
 import { supabase } from '@/supabase'
 
-vi.mock('vue-i18n', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('vue-i18n')>()),
-  useI18n: () => ({ t: (key: string) => key }),
-}))
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(async () => {}) }),
   useRoute: () => ({ query: {} }),
@@ -80,22 +78,22 @@ beforeEach(() => {
 
 describe('AdminPanel Overview', () => {
   it('issues exactly one stats request and no exact count', async () => {
-    const w = mount(AdminPanel, { global: { mocks: { $t: (key: string) => key } } })
+    const w = mount(AdminPanel, { global: { plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })] } })
     await flushPromises()
     const statsCalls = rpc.mock.calls.filter(([name]) => name === 'admin_instance_stats')
     expect(statsCalls).toEqual([['admin_instance_stats', { p_refresh: false }]])
     expect(rpc.mock.calls.map(([name]) => name)).toEqual(['admin_instance_stats'])
     expect(from.mock.calls.map(([table]) => table)).toEqual(['profiles'])
     expect(selects.some((o) => (o as { count?: string } | undefined)?.count)).toBe(false)
-    expect(w.find('[data-testid="admin-stat-users"]').text()).toBe('16.0K')
+    expect(w.find('[data-testid="admin-stat-users"]').text()).toBe('16K')
     w.unmount()
   })
 
   it('shows the figures, the snapshot age and approximate marks', async () => {
-    const w = mount(AdminPanel, { global: { mocks: { $t: (key: string) => key } } })
+    const w = mount(AdminPanel, { global: { plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })] } })
     await flushPromises()
     const text = w.text()
-    expect(w.find('[data-testid="admin-stats-updated"]').text()).toBe('Updated 4 min ago')
+    expect(w.find('[data-testid="admin-stats-updated"]').text()).toBe('Updated 4 minutes ago')
     expect(text).toContain('+44 in the last 24 hours')
     expect(text).toContain('31 active in the last 30 days')
     expect(text).toContain('+135 in the last 24 hours')
@@ -106,7 +104,7 @@ describe('AdminPanel Overview', () => {
   })
 
   it('Refresh asks for a refresh', async () => {
-    const w = mount(AdminPanel, { global: { mocks: { $t: (key: string) => key } } })
+    const w = mount(AdminPanel, { global: { plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })] } })
     await flushPromises()
     await w.find('.refresh-btn').trigger('click')
     await flushPromises()

@@ -57,7 +57,7 @@ On success the gateway answers with a `READY` event:
     "bot": { "id": "3f6c1d2e-…", "username": "ping-bot" },
     "session_id": "b1a7e0c4-…",
     "heartbeat_interval": 30000,
-    "capabilities": ["bridge_sound_sync", "bridge_emoji_sync", "bridge_sticker_sync", "bridge_history_import", "bridge_privacy"]
+    "capabilities": ["bridge_sound_sync", "bridge_emoji_sync", "bridge_sticker_sync", "bridge_history_import", "bridge_privacy", "matrix_bridge_v2", "matrix_bridge_check"]
   }
 }
 ```
@@ -68,7 +68,7 @@ On success the gateway answers with a `READY` event:
 | `bot.username` | string | The bot's username. |
 | `session_id` | UUID | Identifies this connection. A new connection gets a new one. |
 | `heartbeat_interval` | integer | Milliseconds between heartbeats. 30000 unless the instance sets `WS_HEARTBEAT_INTERVAL`. |
-| `capabilities` | string[] | Features this gateway has, such as `bridge_emoji_sync` for the [emoji sync endpoints](/build/rest#list-discord-linked-emojis). Absent on a gateway before 1.9.7, whose newer routes answer `404`. [`GET /users/@me`](/build/rest#get-current-bot) carries the same list. |
+| `capabilities` | string[] | Features this gateway has, such as `bridge_emoji_sync` for the [emoji sync endpoints](/build/rest#list-discord-linked-emojis), `matrix_bridge_v2` for the [Matrix bridge setup](/build/bridges#matrix-bridge-setup) and `matrix_bridge_check` for the [Matrix send check](/build/rest#matrix-send-check). Absent on a gateway before 1.9.7, whose newer routes answer `404`. [`GET /users/@me`](/build/rest#get-current-bot) carries the same list. |
 
 The connection starts receiving events before the gateway writes `READY`, so an event can arrive ahead of it. Handle `READY` in the same loop as other events rather than reading it as the first frame.
 
@@ -140,7 +140,7 @@ Bridge bots additionally respect each native member's **Bridge privacy** setting
 | [`SERVER_BAN_ADD`](#member-events) | A member is banned. | Bots installed with `read_messages` |
 | [`SERVER_BAN_REMOVE`](#member-events) | A ban is lifted. | Bots installed with `read_messages` |
 | [`REFRESH_ATTACHMENTS`](#refresh-attachments) | A member asks for expired Discord attachment links of a bridged message to be renewed. | The bot that wrote the message |
-| [`BRIDGE_CONFIG_UPDATE`](#bridge-config-update) | A Discord bridge's configuration changes. | The bridge's bot |
+| [`BRIDGE_CONFIG_UPDATE`](#bridge-config-update) | The configuration of a Discord or a managed Matrix bridge changes. | The bridge's bot |
 | [`INTERACTION_CREATE`](#interaction-create) | A member runs one of the bot's [slash commands](/build/commands). | The bot whose command it is |
 
 ### READY
@@ -314,9 +314,9 @@ Field names in this event are camelCase. `content` is the message's stored parts
 
 ### BRIDGE_CONFIG_UPDATE
 
-Sent to the bot of a Discord bridge: once on each new connection, at the gateway's first configuration check after identify, and again whenever the bridge's configuration changes (mode, guild, settings, or a channel pair added, removed or redirected). The gateway checks every 5 seconds unless the instance sets `BRIDGE_CONFIG_POLL_MS` (1 to 60 seconds). Status reports do not trigger it.
+Sent to the bot of a Discord bridge or of a [managed Matrix bridge](/build/bridges#matrix-bridge-setup): once on each new connection, at the gateway's first configuration check after identify, and again whenever the bridge's configuration changes (mode, guild, settings, a channel pair added, removed or changed, or an opt-out). The gateway checks every 5 seconds unless the instance sets `BRIDGE_CONFIG_POLL_MS` (1 to 60 seconds). Status reports do not trigger it.
 
-`d` is the same object [`GET /bridge/v2/config`](/build/bridges#get-config) returns, except that `base_url` is `null` when the instance has no configured public URL.
+`d` is the same object [`GET /bridge/v2/config`](/build/bridges#get-config) or [`GET /bridge/v2/matrix/config`](/build/bridges#matrix-config) returns, except that `base_url` is `null` when the instance has no configured public URL.
 
 ### INTERACTION_CREATE
 

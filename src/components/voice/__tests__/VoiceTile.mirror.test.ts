@@ -9,7 +9,10 @@ import VoiceTile from '../VoiceTile.vue'
 const h = vi.hoisted(() => ({ store: null as any }))
 const { stub } = vi.hoisted(() => ({ stub: (name: string) => ({ __esModule: true, default: { name, render: () => null } }) }))
 
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+// Partial: the import graph reaches @/i18n, which calls createI18n.
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
+  useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => h.store }))
 vi.mock('@/stores/voiceModeration', () => ({
   NO_VOICE_CAPABILITIES: { mute: false, deafen: false, move: false, kick: false, ban: false },

@@ -36,9 +36,11 @@
     <!-- Live media results for /gif, /sticker, /clip, /meme, /aiemoji -->
     <InlineGifPicker
       v-if="inlineMediaType"
+      ref="inlineGifPickerRef"
       :query="modelValue || ''"
       :media-type="inlineMediaType"
       @selectGif="handleInlineGifSelect"
+      @exit="richEditorRef?.focus?.()"
     />
     <!-- Command parameter hint bar; mirrors Discord. -->
     <div v-if="autoSuggest.activeCommand.value" class="command-param-bar">
@@ -53,7 +55,7 @@
           <span class="param-description">{{ param.description }}</span>
         </span>
       </div>
-      <button class="command-param-dismiss" @click="dismissCommand" :title="'Dismiss (Esc)'">
+      <button class="command-param-dismiss" @click="dismissCommand" :title="t('message.composer.dismissCommand')">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
           <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
         </svg>
@@ -152,7 +154,9 @@
               :allow-drive="driveEnabled"
               @files-selected="handleFilesSelected"
               @pick-drive="openDrivePicker"
+              :allow-activities="allowActivities"
               @create-poll="handleCreatePoll"
+              @open-activities="handleOpenActivities"
               @close="closeUploadMenu"
             />
           </div>
@@ -161,7 +165,7 @@
           <RichTextEditor
             ref="richEditorRef"
             :model-value="modelValue"
-            :placeholder="autoSuggest.activeCommand.value ? autoSuggest.activeCommand.value.params[0]?.description || 'Enter a value...' : (attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage', { to: placeholderTarget }))"
+            :placeholder="autoSuggest.activeCommand.value ? autoSuggest.activeCommand.value.params[0]?.description || t('message.composer.enterValue') : (attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage', { to: placeholderTarget }))"
             :min-height="isCompact ? COMPACT_EDITOR_MIN_HEIGHT : undefined"
             :max-height="isCompact ? COMPACT_EDITOR_MAX_HEIGHT : undefined"
             :auto-suggest-active="autoSuggest.state.value.isActive"
@@ -184,7 +188,7 @@
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
                 <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 10.59V7h-2v6.41l4.29 4.3 1.42-1.42z"/>
               </svg>
-              <span v-if="slowmodeRemaining > 0">{{ slowmodeRemaining }}s</span>
+              <span v-if="slowmodeRemaining > 0">{{ t('channel.edit.slowmodeShort.seconds', { n: slowmodeRemaining }) }}</span>
             </span>
             <span
               v-if="showCharCount"
@@ -217,7 +221,7 @@
             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
               <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 10.59V7h-2v6.41l4.29 4.3 1.42-1.42z"/>
             </svg>
-            <span v-if="slowmodeRemaining > 0">{{ slowmodeRemaining }}s</span>
+            <span v-if="slowmodeRemaining > 0">{{ t('channel.edit.slowmodeShort.seconds', { n: slowmodeRemaining }) }}</span>
           </span>
           <!--
             Character count shows only near or past the limit. Red when over.
@@ -401,6 +405,8 @@ interface Props {
   backgroundSend?: boolean;
   /** The + menu offers Create poll; the parent handles `createPoll`. */
   allowPolls?: boolean;
+  /** The + menu offers Activities; the parent handles `openActivities`. */
+  allowActivities?: boolean;
   allowRoleMenus?: boolean;
   /** Messages of this room are encrypted: uploads carry no file name to Drive. */
   encryptedRoom?: boolean;
@@ -419,6 +425,7 @@ const props = withDefaults(defineProps<Props>(), {
   serverId: undefined,
   backgroundSend: false,
   allowPolls: false,
+  allowActivities: false,
   allowRoleMenus: false,
   encryptedRoom: false,
 });
@@ -463,12 +470,13 @@ const emit = defineEmits<{
   'edit-last-message': []
   sendGif: [gif: Gif]
   createPoll: []
+  openActivities: []
 }>();
 
 const authStore = useAuthStore();
 const photoDetailsSettings = usePhotoDetailsSettingsStore();
 const toast = useToast();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const uploadRoom = computed(() =>
   props.mediaRoom ?? roomOf({ channelId: props.channelId, conversationId: props.conversationId }));
@@ -494,6 +502,7 @@ const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const isEditorFocused = ref(false);
 const composerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
+const inlineGifPickerRef = ref<InstanceType<typeof InlineGifPicker> | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const isVoiceRecording = ref(false);
 const voiceUploading = ref(false);
@@ -528,8 +537,8 @@ const slowmodeActive = computed(() =>
 );
 
 const slowmodeTitle = computed(() => slowmodeRemaining.value > 0
-  ? `Slowmode: you can send again in ${slowmodeRemaining.value}s`
-  : `Slowmode is on: one message every ${slowmodeSeconds.value}s`);
+  ? t('message.composer.slowmodeWait', { seconds: slowmodeRemaining.value })
+  : t('message.composer.slowmodeOn', { seconds: slowmodeSeconds.value }));
 
 function startSlowmodeCooldown(seconds: number) {
   if (seconds <= 0) return;
@@ -637,9 +646,9 @@ const encryptedOnHome = computed(() => {
 })
 
 const readOnlyPlaceholder = computed(() => {
-  if (isResolvingPermissions.value) return 'Checking permissions...';
-  if (props.threadId) return 'You do not have permission to send messages in this thread.';
-  return 'You do not have permission to send messages in this channel.';
+  if (isResolvingPermissions.value) return t('message.composer.checkingPermissions');
+  if (props.threadId) return t('message.composer.noPermissionThread');
+  return t('message.composer.noPermissionChannel');
 });
 
 // Typing context: props first, store as fallback.
@@ -713,7 +722,7 @@ watch([showCharCount, messageTooLong], ([near, over], [wasNear, wasOver]) => {
 });
 
 const charCountTitle = computed(() => messageTooLong.value
-  ? `Message too long (${characterCount.value} / ${maxMessageLength.value})`
+  ? t('message.composer.tooLongCount', { count: characterCount.value, max: maxMessageLength.value })
   : `${characterCount.value} / ${maxMessageLength.value}`);
 
 // Over-limit drafts still count as content, keeping the send button enabled.
@@ -976,6 +985,12 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         return;
       }
 
+      // Up arrow while /gif and its kin show results → keyboard focus moves into them.
+      if (event.key === 'ArrowUp' && inlineMediaType.value && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+        if (inlineGifPickerRef.value?.focusResults?.()) event.preventDefault();
+        return;
+      }
+
       // Up arrow on empty input → edit last own message (Discord/Telegram behavior)
       if (event.key === 'ArrowUp' && !props.modelValue?.trim()) {
         event.preventDefault();
@@ -1035,14 +1050,17 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           window.setTimeout(() => { overLimitBuzz.value = false; }, 450);
         });
         toast.error(
-          `Message too long (${characterCount.value.toLocaleString()} / ${maxMessageLength.value.toLocaleString()}). Trim it and try again.`,
+          t('message.composer.tooLongToast', {
+            count: characterCount.value.toLocaleString(locale.value),
+            max: maxMessageLength.value.toLocaleString(locale.value),
+          }),
         );
         if (richEditorRef.value?.focus) richEditorRef.value.focus();
         return;
       }
 
       if (slowmodeActive.value && slowmodeRemaining.value > 0) {
-        toast.info(`Slowmode is on - you can send again in ${slowmodeRemaining.value}s`);
+        toast.info(t('message.composer.slowmodeToast', { seconds: slowmodeRemaining.value }));
         return;
       }
 
@@ -1183,6 +1201,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       emit('createPoll');
     };
 
+    const handleOpenActivities = () => {
+      closeUploadMenu();
+      emit('openActivities');
+    };
+
     const createFilePreview = async (file: File): Promise<FilePreviewData> => {
       const fileData: FilePreviewData = {
         file,
@@ -1222,7 +1245,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       const fileData = reactive(attachment);
       if (!room) {
         fileData.uploadStatus = 'error';
-        fileData.uploadError = 'Attachments need a channel or conversation';
+        fileData.uploadError = t('message.composer.attachmentNeedsRoom');
         return;
       }
 
@@ -1290,7 +1313,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
             return;
           }
           fileData.uploadStatus = 'error';
-          fileData.uploadError = error instanceof Error ? error.message : 'Upload failed';
+          fileData.uploadError = error instanceof Error ? error.message : t('message.upload.failed');
           fileData.uploadProgress = 0;
           if (draftAttachmentShown(fileData)) assertive(t('message.upload.failedToast', { name: fileData.name, reason: fileData.uploadError }));
         },

@@ -113,8 +113,8 @@
       <span
         v-if="decrypted && senderVerified === false"
         class="unverified-author-badge"
-        title="This message was decrypted but the sender's identity could not be cryptographically verified. The sender may be running an older client, or the message may have been tampered with."
-      >Unverified author</span>
+        :title="t('messageA11y.encrypted.unverifiedHint')"
+      >{{ t('messageA11y.encrypted.unverified') }}</span>
       <span
         v-if="decrypted && replayed"
         class="unverified-author-badge replayed-badge"
@@ -168,7 +168,7 @@
             <span
               v-else-if="unrecoverable"
               class="encrypted-no-decrypt encrypted-unrecoverable encrypted-glyphs"
-              title="This message was encrypted with a previous key that no longer exists on this account, so it can't be decrypted."
+              :title="t('messageA11y.encrypted.lostHint')"
             >
               <span class="sr-only">{{ t('messageA11y.encrypted.lost') }}</span>
               <Icon name="lock" :size="12" class="unrecoverable-lock" aria-hidden="true" />
@@ -185,7 +185,7 @@
               class="encrypted-click-target encrypted-glyphs"
               :aria-busy="decrypting ? 'true' : undefined"
               @click="handleDecryptClick"
-              :title="decrypting ? 'Decrypting...' : 'Click to decrypt'"
+              :title="decrypting ? t('messageA11y.encrypted.decryptingTitle') : t('messageA11y.encrypted.clickToDecrypt')"
             >
               <span class="sr-only">{{ decrypting ? t('messageA11y.encrypted.decrypting') : t('messageA11y.encrypted.decrypt') }}</span>
               <span v-if="decrypting" class="decrypt-loading" aria-hidden="true">
@@ -608,8 +608,8 @@
               class="gif-favorite-button"
               :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
               @click.stop="toggleGifFavorite(part.url)"
-              :title="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
-              :aria-label="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
+              :title="isGifFavorited(part.url) ? t('gif.removeFromFavorites') : t('gif.addToFavorites')"
+              :aria-label="isGifFavorited(part.url) ? t('gif.removeFromFavorites') : t('gif.addToFavorites')"
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
                 <path v-if="isGifFavorited(part.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
@@ -625,7 +625,7 @@
               target="_blank"
               rel="noopener noreferrer nofollow"
               @click.stop="activateStoppedLink"
-              title="via KLIPY"
+              :title="t('gif.viaKlipy')"
             >
               <img
                 :src="klipyWatermarkLogoUrl"
@@ -694,8 +694,8 @@
               class="gif-favorite-button"
               :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
               @click.stop="toggleGifFavorite(part.url)"
-              :title="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
-              :aria-label="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
+              :title="isGifFavorited(part.url) ? t('gif.removeFromFavorites') : t('gif.addToFavorites')"
+              :aria-label="isGifFavorited(part.url) ? t('gif.removeFromFavorites') : t('gif.addToFavorites')"
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
                 <path v-if="isGifFavorited(part.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
@@ -710,7 +710,7 @@
               target="_blank"
               rel="noopener noreferrer nofollow"
               @click.stop="activateStoppedLink"
-              title="via KLIPY"
+              :title="t('gif.viaKlipy')"
             >
               <img
                 :src="klipyWatermarkLogoUrl"
@@ -784,27 +784,37 @@
           class="system-message-text"
         >
           <template v-if="part.event_type === 'join'">
-            Everyone welcome 
-            <button
-              type="button"
-              class="system-username"
-              @click="$emit('show-user-profile', part.user.id, $event)"
-            ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></button>!
+            <i18n-t keypath="systemEvents.legacyJoin" scope="global">
+              <template #name>
+                <button
+                  type="button"
+                  class="system-username"
+                  @click="$emit('show-user-profile', part.user.id, $event)"
+                ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></button>
+              </template>
+            </i18n-t>
             <template v-if="part.initiated_by">
-              They were invited by 
-              <button
-                type="button"
-                class="system-username"
-                @click="$emit('show-user-profile', part.initiated_by.id, $event)"
-              ><DisplayName :userId="part.initiated_by.id" :fallback="part.initiated_by.display_name || part.initiated_by.username" /></button>.
+              {{ ' ' }}<i18n-t keypath="systemEvents.legacyInvitedBy" scope="global">
+                <template #name>
+                  <button
+                    type="button"
+                    class="system-username"
+                    @click="$emit('show-user-profile', part.initiated_by.id, $event)"
+                  ><DisplayName :userId="part.initiated_by.id" :fallback="part.initiated_by.display_name || part.initiated_by.username" /></button>
+                </template>
+              </i18n-t>
             </template>
           </template>
           <template v-else-if="part.event_type === 'leave'">
-            <button
-              type="button"
-              class="system-username"
-              @click="$emit('show-user-profile', part.user.id, $event)"
-            ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></button> has left the server.
+            <i18n-t keypath="systemEvents.legacyLeave" scope="global">
+              <template #name>
+                <button
+                  type="button"
+                  class="system-username"
+                  @click="$emit('show-user-profile', part.user.id, $event)"
+                ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></button>
+              </template>
+            </i18n-t>
           </template>
           <template v-else>
             <button
@@ -838,9 +848,9 @@
     <ConfirmationModal
       v-if="removeAttachmentConfirmMounted"
       :show="showRemoveAttachmentConfirm"
-      title="Are you sure?"
-      message="This will remove this attachment from this message permanently."
-      confirm-button-text="Remove attachment"
+      :title="t('confirmation.areYouSure')"
+      :message="t('message.removeAttachmentConfirm')"
+      :confirm-button-text="t('activitypub.removeAttachment')"
       @close="cancelRemoveAttachment"
       @confirm="confirmRemoveAttachment"
     />
@@ -1382,7 +1392,7 @@ export default defineComponent({
       img.style.display = 'none';
       const fallback = document.createElement('span');
       fallback.className = 'emoji-icon emoji-fallback';
-      fallback.title = img.alt || 'Broken emoji';
+      fallback.title = img.alt || t('message.brokenEmoji');
       fallback.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/></svg>';
       img.parentNode?.insertBefore(fallback, img);
     };
@@ -2035,7 +2045,7 @@ export default defineComponent({
     const massMentionHost = (part: any): string | null =>
       mentionSuffix(part) ?? (isMassMentionWord(part?.username) ? (runtimeConfig.domain as string) || null : null);
 
-    const roleMentionName = (part: any): string => String(part?.roleName || 'Unknown Role').replace(/^@/, '');
+    const roleMentionName = (part: any): string => String(part?.roleName || t('message.unknownRole')).replace(/^@/, '');
 
     /** Role colour on every role pill, the default grey included: a person's pill is never coloured. */
     const roleMentionStyle = (part: any) => {

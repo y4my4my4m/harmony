@@ -2,16 +2,17 @@
     <div class="attachedBars">
         <div class="replyBar">
             <div role="button" tabindex="0">
-                <div class="text-sm-normal">
-                    Replying to
-                    <MessageAuthorLabel
-                        class="user_display_name"
-                        :profile-user-id="profileUserId"
-                        :display-name="authorLabel"
-                        :bridge-source="bridgeSource"
-                        :color="usernameColor"
-                    />
-                </div>
+                <i18n-t keypath="message.replyingTo" tag="div" class="text-sm-normal" scope="global">
+                    <template #name>
+                        <MessageAuthorLabel
+                            class="user_display_name"
+                            :profile-user-id="profileUserId"
+                            :display-name="authorLabel"
+                            :bridge-source="bridgeSource"
+                            :color="usernameColor"
+                        />
+                    </template>
+                </i18n-t>
             </div>
             <div class="actions">
                 <div class="closeButton" role="button" tabindex="0" @click="dontReply">

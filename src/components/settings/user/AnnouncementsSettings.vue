@@ -162,7 +162,7 @@ defineProps<{
   loading?: boolean
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { refresh: refreshUnreadCount, decrement: decrementUnreadCount, reset: resetUnreadCount } =
   useAnnouncementUnreadCount()
 
@@ -180,12 +180,12 @@ const instanceEmoji = useInstanceEmojiUrls()
 const sanitizeContent = (content: string) => renderAnnouncementHtml(content, instanceEmoji.value)
 
 const formatDate = (dateStr: string): string =>
-  new Date(dateStr).toLocaleDateString(undefined, {
+  new Date(dateStr).toLocaleDateString(locale.value, {
     year: 'numeric', month: 'short', day: 'numeric',
   })
 
 const absoluteDate = (dateStr: string): string =>
-  new Date(dateStr).toLocaleString()
+  new Date(dateStr).toLocaleString(locale.value)
 
 const isExpired = (a: Announcement): boolean => {
   if (!a.ends_at) return false

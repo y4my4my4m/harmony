@@ -23,6 +23,7 @@ describe('inviteWidgetSnippets', () => {
     expect(inviteWidgetSnippets(URL_, 'L', 'ja')!.urls.badge).toContain('?lang=ja')
     expect(inviteWidgetSnippets(URL_, 'L', 'en')!.urls.badge).not.toContain('lang=')
     expect(inviteWidgetSnippets(URL_, 'L', 'ja')!.urls.icon).toContain('style=icon&lang=ja')
+    expect(inviteWidgetSnippets(URL_, 'L', 'nl-BE')!.urls.badge).toContain('?lang=nl')
   })
 
   it('sandboxes the iframe, keeping popups for the join link', () => {

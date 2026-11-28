@@ -60,12 +60,12 @@ admin_update_supporter	definer	boolean	authenticated+service_role	client	rpc in 
 admin_update_webhook_settings	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_upload_limits	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/UploadLimitsAdmin.vue
 aggregate_hourly_metrics	definer	integer	service_role	client	rpc in federation-backend/src/services/PerformanceMonitor.ts
-antispam_account_exempt	definer	boolean	service_role	client, policy, trigger	called by antispam_check_local_author, antispam_take, check_and_increment_bot_rate_limit, +5
+antispam_account_exempt	definer	boolean	service_role	client, policy, trigger	called by antispam_check_local_author, antispam_take, bot_rate_limit_check, +5
 antispam_check_local_author	definer	boolean	service_role	trigger	called by antispam_post_guard, automod_check_message
-antispam_int	invoker	integer	service_role	client, trigger	called by antispam_check_local_author, antispam_take, check_and_increment_bot_rate_limit, +2
+antispam_int	invoker	integer	service_role	client, trigger	called by antispam_check_local_author, antispam_take, bot_rate_limit_check, +2
 antispam_post_guard	definer	trigger	service_role	trigger	trigger public.posts BEFORE INSERT/UPDATE (trg_antispam_post_guard)
 antispam_rate_check	definer	void	service_role	client, trigger	called by antispam_check_local_author, antispam_take, dm_start_guard
-antispam_settings	definer	jsonb	service_role	client, trigger	called by antispam_check_local_author, antispam_take, check_and_increment_bot_rate_limit, +4
+antispam_settings	definer	jsonb	service_role	client, trigger	called by antispam_check_local_author, antispam_take, bot_rate_limit_check, +4
 antispam_take	definer	void	service_role	client, trigger	called by antispam_take_ring, antispam_write_guard, send_signal, +1
 antispam_take_ring	definer	void	service_role	client	rpc in federation-backend/src/routes/livekit.ts
 antispam_write_guard	definer	trigger	service_role	trigger	trigger public.follows BEFORE INSERT (z_follows_rate_limit), public.post_interactions BEFORE INSERT (z_post_interactions_rate_limit), public.reactions BEFORE INSERT (z_reactions_rate_limit), +2
@@ -158,6 +158,7 @@ bot_interaction_resolved	definer	jsonb	-	client	called by bot_interaction_event
 bot_is_integration	definer	boolean	authenticated+service_role	policy, trigger	policy public.bot_server_permissions SELECT on Server members can view bot permissions
 bot_permission_mask	invoker	bigint	-	client	called by bot_command_upsert_row, bot_commands_replace, bot_install_mask
 bot_permission_names	invoker	jsonb	-	client	called by bot_command_json
+bot_rate_limit_check	definer	integer	service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts
 bot_rate_limit_take	definer	integer	service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts
 bridge_author_lock_key	invoker	bigint	service_role	client, trigger	called by bridge_import_messages, bridge_privacy_erase, bridge_privacy_remove_remote_user, +3
 bridge_avatar_track_object	definer	trigger	-	trigger	trigger storage.objects AFTER DELETE (bridge_avatar_track_delete), storage.objects AFTER INSERT (bridge_avatar_track_insert), storage.objects AFTER UPDATE (bridge_avatar_track_update)
@@ -166,6 +167,8 @@ bridge_channel_platform	definer	text	service_role	client, trigger	rpc in bot-gat
 bridge_delete_server_sound	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_evict_removed_emojis	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordEmoji.test.ts
 bridge_evict_retired_stickers	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordSticker.test.ts
+bridge_host_report	definer	void	service_role	client	rpc in bot-gateway/src/api/MatrixBridgeAPI.ts, bot-gateway/src/bridge/bridgeHosts.ts
+bridge_hosts_status	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 bridge_import_admit	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
 bridge_import_automod_hit	definer	text	-	client	called by bridge_import_messages
 bridge_import_guard	definer	discord_bridge_imports	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
@@ -312,7 +315,7 @@ check_message_emoji_reaction_limit	definer	trigger	service_role	trigger	trigger 
 check_message_sticker_parts	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (check_message_sticker_parts)
 check_reaction_emoji	definer	trigger	service_role	trigger	trigger public.reactions BEFORE INSERT/UPDATE (b_reactions_emoji_check)
 claim_ap_activity	definer	boolean	service_role	client	rpc in federation-backend/src/activitypub/GroupService.ts, federation-backend/src/activitypub/InboxHandler.ts
-claim_bot_interactions	definer	jsonb	service_role	client	rpc in bot-gateway/src/gateway/InteractionPoller.ts
+claim_bot_interactions	definer	jsonb	service_role	client	rpc in bot-gateway/src/gateway/InteractionPoller.ts, bot-gateway/src/utils/__tests__/upstreamBackoff.test.ts
 claim_device_recovery_trust	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 claim_following_import_batch	definer	jsonb	service_role	client	rpc in federation-backend/src/queue/handlers/followingImportHandler.ts
 claim_outgoing_webhook_delivery	definer	TABLE(delivery_id uuid, webhook_id uuid, url text, secret text, event text, payload jsonb, attempts integer, created_at timestamp with time zone, defer_ms integer)	service_role	client	rpc in federation-backend/src/services/OutgoingWebhookSender.ts
@@ -399,7 +402,7 @@ detect_embed_provider	invoker	text	anon+authenticated+service_role	client, trigg
 detect_message_features	invoker	jsonb	service_role	trigger	called by message_search_flags
 determine_message_federation_type	invoker	text	anon+authenticated+service_role	trigger	called by handle_message_federation
 disable_federation_triggers	definer	void	service_role	service key	nothing references it
-discord_bridge_assert_vault	invoker	void	-	client	called by auth_provider_credentials_render, auth_provider_credentials_set, discord_bridge_create, +6
+discord_bridge_assert_vault	invoker	void	-	client	called by auth_provider_credentials_render, auth_provider_credentials_set, discord_bridge_create, +13
 discord_bridge_bot_pair	definer	uuid	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_bot_unpair	definer	boolean	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_channels_check	definer	trigger	-	trigger	trigger public.discord_bridge_channels BEFORE INSERT/UPDATE (discord_bridge_channels_check)
@@ -410,8 +413,8 @@ discord_bridge_encrypted_channel_ids	definer	SETOF uuid	service_role	client	rpc 
 discord_bridge_for_manager	definer	discord_bridges	-	client	called by discord_bridge_delete, discord_bridge_import_cancel, discord_bridge_import_start, +6
 discord_bridge_guild_channels	invoker	SETOF jsonb	-	client	called by discord_bridge_pair_internal, discord_bridge_report_status, discord_bridge_set_guild
 discord_bridge_hosted_list	definer	TABLE(bridge_id uuid, harmony_token text, discord_token text)	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
-discord_bridge_hosting_enabled	definer	boolean	-	client	named in bot-gateway/src/api/BridgeV2API.ts, bot-gateway/src/api/__tests__/BridgeV2API.instance.test.ts, bot-gateway/src/api/__tests__/BridgeV2API.test.ts, +4
-discord_bridge_hosting_limit	definer	integer	-	client	named in src/components/settings/discord-bridge/__tests__/BridgeAdminAndMenus.test.ts, src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_hosting_enabled	definer	boolean	-	client	named in bot-gateway/src/api/BridgeV2API.ts, bot-gateway/src/api/__tests__/BridgeV2API.instance.test.ts, bot-gateway/src/api/__tests__/BridgeV2API.test.ts, +5
+discord_bridge_hosting_limit	definer	integer	-	client	named in src/components/settings/discord-bridge/__tests__/BridgeAdminAndMenus.test.ts, src/components/settings/discord-bridge/bridgeApi.ts, src/components/settings/matrix-bridge/__tests__/MatrixAdmin.test.ts
 discord_bridge_import_block	definer	text	service_role	client	rpc in bot-gateway/src/bridge/bridgeConfig.ts
 discord_bridge_import_cancel	definer	SETOF discord_bridge_imports	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 discord_bridge_import_cancel_internal	definer	SETOF discord_bridge_imports	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
@@ -618,7 +621,7 @@ get_funding_summary	definer	jsonb	authenticated+service_role	client	rpc in src/s
 get_home_timeline_page	invoker	jsonb	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
 get_instance_antispam_settings	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 get_instance_config_int	invoker	integer	anon+authenticated+service_role	client, policy, trigger	called by bot_interaction_content, enforce_message_length, enforce_post_length, +5
-get_instance_domain	definer	text	anon+authenticated+service_role	client, trigger	called by build_harmony_embed, detect_embed_provider, fetch_link_preview, +1
+get_instance_domain	definer	text	anon+authenticated+service_role	client, trigger	called by build_harmony_embed, detect_embed_provider, fetch_link_preview, +2
 get_invite_preview	definer	jsonb	anon+authenticated+service_role	client	rpc in federation-backend/src/services/invitePreview.ts, src/services/inviteService.ts
 get_kofi_webhook_token	definer	text	authenticated+service_role	client	rpc in src/services/FundingService.ts
 get_message_page	invoker	jsonb	anon+authenticated+service_role	client	rpc in src/services/core/CoreMessageService.ts
@@ -805,7 +808,7 @@ is_storage_public_url	invoker	boolean	service_role	client	called by bridge_impor
 is_user_viewing_context	definer	boolean	service_role	client, trigger	called by is_user_viewing_push_context, send_notification
 is_user_viewing_push_context	definer	boolean	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
 is_user_viewing_thread	definer	boolean	service_role	client, trigger	called by send_notification
-issue_bot_token	definer	jsonb	service_role	client	called by create_bot, discord_bridge_issue_token, rotate_bot_token
+issue_bot_token	definer	jsonb	service_role	client	called by create_bot, discord_bridge_issue_token, matrix_bridge_issue_token, +1
 join_public_server	definer	jsonb	authenticated+service_role	client	rpc in src/stores/server.ts
 jsonb_text_content_length	invoker	integer	anon+authenticated+service_role	client, declarative, trigger	check public.messages messages_text_length_check, public.posts posts_text_length_check
 keep_welcome_managed_server_rules	definer	trigger	service_role	trigger	trigger public.servers BEFORE UPDATE (a_servers_welcome_rules_guard)
@@ -820,7 +823,7 @@ list_server_webhooks	definer	jsonb	authenticated+service_role	http authenticated
 list_soundboard_library	definer	TABLE(id uuid, server_id uuid, server_name text, server_icon text, name text, emoji text, emoji_id uuid, emoji_name text, emoji_url text, volume numeric, duration_ms integer, storage_path text, created_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/soundboard/sounds.ts
 lock_managed_channel_webhook	invoker	channel_webhooks	service_role	client	called by delete_channel_webhook, regenerate_channel_webhook_token, update_channel_webhook
 lock_managed_outgoing_webhook	definer	outgoing_webhooks	service_role	client	called by delete_outgoing_webhook, list_outgoing_webhook_deliveries, rotate_outgoing_webhook_secret, +2
-log_admin_action	definer	uuid	service_role	client	called by admin_delete_accounts, admin_delete_outgoing_webhook, admin_drive_remove_file, +42
+log_admin_action	definer	uuid	service_role	client	called by admin_delete_accounts, admin_delete_outgoing_webhook, admin_drive_remove_file, +43
 log_key_generation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_key_pairs AFTER INSERT (audit_key_generation)
 lookup_discord_bridge_pairing_public	definer	TABLE(server_id uuid)	anon+authenticated+service_role	client	rpc in bot-gateway/src/index.ts
 lookup_invite_by_code	definer	TABLE(id uuid, code text, server_id uuid, created_by uuid, uses integer, max_uses integer, used boolean, temporary boolean, expires_at timestamp with time zone, created_at timestamp with time zone, server_name text, server_icon text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
@@ -830,10 +833,59 @@ mark_conversation_as_read	definer	void	authenticated+service_role	client	rpc in 
 mark_notifications_read_by_context	definer	integer	anon+authenticated+service_role	client	rpc in src/services/ViewContextTracker.ts
 mark_server_as_read	definer	void	authenticated+service_role	client	rpc in src/services/TodayDigestService.ts, src/services/readState.ts
 mark_server_welcome_seen	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
+matrix_bot_is_managed	definer	boolean	-	client	called by configure_matrix_bridge, get_server_matrix_bridges, set_matrix_bridge_sender_mode, +1
+matrix_bridge_admit_mode	definer	void	-	client	called by matrix_bridge_create
 matrix_bridge_bind_room	definer	jsonb	service_role	client	named in bot-gateway/src/api/__tests__/BotRestAPI.matrixBridge.test.ts, bot-gateway/src/bridge/matrixRooms.ts
 matrix_bridge_binding_json	definer	jsonb	-	client	called by get_server_matrix_bridges, set_matrix_bridge_sender_mode
+matrix_bridge_channel_member	definer	TABLE(id uuid, username text, display_name text, avatar_url text, nickname text, domain text, is_local boolean)	service_role	client	rpc in bot-gateway/src/bridge/matrixRooms.ts
 matrix_bridge_channel_members	definer	TABLE(id uuid, username text, display_name text, avatar_url text, nickname text, domain text, is_local boolean)	service_role	client	rpc in bot-gateway/src/bridge/matrixRooms.ts
-matrix_bridge_room	definer	jsonb	service_role	client	named in bot-gateway/src/api/__tests__/BotRestAPI.bridgeFiles.test.ts, bot-gateway/src/api/__tests__/BotRestAPI.matrixBridge.test.ts, bot-gateway/src/bridge/matrixRooms.ts
+matrix_bridge_channels_changed	definer	trigger	-	trigger	trigger public.bridge_channels AFTER INSERT/DELETE/UPDATE (matrix_bridge_channels_changed)
+matrix_bridge_check_pair	definer	void	-	client	called by matrix_bridge_pair, matrix_bridge_room_code
+matrix_bridge_code_hash	invoker	text	-	client	called by matrix_bridge_link_room, matrix_bridge_redeem_code, matrix_bridge_room_code, +1
+matrix_bridge_config	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/matrixBridgeConfig.ts
+matrix_bridge_create	definer	jsonb	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixManagedApi.ts
+matrix_bridge_delete	definer	void	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixManagedApi.ts
+matrix_bridge_for_manager	definer	matrix_bridges	-	client	called by matrix_bridge_delete, matrix_bridge_pair, matrix_bridge_room_code, +3
+matrix_bridge_hosted_list	definer	TABLE(bridge_id uuid, harmony_token text, homeserver_url text, access_token text)	service_role	client	rpc in bot-gateway/src/api/MatrixBridgeAPI.ts
+matrix_bridge_hosting_enabled	definer	boolean	-	client	named in src/components/settings/discord-bridge/bridgeApi.ts, src/components/settings/matrix-bridge/__tests__/MatrixAdmin.test.ts
+matrix_bridge_hosting_limit	definer	integer	-	client	named in src/components/settings/discord-bridge/bridgeApi.ts, src/components/settings/matrix-bridge/__tests__/MatrixAdmin.test.ts
+matrix_bridge_install_bot	definer	void	-	client	called by matrix_bridge_link_room, matrix_bridge_pair, matrix_bridge_provision_bot
+matrix_bridge_instance_clear	definer	void	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixAdminApi.ts
+matrix_bridge_instance_configured	definer	boolean	-	client	called by matrix_bridge_admit_mode, matrix_bridge_instance_hosted, matrix_bridge_instance_status, +3
+matrix_bridge_instance_enabled	definer	boolean	-	client	named in src/components/settings/discord-bridge/bridgeApi.ts, src/components/settings/matrix-bridge/__tests__/MatrixAdmin.test.ts
+matrix_bridge_instance_hosted	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/MatrixBridgeAPI.ts
+matrix_bridge_instance_limit	definer	integer	-	client	named in src/components/settings/discord-bridge/bridgeApi.ts, src/components/settings/matrix-bridge/__tests__/MatrixAdmin.test.ts
+matrix_bridge_instance_log	definer	void	-	client	called by matrix_bridge_instance_clear, matrix_bridge_instance_registration, matrix_bridge_instance_set
+matrix_bridge_instance_purge	definer	trigger	-	trigger	trigger public.matrix_bridge_instance AFTER DELETE (matrix_bridge_instance_purge)
+matrix_bridge_instance_registration	definer	jsonb	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixAdminApi.ts
+matrix_bridge_instance_set	definer	jsonb	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixAdminApi.ts
+matrix_bridge_instance_status	definer	jsonb	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixAdminApi.ts
+matrix_bridge_instance_user	definer	text	-	client	called by matrix_bridge_offers, matrix_bridge_room_code
+matrix_bridge_instance_view	invoker	jsonb	-	client	called by matrix_bridge_instance_clear, matrix_bridge_instance_registration, matrix_bridge_instance_set, +1
+matrix_bridge_issue_token	definer	text	-	client	called by matrix_bridge_redeem_code, matrix_bridge_vault_token
+matrix_bridge_json	definer	jsonb	-	client	called by matrix_bridge_create, matrix_bridge_pair, matrix_bridge_set_account, +2
+matrix_bridge_link_room	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/MatrixBridgeAPI.ts
+matrix_bridge_managed_by	definer	boolean	-	client	called by matrix_bridge_link_room, matrix_bridge_redeem_code, matrix_bridge_setup_code
+matrix_bridge_member_row	definer	TABLE(id uuid, username text, display_name text, avatar_url text, nickname text, domain text, is_local boolean)	-	client	called by matrix_bridge_channel_member, matrix_bridge_send_check
+matrix_bridge_new_code	invoker	text	-	client	called by matrix_bridge_room_code, matrix_bridge_setup_code
+matrix_bridge_normalize_code	invoker	text	-	client	called by matrix_bridge_link_room, matrix_bridge_redeem_code
+matrix_bridge_offers	definer	jsonb	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixManagedApi.ts
+matrix_bridge_optouts_changed	definer	trigger	-	trigger	trigger public.bridge_member_optouts AFTER DELETE STATEMENT (matrix_bridge_optouts_deleted), public.bridge_member_optouts AFTER INSERT STATEMENT (matrix_bridge_optouts_inserted), public.bridge_member_optouts AFTER UPDATE STATEMENT (matrix_bridge_optouts_updated_from), +1
+matrix_bridge_pair	definer	jsonb	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixManagedApi.ts
+matrix_bridge_provision_bot	definer	uuid	-	client	called by matrix_bridge_create, matrix_bridge_link_room, matrix_bridge_pair, +2
+matrix_bridge_redeem_code	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/MatrixBridgeAPI.ts
+matrix_bridge_report_status	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/MatrixBridgeAPI.ts
+matrix_bridge_room	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/matrixRooms.ts
+matrix_bridge_room_code	definer	jsonb	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixManagedApi.ts
+matrix_bridge_secrets_purge	definer	trigger	-	trigger	trigger public.matrix_bridge_secrets AFTER DELETE (matrix_bridge_secrets_purge)
+matrix_bridge_send_check	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/matrixRooms.ts
+matrix_bridge_set_account	definer	jsonb	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixManagedApi.ts
+matrix_bridge_setup_code	definer	jsonb	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixManagedApi.ts
+matrix_bridge_state	definer	jsonb	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixManagedApi.ts
+matrix_bridge_unpair	definer	jsonb	authenticated	client	rpc in src/components/settings/matrix-bridge/matrixManagedApi.ts
+matrix_bridge_vault_token	definer	void	-	client	called by matrix_bridge_provision_bot, matrix_bridge_set_account
+matrix_bridges_retire_bot	definer	trigger	-	trigger	trigger public.matrix_bridges AFTER DELETE (matrix_bridges_retire_bot)
+matrix_bridges_touch	invoker	trigger	-	trigger	trigger public.matrix_bridges BEFORE UPDATE (matrix_bridges_touch)
 matrix_user_valid	invoker	boolean	-	trigger	called by guard_matrix_author
 megolm_key_scope_allowed	definer	text	service_role	client, trigger	called by broadcast_key_request_event, fulfill_megolm_key_request, get_relayable_key_requests, +2
 megolm_session_began_before	definer	boolean	service_role	client, trigger	called by megolm_key_scope_allowed
@@ -932,7 +984,7 @@ purge_following_imports	definer	integer	service_role	client	rpc in federation-ba
 purge_processed_ap_activities	definer	integer	service_role	cron	cron 0 3 * * * (activitypub-cleanup-old-activities)
 purge_signup_ledger	definer	void	service_role	cron	cron 17 * * * * (signup-ledger-purge)
 purge_stale_invites	definer	integer	service_role	cron	cron 20 4 * * * (purge-stale-invites)
-queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, before_user_created_hook, +54
+queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, drive_delete_files, +55
 queue_message_media_cleanup	definer	trigger	service_role	trigger	trigger public.messages AFTER DELETE/UPDATE (z_messages_media_cleanup)
 queue_message_poll_federation	definer	void	service_role	client	called by end_federated_message_poll, end_message_poll, record_federated_message_poll_vote, +1
 queue_outgoing_webhook_ping	definer	uuid	service_role	client	called by create_outgoing_webhook, outgoing_webhook_probes, test_outgoing_webhook, +1
@@ -1122,9 +1174,12 @@ should_show_gif_ads	definer	boolean	anon+authenticated+service_role	client	rpc i
 sign_out_my_sessions	definer	integer	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts, src/supabase.ts
 signup_captcha_check	definer	jsonb	-	client	called by admin_test_signup_captcha, signup_captcha_verify
 signup_captcha_verdict	invoker	text	-	client	called by signup_captcha_check
-signup_captcha_verify	definer	text	-	nothing	called by before_user_created_hook
-signup_mailbox_hash	invoker	text	-	nothing	called by before_user_created_hook
-signup_network_contains	invoker	boolean	-	nothing	called by before_user_created_hook
+signup_captcha_verify	definer	text	-	nothing	called by signup_limits_check
+signup_invite_pass	definer	void	service_role	client	rpc in federation-backend/src/routes/adminInvites.ts
+signup_limits_check	definer	jsonb	-	nothing	called by before_user_created_hook
+signup_mailbox_hash	invoker	text	-	nothing	called by signup_limits_check
+signup_network_contains	invoker	boolean	-	nothing	called by signup_limits_check
+signup_registration_refusal	invoker	jsonb	-	nothing	called by before_user_created_hook
 signup_review_welcome_server	definer	uuid	service_role	client	called by staff_recent_signups, staff_signup_groups
 signup_spike_status	definer	TABLE(rule text, fired boolean, signups integer, window_signups integer, prior_signups integer)	-	nothing	nothing references it
 skip_deleted_discord_import	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT (a_messages_skip_deleted_discord_import)
@@ -1213,6 +1268,7 @@ trigger_queue_report_resolution	definer	trigger	service_role	trigger	trigger pub
 trigger_queue_server_emojis_federation	definer	trigger	service_role	trigger	trigger public.emojis AFTER INSERT/DELETE/UPDATE (z_emojis_federation)
 trigger_queue_server_roles_federation	definer	trigger	service_role	trigger	trigger public.server_roles AFTER INSERT/DELETE/UPDATE (z_server_roles_federation)
 trigger_queue_server_update_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.servers AFTER UPDATE (trigger_federate_server_update)
+trigger_queue_server_welcome_federation	definer	trigger	service_role	trigger	trigger public.server_welcome_screens AFTER INSERT/DELETE/UPDATE (z_server_welcome_screens_federation)
 trigger_queue_thread_delete_federation	definer	trigger	service_role	trigger	trigger public.threads AFTER DELETE (trigger_federate_thread_delete)
 trigger_queue_thread_federation	definer	trigger	service_role	trigger	trigger public.threads BEFORE INSERT/UPDATE (trigger_federate_thread)
 trigger_queue_voice_channel_join_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.voice_channel_participants BEFORE INSERT (trigger_federate_voice_channel_join)

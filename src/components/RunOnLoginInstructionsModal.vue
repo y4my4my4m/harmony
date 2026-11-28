@@ -2,7 +2,7 @@
   <Transition name="run-on-login-modal">
     <div v-if="modelValue" class="modal-overlay" @click="close">
       <div class="modal-content" @click.stop role="dialog" aria-labelledby="run-on-login-title">
-        <button class="close-x" aria-label="Close" @click="close">
+        <button class="close-x" :aria-label="t('common.close')" @click="close">
           <svg viewBox="0 0 24 24" width="18" height="18">
             <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
           </svg>
@@ -15,9 +15,9 @@
             </svg>
           </div>
           <div>
-            <h3 id="run-on-login-title" class="modal-title">Start Harmony when you sign in</h3>
+            <h3 id="run-on-login-title" class="modal-title">{{ t('runOnLogin.modal.title') }}</h3>
             <p class="modal-subtitle">
-              {{ browserLabel }} can launch Harmony automatically every time you log into your computer.
+              {{ t('runOnLogin.modal.subtitle', { browser: browserLabel }) }}
             </p>
           </div>
         </div>
@@ -26,7 +26,7 @@
           <li>
             <span class="step-num">1</span>
             <div class="step-body">
-              <p class="step-title">Open the apps page</p>
+              <p class="step-title">{{ t('runOnLogin.modal.step1') }}</p>
               <div class="step-detail">
                 <div class="url-pill">
                   <code>{{ runOnLoginUrl }}</code>
@@ -37,11 +37,11 @@
                     <svg v-else viewBox="0 0 24 24" width="16" height="16">
                       <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
                     </svg>
-                    <span>{{ copied ? 'Copied' : 'Copy' }}</span>
+                    <span>{{ copied ? t('common.copied') : t('common.copy') }}</span>
                   </button>
                 </div>
                 <p class="step-hint">
-                  Paste it into a new browser tab. The link can't be opened directly from inside the app for security reasons.
+                  {{ t('runOnLogin.modal.step1Hint') }}
                 </p>
               </div>
             </div>
@@ -50,21 +50,23 @@
           <li>
             <span class="step-num">2</span>
             <div class="step-body">
-              <p class="step-title">Right-click Harmony, then choose <em>Start app when you sign in</em></p>
+              <i18n-t keypath="runOnLogin.modal.step2" tag="p" class="step-title" scope="global">
+                <template #option><em>{{ t('runOnLogin.modal.menuStartApp') }}</em></template>
+              </i18n-t>
               <div class="menu-mock" aria-hidden="true">
                 <div class="menu-mock-header">
                   <img src="/img/app_icon_square.webp" alt="" class="menu-icon" />
                   <span>Harmony</span>
                 </div>
                 <ul class="menu-mock-items">
-                  <li>Open</li>
-                  <li>Open in window</li>
+                  <li>{{ t('runOnLogin.modal.menuOpen') }}</li>
+                  <li>{{ t('runOnLogin.modal.menuOpenWindow') }}</li>
                   <li class="highlight">
                     <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/></svg>
-                    <span>Start app when you sign in</span>
+                    <span>{{ t('runOnLogin.modal.menuStartApp') }}</span>
                   </li>
-                  <li>Create shortcuts...</li>
-                  <li class="danger">Remove from {{ browserLabel }}</li>
+                  <li>{{ t('runOnLogin.modal.menuShortcuts') }}</li>
+                  <li class="danger">{{ t('runOnLogin.modal.menuRemove', { browser: browserLabel }) }}</li>
                 </ul>
               </div>
             </div>
@@ -73,19 +75,19 @@
           <li>
             <span class="step-num">3</span>
             <div class="step-body">
-              <p class="step-title">That's it - Harmony will launch the next time you sign in to your computer.</p>
+              <p class="step-title">{{ t('runOnLogin.modal.step3') }}</p>
             </div>
           </li>
         </ol>
 
-        <div class="footnote">
-          Available in {{ browserLabel }} 91+ on Windows, macOS, Linux and ChromeOS.
-          You can change it any time from <code>{{ runOnLoginUrl }}</code>.
-        </div>
+        <i18n-t keypath="runOnLogin.modal.footnote" tag="div" class="footnote" scope="global">
+          <template #browser>{{ browserLabel }}</template>
+          <template #url><code>{{ runOnLoginUrl }}</code></template>
+        </i18n-t>
 
         <div class="modal-actions">
-          <button class="btn btn-secondary" @click="close">Close</button>
-          <button class="btn btn-primary" @click="markEnabled">I enabled it</button>
+          <button class="btn btn-secondary" @click="close">{{ t('common.close') }}</button>
+          <button class="btn btn-primary" @click="markEnabled">{{ t('runOnLogin.modal.enabled') }}</button>
         </div>
       </div>
     </div>
@@ -97,6 +99,7 @@ import { computed, ref, watch } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { getChromiumBrowserLabel, getRunOnLoginUrl } from '@/utils/pwaUtils'
+import { useT } from '@/composables/useT'
 
 interface Props {
   modelValue: boolean
@@ -110,6 +113,7 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const { t } = useT()
 
 const runOnLoginUrl = computed(() => getRunOnLoginUrl())
 const browserLabel = computed(() => getChromiumBrowserLabel())
@@ -140,14 +144,14 @@ const copyUrl = async () => {
     }, 2000)
   } catch (error) {
     debug.warn('Failed to copy run-on-login URL:', error)
-    toast.error(`Couldn't copy. Type ${url} into a new browser tab.`)
+    toast.error(t('runOnLogin.modal.copyFailed', { url }))
   }
 }
 
 const markEnabled = () => {
   localStorage.setItem('harmony-run-on-login-enabled', 'true')
   localStorage.setItem('harmony-run-on-login-enabled-at', Date.now().toString())
-  toast.success('Saved. Harmony will start when you sign in.')
+  toast.success(t('runOnLogin.modal.saved'))
   emit('enabled')
   emit('update:modelValue', false)
 }

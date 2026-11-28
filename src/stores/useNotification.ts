@@ -675,7 +675,7 @@ export const useNotificationStore = defineStore('notification', {
         debug.log('Notification Store: Initialized successfully')
       } catch (error) {
         debug.error('Notification Store: Failed to initialize:', error)
-        this.showToast('server_update', 'Failed to load notifications', 'Please refresh the page', 5000)
+        this.showToast('server_update', i18n.global.t('notificationText.toast.loadFailed'), i18n.global.t('notificationText.toast.refreshPage'), 5000)
       } finally {
         this.isLoading = false
       }
@@ -728,7 +728,7 @@ export const useNotificationStore = defineStore('notification', {
         this.fullListLoaded = true
       } catch (error) {
         debug.error('Failed to load full notification list:', error)
-        this.loadError = "Couldn't load notifications"
+        this.loadError = i18n.global.t('inbox.error')
       } finally {
         this.isLoading = false
       }
@@ -1172,8 +1172,8 @@ export const useNotificationStore = defineStore('notification', {
         debug.error('Error processing notification:', error)
         this.showToast(
           'server_update',
-          'New notification',
-          'A notification was received but could not be processed properly',
+          i18n.global.t('notificationText.fallback.title'),
+          i18n.global.t('notificationText.toast.processFailed'),
           3000
         )
       }
@@ -1212,7 +1212,8 @@ export const useNotificationStore = defineStore('notification', {
         emojiName,
         actorInfo?.actorUserId,
         actorInfo?.titleSuffix,
-        notification.id
+        notification.id,
+        NotificationFormatter.getActorDisplayNameFallback(notification)
       )
     },
 
@@ -1262,10 +1263,10 @@ export const useNotificationStore = defineStore('notification', {
           // the body is the recipient's own content being acted on, a bare
           // preview reads as if the actor wrote it; prefix the action.
           const contentAction: Record<string, string> = {
-            reaction: 'Reacted to your message',
-            activitypub_reaction: 'Reacted to your post',
-            activitypub_favorite: 'Favorited your post',
-            activitypub_reblog: 'Reblogged your post',
+            reaction: i18n.global.t('notificationText.native.reaction'),
+            activitypub_reaction: i18n.global.t('notificationText.native.apReaction'),
+            activitypub_favorite: i18n.global.t('notificationText.native.apFavorite'),
+            activitypub_reblog: i18n.global.t('notificationText.native.apReblog'),
             newcomer_message: i18n.global.t('newcomerAlerts.notification.nativePrefix'),
           }
           let message = formatted.message
@@ -1411,7 +1412,8 @@ export const useNotificationStore = defineStore('notification', {
       emojiName?: string,
       actorUserId?: string,
       titleSuffix?: string,
-      notificationId?: string
+      notificationId?: string,
+      actorName?: string
     ) {
       if (this.isSilenced() && type !== 'server_update') return
 
@@ -1425,6 +1427,7 @@ export const useNotificationStore = defineStore('notification', {
         emojiName,
         actorUserId,
         titleSuffix,
+        actorName,
         duration,
         timestamp: new Date(),
         notificationId
@@ -1720,7 +1723,7 @@ export const useNotificationStore = defineStore('notification', {
         
         this.notifications.splice(index, 0, notification)
         this.updateUnreadCount()
-        this.showToast('server_update', 'Failed to delete notification', 'Please try again', 3000)
+        this.showToast('server_update', i18n.global.t('notificationText.toast.deleteFailed'), i18n.global.t('errors.tryAgain'), 3000)
         throw error
       }
     },  
@@ -1800,7 +1803,7 @@ export const useNotificationStore = defineStore('notification', {
         this.notifications = snapshot
         this.loadedCount = loadedSnapshot
         this.updateUnreadCount()
-        this.showToast('server_update', 'Failed to clear notifications', 'Please try again', 3000)
+        this.showToast('server_update', i18n.global.t('notificationText.toast.clearFailed'), i18n.global.t('errors.tryAgain'), 3000)
       }
     },
 
@@ -1842,7 +1845,7 @@ export const useNotificationStore = defineStore('notification', {
 
       } catch (error) {
         debug.error('Failed to mark all notifications as read:', error)
-        this.showToast('server_update', "Couldn't mark notifications as read", 'Try again.', 3000)
+        this.showToast('server_update', i18n.global.t('notificationText.toast.markReadFailed'), i18n.global.t('encryption.approval.tryAgain'), 3000)
       }
     },
 

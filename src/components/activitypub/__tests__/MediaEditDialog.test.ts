@@ -14,7 +14,10 @@ const { inspectImageFile, loadCropSource, exportCrop, renderCropPreview } = vi.h
   renderCropPreview: vi.fn(),
 }))
 
-vi.mock('vue-i18n', () => ({
+// Partial: the import graph reaches @/i18n, which calls createI18n.
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
+ 
   useI18n: () => ({ t: (key: string) => key }),
 }))
 

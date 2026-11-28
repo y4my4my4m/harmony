@@ -7,7 +7,10 @@ import { mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import { THROTTLE_MS, WRITE_DELAY_MS, announcerRegions, resetAnnouncer, setVerboseAnnouncements } from '@/composables/useAnnouncer'
 
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => (key === 'message.typing.single' ? ' is typing...' : key) }) }))
+// Partial: the import graph reaches @/i18n, which calls createI18n.
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
+  useI18n: () => ({ t: (key: string) => (key === 'message.typing.single' ? ' is typing...' : key) }) }))
 vi.mock('@/composables/useUserData', () => ({
   useUserData: () => ({ getUserDisplayName: (id: string) => ref(id === 'u1' ? 'Alice' : id) }),
 }))

@@ -2,6 +2,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useThemeStore } from '@/stores/useTheme'
 import { useNotificationStore } from '@/stores/useNotification'
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 
 /**
  * Shared composable for common audio theme functionality
@@ -71,8 +72,8 @@ export function useAudioThemeCommon() {
       } else {
         notificationStore.showToast(
           'ui_error',
-          'Failed to Change Theme',
-          'Could not switch to the selected audio theme',
+          i18n.global.t('settings.audio.themes.toasts.changeFailed.title'),
+          i18n.global.t('settings.audio.themes.toasts.changeFailed.message'),
           3000
         )
         return false
@@ -81,8 +82,8 @@ export function useAudioThemeCommon() {
       debug.error('Failed to set theme:', error)
       notificationStore.showToast(
         'ui_error',
-        'Theme Error',
-        error instanceof Error ? error.message : 'Unknown error occurred',
+        i18n.global.t('settings.audio.themes.toasts.error.title'),
+        error instanceof Error ? error.message : i18n.global.t('settings.audio.themes.toasts.error.message'),
         4000
       )
       return false
@@ -102,16 +103,16 @@ export function useAudioThemeCommon() {
       await themeStore.testAudio('mention')
       notificationStore.showToast(
         'ui_success',
-        'Audio Test',
-        'Theme test completed',
+        i18n.global.t('settings.audio.themes.toasts.testDone.title'),
+        i18n.global.t('settings.audio.themes.toasts.testDone.message'),
         1500
       )
     } catch (error) {
       debug.error('Failed to test theme:', error)
       notificationStore.showToast(
         'ui_error',
-        'Audio Test Failed',
-        'Could not play test sound',
+        i18n.global.t('settings.audio.themes.toasts.testFailed.title'),
+        i18n.global.t('settings.audio.themes.toasts.testFailed.message'),
         3000
       )
     } finally {
@@ -136,8 +137,8 @@ export function useAudioThemeCommon() {
       const theme = themes.value.find(t => t.id === themeId)
       notificationStore.showToast(
         'ui_success',
-        'Theme Preview',
-        `Testing ${theme?.name || themeId}`,
+        i18n.global.t('settings.audio.themes.toasts.preview.title'),
+        i18n.global.t('settings.audio.themes.toasts.preview.message', { theme: theme?.name || themeId }),
         1500
       )
       
@@ -151,8 +152,8 @@ export function useAudioThemeCommon() {
       debug.error('Failed to test theme:', error)
       notificationStore.showToast(
         'ui_error',
-        'Test Failed',
-        'Could not preview theme audio',
+        i18n.global.t('settings.audio.themes.toasts.previewFailed.title'),
+        i18n.global.t('settings.audio.themes.toasts.previewFailed.message'),
         3000
       )
     } finally {
@@ -198,16 +199,16 @@ export function useAudioThemeCommon() {
       themeStore.clearAudioCache()
       notificationStore.showToast(
         'ui_success',
-        'Cache Cleared',
-        'Audio cache has been cleared successfully',
+        i18n.global.t('settings.audio.themes.toasts.cacheCleared.title'),
+        i18n.global.t('settings.audio.themes.toasts.cacheCleared.message'),
         2000
       )
     } catch (error) {
       debug.error('Failed to clear cache:', error)
       notificationStore.showToast(
         'ui_error',
-        'Clear Cache Failed',
-        'Could not clear audio cache',
+        i18n.global.t('settings.audio.themes.toasts.cacheClearFailed.title'),
+        i18n.global.t('settings.audio.themes.toasts.cacheClearFailed.message'),
         3000
       )
     }
@@ -238,16 +239,16 @@ export function useAudioThemeCommon() {
       
       notificationStore.showToast(
         'ui_success',
-        'Settings Exported',
-        'Audio theme settings have been downloaded',
+        i18n.global.t('settings.audio.themes.toasts.exported.title'),
+        i18n.global.t('settings.audio.themes.toasts.exported.message'),
         2000
       )
     } catch (error) {
       debug.error('Failed to export settings:', error)
       notificationStore.showToast(
         'ui_error',
-        'Export Failed',
-        'Could not export theme settings',
+        i18n.global.t('settings.audio.themes.toasts.exportFailed.title'),
+        i18n.global.t('settings.audio.themes.toasts.exportFailed.message'),
         3000
       )
     }
@@ -267,16 +268,16 @@ export function useAudioThemeCommon() {
             themeStore.importPreferences(settings)
             notificationStore.showToast(
               'ui_success',
-              'Settings Imported',
-              'Audio theme settings have been restored',
+              i18n.global.t('settings.audio.themes.toasts.imported.title'),
+              i18n.global.t('settings.audio.themes.toasts.imported.message'),
               2000
             )
           } catch (error) {
             debug.error('Failed to import settings:', error)
             notificationStore.showToast(
               'ui_error',
-              'Import Failed',
-              'Could not import theme settings. Please check the file format.',
+              i18n.global.t('settings.audio.themes.toasts.importFailed.title'),
+              i18n.global.t('settings.audio.themes.toasts.importFailed.message'),
               3000
             )
           }
@@ -293,16 +294,16 @@ export function useAudioThemeCommon() {
       localVolume.value = Math.round(themeStore.audioVolume * 100)
       notificationStore.showToast(
         'ui_success',
-        'Settings Reset',
-        'Audio theme settings have been reset to defaults',
+        i18n.global.t('settings.audio.themes.toasts.reset.title'),
+        i18n.global.t('settings.audio.themes.toasts.reset.message'),
         2000
       )
     } catch (error) {
       debug.error('Failed to reset settings:', error)
       notificationStore.showToast(
         'ui_error',
-        'Reset Failed',
-        'Could not reset theme settings',
+        i18n.global.t('settings.audio.themes.toasts.resetFailed.title'),
+        i18n.global.t('settings.audio.themes.toasts.resetFailed.message'),
         3000
       )
     }

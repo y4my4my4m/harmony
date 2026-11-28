@@ -6,22 +6,22 @@
           v-if="isMobile"
           type="button"
           class="nav-menu-btn"
-          :aria-label="$t('activitypub.openNavigation')"
+          :aria-label="t('activitypub.openNavigation')"
           @click="openLeftSidebar"
         >
           <Icon name="menu" :size="20" />
         </button>
         <Icon name="admin-terminal" :size="24" />
-        <h1>{{ isAdmin ? 'Instance control panel' : 'Moderation' }}</h1>
+        <h1>{{ isAdmin ? t('admin.panel.title') : t('admin.panel.moderationTitle') }}</h1>
         <div v-if="isAdmin" class="system-status" :class="systemStatus.class">
           <div class="status-indicator"></div>
-          <span>{{ systemStatus.text }}</span>
+          <span>{{ t(systemStatus.text) }}</span>
         </div>
       </div>
       <div v-if="isAdmin" class="admin-actions">
         <button @click="refreshData" class="action-btn refresh-btn" :disabled="loading">
           <Icon name="refresh" :size="16" />
-          Refresh
+          {{ t('admin.emojis.refresh') }}
         </button>
       </div>
     </div>
@@ -36,9 +36,9 @@
         @click="activeAdminTab = tab.key"
       >
         <Icon :name="tab.icon" :size="15" />
-        {{ tab.label }}<template v-if="tab.key === 'reports' && instancePending > 0">
+        {{ t(tab.label) }}<template v-if="tab.key === 'reports' && instancePending > 0">
           <span class="report-count-badge" aria-hidden="true" data-testid="admin-tab-reports-badge">{{ badgeCount(instancePending) }}</span>
-          <span class="sr-only">, {{ $t('moderation.reportAlert.pendingA11y', { count: instancePending }, instancePending) }}</span>
+          <span class="sr-only">, {{ t('moderation.reportAlert.pendingA11y', { count: instancePending }, instancePending) }}</span>
         </template>
       </button>
     </nav>
@@ -48,7 +48,7 @@
       <div class="admin-module overview-module">
         <div class="module-header">
           <Icon name="dashboard" :size="20" />
-          <h2>System overview</h2>
+          <h2>{{ t('admin.panel.overviewTitle') }}</h2>
           <span v-if="updatedText" class="snapshot-age" data-testid="admin-stats-updated">{{ updatedText }}</span>
         </div>
         <div class="stats-grid">
@@ -58,9 +58,9 @@
             </div>
             <div class="stat-content">
               <div class="stat-value" :data-testid="`admin-stat-${card.key}`">
-                <span v-if="card.approximate" class="approx-mark" title="Approximate"><span aria-hidden="true">≈</span><span class="sr-only">approximately </span></span>{{ formatNumber(card.value) }}
+                <span v-if="card.approximate" class="approx-mark" :title="t('admin.panel.approximate')"><span aria-hidden="true">≈</span><span class="sr-only">{{ `${t('admin.panel.approximately')} ` }}</span></span>{{ formatNumber(card.value) }}
               </div>
-              <div class="stat-label">{{ card.label }}</div>
+              <div class="stat-label">{{ t(card.label) }}</div>
               <div v-if="card.change" class="stat-change" :class="{ positive: card.key === 'users' }">{{ card.change }}</div>
             </div>
           </div>
@@ -71,35 +71,35 @@
       <div class="admin-module health-module">
         <div class="module-header">
           <Icon name="health" :size="20" />
-          <h2>System health</h2>
+          <h2>{{ t('admin.panel.healthTitle') }}</h2>
           <div class="health-indicator" :class="healthStatus.class">
-            {{ healthStatus.text }}
+            {{ t(healthStatus.text) }}
           </div>
         </div>
         <div class="health-metrics">
           <div class="metric-card">
             <div class="metric-header">
-              <span>Database</span>
+              <span>{{ t('admin.panel.database') }}</span>
             </div>
-            <div class="metric-value" data-testid="admin-db-response">{{ stats ? `${stats.responseMs}ms` : '—' }}</div>
-            <div class="metric-detail">{{ stats?.database?.connections ?? 0 }} connections</div>
+            <div class="metric-value" data-testid="admin-db-response">{{ stats ? t('admin.panel.responseMs', { ms: stats.responseMs }) : '—' }}</div>
+            <div class="metric-detail">{{ t('admin.panel.connections', { count: stats?.database?.connections ?? 0 }, stats?.database?.connections ?? 0) }}</div>
           </div>
           <div class="metric-card">
             <div class="metric-header">
-              <span>Federation queue</span>
+              <span>{{ t('admin.panel.federationQueue') }}</span>
               <div class="metric-status" :class="queueStatus"></div>
             </div>
             <div class="metric-value">
-              <span v-if="isApproximate('queue_pending')" class="approx-mark" title="Approximate"><span aria-hidden="true">≈</span><span class="sr-only">approximately </span></span>{{ stats?.queue?.pending ?? 0 }}
+              <span v-if="isApproximate('queue_pending')" class="approx-mark" :title="t('admin.panel.approximate')"><span aria-hidden="true">≈</span><span class="sr-only">{{ `${t('admin.panel.approximately')} ` }}</span></span>{{ stats?.queue?.pending ?? 0 }}
             </div>
-            <div class="metric-detail">pending deliveries</div>
+            <div class="metric-detail">{{ t('admin.panel.pendingDeliveries') }}</div>
           </div>
           <div class="metric-card">
             <div class="metric-header">
-              <span>Database size</span>
+              <span>{{ t('admin.panel.databaseSize') }}</span>
             </div>
             <div class="metric-value" data-testid="admin-db-size">{{ stats?.database ? formatBytes(stats.database.sizeBytes) : '—' }}</div>
-            <div class="metric-detail">total size</div>
+            <div class="metric-detail">{{ t('admin.panel.totalSize') }}</div>
           </div>
         </div>
       </div>
@@ -123,6 +123,7 @@
 
     <div v-else-if="activeAdminTab === 'invites'" class="admin-grid single">
       <InstanceInvites />
+      <SignupProviders v-if="hasCapability('signup-methods')" />
       <SignupLimits v-if="hasCapability('signup-limits')" />
       <SignupCaptchaSettings v-if="hasCapability('signup-captcha')" />
     </div>
@@ -187,7 +188,7 @@
       <div class="admin-module performance-module">
         <div class="module-header">
           <Icon name="activity" :size="20" />
-          <h2>Performance monitoring</h2>
+          <h2>{{ t('admin.panel.performanceTitle') }}</h2>
         </div>
         <div class="performance-content">
           <PerformanceMonitoring />
@@ -217,6 +218,7 @@ const UserManagement = defineAsyncComponent(() => import('@/components/admin/Use
 const RecentSignups = defineAsyncComponent(() => import('@/components/admin/RecentSignups.vue'))
 const InstanceInvites = defineAsyncComponent(() => import('@/components/admin/InstanceInvites.vue'))
 const SignupLimits = defineAsyncComponent(() => import('@/components/admin/SignupLimits.vue'))
+const SignupProviders = defineAsyncComponent(() => import('@/components/admin/SignupProviders.vue'))
 const SignupCaptchaSettings = defineAsyncComponent(() => import('@/components/admin/SignupCaptchaSettings.vue'))
 const RetentionCohorts = defineAsyncComponent(() => import('@/components/admin/RetentionCohorts.vue'))
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
@@ -245,24 +247,24 @@ const { isMobile, openLeftSidebar } = useLayoutState()
 const { t } = useI18n()
 
 const adminTabs = [
-  { key: 'overview', label: 'Overview', icon: 'dashboard' },
-  { key: 'federation', label: 'Federation', icon: 'federation' },
-  { key: 'users', label: 'Users', icon: 'users' },
-  { key: 'signups', label: t('adminSignups.tab'), icon: 'user-plus' },
-  { key: 'invites', label: t('adminInvites.tab'), icon: 'user-plus' },
-  { key: 'retention', label: t('adminRetention.tab'), icon: 'trending-up' },
-  { key: 'reports', label: 'Reports', icon: 'flag' },
-  { key: 'servers', label: t('hostStaff.tab'), icon: 'server' },
-  { key: 'antispam', label: t('admin.antiSpam.title'), icon: 'shield' },
-  { key: 'webhooks', label: t('adminWebhooks.tab'), icon: 'link' },
-  { key: 'activities', label: t('playTogether.admin.tab'), icon: 'gamepad' },
-  { key: 'content', label: 'Content', icon: 'megaphone' },
-  { key: 'emojis', label: t('admin.instanceEmojis.tab'), icon: 'emoji' },
-  { key: 'stickers', label: t('stickers.manage.navLabel'), icon: 'sticker' },
-  { key: 'config', label: 'Config', icon: 'settings' },
-  { key: 'funding', label: 'Funding', icon: 'heart' },
-  { key: 'drive', label: t('drive.title'), icon: 'hard-drive' },
-  { key: 'tools', label: 'Tools', icon: 'wrench' },
+  { key: 'overview', label: 'admin.panel.tabs.overview', icon: 'dashboard' },
+  { key: 'federation', label: 'admin.panel.tabs.federation', icon: 'federation' },
+  { key: 'users', label: 'admin.panel.tabs.users', icon: 'users' },
+  { key: 'signups', label: 'adminSignups.tab', icon: 'user-plus' },
+  { key: 'invites', label: 'adminInvites.tab', icon: 'user-plus' },
+  { key: 'retention', label: 'adminRetention.tab', icon: 'trending-up' },
+  { key: 'reports', label: 'admin.panel.tabs.reports', icon: 'flag' },
+  { key: 'servers', label: 'hostStaff.tab', icon: 'server' },
+  { key: 'antispam', label: 'admin.antiSpam.title', icon: 'shield' },
+  { key: 'webhooks', label: 'adminWebhooks.tab', icon: 'link' },
+  { key: 'activities', label: 'playTogether.admin.tab', icon: 'gamepad' },
+  { key: 'content', label: 'admin.panel.tabs.content', icon: 'megaphone' },
+  { key: 'emojis', label: 'admin.instanceEmojis.tab', icon: 'emoji' },
+  { key: 'stickers', label: 'stickers.manage.navLabel', icon: 'sticker' },
+  { key: 'config', label: 'admin.panel.tabs.config', icon: 'settings' },
+  { key: 'funding', label: 'admin.panel.tabs.funding', icon: 'heart' },
+  { key: 'drive', label: 'drive.title', icon: 'hard-drive' },
+  { key: 'tools', label: 'admin.panel.tabs.tools', icon: 'wrench' },
 ] as const
 type AdminTabKey = typeof adminTabs[number]['key']
 
@@ -316,32 +318,32 @@ const isApproximate = (column: string) => stats.value?.approximate.includes(colu
 const statCards = computed(() => {
   const s = stats.value
   return [
-    { key: 'users', icon: 'users', label: 'Total users', value: s?.users.total, approximate: isApproximate('users_total'),
-      change: `+${formatNumber(s?.users.new24h)} in the last 24 hours` },
-    { key: 'servers', icon: 'server', label: 'Chat servers', value: s?.servers.total, approximate: isApproximate('servers_total'),
-      change: `${formatNumber(s?.servers.active30d)} active in the last 30 days` },
-    { key: 'instances', icon: 'federation', label: 'Federated instances', value: s?.instances.total, approximate: false,
+    { key: 'users', icon: 'users', label: 'admin.panel.stats.users', value: s?.users.total, approximate: isApproximate('users_total'),
+      change: t('admin.panel.stats.newLast24h', { count: formatNumber(s?.users.new24h) }) },
+    { key: 'servers', icon: 'server', label: 'admin.panel.stats.servers', value: s?.servers.total, approximate: isApproximate('servers_total'),
+      change: t('admin.panel.stats.activeLast30d', { count: formatNumber(s?.servers.active30d) }) },
+    { key: 'instances', icon: 'federation', label: 'admin.panel.stats.instances', value: s?.instances.total, approximate: false,
       change: '' },
-    { key: 'posts', icon: 'message', label: 'Total posts', value: s?.posts.total, approximate: isApproximate('posts_total'),
-      change: `+${formatNumber(s?.posts.last24h)} in the last 24 hours` },
+    { key: 'posts', icon: 'message', label: 'admin.panel.stats.posts', value: s?.posts.total, approximate: isApproximate('posts_total'),
+      change: t('admin.panel.stats.newLast24h', { count: formatNumber(s?.posts.last24h) }) },
   ]
 })
 
 const updatedText = computed(() => {
   if (!stats.value) return ''
-  if (stats.value.computedAt === null) return stats.value.refreshingElsewhere ? 'Updating…' : ''
-  return `Updated ${formatAge(ageSeconds.value ?? 0)}`
+  if (stats.value.computedAt === null) return stats.value.refreshingElsewhere ? t('admin.panel.updating') : ''
+  return t('admin.panel.updated', { age: formatAge(ageSeconds.value ?? 0) })
 })
 
 const queueStatus = computed(() => (stats.value?.queue?.pending ?? 0) > 100 ? 'warning' : 'healthy')
 
 const systemStatus = computed(() =>
   failed.value
-    ? { class: 'error', text: 'Statistics unavailable' }
-    : { class: 'healthy', text: 'All systems operational' })
+    ? { class: 'error', text: 'admin.panel.statsUnavailable' }
+    : { class: 'healthy', text: 'admin.panel.allOperational' })
 
 const healthStatus = computed(() =>
-  failed.value ? { class: 'error', text: 'Unavailable' } : { class: 'healthy', text: 'Healthy' })
+  failed.value ? { class: 'error', text: 'admin.panel.unavailable' } : { class: 'healthy', text: 'admin.panel.healthy' })
 
 const loadInitialData = () => loadStats(false)
 

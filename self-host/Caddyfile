@@ -308,6 +308,15 @@
 		}
 	}
 
+	# --- Matrix bridge host (matrix profile) ------------------------------------
+	# The application service API a homeserver calls; its registration's url is
+	# https://DOMAIN/matrix-appservice. The host's /health stays internal.
+	@matrixAppservice path_regexp ^/matrix-appservice/_matrix/app/
+	handle @matrixAppservice {
+		uri strip_prefix /matrix-appservice
+		reverse_proxy matrix-bridge-host:9009
+	}
+
 	# nginx answers a proxied prefix location requested without its trailing
 	# slash with a 301 to the slashed form, query kept.
 	@slashless path_regexp ^/(api/livekit|api/federation|webhooks|bot-gateway)$

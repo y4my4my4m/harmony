@@ -24,6 +24,7 @@ vi.mock('../../config/supabase.js', () => ({
 
 import { EventDispatcher, timestampMicros } from '../EventDispatcher.js'
 import { forgetBridgeConsent } from '../../bridge/memberConsent.js'
+import { upstream } from '../../utils/upstreamBackoff.js'
 
 let db: FakeDb
 let sent: Array<{ botIds: string[]; event: any }>
@@ -835,6 +836,21 @@ describe('install changes reach the permission cache within the refresh bound', 
     expect(await deliveredTo('after')).toEqual([])
   })
 
+  it('delivers to a widened install at once when told of the channel, and reads no other server again', async () => {
+    const install = db.rows('bot_server_permissions').find((r) => r.bot_id === OPEN_BOT)!
+    install.allowed_channel_ids = [BRIDGED]
+    expect(await deliveredTo('before')).toEqual([])
+    install.allowed_channel_ids = [BRIDGED, GENERAL]
+    expect(await deliveredTo('cached')).toEqual([])
+    const queries = permissionQueries()
+    await dispatcher.installsChanged('00000000-0000-0000-0000-00000000dead')
+    expect(await deliveredTo('another channel')).toEqual([])
+    expect(permissionQueries()).toBe(queries)
+    await dispatcher.installsChanged(GENERAL)
+
+    expect(await deliveredTo('after')).toEqual([OPEN_BOT])
+  })
+
   it('picks up a new install', async () => {
     db.rows('bot_server_permissions').splice(0)
     expect(await deliveredTo('before')).toEqual([])
@@ -893,6 +909,32 @@ describe('install changes reach the permission cache within the refresh bound', 
       await vi.advanceTimersByTimeAsync(30_000)
       expect(refresh).toHaveBeenCalledTimes(1)
     } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('skips every poll while the API is down, then polls again', async () => {
+    vi.useFakeTimers()
+    try {
+      const d = dispatcher as any
+      const polls = ['pollMessages', 'pollMessageChanges', 'pollReactions', 'pollMemberChanges', 'pollModerationEvents']
+        .map((name) => vi.spyOn(d, name).mockResolvedValue(undefined))
+      // Third failure in a row: a 4 s pause, past the 1 s and 2 s periods.
+      upstream.failed('HTTP 503')
+      await vi.advanceTimersByTimeAsync(1_000)
+      upstream.failed('HTTP 503')
+      await vi.advanceTimersByTimeAsync(2_000)
+      upstream.failed('HTTP 503')
+      expect(upstream.remainingMs()).toBe(4_000)
+      await dispatcher.start()
+      await vi.advanceTimersByTimeAsync(3_900)
+      expect(polls.map((p) => p.mock.calls.length)).toEqual([0, 0, 0, 0, 0])
+
+      await vi.advanceTimersByTimeAsync(200)
+      expect(polls.map((p) => p.mock.calls.length)).toEqual([1, 1, 1, 1, 1])
+      await dispatcher.shutdown()
+    } finally {
+      upstream.succeeded()
       vi.useRealTimers()
     }
   })

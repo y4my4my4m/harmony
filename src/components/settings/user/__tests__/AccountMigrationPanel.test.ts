@@ -34,7 +34,10 @@ const { service, toast, push, session, capability, store, broadcast } = vi.hoist
 vi.mock('@/services/AccountMigrationService', () => ({ accountMigrationService: service }))
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
-  useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => (params ? `${key} ${JSON.stringify(params)}` : key) }),
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, unknown>) => (params ? `${key} ${JSON.stringify(params)}` : key),
+    locale: { value: 'en' },
+  }),
 }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))

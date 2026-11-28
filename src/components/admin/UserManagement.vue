@@ -3,10 +3,10 @@
 <div class="admin-module users-module">
   <div class="module-header">
     <Icon name="users" :size="20" />
-    <h2>User management</h2>
+    <h2>{{ t('admin.users.title') }}</h2>
     <div class="search-bar">
       <Icon name="search" :size="16" />
-      <input v-model="userSearch" placeholder="Search users…" class="cyber-input" />
+      <input v-model="userSearch" :placeholder="t('admin.users.searchPlaceholder')" :aria-label="t('admin.users.searchLabel')" class="cyber-input" />
     </div>
   </div>
   <div class="users-content">
@@ -18,7 +18,7 @@
         :class="['filter-btn', { active: activeUserFilter === filter.key }]"
         :data-testid="`user-filter-${filter.key}`"
       >
-        {{ filter.label }} ({{ filter.approximate ? '≈' : '' }}{{ filter.count }})
+        {{ t('admin.users.filterCount', { label: t(filter.label), count: `${filter.approximate ? '≈' : ''}${filter.count}` }) }}
       </button>
     </div>
     <div class="users-list">
@@ -36,16 +36,16 @@
         <div class="user-info">
           <div class="user-name">
             <DisplayName :user-id="user.id" :fallback="user.display_name || user.username" />
-            <span v-if="user.is_suspended" class="badge suspended">Suspended</span>
-            <span v-if="user.is_admin" class="badge admin">Admin</span>
-            <span v-if="user.is_moderator && !user.is_admin" class="badge moderator">Mod</span>
-            <span v-if="user.force_sensitive" class="badge sensitive" title="All media from this user is force-marked sensitive">F-Sensitive</span>
-            <span v-if="user.is_silenced" class="badge silenced" title="This user is silenced (hidden from public timelines)">Silenced</span>
+            <span v-if="user.is_suspended" class="badge suspended">{{ t('hostStaff.suspendedBadge') }}</span>
+            <span v-if="user.is_admin" class="badge admin">{{ t('admin.users.badgeAdmin') }}</span>
+            <span v-if="user.is_moderator && !user.is_admin" class="badge moderator">{{ t('admin.users.badgeMod') }}</span>
+            <span v-if="user.force_sensitive" class="badge sensitive" :title="t('admin.users.forceSensitiveTitle')">{{ t('admin.users.badgeForceSensitive') }}</span>
+            <span v-if="user.is_silenced" class="badge silenced" :title="t('admin.users.silencedTitle')">{{ t('admin.users.badgeSilenced') }}</span>
           </div>
           <div class="user-meta">
             {{ user.handle }}
             <CopyIdButton :id="user.id" kind="user" :target="user.handle" />
-            <span class="user-joined">Joined {{ formatDate(user.created_at) }}</span>
+            <span class="user-joined">{{ t('admin.users.joined', { date: formatDate(user.created_at) }) }}</span>
             <span v-if="user.is_suspended && user.suspension_reason" class="suspension-reason">
               - {{ user.suspension_reason }}
             </span>
@@ -53,16 +53,16 @@
         </div>
         <div class="user-stats">
           <button @click="navigateToUserPosts(user)" class="user-stat clickable">
-            {{ user.postCount }} {{ user.postCount === 1 ? 'post' : 'posts' }}
+            {{ t('admin.users.postCount', { count: user.postCount }, user.postCount) }}
           </button>
           <button 
             v-if="user.is_local" 
             @click="navigateToUserServers(user)" 
             class="user-stat clickable"
           >
-            {{ user.serverCount }} {{ user.serverCount === 1 ? 'server' : 'servers' }}
+            {{ t('admin.users.serverCount', { count: user.serverCount }, user.serverCount) }}
           </button>
-          <span v-else class="user-stat">federated</span>
+          <span v-else class="user-stat">{{ t('admin.users.federatedStat') }}</span>
         </div>
         <div v-if="user.is_local" class="user-actions">
           <button
@@ -95,7 +95,8 @@
             @click="toggleModerator(user)"
             class="mod-btn"
             :class="user.is_moderator ? 'demote-btn' : 'promote-btn'"
-            :title="user.is_moderator ? 'Remove moderator' : 'Make moderator'"
+            :title="user.is_moderator ? t('admin.users.removeModerator') : t('admin.users.makeModerator')"
+            :aria-label="user.is_moderator ? t('admin.users.removeModerator') : t('admin.users.makeModerator')"
           >
             <Icon :name="user.is_moderator ? 'shield-off' : 'shield'" :size="16" />
           </button>
@@ -103,7 +104,8 @@
             @click="moderateUser(user, user.force_sensitive ? 'unforce_sensitive' : 'force_sensitive')"
             class="mod-btn"
             :class="user.force_sensitive ? 'unsuspend-btn' : 'warning-btn'"
-            :title="user.force_sensitive ? 'Remove force-sensitive' : 'Force all media as sensitive'"
+            :title="user.force_sensitive ? t('admin.users.removeForceSensitive') : t('admin.users.forceSensitive')"
+            :aria-label="user.force_sensitive ? t('admin.users.removeForceSensitive') : t('admin.users.forceSensitive')"
           >
             <Icon :name="user.force_sensitive ? 'eye' : 'eye-off'" :size="16" />
           </button>
@@ -111,7 +113,8 @@
             @click="moderateUser(user, user.is_silenced ? 'unsilence' : 'silence')"
             class="mod-btn"
             :class="user.is_silenced ? 'unsuspend-btn' : 'warning-btn'"
-            :title="user.is_silenced ? 'Remove silence' : 'Silence (hide from public timelines)'"
+            :title="user.is_silenced ? t('admin.users.removeSilence') : t('admin.users.silence')"
+            :aria-label="user.is_silenced ? t('admin.users.removeSilence') : t('admin.users.silence')"
           >
             <Icon :name="user.is_silenced ? 'volume-2' : 'volume-x'" :size="16" />
           </button>
@@ -119,7 +122,8 @@
             v-if="user.is_suspended"
             @click="moderateUser(user, 'unsuspend')" 
             class="mod-btn unsuspend-btn"
-            title="Unsuspend user"
+            :title="t('admin.users.unsuspendUser')"
+            :aria-label="t('admin.users.unsuspendUser')"
           >
             <Icon name="check" :size="16" />
           </button>
@@ -127,7 +131,8 @@
             v-else
             @click="moderateUser(user, 'suspend')" 
             class="mod-btn suspend-btn"
-            title="Suspend user"
+            :title="t('admin.users.suspendUser')"
+            :aria-label="t('admin.users.suspendUser')"
           >
             <Icon name="suspend" :size="16" />
           </button>
@@ -135,7 +140,8 @@
             v-if="isAdmin"
             @click="moderateUser(user, 'delete')" 
             class="mod-btn delete-btn"
-            title="Delete user"
+            :title="t('admin.users.deleteUser')"
+            :aria-label="t('admin.users.deleteUser')"
           >
             <Icon name="delete" :size="16" />
           </button>
@@ -150,16 +156,15 @@
       @click="loadPreviousUsers"
       :disabled="userPagination.offset === 0"
       class="pagination-btn"
-    >Previous</button>
+    >{{ t('admin.instanceEmojis.previous') }}</button>
     <span class="pagination-info">
-      {{ userPagination.offset + 1 }}-{{ Math.min(userPagination.offset + userPagination.limit, userPagination.total) }}
-      of {{ userPagination.total }}
+      {{ t('admin.instanceEmojis.range', { from: userPagination.offset + 1, to: Math.min(userPagination.offset + userPagination.limit, userPagination.total), total: userPagination.total }) }}
     </span>
     <button
       @click="loadNextUsers"
       :disabled="userPagination.offset + userPagination.limit >= userPagination.total"
       class="pagination-btn"
-    >Next</button>
+    >{{ t('admin.instanceEmojis.next') }}</button>
   </div>
 </div>
 
@@ -171,22 +176,24 @@
       <div class="modal-header">
         <h3>
           <Icon name="server" :size="20" />
-          Servers for <DisplayName v-if="selectedUserForServers?.id" :user-id="selectedUserForServers.id" :fallback="selectedUserForServers?.display_name || selectedUserForServers?.username" /><template v-else>{{ selectedUserForServers?.display_name || selectedUserForServers?.username }}</template>
+          <i18n-t keypath="admin.users.serversFor" tag="span">
+            <template #name><DisplayName v-if="selectedUserForServers?.id" :user-id="selectedUserForServers.id" :fallback="selectedUserForServers?.display_name || selectedUserForServers?.username" /><template v-else>{{ selectedUserForServers?.display_name || selectedUserForServers?.username }}</template></template>
+          </i18n-t>
         </h3>
-        <button @click="closeServersModal" class="close-btn">
+        <button @click="closeServersModal" class="close-btn" :aria-label="t('common.close')">
           <Icon name="close" :size="20" />
         </button>
       </div>
       <div class="modal-body">
         <div v-if="loadingServers" class="loading-state">
           <LoadingSpinner :size="20" />
-          <span>Loading servers…</span>
+          <span>{{ t('admin.users.loadingServers') }}</span>
         </div>
         <EmptyState
           v-else-if="userServers.length === 0"
           size="sm"
           icon="server"
-          :title="$t('empty.admin.userServers.title')"
+          :title="t('empty.admin.userServers.title')"
         />
         <div v-else class="servers-list">
           <div 
@@ -207,16 +214,16 @@
             <div class="server-info">
               <div class="server-name">
                 {{ server.name }}
-                <span v-if="server.is_owner" class="badge owner">Owner</span>
+                <span v-if="server.is_owner" class="badge owner">{{ t('hostStaff.ownerBadge') }}</span>
                 <CopyIdButton :id="server.id" kind="server" :target="server.name" />
               </div>
               <div class="server-meta">
                 <span class="member-count">
                   <Icon name="users" :size="12" />
-                  {{ server.member_count }} members
+                  {{ t('server.membersCount', { count: server.member_count }, server.member_count) }}
                 </span>
                 <span class="join-date">
-                  Joined {{ formatDate(server.joined_at) }}
+                  {{ t('admin.users.joined', { date: formatDate(server.joined_at) }) }}
                 </span>
               </div>
             </div>
@@ -224,7 +231,8 @@
               <button 
                 @click="navigateToServer(server.id)" 
                 class="action-btn-sm"
-                title="View server"
+                :title="t('admin.users.viewServer')"
+                :aria-label="t('admin.users.viewServer')"
               >
                 <Icon name="arrow-right" :size="14" />
               </button>
@@ -328,10 +336,10 @@ const userFilters = computed(() => {
   const counts = stats.value?.users
   const approximate = (column: string) => stats.value?.approximate.includes(column) === true
   return [
-    { key: 'all', label: 'All users', count: counts?.total ?? 0, approximate: approximate('users_total') },
-    { key: 'local', label: 'Local', count: counts?.local ?? 0, approximate: approximate('users_local') },
-    { key: 'federated', label: 'Federated', count: counts?.federated ?? 0, approximate: approximate('users_federated') },
-    { key: 'suspended', label: 'Suspended', count: counts?.suspended ?? 0, approximate: approximate('users_suspended') },
+    { key: 'all', label: 'admin.users.filters.all', count: counts?.total ?? 0, approximate: approximate('users_total') },
+    { key: 'local', label: 'admin.users.filters.local', count: counts?.local ?? 0, approximate: approximate('users_local') },
+    { key: 'federated', label: 'admin.users.filters.federated', count: counts?.federated ?? 0, approximate: approximate('users_federated') },
+    { key: 'suspended', label: 'admin.users.filters.suspended', count: counts?.suspended ?? 0, approximate: approximate('users_suspended') },
   ]
 })
 const recordUserChange = (before: UserFlags, after: UserFlags) =>
@@ -390,16 +398,18 @@ const loadPreviousUsers = () => {
 
 const toggleModerator = async (user: any) => {
   const newStatus = !user.is_moderator
-  const label = newStatus ? 'promote to moderator' : 'remove moderator from'
-  if (!(await confirm({ title: 'Moderator status', message: `Are you sure you want to ${label} ${user.username}?`, confirmButtonText: 'Confirm' }))) return
+  const message = newStatus
+    ? t('admin.users.promoteConfirm', { name: user.username })
+    : t('admin.users.demoteConfirm', { name: user.username })
+  if (!(await confirm({ title: t('admin.users.moderatorStatus'), message, confirmButtonText: t('common.confirm') }))) return
 
   try {
     user.is_moderator = await adminService.setModeratorStatus(user.id, newStatus)
-    toast.success(user.is_moderator ? `${user.username} is now a moderator` : `${user.username} is no longer a moderator`)
+    toast.success(user.is_moderator ? t('admin.users.promoted', { name: user.username }) : t('admin.users.demoted', { name: user.username }))
     window.dispatchEvent(new CustomEvent('admin:activity-changed'))
   } catch (error) {
     debug.error('Failed to toggle moderator status:', error)
-    toast.error(error instanceof Error ? error.message : 'Failed to update moderator status')
+    toast.error(error instanceof Error ? error.message : t('admin.users.moderatorFailed'))
   }
 }
 
@@ -423,54 +433,54 @@ const moderateUser = async (user: any, action: string) => {
   const before: UserFlags = { is_local: user.is_local, is_suspended: user.is_suspended }
   try {
     if (action === 'suspend') {
-      const reason = (await prompt({ title: 'Suspend user', message: `Suspend ${user.username}?`, label: 'Reason', confirmButtonText: 'Suspend', dangerAction: true }))?.trim()
+      const reason = (await prompt({ title: t('admin.users.suspendUser'), message: t('admin.users.suspendConfirm', { name: user.username }), label: t('moderation.reason'), confirmButtonText: t('admin.users.suspend'), dangerAction: true }))?.trim()
       if (!reason) return
       await adminService.moderateUser(user.id, 'suspend', reason, authStore.session?.user?.id || '')
       recordUserChange(before, { ...before, is_suspended: true })
       patchUserRow(user.id, { is_suspended: true, suspension_reason: reason })
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
-      toast.success(`User ${user.username} suspended`)
+      toast.success(t('admin.users.suspended', { name: user.username }))
     } else if (action === 'unsuspend') {
-      if (!(await confirm({ title: 'Unsuspend user', message: `Are you sure you want to unsuspend user ${user.username}?`, confirmButtonText: 'Unsuspend' }))) return
+      if (!(await confirm({ title: t('admin.users.unsuspendUser'), message: t('admin.users.unsuspendConfirm', { name: user.username }), confirmButtonText: t('admin.users.unsuspend') }))) return
       await adminService.moderateUser(user.id, 'unsuspend', 'Admin unsuspend', authStore.session?.user?.id || '')
       recordUserChange(before, { ...before, is_suspended: false })
       patchUserRow(user.id, { is_suspended: false, suspension_reason: null })
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
-      toast.success(`User ${user.username} unsuspended`)
+      toast.success(t('admin.users.unsuspended', { name: user.username }))
     } else if (action === 'delete') {
-      if (!(await confirm({ title: 'Delete user', message: `Are you sure you want to delete user ${user.username}? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
+      if (!(await confirm({ title: t('admin.users.deleteUser'), message: t('admin.users.deleteConfirm', { name: user.username }), confirmButtonText: t('common.delete'), dangerAction: true }))) return
       await adminService.moderateUser(user.id, 'delete', 'Admin deletion', authStore.session?.user?.id || '')
       // AdminService's delete is a suspension; the profile row stays.
       recordUserChange(before, { ...before, is_suspended: true })
       patchUserRow(user.id, null)
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
-      toast.success(`User ${user.username} deleted`)
+      toast.success(t('admin.users.deleted', { name: user.username }))
     } else if (action === 'force_sensitive') {
-      const reason = (await prompt({ title: 'Force media sensitive', message: `Mark all media from ${user.username} as sensitive?`, label: 'Reason', confirmButtonText: 'Mark sensitive' }))?.trim()
+      const reason = (await prompt({ title: t('admin.users.forceSensitiveTitleDialog'), message: t('admin.users.forceSensitiveConfirm', { name: user.username }), label: t('moderation.reason'), confirmButtonText: t('admin.reports.actions.markSensitive') }))?.trim()
       if (!reason) return
       await adminService.moderateUser(user.id, 'force_sensitive', reason, authStore.session?.user?.id || '')
       patchUserRow(user.id, { force_sensitive: true })
-      toast.success(`All future media from ${user.username} will be marked sensitive`)
+      toast.success(t('admin.users.forceSensitiveDone', { name: user.username }))
     } else if (action === 'unforce_sensitive') {
-      if (!(await confirm({ title: 'Remove force-sensitive', message: `Remove force-sensitive from ${user.username}?`, confirmButtonText: 'Remove' }))) return
+      if (!(await confirm({ title: t('admin.users.removeForceSensitive'), message: t('admin.users.removeForceSensitiveConfirm', { name: user.username }), confirmButtonText: t('common.remove') }))) return
       await adminService.moderateUser(user.id, 'unforce_sensitive', '', authStore.session?.user?.id || '')
       patchUserRow(user.id, { force_sensitive: false })
-      toast.success(`Force-sensitive removed from ${user.username}`)
+      toast.success(t('admin.users.removeForceSensitiveDone', { name: user.username }))
     } else if (action === 'silence') {
-      const reason = (await prompt({ title: 'Silence user', message: `Hide ${user.username} from public timelines?`, label: 'Reason', confirmButtonText: 'Silence' }))?.trim()
+      const reason = (await prompt({ title: t('admin.users.silenceUser'), message: t('admin.users.silenceConfirm', { name: user.username }), label: t('moderation.reason'), confirmButtonText: t('admin.users.silenceButton') }))?.trim()
       if (!reason) return
       await adminService.moderateUser(user.id, 'silence', reason, authStore.session?.user?.id || '')
       patchUserRow(user.id, { is_silenced: true, silenced_reason: reason })
-      toast.success(`User ${user.username} silenced`)
+      toast.success(t('admin.users.silenced', { name: user.username }))
     } else if (action === 'unsilence') {
-      if (!(await confirm({ title: 'Remove silence', message: `Remove silence from ${user.username}?`, confirmButtonText: 'Remove' }))) return
+      if (!(await confirm({ title: t('admin.users.removeSilence'), message: t('admin.users.removeSilenceConfirm', { name: user.username }), confirmButtonText: t('common.remove') }))) return
       await adminService.moderateUser(user.id, 'unsilence', '', authStore.session?.user?.id || '')
       patchUserRow(user.id, { is_silenced: false, silenced_reason: null })
-      toast.success(`User ${user.username} unsilenced`)
+      toast.success(t('admin.users.unsilenced', { name: user.username }))
     }
   } catch (error: any) {
     debug.error('Failed to moderate user:', error)
-    toast.error(`Failed to ${action} user: ${error.message || 'Unknown error'}`)
+    toast.error(t('admin.users.actionFailed', { name: user.username, error: error.message || t('admin.users.unknownError') }))
   }
 }
 

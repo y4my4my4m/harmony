@@ -12,6 +12,7 @@ import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { redis } from './RedisService.js';
 import type { MemberRoles, ParsedEmoji, ParsedRole } from '../activitypub/copyMirror.js';
+import type { ApWelcome } from '../activitypub/groupWelcome.js';
 import { emojiDomainForms } from '../utils/emojiOrigin.js';
 
 /** Ids per `in` filter: the query string stays under 8 KB with URLs of 80 characters. */
@@ -116,9 +117,56 @@ const PIN_ADVERTS_KEY = (serverId: string) => `copy-pin-adverts:${serverId}`;
 /** The same, for writes Redis did not take. */
 const pinAdvertsInProcess = new Map<string, Map<string, string>>();
 
+function sameInstant(a: unknown, b: unknown): boolean {
+  if (a == null || b == null) return a == null && b == null;
+  return Date.parse(String(a)) === Date.parse(String(b));
+}
+
+/** A stored screen row against the one a Group's harmony:welcome makes. */
+function sameWelcome(current: Record<string, unknown>, next: Record<string, unknown>): boolean {
+  return current.enabled === next.enabled
+    && current.message === next.message
+    && current.require_acceptance === next.require_acceptance
+    && JSON.stringify(current.rules ?? []) === JSON.stringify(next.rules)
+    && sameInstant(current.enabled_at, next.enabled_at)
+    && sameInstant(current.acceptance_required_at, next.acceptance_required_at);
+}
+
 const LOCAL_ACTOR = () => new RegExp(`^https://${config.INSTANCE_DOMAIN.replace(/\./g, '\\.')}/users/([A-Za-z0-9_]+)$`, 'i');
 
 export class CopyMirrorService {
+  /**
+   * The Group's welcome screen on its copy (activitypub/groupWelcome.ts): the copy's
+   * server_welcome_screens row, written whole when it differs. updated_by stays null: no one on
+   * this instance set it.
+   */
+  static async applyGroupWelcome(serverId: string, welcome: ApWelcome): Promise<void> {
+    const supabase = getSupabaseClient();
+    const row = {
+      enabled: welcome.enabled,
+      message: welcome.message,
+      rules: welcome.rules,
+      require_acceptance: welcome.requireAcceptance,
+      enabled_at: welcome.enabledAt,
+      acceptance_required_at: welcome.acceptanceRequiredAt,
+    };
+    const { data: current, error: readError } = await supabase
+      .from('server_welcome_screens')
+      .select('enabled, message, rules, require_acceptance, enabled_at, acceptance_required_at')
+      .eq('server_id', serverId)
+      .maybeSingle();
+    if (readError) {
+      logger.warn(`Welcome screen of copy ${serverId} not read, left as it is: ${readError.message}`);
+      return;
+    }
+    if (current && sameWelcome(current, row)) return;
+    const { error } = await supabase
+      .from('server_welcome_screens')
+      .upsert({ server_id: serverId, ...row, updated_at: new Date().toISOString(), updated_by: null },
+        { onConflict: 'server_id' });
+    if (error) logger.warn(`Welcome screen of copy ${serverId} not stored: ${error.message}`);
+  }
+
   /**
    * The Group's roles on its copy: each stored under its id (the host's UUID where free) with the
    * host's name, colour, position, hoist, mentionable and emoji; a role under the Group that the

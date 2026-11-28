@@ -328,7 +328,7 @@
                 <FederatedUserBadge v-if="getHarmonyProfileUserId(item.message)" :user-id="getHarmonyProfileUserId(item.message)" />
                 <BridgeSourceBadge v-if="getBridgeSource(item.message)" :source="getBridgeSource(item.message)!" />
                 <span v-else-if="getWebhookAuthor(item.message)" class="bot-badge webhook-badge">{{ $t('webhooks.badge') }}</span>
-                <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
+                <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">{{ t('message.badge.bot') }}</span>
                 <span
                   v-if="getInstanceBadge(item.message).value"
                   class="instance-badge"
@@ -337,7 +337,7 @@
                   data-testid="message-staff-badge"
                 >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  <span aria-hidden="true">{{ getInstanceBadge(item.message).value!.kind === 'admin' ? 'ADMIN' : 'MOD' }}</span>
+                  <span aria-hidden="true">{{ getInstanceBadge(item.message).value!.kind === 'admin' ? t('message.badge.admin') : t('message.badge.mod') }}</span>
                   <span class="sr-only">{{ instanceBadgeTitle(getInstanceBadge(item.message).value!) }}</span>
                 </span>
                 <SupporterBadge v-if="getHarmonyProfileUserId(item.message)" :user-id="getHarmonyProfileUserId(item.message)" />
@@ -400,7 +400,7 @@
               class="edited-indicator inline"
               :class="{ 'edit-pending': item.message.edit_pending }"
               :data-testid="item.message.edit_pending ? 'edit-pending' : undefined"
-              :title="item.message.edit_pending ? t('message.editSaving') : item.message.updated_at ? `Edited at ${formatTimestamp(item.message.updated_at)}` : 'Edited'"
+              :title="item.message.edit_pending ? t('message.editSaving') : item.message.updated_at ? t('message.editedAt', { time: formatTimestamp(item.message.updated_at) }) : t('activitypub.edited')"
             >({{ $t('message.edited') }})</span>
           </div>
         </div>
@@ -445,7 +445,7 @@
               class="edited-indicator compact"
               :class="{ 'edit-pending': item.message.edit_pending }"
               :data-testid="item.message.edit_pending ? 'edit-pending' : undefined"
-              :title="item.message.edit_pending ? t('message.editSaving') : item.message.updated_at ? `Edited at ${formatTimestamp(item.message.updated_at)}` : 'Edited'"
+              :title="item.message.edit_pending ? t('message.editSaving') : item.message.updated_at ? t('message.editedAt', { time: formatTimestamp(item.message.updated_at) }) : t('activitypub.edited')"
             >({{ $t('message.edited') }})</span>
           </div>
         </div>
@@ -651,12 +651,12 @@
     :title="deleteConfirmConfig.hide ? t('serverCopy.hide.action', { instance: instanceDomain }) : t('message.deleteMessage')"
     :message="deleteConfirmConfig.hide
       ? t('serverCopy.hide.confirm', { instance: instanceDomain, host: copyHost })
-      : deleteConfirmConfig.hasThread ? t('message.deleteWithThread.message', { name: deleteConfirmConfig.threadName }) : 'Are you sure you want to delete this message? This action cannot be undone.'"
+      : deleteConfirmConfig.hasThread ? t('message.deleteWithThread.message', { name: deleteConfirmConfig.threadName }) : t('message.deleteConfirmUndone')"
     :secondary-message="!deleteConfirmConfig.hide && deleteConfirmConfig.hasThread
       ? t(deleteConfirmConfig.threadKept ? 'message.deleteWithThread.threadKept' : 'message.deleteWithThread.threadDeleted')
       : undefined"
     :confirm-button-text="deleteConfirmConfig.hide ? t('serverCopy.hide.button')
-      : deleteConfirmConfig.hasThread && !deleteConfirmConfig.threadKept ? t('message.deleteWithThread.confirmDeleted') : 'Delete'"
+      : deleteConfirmConfig.hasThread && !deleteConfirmConfig.threadKept ? t('message.deleteWithThread.confirmDeleted') : t('common.delete')"
     @close="cancelDeleteMessage"
     @confirm="confirmDeleteMessage"
   />
@@ -713,7 +713,7 @@ import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { useReadDivider } from '@/composables/useReadDivider';
 import { markChannelRead, markConversationRead } from '@/services/readState';
 import { createReadMarkerQueue, type QueuedRead } from '@/utils/readMarkerQueue';
-import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
+import { isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import BotProfileModal from '@/components/BotProfileModal.vue';
 import type { ServerBot } from '@/services/serverBotsService';
@@ -1294,7 +1294,7 @@ const openThread = (thread: unknown) => {
 // message carries; the thread view fills in the rest.
 const handleOpenThread = (threadId?: string, threadName?: string) => {
   if (!threadId) return;
-  const thread = threadsStore.byId[threadId] ?? { id: threadId, name: threadName || 'Thread' };
+  const thread = threadsStore.byId[threadId] ?? { id: threadId, name: threadName || t('systemEvents.threadFallbackName') };
   emit('createThread', { thread } as any);
 };
 
@@ -1324,12 +1324,12 @@ const encryptionLockTooltip = (message: any): string => {
     return t('messageA11y.encrypted.forgedHint');
   }
   if (message.decryption_unrecoverable) {
-    return "This message can't be decrypted: it was encrypted before your current encryption identity was created (e.g. before a key reset), and the key that could unlock it no longer exists on this account.";
+    return t('messageA11y.encrypted.lostIdentityHint');
   }
   if (canDecryptMessages.value) {
-    return 'End-to-end encrypted - click the message text to decrypt';
+    return t('messageA11y.encrypted.lockClickHint');
   }
-  return 'End-to-end encrypted - unlock encryption (Settings → Privacy & Encryption) to decrypt';
+  return t('messageA11y.encrypted.lockUnlockHintPath', { settings: t('settings.title'), privacy: t('settings.privacy'), encryption: t('channelEncryption.settings.heading') });
 };
 
 // Check encryption status on mount and load threads
@@ -1491,7 +1491,7 @@ const getAuthorDisplayName = (message: Message): ComputedRef<string> => {
       return getUserDisplayName(message.user_id).value;
     }
     
-    return 'Unknown';
+    return t('activitypub.unknown');
   });
 };
 
@@ -2493,7 +2493,7 @@ const currentServerData = computed(() => {
   const currentServer = serverChannelStore.currentServer as any;
   return {
     id: serverId,
-    name: currentServer?.name || 'Unknown Server',
+    name: currentServer?.name || t('message.unknownServer'),
     icon: currentServer?.icon ?? null,
     banner: currentServer?.banner ?? null,
     description: currentServer?.description ?? null,
@@ -3506,9 +3506,10 @@ const shouldShowDateSeparator = (message: Message, index: number): boolean => {
 const formatTimestamp = (timestamp: Date) => {
   const date = new Date(timestamp);
   if (!isValid(date)) return '';
-  if (isToday(date)) return format(date, 'p');
-  if (isYesterday(date)) return `Yesterday at ${format(date, 'p')}`;
-  return format(date, 'MMM d, yyyy \'at\' p');
+  const time = spokenClockFormat.value.format(date);
+  if (isToday(date)) return time;
+  if (isYesterday(date)) return t('message.yesterdayAt', { time });
+  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 };
 
 const isMessageEdited = (message: Message): boolean => {
@@ -3525,24 +3526,25 @@ const isMessageEdited = (message: Message): boolean => {
 const formatTimeOnly = (timestamp: Date) => {
   const date = new Date(timestamp);
   if (!isValid(date)) return '';
-  return format(date, 'p');
+  return spokenClockFormat.value.format(date);
 };
 
 /** Visible lines of a system message's timestamp. */
 const systemTimestampLines = (timestamp: Date): string[] => {
   const date = new Date(timestamp);
   if (!isValid(date)) return [];
-  if (isToday(date)) return [format(date, 'p')];
-  if (isYesterday(date)) return [t('systemEvents.yesterdayAt'), format(date, 'p')];
-  return [format(date, 'MMM d, yyyy'), format(date, 'p')];
+  const time = spokenClockFormat.value.format(date);
+  if (isToday(date)) return [time];
+  if (isYesterday(date)) return [t('systemEvents.yesterdayAt'), time];
+  return [new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium' }).format(date), time];
 };
 
 const formatDateSeparator = (timestamp: Date): string => {
   const date = new Date(timestamp);
   if (!isValid(date)) return '';
-  if (isToday(date)) return 'Today';
-  if (isYesterday(date)) return 'Yesterday';
-  return format(date, 'MMMM d, yyyy');
+  if (isToday(date)) return t('time.today');
+  if (isYesterday(date)) return t('time.yesterday');
+  return spokenDateFormat.value.format(date);
 };
 
 // Message Actions (Edit, Delete, React)
@@ -3950,7 +3952,7 @@ const handleReportMessage = (message: Message) => {
   const displayName = foreign ? null : getUserDisplayName(authorId);
   const avatarUrl = foreign ? null : getUserAvatarUrl(authorId);
   reportTargetUser.value = {
-    username: getBridgedAuthor(message)?.username || foreign?.name || profile?.value?.username || displayName?.value || 'Unknown',
+    username: getBridgedAuthor(message)?.username || foreign?.name || profile?.value?.username || displayName?.value || t('activitypub.unknown'),
     display_name: foreign?.name || displayName?.value || undefined,
     avatar_url: foreign?.avatar_url || avatarUrl?.value || undefined,
     domain: profile?.value?.domain ?? null,
@@ -4190,7 +4192,7 @@ const handleDecryptMessage = async (message: Message) => {
     try {
       useNotificationStore().showToast(
         'server_update',
-        'Could not decrypt message',
+        t('message.decryptFailed'),
         reason,
         6000,
       );

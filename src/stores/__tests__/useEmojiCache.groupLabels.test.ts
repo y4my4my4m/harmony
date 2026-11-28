@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache'
 import { useProfileStore } from '@/stores/useProfile'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { waitForInitialLocale } from '@/i18n'
 
 const ROWS: Record<string, object[]> = {
   user: [{ id: 'u1', name: 'mine', url: 'https://x/mine.png', server_id: null, scope: 'user', uploader: 'me' }],
@@ -56,6 +57,8 @@ vi.mock('@/stores/useInstanceSettings', async () => {
 })
 
 const group = (key: string) => useEmojiCacheStore().resolvedEmojis[key]
+
+beforeAll(async () => { await waitForInitialLocale() })
 
 describe('useEmojiCache personal group labels', () => {
   beforeEach(() => {

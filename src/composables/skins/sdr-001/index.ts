@@ -20,48 +20,59 @@ export const sdr001Skin: Skin = {
     'on blue-black night surfaces, pixel typography, square frames with hard ' +
     'drop shadows, pixel-art icons and an optional CRT scanline overlay. ' +
     'Pairs with the Neo Kobe sound pack. Toggle the decorations below.',
+  descriptionKey: 'settings.appearance.skins.sdr001.description',
   isBeta: true,
   preview: '/assets/skins/sdr-001-preview.png',
   options: [
     {
       id: 'scanline',
       label: 'CRT scanlines',
+      labelKey: 'settings.appearance.skins.sdr001.options.scanline.label',
       description:
         'Static horizontal-line overlay across the viewport. Off while blur ' +
         'effects are disabled.',
+      descriptionKey: 'settings.appearance.skins.sdr001.options.scanline.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'viewport-frame',
       label: 'Viewport edge frame',
+      labelKey: 'settings.appearance.skins.sdr001.options.viewportFrame.label',
       description: 'Hairline red border pinned to the screen edges.',
+      descriptionKey: 'settings.appearance.skins.sdr001.options.viewportFrame.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'hud-badge',
       label: 'SDR-001 HUD badge',
+      labelKey: 'settings.appearance.skins.sdr001.options.hudBadge.label',
       description: 'Small "SDR-001" tag in the top-right corner on wide screens.',
+      descriptionKey: 'settings.appearance.skins.sdr001.options.hudBadge.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'tactical-labels',
       label: 'Tactical text labels',
+      labelKey: 'settings.appearance.skins.sdr001.options.tacticalLabels.label',
       description:
         'Terminal readouts: "//" before channel categories, a cursor on the ' +
         'open channel, "COMMS //" on the voice dock, "TRANSMISSION //" on ' +
         'the voice overlay and bracketed status on the user bar.',
+      descriptionKey: 'settings.appearance.skins.sdr001.options.tacticalLabels.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'icon-flicker',
       label: 'Icon flicker and cursor blink',
+      labelKey: 'settings.appearance.skins.sdr001.options.iconFlicker.label',
       description:
         'Occasional CRT flicker on rail icons and a blinking channel cursor. ' +
         'Off when reduced motion is requested.',
+      descriptionKey: 'settings.appearance.skins.sdr001.options.iconFlicker.description',
       type: 'boolean',
       default: true,
     },
