@@ -4,7 +4,7 @@
     <p class="sp-hint">{{ t('adminSignupProviders.intro') }}</p>
 
     <p v-if="loadError" class="sp-error" role="alert">{{ loadError }}</p>
-    <p v-else-if="loaded && !rows.length" class="sp-hint" data-testid="signup-providers-none">{{ t('adminSignupProviders.none') }}</p>
+    <p v-else-if="loaded && !rows.length" class="sp-hint" data-testid="signup-providers-none">{{ t('adminSignupProviders.noneTab', { tab: t('admin.panel.tabs.config') }) }}</p>
 
     <form v-else-if="loaded" class="sp-form" novalidate @submit.prevent="save">
       <p v-if="switchOn" class="sp-note" role="status" data-testid="signup-providers-switch-on">

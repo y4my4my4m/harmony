@@ -3,74 +3,74 @@
 <div class="admin-module announcements-module">
   <div class="module-header">
     <Icon name="message-square" :size="20" />
-    <h2>Announcements</h2>
+    <h2>{{ t('announcements.title') }}</h2>
     <button @click="showAnnouncementForm = true" class="primary-btn-sm">
       <Icon name="plus" :size="14" />
-      Create
+      {{ t('common.create') }}
     </button>
   </div>
-  <p class="module-hint">Instance-wide announcements shown to users. Create and manage them here.</p>
+  <p class="module-hint">{{ t('admin.announcements.hint') }}</p>
   <div v-if="showAnnouncementForm" class="announcement-form">
-    <h4>{{ editingAnnouncementId ? 'Edit' : 'New' }} announcement</h4>
+    <h4>{{ editingAnnouncementId ? t('admin.announcements.editTitle') : t('admin.announcements.newTitle') }}</h4>
     <div class="form-row">
-      <label>Title</label>
-      <input v-model="announcementForm.title" class="cyber-input" placeholder="Announcement title" />
+      <label>{{ t('admin.announcements.titleLabel') }}</label>
+      <input v-model="announcementForm.title" class="cyber-input" :placeholder="t('admin.announcements.titlePlaceholder')" />
     </div>
     <div class="form-row">
-      <label>Content (supports basic HTML)</label>
-      <textarea v-model="announcementForm.content" class="cyber-input" rows="4" placeholder="Announcement content"></textarea>
+      <label>{{ t('admin.announcements.contentLabel') }}</label>
+      <textarea v-model="announcementForm.content" class="cyber-input" rows="4" :placeholder="t('admin.announcements.contentPlaceholder')"></textarea>
     </div>
     <div class="form-row">
-      <label>Icon (an emoji, or info, warning, megaphone, maintenance, update, security)</label>
+      <label>{{ t('admin.announcements.iconLabel') }}</label>
       <input v-model="announcementForm.icon" class="cyber-input" placeholder="info" />
     </div>
     <div class="form-row">
-      <label>Image URL (optional)</label>
+      <label>{{ t('admin.announcements.imageUrlLabel') }}</label>
       <input v-model="announcementForm.image_url" class="cyber-input" type="url" placeholder="https://..." />
     </div>
     <div class="form-row two-col">
       <div>
-        <label>Starts at (optional)</label>
+        <label>{{ t('admin.announcements.startsAtLabel') }}</label>
         <input
           v-model="announcementForm.starts_at"
           class="cyber-input"
           type="datetime-local"
         />
-        <p class="form-hint">Leave empty to publish immediately. Times are interpreted in your local timezone.</p>
+        <p class="form-hint">{{ t('admin.announcements.startsAtHint') }}</p>
       </div>
       <div>
-        <label>Ends at (optional)</label>
+        <label>{{ t('admin.announcements.endsAtLabel') }}</label>
         <input
           v-model="announcementForm.ends_at"
           class="cyber-input"
           type="datetime-local"
           :min="announcementForm.starts_at || undefined"
         />
-        <p class="form-hint">Leave empty for no expiration. After this time the announcement is hidden from users automatically.</p>
+        <p class="form-hint">{{ t('admin.announcements.endsAtHint') }}</p>
       </div>
     </div>
     <div class="form-row checks">
       <label class="toggle-label">
         <input type="checkbox" v-model="announcementForm.is_pinned" />
         <span class="toggle-slider"></span>
-        <span class="toggle-text">Pinned</span>
+        <span class="toggle-text">{{ t('admin.announcements.pinned') }}</span>
       </label>
       <label class="toggle-label">
         <input type="checkbox" v-model="announcementForm.show_popup" />
         <span class="toggle-slider"></span>
-        <span class="toggle-text">Show popup</span>
+        <span class="toggle-text">{{ t('admin.announcements.showPopup') }}</span>
       </label>
       <label class="toggle-label" v-if="editingAnnouncementId">
         <input type="checkbox" v-model="announcementForm.is_active" />
         <span class="toggle-slider"></span>
-        <span class="toggle-text">Active</span>
+        <span class="toggle-text">{{ t('admin.announcements.active') }}</span>
       </label>
     </div>
     <div class="form-actions">
       <button @click="saveAnnouncement" class="primary-btn-sm" :disabled="!announcementForm.title || !announcementForm.content">
-        {{ editingAnnouncementId ? 'Update' : 'Create' }}
+        {{ editingAnnouncementId ? t('common.update') : t('common.create') }}
       </button>
-      <button @click="cancelAnnouncementForm" class="cyber-btn-sm">Cancel</button>
+      <button @click="cancelAnnouncementForm" class="cyber-btn-sm">{{ t('common.cancel') }}</button>
     </div>
   </div>
   <div class="announcements-list">
@@ -81,14 +81,14 @@
           <Icon v-else :name="announcementIcon(a.icon).name!" :size="18" />
         </span>
         <span class="announcement-title">{{ a.title }}</span>
-        <span v-if="a.is_pinned" class="badge">Pinned</span>
-        <span v-if="!a.is_active" class="badge inactive">Inactive</span>
+        <span v-if="a.is_pinned" class="badge">{{ t('admin.announcements.pinned') }}</span>
+        <span v-if="!a.is_active" class="badge inactive">{{ t('admin.announcements.inactive') }}</span>
       </div>
       <div class="announcement-actions">
-        <button @click="editAnnouncement(a)" class="action-btn-sm" title="Edit">
+        <button @click="editAnnouncement(a)" class="action-btn-sm" :title="t('common.edit')" :aria-label="t('common.edit')">
           <Icon name="edit" :size="14" />
         </button>
-        <button @click="deleteAnnouncement(a.id)" class="danger-btn-sm" title="Delete">
+        <button @click="deleteAnnouncement(a.id)" class="danger-btn-sm" :title="t('common.delete')" :aria-label="t('common.delete')">
           <Icon name="trash" :size="14" />
         </button>
       </div>
@@ -96,8 +96,8 @@
     <EmptyState
       v-if="announcements.length === 0 && !loadingStates.announcements"
       icon="megaphone"
-      :title="$t('empty.admin.announcements.title')"
-      :description="$t('empty.admin.announcements.description')"
+      :title="t('empty.admin.announcements.title')"
+      :description="t('empty.admin.announcements.description')"
     />
   </div>
 </div>
@@ -106,6 +106,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
@@ -115,6 +116,7 @@ import { announcementService, type Announcement } from '@/services/AnnouncementS
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 
+const { t } = useI18n()
 const toast = useToast()
 const { confirm } = useConfirmDialog()
 
@@ -199,7 +201,7 @@ const saveAnnouncement = async () => {
     ? localInputToIso(announcementForm.value.ends_at) ?? null
     : null
   if (startsIso && endsIsoOrNull && new Date(endsIsoOrNull) <= new Date(startsIso)) {
-    toast.error('"Ends at" must be after "Starts at"')
+    toast.error(t('admin.announcements.endBeforeStart'))
     return
   }
   try {
@@ -215,7 +217,7 @@ const saveAnnouncement = async () => {
         starts_at: startsIso,
         ends_at: endsIsoOrNull,
       })
-      toast.success('Announcement updated')
+      toast.success(t('admin.announcements.updated'))
     } else {
       await announcementService.createAnnouncement({
         title: announcementForm.value.title,
@@ -227,13 +229,13 @@ const saveAnnouncement = async () => {
         starts_at: startsIso,
         ends_at: endsIsoOrNull,
       })
-      toast.success('Announcement created')
+      toast.success(t('admin.announcements.created'))
     }
     cancelAnnouncementForm()
     await loadAnnouncements()
   } catch (error: any) {
     debug.error('Failed to save announcement:', error)
-    toast.error(error.message || 'Failed to save announcement')
+    toast.error(error.message || t('admin.announcements.saveFailed'))
   }
 }
 
@@ -273,14 +275,14 @@ const editAnnouncement = (a: Announcement) => {
 }
 
 const deleteAnnouncement = async (id: string) => {
-  if (!(await confirm({ title: 'Delete announcement', message: 'Delete this announcement?', confirmButtonText: 'Delete', dangerAction: true }))) return
+  if (!(await confirm({ title: t('admin.announcements.deleteTitle'), message: t('admin.announcements.deleteMessage'), confirmButtonText: t('common.delete'), dangerAction: true }))) return
   try {
     await announcementService.deleteAnnouncement(id)
-    toast.success('Announcement deleted')
+    toast.success(t('admin.announcements.deleted'))
     await loadAnnouncements()
   } catch (error: any) {
     debug.error('Failed to delete announcement:', error)
-    toast.error(error.message || 'Failed to delete')
+    toast.error(error.message || t('admin.announcements.deleteFailed'))
   }
 }
 

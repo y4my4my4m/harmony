@@ -101,7 +101,7 @@ const handle = computed(() => {
   return domain ? `@${a.username}@${domain}` : `@${a.username}`
 })
 
-const handleTitle = computed(() => `${t('activitypub.replyingTo')} ${handle.value}`)
+const handleTitle = computed(() => t('message.replyingTo', { name: handle.value }))
 
 const parentRoute = computed(() => {
   const id = props.context?.id

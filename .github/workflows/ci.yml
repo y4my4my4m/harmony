@@ -121,6 +121,9 @@ jobs:
 
       - run: npx vue-tsc --build --force
 
+      - name: UI text in locale files
+        run: npm run lint:i18n
+
   federation-type-check:
     name: Type Check (federation-backend)
     runs-on: ubuntu-latest

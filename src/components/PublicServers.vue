@@ -114,6 +114,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useServerStore } from '@/stores/server'
 import { useAuthStore } from '@/stores/auth'
@@ -147,6 +148,7 @@ const serverStore = useServerStore()
 const authStore = useAuthStore()
 const { triggerMessage } = useHapticSettings()
 const toast = useToast()
+const { t } = useI18n()
 const openServer = useOpenServer()
 
 const searchQuery = ref('')
@@ -248,7 +250,7 @@ const setServerLoading = (serverId: string, loading: boolean) => {
 const handleJoinServer = async (serverId: string) => {
   const userId = authStore.session?.user?.id
   if (!userId) {
-    toast.error('Sign in to join servers')
+    toast.error(t('federation.directory.signInToJoin'))
     return
   }
 
@@ -264,7 +266,7 @@ const handleJoinServer = async (serverId: string) => {
     closeModal()
   } catch (error) {
     debug.error('Error joining server:', error)
-    toast.error("Couldn't join server. Try again.")
+    toast.error(t('federation.directory.joinFailed'))
   } finally {
     setServerLoading(serverId, false)
   }
@@ -289,11 +291,11 @@ const handleViewOwnerProfile = async (userId: string) => {
     if (selectedUser.value) {
       showUserProfile.value = true
     } else {
-      toast.error("Couldn't load user profile")
+      toast.error(t('federation.directory.profileFailed'))
     }
   } catch (error) {
     debug.error('Error loading user profile:', error)
-    toast.error("Couldn't load user profile")
+    toast.error(t('federation.directory.profileFailed'))
   }
 }
 

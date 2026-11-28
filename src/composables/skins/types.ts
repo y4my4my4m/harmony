@@ -53,6 +53,8 @@ export interface Skin {
   name: string
   /** One-paragraph picker description. */
   description: string
+  /** vue-i18n key; when set, the picker shows it instead of description. */
+  descriptionKey?: string
   /** When true, picker shows a "Beta" badge. */
   isBeta?: boolean
   /** Preview image path (relative to /public). */

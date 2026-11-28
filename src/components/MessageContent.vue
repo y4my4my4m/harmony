@@ -7,13 +7,20 @@
       @keydown="handleKeyDown"
       @input="handleInput"
       class="edit-textarea"
-      :placeholder="'Edit message'"
+      :placeholder="$t('message.editMessage')"
       ref="editTextarea"
       rows="1"
       @dragstart.prevent
     ></textarea>
     <div class="edit-actions">
-      <span class="edit-hint">escape to <span class="edit-action" @click="handleCancelEdit">cancel</span> • enter to <span class="edit-action" @click="handleSaveEdit">save</span></span>
+      <i18n-t keypath="message.editHint" scope="global" tag="span" class="edit-hint">
+        <template #cancel>
+          <span class="edit-action" @click="handleCancelEdit">{{ $t('message.cancel') }}</span>
+        </template>
+        <template #save>
+          <span class="edit-action" @click="handleSaveEdit">{{ $t('message.save') }}</span>
+        </template>
+      </i18n-t>
     </div>
     <!-- Auto-suggest component -->
     <AutoSuggest

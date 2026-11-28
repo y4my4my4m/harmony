@@ -65,7 +65,7 @@ test('Overview reads one snapshot and Refresh recomputes it', async ({ page }) =
   const firstStats = page.waitForResponse((r) => r.url().includes('/rest/v1/rpc/admin_instance_stats'))
   await page.goto('/admin')
   const snapshot = await (await firstStats).json()
-  await expect(page.getByTestId('admin-stats-updated')).toHaveText(/^Updated (just now|\d+ min ago)$/, { timeout: 20000 })
+  await expect(page.getByTestId('admin-stats-updated')).toHaveText(/^Updated (just now|\d+ minutes? ago)$/, { timeout: 20000 })
   await page.waitForLoadState('networkidle')
 
   expect(statsRequests(seen).map((r) => r.body)).toEqual(['{"p_refresh":false}'])

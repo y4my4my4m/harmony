@@ -799,7 +799,7 @@ const handleFavorite = async (postId: string) => {
   if (result.success) {
     await loadPostWithContext();
   } else {
-    toast.error(result.error || 'Failed to favorite post');
+    toast.error(result.error || t('activitypub.interactionErrors.favorite'));
   }
 };
 
@@ -809,7 +809,7 @@ const handleReblog = async (postId: string) => {
     await loadPostWithContext();
     toast.success(result.reblogged ? t('activitypub.boostedToast') : t('activitypub.boostRemoved'));
   } else {
-    toast.error(result.error || 'Failed to reblog post');
+    toast.error(result.error || t('activitypub.interactionErrors.boost'));
   }
 };
 
@@ -817,9 +817,9 @@ const handleBookmark = async (postId: string) => {
   const result = await toggleBookmark(postId);
   if (result.success) {
     await loadPostWithContext();
-    toast.success(result.bookmarked ? 'Post bookmarked' : 'Bookmark removed');
+    toast.success(result.bookmarked ? t('activitypub.bookmarked') : t('activitypub.unbookmarked'));
   } else {
-    toast.error(result.error || 'Failed to bookmark post');
+    toast.error(result.error || t('activitypub.interactionErrors.bookmark'));
   }
 };
 
@@ -850,12 +850,12 @@ const sharePost = async () => {
 
   const url = getPostUrl();
   const firstTextContent = mainPost.value.content.find(c => c.type === 'text');
-  const previewText = firstTextContent?.type === 'text' ? firstTextContent.text : 'Check out this post';
+  const previewText = firstTextContent?.type === 'text' ? firstTextContent.text : t('activitypub.shareSheet.text');
   
   if (navigator.share) {
     try {
       await navigator.share({
-        title: 'Harmony Post',
+        title: t('activitypub.shareSheet.title'),
         text: previewText.substring(0, 100) + '...',
         url
       });

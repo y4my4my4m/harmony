@@ -2,7 +2,7 @@
   <div class="android-push">
     <div class="android-push-status">
       <div>
-        <h4 class="android-push-title">Push on this device</h4>
+        <h4 class="android-push-title">{{ t('settings.notifications.android.title') }}</h4>
         <p class="android-push-active">
           {{ activeLabel }}<span v-if="statusNote"> · {{ statusNote }}</span>
         </p>
@@ -14,15 +14,15 @@
         @click="allowNotifications"
       >
         <Icon name="bell" />
-        <span>{{ permissionState === 'denied' ? 'Open notification settings' : 'Allow notifications' }}</span>
+        <span>{{ permissionState === 'denied' ? t('settings.notifications.android.openSettings') : t('settings.notifications.android.allow') }}</span>
       </button>
     </div>
 
     <p v-if="!status" class="android-push-note">
-      Push status is unavailable in this build. Notifications still appear while Harmony runs.
+      {{ t('settings.notifications.android.unavailable') }}
     </p>
 
-    <div v-else class="android-push-options" role="radiogroup" aria-label="Push service">
+    <div v-else class="android-push-options" role="radiogroup" :aria-label="t('settings.notifications.android.service')">
       <label
         v-for="option in options"
         :key="option.value"
@@ -45,15 +45,14 @@
     </div>
 
     <p v-if="status && status.unifiedPush.distributors.length === 0" class="android-push-note">
-      To receive push without Google services, install a UnifiedPush distributor such as ntfy,
-      then pick it here.
+      {{ t('settings.notifications.android.noDistributor') }}
     </p>
 
     <div v-if="isActive" class="android-push-actions">
       <button class="android-push-btn" :disabled="busy" @click="sendTest">
         <Icon v-if="testing" name="loader" class="spinning" />
         <Icon v-else name="send" />
-        <span>Send test push</span>
+        <span>{{ t('settings.notifications.android.sendTest') }}</span>
       </button>
     </div>
   </div>
@@ -64,9 +63,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import { usePushNotifications } from '@/composables/usePushNotifications'
-import { type TransportPreference, fcmDirect, relayReady, transportLabel } from '@/services/androidPush'
+import { useI18n } from 'vue-i18n'
+import { type TransportPreference, fcmDirect, relayReady } from '@/services/androidPush'
 
 const toast = useToast()
+const { t } = useI18n()
 const push = usePushNotifications()
 const busy = ref(false)
 const testing = ref(false)
@@ -79,22 +80,34 @@ const permissionState = computed(() => status.value?.permission ?? 'granted')
 const isActive = computed(() => push.isSubscribed.value && choice.value?.kind !== 'off' && permissionState.value === 'granted')
 
 const activeLabel = computed(() => {
-  if (!status.value) return 'Off'
-  return transportLabel(choice.value, status.value.unifiedPush.distributors)
+  const c = choice.value
+  if (!status.value || !c || c.kind === 'off') return t('settings.notifications.android.off')
+  if (c.kind === 'fcm') return 'Google (FCM)'
+  if (c.kind === 'relay') return t('settings.notifications.android.fcmThrough', { host: hostOf(c.origin) })
+  const name = status.value.unifiedPush.distributors.find(d => d.id === c.distributor)?.name || c.distributor
+  return t('settings.notifications.android.unifiedPushVia', { name })
 })
 
 const statusNote = computed(() => {
   const c = choice.value
   if (!status.value || !c) return ''
-  if (permissionState.value !== 'granted') return 'notifications are not allowed'
+  if (permissionState.value !== 'granted') return t('settings.notifications.android.note.notAllowed')
   if (c.kind === 'off') {
-    if (c.reason === 'choose_distributor') return 'pick a push service below'
-    if (c.reason === 'unavailable') return 'no push service is available'
+    if (c.reason === 'choose_distributor') return t('settings.notifications.android.note.chooseService')
+    if (c.reason === 'unavailable') return t('settings.notifications.android.note.noService')
     return ''
   }
   if (push.error.value) return push.error.value
-  return push.isSubscribed.value ? 'active' : 'registering'
+  return push.isSubscribed.value ? t('settings.notifications.android.note.active') : t('settings.notifications.android.note.registering')
 })
+
+function hostOf(origin: string): string {
+  try {
+    return new URL(origin).host
+  } catch {
+    return origin
+  }
+}
 
 // Google reaches this device directly, or through the relay when the server cannot.
 const googleDirect = computed(() => !!status.value && !!server.value && fcmDirect(status.value, server.value))
@@ -103,18 +116,18 @@ const googleRelayed = computed(() =>
 
 const fcmHint = computed(() => {
   const fcm = status.value?.fcm
-  if (fcm === 'no_config') return 'Not included in this build'
-  if (fcm === 'no_play_services') return 'Needs Google Play Services'
+  if (fcm === 'no_config') return t('settings.notifications.android.hint.notInBuild')
+  if (fcm === 'no_play_services') return t('settings.notifications.android.hint.needsPlay')
   if (server.value && !googleDirect.value && googleRelayed.value) {
-    return `Delivered through Google, relayed by ${new URL(push.relaySupport.value!.origin).host}`
+    return t('settings.notifications.android.hint.googleRelayed', { host: new URL(push.relaySupport.value!.origin).host })
   }
-  if (server.value && !googleDirect.value) return 'Not configured on this server'
-  return 'Delivered through Google'
+  if (server.value && !googleDirect.value) return t('settings.notifications.android.hint.notConfigured')
+  return t('settings.notifications.android.hint.google')
 })
 
 const options = computed(() => {
   const list: Array<{ value: TransportPreference; label: string; hint?: string; disabled?: boolean }> = [
-    { value: 'auto', label: 'Automatic', hint: 'A push service you picked, else Google, else a sole UnifiedPush app' },
+    { value: 'auto', label: t('settings.notifications.android.auto'), hint: t('settings.notifications.android.hint.auto') },
     {
       value: 'fcm',
       label: 'Google (FCM)',
@@ -125,12 +138,12 @@ const options = computed(() => {
   for (const d of status.value?.unifiedPush.distributors ?? []) {
     list.push({
       value: `unifiedpush:${d.id}`,
-      label: `UnifiedPush via ${d.name}`,
-      hint: server.value?.unifiedpush === false ? 'Not configured on this server' : 'Delivered through your own push service',
+      label: t('settings.notifications.android.unifiedPushVia', { name: d.name }),
+      hint: server.value?.unifiedpush === false ? t('settings.notifications.android.hint.notConfigured') : t('settings.notifications.android.hint.ownService'),
       disabled: server.value?.unifiedpush === false,
     })
   }
-  list.push({ value: 'off', label: 'Off', hint: 'Notifications only while Harmony runs' })
+  list.push({ value: 'off', label: t('settings.notifications.android.off'), hint: t('settings.notifications.android.hint.off') })
   return list
 })
 
@@ -158,8 +171,8 @@ async function sendTest() {
   busy.value = true
   try {
     const result = await push.sendTestNotification()
-    if (result.success) toast.success('Test push sent')
-    else toast.error(result.error || 'Failed to send test push')
+    if (result.success) toast.success(t('settings.notifications.android.testSent'))
+    else toast.error(result.error || t('settings.notifications.android.testFailed'))
   } finally {
     testing.value = false
     busy.value = false

@@ -12,21 +12,21 @@
         <span v-else class="invite-consent__icon-fallback">{{ serverInitial }}</span>
       </div>
 
-      <p class="invite-consent__muted">You've been invited to join</p>
+      <p class="invite-consent__muted">{{ t('invite.invitedToJoin') }}</p>
       <h2 class="invite-consent__title">{{ serverName }}</h2>
 
       <div class="invite-consent__meta">
         <span class="meta-dot"></span>
-        <span>{{ memberCount }} {{ memberCount === 1 ? 'member' : 'members' }}</span>
+        <span>{{ t('invite.modal.members', memberCount) }}</span>
       </div>
 
       <p v-if="description" class="invite-consent__description">{{ description }}</p>
 
       <button class="invite-consent__btn primary" :disabled="joining" @click="$emit('accept')">
-        {{ joining ? 'Joining…' : acceptLabel }}
+        {{ joining ? t('invite.joining') : acceptLabel }}
       </button>
       <button class="invite-consent__btn ghost" @click="$emit('close')">
-        No thanks
+        {{ t('invite.noThanks') }}
       </button>
     </div>
   </BaseModal>
@@ -34,6 +34,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import BaseModal from '@/components/common/BaseModal.vue'
 
 const props = defineProps<{
@@ -52,9 +53,11 @@ defineEmits<{
   accept: []
 }>()
 
+const { t } = useI18n()
+
 const serverInitial = computed(() => props.serverName?.charAt(0).toUpperCase() || 'S')
 const acceptLabel = computed(() =>
-  props.acceptAsName ? `Accept as ${props.acceptAsName}` : 'Accept invite'
+  props.acceptAsName ? t('invite.acceptAs', { name: props.acceptAsName }) : t('invite.accept')
 )
 </script>
 

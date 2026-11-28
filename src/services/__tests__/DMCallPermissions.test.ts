@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 
 // Caller and receiver gates for DM calls. Busy is a DM call on the receiving
 // client, never a server voice channel; mute silences the ring instead of
@@ -40,6 +40,7 @@ vi.mock('@/services/DMCallSignaling', () => ({
 }))
 
 import { dmCallPermissions } from '@/services/DMCallPermissions'
+import { waitForInitialLocale } from '@/i18n'
 
 const CALLER = 'caller'
 const ME = 'me'
@@ -54,6 +55,8 @@ beforeEach(() => {
   voice.effectiveChannelId = null
   voice.effectiveServerId = null
 })
+
+beforeAll(async () => { await waitForInitialLocale() })
 
 describe('canReceiveCall', () => {
   it('rings normally with no mute', async () => {

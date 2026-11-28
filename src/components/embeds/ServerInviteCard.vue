@@ -116,7 +116,7 @@ async function loadInviteData() {
 
   const { info: resolved, error: resolveError } = await getInviteInfo(props.inviteCode);
   if (resolveError || !resolved) {
-    error.value = resolveError || 'Failed to load invite details';
+    error.value = resolveError || t('embeds.invite.loadFailed');
     loading.value = false;
     return;
   }
@@ -136,7 +136,7 @@ const bannerUrl = computed(() =>
 // runs the shared pipeline (which may add the rules step)
 function handleJoin() {
   if (!authStore.session?.user?.id) {
-    toast.warning('Log in to join servers');
+    toast.warning(t('federation.directory.signInToJoin'));
     return;
   }
   showAcceptModal.value = true;

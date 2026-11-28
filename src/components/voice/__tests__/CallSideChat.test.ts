@@ -14,7 +14,10 @@ const { stub } = vi.hoisted(() => ({
   }),
 }))
 
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, args?: Record<string, unknown>) => (args ? `${key}:${JSON.stringify(args)}` : key) }) }))
+// Partial: the import graph reaches @/i18n, which calls createI18n.
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
+  useI18n: () => ({ t: (key: string, args?: Record<string, unknown>) => (args ? `${key}:${JSON.stringify(args)}` : key) }) }))
 vi.mock('@/components/common/UnifiedContentArea.vue', () => stub('UnifiedContentArea'))
 vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
 vi.mock('@/stores/useChat', () => ({ useChatStore: () => ({ messages: [{ id: 'm1' }] }) }))

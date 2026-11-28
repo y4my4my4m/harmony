@@ -256,14 +256,14 @@ const userProfile = computed(() => {
   const profileData = getUserProfile(props.userState.userId).value as any;
   return {
     display_name: profileData?.display_name || null,
-    username: profileData?.username || 'Unknown User',
+    username: profileData?.username || t('voice.unknownUser'),
     avatar_url: profileData?.avatar_url || '/default_avatar.webp',
     banner_url: withRenderFallback(getBannerUrl(profileData?.bannerUrl || profileData?.banner_url)),
   };
 });
 
 const displayName = computed(() =>
-  userProfile.value.display_name || userProfile.value.username || 'Unknown User'
+  userProfile.value.display_name || userProfile.value.username || t('voice.unknownUser')
 );
 
 const isSelf = computed(() => props.userState.userId === voiceStore.localState.userId);

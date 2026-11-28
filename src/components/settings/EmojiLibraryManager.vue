@@ -270,7 +270,7 @@ const emit = defineEmits<{
 
 const BULK = '__bulk__'
 
-const { t } = useT()
+const { t, locale } = useT()
 const toast = useToast()
 const { confirm } = useConfirmDialog()
 const { polite, assertive } = useAnnouncer()
@@ -400,8 +400,8 @@ async function uploadMany(picked: File[]) {
       }
     }
     const succeeded = progress.value.completed
-    if (succeeded > 0) toast.success(t('server.emojisUploadedSuccess', { count: succeeded, plural: succeeded > 1 ? 's' : '' }))
-    if (failed > 0) toast.warning(t('server.emojisFailedToUpload', { count: failed, plural: failed > 1 ? 's' : '' }))
+    if (succeeded > 0) toast.success(t('server.emojisUploaded', { count: succeeded }, succeeded))
+    if (failed > 0) toast.warning(t('server.emojisUploadFailed', { count: failed }, failed))
     if (reason) toast.error(reason)
   } finally {
     uploading.value = false
@@ -467,7 +467,7 @@ async function deleteSelected() {
   if (chosen.length === 0) return
   const ok = await confirm({
     title: t('server.deleteEmoji'),
-    message: t('server.confirmDeleteEmojis', { count: chosen.length, plural: chosen.length > 1 ? 's' : '' }),
+    message: t('server.confirmDeleteEmojiCount', { count: chosen.length }, chosen.length),
     confirmButtonText: t('common.delete'),
     dangerAction: true,
   })
@@ -477,10 +477,10 @@ async function deleteSelected() {
     const { success, failed } = await props.adapter.removeMany(chosen)
     if (success.length > 0) {
       emit('deleted', success)
-      toast.success(t('server.emojisDeletedSuccess', { count: success.length, plural: success.length > 1 ? 's' : '' }))
+      toast.success(t('server.emojisDeleted', { count: success.length }, success.length))
     }
     if (failed.length > 0) {
-      toast.warning(t('server.emojisFailedToDelete', { count: failed.length, plural: failed.length > 1 ? 's' : '' }))
+      toast.warning(t('server.emojisDeleteFailed', { count: failed.length }, failed.length))
     }
     await exitSelectionMode()
     if (props.emojis.length === 0) headingRef.value?.focus()
@@ -549,7 +549,7 @@ function copyName(name: string) {
 }
 
 function formatDate(value: string | Date): string {
-  return new Date(value).toLocaleDateString()
+  return new Date(value).toLocaleDateString(locale.value)
 }
 </script>
 

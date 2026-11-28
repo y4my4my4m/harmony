@@ -26,61 +26,76 @@ export const skyglassSkin: Skin = {
     'glass-orb servers and avatars, chat bubbles and springy menus. Switch the ' +
     'theme to dark for a night lagoon; primary and accent recolour the drawn ' +
     'sky. Pairs with the Skyglass sound pack of glass bells and water drops.',
+  descriptionKey: 'settings.appearance.skins.skyglass.description',
   isBeta: true,
   preview: '/assets/skins/skyglass-preview.svg',
   options: [
     {
       id: 'sky',
       label: 'Sky scene',
+      labelKey: 'settings.appearance.skins.skyglass.options.sky.label',
       description:
         'Clouds, sun glow and light rays over the drawn sky, with the painted ' +
         'wallpaper off. Off leaves a plain gradient.',
+      descriptionKey: 'settings.appearance.skins.skyglass.options.sky.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'wallpaper',
       label: 'Painted wallpaper',
+      labelKey: 'settings.appearance.skins.skyglass.options.wallpaper.label',
       description:
         'A meadow of glossy grass, bubbles and light ribbons; an aurora lagoon in ' +
         'dark theme. Off draws the sky from the theme colours.',
+      descriptionKey: 'settings.appearance.skins.skyglass.options.wallpaper.description',
       type: 'boolean',
       default: false,
     },
     {
       id: 'bubbles',
       label: 'Bubbles',
+      labelKey: 'settings.appearance.skins.skyglass.options.bubbles.label',
       description: 'Glossy bubbles floating in the backdrop.',
+      descriptionKey: 'settings.appearance.skins.skyglass.options.bubbles.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'drift',
       label: 'Drifting bubbles',
+      labelKey: 'settings.appearance.skins.skyglass.options.drift.label',
       description:
         'Bubbles rise slowly. Keeps the GPU busy while glass blur is on; off ' +
         'when reduced motion is requested.',
+      descriptionKey: 'settings.appearance.skins.skyglass.options.drift.description',
       type: 'boolean',
       default: false,
     },
     {
       id: 'gloss',
       label: 'Gel gloss',
+      labelKey: 'settings.appearance.skins.skyglass.options.gloss.label',
       description: 'Split highlights on buttons, badges, server orbs and avatars.',
+      descriptionKey: 'settings.appearance.skins.skyglass.options.gloss.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'chat-bubbles',
       label: 'Chat bubbles',
+      labelKey: 'settings.appearance.skins.skyglass.options.chatBubbles.label',
       description: 'Message text sits in glass bubbles instead of flat rows.',
+      descriptionKey: 'settings.appearance.skins.skyglass.options.chatBubbles.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'ui-sounds',
       label: 'Interface sounds',
+      labelKey: 'settings.appearance.skins.skyglass.options.uiSounds.label',
       description: 'A soft droplet on button and list clicks, from the active sound pack.',
+      descriptionKey: 'settings.appearance.skins.skyglass.options.uiSounds.description',
       type: 'boolean',
       default: true,
     },

@@ -85,7 +85,7 @@
         target="_blank"
         rel="noopener noreferrer nofollow"
         @click.stop="activateStoppedLink"
-        title="Powered by KLIPY"
+        :title="t('auth.poweredBy', { name: 'KLIPY' })"
       >KLIPY</a>
     </div>
     <InlineGifDock
@@ -120,6 +120,7 @@ import {
   mediaTypeToKind,
 } from '@/utils/klipyAttribution';
 import type { Gif, GifResultItem } from '@/types';
+import { useI18n } from 'vue-i18n';
 
 interface Props {
   query: string;
@@ -137,6 +138,7 @@ const emit = defineEmits<{
 }>();
 
 const { isMobile } = useLayoutState();
+const { t } = useI18n();
 
 const items = ref<GifResultItem[]>([]);
 const hoveredGif = ref<string | null>(null);
@@ -147,11 +149,11 @@ const kind = computed(() => mediaTypeToKind(props.mediaType));
 const isClips = computed(() => props.mediaType === 'clips');
 const mediaNoun = computed(() => {
   switch (props.mediaType) {
-    case 'stickers': return 'stickers';
-    case 'clips': return 'clips';
-    case 'memes': return 'memes';
-    case 'ai-emojis': return 'AI emoji';
-    default: return 'GIFs';
+    case 'stickers': return t('gif.kind.stickers');
+    case 'clips': return t('gif.kind.clips');
+    case 'memes': return t('gif.kind.memes');
+    case 'ai-emojis': return t('gif.kind.aiEmoji');
+    default: return t('gif.kind.gifs');
   }
 });
 

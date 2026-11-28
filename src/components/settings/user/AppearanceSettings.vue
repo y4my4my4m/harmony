@@ -165,8 +165,8 @@
             >
               <div class="preset-swatch" :style="{ background: preset.settings.customPrimaryColor }"></div>
               <div class="preset-info">
-                <span class="preset-name">{{ preset.name }}</span>
-                <span class="preset-desc">{{ preset.description }}</span>
+                <span class="preset-name">{{ t(preset.nameKey) }}</span>
+                <span class="preset-desc">{{ t(preset.descriptionKey) }}</span>
               </div>
             </button>
           </div>
@@ -366,16 +366,16 @@
 
       <!-- Import / Export -->
       <div class="theme-import-export-section">
-        <h4 class="section-subtitle">Import and export</h4>
-        <p class="section-help">Export your theme as JSON or import a previously exported theme</p>
+        <h4 class="section-subtitle">{{ $t('settings.appearance.importExport') }}</h4>
+        <p class="section-help">{{ $t('settings.appearance.importExportHelp') }}</p>
         <div class="import-export-buttons">
           <button class="preset-card export-btn" @click="exportTheme">
             <Icon name="download" :size="18" />
-            Export theme
+            {{ $t('settings.appearance.exportTheme') }}
           </button>
           <button class="preset-card import-btn" @click="triggerImportInput">
             <Icon name="upload" :size="18" />
-            Import theme
+            {{ $t('settings.appearance.importTheme') }}
           </button>
           <input
             ref="importFileInput"
@@ -417,7 +417,7 @@
           </div>
 
           <template v-for="(group, gi) in themableVariables" :key="group.category">
-            <div class="var-category-label" :class="{ 'is-first': gi === 0 }">{{ group.category }}</div>
+            <div class="var-category-label" :class="{ 'is-first': gi === 0 }">{{ t(group.labelKey) }}</div>
             <div
               v-for="varName in group.vars"
               :key="varName"
@@ -439,7 +439,7 @@
                   :class="{ invalid: invalidVar?.name === varName }"
                   :value="settings.customCssOverrides?.[varName] || ''"
                   :placeholder="getComputedVar(varName)"
-                  :title="invalidVar?.name === varName ? `Not a CSS colour: ${invalidVar.text}` : undefined"
+                  :title="invalidVar?.name === varName ? $t('settings.appearance.invalidCssColour', { value: invalidVar.text }) : undefined"
                   @change="commitCssOverrideText(varName, $event.target as HTMLInputElement)"
                 />
                 <button
@@ -461,14 +461,11 @@
 
     <div class="settings-section">
       <h3 class="section-title">
-        Skins
-        <span class="beta-badge">Beta</span>
+        {{ $t('settings.appearance.skins.title') }}
+        <span class="beta-badge">{{ $t('today.beta') }}</span>
       </h3>
       <p class="section-description">
-        Skins go beyond colour switching - they bundle a theme, a font, and a
-        set of CSS rules that change borders, corners, decorative overlays and
-        more. Picking one overrides the matching settings above; you can still
-        tweak colours afterwards. Pick "None" to clear the skin layer.
+        {{ $t('settings.appearance.skins.description') }}
       </p>
 
       <div class="skin-options">
@@ -480,11 +477,11 @@
           @click="onSkinChange(null)"
         >
           <div class="skin-card-preview skin-card-preview-none">
-            <span class="skin-card-none-label">None</span>
+            <span class="skin-card-none-label">{{ $t('settings.appearance.skins.none') }}</span>
           </div>
           <div class="skin-card-info">
-            <h4 class="skin-card-name">None</h4>
-            <p class="skin-card-description">Use the raw theme + font you've set above.</p>
+            <h4 class="skin-card-name">{{ $t('settings.appearance.skins.none') }}</h4>
+            <p class="skin-card-description">{{ $t('settings.appearance.skins.noneDescription') }}</p>
           </div>
         </button>
 
@@ -503,9 +500,9 @@
           <div class="skin-card-info">
             <h4 class="skin-card-name">
               {{ skin.name }}
-              <span v-if="skin.isBeta" class="beta-badge beta-badge-inline">Beta</span>
+              <span v-if="skin.isBeta" class="beta-badge beta-badge-inline">{{ $t('today.beta') }}</span>
             </h4>
-            <p class="skin-card-description">{{ skin.description }}</p>
+            <p class="skin-card-description">{{ skin.descriptionKey ? t(skin.descriptionKey) : skin.description }}</p>
           </div>
         </button>
       </div>
@@ -518,7 +515,7 @@
         class="skin-active-options"
       >
         <h4 class="skin-active-options-title">
-          {{ activeSkin?.name }} - decorations
+          {{ $t('settings.appearance.skins.decorations', { skin: activeSkin?.name }) }}
         </h4>
         <div
           v-for="option in activeSkinOptions"
@@ -546,14 +543,13 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Typography</h3>
+      <h3 class="section-title">{{ $t('settings.appearance.typography') }}</h3>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Font</h4>
+          <h4 class="setting-label">{{ $t('settings.appearance.font') }}</h4>
           <p class="setting-description">
-            Choose the typeface used across the entire app. Custom fonts are
-            lazy-loaded, so picking the default doesn't download any extras.
+            {{ $t('settings.appearance.fontDescription') }}
           </p>
         </div>
         <div class="setting-control">
@@ -568,8 +564,8 @@
               :style="{ fontFamily: opt.preview }"
               @click="onFontFamilyChange(opt.id)"
             >
-              <span class="font-family-name">{{ opt.label }}</span>
-              <span class="font-family-sample">The quick brown fox 0123</span>
+              <span class="font-family-name">{{ opt.id === 'system' ? $t('settings.appearance.fontDefault') : opt.label }}</span>
+              <span class="font-family-sample">{{ $t('settings.appearance.fontSample') }}</span>
             </button>
           </div>
         </div>
@@ -903,12 +899,12 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Emoji style</h3>
+      <h3 class="section-title">{{ $t('settings.appearance.emojiStyle') }}</h3>
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Emoji pack</h4>
-          <p class="setting-description">Choose which emoji style to use throughout the app</p>
+          <h4 class="setting-label">{{ $t('settings.appearance.emojiPack') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.emojiPackDescription') }}</p>
         </div>
         <div class="setting-control">
           <div class="emoji-pack-options">
@@ -936,16 +932,15 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Effects</h3>
+      <h3 class="section-title">{{ $t('settings.appearance.effects') }}</h3>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label" :id="`${a11yId}-t12`">Enable blur &amp; glass effects</h4>
+          <h4 class="setting-label" :id="`${a11yId}-t12`">{{ $t('settings.appearance.glassEffects') }}</h4>
           <p class="setting-description" :id="`${a11yId}-t12-desc`">
-            Many surfaces (modals, popovers, the voice dock, the sidebar) use
-            <code>backdrop-filter: blur</code> for a frosted-glass look. Turn
-            off for a flat / sharper UI, or if your device struggles with
-            blur in voice / video calls.
+            <i18n-t keypath="settings.appearance.glassEffectsDescription" tag="span">
+              <template #property><code>backdrop-filter: blur</code></template>
+            </i18n-t>
           </p>
         </div>
         <div class="setting-control">

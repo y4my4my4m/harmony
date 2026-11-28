@@ -11,9 +11,9 @@
       <!-- User Search Section -->
       <div class="search-section">
         <div class="section-header">
-          <h3 class="section-title">Add people</h3>
+          <h3 class="section-title">{{ $t('dm.header.addPeople') }}</h3>
           <p class="section-description">
-            Search for users to {{ isNewGroup ? 'create a group chat with' : 'add to this conversation' }}
+            {{ isNewGroup ? $t('dm.groupInvite.searchHintNew') : $t('dm.groupInvite.searchHintAdd') }}
           </p>
         </div>
 
@@ -22,7 +22,7 @@
             v-model="searchQuery"
             ref="searchInput"
             type="text"
-            placeholder="Search users or @user@domain.com"
+            :placeholder="$t('dm.searchUsersPlaceholder')"
             class="search-input"
             data-testid="group-invite-search"
             :aria-busy="isSearching"
@@ -46,7 +46,7 @@
         <div v-if="searchQuery" class="search-results">
           <div v-if="isSearching && searchResults.length === 0" class="search-loading" role="status">
             <Icon name="loader" class="spinning" />
-            <span>Searching...</span>
+            <span>{{ $t('messageSearch.searching') }}</span>
           </div>
           <EmptyState
             v-else-if="searchResults.length === 0"
@@ -85,9 +85,9 @@
       <!-- Selected Users Section -->
       <div v-if="selectedUsers.length > 0" class="selected-users-section">
         <div class="section-header">
-          <h3 class="section-title">Selected users ({{ selectedUsers.length }})</h3>
+          <h3 class="section-title">{{ $t('dm.groupInvite.selectedUsers', { count: selectedUsers.length }) }}</h3>
           <button @click="clearAllSelections" class="clear-all-btn">
-            Clear all
+            {{ $t('dm.groupInvite.clearAll') }}
           </button>
         </div>
 
@@ -107,7 +107,7 @@
             <button 
               @click="removeUserFromSelection(user.id)"
               class="remove-user-btn"
-              :title="`Remove ${user.display_name || user.username}`"
+              :title="$t('dm.groupInvite.removeUser', { name: user.display_name || user.username })"
             >
               <Icon name="x" />
             </button>
@@ -118,17 +118,17 @@
       <!-- Group Chat Settings (for new groups) -->
       <div v-if="isNewGroup && selectedUsers.length > 0" class="group-settings-section">
         <div class="section-header">
-          <h3 class="section-title">Group settings</h3>
-          <p class="section-description">Configure your new group chat</p>
+          <h3 class="section-title">{{ $t('dm.groupSettings.title') }}</h3>
+          <p class="section-description">{{ $t('dm.groupInvite.configureHint') }}</p>
         </div>
 
         <div class="setting-row">
-          <label for="groupName" class="setting-label">Group name (optional)</label>
+          <label for="groupName" class="setting-label">{{ $t('dm.groupInvite.groupNameOptional') }}</label>
           <input
             id="groupName"
             v-model="groupName"
             type="text"
-            :placeholder="`Chat with ${getGroupNamePreview()}`"
+            :placeholder="$t('dm.groupInvite.groupNamePlaceholder', { names: getGroupNamePreview() })"
             class="setting-input"
             maxlength="100"
           />
@@ -141,10 +141,10 @@
               type="checkbox"
               class="setting-checkbox"
             />
-            Private group
+            {{ $t('dm.groupInvite.privateGroup') }}
           </label>
           <p class="setting-description">
-            Only invited members can join. {{ isPrivateGroup ? 'Members must be added manually.' : 'Members can invite others.' }}
+            {{ isPrivateGroup ? $t('dm.groupInvite.privateHintManual') : $t('dm.groupInvite.privateHintInvite') }}
           </p>
         </div>
       </div>
@@ -152,7 +152,7 @@
       <!-- Existing Participants (for adding to existing conversation) -->
       <div v-if="!isNewGroup && others.length > 0" class="existing-participants-section">
         <div class="section-header">
-          <h3 class="section-title">Current participants ({{ members.length }})</h3>
+          <h3 class="section-title">{{ $t('dm.groupInvite.currentParticipants', { count: members.length }) }}</h3>
         </div>
 
         <div class="participants-list">
@@ -171,7 +171,7 @@
               <div class="user-name"><DisplayName :user-id="participant.id" :fallback="participant.display_name || participant.username" :truncate="true" /></div>
               <div class="user-handle">{{ formatUserHandle(participant) }}</div>
             </div>
-            <div v-if="participant.id === currentUserId" class="you-badge">You</div>
+            <div v-if="participant.id === currentUserId" class="you-badge">{{ $t('today.conversations.you') }}</div>
           </div>
         </div>
       </div>
@@ -180,8 +180,8 @@
       <div v-if="hasExternalUsers" class="federation-notice">
         <Icon name="federation" />
         <div class="notice-content">
-          <strong>Federated group chat</strong>
-          <p>This conversation includes users from other servers. Messages will be federated according to ActivityPub standards.</p>
+          <strong>{{ $t('dm.groupInvite.federatedTitle') }}</strong>
+          <p>{{ $t('dm.groupInvite.federatedText') }}</p>
         </div>
       </div>
     </div>
@@ -189,7 +189,7 @@
     <template #footer>
       <div class="modal-footer-content">
         <button @click="$emit('close')" class="footer-button secondary">
-          Cancel
+          {{ $t('common.cancel') }}
         </button>
         <button 
           @click="handleCreateOrAddUsers"
@@ -211,6 +211,7 @@ import { formatHandle } from '@/utils/handles'
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import { notifyModerationRejection } from '@/services/AutoModService'
 import { useDMStore } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
@@ -237,6 +238,7 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const { t } = useI18n()
 const dmStore = useDMStore()
 const { getCurrentUser } = useUserData()
 
@@ -285,29 +287,27 @@ const {
 watch(searchError, (message) => {
   if (!message) return
   debug.error('Search failed:', message)
-  toast.error('Failed to search users')
+  toast.error(t('dm.groupInvite.searchFailed'))
 })
 
 const modalTitle = computed(() => {
-  return isNewGroup.value ? 'Create group chat' : 'Add people'
+  return isNewGroup.value ? t('dm.groupInvite.createGroupChat') : t('dm.header.addPeople')
 })
 
 const modalSubtitle = computed(() => {
   return isNewGroup.value 
-    ? 'Start a conversation with multiple people'
-    : 'Add more people to this conversation'
+    ? t('dm.groupInvite.subtitleNew')
+    : t('dm.groupInvite.subtitleAdd')
 })
 
 const actionButtonText = computed(() => {
-  if (isProcessing.value) return 'Processing...'
+  if (isProcessing.value) return t('dm.groupInvite.processing')
   if (isNewGroup.value) {
     return selectedUsers.value.length === 1 
-      ? 'Create chat' 
-      : `Create group (${selectedUsers.value.length + 1})`
+      ? t('dm.groupInvite.createChat')
+      : t('dm.groupInvite.createGroup', { count: selectedUsers.value.length + 1 })
   }
-  return selectedUsers.value.length === 1
-    ? 'Add 1 person'
-    : `Add ${selectedUsers.value.length} people`
+  return t('dm.groupInvite.addPeopleCount', selectedUsers.value.length)
 })
 
 const hasExternalUsers = computed(() => {
@@ -370,7 +370,7 @@ const stripShortcodes = (text: string): string => {
 const getGroupNamePreview = (): string => {
   const names = selectedUsers.value.slice(0, 3).map(u => stripShortcodes(u.display_name || u.username))
   if (selectedUsers.value.length > 3) {
-    return `${names.join(', ')} and ${selectedUsers.value.length - 3} others`
+    return t('dm.groupSettings.defaultNameMore', { names: names.join(', '), count: selectedUsers.value.length - 3 })
   }
   return names.join(', ')
 }
@@ -387,7 +387,7 @@ const handleCreateOrAddUsers = async () => {
     }
   } catch (error) {
     debug.error('Operation failed:', error)
-    toast.error('Failed to process request')
+    toast.error(t('dm.groupInvite.requestFailed'))
   } finally {
     isProcessing.value = false
   }
@@ -405,7 +405,7 @@ const createDirectConversation = async () => {
     if (conversationId) {
       emit('conversationCreated', conversationId);
       emit('close');
-      toast.success('Conversation created');
+      toast.success(t('dm.groupInvite.conversationCreated'));
     }
   } catch (error) {
     debug.error('Failed to create direct conversation:', error);
@@ -426,9 +426,9 @@ const createGroupConversation = async () => {
     if (conversationId) {
       emit('conversationCreated', conversationId);
       emit('close');
-      toast.success('Group conversation created');
+      toast.success(t('dm.groupInvite.groupCreated'));
     } else {
-      toast.error('Failed to create group conversation');
+      toast.error(t('dm.groupInvite.groupCreateFailed'));
     }
   } catch (error) {
     debug.error('Failed to create group conversation:', error);
@@ -458,20 +458,20 @@ const addUsersToConversation = async () => {
       if (typeof result === 'string') {
         // New group conversation was created, navigate to it
         emit('conversationCreated', result)
-        toast.success(`Created group conversation with ${selectedUsers.value.length} additional user${selectedUsers.value.length > 1 ? 's' : ''}`)
+        toast.success(t('dm.groupInvite.groupCreatedWith', selectedUsers.value.length))
       } else {
         // Users were added to existing group conversation
         emit('usersAdded', props.conversationId, selectedUsers.value.map(u => u.id))
-        toast.success(`Added ${selectedUsers.value.length} user${selectedUsers.value.length > 1 ? 's' : ''} to conversation`)
+        toast.success(t('dm.groupInvite.usersAdded', selectedUsers.value.length))
       }
       emit('close')
     } else {
-      toast.error('Failed to add users to conversation')
+      toast.error(t('dm.groupInvite.addFailed'))
     }
   } catch (error) {
     debug.error('Failed to add users to conversation:', error)
     if (notifyModerationRejection(error)) return
-    toast.error('Failed to add users to conversation')
+    toast.error(t('dm.groupInvite.addFailed'))
     throw error
   }
 }

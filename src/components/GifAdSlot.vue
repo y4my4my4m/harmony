@@ -15,7 +15,7 @@
         referrerpolicy="no-referrer"
         loading="lazy"
         scrolling="no"
-        title="Advertisement"
+        :title="$t('gif.adFrame')"
       ></iframe>
     </div>
   </div>

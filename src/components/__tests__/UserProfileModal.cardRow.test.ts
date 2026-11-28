@@ -6,16 +6,14 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
+import en from '@/locales/en.json'
 
 const { reads, refreshRemoteProfile } = vi.hoisted(() => ({
   reads: [] as { columns: string; id: string; resolve: (row: Record<string, unknown> | null) => void }[],
   refreshRemoteProfile: vi.fn(async (): Promise<unknown> => null),
 }))
 
-vi.mock('vue-i18n', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('vue-i18n')>()),
-  useI18n: () => ({ t: (key: string) => key }),
-}))
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
   useRoute: () => ({ path: '/social/home', params: {} }),
@@ -133,7 +131,10 @@ const figures = (wrapper: VueWrapper) =>
 const open = (user: Record<string, unknown>) =>
   mount(UserProfileModal, {
     props: { show: true, user: user as any },
-    global: { directives: { 'click-outside': {} } },
+    global: {
+      plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })],
+      directives: { 'click-outside': {} },
+    },
   })
 
 const localRow = (n: number) => ({

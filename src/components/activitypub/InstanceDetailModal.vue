@@ -24,21 +24,21 @@
           <div class="instance-title-block">
             <h2 class="instance-domain">{{ instance.domain }}</h2>
             <p class="instance-software">
-              {{ softwareDisplayName(instance.software) || 'Unknown' }}{{ instance.version ? ` ${instance.version}` : '' }}
+              {{ softwareDisplayName(instance.software) || t('activitypub.unknown') }}{{ instance.version ? ` ${instance.version}` : '' }}
             </p>
           </div>
           <div class="instance-badges">
             <div v-if="instance.is_trusted" class="instance-badge trusted">
               <Icon name="star" :size="14" />
-              Trusted
+              {{ t('instanceDetail.trusted') }}
             </div>
             <div v-if="instance.is_blocked" class="instance-badge blocked">
               <Icon name="shield-off" :size="14" />
-              Blocked
+              {{ t('instanceDetail.blocked') }}
             </div>
           </div>
         </div>
-        <button @click="$emit('close')" class="close-btn" aria-label="Close">
+        <button @click="$emit('close')" class="close-btn" :aria-label="t('common.close')">
           <Icon name="x" :size="18" />
         </button>
       </header>
@@ -46,34 +46,34 @@
       <div class="instance-modal-body">
         <!-- Instance Stats -->
         <section class="modal-section">
-          <h3 class="section-heading">Instance Statistics</h3>
+          <h3 class="section-heading">{{ t('instanceDetail.statistics') }}</h3>
           <div class="stats-grid">
             <div class="stat-card">
               <Icon name="users" :size="22" class="stat-icon" />
               <div class="stat-content">
                 <div class="stat-value">{{ formatNumber(instance.user_count) }}</div>
-                <div class="stat-label">Users</div>
+                <div class="stat-label">{{ t('instanceDetail.users') }}</div>
               </div>
             </div>
             <div class="stat-card">
               <Icon name="message-square" :size="22" class="stat-icon" />
               <div class="stat-content">
                 <div class="stat-value">{{ formatNumber(instance.status_count) }}</div>
-                <div class="stat-label">Posts</div>
+                <div class="stat-label">{{ t('activitypub.posts') }}</div>
               </div>
             </div>
             <div class="stat-card">
               <Icon name="activity" :size="22" class="stat-icon" />
               <div class="stat-content">
                 <div class="stat-value">{{ formatTimeAgo(instance.last_seen_at) }}</div>
-                <div class="stat-label">Last Seen</div>
+                <div class="stat-label">{{ t('activitypub.lastSeen') }}</div>
               </div>
             </div>
             <div class="stat-card">
               <Icon name="link" :size="22" class="stat-icon" />
               <div class="stat-content">
                 <div class="stat-value">{{ instance.connection_count || 0 }}</div>
-                <div class="stat-label">Connections</div>
+                <div class="stat-label">{{ t('instanceDetail.connections') }}</div>
               </div>
             </div>
           </div>
@@ -81,22 +81,22 @@
 
         <!-- About This Instance -->
         <section class="modal-section">
-          <h3 class="section-heading">About This Instance</h3>
+          <h3 class="section-heading">{{ t('instanceDetail.about') }}</h3>
           <div class="info-rows">
             <div class="info-row">
-              <span class="info-label">Description:</span>
+              <span class="info-label">{{ t('instanceDetail.descriptionLabel') }}</span>
               <span class="info-value" v-html="sanitizedDescription"></span>
             </div>
             <div v-if="instance.admin_contact" class="info-row">
-              <span class="info-label">Admin Contact:</span>
+              <span class="info-label">{{ t('instanceDetail.adminContactLabel') }}</span>
               <span class="info-value">{{ instance.admin_contact }}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Instance Type:</span>
+              <span class="info-label">{{ t('instanceDetail.typeLabel') }}</span>
               <span class="info-value">{{ instanceTypeLabel }}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">First Discovered:</span>
+              <span class="info-label">{{ t('instanceDetail.firstDiscoveredLabel') }}</span>
               <span class="info-value">{{ formatDate(instance?.created_at) }}</span>
             </div>
           </div>
@@ -104,19 +104,19 @@
 
         <!-- Federation Status -->
         <section class="modal-section">
-          <h3 class="section-heading">Federation Status</h3>
+          <h3 class="section-heading">{{ t('instanceDetail.federationStatus') }}</h3>
           <div class="fed-status-list">
             <div class="fed-row">
               <div class="fed-indicator" :class="instance.is_blocked ? 'danger' : 'success'">
                 <Icon :name="instance.is_blocked ? 'shield-off' : 'shield-check'" :size="16" />
               </div>
-              <span class="fed-label">{{ instance.is_blocked ? 'Blocked' : 'Federation Enabled' }}</span>
+              <span class="fed-label">{{ instance.is_blocked ? t('instanceDetail.blocked') : t('instanceDetail.federationEnabled') }}</span>
             </div>
             <div class="fed-row">
               <div class="fed-indicator" :class="instance.is_trusted ? 'success' : 'muted'">
                 <Icon :name="instance.is_trusted ? 'star' : 'shield'" :size="16" />
               </div>
-              <span class="fed-label">{{ instance.is_trusted ? 'Trusted Instance' : 'Standard Instance' }}</span>
+              <span class="fed-label">{{ instance.is_trusted ? t('instanceDetail.trustedInstance') : t('instanceDetail.standardInstance') }}</span>
             </div>
             <div class="fed-row">
               <div class="fed-indicator" :class="activityStatus.class">
@@ -129,11 +129,11 @@
 
         <!-- Recent Posts -->
         <section class="modal-section">
-          <h3 class="section-heading">Recent Posts</h3>
+          <h3 class="section-heading">{{ t('instanceDetail.recentPosts') }}</h3>
 
           <div v-if="isLoadingPosts" class="empty-placeholder">
             <Icon name="loader" :size="20" class="spinning" />
-            <span>Loading posts...</span>
+            <span>{{ t('instanceDetail.loadingPosts') }}</span>
           </div>
 
           <div v-else-if="recentPosts.length > 0" class="recent-posts">
@@ -149,9 +149,9 @@
                   <DisplayName
                     v-if="post.author?.id"
                     :userId="post.author.id"
-                    :fallback="post.author?.display_name || post.author?.username || 'Unknown'"
+                    :fallback="post.author?.display_name || post.author?.username || t('activitypub.unknown')"
                   />
-                  <template v-else>{{ post.author?.display_name || post.author?.username || 'Unknown' }}</template>
+                  <template v-else>{{ post.author?.display_name || post.author?.username || t('activitypub.unknown') }}</template>
                   <template v-if="post.author?.username">
                     <span class="post-author-handle">{{ formatHandle(post.author, { full: true }) }}</span>
                   </template>
@@ -180,15 +180,15 @@
       <footer class="instance-modal-footer">
         <button @click="openInNewTab" class="footer-btn secondary">
           <Icon name="external-link" :size="15" />
-          Visit Instance
+          {{ t('instanceDetail.visitInstance') }}
         </button>
         <button @click="copyInstanceUrl" class="footer-btn secondary">
           <Icon name="copy" :size="15" />
-          {{ urlCopied ? 'Copied!' : 'Copy URL' }}
+          {{ urlCopied ? t('common.copied') : t('instanceDetail.copyUrl') }}
         </button>
         <button @click="viewAllPosts" class="footer-btn primary">
           <Icon name="eye" :size="15" />
-          View All Posts
+          {{ t('instanceDetail.viewAllPosts') }}
         </button>
       </footer>
     </div>
@@ -200,6 +200,7 @@ import { formatHandle } from '@/utils/handles'
 import { openLink } from '@/services/outsideLinks';
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import DOMPurify from 'dompurify';
 import { debug } from '@/utils/debug'
 import type { FederatedInstance, TimelinePost } from '@/types';
@@ -212,6 +213,7 @@ import { softwareDisplayName, instanceMonogram } from '@/utils/fediverseSoftware
 import { instanceBannerStyle, instanceIconUrl } from '@/utils/instanceBranding';
 
 const router = useRouter();
+const { t, locale } = useI18n();
 
 interface Props {
   instance: FederatedInstance;
@@ -241,7 +243,7 @@ const INSTANCE_DESCRIPTION_ALLOWED_TAGS = ['br', 'b', 'i', 'em', 'strong', 'a', 
 const INSTANCE_DESCRIPTION_ALLOWED_ATTRS = ['href', 'rel', 'target'];
 
 function sanitizeHtml(raw: string): string {
-  if (!raw) return 'No description available';
+  if (!raw) return t('activitypub.noDescriptionAvailable');
   // Hand off to DOMPurify with a narrow allowlist. The previous hand-rolled
   // walker inlined attribute values into a template string without escaping
   // (` ${attr.name}="${attr.value}"`), so a federated server could break
@@ -263,17 +265,17 @@ function sanitizeHtml(raw: string): string {
 const sanitizedDescription = computed(() => sanitizeHtml(props.instance.description || ''));
 const activityStatus = computed(() => {
   if (!props.instance.last_seen_at) {
-    return { text: 'No activity recorded', icon: 'help-circle', class: 'muted' };
+    return { text: t('instanceDetail.noActivity'), icon: 'help-circle', class: 'muted' };
   }
   const hours = (Date.now() - new Date(props.instance.last_seen_at).getTime()) / (1000 * 60 * 60);
-  if (hours < 24) return { text: 'Active today', icon: 'wifi', class: 'success' };
-  if (hours < 24 * 7) return { text: 'Active this week', icon: 'wifi', class: 'warning' };
-  return { text: `Last active ${formatTimeAgo(props.instance.last_seen_at)}`, icon: 'clock', class: 'muted' };
+  if (hours < 24) return { text: t('instanceDetail.activeToday'), icon: 'wifi', class: 'success' };
+  if (hours < 24 * 7) return { text: t('instanceDetail.activeThisWeek'), icon: 'wifi', class: 'warning' };
+  return { text: t('instanceDetail.lastActive', { time: formatTimeAgo(props.instance.last_seen_at) }), icon: 'clock', class: 'muted' };
 });
 
 const instanceTypeLabel = computed(() => {
   const name = softwareDisplayName(props.instance.software);
-  return name ? `${name} Instance` : 'ActivityPub Instance';
+  return name ? t('instanceDetail.typeNamed', { name }) : t('instanceDetail.typeActivityPub');
 });
 
 const formatNumber = (num: number): string => {
@@ -283,24 +285,24 @@ const formatNumber = (num: number): string => {
 };
 
 const formatTimeAgo = (timestamp: string | null | undefined): string => {
-  if (!timestamp) return 'Unknown';
+  if (!timestamp) return t('activitypub.unknown');
   const ms = Date.now() - new Date(timestamp).getTime();
   const mins = Math.floor(ms / 60_000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t('activitypub.justNow');
+  if (mins < 60) return t('instanceDetail.minutesAgo', { minutes: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t('activitypub.hoursAgo', { hours });
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
+  if (days < 30) return t('activitypub.daysAgo', { days });
   const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
+  if (months < 12) return t('activitypub.monthsAgo', { months });
   const years = Math.floor(months / 12);
-  return `${years}y ago`;
+  return t('instanceDetail.yearsAgo', { years });
 };
 
 const formatDate = (timestamp: string | null | undefined): string => {
-  if (!timestamp) return 'Unknown';
-  return new Date(timestamp).toLocaleDateString('en-US', {
+  if (!timestamp) return t('activitypub.unknown');
+  return new Date(timestamp).toLocaleDateString(locale.value, {
     year: 'numeric',
     month: 'long',
     day: 'numeric'

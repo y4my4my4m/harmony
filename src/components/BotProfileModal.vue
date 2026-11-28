@@ -216,7 +216,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ close: [] }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const toast = useToast()
 const { confirm } = useConfirmDialog()
@@ -264,7 +264,7 @@ const bannerStyle = computed(() => {
 const createdLabel = computed(() => {
   const created = profile.value?.createdAt
   if (!created) return '-'
-  return new Date(created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  return new Date(created).toLocaleDateString(locale.value, { year: 'numeric', month: 'short', day: 'numeric' })
 })
 
 const visibleCommands = computed(() => {

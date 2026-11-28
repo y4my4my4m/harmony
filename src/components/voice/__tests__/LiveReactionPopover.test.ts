@@ -13,7 +13,10 @@ const m = vi.hoisted(() => ({
   record: null as any,
 }))
 
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+// Partial: the import graph reaches @/i18n, which calls createI18n.
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
+  useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/components/common/Icon.vue', () => ({ __esModule: true, default: { name: 'Icon', render: () => null } }))
 vi.mock('@/composables/useFrequentEmojis', () => ({
   useFrequentEmojis: () => ({ getTopEmojis: (n: number) => m.top.slice(0, n), recordEmojiUsage: m.record }),

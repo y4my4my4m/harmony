@@ -220,7 +220,7 @@ import { formatHandle } from '@/utils/handles'
 import { profileHandleParam } from '@/utils/permalinks'
 import CopyHandleButton from './CopyHandleButton.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 // ===== INTERFACE =====
 interface Props {
@@ -402,9 +402,9 @@ const formatCount = (num: number | null): string => (num === null ? '–' : form
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const formatJoinDate = (dateString: string | undefined) => {
-  if (!dateString) return 'Unknown'
+  if (!dateString) return t('activitypub.unknown')
   const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', { 
+  return date.toLocaleDateString(locale.value, { 
     year: 'numeric', 
     month: 'short',
     day: 'numeric' 
@@ -413,11 +413,11 @@ const formatJoinDate = (dateString: string | undefined) => {
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const formatVoiceTime = (minutes: number | undefined) => {
-  if (!minutes) return '0m'
-  if (minutes < 60) return `${minutes}m`
+  if (!minutes) return t('systemEvents.duration.minutes', { m: 0 })
+  if (minutes < 60) return t('systemEvents.duration.minutes', { m: minutes })
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
-  return `${hours}h ${remainingMinutes}m`
+  return t('systemEvents.duration.hoursMinutes', { h: hours, m: remainingMinutes })
 }
 
 const handleClick = () => {

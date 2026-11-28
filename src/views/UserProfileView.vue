@@ -446,7 +446,7 @@ import { FOLLOW_ACTION_KEYS, useFollowAction } from '@/composables/useFollowActi
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { isRemoteProfile, profileCount, remoteCountFields } from '@/utils/profileCounts'
 
-const { t } = useI18n(); 
+const { t, locale } = useI18n();
 
 import { activityPubService } from '@/services/activityPubService';
 import { services } from '@/services';
@@ -454,7 +454,6 @@ import { getBannerUrl, getRawBannerUrl } from '@/utils/bannerUtils';
 import BannerImage from '@/components/common/BannerImage.vue';
 import { getOriginalPost, getOriginalPostId } from '@/utils/postReblog';
 import type { FederatedUser, TimelinePost } from '@/types';
-import { format } from 'date-fns';
 import DOMPurify from 'dompurify';
 
 // Components
@@ -638,7 +637,7 @@ const selectedModalUser = ref<FederatedUser | null>(null);
 // Computed properties
 const plainDisplayName = computed(() => {
   const dn: unknown = user.value?.display_name
-  if (!dn) return user.value?.username || 'Unknown User'
+  if (!dn) return user.value?.username || t('voice.unknownUser')
   if (typeof dn === 'string') return dn
   if (Array.isArray(dn)) {
     return (dn as any[]).map((part: any) => typeof part === 'string' ? part : (part.text || part.content || '')).join('')
@@ -854,7 +853,7 @@ const formatFieldValue = (value: string): string => {
 
 // Methods
 const formatJoinDate = (dateString: string): string => {
-  return format(new Date(dateString), 'MMMM yyyy');
+  return new Intl.DateTimeFormat(locale.value, { month: 'long', year: 'numeric' }).format(new Date(dateString));
 };
 
 const loadUserProfile = async (handle: string, forceRefresh: boolean = false) => {
@@ -911,7 +910,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
               handle: `@${profile.username || currentUsername}@${runtimeConfig.domain as string}`,
               display_name: profile.display_name || profile.username || currentUsername,
               avatar_url: profile.avatar_url || currentUser.user_metadata?.avatar_url || '/default_avatar.webp',
-              bio: profile.bio || 'Fediverse user',
+              bio: profile.bio || t('activitypub.fediverseUser'),
               is_local: true,
               followers_count: activityPubStore.followersCount || 0,
               following_count: activityPubStore.followingCount || 0,
@@ -937,7 +936,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
             handle: `@${handle}@${runtimeConfig.domain as string}`,
             display_name: handle,
             avatar_url: '/default_avatar.webp',
-            bio: 'Fediverse user',
+            bio: t('activitypub.fediverseUser'),
             is_local: true,
             followers_count: 0,
             following_count: 0,
@@ -967,7 +966,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
       ]);
     } else {
       debug.log('User not found');
-      error.value = 'User not found';
+      error.value = t('activitypub.userNotFound');
     }
   } catch (err) {
     debug.error('Failed to load user profile:', err);

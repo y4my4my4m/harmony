@@ -69,6 +69,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   pointer. **↑** in the message box moves into the results, **←**/**→** move between them, **Enter**
   sends and **Esc** returns to the message box. On a touchscreen, press and hold a result; letting
   go sends nothing.
+- **Dutch.** **User settings** → **Language** offers **Nederlands**, and a browser set to Dutch starts
+  in it. The public profile and post pages, the invite badges and cards, and DrawinPhone speak Dutch
+  too, and activity packages may carry an `nl` name and description.
 
 ### Changed
 
@@ -123,9 +126,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   rules now reach its members' instances: they see the welcome screen there, and when the server
   requires accepting the rules, their own instance holds their messages until they accept, as the
   host does for its own members. Servers hosted on Harmony before 1.9.9 send neither.
-- **Dutch.** **User settings** → **Language** offers **Nederlands**, and a browser set to Dutch starts
-  in it. The public profile and post pages, the invite badges and cards, and DrawinPhone speak Dutch
-  too, and activity packages may carry an `nl` name and description.
+- **The chosen language reaches every screen.** The admin panel, **User settings** → **Advanced**, encryption
+  setup, profiles, calls, notifications and toasts showed English text whatever the language; it now comes in the
+  user's language. Dates, times and counts follow the app's language instead of the browser's or US English.
+  Messages that come from the server stay English.
 
 ## [1.9.8] - 2026-11-25
 

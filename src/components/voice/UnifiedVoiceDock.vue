@@ -43,7 +43,7 @@
         <div class="user-avatar-container">
           <Avatar
             :src="currentUserProfile?.avatar_url || '/default_avatar.webp'"
-            :alt="currentUserProfile?.display_name || 'User'"
+            :alt="currentUserProfile?.display_name || t('chatNav.user.fallbackName')"
             size="sm"
             class="user-avatar"
             :class="{ speaking: isCurrentUserSpeaking }"
@@ -62,7 +62,7 @@
           </div>
         </div>
         <div class="user-details">
-          <span class="user-name"><DisplayName v-if="currentUserId" :userId="currentUserId" :fallback="currentUserProfile?.display_name || currentUserProfile?.username || 'Unknown User'" :truncate="true" /></span>
+          <span class="user-name"><DisplayName v-if="currentUserId" :userId="currentUserId" :fallback="currentUserProfile?.display_name || currentUserProfile?.username || t('voice.unknownUser')" :truncate="true" /></span>
           <span class="channel-name">
             <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
             <span v-else class="dock-channel-text">{{ channelName }}</span>
@@ -759,30 +759,30 @@ let dockShouldPreventClick = false;
 // COMPUTED PROPERTIES
 const channelName = computed(() => {
   // effectiveChannelName includes optimistic state
-  return voiceStore.effectiveChannelName || 'Voice Channel';
+  return voiceStore.effectiveChannelName || t('voice.voiceChannel');
 });
 
 const currentUserId = computed(() => authStore.session?.user?.id);
 
 const currentUserProfile = computed(() => {
   if (!currentUserId.value) {
-    return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.webp' };
+    return { display_name: t('voice.unknownUser'), username: t('voice.unknownUser'), avatar_url: '/default_avatar.webp' };
   }
   
   try {
     const user = getUser(currentUserId.value)?.value;
     if (!user) {
-      return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.webp' };
+      return { display_name: t('voice.unknownUser'), username: t('voice.unknownUser'), avatar_url: '/default_avatar.webp' };
     }
     
     return {
       display_name: user.displayName || null,
-      username: user.username || 'Unknown',
+      username: user.username || t('voice.unknownUser'),
       avatar_url: user.avatarUrl || '/default_avatar.webp'
     };
   } catch (error) {
     debug.warn('Error getting current user profile for voice dock:', error);
-    return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.webp' };
+    return { display_name: t('voice.unknownUser'), username: t('voice.unknownUser'), avatar_url: '/default_avatar.webp' };
   }
 });
 
@@ -928,7 +928,7 @@ const activeVideoStream = computed(() => {
 const activeVideoUserName = computed(() => {
   if (!activeVideoUser.value) return '';
   const profile = getUser(activeVideoUser.value.userId)?.value;
-  return profile?.displayName || profile?.username || 'User';
+  return profile?.displayName || profile?.username || t('chatNav.user.fallbackName');
 });
 
 const activeVideoLabel = computed(() => {

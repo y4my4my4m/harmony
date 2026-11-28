@@ -26,7 +26,7 @@
         <div v-else class="conversation-avatar">
           <Avatar
             :src="getAvatarUrl(conversation.other_user?.avatar_url)"
-            :alt="getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'User'"
+            :alt="getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || t('chatNav.user.fallbackName')"
             size="sm"
             style="width:32px;height:32px;"
             :status="otherUserStatus"
@@ -34,7 +34,7 @@
           <div 
             v-if="isFederatedUser" 
             class="federated-indicator"
-            :title="`Federated user from ${conversation.other_user?.domain}`"
+            :title="t('dm.header.federatedUserFrom', { domain: conversation.other_user?.domain })"
           >
             <Icon name="globe" />
           </div>
@@ -48,24 +48,24 @@
             <div class="conversation-status">
               <span v-if="activeCallParticipantCount > 0" class="call-status">
                 <Icon name="phone" :size="12" class="call-icon" />
-                {{ activeCallParticipantCount }} in call
+                {{ t('voice.inCallCount', activeCallParticipantCount) }}
               </span>
               <span v-else class="participant-count">
                 <Icon name="users" :size="12" class="members-icon" />
-                {{ conversation.participant_count || 0 }} member{{ (conversation.participant_count || 0) !== 1 ? 's' : '' }}
+                {{ t('invite.modal.members', conversation.participant_count || 0) }}
               </span>
             </div>
           </template>
 
           <template v-else>
             <h2 class="conversation-name">
-              <DisplayName v-if="conversation.other_user?.id" :user-id="conversation.other_user.id" :fallback="conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...'" />
-              <template v-else>{{ conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...' }}</template>
+              <DisplayName v-if="conversation.other_user?.id" :user-id="conversation.other_user.id" :fallback="conversation.other_user?.display_name || conversation.other_user?.username || t('common.loading')" />
+              <template v-else>{{ conversation.other_user?.display_name || conversation.other_user?.username || t('common.loading') }}</template>
             </h2>
             <div class="conversation-status">
               <span v-if="hasActiveCallNotJoined" class="call-status">
                 <Icon name="phone" :size="12" class="call-icon" />
-                Call in progress
+                {{ t('dm.header.callInProgress') }}
               </span>
               <span v-else-if="isFederatedUser" class="federated-handle" :style="{ color: conversation.other_user?.color || '#0EA5E9' }">
                 {{ conversation.other_user?.handle || `@${conversation.other_user?.username}@${conversation.other_user?.domain}` }}
@@ -74,7 +74,7 @@
                 {{ getStatusText(otherUserStatus) }}
               </span>
               <span v-else class="status">
-                Last seen {{ formatLastSeen(conversation.other_user?.last_seen) }}
+                {{ t('dm.header.lastSeen', { when: formatLastSeen(conversation.other_user?.last_seen) }) }}
               </span>
             </div>
           </template>
@@ -87,10 +87,10 @@
         v-if="hasActiveCallNotJoined"
         class="action-btn join-call-btn"
         @click="joinActiveCall"
-        title="Join call"
+        :title="t('dm.joinCall')"
       >
         <Icon name="phone" :size="16" />
-        <span class="join-text">Join call</span>
+        <span class="join-text">{{ t('dm.joinCall') }}</span>
       </button>
       
       <button 
@@ -98,8 +98,8 @@
         class="action-btn voice-btn"
         :class="{ active: isInVoiceCall }"
         @click="toggleVoiceCall"
-        :title="isInVoiceCall ? 'End voice call' : 'Start voice call'"
-        :aria-label="isInVoiceCall ? 'End voice call' : 'Start voice call'"
+        :title="isInVoiceCall ? t('dm.header.endVoiceCall') : t('dm.header.startVoiceCall')"
+        :aria-label="isInVoiceCall ? t('dm.header.endVoiceCall') : t('dm.header.startVoiceCall')"
         data-testid="dm-call"
       >
         <Icon :name="isInVoiceCall ? 'phone-off' : 'phone'" :size="16" />
@@ -108,7 +108,7 @@
       <button 
         class="action-btn search-btn"
         @click="handleSearchClick"
-        title="Search in conversation"
+        :title="t('dm.header.searchInConversation')"
       >
         <svg viewBox="0 0 24 24" class="search-icon">
           <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" fill="currentColor"/>
@@ -119,8 +119,8 @@
         <button 
           class="action-btn more-btn"
           @click="handleMoreClick"
-          title="More options"
-          aria-label="More options"
+          :title="t('chatNav.header.more')"
+          :aria-label="t('chatNav.header.more')"
           :aria-expanded="showOptionsMenu"
           :class="{ active: showOptionsMenu }"
           data-testid="dm-more"
@@ -139,7 +139,7 @@
             @click="handleMenuAddUser"
           >
             <Icon name="user-plus" :size="16" />
-            <span>Add people</span>
+            <span>{{ t('dm.header.addPeople') }}</span>
           </button>
 
           <button
@@ -148,7 +148,7 @@
             @click="handleMenuVideoCall"
           >
             <Icon :name="isInVideoCall ? 'video-off' : 'video'" :size="16" />
-            <span>{{ isInVideoCall ? 'Turn off camera' : 'Start video call' }}</span>
+            <span>{{ isInVideoCall ? t('dm.header.turnOffCamera') : t('dm.header.startVideoCall') }}</span>
           </button>
 
           <button
@@ -157,17 +157,17 @@
             @click="openGroupSettings"
           >
             <Icon name="settings" :size="16" />
-            <span>Group settings</span>
+            <span>{{ t('dm.groupSettings.title') }}</span>
           </button>
 
           <button class="action-item" @click="handleMenuSearch">
             <Icon name="search" :size="16" />
-            <span>Search messages</span>
+            <span>{{ t('messageSearch.title') }}</span>
           </button>
           
           <button class="action-item" @click="handleNotificationSettings">
             <Icon :name="isConversationMuted ? 'bell-off' : 'bell'" :size="16" />
-            <span>{{ isConversationMuted ? 'Unmute conversation' : 'Mute conversation' }}</span>
+            <span>{{ isConversationMuted ? t('dm.header.unmuteConversation') : t('dm.header.muteConversation') }}</span>
           </button>
           
           <button 
@@ -178,7 +178,7 @@
             :title="encryptionToggleTitle"
           >
             <Icon :name="encryptionEnabled ? 'lock' : 'unlock'" :size="16" />
-            <span>{{ encryptionEnabled ? 'Disable encryption' : 'Enable encryption' }}</span>
+            <span>{{ encryptionEnabled ? t('dm.header.disableEncryption') : t('dm.header.enableEncryption') }}</span>
             <span v-if="encryptionLoading" class="loading-indicator">...</span>
           </button>
           
@@ -190,7 +190,7 @@
             @click="handleLeaveGroup"
           >
             <Icon name="log-out" :size="16" />
-            <span>Leave group</span>
+            <span>{{ t('dm.groupSettings.leaveGroup') }}</span>
           </button>
           
           <button 
@@ -199,7 +199,7 @@
             @click="handleCloseDM"
           >
             <Icon name="x" :size="16" />
-            <span>Close DM</span>
+            <span>{{ t('dm.header.closeDm') }}</span>
           </button>
         </div>
       </div>
@@ -226,38 +226,40 @@
     <div v-if="showEncryptionSetupModal" class="modal-overlay" @click.self="showEncryptionSetupModal = false">
       <div class="modal-content encryption-setup-modal">
         <div class="modal-header">
-          <h3>Encryption setup required</h3>
+          <h3>{{ t('dm.header.encryptionSetup.title') }}</h3>
           <button class="close-btn" @click="showEncryptionSetupModal = false">
             <Icon name="x" :size="20" />
           </button>
         </div>
         <div class="modal-body">
-          <p>To enable encrypted DMs, you need to set up end-to-end encryption first.</p>
+          <p>{{ t('dm.header.encryptionSetup.intro') }}</p>
           <div class="setup-steps">
             <div class="step">
               <span class="step-number">1</span>
-              <span class="step-text">Go to <strong>Settings → Privacy & Security → Encryption</strong></span>
+              <i18n-t keypath="dm.header.encryptionSetup.step1" tag="span" class="step-text">
+                <template #path><strong>{{ t('settings.title') }} → {{ t('settings.privacy') }} → {{ t('channelEncryption.settings.heading') }}</strong></template>
+              </i18n-t>
             </div>
             <div class="step">
               <span class="step-number">2</span>
-              <span class="step-text">Create your recovery key (12-word phrase)</span>
+              <span class="step-text">{{ t('dm.header.encryptionSetup.step2') }}</span>
             </div>
             <div class="step">
               <span class="step-number">3</span>
-              <span class="step-text">Come back here and enable encryption for this conversation</span>
+              <span class="step-text">{{ t('dm.header.encryptionSetup.step3') }}</span>
             </div>
           </div>
           <p class="note">
             <Icon name="info" :size="14" />
-            Your recovery key is the only way to decrypt your messages. Keep it safe.
+            {{ t('dm.header.encryptionSetup.note') }}
           </p>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="showEncryptionSetupModal = false">
-            Cancel
+            {{ t('common.cancel') }}
           </button>
           <button class="btn btn-primary" @click="goToEncryptionSettings">
-            Go to settings
+            {{ t('dm.header.encryptionSetup.goToSettings') }}
           </button>
         </div>
       </div>
@@ -297,7 +299,7 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { dmConversationIdFromChannel, useCallSwitch } from '@/composables/useCallSwitch'
 import { useDMCallJoin } from '@/composables/useDMCallJoin'
 
-const { t } = useT()
+const { t, locale } = useT()
 const { leftDrawerToggle } = useAppDrawers()
 
 const router = useRouter()
@@ -412,8 +414,8 @@ const isConversationMuted = ref(false)
 
 const canToggleEncryption = computed(() => userHasEncryption.value && !encryptionLoading.value)
 const encryptionToggleTitle = computed(() => {
-  if (!userHasEncryption.value) return 'Set up encryption in settings first'
-  return encryptionEnabled.value ? 'Click to disable encryption' : 'Click to enable encryption'
+  if (!userHasEncryption.value) return t('dm.header.encryptionSetupFirst')
+  return encryptionEnabled.value ? t('dm.header.clickToDisableEncryption') : t('dm.header.clickToEnableEncryption')
 })
 
 async function loadEncryptionStatus() {
@@ -450,10 +452,9 @@ async function toggleEncryption() {
 
   if (newState && isFederatedUser.value) {
     const confirmed = await confirm({
-      title: 'Enable encryption',
-      message: 'The other user is on a federated server that may not support Harmony\'s end-to-end encryption. ' +
-        'Encrypted messages may not be readable by them. Do you still want to enable encryption?',
-      confirmButtonText: 'Enable',
+      title: t('dm.header.enableEncryption'),
+      message: t('dm.header.federatedEncryptionWarning'),
+      confirmButtonText: t('dm.header.enable'),
     })
     if (!confirmed) {
       closeActionsMenu()
@@ -486,11 +487,11 @@ async function toggleEncryption() {
       detail: { conversationId: props.conversation.id, enabled: newState }
     }))
 
-    toast.success(newState ? 'Encryption enabled for this conversation' : 'Encryption disabled for this conversation')
+    toast.success(newState ? t('dm.header.encryptionEnabled') : t('dm.header.encryptionDisabled'))
     closeActionsMenu()
   } catch (error) {
     debug.error('Failed to toggle encryption:', error)
-    toast.error('Failed to update encryption setting')
+    toast.error(t('dm.header.encryptionUpdateFailed'))
   } finally {
     encryptionLoading.value = false
   }
@@ -578,7 +579,7 @@ const handleCallSignal = async (signal: CallSignal) => {
       dmCallSignaling.handleRemoteSignal(signal)
       if (inCallOf(conversation.id)) {
         voiceStore.leaveVoiceChannel()
-        toast.info('Call ended')
+        toast.info(t('dm.header.callEnded'))
       }
       break
       
@@ -593,7 +594,7 @@ const handleCallSignal = async (signal: CallSignal) => {
     case 'busy':
       ringRefused = true
       stopCallerRinging()
-      toast.info('User is busy')
+      toast.info(t('dm.busy'))
       // A direct call has nobody else to ring: it ends instead of waiting out the timeout.
       if (conversation.type !== 'group') {
         await abandonOwnRing(currentUserId, conversation.id).catch(error => debug.warn('Cancelling a busy call failed:', error))
@@ -733,19 +734,19 @@ const isFederatedUser = computed(() => dmCallRoute(props.conversation) === 'fede
 const getStatusText = (status: string): string => {
   switch (status) {
     case 'online':
-      return 'Online'
+      return t('user.online')
     case 'away':
-      return 'Away'
+      return t('user.away')
     case 'busy':
-      return 'Do Not Disturb'
+      return t('user.dnd')
     case 'offline':
     default:
-      return 'Offline'
+      return t('user.offline')
   }
 }
 
 const formatLastSeen = (lastSeen?: string): string => {
-  if (!lastSeen) return 'some time ago'
+  if (!lastSeen) return t('dm.header.lastSeenUnknown')
   
   const now = new Date()
   const seen = new Date(lastSeen)
@@ -754,12 +755,12 @@ const formatLastSeen = (lastSeen?: string): string => {
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
   
-  if (diffMins < 1) return 'just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
+  if (diffMins < 1) return t('time.justNow')
+  if (diffMins < 60) return diffMins === 1 ? t('time.minuteAgo') : t('time.minutesAgo', { count: diffMins })
+  if (diffHours < 24) return diffHours === 1 ? t('time.hourAgo') : t('time.hoursAgo', { count: diffHours })
+  if (diffDays < 7) return diffDays === 1 ? t('time.dayAgo') : t('time.daysAgo', { count: diffDays })
   
-  return seen.toLocaleDateString()
+  return seen.toLocaleDateString(locale.value)
 }
 
 const handleSearchClick = () => {
@@ -867,12 +868,12 @@ const handleNotificationSettings = async () => {
       conv.is_muted = newMuted
     }
 
-    toast.success(newMuted ? 'Conversation muted' : 'Conversation unmuted')
+    toast.success(newMuted ? t('dm.header.conversationMuted') : t('dm.header.conversationUnmuted'))
     debug.log(`Conversation ${newMuted ? 'muted' : 'unmuted'}:`, props.conversation.id)
   } catch (error) {
     isConversationMuted.value = !isConversationMuted.value
     debug.error('Failed to toggle conversation mute:', error)
-    toast.error('Failed to update notification setting')
+    toast.error(t('dm.header.notificationUpdateFailed'))
   }
 }
 
@@ -906,7 +907,7 @@ const toggleVoiceCall = async () => {
 
       const profileId = await authContextService.getCurrentProfileId()
       if (!profileId) {
-        toast.error('Authentication required')
+        toast.error(t('auth.errors.authRequired'))
         return
       }
 
@@ -914,7 +915,7 @@ const toggleVoiceCall = async () => {
     }
   } catch (error) {
     debug.error('Error toggling voice call:', error)
-    toast.error('Failed to start call')
+    toast.error(t('dm.header.startCallFailed'))
   }
 }
 
@@ -941,14 +942,14 @@ const startCall = async (profileId: string, callType: 'voice' | 'video', convers
   const receiverIds = localCallReceivers(conversation, profileId)
   if (receiverIds.length === 0) {
     toast.error(conversation.type === 'group'
-      ? 'No members on this instance to call. Group calls do not reach other instances.'
-      : 'No participants to call')
+      ? t('dm.header.noLocalMembersToCall')
+      : t('dm.header.noParticipantsToCall'))
     return
   }
   if (peer?.id) {
     const permissionCheck = await dmCallPermissions.canPlaceCall(profileId, peer.id)
     if (!permissionCheck.allowed) {
-      toast.error(permissionCheck.message || 'Cannot call this user')
+      toast.error(permissionCheck.message || t('dm.header.cannotCallUser'))
       return
     }
   }
@@ -1033,7 +1034,7 @@ const startLocalCall = async (profileId: string, callType: 'voice' | 'video', re
     voiceStore.isOverlayVisible = true
     debug.log(`${callType} call overlay opened for caller`)
   } else {
-    toast.error(voiceStore.joinError || 'Failed to start call')
+    toast.error(voiceStore.joinError || t('dm.header.startCallFailed'))
     // The ring ends with the call: receivers stop ringing, and no "No answer" follows.
     await abandonOwnRing(profileId, conversationId).catch(error => debug.warn('Cancelling the ring of a failed call failed:', error))
   }
@@ -1047,7 +1048,7 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     calleeFederatedId = data?.federated_id ?? undefined
   }
   if (!calleeFederatedId) {
-    toast.error('Cannot determine federated identity for this user')
+    toast.error(t('dm.header.noFederatedIdentity'))
     return
   }
 
@@ -1058,7 +1059,7 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     .single()
 
   if (!myProfile) {
-    toast.error('Failed to get profile info')
+    toast.error(t('dm.header.profileInfoFailed'))
     return
   }
 
@@ -1083,7 +1084,7 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
   }
 
   if (!callInfo) {
-    toast.error('Failed to initiate federated call')
+    toast.error(t('dm.header.federatedCallFailed'))
     return
   }
 
@@ -1098,7 +1099,7 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     voiceStore.isOverlayVisible = true
     debug.log(`Federated ${callType} call initiated`)
   } else {
-    toast.error(voiceStore.joinError || 'Failed to start call')
+    toast.error(voiceStore.joinError || t('dm.header.startCallFailed'))
     // The ring ends on the backend, which tells the callee's instance; no "No answer" follows.
     if (dmCallSignaling.getActiveCall(conversation.id)?.ringing) {
       await dmCallSignaling.endFederatedCall(conversation.id, profileId)
@@ -1111,7 +1112,7 @@ const joinActiveCall = async () => {
   try {
     const profileId = await authContextService.getCurrentProfileId()
     if (!profileId) {
-      toast.error('Authentication required')
+      toast.error(t('auth.errors.authRequired'))
       return
     }
     
@@ -1121,7 +1122,7 @@ const joinActiveCall = async () => {
         conversation.other_user.id
       )
       if (!permissionCheck.allowed) {
-        toast.error(permissionCheck.message || 'Cannot join this call')
+        toast.error(permissionCheck.message || t('dm.header.cannotJoinCall'))
         return
       }
     }
@@ -1129,7 +1130,7 @@ const joinActiveCall = async () => {
     await joinConversationCall(conversation.id)
   } catch (error) {
     debug.error('Error joining call:', error)
-    toast.error('Failed to join call')
+    toast.error(t('dm.header.joinCallFailed'))
   }
 }
 
@@ -1138,7 +1139,7 @@ const toggleVideoCall = async () => {
   try {
     const profileId = await authContextService.getCurrentProfileId()
     if (!profileId) {
-      toast.error('Authentication required')
+      toast.error(t('auth.errors.authRequired'))
       return
     }
     
@@ -1153,7 +1154,7 @@ const toggleVideoCall = async () => {
     }
   } catch (error) {
     debug.error('Error toggling video:', error)
-    toast.error('Failed to toggle camera')
+    toast.error(t('dm.header.toggleCameraFailed'))
   }
 }
 
@@ -1171,12 +1172,12 @@ const getDefaultGroupName = (): string => {
       .join(', ')
     
     if (props.conversation.participants.length > 3) {
-      return `${names}, and ${props.conversation.participants.length - 3} others`
+      return t('dm.groupSettings.defaultNameMore', { names, count: props.conversation.participants.length - 3 })
     }
     return names
   }
   
-  return `Group Chat (${props.conversation.participant_count || 0} members)`
+  return t('dm.header.defaultNameCount', props.conversation.participant_count || 0)
 }
 </script>
 

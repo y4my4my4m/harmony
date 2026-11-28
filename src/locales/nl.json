@@ -93,7 +93,7 @@
       "title": "Een Matrix-bridge instellen",
       "lead": "Om hier kanalen te koppelen heb je een eigen bot nodig die de Matrix-bridge draait en lid is van deze server.",
       "steps": {
-        "service": "Degene die deze Harmony-instance beheert, zet de Matrix-bridgeservice op en registreert die bij de Matrix-homeserver. Vraag het hun als de service nog niet draait.",
+        "service": "Draai de Matrix-bridge op een computer die altijd aan staat, of vraag het aan iemand die er een draait. De beheerder van een Matrix-homeserver, de jouwe of een andere, registreert hem daar één keer.",
         "bot": "Maak een bot voor de bridge aan in {place} en geef het token aan degene die de bridge beheert.",
         "install": "Voeg de bot toe aan deze server in {place}. Geef hem Berichten lezen en Berichten versturen, kies dan onder Kanalen voor Geselecteerde kanalen en vink de kanalen aan die doorgestuurd moeten worden.",
         "pair": "Kom hier terug om die kanalen te koppelen."
@@ -124,6 +124,349 @@
       "confirmMessage": "{bot} stopt met het doorsturen van {count} kanaal naar Matrix. Berichten die al zijn doorgestuurd, blijven staan. Vraag degene die de bridge beheert om de room ook uit de configuratie te halen. | {bot} stopt met het doorsturen van {count} kanalen naar Matrix. Berichten die al zijn doorgestuurd, blijven staan. Vraag degene die de bridge beheert om de rooms ook uit de configuratie te halen.",
       "done": "De koppeling van {bot} met Matrix is opgeheven."
     },
+    "start": {
+      "title": "Waar moet de bridge draaien?",
+      "needs": "Je hebt een Matrix-account voor de bridge nodig op een willekeurige homeserver, of een homeserver waarvan de beheerder de bridge kan registreren. Het instellen duurt ongeveer een kwartier.",
+      "self": {
+        "title": "Zelf draaien",
+        "point1": "Je voert één opdracht (Docker) uit op een computer die altijd aan staat: een thuisserver, een VPS, een Raspberry Pi.",
+        "point2": "Harmony-leden kunnen in Matrix verschijnen als eigen Matrix-gebruikers.",
+        "tradeoff": "De bridge werkt alleen zolang die computer aan staat en online is.",
+        "choose": "Zelf draaien"
+      },
+      "custom": {
+        "title": "Je eigen bridgeprogramma gebruiken",
+        "point1": "Voor een ander bridgeprogramma, of een configuratie die je zelf schrijft.",
+        "point2": "Je maakt de bot ervan aan, voegt hem toe aan deze server en kiest de kanalen die hij doorstuurt.",
+        "tradeoff": "De Matrix-rooms staan in de eigen configuratie van het programma, en Harmony kan niet zien of het draait.",
+        "choose": "Mijn eigen programma gebruiken"
+      },
+      "hostingUnavailable": "Deze instance draait geen Matrix-bridges voor zijn community's, dus de bridge draait op een computer van jou.",
+      "bothWays": "Hoe dan ook gaan berichten in gekoppelde kanalen via deze instance, net als elk ander bericht hier. End-to-end versleutelde kanalen en rooms kunnen niet worden gekoppeld.",
+      "needsInstance": "Je hebt een Matrix-room nodig waarvan je de instellingen mag wijzigen, of iemand daar die dat mag.",
+      "ownBot": "Of koppel op een andere manier:",
+      "instance": {
+        "title": "De bridge van {instance} gebruiken",
+        "recommended": "Aanbevolen",
+        "point1": "Niets te installeren en geen account aan te maken: je nodigt de bridge uit in een room en post daar een code.",
+        "point2": "Deze instance draait de bridge voor je.",
+        "tradeoff": "De bridge is van de beheerder van deze instance, die elke room kan lezen die je koppelt.",
+        "choose": "De bridge van {instance} gebruiken"
+      },
+      "hosted": {
+        "title": "Je eigen Matrix-account gebruiken, gedraaid door deze instance",
+        "lead": "Log hier in met een Matrix-account; deze instance draait de bridge daarmee.",
+        "point1": "Niets te installeren.",
+        "point2": "Elk bericht uit Harmony komt van dat account, met de naam van het lid ervoor.",
+        "tradeoff": "De beheerder van deze instance heeft het toegangstoken van het account en kan elke room lezen waarin het account zit. Gebruik een account dat voor de bridge is aangemaakt.",
+        "choose": "Mijn eigen account hier gebruiken"
+      }
+    },
+    "custom": {
+      "otherPrompt": "Wil je een bridge die je vanaf hier instelt?",
+      "other": "Kies hoe je hem draait",
+      "beside": "Ook je eigen bridgeprogramma gebruiken",
+      "besideLead": "Een eigen programma koppelt andere kanalen, met een bot die je zelf aanmaakt. De bridge hierboven blijft zoals hij is."
+    },
+    "self": {
+      "lead": "De bridge is een klein programma dat draait op een computer die aan blijft, zoals een thuisserver, een VPS of een Raspberry Pi.",
+      "connection": {
+        "label": "Hoe de bridge inlogt bij Matrix",
+        "application_service": {
+          "title": "Op een homeserver die je zelf draait, of waarvan je het de beheerder kunt vragen",
+          "lead": "De beheerder registreert de bridge één keer. Harmony-leden kunnen verschijnen als eigen Matrix-gebruikers."
+        },
+        "account": {
+          "title": "Met een Matrix-account",
+          "lead": "Op elke homeserver, ook matrix.org. Elk bericht komt van dat account, met de naam van het lid ervoor."
+        }
+      },
+      "needsAppService": "De homeserver moet de bridge kunnen bereiken: beide draaien op dezelfde computer of hetzelfde netwerk, of de bridge heeft een openbaar adres.",
+      "needsAccount": "Maak op een willekeurige homeserver een account aan voor de bridge, dat je nergens anders voor gebruikt.",
+      "field": {
+        "homeserverUrl": {
+          "label": "Adres van de homeserver",
+          "help": "Het adres waarmee Matrix-apps verbinding maken. De computer van de bridge moet het kunnen openen.",
+          "invalid": "Voer een adres in zoals https://matrix.example.org."
+        },
+        "serverName": {
+          "label": "Servernaam",
+          "help": "Het deel na de dubbele punt in de gebruikers-ID's van de homeserver, zoals {'@'}sam:example.org.",
+          "invalid": "Voer een naam in zoals example.org."
+        },
+        "appserviceUrl": {
+          "label": "Adres van de bridge",
+          "help": "Hoe de homeserver de computer bereikt waarop de bridge draait. De bridge luistert op poort 9009.",
+          "invalid": "Voer een adres in zoals http://192.168.1.20:9009."
+        }
+      },
+      "fillFields": "Vul eerst de velden hierboven in: de opdrachten hieronder nemen ze over.",
+      "source": {
+        "name": "Vanuit de broncode",
+        "install": "Installeer Git en Node.js 24 en voer daarna deze opdrachten na elkaar uit:",
+        "env": "Sla dit in die map op als {file}:",
+        "run": "Start de bridge daar. Een servicemanager zoals systemd houdt hem draaiende:",
+        "trouble": "De bridge schrijft wat hij doet naar de terminal waarin hij draait. Meldt hij dat de instelcode ongeldig of verlopen is, klik dan hierboven op Nieuwe code, zet de nieuwe code in .env en start hem opnieuw."
+      },
+      "replaceToken": "Vervang {placeholder} door het toegangstoken van het Matrix-account van de bridge.",
+      "registration": {
+        "title": "De bridge registreren op de homeserver",
+        "fromDocker": "Bij het starten schrijft de bridge {file}. Kopieer het uit de container:",
+        "fromSource": "Bij het starten schrijft de bridge {file} in die map.",
+        "install": "Geef {file} aan de beheerder van de homeserver. Op Synapse voegt die het pad toe aan {setting} in homeserver.yaml en herstart Synapse.",
+        "done": "De bridge maakt vanzelf verbinding zodra de homeserver hem kent.",
+        "secret": "Het bestand bevat de sleutels van de bridge voor de homeserver. Post het nergens."
+      },
+      "keepData": "Bewaar {place}: daarin staan de login van de bridge, zijn registratie en de Matrix-gebruikers die hij heeft aangemaakt. Neem het mee als je de bridge naar een andere computer verhuist. Zonder dit moet de bridge opnieuw worden geregistreerd.",
+      "keepDataAccount": "Bewaar {place}: daarin staan de login van de bridge en wat hij al heeft doorgestuurd. Neem het mee als je de bridge naar een andere computer verhuist.",
+      "copiedToken": "Een token dat je uit de instellingen van een Matrix-app kopieert, werkt alleen waar tokens niet verlopen; op matrix.org verlopen ze binnen enkele minuten.",
+      "login": "Log in met het account. Dit vraagt in de terminal om de gebruikersnaam en het wachtwoord en toont het toegangstoken:"
+    },
+    "check": {
+      "waiting": "Wachten tot je bridge verbinding maakt. Voer de opdracht uit stap 1 uit; meestal is er binnen een minuut verbinding.",
+      "running": "Controleer of de bridge draait op die computer en of de opdracht geen foutmelding gaf.",
+      "code": "Staat in het logboek dat de instelcode ongeldig of verlopen is, haal dan in stap 1 een nieuwe code op en voer de opdracht opnieuw uit.",
+      "matrix": {
+        "ok": "Bridge ingelogd bij de homeserver",
+        "fail": "De bridge kan niet inloggen bij de homeserver",
+        "waiting": "Bridge ingelogd bij de homeserver"
+      },
+      "account": "Controleer of je in stap 1 met het account bent ingelogd. Het opnieuw doen kan geen kwaad."
+    },
+    "managed": {
+      "starting": "Bridge maakt verbinding met Matrix",
+      "account": "Matrix-account",
+      "homeserver": "Homeserver",
+      "connection": "Logt in als",
+      "connectionKind": {
+        "application_service": "Application service",
+        "account": "Matrix-account"
+      },
+      "pending": "Wachtende berichten",
+      "failed": "Niet afgeleverde berichten",
+      "disconnectBody": "Stopt het doorsturen en verwijdert alle kanaalparen en de Harmony-bot van de bridge. Berichten die al zijn doorgestuurd, blijven staan. Matrix-gebruikers en -rooms worden niet verwijderd.",
+      "disconnectRegistration": "De beheerder van de homeserver kan de registratie van de bridge verwijderen.",
+      "confirmNote": "Stop ook het programma op je computer. Met Docker: {command}",
+      "pairsLead": "Elk paar koppelt één kanaal hier aan één Matrix-room.",
+      "inviteHint": "De bridge treedt toe tot een room als je hem koppelt. Nodig eerst {account} uit in een room die niet voor iedereen open is.",
+      "inviteHintUnknown": "De bridge treedt toe tot een room als je hem koppelt. Nodig eerst het Matrix-account van de bridge uit in een room die niet voor iedereen open is.",
+      "state": {
+        "new": "Wacht op de bridge",
+        "joining": "Treedt toe tot de room",
+        "ready": "Werkt",
+        "error": "Werkt niet"
+      },
+      "removeLabel": "Het paar {channel} en {room} verwijderen",
+      "direction": {
+        "both": "Beide kanten op",
+        "to_harmony": "Alleen Matrix → Harmony",
+        "to_matrix": "Alleen Harmony → Matrix"
+      },
+      "room": "Matrix-room",
+      "invitations": "Uitnodigingen (geaccepteerd als je de room koppelt)",
+      "otherRoom": "Een andere room…",
+      "roomOption": "{name} ({detail})",
+      "cannotSend": "de bridge kan daar niet posten",
+      "address": "Adres of ID van de room",
+      "addressHelp": "Zoals #general:example.org. Een matrix.to-link werkt ook.",
+      "addressInvalid": "Dat is geen roomadres. Het ziet eruit als #general:example.org, of !abc:example.org voor een room-ID.",
+      "addressEmpty": "Voer het adres of de ID van de room in.",
+      "chooseBoth": "Kies een Harmony-kanaal en een Matrix-room.",
+      "encryptedNote": "End-to-end versleutelde kanalen en rooms zijn grijs: de bridge kan ze niet lezen.",
+      "roomsStale": "De bridge is offline. Dit zijn de rooms waarin hij zat toen hij voor het laatst verbonden was.",
+      "hiddenChannel": "Een kanaal dat je niet kunt zien",
+      "theAccount": "het account van de bridge",
+      "ghostExplained": "Als eigen Matrix-gebruikers: een Harmony-lid krijgt een Matrix-gebruiker met eigen naam en afbeelding zodra het voor het eerst in het kanaal schrijft. In kanalen met maximaal 100 leden maakt de bridge ze vooraf aan, zodat mensen op Matrix iedereen kunnen vermelden met de gewone {'@'}-aanvulling. De bridge moet mensen in de room mogen uitnodigen.",
+      "instanceMode": "Met de Matrix-bridge van deze instance",
+      "disconnectHosted": "Het opgeslagen toegangstoken wordt verwijderd. Beëindig ook de sessie “Harmony bridge” in de Matrix-instellingen van het account.",
+      "disconnectAccount": "Beëindig ook de sessie “Harmony bridge” in de Matrix-instellingen van het account.",
+      "disconnectInstance": "De bridge van deze instance verlaat de rooms vanzelf.",
+      "noRoom": "Geen room"
+    },
+    "pairError": {
+      "room_not_found": "De bridge heeft geen room gevonden op {room}. Controleer het adres of verwijder dit paar.",
+      "not_invited": "{room} kan niet zonder uitnodiging worden betreden. Nodig {account} er op Matrix voor uit.",
+      "room_encrypted": "{room} is end-to-end versleuteld, dus de bridge kan het niet lezen. Koppel in plaats daarvan een room zonder versleuteling.",
+      "channel_encrypted": "{channel} is end-to-end versleuteld, dus de bridge kan het niet lezen. Koppel in plaats daarvan een kanaal zonder versleuteling.",
+      "cannot_send": "{account} mag niet posten in {room}. Berichten uit Matrix komen hier nog wel binnen. Vraag een beheerder van de room om het account te laten posten.",
+      "room_in_use": "{room} is al gekoppeld aan een ander Harmony-kanaal. Kies een andere room.",
+      "ghosts_unavailable": "De bridge kan geen Matrix-gebruikers voor Harmony-leden toevoegen aan {room}. Berichten uit Matrix komen hier nog wel binnen. Laat {account} daar mensen uitnodigen, of kies het gedeelde bridge-account.",
+      "harmony_not_bound": "Harmony heeft {room} nog niet aan {channel} gekoppeld. De bridge probeert het vanzelf opnieuw; blijft dit zo, verwijder het paar dan en voeg het opnieuw toe.",
+      "unknown": "De bridge gaf geen reden. Het logboek bevat de details.",
+      "room_moved": "De room is met een nieuwere code aan een ander kanaal gekoppeld. Koppel {channel} opnieuw met een eigen code."
+    },
+    "problems": {
+      "aRoom": "een room",
+      "theHomeserver": "de homeserver",
+      "bridge_offline": {
+        "fix": "Zorg dat de computer waarop hij draait aan staat en start dan de bridge. Met Docker start de eerste opdracht hieronder hem; stopt hij weer, dan laat de tweede zien waarom."
+      },
+      "matrix_registration_missing": {
+        "title": "De homeserver kent de bridge nog niet.",
+        "fix": "Geef de registration.json van de bridge aan de beheerder van de homeserver. Met Docker kopieert de opdracht hieronder het bestand uit de container. De bridge maakt vanzelf verbinding zodra de homeserver het heeft."
+      },
+      "matrix_token_invalid": {
+        "title": "De homeserver heeft de login van de bridge geweigerd.",
+        "fixAppService": "De registratie op de homeserver is niet die van deze bridge. Geef de beheerder opnieuw de registration.json van de bridge.",
+        "fixAccount": "Haal een nieuw toegangstoken op voor het Matrix-account van de bridge en start de bridge daarmee.",
+        "fixHosted": "Log hier opnieuw in met het account, of gebruik een ander account."
+      },
+      "matrix_unreachable": {
+        "title": "De bridge kan de homeserver niet bereiken.",
+        "fix": "Controleer of de computer waarop de bridge draait {homeserver} kan openen. De bridge blijft het proberen.",
+        "fixHosted": "Controleer of {homeserver} draait en bereikbaar is vanaf het internet. De bridge blijft het proberen."
+      },
+      "harmony_auth_failed": {
+        "fix": "Verwijder de container met de opdracht hieronder en start de bridge daarna opnieuw met een nieuwe instelcode. De gegevens blijven bewaard."
+      },
+      "room_encrypted": {
+        "title": "De bridge stuurt {room} niet door: het is end-to-end versleuteld.",
+        "fix": "Verwijder het paar, of koppel een room zonder versleuteling."
+      },
+      "room_not_joined": {
+        "title": "De bridge zit niet in {room}.",
+        "fix": "Nodig het account van de bridge er op Matrix voor uit, of verwijder het paar."
+      },
+      "worker_stopped": {
+        "title": "De bridge is gestopt met doorsturen: hij kan zijn gegevens niet wegschrijven.",
+        "fix": "Controleer de schijf van de computer waarop hij draait en herstart daarna de bridge. Met Docker:"
+      },
+      "messages_skipped": {
+        "title": "Sommige oudere berichten van een room zijn niet doorgestuurd.",
+        "fix": "Er valt niets op te lossen. Nieuwe berichten worden gewoon doorgestuurd."
+      },
+      "account_in_use": {
+        "title": "Een andere bridge op deze instance gebruikt dit Matrix-account al.",
+        "fix": "Gebruik een account dat alleen voor deze bridge is aangemaakt."
+      }
+    },
+    "hosted": {
+      "lead": "Log in met het Matrix-account dat de bridge gebruikt. Deze instance draait de bridge daarmee.",
+      "access": "De beheerder van deze instance heeft het toegangstoken van het account en kan elke room lezen waarin het account zit.",
+      "ownAccount": "Gebruik een account dat voor de bridge is aangemaakt en alleen in de rooms zit die je koppelt. End-to-end versleutelde rooms worden niet doorgestuurd.",
+      "homeserver": "Homeserver",
+      "homeserverHelp": "De servernaam, zoals matrix.org, of het adres.",
+      "method": {
+        "label": "Toegang tot het account",
+        "password": "Hier inloggen",
+        "token": "Een toegangstoken plakken"
+      },
+      "user": "Gebruikersnaam",
+      "password": "Wachtwoord",
+      "passwordHelp": "Het wachtwoord gaat alleen van je browser naar de homeserver. Harmony krijgt het nooit en het wordt niet bewaard.",
+      "token": "Toegangstoken",
+      "issue": {
+        "address": "Voer een servernaam in zoals matrix.org, of een https-adres.",
+        "unreachable": "De homeserver is niet bereikbaar vanuit deze browser. Controleer de naam, probeer het eigen adres van de homeserver, of plak in plaats daarvan een toegangstoken.",
+        "not_matrix": "Daar antwoordde geen Matrix-homeserver. Controleer de naam, of voer het eigen adres van de homeserver in.",
+        "no_password": "Op deze homeserver log je niet in met een wachtwoord. Plak in plaats daarvan een toegangstoken.",
+        "wrong_password": "De homeserver heeft de gebruikersnaam of het wachtwoord geweigerd.",
+        "deactivated": "Dit account is gedeactiveerd.",
+        "limited": "Te veel pogingen. Wacht even en probeer het dan opnieuw.",
+        "limitedFor": "Te veel pogingen. Probeer het over {count} seconde opnieuw. | Te veel pogingen. Probeer het over {count} seconden opnieuw.",
+        "expires": "Deze homeserver geeft toegangstokens uit die verlopen, dus de bridge kan het account niet behouden. Gebruik een account op een andere homeserver.",
+        "token_refused": "De homeserver kent dit token niet. Misschien is het verlopen.",
+        "refused": "De homeserver heeft het inloggen geweigerd.",
+        "empty": "Plak eerst het token.",
+        "harmonyToken": "Dat is een Harmony-bottoken. Je hebt het toegangstoken van het Matrix-account nodig.",
+        "notToken": "Dat lijkt niet op een toegangstoken.",
+        "incomplete": "Voer de gebruikersnaam en het wachtwoord in."
+      },
+      "saved": "Account opgeslagen. Deze instance start je bridge binnen een paar minuten.",
+      "busy": {
+        "password": "Inloggen…",
+        "token": "Opslaan…"
+      },
+      "save": {
+        "password": "Inloggen",
+        "token": "Token opslaan"
+      },
+      "step": "Inloggen bij Matrix",
+      "blocked": "Log in met een Matrix-account om verder te gaan.",
+      "replace": "Het Matrix-account vervangen"
+    },
+    "link": {
+      "title": "Een room koppelen",
+      "encryptedNote": "End-to-end versleutelde kanalen zijn grijs, en een versleutelde room kan niet worden gekoppeld: de bridge kan ze niet lezen.",
+      "getCode": "Een code ophalen",
+      "chooseChannel": "Kies een Harmony-kanaal.",
+      "codeTitle": "{channel} koppelen aan een Matrix-room",
+      "invite": "Nodig in Matrix het account van de bridge uit in de room:",
+      "noAccount": "Het account is nog niet bekend: de bridge van deze instance heeft nog geen verbinding gemaakt met Matrix.",
+      "post": "Post dit in de room zodra het account is toegetreden:",
+      "command": "Bericht om te posten",
+      "appears": "Het paar verschijnt hier vanzelf.",
+      "expiredHelp": "Deze code is verlopen. Klik op Nieuwe code en post het nieuwe bericht.",
+      "who": "Alleen iemand die de instellingen van de room mag wijzigen, kan hem koppelen: een beheerder van de room, of wie de room dat toestaat.",
+      "moves": "De room verhuist hierheen van waar hij eerder aan gekoppeld was.",
+      "close": "Sluiten",
+      "linked": "{channel} is gekoppeld aan {room}.",
+      "again": "Opnieuw een room koppelen"
+    },
+    "admin": {
+      "title": "Matrix-bridge",
+      "lead": "Community's koppelen rooms op Matrix via Serverinstellingen → Bridges → Matrix. Bied ze de bridge van deze instance aan, laat ze hun eigen account meebrengen, of allebei. De bridge op een eigen computer draaien kan altijd.",
+      "loadFailed": "Laden van de instellingen van de Matrix-bridge is mislukt.",
+      "saved": "Instellingen van de Matrix-bridge opgeslagen",
+      "saveFailed": "Opslaan van de instellingen van de Matrix-bridge is mislukt",
+      "cleared": "Matrix-bridge verwijderd",
+      "hostedCount": "Gehoste bridges nu: {count} van {limit}.",
+      "hosting": {
+        "title": "Community's hun eigen account laten meebrengen",
+        "lead": "Community's loggen in met een eigen Matrix-account, en deze instance draait de bridge daarmee. Serverbeheerders zien dit als “Je eigen Matrix-account gebruiken, gedraaid door deze instance”.",
+        "toggle": "Eigen accounts van community's draaien",
+        "toggleHint": "Je beheert dan het toegangstoken van elke community. Een token geeft toegang tot elke room waarin het account zit."
+      },
+      "instance": {
+        "title": "De Matrix-bridge van deze instance",
+        "lead": "Eén Matrix-verbinding van deze instance, gedeeld door alle community's. Ze koppelen een room door er een code in te posten, zonder iets te installeren.",
+        "linkedCount": "Servers die hem hebben gekozen: {count} van {limit}.",
+        "configured": "Bridge ingesteld: {homeserver}.",
+        "notConfigured": "Nog geen bridge ingesteld.",
+        "connection": {
+          "application_service": "Op je eigen homeserver. Harmony-leden kunnen verschijnen als eigen Matrix-gebruikers.",
+          "account": "Een gewoon account op een willekeurige homeserver. Elk bericht komt van dat account."
+        },
+        "senderLocalpart": "Naam van het account van de bridge",
+        "invalidLocalpart": "Gebruik alleen a tot z, 0 tot 9 en . _ = -.",
+        "tooLong": "Te lang in combinatie met de servernaam.",
+        "login": "Een token ophalen dat niet verloopt",
+        "save": "Bridge opslaan",
+        "clear": "Bridge verwijderen",
+        "clearConfirm": "De tokens van de bridge verwijderen? Community's die hem gebruiken, stoppen met doorsturen tot er opnieuw een bridge is ingesteld. Hun bridges en paren blijven bestaan.",
+        "registration": {
+          "title": "Registratiebestand",
+          "made": "Aangemaakt",
+          "notMade": "Nog niet aangemaakt",
+          "make": "Het registratiebestand aanmaken",
+          "again": "Een nieuw registratiebestand aanmaken",
+          "confirm": "Een nieuw bestand vervangt de tokens van de bridge. De bridge stopt tot de homeserver het nieuwe bestand heeft.",
+          "downloaded": "Het bestand staat in je downloads. Het kan niet opnieuw worden getoond; maak een nieuw bestand aan als je het kwijtraakt.",
+          "stale": "De registratie op de homeserver komt niet meer overeen. Maak een nieuw bestand aan en geef het aan de homeserver."
+        },
+        "enable": "Deze bridge aanbieden aan community's",
+        "enableHint": "Serverbeheerders zien “De bridge van deze instance gebruiken” als eerste in Serverinstellingen → Bridges → Matrix.",
+        "enableNeedsConfig": "Stel eerst de bridge in: de homeserver, en het toegangstoken of het registratiebestand.",
+        "limit": "Maximaal aantal servers",
+        "limitHint": "Nieuwe servers worden geweigerd zodra zoveel servers de bridge hebben gekozen, gekoppeld of niet."
+      }
+    },
+    "service": {
+      "title": "Bridgedienst",
+      "never": "De dienst heeft nog geen verbinding gemaakt.",
+      "version": "versie {version}",
+      "absent": {
+        "discord": "De Discord-bridges van community's draaien in een dienst naast deze instance. Start die op de server met:",
+        "matrix": "De Matrix-bridges van community's draaien in een dienst naast deze instance. Start die op de server met:"
+      },
+      "problem": {
+        "matrix_registration_missing": "De homeserver kent de bridge niet. Geef hem het registratiebestand en herstart hem.",
+        "matrix_token_invalid": "De homeserver weigert het toegangstoken. Sla een nieuw token op.",
+        "matrix_unreachable": "De homeserver is niet bereikbaar. De bridge blijft het proberen.",
+        "harmony_unreachable": "De dienst kan de botgateway van deze instance niet bereiken.",
+        "worker_stopped": "De dienst kan zijn gegevens niet wegschrijven. Controleer de schijf en herstart de dienst daarna."
+      }
+    },
     "errors": {
       "discordBot": "Deze bot draait een Discord-bridge en kan daarom niet ook Matrix doorsturen. Gebruik een aparte bot.",
       "allowlist": "Een gekozen kanaal staat niet meer in de kanalenlijst van de bot. Laad opnieuw en kies opnieuw.",
@@ -131,7 +474,16 @@
       "permission": "Alleen de eigenaar van de bot, met Server beheren op deze server, kan de kanalen ervan koppelen.",
       "save": "Kan de gekoppelde kanalen niet opslaan. Laad opnieuw en probeer het nog eens.",
       "unpair": "Kan de koppeling van de bot niet opheffen. Laad opnieuw en probeer het nog eens.",
-      "installs": "Kan je bots niet laden, dus kanalen kunnen hier nu niet worden gekoppeld. Laad opnieuw om het nog eens te proberen."
+      "installs": "Kan je bots niet laden, dus kanalen kunnen hier nu niet worden gekoppeld. Laad opnieuw om het nog eens te proberen.",
+      "unavailable": "De Matrix-bridge is nog niet beschikbaar op deze instance. De beheerder moet Harmony bijwerken.",
+      "gone": "De bridge is intussen verwijderd. Laad de pagina opnieuw.",
+      "roomTaken": "Die room is al gekoppeld aan een ander kanaal.",
+      "change": "Opslaan van de wijziging is mislukt. Probeer het opnieuw.",
+      "exists": "Deze server heeft al een Matrix-bridge. Laad de pagina opnieuw om hem te zien.",
+      "notOffered": "Deze instance biedt dat op dit moment niet aan. Kies een andere manier om de bridge te draaien.",
+      "full": "Deze instance draait al het maximale aantal Matrix-bridges. Kies een andere manier, of vraag het aan de beheerder van de instance.",
+      "account": "Opslaan van het account is mislukt. Probeer het opnieuw.",
+      "roomCode": "Ophalen van een code is mislukt. Probeer het opnieuw."
     },
     "privacy": {
       "lead": "Verwijder hier een Matrix-gebruiker om alles te wissen wat de bridge van deze server van die gebruiker heeft binnengehaald en om diens berichten voortaan over te slaan.",
@@ -156,7 +508,8 @@
     "tabs": {
       "discord": "Discord",
       "matrix": "Matrix"
-    }
+    },
+    "encrypted": "end-to-end versleuteld"
   },
   "bridgePrivacy": {
     "title": "Bridge-privacy",
@@ -220,7 +573,12 @@
       "domainCap": "Met dit e-maildomein zijn vandaag te veel accounts aangemaakt. Probeer het morgen opnieuw, of vraag de beheerder van deze instance om een uitnodiging.",
       "mailboxCap": "Dit e-mailadres heeft het maximale aantal accounts op deze instance bereikt.",
       "blockedDomain": "Met deze e-mailprovider kun je je niet registreren op deze instance. Gebruik een ander adres.",
-      "blockedNetwork": "Registreren vanaf dit netwerk is niet mogelijk op deze instance. Vraag de beheerder van deze instance om een uitnodiging."
+      "blockedNetwork": "Registreren vanaf dit netwerk is niet mogelijk op deze instance. Vraag de beheerder van deze instance om een uitnodiging.",
+      "closed": "Deze instance neemt geen nieuwe accounts aan.",
+      "inviteOnly": "Deze instance neemt alleen nieuwe accounts aan op uitnodiging. Vraag de beheerder om een uitnodiging.",
+      "otherDomain": "Nieuwe accounts via deze inlogmethode zijn beperkt tot bepaalde e-maildomeinen, en dit adres hoort daar niet bij.",
+      "unverified": "Voor nieuwe accounts via deze inlogmethode is een e-mailadres nodig dat de inlogprovider heeft geverifieerd.",
+      "unavailable": "Registreren is op dit moment niet mogelijk. Probeer het later opnieuw."
     },
     "captcha": {
       "asked": "Voltooi de controle om je registratie af te ronden.",
@@ -322,7 +680,8 @@
       "emailRequired": "E-mailadres is verplicht",
       "passwordRequired": "Wachtwoord is verplicht",
       "emailServiceUnavailable": "De e-mailservice is niet ingesteld. Neem contact op met de beheerder van de instance.",
-      "oauthFailed": "Inloggen met {provider} is mislukt"
+      "oauthFailed": "Inloggen met {provider} is mislukt",
+      "authRequired": "Authenticatie vereist"
     },
     "showPassword": "Wachtwoord tonen",
     "showNewPassword": "Nieuw wachtwoord tonen",
@@ -360,7 +719,8 @@
       "invalidTitle": "Deze uitnodigingslink werkt niet",
       "invalidBody": "De link is al gebruikt, verlopen of ingetrokken. Vraag degene die je heeft uitgenodigd om een nieuwe.",
       "subtitleNoEmail": "Je bent uitgenodigd om hier een account aan te maken. Kies het wachtwoord waarmee je gaat inloggen."
-    }
+    },
+    "oauthWindowTitle": "Inloggen bij Harmony"
   },
   "server": {
     "create": "Server aanmaken",
@@ -566,12 +926,7 @@
     "filesTooLargeSkipped": "{count} bestand(en) overgeslagen: groter dan 25 MB",
     "noValidImageFiles": "Geen geldige afbeeldingsbestanden geselecteerd",
     "cannotUploadEmojisLimit": "Kan {count} emoji('s) niet uploaden: dan wordt de limiet van {max} overschreden (nu {current})",
-    "emojisUploadedSuccess": "{count} emoji('s) geüpload",
-    "emojisFailedToUpload": "Uploaden van {count} emoji('s) mislukt",
     "failedToUploadEmojis": "Uploaden van emoji's mislukt",
-    "confirmDeleteEmojis": "Weet je zeker dat je {count} emoji('s) wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
-    "emojisDeletedSuccess": "{count} emoji('s) verwijderd",
-    "emojisFailedToDelete": "Verwijderen van {count} emoji('s) mislukt",
     "failedToDeleteEmojis": "Verwijderen van emoji's mislukt",
     "emojiRenamedSuccess": "Emoji hernoemd naar \"{name}\"",
     "failedToRenameEmoji": "Hernoemen van emoji mislukt",
@@ -590,7 +945,9 @@
       "nameTooLong": "De servernaam moet korter zijn dan 50 tekens",
       "invalidName": "De servernaam bevat ongeldige tekens",
       "notSignedIn": "Log in om een server aan te maken.",
-      "createFailed": "Aanmaken van de server is mislukt. Probeer het opnieuw."
+      "createFailed": "Aanmaken van de server is mislukt. Probeer het opnieuw.",
+      "iconUploadFailedDetail": "Server aangemaakt, maar het pictogram kon niet worden geüpload: {error}. Je kunt het later wijzigen in de serverinstellingen.",
+      "iconUploadFailed": "Server aangemaakt, maar het pictogram kon niet worden geüpload. Je kunt het later wijzigen in de serverinstellingen."
     },
     "bannedFromServer": "Je bent verbannen van deze server.",
     "joinRequiresInvite": "Je wordt lid van deze server via een uitnodiging.",
@@ -935,7 +1292,14 @@
       "expression": "Expressie",
       "integrations": "Integraties",
       "moderation": "Moderatie"
-    }
+    },
+    "alreadyMember": "Je bent al lid van deze server!",
+    "joinFailed": "Deelnemen aan de server is mislukt. Probeer het opnieuw.",
+    "emojisUploaded": "{count} emoji geüpload | {count} emoji's geüpload",
+    "emojisUploadFailed": "{count} emoji kon niet worden geüpload | {count} emoji's konden niet worden geüpload",
+    "confirmDeleteEmojiCount": "Weet je zeker dat je {count} emoji wilt verwijderen? Dit kan niet ongedaan worden gemaakt. | Weet je zeker dat je {count} emoji's wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
+    "emojisDeleted": "{count} emoji verwijderd | {count} emoji's verwijderd",
+    "emojisDeleteFailed": "{count} emoji kon niet worden verwijderd | {count} emoji's konden niet worden verwijderd"
   },
   "channel": {
     "create": "Kanaal aanmaken",
@@ -1268,7 +1632,43 @@
       "unmark": "Spoiler verwijderen"
     },
     "jumpLoading": "Bericht laden…",
-    "jumpFailed": "Dat bericht kon niet worden geladen."
+    "jumpFailed": "Dat bericht kon niet worden geladen.",
+    "copyText": "Tekst kopiëren",
+    "copyImage": "Afbeelding kopiëren",
+    "saveImage": "Afbeelding opslaan",
+    "saveVideo": "Video opslaan",
+    "saveAudio": "Audio opslaan",
+    "copyMessageLink": "Berichtlink kopiëren",
+    "copyLinkUrl": "Link-URL kopiëren",
+    "copyMediaUrl": "Media-URL kopiëren",
+    "badge": {
+      "bot": "BOT",
+      "admin": "BEHEERDER",
+      "mod": "MOD"
+    },
+    "unknownServer": "Onbekende server",
+    "decryptFailed": "Bericht kon niet worden ontsleuteld",
+    "composer": {
+      "dismissCommand": "Sluiten (Esc)",
+      "enterValue": "Voer een waarde in...",
+      "slowmodeWait": "Langzame modus: je kunt over {seconds} s weer versturen",
+      "slowmodeOn": "Langzame modus staat aan: één bericht per {seconds} s",
+      "checkingPermissions": "Rechten controleren...",
+      "noPermissionThread": "Je hebt geen toestemming om berichten in deze thread te sturen.",
+      "noPermissionChannel": "Je hebt geen toestemming om berichten in dit kanaal te sturen.",
+      "tooLongCount": "Bericht te lang ({count} / {max})",
+      "tooLongToast": "Bericht te lang ({count} / {max}). Maak het korter en probeer het opnieuw.",
+      "slowmodeToast": "De langzame modus staat aan: je kunt over {seconds} s weer versturen",
+      "attachmentNeedsRoom": "Bijlagen hebben een kanaal of gesprek nodig"
+    },
+    "replyingTo": "Antwoord aan {name}",
+    "removeAttachmentConfirm": "Hiermee wordt deze bijlage permanent uit dit bericht verwijderd.",
+    "brokenEmoji": "Kapotte emoji",
+    "unknownRole": "Onbekende rol",
+    "editedAt": "Bewerkt op {time}",
+    "deleteConfirmUndone": "Weet je zeker dat je dit bericht wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
+    "yesterdayAt": "Gisteren om {time}",
+    "composerPlaceholder": "Typ een bericht…"
   },
   "messageA11y": {
     "list": {
@@ -1368,7 +1768,10 @@
       "uploading": "Uploaden...",
       "listLabel": "Bijlagen",
       "progressLabel": "{name} uploaden",
-      "remove": "{name} verwijderen"
+      "remove": "{name} verwijderen",
+      "statusUploading": "Uploaden",
+      "statusUploaded": "Geüpload",
+      "statusFailed": "Mislukt"
     },
     "alt": {
       "saved": "Beschrijving opgeslagen voor {name}",
@@ -1387,7 +1790,15 @@
       "forged": "Bericht verborgen: de handtekening hoort niet bij de afzender",
       "forgedHint": "De handtekening van dit versleutelde bericht klopt niet met de sleutel van de afzender. Het bericht is gewijzigd of komt van iemand anders dan de genoemde persoon, dus het wordt niet ontsleuteld.",
       "replayed": "Herhaald",
-      "replayedHint": "Dit bericht herhaalt een eerder versleuteld bericht van dezelfde afzender. De server heeft één bericht twee keer opgeslagen, waardoor een oud bericht op een nieuwe plek kan verschijnen."
+      "replayedHint": "Dit bericht herhaalt een eerder versleuteld bericht van dezelfde afzender. De server heeft één bericht twee keer opgeslagen, waardoor een oud bericht op een nieuwe plek kan verschijnen.",
+      "unverified": "Afzender niet geverifieerd",
+      "unverifiedHint": "Dit bericht is ontsleuteld, maar de identiteit van de afzender kon niet cryptografisch worden geverifieerd. De afzender gebruikt misschien een oudere client, of er is met het bericht geknoeid.",
+      "lostHint": "Dit bericht is versleuteld met een eerdere sleutel die niet meer op dit account bestaat, dus het kan niet worden ontsleuteld.",
+      "decryptingTitle": "Ontsleutelen...",
+      "clickToDecrypt": "Klik om te ontsleutelen",
+      "lostIdentityHint": "Dit bericht kan niet worden ontsleuteld: het is versleuteld voordat je huidige versleutelingsidentiteit werd aangemaakt (bijvoorbeeld vóór een sleutelreset), en de sleutel die het kan ontgrendelen bestaat niet meer op dit account.",
+      "lockClickHint": "End-to-end versleuteld - klik op de berichttekst om te ontsleutelen",
+      "lockUnlockHintPath": "End-to-end versleuteld - ontgrendel versleuteling ({settings} → {privacy} → {encryption}) om te ontsleutelen"
     },
     "spoiler": {
       "hidden": "Spoiler, verborgen. Activeer om te tonen",
@@ -1709,6 +2120,29 @@
     "toolbar": {
       "controls": "Spraakbediening",
       "call": "Gesprek"
+    },
+    "encryption": {
+      "encryptedTitle": "End-to-end versleuteld — media worden versleuteld voordat ze de server bereiken",
+      "notEncryptedTitle": "Niet end-to-end versleuteld — media zijn beveiligd tijdens verzending (DTLS-SRTP), maar de server heeft er toegang toe",
+      "e2ee": "E2EE",
+      "notE2ee": "Geen E2EE"
+    },
+    "spatialModel": {
+      "linear": "Lineair",
+      "inverse": "Invers",
+      "exponential": "Exponentieel",
+      "equalPower": "Gelijk vermogen"
+    },
+    "overlay": {
+      "notInCall": "Niet in een gesprek"
+    },
+    "connectionLost": {
+      "title": "Verbinding met spraak verbroken",
+      "message": "De verbinding met de spraakserver is verbroken."
+    },
+    "microphoneUnavailable": {
+      "title": "Microfoon niet beschikbaar",
+      "message": "Gedempt deelgenomen: de microfoon kon niet worden geopend."
     }
   },
   "dm": {
@@ -1805,7 +2239,112 @@
       "deleted": "Groep verwijderd",
       "deleteFailed": "Groep verwijderen mislukt"
     },
-    "callUndeliverable": "Je oproep kon niet worden gestart."
+    "callUndeliverable": "Je oproep kon niet worden gestart.",
+    "header": {
+      "federatedUserFrom": "Gefedereerde gebruiker van {domain}",
+      "callInProgress": "Gesprek bezig",
+      "lastSeen": "Laatst gezien {when}",
+      "lastSeenUnknown": "een tijdje geleden",
+      "startVoiceCall": "Spraakgesprek starten",
+      "endVoiceCall": "Spraakgesprek beëindigen",
+      "searchInConversation": "Zoeken in gesprek",
+      "addPeople": "Mensen toevoegen",
+      "startVideoCall": "Videogesprek starten",
+      "turnOffCamera": "Camera uitzetten",
+      "muteConversation": "Gesprek dempen",
+      "unmuteConversation": "Gesprek niet meer dempen",
+      "enableEncryption": "Versleuteling inschakelen",
+      "disableEncryption": "Versleuteling uitschakelen",
+      "closeDm": "DM sluiten",
+      "encryptionSetup": {
+        "title": "Versleuteling instellen vereist",
+        "intro": "Om versleutelde DM's in te schakelen, moet je eerst end-to-end-versleuteling instellen.",
+        "step1": "Ga naar {path}",
+        "step2": "Maak je herstelsleutel aan (zin van 12 woorden)",
+        "step3": "Kom hier terug en schakel versleuteling in voor dit gesprek",
+        "note": "Je herstelsleutel is de enige manier om je berichten te ontsleutelen. Bewaar hem goed.",
+        "goToSettings": "Naar instellingen"
+      },
+      "encryptionSetupFirst": "Stel eerst versleuteling in bij instellingen",
+      "clickToDisableEncryption": "Klik om versleuteling uit te schakelen",
+      "clickToEnableEncryption": "Klik om versleuteling in te schakelen",
+      "federatedEncryptionWarning": "De andere gebruiker zit op een gefedereerde server die de end-to-end-versleuteling van Harmony mogelijk niet ondersteunt. Versleutelde berichten zijn voor die persoon misschien niet leesbaar. Wil je versleuteling toch inschakelen?",
+      "enable": "Inschakelen",
+      "encryptionEnabled": "Versleuteling ingeschakeld voor dit gesprek",
+      "encryptionDisabled": "Versleuteling uitgeschakeld voor dit gesprek",
+      "encryptionUpdateFailed": "Versleutelingsinstelling bijwerken mislukt",
+      "callEnded": "Gesprek beëindigd",
+      "conversationMuted": "Gesprek gedempt",
+      "conversationUnmuted": "Gesprek niet meer gedempt",
+      "notificationUpdateFailed": "Meldingsinstelling bijwerken mislukt",
+      "startCallFailed": "Gesprek starten mislukt",
+      "noLocalMembersToCall": "Geen leden op deze instantie om te bellen. Groepsgesprekken bereiken geen andere instanties.",
+      "noParticipantsToCall": "Geen deelnemers om te bellen",
+      "cannotCallUser": "Kan deze gebruiker niet bellen",
+      "noFederatedIdentity": "Kan de gefedereerde identiteit van deze gebruiker niet bepalen",
+      "profileInfoFailed": "Profielgegevens ophalen mislukt",
+      "federatedCallFailed": "Gefedereerd gesprek starten mislukt",
+      "cannotJoinCall": "Kan niet deelnemen aan dit gesprek",
+      "joinCallFailed": "Deelnemen aan gesprek mislukt",
+      "toggleCameraFailed": "Camera schakelen mislukt",
+      "defaultNameCount": "Groepschat ({count} lid) | Groepschat ({count} leden)"
+    },
+    "followers": {
+      "loadFailed": "Gevolgde gebruikers laden mislukt",
+      "startFailed": "Gesprek starten mislukt"
+    },
+    "groupInvite": {
+      "searchHintNew": "Zoek gebruikers om een groepschat mee te maken",
+      "searchHintAdd": "Zoek gebruikers om aan dit gesprek toe te voegen",
+      "selectedUsers": "Geselecteerde gebruikers ({count})",
+      "clearAll": "Alles wissen",
+      "removeUser": "{name} verwijderen",
+      "configureHint": "Stel je nieuwe groepschat in",
+      "groupNameOptional": "Groepsnaam (optioneel)",
+      "groupNamePlaceholder": "Chat met {names}",
+      "privateGroup": "Privégroep",
+      "privateHintManual": "Alleen uitgenodigde leden kunnen deelnemen. Leden moeten handmatig worden toegevoegd.",
+      "privateHintInvite": "Alleen uitgenodigde leden kunnen deelnemen. Leden kunnen anderen uitnodigen.",
+      "currentParticipants": "Huidige deelnemers ({count})",
+      "federatedTitle": "Gefedereerde groepschat",
+      "federatedText": "Dit gesprek bevat gebruikers van andere servers. Berichten worden gefedereerd volgens de ActivityPub-standaarden.",
+      "searchFailed": "Gebruikers zoeken mislukt",
+      "createGroupChat": "Groepschat maken",
+      "subtitleNew": "Start een gesprek met meerdere mensen",
+      "subtitleAdd": "Voeg meer mensen toe aan dit gesprek",
+      "processing": "Bezig...",
+      "createChat": "Chat maken",
+      "createGroup": "Groep maken ({count})",
+      "addPeopleCount": "{count} persoon toevoegen | {count} mensen toevoegen",
+      "requestFailed": "Verzoek verwerken mislukt",
+      "conversationCreated": "Gesprek gemaakt",
+      "groupCreated": "Groepsgesprek gemaakt",
+      "groupCreateFailed": "Groepsgesprek maken mislukt",
+      "groupCreatedWith": "Groepsgesprek gemaakt met {count} extra gebruiker | Groepsgesprek gemaakt met {count} extra gebruikers",
+      "usersAdded": "{count} gebruiker aan gesprek toegevoegd | {count} gebruikers aan gesprek toegevoegd",
+      "addFailed": "Gebruikers toevoegen aan gesprek mislukt"
+    },
+    "groupCall": "Groepsgesprek",
+    "callEnded": "Gesprek beëindigd",
+    "callDeclined": "Gesprek geweigerd",
+    "noAnswer": "Geen antwoord",
+    "callPermission": {
+      "blockedByYou": "Je hebt deze gebruiker geblokkeerd",
+      "blocked": "Je kunt deze gebruiker niet bellen",
+      "dnd": "Deze gebruiker staat op Niet storen",
+      "busy": "Gebruiker zit al in een ander gesprek",
+      "notificationsDisabled": "Deze gebruiker heeft oproepmeldingen uitgeschakeld",
+      "checkFailed": "Kan de belrechten niet controleren - probeer het opnieuw.",
+      "decline": {
+        "blocked": "Het gesprek kan niet tot stand komen",
+        "busy": "Gebruiker is bezet",
+        "dnd": "Gebruiker staat op Niet storen",
+        "muted": "Gebruiker heeft dit gesprek gedempt",
+        "notificationsDisabled": "Gebruiker heeft oproepmeldingen uitgeschakeld",
+        "timeout": "Geen antwoord",
+        "declined": "Gesprek geweigerd"
+      }
+    }
   },
   "announcements": {
     "title": "Aankondigingen",
@@ -1847,7 +2386,9 @@
     "joined": "Lid geworden",
     "placeholders": {
       "bio": "Vertel iets over jezelf..."
-    }
+    },
+    "avatarAlt": "Avatar van gebruiker",
+    "aboutLabel": "Over:"
   },
   "settings": {
     "title": "Instellingen",
@@ -2047,7 +2588,247 @@
       },
       "savedThemeNameHint": "bijv. Laat op de avond",
       "fluxDockBottom": "Balk onderaan",
-      "fluxDockBottomDesc": "Het serverdock, de kanaalstrook en je capsule lopen langs de onderkant van het venster in plaats van de bovenkant; menu's vanuit de balk openen naar boven. Vereist de horizontale indeling."
+      "fluxDockBottomDesc": "Het serverdock, de kanaalstrook en je capsule lopen langs de onderkant van het venster in plaats van de bovenkant; menu's vanuit de balk openen naar boven. Vereist de horizontale indeling.",
+      "importExport": "Importeren en exporteren",
+      "importExportHelp": "Exporteer je thema als JSON of importeer een eerder geëxporteerd thema",
+      "exportTheme": "Thema exporteren",
+      "importTheme": "Thema importeren",
+      "skins": {
+        "title": "Skins",
+        "description": "Skins gaan verder dan kleuren wisselen - ze bundelen een thema, een lettertype en een set CSS-regels die randen, hoeken, decoratieve overlays en meer veranderen. Een skin kiezen overschrijft de bijbehorende instellingen hierboven; je kunt de kleuren daarna nog steeds aanpassen. Kies 'Geen' om de skinlaag te verwijderen.",
+        "none": "Geen",
+        "noneDescription": "Gebruik het kale thema + lettertype dat je hierboven hebt ingesteld.",
+        "decorations": "{skin} - decoraties",
+        "sdr001": {
+          "description": "Noir-cyberpunk naar Snatcher: bloedrode accenten en staalgrijze labels op blauwzwarte nachtvlakken, pixeltypografie, vierkante kaders met harde slagschaduwen, pixel-art-pictogrammen en een optionele CRT-scanline-overlay. Past bij het geluidspakket Neo Kobe. Zet de decoraties hieronder aan of uit.",
+          "options": {
+            "scanline": {
+              "label": "CRT-scanlines",
+              "description": "Statische overlay van horizontale lijnen over het hele scherm. Uit zolang vervagingseffecten zijn uitgeschakeld."
+            },
+            "viewportFrame": {
+              "label": "Kader aan de schermrand",
+              "description": "Haarfijne rode rand langs de randen van het scherm."
+            },
+            "hudBadge": {
+              "label": "SDR-001-HUD-badge",
+              "description": "Klein label 'SDR-001' rechtsboven op brede schermen."
+            },
+            "tacticalLabels": {
+              "label": "Tactische tekstlabels",
+              "description": "Terminalweergaven: '//' voor kanaalcategorieën, een cursor bij het open kanaal, 'COMMS //' op het spraakdock, 'TRANSMISSION //' op de spraakoverlay en status tussen haken in de gebruikersbalk."
+            },
+            "iconFlicker": {
+              "label": "Flikkerende pictogrammen en knipperende cursor",
+              "description": "Af en toe CRT-geflikker op de pictogrammen van de balk en een knipperende kanaalcursor. Uit als om minder beweging wordt gevraagd."
+            }
+          }
+        },
+        "skyglass": {
+          "description": "Glanzend, luchtig en licht: matglazen panelen zweven boven een lucht van wolken, lichtstralen en bellen, of boven een geschilderde weide. Gelknoppen, servers en avatars als glazen bollen, chatbubbels en verende menu's. Zet het thema op donker voor een lagune bij nacht; primaire kleur en accentkleur kleuren de getekende lucht. Past bij het geluidspakket Skyglass met glazen belletjes en waterdruppels.",
+          "options": {
+            "sky": {
+              "label": "Luchtscène",
+              "description": "Wolken, zonnegloed en lichtstralen boven de getekende lucht, met de geschilderde achtergrond uit. Uit laat een effen verloop over."
+            },
+            "wallpaper": {
+              "label": "Geschilderde achtergrond",
+              "description": "Een weide van glanzend gras, bellen en lichtlinten; een poollichtlagune in het donkere thema. Uit tekent de lucht met de themakleuren."
+            },
+            "bubbles": {
+              "label": "Bellen",
+              "description": "Glanzende bellen die in de achtergrond zweven."
+            },
+            "drift": {
+              "label": "Drijvende bellen",
+              "description": "Bellen stijgen langzaam op. Houdt de GPU bezig zolang glasvervaging aan staat; uit als om minder beweging wordt gevraagd."
+            },
+            "gloss": {
+              "label": "Gelglans",
+              "description": "Gesplitste glanslichten op knoppen, badges, serverbollen en avatars."
+            },
+            "chatBubbles": {
+              "label": "Chatbubbels",
+              "description": "Berichttekst staat in glazen bubbels in plaats van in platte rijen."
+            },
+            "uiSounds": {
+              "label": "Interfacegeluiden",
+              "description": "Een zachte druppel bij klikken op knoppen en lijsten, uit het actieve geluidspakket."
+            }
+          }
+        },
+        "lattice": {
+          "description": "AI-console van kristal en beton: zwevende omkaderde panelen op een gestippeld canvas, monospace labels, omgekeerde pilknoppen, een gecentreerde gesprekskolom met een holografische invoerbalk en één signaalkleur. Obsidiaan in de donkere modus, beenwit papier met zwarte kaders in de lichte. Past bij het geluidspakket Lattice met FM-kristaltonen en relaistikken.",
+          "options": {
+            "bento": {
+              "label": "Zwevende panelen",
+              "description": "Balk, kanalen, kop, chat en leden als losse kaders met tussenruimte. Uit voegt ze rand aan rand samen."
+            },
+            "focusColumn": {
+              "label": "Gecentreerd gesprek",
+              "description": "Berichten en invoerbalk in een gecentreerde leeskolom bij brede vensters."
+            },
+            "prism": {
+              "label": "Holografische accenten",
+              "description": "Iriserende gloed op het canvas, de rand van de invoerbalk, de actieve server en de kanaaltitels. Uit is puur monochroom."
+            },
+            "marks": {
+              "label": "Paskruisen",
+              "description": "Hoekhaken op elk kader en genummerde kanaalcategorieën."
+            },
+            "drift": {
+              "label": "Drijvende gloed",
+              "description": "De holografische gloed beweegt langzaam. Uit als om minder beweging wordt gevraagd."
+            },
+            "uiSounds": {
+              "label": "Interfacegeluiden",
+              "description": "Een relaistik bij klikken op knoppen en lijsten, uit het actieve geluidspakket."
+            }
+          }
+        },
+        "flux": {
+          "description": "Vloeibaar glas en een nieuwe indeling. Servers zweven in een glazen dock bovenaan, kanalen lopen als tabstrook, het gesprek staat in een gecentreerde kolom onder een glazen invoer, alles boven een drijvend metaballveld. Het glas heeft dikte, randlicht en kleurranden, en buigt wat erachter ligt waar de browser dat toelaat. Neemt je primaire kleur en accentkleur over. Past bij het geluidspakket Flux met resonerende, vloeibare synth.",
+          "options": {
+            "dock": {
+              "label": "Horizontale indeling",
+              "description": "Servers in een dock bovenaan, kanalen als tabstrook, het gesprek in een gecentreerde kolom en jij in een capsule rechtsboven. Vensters smaller dan 1024 px houden de indeling naast elkaar. Zet dit uit om servers te herschikken."
+            },
+            "lens": {
+              "label": "Lensbreking",
+              "description": "Glazen bedieningselementen buigen wat achter hun randen ligt. Alleen in op Chromium gebaseerde browsers en de Windows-app; elders houdt het glas zijn randlicht zonder de buiging."
+            },
+            "liquid": {
+              "label": "Vloeibaar veld",
+              "description": "Metaballs drijven achter het glas. Uit laat een stil poollicht over."
+            },
+            "drift": {
+              "label": "Levende beweging",
+              "description": "Het veld beweegt met 20 beelden per seconde zolang het venster de focus heeft. Uit staat het stil en tekent het alleen als er iets verandert."
+            },
+            "orbits": {
+              "label": "Baanringen",
+              "description": "Dunne gekleurde ringen die langzaam achter de vloeistof draaien."
+            },
+            "morph": {
+              "label": "Vervormende vormen",
+              "description": "Servers en avatars smelten onder de aanwijzer tot bewegende blobs."
+            },
+            "uiSounds": {
+              "label": "Interfacegeluiden",
+              "description": "Een vloeibare blip bij klikken op knoppen en lijsten, uit het actieve geluidspakket."
+            }
+          }
+        },
+        "paper": {
+          "description": "Een papieren bureaublad met 1-bitvensters: krantenpapieren bureau, warme inkt en het mascotteblauw. Dialogen en instellingen openen als vensters met een gestreepte titelbalk en een vierkant sluitvak, de chat staat in een omkaderd venster en elk kader werpt een harde inktschaduw. Een markeerstift markeert het open kanaal en je vermeldingen, koppen zijn een zware smalle grotesk, labels en tijden zijn monospace en code verschijnt op een donker scherm. Zet het thema op donker voor lichte kaders op een donker bureau.",
+          "options": {
+            "shadows": {
+              "label": "Inktschaduwen",
+              "description": "Harde verschoven schaduwen onder vensters, menu's, knoppen en serverpictogrammen. Uit laat de inktkaders plat op het bureau liggen."
+            },
+            "jelly": {
+              "label": "Puddingbeweging",
+              "description": "Knoppen, reacties en serverpictogrammen worden samengedrukt en veren terug als je ernaar wijst. Uit als om minder beweging wordt gevraagd."
+            },
+            "grain": {
+              "label": "Papierkorrel",
+              "description": "Fijne ruis over het bureau achter de vensters."
+            },
+            "glyphs": {
+              "label": "Tekenachtergrond",
+              "description": "Vage monospace chattekst achter de berichten, gelegd langs de knooplijnen van een trillende plaat. Statisch."
+            }
+          }
+        }
+      },
+      "typography": "Typografie",
+      "font": "Lettertype",
+      "fontDescription": "Kies het lettertype voor de hele app. Eigen lettertypen worden pas geladen als ze nodig zijn, dus de standaardkeuze downloadt niets extra.",
+      "fontDefault": "Standaard (Figtree)",
+      "fontSample": "Pa's wijze lynx bezag vroom het fikse aquaduct 0123",
+      "emojiStyle": "Emojistijl",
+      "emojiPack": "Emojipakket",
+      "emojiPackDescription": "Kies welke emojistijl in de hele app wordt gebruikt",
+      "effects": "Effecten",
+      "glassEffects": "Vervagings- en glaseffecten inschakelen",
+      "glassEffectsDescription": "Veel onderdelen (vensters, pop-ups, het spraakdock, de zijbalk) gebruiken {property} voor een matglaslook. Zet het uit voor een vlakke, scherpere interface, of als je apparaat moeite heeft met vervaging tijdens spraak- of videogesprekken.",
+      "invalidCssColour": "Geen CSS-kleur: {value}",
+      "palette": {
+        "title": "Paletideeën",
+        "random": "Willekeurig palet",
+        "surprise": "Verras me",
+        "fromImageTitle": "Een palet maken op basis van een afbeelding",
+        "fromImage": "Uit afbeelding",
+        "mood": "Sfeer van het palet",
+        "moods": {
+          "soft": "Zacht",
+          "balanced": "Gebalanceerd",
+          "vivid": "Levendig",
+          "neon": "Neon"
+        },
+        "schemes": {
+          "mono": "Mono",
+          "analogous": "Analoog",
+          "complement": "Complementair",
+          "split": "Gesplitst",
+          "triad": "Triade",
+          "dusk": "Schemering"
+        },
+        "cardTitle": "{scheme}: primair {primary}, accent {accent}",
+        "noOpaquePixels": "Die afbeelding heeft geen dekkende pixels om te bemonsteren.",
+        "imageReadFailed": "Die afbeelding kon niet worden gelezen."
+      },
+      "presets": {
+        "harmonyTeal": {
+          "name": "Harmony-turquoise",
+          "description": "De kenmerkende Harmony-look: fris, modern en uitnodigend"
+        },
+        "emerald": {
+          "name": "Smaragd",
+          "description": "Groei, balans en natuurlijke harmonie"
+        },
+        "coral": {
+          "name": "Koraal",
+          "description": "Warm, energiek en gericht op de community"
+        },
+        "violet": {
+          "name": "Violet",
+          "description": "Creatief en onderscheidend met diepe paarse tinten"
+        },
+        "rose": {
+          "name": "Roze",
+          "description": "Krachtig, warm en communitygericht"
+        },
+        "oceanBlue": {
+          "name": "Oceaanblauw",
+          "description": "Een diep oceaanblauw thema met koele tinten"
+        },
+        "sakura": {
+          "name": "Sakura",
+          "description": "Roze thema geïnspireerd op kersenbloesem"
+        },
+        "forest": {
+          "name": "Bos",
+          "description": "Natuurlijke groene bostinten"
+        },
+        "amber": {
+          "name": "Amber",
+          "description": "Warme amber- en goudtinten"
+        }
+      },
+      "variableGroups": {
+        "navigationRail": "Navigatiebalk",
+        "brand": "Merk",
+        "primaryLayout": "Primair (indeling)",
+        "backgroundSurfaces": "Achtergrondvlakken",
+        "text": "Tekst",
+        "icons": "Pictogrammen",
+        "status": "Status",
+        "semantic": "Semantisch",
+        "borders": "Randen",
+        "alphaTransparency": "Alfa / transparantie",
+        "tooltipsOverlays": "Tooltips en overlays"
+      }
     },
     "audio": {
       "title": "Geluiden",
@@ -2087,7 +2868,156 @@
         "cacheStats": "{sounds} geluiden in cache, {themes} thema's geladen",
         "exportSettings": "Instellingen exporteren",
         "importSettings": "Instellingen importeren",
-        "resetDefaults": "Standaardwaarden herstellen"
+        "resetDefaults": "Standaardwaarden herstellen",
+        "cachedCount": "{size}/{max} in cache",
+        "pickerLabel": "Geluidsthema",
+        "status": {
+          "ready": "Klaar • {theme}",
+          "unknownTheme": "Onbekend",
+          "loading": "Themasysteem laden...",
+          "preloading": "{theme} vooraf laden...",
+          "error": "Systeemfout gedetecteerd",
+          "uninitialized": "Niet geïnitialiseerd",
+          "unknown": "Onbekende status"
+        },
+        "toasts": {
+          "changeFailed": {
+            "title": "Thema wijzigen mislukt",
+            "message": "Kan niet overschakelen naar het geselecteerde geluidsthema"
+          },
+          "error": {
+            "title": "Themafout",
+            "message": "Er is een onbekende fout opgetreden"
+          },
+          "testDone": {
+            "title": "Geluidstest",
+            "message": "Thematest voltooid"
+          },
+          "testFailed": {
+            "title": "Geluidstest mislukt",
+            "message": "Kan het testgeluid niet afspelen"
+          },
+          "preview": {
+            "title": "Themavoorbeeld",
+            "message": "{theme} wordt getest"
+          },
+          "previewFailed": {
+            "title": "Test mislukt",
+            "message": "Kan het themageluid niet voorbeluisteren"
+          },
+          "cacheCleared": {
+            "title": "Cache gewist",
+            "message": "De geluidscache is gewist"
+          },
+          "cacheClearFailed": {
+            "title": "Cache wissen mislukt",
+            "message": "Kan de geluidscache niet wissen"
+          },
+          "exported": {
+            "title": "Instellingen geëxporteerd",
+            "message": "De instellingen van het geluidsthema zijn gedownload"
+          },
+          "exportFailed": {
+            "title": "Exporteren mislukt",
+            "message": "Kan de thema-instellingen niet exporteren"
+          },
+          "imported": {
+            "title": "Instellingen geïmporteerd",
+            "message": "De instellingen van het geluidsthema zijn hersteld"
+          },
+          "importFailed": {
+            "title": "Importeren mislukt",
+            "message": "Kan de thema-instellingen niet importeren. Controleer de bestandsindeling."
+          },
+          "reset": {
+            "title": "Instellingen hersteld",
+            "message": "De instellingen van het geluidsthema zijn teruggezet naar de standaardwaarden"
+          },
+          "resetFailed": {
+            "title": "Herstellen mislukt",
+            "message": "Kan de thema-instellingen niet herstellen"
+          }
+        },
+        "packs": {
+          "default": {
+            "name": "Standaard",
+            "description": "Strakke, minimale geluidseffecten om gefocust te werken"
+          },
+          "futuristic": {
+            "name": "Futuristisch",
+            "description": "Futuristische geluiden voor een moderne, levendige ervaring"
+          },
+          "neokobe": {
+            "description": "Noir-cyberpunk-interfacegeluiden voor de SDR-001-skin"
+          },
+          "skyglass": {
+            "description": "Glazen belletjes, waterdruppels en bubbels voor de Skyglass-skin"
+          },
+          "lattice": {
+            "description": "FM-kristalpings, relaistikken en sweeps voor de Lattice-skin"
+          },
+          "flux": {
+            "description": "Resonerende vloeibare synth, diepe swells en glasgefonkel voor de Flux-skin"
+          }
+        },
+        "errors": {
+          "init": "Onbekende fout bij initialisatie",
+          "switch": "Thema wisselen mislukt",
+          "preload": "Vooraf laden mislukt: {theme}",
+          "playback": "Audio afspelen mislukt: {action}",
+          "test": "Audiotest mislukt: {action}",
+          "import": "Voorkeuren konden niet worden geïmporteerd",
+          "reset": "Instellingen konden niet worden teruggezet"
+        }
+      },
+      "page": {
+        "description": "Kies de geluiden voor meldingen, gesprekken en acties in de interface.",
+        "testDescription": "Test hoe verschillende acties klinken met je huidige thema",
+        "packsTitle": "Themapakketten importeren en exporteren",
+        "packsDescription": "Exporteer een volledig geluidsthema (geluiden + metadata) om te delen of als back-up. Importeer een pakket om het als eigen thema toe te voegen.",
+        "exporting": "Exporteren...",
+        "exportPack": "Pakket exporteren",
+        "importPack": "Pakket importeren",
+        "statusTitle": "Status van het geluidssysteem",
+        "statusDescription": "Huidige status van het geluidsthemasysteem",
+        "status": {
+          "ready": "Klaar",
+          "loading": "Laden",
+          "preloading": "Vooraf laden",
+          "error": "Fout",
+          "uninitialized": "Niet geïnitialiseerd"
+        },
+        "clearCacheDescription": "Gecachte geluidsbestanden wissen zodat alle geluiden opnieuw worden geladen",
+        "soundsLoaded": "{size}/{max} geluiden geladen",
+        "resetDescription": "Alle geluidsinstellingen terugzetten naar de standaardwaarden",
+        "toast": {
+          "soundTest": "Geluidstest",
+          "played": "{sound} afgespeeld",
+          "soundTestFailed": "Geluidstest mislukt",
+          "testFailed": "{sound} kon niet worden getest",
+          "cacheCleared": "Cache gewist",
+          "audioCacheCleared": "Geluidscache gewist",
+          "cacheClearFailed": "Cache kon niet worden gewist",
+          "audioCacheClearFailed": "Geluidscache kon niet worden gewist",
+          "reset": "Geluid teruggezet",
+          "resetDone": "Geluidsinstellingen teruggezet naar de standaardwaarden",
+          "resetFailed": "Terugzetten mislukt",
+          "resetFailedDetail": "Geluidssysteem kon niet worden teruggezet",
+          "themeChanged": "Thema gewijzigd",
+          "switchedTheme": "Overgeschakeld naar thema {theme}",
+          "packExported": "Pakket geëxporteerd",
+          "packExportedDetail": "Geluidsthemapakket gedownload als ZIP",
+          "exportFailed": "Exporteren mislukt",
+          "exportFailedDetail": "Themapakket kon niet worden geëxporteerd",
+          "fileTooLarge": "Bestand te groot",
+          "fileTooLargeDetail": "Het pakket moet kleiner zijn dan {size}",
+          "packImported": "Pakket geïmporteerd",
+          "packImportedDetail": "{theme} toegevoegd als eigen thema",
+          "importFailed": "Importeren mislukt",
+          "invalidPack": "Ongeldig formaat voor geluidspakket",
+          "initFailed": "Initialiseren mislukt",
+          "initFailedDetail": "Geluidssysteem kon niet worden geïnitialiseerd"
+        }
       }
     },
     "voice": {
@@ -2169,7 +3099,24 @@
       "inputThreshold": "Drempel",
       "decibels": "{db} dB",
       "inputMeterHint": "De balk wordt groen zolang je microfoon wordt verzonden.",
-      "inputMeterIdle": "Neem deel aan een spraakkanaal om hier je niveau te zien."
+      "inputMeterIdle": "Neem deel aan een spraakkanaal om hier je niveau te zien.",
+      "videoOption": {
+        "res360": "360p (Laag)",
+        "res480": "480p (SD)",
+        "res720": "720p (HD)",
+        "res1080": "1080p (Full HD)",
+        "source": "Bron (native)",
+        "fps": "{n} FPS",
+        "fpsLow": "{n} FPS (Laag)",
+        "fpsCinema": "{n} FPS (Bioscoop)",
+        "kbpsLow": "{n} kbps (Laag)",
+        "kbpsVoice": "{n} kbps (Spraak)",
+        "kbpsStandard": "{n} kbps (Standaard)",
+        "kbpsHigh": "{n} kbps (Hoog)"
+      },
+      "quality480": "480p (standaard)",
+      "quality720": "720p (HD)",
+      "quality1080": "1080p (Full HD)"
     },
     "notifications": {
       "title": "Meldingen",
@@ -2452,6 +3399,38 @@
           "title": "Testmelding",
           "message": "Dit is een testmelding"
         }
+      },
+      "android": {
+        "title": "Push op dit apparaat",
+        "openSettings": "Meldingsinstellingen openen",
+        "allow": "Meldingen toestaan",
+        "unavailable": "De pushstatus is niet beschikbaar in deze build. Meldingen verschijnen nog steeds zolang Harmony draait.",
+        "service": "Pushdienst",
+        "noDistributor": "Installeer een UnifiedPush-distributor zoals ntfy om push zonder Google-diensten te ontvangen, en kies die hier.",
+        "sendTest": "Testpush versturen",
+        "testSent": "Testpush verstuurd",
+        "testFailed": "Testpush kon niet worden verstuurd",
+        "off": "Uit",
+        "auto": "Automatisch",
+        "fcmThrough": "Google (FCM) via {host}",
+        "unifiedPushVia": "UnifiedPush via {name}",
+        "note": {
+          "notAllowed": "meldingen zijn niet toegestaan",
+          "chooseService": "kies hieronder een pushdienst",
+          "noService": "er is geen pushdienst beschikbaar",
+          "active": "actief",
+          "registering": "registreren"
+        },
+        "hint": {
+          "notInBuild": "Niet opgenomen in deze build",
+          "needsPlay": "Vereist Google Play-services",
+          "googleRelayed": "Bezorgd via Google, doorgestuurd door {host}",
+          "notConfigured": "Niet ingesteld op deze server",
+          "google": "Bezorgd via Google",
+          "auto": "Een pushdienst die je hebt gekozen, anders Google, anders de enige UnifiedPush-app",
+          "ownService": "Bezorgd via je eigen pushdienst",
+          "off": "Alleen meldingen zolang Harmony draait"
+        }
       }
     },
     "announcements": {
@@ -2539,6 +3518,14 @@
           "name": "Verlaten / sluiten",
           "description": "Verlaat volledig scherm of focusweergave, sluit panelen en minimaliseer daarna de gespreksweergave. Werkt als de focus in de gespreksweergave staat."
         }
+      },
+      "mouse": {
+        "left": "Linkerklik",
+        "middle": "Middelklik",
+        "right": "Rechterklik",
+        "back": "Muisknop {n} (terug)",
+        "forward": "Muisknop {n} (vooruit)",
+        "numbered": "Muisknop {n}"
       }
     },
     "advanced": {
@@ -2550,7 +3537,41 @@
       "copyRawData": "Ruwe gegevens kopiëren",
       "reportBugSection": "Hulp",
       "reportBug": "Bug melden",
-      "reportBugDescription": "Open GitHub om een bug te melden of een functie aan te vragen."
+      "reportBugDescription": "Open GitHub om een bug te melden of een functie aan te vragen.",
+      "installApp": "App installeren",
+      "installAppDescription": "Installeer Harmony als app voor sneller laden en meldingen. Gebruik op desktop het installatiepictogram in de adresbalk van je browser als de knop hieronder niet beschikbaar is.",
+      "runOnLogin": "Harmony starten wanneer je inlogt",
+      "runOnLoginEnabled": "Je hebt dit ingeschakeld via {url}. Tik hieronder voor instructies als je het ooit wilt wijzigen.",
+      "runOnLoginAvailable": "{browser} kan Harmony automatisch starten telkens wanneer je inlogt op je computer.",
+      "runOnLoginChange": "Wijzigen",
+      "runOnLoginSetUp": "Instellen",
+      "betaFeatures": "Bètafuncties",
+      "todayDashboard": "Vandaag-dashboard",
+      "todayDashboardDescription": "Een dagelijks overzicht van kanalen met ongelezen activiteit, threads waaraan je deelneemt en populaire berichten. Voegt een zonpictogram toe aan de serverbalk.",
+      "aiSummaries": "AI-samenvattingen op het apparaat",
+      "aiSummariesDescription": "Vat het Vandaag-overzicht samen met het ingebouwde AI-model van je browser (Gemini Nano van Chrome). Draait volledig op je apparaat - er wordt niets naar een server verstuurd.",
+      "aiSummariesUnsupported": "Niet ondersteund door deze browser.",
+      "desktopApp": "Desktop-app",
+      "launchAtStartup": "Openen bij opstarten",
+      "launchAtStartupDescription": "Start Harmony automatisch wanneer je inlogt op je computer. De app start geminimaliseerd in het systeemvak.",
+      "launchAtStartupFailed": "Openen bij opstarten kon niet worden gewijzigd",
+      "richPresence": "Game-activiteit (rich presence)",
+      "richPresenceDescription": "Toon de game die je speelt als je status. De detectie draait lokaal; alleen de naam van de game wordt gedeeld, als je statustekst.",
+      "gameOverlay": "Spraakoverlay in games",
+      "gameOverlayDescription": "Zwevende, doorklikbare spraaktegels boven je game tijdens een gesprek. Druk op Ctrl+Shift+O om interactie aan of uit te zetten.",
+      "developerSettings": "Ontwikkelaarsinstellingen",
+      "dataManagement": "Gegevensbeheer",
+      "clearCache": "Cache wissen",
+      "clearCacheDescription": "Wist de service-worker-caches, de emojicache in het geheugen en het lokaal gecachte manifest van achtergrondafbeeldingen. Je berichten, identiteitssleutels en instellingen blijven behouden.",
+      "clearingCache": "Wissen...",
+      "cacheCleared": "{count} cache gewist en emojicache teruggezet | {count} caches gewist en emojicache teruggezet",
+      "clearCacheFailed": "Cache kon niet worden gewist",
+      "deleteAccount": "Account verwijderen",
+      "deleteAccountTitle": "Je account verwijderen?",
+      "deleteConfirmType": "Typ {word} om te bevestigen",
+      "deleting": "Verwijderen…",
+      "deleteForever": "Account definitief verwijderen",
+      "accountDeleted": "Je account is verwijderd."
     },
     "buildInfo": {
       "status": "Servicestatus",
@@ -2610,7 +3631,9 @@
       "unsavedChanges": "Je hebt niet-opgeslagen profielwijzigingen",
       "changesReset": "Profielwijzigingen hersteld",
       "handleCopied": "Handle gekopieerd",
-      "copyFailed": "Kopiëren mislukt"
+      "copyFailed": "Kopiëren mislukt",
+      "dateUnknown": "Onbekend",
+      "emailNotProvided": "Niet opgegeven"
     },
     "dmPolicy": {
       "title": "Privéberichten",
@@ -2620,6 +3643,20 @@
       "known": "Serverleden en mensen die ik volg",
       "following": "Alleen mensen die ik volg",
       "failed": "Kan niet opslaan wie een gesprek met je kan beginnen"
+    },
+    "privacyPage": {
+      "description": "Bepaal wie met je kan communiceren, beheer de beveiliging van je account en bepaal hoe je gegevens worden gebruikt.",
+      "accountSecurity": "Accountbeveiliging",
+      "encryption": "Versleutelingsinstellingen",
+      "dataPrivacy": "Gegevens & privacy",
+      "stripTrackers": "Trackingparameters uit URL's verwijderen",
+      "stripTrackersDescription": "Verwijdert automatisch trackingparameters (zoals ?si=...) uit URL's in je berichten voor YouTube, X/Twitter, TikTok, Instagram en Facebook.",
+      "blockedUsers": "Geblokkeerde gebruikers",
+      "mutedUsers": "Genegeerde gebruikers",
+      "userUnblocked": "Gebruiker gedeblokkeerd",
+      "unblockFailed": "Gebruiker kon niet worden gedeblokkeerd",
+      "userUnmuted": "Gebruiker wordt niet meer genegeerd",
+      "unmuteFailed": "Negeren kon niet worden opgeheven"
     }
   },
   "navigation": {
@@ -3180,7 +4217,26 @@
       "feedLabel": "Posts van {domain}"
     },
     "instanceStatusFilter": "Status",
-    "instanceSoftwareFilter": "Software"
+    "instanceSoftwareFilter": "Software",
+    "fediverseUser": "Fediverse-gebruiker",
+    "userNotFound": "Gebruiker niet gevonden",
+    "altBadge": "ALT",
+    "postInteractions": {
+      "invalidUser": "Ongeldige gebruikers-ID",
+      "invalidPost": "Ongeldige bericht-ID",
+      "unknown": "Onbekende fout"
+    },
+    "requestFailed": "Verzoek mislukt",
+    "interactionErrors": {
+      "favorite": "Bericht als favoriet markeren is mislukt",
+      "boost": "Bericht boosten is mislukt",
+      "bookmark": "Bladwijzer toevoegen is mislukt"
+    },
+    "shareSheet": {
+      "title": "Harmony-bericht",
+      "text": "Bekijk dit bericht"
+    },
+    "mediaKindAlt": "{kind}: {alt}"
   },
   "moderation": {
     "reportAlert": {
@@ -3311,6 +4367,20 @@
       "moderators": "Moderators van {server}",
       "outcomeBy": "Moderators van {server}: {outcome}",
       "reviewedTitle": "De moderators van {server} hebben je melding beoordeeld"
+    },
+    "reportModal": {
+      "reportedMessage": "Gemeld bericht",
+      "reportedPost": "Gemelde post",
+      "whyReporting": "Waarom meld je dit?",
+      "additionalDetails": "Aanvullende details (optioneel)",
+      "detailsPlaceholder": "Geef eventuele extra context...",
+      "submitting": "Verzenden…",
+      "submitted": "Melding verstuurd",
+      "thanks": "Bedankt dat je helpt de community veilig te houden. We bekijken je melding binnenkort.",
+      "hideMessage": "Dit bericht verbergen",
+      "hidePost": "Deze post verbergen",
+      "hideHint": "Verwijder het uit je weergave",
+      "keepVisible": "Zichtbaar houden"
     }
   },
   "files": {
@@ -3348,7 +4418,18 @@
     "loadFailed": "Kan {kind} niet laden",
     "tryDifferentSearch": "Probeer een andere zoekterm",
     "noFavoritesOf": "Nog geen favoriete {kind}",
-    "noneFound": "Geen {kind} gevonden"
+    "noneFound": "Geen {kind} gevonden",
+    "results": "Resultaten voor {kind}",
+    "clip": "Clip",
+    "viaKlipy": "via KLIPY",
+    "adFrame": "Advertentie",
+    "kind": {
+      "stickers": "stickers",
+      "clips": "clips",
+      "memes": "memes",
+      "aiEmoji": "AI-emoji",
+      "gifs": "GIFs"
+    }
   },
   "emoji": {
     "messageReactionLimit": "Dit bericht heeft {count} verschillende reacties. Sluit je aan bij een daarvan.",
@@ -3375,7 +4456,35 @@
     "symbols": "Symbolen",
     "flags": "Vlaggen",
     "custom": "Eigen",
-    "noResults": "Geen emoji gevonden"
+    "noResults": "Geen emoji gevonden",
+    "picker": {
+      "favorites": "Favorieten",
+      "favoritesHint": "Klik met de rechtermuisknop op een emoji (of houd hem ingedrukt) om hem hier toe te voegen.",
+      "frequent": "Vaak gebruikt",
+      "loading": "Emoji laden...",
+      "favorite": "Emoji als favoriet markeren",
+      "unfavorite": "Emoji uit favorieten verwijderen",
+      "copyId": "Emoji-ID kopiëren",
+      "removeFrequent": "Verwijderen uit vaak gebruikt",
+      "copiedImageLink": "Afbeeldingslink gekopieerd",
+      "addedFavorite": ":{name}: toegevoegd aan favorieten",
+      "removedFavorite": ":{name}: verwijderd uit favorieten",
+      "copied": ":{name}: gekopieerd",
+      "removedFrequent": ":{name}: verwijderd uit vaak gebruikt"
+    },
+    "reactionPicker": {
+      "title": "Kies een reactie",
+      "currentPack": "Huidig: {pack}",
+      "systemPack": "Systeem",
+      "loading": "Emoji laden...",
+      "frequent": "Vaak gebruikt"
+    },
+    "groups": {
+      "mine": "Mijn emoji",
+      "instance": "{name}-emoji",
+      "instanceUnnamed": "Instantie-emoji",
+      "ai": "Door AI gemaakt"
+    }
   },
   "emojiInfo": {
     "dialog": "Emoji",
@@ -3447,7 +4556,11 @@
       "socialHint": "Volgers, likes en boosts uit de fediverse verschijnen hier.",
       "unread": "Niets ongelezen",
       "unreadHint": "Gelezen meldingen blijven onder Alles staan."
-    }
+    },
+    "reactedToMessage": "{actor} reageerde met {emoji} op je bericht",
+    "reactedToPost": "{actor} reageerde met {emoji} op je post",
+    "followedYou": "{actor} volgt je nu",
+    "requestedFollow": "{actor} wil je volgen"
   },
   "newcomerAlerts": {
     "notification": {
@@ -3544,7 +4657,10 @@
     "activityStarted": "{actor} heeft {app} gestart.",
     "activityEnded": "{actor} startte {app}: {players} spelers, {duration}.",
     "activityEndedAlone": "{actor} startte {app}: {duration}.",
-    "activityFallback": "een activiteit"
+    "activityFallback": "een activiteit",
+    "legacyJoin": "Welkom, {name}!",
+    "legacyInvitedBy": "Uitgenodigd door {name}.",
+    "legacyLeave": "{name} heeft de server verlaten."
   },
   "time": {
     "now": "nu",
@@ -3614,12 +4730,7 @@
     "filesTooLargeSkipped": "{count} bestand(en) overgeslagen: groter dan 1 MB",
     "noValidImageFiles": "Geen geldige afbeeldingsbestanden gekozen",
     "cannotUploadEmojisLimit": "Kan {count} emoji niet uploaden. De serverlimiet is {max} emoji's (nu {current})",
-    "emojisUploadedSuccess": "{count} emoji('s) geüpload",
-    "emojisFailedToUpload": "Uploaden van {count} emoji('s) is mislukt",
     "failedToUploadEmojis": "Emoji uploaden is mislukt",
-    "confirmDeleteEmojis": "Weet je zeker dat je {count} emoji('s) wilt verwijderen?",
-    "emojisDeletedSuccess": "{count} emoji('s) verwijderd",
-    "emojisFailedToDelete": "Verwijderen van {count} emoji('s) is mislukt",
     "failedToDeleteEmojis": "Emoji verwijderen is mislukt",
     "emojiRenamedSuccess": "Emoji hernoemd naar :{name}:",
     "failedToRenameEmoji": "Emoji hernoemen is mislukt",
@@ -3701,10 +4812,15 @@
       "advertisedEmptyTitle": "Nog geen servers vermeld",
       "advertisedEmpty": "Servers waarvan de eigenaar ze via federatie zichtbaar maakt, verschijnen hier. Nog geen enkele instance die deze instance kent vermeldt er een: bekijk een andere instance via het domein.",
       "hostedOn": "Gehost op {instance}",
-      "advertisedErrorTitle": "Kan de bekende instances niet lezen"
+      "advertisedErrorTitle": "Kan de bekende instances niet lezen",
+      "signInToJoin": "Log in om lid te worden van servers",
+      "joinFailed": "Kon niet deelnemen aan de server. Probeer het opnieuw.",
+      "profileFailed": "Kan gebruikersprofiel niet laden"
     },
     "haveInviteLink": "Heb je een uitnodigingslink? Plak hem hier",
     "inviteLink": "Uitnodigingslink",
+    "serverRules": "Regels",
+    "rulesAgreeNote": "Door lid te worden ga je akkoord met deze regels.",
     "invitedBy": "Uitgenodigd door",
     "expires": "Verloopt over",
     "remoteServer": "Externe server",
@@ -3838,7 +4954,8 @@
       "agree": "Akkoord en lid worden"
     },
     "joined": "Lid geworden van {server}",
-    "joinFailed": "Lid worden van de server is mislukt"
+    "joinFailed": "Lid worden van de server is mislukt",
+    "acceptAs": "Accepteren als {name}"
   },
   "languages": {
     "en": "English",
@@ -3866,7 +4983,10 @@
     "chatNotFound": "Deze chat of dit gesprek bestaat niet of je hebt er geen toegang toe.",
     "settingsNotFound": "Deze instellingenpagina bestaat niet.",
     "defaultNotFound": "De pagina die je zoekt bestaat niet of is verplaatst.",
-    "requestedAddress": "Opgevraagd adres"
+    "requestedAddress": "Opgevraagd adres",
+    "serverTitle": "Server niet gevonden",
+    "serverNotFound": "De server die je zoekt bestaat niet of je hebt er geen toegang toe.",
+    "browseServers": "Servers bekijken"
   },
   "onboarding": {
     "title": "Stel je profiel in",
@@ -4419,6 +5539,17 @@
       "unlock": "Dit spraakkanaal is end-to-end versleuteld. Ontgrendel versleuteling met je herstelsleutel om deel te nemen.",
       "dmSetup": "Gesprekken in deze conversatie zijn end-to-end versleuteld. Stel versleuteling in om te bellen of op te nemen.",
       "dmUnlock": "Gesprekken in deze conversatie zijn end-to-end versleuteld. Ontgrendel versleuteling met je herstelsleutel om te bellen of op te nemen."
+    },
+    "dmStatus": {
+      "noKeys": "Versleuteling staat aan, maar je sleutels zijn niet ingesteld",
+      "locked": "Versleuteling staat aan. Ontgrendel haar om versleutelde berichten te lezen",
+      "setup": "Versleuteling staat aan. Stel je sleutels in om mee te doen"
+    },
+    "sendFallback": {
+      "notSent": "Versleuteling mislukt. Het bericht is niet verstuurd.",
+      "sentUnencrypted": "Versleuteling mislukt. Het bericht is onversleuteld verstuurd.",
+      "required": "Dit kanaal vereist end-to-end versleuteling.",
+      "declined": "Het bericht is niet verstuurd."
     }
   },
   "today": {
@@ -5174,7 +6305,22 @@
     "installDescription": "Sneller laden en offline toegang",
     "install": "Installeren",
     "installing": "Installeren…",
-    "dismiss": "Installatievoorstel sluiten"
+    "dismiss": "Installatievoorstel sluiten",
+    "update": {
+      "title": "Update beschikbaar",
+      "body": "Er staat een nieuwe versie van Harmony klaar om te installeren",
+      "updating": "Bijwerken...",
+      "now": "Nu bijwerken"
+    },
+    "shareTitle": "Harmony - Veilige chat-app",
+    "shareText": "Harmony is een veilige, privé chat-app.",
+    "manualInstall": {
+      "ios": "Tik op Deel en daarna op \"Zet op beginscherm\".",
+      "android": "Gebruik het Chrome-menu (⋮) → App installeren of Toevoegen aan startscherm.",
+      "desktop": "Gebruik het installatiepictogram in de adresbalk of het Chrome-menu → \"Harmony installeren...\"."
+    },
+    "installUnavailable": "Installeren is op deze pagina nu niet beschikbaar. {hint}",
+    "installFailed": "Installeren is geannuleerd of kon niet starten. {hint}"
   },
   "security": {
     "subtitle": "Je wachtwoord, tweestapsverificatie en de apparaten die op je account zijn ingelogd.",
@@ -5506,7 +6652,27 @@
       "linkHint": "Log in op het nieuwe apparaat en scan daarna de code die het toont.",
       "pendingPairing": "Wacht op koppeling. Scan de code die het toont.",
       "pendingPlain": "Ingelogd en heeft je versleutelde berichten ontgrendeld.",
-      "scanCode": "Code scannen"
+      "scanCode": "Code scannen",
+      "deny": "Weigeren",
+      "rename": "Hernoemen",
+      "signedOut": "Uitgelogd",
+      "showInactive": "{count} uitgelogd apparaat tonen | {count} uitgelogde apparaten tonen",
+      "hideInactive": "{count} uitgelogd apparaat verbergen | {count} uitgelogde apparaten verbergen",
+      "trust": {
+        "verified": "Geverifieerd",
+        "recovery": "Geschiedenis ontgrendeld",
+        "account": "Alleen nieuwe berichten",
+        "untrusted": "Beperkt"
+      },
+      "platform": {
+        "web": "web",
+        "desktop": "desktop",
+        "mobile": "mobiel",
+        "other": "apparaat"
+      },
+      "lastActive": "{platform} · laatst actief {time}",
+      "minutesAgo": "{count} min geleden",
+      "hoursAgo": "{count} u geleden"
     },
     "approval": {
       "pairingText": "Dat apparaat wacht op je versleutelde berichten. Is het van jou en ligt het voor je, scan dan de code die het toont: sleutels gaan alleen naar het apparaat waarvan je de code scant.",
@@ -5516,7 +6682,20 @@
       "plainText": "Een nieuw apparaat heeft ingelogd op je account en zelf je versleutelde berichten ontgrendeld; vanaf hier wordt niets verstuurd. Was jij dit niet, beveilig dan je account.",
       "thatWasMe": "Dat was ik",
       "staysSignedIn": "{device} blijft ingelogd.",
-      "newDeviceFallback": "Het nieuwe apparaat"
+      "newDeviceFallback": "Het nieuwe apparaat",
+      "newLogin": "Nieuwe login",
+      "newLoginOn": "Nieuwe login op {device}",
+      "secureAccount": "Nee, beveilig mijn account",
+      "moreWaiting": "+{count} andere login wacht | +{count} andere logins wachten",
+      "waitingTitle": "Keur deze login goed op een ander apparaat",
+      "waitingText": "Open Harmony op een apparaat waarop je al bent ingelogd en tik op {button} om hier je versleutelde berichtgeschiedenis te ontgrendelen. Nieuwe berichten werken in de tussentijd gewoon.",
+      "notMeThisLogin": "Dit was ik niet",
+      "approveFailed": "Kon login niet goedkeuren",
+      "tryAgain": "Probeer het opnieuw.",
+      "secureFailed": "Kon account niet beveiligen",
+      "signOutFailed": "Kon niet uitloggen",
+      "signOutFailedHint": "Log handmatig uit via het gebruikersmenu.",
+      "secureFailedHintPath": "Probeer het opnieuw via {settings} → {privacy}."
     },
     "settings": {
       "devicesDescription": "Apparaten die op je account zijn ingelogd. Om een nieuw apparaat toegang te geven tot je versleutelde berichten, koppel je het: log daar in en scan de code die het toont vanaf een apparaat dat al is ontgrendeld.",
@@ -5525,7 +6704,91 @@
       "pairingCopyTitle": "Sleutels bewaard om te koppelen",
       "pairingCopyDescription": "Dit apparaat bewaart een leesbare kopie van je versleutelingssleutels, zodat het apparaten kan koppelen zonder herstelzin. Verwijder je die kopie, dan vraagt koppelen vanaf hier weer om de herstelzin.",
       "pairingCopyRemoved": "De kopie van je sleutels is van dit apparaat verwijderd",
-      "pairingCopyRemoveFailed": "Verwijderen van de kopie van je sleutels is mislukt"
+      "pairingCopyRemoveFailed": "Verwijderen van de kopie van je sleutels is mislukt",
+      "loadingStatus": "Versleutelingsstatus laden...",
+      "statusHeading": "Versleutelingsstatus",
+      "statusDescription": "End-to-end-versleuteling beschermt je berichten, zodat alleen jij en je ontvangers ze kunnen lezen.",
+      "setUp": "Versleuteling instellen",
+      "unlockHistory": "Berichtgeschiedenis ontgrendelen",
+      "recoveryKeyHeading": "Herstelsleutel",
+      "recoveryKeyActive": "Herstelsleutel actief",
+      "recoveryKeyActiveDescription": "Je versleutelingssleutels worden beschermd door een herstelzin van 12 woorden.",
+      "viewInfo": "Info bekijken",
+      "backupStored": "Versleutelde back-up opgeslagen op de server",
+      "lastBackup": "Laatste back-up: {time}",
+      "sessionKeys": "Sessiesleutels",
+      "activeRooms": "Actieve ruimtes",
+      "activeRoomsDescription": "Ruimtes waarin je versleutelde berichten kunt sturen",
+      "receivedKeys": "Ontvangen sleutels",
+      "receivedKeysDescription": "Sleutels ontvangen van andere gebruikers",
+      "syncing": "Synchroniseren...",
+      "syncKeys": "Sleutels synchroniseren",
+      "diagnostics": "Diagnose",
+      "diagnosticsDescription": "Controleert in één keer je identiteitssleutels, de serverback-up en het apparaatvertrouwen.",
+      "checking": "Controleren...",
+      "runDiagnosis": "Diagnose uitvoeren",
+      "devicesHeading": "Je apparaten",
+      "backupHeading": "Back-up en herstel",
+      "createBackup": "Nu back-up maken",
+      "createBackupDescription": "Handmatig een versleutelde back-up naar de server starten",
+      "backingUp": "Back-up maken...",
+      "backup": "Back-up",
+      "exportFile": "Back-upbestand exporteren",
+      "exportFileDescription": "Download een versleuteld back-upbestand om lokaal te bewaren",
+      "export": "Exporteren",
+      "importFile": "Back-upbestand importeren",
+      "importFileDescription": "Herstellen vanuit een geëxporteerd back-upbestand",
+      "import": "Importeren",
+      "importing": "Importeren...",
+      "importModalText": "Kies je versleutelde back-upbestand om je versleutelingssleutels te herstellen.",
+      "backupFileLabel": "Back-upbestand",
+      "recoveryHeading": "Herstel",
+      "restoreWithKey": "Herstellen met herstelsleutel",
+      "restoreWithKeyDescription": "Heb je een herstelzin? Voer die in om je versleuteling te herstellen",
+      "enterRecoveryKey": "Herstelsleutel invoeren",
+      "reset": "Versleuteling resetten",
+      "resetDescription": "Verwijder alle versleutelingssleutels en begin opnieuw. Je verliest de toegang tot alle versleutelde berichten.",
+      "infoTitle": "Informatie over herstelsleutel",
+      "infoStatus": "Status:",
+      "infoActive": "Actief",
+      "infoWordCount": "Aantal woorden:",
+      "infoWords": "{count} woord | {count} woorden",
+      "infoVerificationCode": "Verificatiecode:",
+      "infoStorageHint": "Bewaarhint:",
+      "infoNeverStored": "Je herstelsleutel wordt nooit op de server opgeslagen. Alleen jij hebt hem.",
+      "infoLost": "Ben je je herstelsleutel kwijt, stel dan nieuwe versleuteling in.",
+      "resetConfirmTitle": "Versleuteling resetten?",
+      "resetConfirmText": "Hiermee worden al je versleutelingssleutels en back-ups permanent verwijderd.",
+      "resetConfirmWarning": "Je kunt eerder versleutelde berichten niet meer lezen.",
+      "resetConfirmUndone": "Deze actie kan niet ongedaan worden gemaakt.",
+      "resetting": "Resetten...",
+      "statusNotSetUp": "Versleuteling niet ingesteld",
+      "statusLocked": "Versleuteling vergrendeld",
+      "statusActive": "Versleuteling actief",
+      "statusNotSetUpDescription": "Stel een herstelsleutel in om end-to-end-versleuteling in te schakelen",
+      "statusLockedDescription": "Voer je herstelzin in, of keur dit apparaat goed vanaf een ander apparaat, om je berichtgeschiedenis te ontgrendelen",
+      "statusActiveDescription": "Je berichten zijn beschermd met end-to-end-versleuteling",
+      "toast": {
+        "loadFailed": "Kon versleutelingsinstellingen niet laden",
+        "diagnosisFailed": "Diagnose mislukt",
+        "backupWrongPhrase": "Je sleutelback-up op de server is gemaakt met een andere herstelzin en kan niet met de huidige worden geopend. Nieuwe berichten worden niet beïnvloed.",
+        "backupRestoreFailed": "Herstellen van sleutelback-up mislukt: {error}",
+        "synced": "{restored} back-upsessies en {claimed} nieuwe sessiesleutels gesynchroniseerd",
+        "nothingToSync": "Geen nieuwe sleutels om te synchroniseren",
+        "syncFailed": "Kon sleutels niet synchroniseren",
+        "backupCreated": "Back-up gemaakt",
+        "backupFailed": "Kon back-up niet maken",
+        "exported": "Back-upbestand geëxporteerd",
+        "exportFailed": "Kon back-up niet exporteren",
+        "imported": "{count} sessie geïmporteerd | {count} sessies geïmporteerd",
+        "importFailed": "Kon back-up niet importeren",
+        "leftVoice": "Versleuteld spraakgesprek verlaten (de sleutels zijn gereset)",
+        "resetDone": "Versleuteling is gereset",
+        "resetFailed": "Kon versleuteling niet resetten",
+        "enabled": "Versleuteling ingeschakeld",
+        "restored": "Versleuteling hersteld",
+        "syncedKeys": "{count} sessiesleutel gesynchroniseerd | {count} sessiesleutels gesynchroniseerd"
+      }
     },
     "recovery": {
       "anotherDevice": "Ander apparaat",
@@ -5535,7 +6798,25 @@
       "qrPasteLabel": "Of plak de gegevens van de QR-code",
       "pairingCodeScanned": "Dat is een koppelcode voor apparaten. Gebruik het tabblad Ander apparaat.",
       "notRecoveryKey": "Die QR-code is geen herstelsleutel van Harmony",
-      "qrReadFailed": "Lezen van de QR-code is mislukt"
+      "qrReadFailed": "Lezen van de QR-code is mislukt",
+      "title": "Versleuteling herstellen",
+      "phraseTab": "Herstelzin",
+      "phraseDescription": "Voer je herstelzin van 12 woorden in om weer toegang te krijgen tot je versleutelde berichten.",
+      "wordPlaceholder": "Woord {n}",
+      "verificationLabel": "Verificatiecode (optioneel)",
+      "verificationPlaceholder": "Code van 6 tekens",
+      "verificationHint": "Heb je een verificatiecode bewaard, voer die dan hier in om te bevestigen dat je de juiste herstelzin hebt",
+      "restoring": "Herstellen...",
+      "valid": "Geldige herstelzin",
+      "invalid": "Ongeldige herstelzin. Controleer op typfouten.",
+      "validationFailed": "Validatie mislukt",
+      "pastedPhrase": "Herstelzin van 12 woorden geplakt",
+      "phrasePasted": "Herstelzin geplakt",
+      "wrongWordCount": "12 woorden verwacht, {count} ontvangen",
+      "clipboardFailed": "Kon klembord niet lezen",
+      "qrRead": "QR-code gelezen",
+      "codeMismatch": "Verificatiecode komt niet overeen",
+      "restoreFailed": "Kon versleuteling niet herstellen"
     },
     "recoverySetup": {
       "multiDevice": "Koppel een nieuw apparaat door vanaf dit apparaat een QR-code te scannen; je herstelsleutel is de reserve",
@@ -5544,11 +6825,95 @@
       "qrHint": "Iedereen die deze code ziet, kan je versleutelde berichten lezen; maak er geen screenshot van. Wil je een ander apparaat instellen, koppel het dan: log daar in en scan vanaf dit apparaat de code die het toont.",
       "newDeviceLabel": "Nieuw apparaat?",
       "newDeviceReminder": "{label} Log daar in en kies {another}, en scan daarna de code ervan vanaf dit apparaat. Je berichten worden ontgrendeld zonder dat je de herstelsleutel hoeft te typen.",
-      "rememberNeed": "Je hebt hem nodig als je de toegang tot al je ingelogde apparaten kwijtraakt of je browsergegevens wist."
+      "rememberNeed": "Je hebt hem nodig als je de toegang tot al je ingelogde apparaten kwijtraakt of je browsergegevens wist.",
+      "title": "Berichtversleuteling instellen",
+      "introText": "Je berichten worden versleuteld, zodat alleen jij en je ontvangers ze kunnen lezen. Zelfs de servers van Harmony kunnen niet bij de inhoud van je berichten.",
+      "featureRecoveryKey": "Herstelsleutel",
+      "featureRecoveryKeyText": "Een zin van 12 woorden die al je versleutelingssleutels beschermt",
+      "featureBackup": "Versleutelde back-up",
+      "featureBackupText": "Je sleutels worden op de server geback-upt, versleuteld met je herstelsleutel",
+      "featureMultiDevice": "Meerdere apparaten",
+      "featureRecovery": "Herstel",
+      "featureRecoveryText": "Wis je je cache, voer dan je herstelsleutel in om weer toegang te krijgen",
+      "importantLabel": "Belangrijk:",
+      "importantWarning": "{label} Schrijf je herstelsleutel op en bewaar hem veilig. Raak je hem en je apparaten kwijt, dan kun je je versleutelde berichten niet meer lezen.",
+      "keyHeading": "Je herstelsleutel",
+      "keyInstruction": "Schrijf deze 12 woorden op in de juiste volgorde. Bewaar ze op een veilige plek – je hebt ze nodig om je versleutelingssleutels te herstellen.",
+      "generating": "Je herstelsleutel wordt gemaakt...",
+      "qrAlt": "QR-code van herstelsleutel",
+      "verificationCode": "Verificatiecode: {code}",
+      "verificationCodeHint": "Bewaar deze code om later te controleren of je de juiste herstelzin hebt",
+      "verifyHeading": "Je herstelsleutel controleren",
+      "verifyInstruction": "Voer de woorden op deze posities in, zodat je zeker weet dat je je herstelsleutel goed hebt bewaard:",
+      "wordLabel": "Woord {n}",
+      "wordPlaceholder": "Voer woord {n} in",
+      "verifyError": "Controleer alle woorden correct",
+      "doneHeading": "Versleuteling is ingesteld",
+      "doneText": "Je end-to-end-versleuteling is nu actief. Je berichten worden versleuteld en veilig op de server geback-upt.",
+      "summaryHeading": "Wat is ingesteld",
+      "summaryKey": "Herstelsleutel gemaakt en gecontroleerd",
+      "summaryKeys": "Versleutelingssleutels aangemaakt",
+      "summaryBackup": "Versleutelde back-up opgeslagen op de server",
+      "summaryReady": "Klaar om versleutelde berichten te sturen",
+      "rememberLabel": "Onthoud:",
+      "rememberKeep": "{label} Bewaar je herstelsleutel van 12 woorden veilig.",
+      "processing": "Verwerken...",
+      "completeSetup": "Instellen voltooien",
+      "steps": {
+        "intro": "Introductie",
+        "key": "Herstelsleutel",
+        "verify": "Controleren",
+        "complete": "Voltooid"
+      },
+      "toast": {
+        "qrFailed": "Kon QR-code niet maken",
+        "copied": "Herstelsleutel gekopieerd",
+        "copyFailed": "Kopiëren naar klembord mislukt",
+        "downloaded": "Herstelsleutel gedownload",
+        "generateFailed": "Kon herstelsleutel niet maken",
+        "setupFailed": "Kon instellen niet voltooien"
+      },
+      "file": {
+        "title": "Harmony-herstelsleutel",
+        "body": "Gemaakt: {date}\n\nJe herstelzin van 12 woorden:\n{words}\n\nVerificatiecode: {code}\n\nBELANGRIJK: Bewaar dit bestand veilig en privé.\nIedereen met deze woorden heeft toegang tot je versleutelde berichten."
+      }
     },
     "keyShareFailed": {
       "title": "Sommige leden kunnen je bericht misschien niet lezen",
       "body": "De sleutel om het te lezen heeft {count} lid niet bereikt. Diens app vraagt er opnieuw om bij het openen van het bericht. | De sleutel om het te lezen heeft {count} leden niet bereikt. Hun apps vragen er opnieuw om bij het openen van het bericht."
+    },
+    "diagnosticRows": {
+      "unlocked": "Versleuteling ontgrendeld",
+      "profile": "Profiel",
+      "identity": "Identiteitssleutel",
+      "signing": "Ondertekeningssleutel",
+      "backup": "Sleutelback-up",
+      "device": "Apparaatvertrouwen",
+      "unlockedYes": "De sleutels zijn geladen in deze sessie",
+      "unlockedNo": "Voer je herstelzin in om te ontgrendelen",
+      "profileMissing": "De versleutelingsdienst heeft geen profiel-ID gevonden",
+      "identityUnpublished": "Geen gepubliceerde identiteitssleutel - stel versleuteling in",
+      "identityNoLocal": "Er is een gepubliceerde sleutel, maar geen lokale privésleutel - ontgrendel met je herstelzin",
+      "identityMatch": "De lokale privésleutel komt overeen met de gepubliceerde publieke sleutel",
+      "identityMismatch": "De lokale sleutel komt NIET overeen met de gepubliceerde sleutel - ontgrendel opnieuw om dit te herstellen",
+      "identityUnverified": "Koppeling niet geverifieerd (oud record) - ontgrendel opnieuw om te verifiëren",
+      "signingPublished": "Sleutel voor het ondertekenen van berichten gepubliceerd",
+      "signingMissing": "Geen ondertekeningssleutel - wordt automatisch aangemaakt bij de volgende ontgrendeling",
+      "identityLookupFailed": "Opzoeken mislukt: {error}",
+      "backupNone": "Nog geen serverback-up - die wordt automatisch gemaakt als je versleuteling gebruikt",
+      "backupLocked": "Back-up aanwezig ({count} sessie) - ontgrendel om die te verifiëren | Back-up aanwezig ({count} sessies) - ontgrendel om die te verifiëren",
+      "backupOk": "De back-up is te ontsleutelen met je huidige zin ({count} sessie) | De back-up is te ontsleutelen met je huidige zin ({count} sessies)",
+      "backupWrongPhrase": "De back-up bestaat, maar is NIET te ontsleutelen met je huidige herstelzin (gemaakt met een oudere zin)",
+      "backupCheckFailed": "Controle van de back-up mislukt: {error}",
+      "deviceUnregistered": "Dit apparaat is nog niet geregistreerd",
+      "deviceRevoked": "Dit apparaat is ingetrokken",
+      "deviceTrust": "Vertrouwensniveau: {level}",
+      "deviceUnreadable": "Apparaatstatus kon niet worden gelezen"
+    },
+    "identityChanged": {
+      "title": "Beveiligingsidentiteit gewijzigd",
+      "message": "De versleutelingssleutels van {name} zijn gewijzigd. Dat is normaal als de app opnieuw is geïnstalleerd of op een nieuw apparaat is ingelogd.",
+      "messageUnnamed": "De versleutelingssleutels van een contact zijn gewijzigd. Dat is normaal als de app opnieuw is geïnstalleerd of op een nieuw apparaat is ingelogd."
     }
   },
   "admin": {
@@ -5601,7 +6966,26 @@
         "reporter": "Melder",
         "reported": "Gemelde gebruiker",
         "server": "Server"
-      }
+      },
+      "title": "Meldingen & moderatie",
+      "pendingCount": "{count} in afwachting",
+      "filters": {
+        "pending": "In afwachting",
+        "investigating": "In onderzoek",
+        "resolved": "Opgelost",
+        "dismissed": "Afgewezen",
+        "all": "Alle"
+      },
+      "reporterComment": "Opmerking van de melder",
+      "deletedSince": "Verwijderd sinds de melding",
+      "sensitive": "Gevoelig",
+      "contentWarning": "CW: {warning}",
+      "viewRemote": "Bekijken op de externe instantie",
+      "deleteMedia": "Media verwijderen ({count})",
+      "deleteMediaTitle": "Media verwijderen",
+      "deleteMediaMessage": "{count} mediabestand uit de opslag verwijderen? Dit kan niet ongedaan worden gemaakt. | {count} mediabestanden uit de opslag verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "deleteMediaDone": "{count} mediabestand verwijderd | {count} mediabestanden verwijderd",
+      "deleteMediaFailed": "Kan mediabestanden niet verwijderen"
     },
     "federation": {
       "limited": "Beperkt",
@@ -5619,7 +7003,78 @@
       "ignoreReportsConfirmBody": "Meldingen van {domain} worden vanaf nu weggegooid. Al ontvangen meldingen blijven in de wachtrij en voor {domain} zelf verandert er niets.",
       "reportsIgnoredToast": "Meldingen van {domain} worden genegeerd",
       "reportsAcceptedToast": "Meldingen van {domain} worden weer geaccepteerd",
-      "reportsFailed": "Wijzigen van de afhandeling van meldingen van dit domein is mislukt"
+      "reportsFailed": "Wijzigen van de afhandeling van meldingen van dit domein is mislukt",
+      "title": "Federatiebeheer",
+      "addInstance": "Instance toevoegen",
+      "refresh": "Vernieuwen",
+      "statTotal": "Totaal aantal instances",
+      "statActive7d": "Actief (7 dagen)",
+      "trusted": "Vertrouwd",
+      "blocked": "Geblokkeerd",
+      "active": "Actief",
+      "inactive": "Inactief",
+      "endpointHealth": "Status van endpoints",
+      "successRate": "{rate}% succesvol",
+      "totalEndpoints": "Totaal aantal endpoints",
+      "deadEndpoints": "Dode endpoints",
+      "healthyEndpoints": "Gezond",
+      "failingEndpoints": "Met fouten",
+      "deadWarning": "{count} endpoint gemarkeerd als dood en verwijderd uit volgrelaties | {count} endpoints gemarkeerd als dood en verwijderd uit volgrelaties",
+      "purgeAll": "Alles opschonen",
+      "endpointFailures": "{count} fout | {count} fouten",
+      "lastFailure": "Laatste fout: {time}",
+      "removeEndpoint": "Dit endpoint verwijderen",
+      "maintenance": "Federatieonderhoud",
+      "keysOk": "Alle lokale gebruikers hebben geldige sleutelparen",
+      "keysIssues": "Gebruikers zonder sleutels: {missing}. Met inconsistente status: {inconsistent}.",
+      "keySweepTitle": "Sleutels genereren",
+      "keySweepDesc": "Ontbrekende RSA-sleutels genereren voor lokale gebruikers die er geen hebben",
+      "runSweep": "Uitvoeren",
+      "orphanTitle": "Verweesde sleutels opschonen",
+      "orphanDesc": "Gebruikers met inconsistente sleutels herstellen (openbaar zonder privé of andersom)",
+      "runCleanup": "Opschonen",
+      "scheduleNote": "Onderhoudstaken draaien automatisch: sleutels genereren om 03:00 UTC, verweesde sleutels opschonen om 04:00 UTC",
+      "directory": "Instancegids",
+      "filterAll": "Alle instances",
+      "searchPlaceholder": "Instances zoeken…",
+      "loadingInstances": "Instances laden…",
+      "userCount": "{count} gebruiker | {count} gebruikers",
+      "postCount": "{count} bericht | {count} berichten",
+      "lastSeen": "Laatst gezien: {time}",
+      "refreshInstance": "Instance-info vernieuwen",
+      "markTrusted": "Markeren als vertrouwd",
+      "removeTrust": "Vertrouwen intrekken",
+      "blockInstance": "Instance blokkeren",
+      "unblockInstance": "Instance deblokkeren",
+      "deleteInstance": "Instance verwijderen",
+      "pageRange": "{from}-{to} van {total}",
+      "discovery": "Instances ontdekken",
+      "tabInteractions": "Uit interacties",
+      "tabSearch": "Zoeken en toevoegen",
+      "interactionCount": "{count} interactie | {count} interacties",
+      "domainPlaceholder": "Voer een domein in (bijv. mastodon.social)",
+      "discovering": "Zoeken…",
+      "federationEnabled": "Federatie ingeschakeld",
+      "apiAvailable": "API beschikbaar",
+      "detailSoftware": "Software:",
+      "detailDescription": "Beschrijving:",
+      "detailUsers": "Gebruikers:",
+      "detailPosts": "Berichten:",
+      "detailAdmin": "Beheerder:",
+      "addAsTrusted": "Toevoegen als vertrouwde instance",
+      "purgeConfirmTitle": "Dode endpoints opschonen",
+      "purgeConfirmBody": "{count} dood endpoint en de mislukte bezorgingen ervan definitief verwijderen? Dit kan niet ongedaan worden gemaakt. | Alle {count} dode endpoints en hun mislukte bezorgingen definitief verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "purgeConfirm": "Opschonen",
+      "refreshFailed": "Vernieuwen van de instance-info is mislukt",
+      "trustFailed": "Wijzigen van het vertrouwen in de instance is mislukt",
+      "blockConfirmBody": "Deze instance blokkeren?",
+      "blockConfirm": "Blokkeren",
+      "blockFailed": "Wijzigen van de blokkering van de instance is mislukt",
+      "deleteConfirmBody": "Weet je zeker dat je deze instance wilt verwijderen? Alle federatiegegevens worden verwijderd.",
+      "deleteFailed": "Verwijderen van de instance is mislukt",
+      "addFailed": "Toevoegen van de instance is mislukt",
+      "discoverFailed": "Ontdekken van de instance is mislukt. Controleer of het domein geldig is en ActivityPub ondersteunt.",
+      "instanceAdded": "Instance toegevoegd"
     },
     "instance": {
       "mirrorStatusProgress": "Discord-bestanden opslaan: {queued} in de wachtrij, {size} opgeslagen",
@@ -5661,7 +7116,126 @@
       "maxInstanceStickers": "Instance-stickers",
       "maxInstanceStickersHint": "0 tot 500. Elk lokaal account kan instance-stickers sturen. Met 0 zet je ze uit.",
       "maxPersonalStickers": "Persoonlijke stickers per gebruiker",
-      "maxPersonalStickersHint": "0 tot 100. Met 0, de standaardwaarde, staan persoonlijke stickers uit."
+      "maxPersonalStickersHint": "0 tot 100. Met 0, de standaardwaarde, staan persoonlijke stickers uit.",
+      "title": "Configuratie",
+      "tabGeneral": "Algemeen",
+      "tabFederation": "Federatie",
+      "tabBranding": "Huisstijl",
+      "tabAuth": "Authenticatie",
+      "chatSettings": "Chatinstellingen",
+      "maxServerSize": "Max. servergrootte",
+      "maxServersPerUser": "Servers die één account mag bezitten",
+      "maxServersPerUserHint": "Lokale servers; beheerders en moderators van de instance uitgezonderd. 0 = geen limiet. Standaard: 100.",
+      "maxBotsPerUser": "Bots die één account mag bezitten",
+      "maxBotsPerUserHint": "Kanaalwebhooks en gekoppelde Discord- en Matrix-bridges tellen niet mee. 0 = geen limiet. Standaard: 25.",
+      "maxMessageLength": "Max. berichtlengte",
+      "maxMediaAttachments": "Max. mediabijlagen per bericht",
+      "maxMediaAttachmentsHint": "Maximaal aantal afbeeldingen/video’s/bestanden per bericht of chatbericht. Standaard: 20.",
+      "allowFileUploads": "Bestandsuploads toestaan",
+      "enableVoiceChannels": "Spraakkanalen inschakelen",
+      "bridgeAttachmentsTitle": "Bijlagen via bridges",
+      "bridgeAttachmentsHint": "Instance-breed beleid voor afbeeldingen/bestanden via bridges van externe platforms (Discord enz.). Boteigenaren kunnen dit niet overschrijven.",
+      "attachmentHandling": "Omgang met bijlagen",
+      "attachmentModeLink": "Alleen link (externe CDN-URL’s, kunnen verlopen)",
+      "attachmentModeRefresh": "Vernieuwen bij openen (verlopen URL’s opnieuw ondertekenen bij bekijken; geen extra schijfruimte)",
+      "attachmentModeMirror": "Spiegelen naar opslag (permanent; gebruikt schijfruimte, groeit met verkeer)",
+      "attachmentMirrorWarning": "Let op: elke bijlage via een bridge wordt gekopieerd naar {table}. Drukke kanalen met een bridge kunnen veel opslag gebruiken.",
+      "attachmentRefreshHint": "Vereist de botgateway. Verlopen Discord-links worden opnieuw ondertekend als iemand ze bekijkt (geen schijfruimte, geen label ‘bewerkt’): door de bridge die ze plaatste zolang die verbonden is, anders door de Discord-bot van deze instance, die ook nodig is voor links die mensen op Harmony plaatsen.",
+      "klipyTitle": "Mediakiezer (Klipy)",
+      "klipyHint": "Zoeken naar GIF’s/media loopt via de federatie-backend. API-sleutels staan in de backend-omgeving ({ads} / {noads}), niet hier.",
+      "klipyAdsGroup": "Advertenties en naamsvermelding",
+      "gifAdsTitle": "GIF-advertenties",
+      "gifAdsNoteLabel": "Let op:",
+      "gifAdsNote": "{note} Deze instelling geldt alleen voor de mobiele GIF-kiezer. Op desktop zie je nooit advertenties. Dat is een beperking van KLIPY als advertentiepartij.",
+      "gifAdsDesc": "Niet-supporters zien Klipy-advertenties in de mobiele GIF-kiezer; advertentievrije supporters nooit. Klipy toont alleen advertenties in mobiele browsers (ook geïnstalleerde PWA’s); volgens hun API krijgt desktop nooit advertenties. Uit: niemand ziet advertenties. Vereist ook een Klipy-sleutel met advertenties en advertenties ingeschakeld in het Klipy Partner Dashboard. Advertentievrij per niveau stel je in onder Financiering en supporters.",
+      "klipyWatermarkTitle": "KLIPY-watermerk op verstuurde media",
+      "klipyWatermarkDesc": "Voegt een klein KLIPY-label toe aan gedeelde GIF’s/stickers. Het label ‘Search KLIPY’ in de kiezer wordt altijd getoond (verplichte naamsvermelding); dit watermerk is optioneel maar aanbevolen.",
+      "optionalCollections": "Optionele collecties",
+      "optionalCollectionsHint": "GIF’s en stickers zijn altijd beschikbaar. Als je deze inschakelt, krijgt de kiezer extra tabbladen en slash-commando’s; uit zijn ze overal verborgen.",
+      "clipsTitle": "Clips",
+      "clipsDesc": "Korte video’s in een lus (optioneel met geluid).",
+      "memesTitle": "Memes",
+      "memesDesc": "De memecollectie van Klipy.",
+      "aiEmojiBrowseTitle": "AI-emoji’s bladeren",
+      "aiEmojiBrowseDesc": "Blader door de AI-emoji’s van Klipy. Kies je er een, dan komt die als emoji in het invoerveld (hij staat niet hier, gedraagt zich als een externe emoji en telt mee voor vaak gebruikt).",
+      "aiEmojiGenGroup": "AI-emoji’s maken",
+      "aiEmojiGenTitle": "AI-emoji’s maken toestaan",
+      "aiEmojiGenDesc": "Leden maken eigen emoji’s op basis van een tekstprompt; die staan op deze instance en verschijnen in de emojikiezer onder ‘AI-gegenereerd’. Klipy beperkt het maken tot 20 per dag per instance (gedeeld), plus een daglimiet per gebruiker.",
+      "trendingTitle": "Trending en ontdekken",
+      "trendingPosts": "Trending berichten",
+      "refreshing": "Vernieuwen…",
+      "refreshTrending": "Trending nu vernieuwen",
+      "refreshTrendingHint": "Trending berichten handmatig opnieuw berekenen. Gebeurt normaal elke 15 minuten.",
+      "federationSettings": "Federatie-instellingen",
+      "maxPostLength": "Max. lengte van een bericht",
+      "retryAttempts": "Bezorgpogingen",
+      "maxCustomEmojis": "Max. eigen emoji’s per server",
+      "maxCustomEmojisHint": "Maximaal aantal eigen emoji’s per server. 0 = onbeperkt.",
+      "emojiQuality": "Beeldkwaliteit van eigen emoji’s",
+      "emojiQualityHint": "JPEG-/WebP-kwaliteit (20-100) voor verkleinde afbeeldingen van eigen emoji’s uit de opslag. Standaard: 80. Lagere waarden besparen bandbreedte, maar geven artefacten.",
+      "allowEmojiNames": "Eigen emoji’s in weergavenamen toestaan",
+      "allowEmojiNamesHint": "Uit: emoji’s worden niet getoond in namen en kunnen niet worden toegevoegd.",
+      "brandingTitle": "Huisstijl van de instance",
+      "instanceName": "Naam van de instance",
+      "namePlaceholder": "Harmony-instance",
+      "nameHint": "Deze naam staat op de inlog-/registratiepagina. Wijzigingen zijn voor alle gebruikers zichtbaar.",
+      "instanceDescription": "Beschrijving van de instance",
+      "descriptionPlaceholder": "Een gefedereerd sociaal platform",
+      "descriptionHint": "Deze beschrijving verschijnt als ondertitel op de inlog-/registratiepagina.",
+      "instanceRules": "Regels van de instance",
+      "rulesPlaceholder": "Eén regel per regel, bijv.\nWees respectvol\nGeen spam",
+      "rulesHint": "Eén keer getoond aan gebruikers die hier lid worden van een server, en aan gefedereerde gebruikers die via een uitnodigingslink lid worden.",
+      "instanceIcon": "Pictogram van de instance",
+      "uploadIcon": "Pictogram uploaden",
+      "iconHint": "Het logo van je instance. Getoond aan andere gefedereerde instances en in de instancegids.",
+      "instanceBanner": "Banner van de instance",
+      "uploadBanner": "Klik om een banner te uploaden",
+      "changeBanner": "Banner wijzigen",
+      "bannerHint": "Een hoofdafbeelding voor je instance. Getoond in de instancegids en gedeeld via NodeInfo.",
+      "themeColor": "Themakleur",
+      "themeColorHint": "De accentkleur van je instance. Gedeeld via NodeInfo zodat andere instances die kunnen gebruiken.",
+      "defaultTheme": "Standaardthema voor nieuwe gebruikers",
+      "defaultThemeHint": "Importeer een thema-JSON-bestand (geëxporteerd uit de weergave-instellingen) als standaard voor nieuwe en niet-ingelogde gebruikers.",
+      "importTheme": "Thema-JSON importeren",
+      "clearTheme": "Standaardthema wissen",
+      "themeSet": "Standaardthema is ingesteld",
+      "legalTitle": "Juridisch en contact",
+      "termsUrl": "URL van de gebruiksvoorwaarden",
+      "termsHint": "Link naar je gebruiksvoorwaarden. Getoond op de registratiepagina. Laat leeg om te verbergen.",
+      "privacyUrl": "URL van het privacybeleid",
+      "privacyHint": "Link naar je privacybeleid. Getoond op de registratiepagina. Laat leeg om te verbergen.",
+      "maintainerName": "Naam van de beheerder",
+      "maintainerNamePlaceholder": "Beheerder",
+      "maintainerNameHint": "Openbare contactnaam van de beheerder van deze instance.",
+      "maintainerEmail": "E-mailadres van de beheerder",
+      "maintainerEmailHint": "Openbaar contactadres. Gedeeld via NodeInfo voor transparantie in de federatie.",
+      "saving": "Opslaan…",
+      "saveBranding": "Huisstijl opslaan",
+      "webrtcTitle": "WebRTC-/spraakinstellingen",
+      "webrtcMode": "WebRTC-modus",
+      "modeHybrid": "Hybride (SFU indien ingesteld, anders P2P)",
+      "modeSfu": "Alleen SFU (LiveKit)",
+      "modeP2p": "Alleen P2P (peer-to-peer)",
+      "modeHint": "Hybride gebruikt de LiveKit-server als die is ingesteld, anders P2P. Alle deelnemers aan een gesprek gebruiken hetzelfde transport.",
+      "livekitUrl": "URL van de LiveKit-server",
+      "livekitUrlHint": "WebSocket-URL van de LiveKit-server (ingesteld in de .env van de backend)",
+      "maxStageListeners": "Max. luisteraars op het podium",
+      "maxStageListenersHint": "Maximale publieksgrootte voor podiumevenementen (sprekersmodus)",
+      "trendingRefreshed": "Trending berichten vernieuwd",
+      "trendingRefreshFailed": "Vernieuwen van trending berichten is mislukt",
+      "mustLogInConfig": "Je moet ingelogd zijn om de configuratie op te slaan",
+      "federationSaveFailed": "Opslaan van de federatie-instellingen is mislukt",
+      "voiceSaveFailed": "Opslaan van de spraakinstellingen is mislukt",
+      "configSaved": "Configuratie opgeslagen",
+      "configSaveFailed": "Opslaan van de configuratie is mislukt",
+      "mustLogInBranding": "Je moet ingelogd zijn om de huisstijl van de instance op te slaan",
+      "brandingSaved": "Huisstijl van de instance opgeslagen",
+      "brandingSaveFailed": "Opslaan van de huisstijl van de instance is mislukt",
+      "invalidThemeJson": "Ongeldig thema-JSON-bestand",
+      "themeImported": "Standaardthema geïmporteerd en opgeslagen",
+      "themeParseFailed": "Lezen van het thema-JSON-bestand is mislukt",
+      "themeCleared": "Standaardthema gewist",
+      "themeClearFailed": "Wissen van het standaardthema is mislukt"
     },
     "signInProviders": {
       "title": "Loginproviders",
@@ -5716,7 +7290,23 @@
         "maxPersonalEmojisPerUser": "Persoonlijke emoji per gebruiker",
         "maxStickersPerServer": "Stickers per server",
         "maxInstanceStickers": "Instance-stickers",
-        "maxPersonalStickersPerUser": "Persoonlijke stickers per gebruiker"
+        "maxPersonalStickersPerUser": "Persoonlijke stickers per gebruiker",
+        "instanceName": "Naam van de instantie",
+        "instanceDescription": "Beschrijving van de instantie",
+        "termsUrl": "URL van de voorwaarden",
+        "privacyUrl": "URL van het privacybeleid",
+        "maxPostLength": "Maximale berichtlengte voor posts",
+        "maxServerSize": "Maximale servergrootte",
+        "maxServersPerUser": "Servers per account",
+        "maxBotsPerUser": "Bots per account",
+        "driveInstanceLimit": "Drive-opslag voor de hele instantie",
+        "maxMessageLength": "Maximale berichtlengte",
+        "maxCustomEmojisPerServer": "Maximaal aantal eigen emoji's per server",
+        "customEmojiQuality": "Beeldkwaliteit van eigen emoji's",
+        "allowFileUploads": "Bestandsuploads toestaan",
+        "enableVoiceChannels": "Spraakkanalen inschakelen",
+        "federationRetryAttempts": "Herhaalpogingen voor federatie",
+        "oauthProviders": "OAuth-providers"
       },
       "staff": {
         "someServer": "een server",
@@ -5745,6 +7335,26 @@
         "inviteEmailed": "Heeft een uitnodiging gemaild naar {email}",
         "inviteReissued": "Heeft een nieuwe uitnodigingslink gemaakt voor {email}",
         "inviteRevoked": "Heeft de uitnodiging voor {email} ingetrokken"
+      },
+      "title": "Recente activiteit",
+      "filter": {
+        "all": "Alle gebeurtenissen",
+        "federation": "Federatie",
+        "moderation": "Moderatie",
+        "security": "Beveiliging"
+      },
+      "source": "Beheerder: {name}",
+      "emptyValue": "(leeg)",
+      "event": "Gebeurtenis",
+      "configChanged": "{label}: {value} (was {old})",
+      "configSet": "{label}: {value}",
+      "userShort": "gebruiker {id}…",
+      "userId": "gebruiker: {id}",
+      "userAction": {
+        "suspended": "Heeft {who} opgeschort",
+        "deleted": "Heeft {who} verwijderd",
+        "unsuspended": "Heeft de opschorting van {who} opgeheven",
+        "moderated": "Heeft {who} gemodereerd"
       }
     },
     "antiSpam": {
@@ -5788,7 +7398,7 @@
         "title": "Bots",
         "hint": "Verzoeken per minuut over alle routes van één bot, bovenop de limiet per route. Een bot waarvan de eigenaar is vrijgesteld, heeft zo'n plafond niet. 0 = geen limiet.",
         "requestsPerMinute": "Verzoeken per minuut, per bot",
-        "bridgeRequestsPerMinute": "Verzoeken per minuut, per gekoppelde Discord-bridge"
+        "bridgeRequestsPerMinute": "Verzoeken per minuut, per gekoppelde Discord- of Matrix-bridge"
       },
       "federation": {
         "title": "Vermeldingsspam via federatie",
@@ -6052,6 +7662,192 @@
           "waiting": "Wachten"
         }
       }
+    },
+    "performance": {
+      "title": "Prestatiemonitoring",
+      "subtitle": "Statistieken en inzichten voor je Harmony-instance.",
+      "cronNote": "Overzicht, latentie en trage query’s hebben een pg_cron-taak nodig die {fn} aanroept om gegevens te vullen.",
+      "fullscreen": "Volledig scherm",
+      "exitFullscreen": "Volledig scherm sluiten",
+      "range": {
+        "lastHour": "Afgelopen uur",
+        "last6Hours": "Afgelopen 6 uur",
+        "last24Hours": "Afgelopen 24 uur",
+        "last7Days": "Afgelopen 7 dagen",
+        "lastMonth": "Afgelopen maand",
+        "last3Months": "Afgelopen 3 maanden"
+      },
+      "refresh": "Vernieuwen",
+      "refreshing": "Vernieuwen…",
+      "totalRequests": "Totaal aantal verzoeken",
+      "avgResponseTime": "Gem. responstijd",
+      "errorRate": "Foutpercentage",
+      "federationSuccess": "Federatiesucces",
+      "status": {
+        "excellent": "Uitstekend",
+        "good": "Goed",
+        "slow": "Traag",
+        "healthy": "Gezond",
+        "elevated": "Verhoogd",
+        "critical": "Kritiek",
+        "degraded": "Verminderd",
+        "issues": "Problemen"
+      },
+      "latencyChart": "Latentie van verzoeken door de tijd",
+      "noChartData": "Geen gegevens voor de gekozen periode",
+      "barTitle": "{label}: {value} ms",
+      "slowQueries": "Trage query’s",
+      "queryTable": "Tabel: {table}",
+      "queryRows": "Rijen: {rows}",
+      "federationHealth": "Federatiestatus",
+      "unknownSoftware": "Onbekend",
+      "statSuccess": "Succes",
+      "statLatency": "Latentie",
+      "lastSeen": "Laatst gezien: {time}"
+    },
+    "announcements": {
+      "hint": "Aankondigingen voor de hele instantie die gebruikers te zien krijgen. Hier maak en beheer je ze.",
+      "newTitle": "Nieuwe aankondiging",
+      "editTitle": "Aankondiging bewerken",
+      "titleLabel": "Titel",
+      "titlePlaceholder": "Titel van de aankondiging",
+      "contentLabel": "Inhoud (eenvoudige HTML mogelijk)",
+      "contentPlaceholder": "Inhoud van de aankondiging",
+      "iconLabel": "Pictogram (een emoji, of info, warning, megaphone, maintenance, update, security)",
+      "imageUrlLabel": "Afbeeldings-URL (optioneel)",
+      "startsAtLabel": "Begint op (optioneel)",
+      "startsAtHint": "Laat leeg om direct te publiceren. Tijden gelden in je lokale tijdzone.",
+      "endsAtLabel": "Eindigt op (optioneel)",
+      "endsAtHint": "Laat leeg om niet te laten verlopen. Na dit tijdstip wordt de aankondiging automatisch verborgen voor gebruikers.",
+      "pinned": "Vastgemaakt",
+      "showPopup": "Pop-up tonen",
+      "active": "Actief",
+      "inactive": "Inactief",
+      "endBeforeStart": "De eindtijd moet na de begintijd liggen",
+      "updated": "Aankondiging bijgewerkt",
+      "created": "Aankondiging gemaakt",
+      "saveFailed": "Kan aankondiging niet opslaan",
+      "deleteTitle": "Aankondiging verwijderen",
+      "deleteMessage": "Deze aankondiging verwijderen?",
+      "deleted": "Aankondiging verwijderd",
+      "deleteFailed": "Kan aankondiging niet verwijderen"
+    },
+    "featured": {
+      "title": "Uitgelichte community's",
+      "hint": "Maak openbare servers vast bovenaan de pagina om community's te ontdekken. Uitgelichte servers verschijnen eerst.",
+      "loading": "Community's laden…",
+      "addTitle": "Toevoegen aan uitgelicht",
+      "removeTitle": "Verwijderen uit uitgelicht",
+      "pin": "Vastmaken",
+      "unpin": "Losmaken",
+      "added": "“{name}” uitgelicht",
+      "removed": "“{name}” verwijderd uit uitgelicht",
+      "toggleFailed": "Kan uitgelichte status niet bijwerken"
+    },
+    "panel": {
+      "title": "Configuratiescherm van de instantie",
+      "moderationTitle": "Moderatie",
+      "tabs": {
+        "overview": "Overzicht",
+        "federation": "Federatie",
+        "users": "Gebruikers",
+        "reports": "Meldingen",
+        "content": "Inhoud",
+        "config": "Configuratie",
+        "funding": "Financiering",
+        "tools": "Hulpmiddelen"
+      },
+      "overviewTitle": "Systeemoverzicht",
+      "healthTitle": "Systeemstatus",
+      "performanceTitle": "Prestatiebewaking",
+      "approximate": "Bij benadering",
+      "approximately": "ongeveer",
+      "database": "Database",
+      "responseMs": "{ms} ms",
+      "connections": "{count} verbinding | {count} verbindingen",
+      "federationQueue": "Federatiewachtrij",
+      "pendingDeliveries": "wachtende afleveringen",
+      "databaseSize": "Databasegrootte",
+      "totalSize": "totale grootte",
+      "stats": {
+        "users": "Gebruikers in totaal",
+        "servers": "Chatservers",
+        "instances": "Gefedereerde instanties",
+        "posts": "Posts in totaal",
+        "newLast24h": "+{count} in de afgelopen 24 uur",
+        "activeLast30d": "{count} actief in de afgelopen 30 dagen"
+      },
+      "updating": "Bijwerken…",
+      "updated": "Bijgewerkt: {age}",
+      "statsUnavailable": "Statistieken niet beschikbaar",
+      "allOperational": "Alle systemen operationeel",
+      "unavailable": "Niet beschikbaar",
+      "healthy": "Gezond"
+    },
+    "users": {
+      "title": "Gebruikersbeheer",
+      "searchPlaceholder": "Gebruikers zoeken…",
+      "searchLabel": "Gebruikers zoeken",
+      "filterCount": "{label} ({count})",
+      "filters": {
+        "all": "Alle gebruikers",
+        "local": "Lokaal",
+        "federated": "Gefedereerd",
+        "suspended": "Opgeschort"
+      },
+      "badgeAdmin": "Beheerder",
+      "badgeMod": "Mod",
+      "badgeForceSensitive": "Gedwongen gevoelig",
+      "forceSensitiveTitle": "Alle media van deze gebruiker worden verplicht als gevoelig gemarkeerd",
+      "badgeSilenced": "Beperkt",
+      "silencedTitle": "Deze gebruiker is beperkt (verborgen in openbare tijdlijnen)",
+      "joined": "Lid sinds {date}",
+      "postCount": "{count} post | {count} posts",
+      "serverCount": "{count} server | {count} servers",
+      "federatedStat": "gefedereerd",
+      "makeModerator": "Moderator maken",
+      "removeModerator": "Moderator intrekken",
+      "forceSensitive": "Alle media verplicht als gevoelig markeren",
+      "removeForceSensitive": "Gedwongen gevoelig opheffen",
+      "silence": "Beperken (verbergen in openbare tijdlijnen)",
+      "removeSilence": "Beperking opheffen",
+      "suspendUser": "Gebruiker opschorten",
+      "unsuspendUser": "Opschorting opheffen",
+      "deleteUser": "Gebruiker verwijderen",
+      "serversFor": "Servers van {name}",
+      "loadingServers": "Servers laden…",
+      "viewServer": "Server bekijken",
+      "moderatorStatus": "Moderatorstatus",
+      "promoteConfirm": "{name} moderator maken?",
+      "demoteConfirm": "{name} als moderator intrekken?",
+      "promoted": "{name} is nu moderator",
+      "demoted": "{name} is geen moderator meer",
+      "moderatorFailed": "Kan moderatorstatus niet bijwerken",
+      "suspend": "Opschorten",
+      "unsuspend": "Opschorting opheffen",
+      "suspendConfirm": "{name} opschorten?",
+      "suspended": "Gebruiker {name} opgeschort",
+      "unsuspendConfirm": "Opschorting van {name} opheffen?",
+      "unsuspended": "Opschorting van {name} opgeheven",
+      "deleteConfirm": "{name} verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "deleted": "Gebruiker {name} verwijderd",
+      "forceSensitiveTitleDialog": "Media verplicht gevoelig",
+      "forceSensitiveConfirm": "Alle media van {name} als gevoelig markeren?",
+      "forceSensitiveDone": "Alle toekomstige media van {name} worden als gevoelig gemarkeerd",
+      "removeForceSensitiveConfirm": "Gedwongen gevoelig voor {name} opheffen?",
+      "removeForceSensitiveDone": "Gedwongen gevoelig voor {name} opgeheven",
+      "silenceUser": "Gebruiker beperken",
+      "silenceConfirm": "{name} verbergen in openbare tijdlijnen?",
+      "silenceButton": "Beperken",
+      "silenced": "Gebruiker {name} beperkt",
+      "removeSilenceConfirm": "Beperking van {name} opheffen?",
+      "unsilenced": "Beperking van {name} opgeheven",
+      "actionFailed": "Actie op {name} mislukt: {error}",
+      "unknownError": "Onbekende fout"
+    },
+    "format": {
+      "never": "Nooit",
+      "justNow": "Zojuist"
     }
   },
   "discordBridge": {
@@ -6923,14 +8719,22 @@
       "collapse": "Map inklappen",
       "expand": "Map uitklappen",
       "ungroup": "Map opheffen",
-      "serverCount": "{count} server | {count} servers"
+      "serverCount": "{count} server | {count} servers",
+      "nameLabel": "Mapnaam",
+      "namePlaceholder": "Laat leeg voor geen naam",
+      "color": "Mapkleur",
+      "createFailed": "Map maken mislukt",
+      "updateFailed": "Map bijwerken mislukt",
+      "deleteFailed": "Map verwijderen mislukt"
     },
     "leave": {
       "confirm": "\"{name}\" verlaten? Je verliest de toegang tot alle kanalen en berichten.",
       "button": "Verlaten",
       "done": "Server verlaten",
       "failed": "Kan de server niet verlaten"
-    }
+    },
+    "serverDeleted": "Server \"{name}\" is verwijderd",
+    "serverDeletedUnnamed": "Deze server is verwijderd"
   },
   "chatNav": {
     "channel": {
@@ -6985,7 +8789,19 @@
       "draftHint": "Stuur een bericht om deze thread te starten",
       "loading": "Berichten laden…",
       "loadingOlder": "Laden…",
-      "loadOlder": "Oudere berichten laden"
+      "loadOlder": "Oudere berichten laden",
+      "lockPrevent": "Thread vergrendelen (geen nieuwe berichten)",
+      "archive": "Thread archiveren",
+      "archiveNote": "Gearchiveerde threads blijven zichtbaar, maar staan niet in de lijst met actieve threads.",
+      "lastReply": "Laatste antwoord {time}",
+      "view": "Thread bekijken",
+      "sidebarHint": "Start een thread vanuit een bericht!",
+      "messageCount": "{count} bericht | {count} berichten",
+      "archived": "Gearchiveerd",
+      "backToChannel": "Terug naar kanaal",
+      "channelFallback": "kanaal",
+      "renameMessage": "Geef deze thread een nieuwe naam.",
+      "deleteConfirm": "Weet je zeker dat je “{name}” wilt verwijderen? Dit kan niet ongedaan worden gemaakt."
     },
     "header": {
       "pinnedCount": "{count} vastgemaakt bericht | {count} vastgemaakte berichten",
@@ -7021,7 +8837,13 @@
       "dismissNamed": "Gesprek met {name} verbergen",
       "restored": "Gesprek met {name} hersteld",
       "restoreFailed": "Kan het gesprek niet herstellen",
-      "joinCallWith": "Deelnemen aan gesprek met {name}"
+      "joinCallWith": "Deelnemen aan gesprek met {name}",
+      "groupNamesMore": "{names} en {count} ander | {names} en {count} anderen",
+      "groupFallback": "Groepschat ({count} lid) | Groepschat ({count} leden)",
+      "ageMinutes": "{count} min",
+      "ageHours": "{count} u",
+      "ownPreview": "Jij: {text}",
+      "previewMessage": "Bericht"
     },
     "members": {
       "search": "Leden zoeken",
@@ -7079,7 +8901,17 @@
       "clips": "Clips",
       "memes": "Memes",
       "aiEmoji": "AI-emoji"
-    }
+    },
+    "voiceJoinFailed": "Kon niet deelnemen aan spraak",
+    "deleteConfirm": {
+      "channelMessage": "Weet je zeker dat je #{name} wilt verwijderen?",
+      "channelDetail": "Dit kan niet ongedaan worden gemaakt. Alle berichten in dit kanaal worden permanent verwijderd.",
+      "cannotUndo": "Dit kan niet ongedaan worden gemaakt.",
+      "namedMessage": "Weet je zeker dat je \"{name}\" wilt verwijderen?",
+      "categoryChannels": "Deze categorie bevat {count} kanaal. Het wordt bovenaan de kanaallijst geplaatst (zonder categorie). Typ \"{name} DELETE\" in plaats van alleen \"{name}\" om het ook te verwijderen. | Deze categorie bevat {count} kanalen. Ze worden bovenaan de kanaallijst geplaatst (zonder categorie). Typ \"{name} DELETE\" in plaats van alleen \"{name}\" om ook alle kanalen te verwijderen.",
+      "threadDetail": "Hiermee worden de thread en al zijn berichten permanent verwijderd. Dit kan niet ongedaan worden gemaakt."
+    },
+    "channelFallback": "Kanaal"
   },
   "embeds": {
     "popOut": "Loskoppelen",
@@ -7107,14 +8939,30 @@
       "open": "Naar server",
       "joining": "Lid worden…",
       "invalid": "Ongeldige uitnodiging",
-      "loading": "Uitnodiging laden…"
+      "loading": "Uitnodiging laden…",
+      "loadFailed": "Kan uitnodigingsgegevens niet laden"
     },
     "remoteInvite": {
       "hostedOn": "Gehost op {instance}",
       "notFound": "Uitnodiging niet gevonden of verlopen",
       "closedTitle": "Gesloten voor andere instances",
       "closedMessage": "Alleen mensen op {instance} kunnen lid worden van deze server."
-    }
+    },
+    "showContent": "Inhoud tonen",
+    "hideContent": "Inhoud verbergen",
+    "replies": "Reacties",
+    "loadingHarmonyPost": "Harmony-post laden...",
+    "loadingFediversePost": "Fediverse-post laden...",
+    "platformPost": "{platform}-post",
+    "fediversePost": "Fediverse-post",
+    "serverInvite": "Serveruitnodiging",
+    "driveFile": "Drive-bestand",
+    "linkPreview": "Linkvoorbeeld",
+    "postUnavailable": "Post niet beschikbaar",
+    "harmonyPostFailed": "Kan Harmony-post niet laden",
+    "noFediverseData": "Geen fediverse-gegevens",
+    "remotePostFailed": "Kan deze post niet laden van de externe instance",
+    "postFailed": "Kan deze post niet laden"
   },
   "outsideLink": {
     "title": "Je verlaat Harmony",
@@ -7558,7 +9406,9 @@
     "position": "Afspeelpositie",
     "positionValue": "{current} van {total}",
     "speed": "Afspeelsnelheid {speed}x",
-    "playFailed": "Kan dit spraakbericht niet afspelen."
+    "playFailed": "Kan dit spraakbericht niet afspelen.",
+    "remaining": "nog {time}",
+    "record": "Spraakbericht opnemen"
   },
   "a11y": {
     "unreadNotifications": "{count} ongelezen melding | {count} ongelezen meldingen",
@@ -8230,7 +10080,103 @@
         "pending": "Wacht op goedkeuring",
         "approved": "Getoond",
         "hidden": "Verborgen"
-      }
+      },
+      "fundingTitle": "Financiering & supporters",
+      "saveChanges": "Wijzigingen opslaan",
+      "goalTitle": "Financieringsdoel",
+      "enableFunding": "Financiering inschakelen",
+      "showInBar": "Tonen in de contextbalk",
+      "showProgress": "Voortgangsbalk tonen",
+      "goalAmount": "Doelbedrag",
+      "currency": "Valuta",
+      "period": "Periode",
+      "periodMonthly": "Maandelijks (elke maand opnieuw)",
+      "periodAll": "Altijd",
+      "periodHint": "Het totaal wordt berekend uit de donatiegeschiedenis; de periode bepaalt welke donaties meetellen.",
+      "description": "Beschrijving",
+      "descriptionPlaceholder": "Waarvoor de financiering is…",
+      "thankYou": "Bedankbericht",
+      "thankYouPlaceholder": "Bericht voor supporters",
+      "donationLinks": "Donatielinks",
+      "linkUrl": "Link-URL",
+      "linkLabel": "Label (optioneel)",
+      "removeLink": "Link verwijderen",
+      "platformPlaceholder": "Platform…",
+      "platformCustom": "Aangepast",
+      "kofiTitle": "Ko-fi-webhook",
+      "automation": "Automatisering",
+      "kofiIntro": "Donaties van Ko-fi automatisch vastleggen. Vereist een Ko-fi Gold-abonnement. Plak je verificatietoken uit {link} en stel de webhook-URL in op:",
+      "kofiSettingsLink": "Ko-fi-instellingen → API",
+      "copyUrl": "URL kopiëren",
+      "kofiToken": "Verificatietoken",
+      "kofiTokenPlaceholder": "Plakken uit Ko-fi-instellingen → API",
+      "showSecret": "Tonen",
+      "hideSecret": "Verbergen",
+      "autoAssignTier": "Supportersniveau automatisch toewijzen op basis van het donatiebedrag",
+      "kofiHint": "Donateurs zetten hun handle ({handle}) ergens in hun Ko-fi-bericht. De webhook koppelt de donatie automatisch en berekent hun niveau opnieuw op basis van de donaties in de cyclus. Donaties zonder herkende handle komen in de wachtrij {queue} hieronder, en jij (en de moderators van de instantie) krijgen een melding.",
+      "stripeIntro": "Donaties via een Stripe-betaallink worden bijgeschreven op het account van de donateur: Harmony opent de link met hun account-id, en Stripe meldt de betaling aan deze webhook. Maak in het Stripe-dashboard een betaallink (kies voor een vrij bedrag {choice}; een terugkerende prijs maakt er een maandelijkse donatie van) en voeg hem toe onder Donatielinks met het platform {platform}. Voeg daarna onder {link} een endpoint toe met deze URL:",
+      "webhookCopied": "Webhook-URL gekopieerd",
+      "stripeEvents": "dat luistert naar {first}, {second} en {third}, en plak hier het ondertekeningsgeheim.",
+      "signingSecret": "Ondertekeningsgeheim",
+      "stripeHint": "Betalingen via een betaallink die buiten Harmony is geopend, hebben geen account en komen in de wachtrij {queue} hieronder, net als verlengingen van abonnementen die zo zijn gestart. Checkout-betalingen die niet van een betaallink komen, worden genegeerd.",
+      "pendingTitle": "Openstaande donaties",
+      "pendingHint": "Webhook-donaties die niet automatisch aan een gebruiker gekoppeld konden worden. Zoek de ontvanger of wijs ze af.",
+      "pendingFrom": "Van:",
+      "pendingSearch": "Gebruiker zoeken op gebruikersnaam…",
+      "attribute": "Toewijzen",
+      "dismiss": "Afwijzen",
+      "adFree": "Advertentievrije GIF's",
+      "adFreeTitle": "Supporters op dit niveau zien geen GIF-advertenties",
+      "pickEmoji": "Emoji kiezen",
+      "tierMin": "Min.: {amount}",
+      "editTier": "Niveau bewerken",
+      "deleteTier": "Niveau verwijderen",
+      "tierName": "Naam van het niveau",
+      "minAmount": "Minimumbedrag",
+      "tierIcon": "Pictogram",
+      "badgeColor": "Badgekleur",
+      "activeSupporters": "Actieve supporters",
+      "noTier": "Geen niveau",
+      "editSupporter": "Supporter bewerken",
+      "recordDonation": "Donatie vastleggen",
+      "removeSupporter": "Supporter verwijderen",
+      "addSupporterPlaceholder": "Gebruikersnaam om als supporter toe te voegen…",
+      "amount": "Bedrag",
+      "platform": "Platform",
+      "tier": "Niveau",
+      "editSupporterFor": "Supporter bewerken: {name}",
+      "recordDonationFor": "Donatie vastleggen voor {name}",
+      "platformExample": "bijv. Patreon, Ko-fi",
+      "note": "Notitie",
+      "notePlaceholder": "Optionele notitie…",
+      "record": "Vastleggen",
+      "historyTitle": "Donatiegeschiedenis",
+      "totalDonated": "Totaal gedoneerd",
+      "donations": "Donaties",
+      "uniqueDonors": "Unieke donateurs",
+      "copyFailed": "Kopiëren mislukt",
+      "attributed": "Donatie toegewezen",
+      "attributeFailed": "Kan donatie niet toewijzen",
+      "dismissTitle": "Donatie afwijzen",
+      "dismissMessage": "Deze donatie afwijzen? Ze wordt aan geen enkele gebruiker toegewezen.",
+      "dismissed": "Donatie afgewezen",
+      "dismissFailed": "Kan donatie niet afwijzen",
+      "saved": "Financieringsinstellingen opgeslagen",
+      "saveFailed": "Kan financieringsinstellingen niet opslaan",
+      "tierCreated": "Niveau gemaakt",
+      "tierUpdated": "Niveau bijgewerkt",
+      "deleteTierMessage": "Dit niveau verwijderen? Supporters op dit niveau houden hun status, maar verliezen de badge van het niveau.",
+      "tierDeleted": "Niveau verwijderd",
+      "userNotFound": "Gebruiker niet gevonden",
+      "supporterAdded": "Supporter toegevoegd",
+      "supporterUpdated": "Supporter bijgewerkt",
+      "removeSupporterMessage": "Deze supporter verwijderen?",
+      "supporterRemoved": "Supporter verwijderd",
+      "donationRecorded": "Donatie vastgelegd",
+      "donationUpdated": "Donatie bijgewerkt",
+      "deleteDonation": "Donatie verwijderen",
+      "deleteDonationMessage": "Deze donatie verwijderen?",
+      "donationDeleted": "Donatie verwijderd"
     }
   },
   "driveAdmin": {
@@ -8652,6 +10598,24 @@
     "refusalMailHost": "Mailhost",
     "refusalBlockedNetwork": "Geweigerd adres"
   },
+  "adminSignupProviders": {
+    "title": "Nieuwe accounts via inlogproviders",
+    "intro": "Voor wie een eerste login via elke provider een account aanmaakt. Mensen die al een account hebben, kunnen hoe dan ook inloggen.",
+    "follow": "Hetzelfde als registratie",
+    "open": "Iedereen die de provider inlogt",
+    "domains": "Geverifieerde adressen op deze domeinen",
+    "domainsLabel": "E-maildomeinen voor {provider}",
+    "domainsHint": "Eén per regel, zoals myschool.edu. Subdomeinen tellen ook mee. De provider moet het adres als geverifieerd melden.",
+    "publicOpen": "Iedereen met een {provider}-account kan dan hier een account aanmaken.",
+    "switchOn": "De authenticatieservice weigert nog steeds elk nieuw account. Voer op de server harmony registration uit, zodat deze instellingen gaan gelden.",
+    "save": "Opslaan",
+    "saved": "Registratie via providers opgeslagen",
+    "saveFailed": "Kan de registratie-instellingen niet opslaan.",
+    "loadFailed": "Kan de inlogproviders niet laden.",
+    "invalidDomain": "{domain} is geen domeinnaam.",
+    "noDomains": "Voeg minstens één domein toe voor {provider}.",
+    "noneTab": "Er staat geen inlogprovider aan. Ingebouwde providers stel je in onder {tab}, de eigen providers van de instance met harmony auth add-provider."
+  },
   "adminSignupCaptcha": {
     "title": "Controle bij registratie",
     "intro": "Een captcha die alleen wordt gevraagd als een registratie geautomatiseerd lijkt, zodat de meeste mensen hem nooit zien. Bij registraties via Google, GitHub, Twitch of de eigen inlogproviders van deze instance wordt er nooit om gevraagd.",
@@ -8708,6 +10672,8 @@
     "modeOpenHint": "Iedereen kan een account aanmaken op de registratiepagina.",
     "modeClosed": "Registratie: alleen op uitnodiging.",
     "modeClosedHint": "De registratiepagina maakt geen accounts aan; nieuwe mensen komen erbij met een uitnodiging.",
+    "modeShut": "Registratie: gesloten.",
+    "modeShutHint": "De registratiepagina maakt geen accounts aan. Uitnodigingen werken nog wel.",
     "modeUnknown": "Registratie: onbekend.",
     "modeUnknownHint": "De authenticatieservice heeft niet gemeld of registratie aanstaat.",
     "advertisedOpen": "Andere servers krijgen te horen dat registratie open is (instance-instelling open_registration).",
@@ -9259,5 +11225,255 @@
     "saved": "ICE-servers opgeslagen",
     "saveFailed": "De ICE-servers konden niet worden opgeslagen.",
     "loadFailed": "De ICE-servers konden niet worden geladen."
+  },
+  "pushPrompt": {
+    "title": "Pushmeldingen inschakelen",
+    "body": "Krijg meldingen van nieuwe berichten, ook als Harmony gesloten is",
+    "enabling": "Inschakelen...",
+    "enable": "Inschakelen"
+  },
+  "runOnLogin": {
+    "prompt": {
+      "title": "Harmony starten bij het inloggen?",
+      "body": "{browser} kan Harmony automatisch starten wanneer je inlogt op je computer.",
+      "showHow": "Laat zien hoe"
+    },
+    "modal": {
+      "title": "Harmony starten wanneer je inlogt",
+      "subtitle": "{browser} kan Harmony automatisch starten telkens wanneer je inlogt op je computer.",
+      "step1": "Open de app-pagina",
+      "step1Hint": "Plak hem in een nieuw browsertabblad. Om veiligheidsredenen kan de link niet direct vanuit de app worden geopend.",
+      "step2": "Klik met de rechtermuisknop op Harmony en kies {option}",
+      "menuOpen": "Openen",
+      "menuOpenWindow": "Openen in venster",
+      "menuStartApp": "App starten wanneer je inlogt",
+      "menuShortcuts": "Snelkoppelingen maken...",
+      "menuRemove": "Verwijderen uit {browser}",
+      "step3": "Klaar - Harmony start de volgende keer dat je inlogt op je computer.",
+      "footnote": "Beschikbaar in {browser} 91+ op Windows, macOS, Linux en ChromeOS. Je kunt het altijd wijzigen via {url}.",
+      "enabled": "Ik heb het ingeschakeld",
+      "copyFailed": "Kopiëren mislukt. Typ {url} in een nieuw browsertabblad.",
+      "saved": "Opgeslagen. Harmony start wanneer je inlogt."
+    }
+  },
+  "profileModal": {
+    "sendServerInvite": "Serveruitnodiging sturen",
+    "kickFromServer": "Uit de server verwijderen",
+    "banFromServer": "Uit de server verbannen",
+    "viewAllPosts": "Alle berichten bekijken",
+    "viewFollowing": "Gevolgden bekijken",
+    "viewFollowers": "Volgers bekijken",
+    "federationInfo": "Federatie-info",
+    "instanceLabel": "Instance:",
+    "profileUrlLabel": "Profiel-URL:",
+    "viewOn": "Bekijken op {domain}",
+    "lastActiveLabel": "Laatst actief:",
+    "about": "Over",
+    "profileFields": "Profielvelden",
+    "fieldVerified": "Geverifieerd",
+    "activity": "Activiteit",
+    "messages": "Berichten",
+    "voiceTime": "Spraaktijd",
+    "interactions": "Interacties",
+    "chooseServer": "Kies een server:",
+    "activeNow": "Actief in het afgelopen uur",
+    "activeToday": "Vandaag actief",
+    "activeRecently": "Actief in de afgelopen 3 dagen",
+    "unknownUser": "Onbekende gebruiker"
+  },
+  "instanceDetail": {
+    "trusted": "Vertrouwd",
+    "blocked": "Geblokkeerd",
+    "statistics": "Instancestatistieken",
+    "users": "Gebruikers",
+    "connections": "Verbindingen",
+    "about": "Over deze instance",
+    "descriptionLabel": "Beschrijving:",
+    "adminContactLabel": "Contact beheerder:",
+    "typeLabel": "Type instance:",
+    "firstDiscoveredLabel": "Voor het eerst ontdekt:",
+    "federationStatus": "Federatiestatus",
+    "federationEnabled": "Federatie ingeschakeld",
+    "trustedInstance": "Vertrouwde instance",
+    "standardInstance": "Standaard-instance",
+    "recentPosts": "Recente berichten",
+    "loadingPosts": "Berichten laden...",
+    "visitInstance": "Instance bezoeken",
+    "copyUrl": "URL kopiëren",
+    "viewAllPosts": "Alle berichten bekijken",
+    "noActivity": "Geen activiteit vastgelegd",
+    "activeToday": "Vandaag actief",
+    "activeThisWeek": "Deze week actief",
+    "lastActive": "Laatst actief: {time}",
+    "typeNamed": "{name}-instance",
+    "typeActivityPub": "ActivityPub-instance",
+    "minutesAgo": "{minutes} min geleden",
+    "yearsAgo": "{years} jr geleden"
+  },
+  "searchInput": {
+    "placeholder": "Zoeken..."
+  },
+  "platformIcon": {
+    "donate": "Doneren"
+  },
+  "codeBlock": {
+    "copyCode": "Code kopiëren"
+  },
+  "autoSuggest": {
+    "headers": {
+      "serverMembers": "Serverleden",
+      "users": "Gebruikers"
+    },
+    "commands": {
+      "kick": "Een lid van de server kicken",
+      "ban": "Een lid van de server verbannen",
+      "gif": "Zoek een GIF op KLIPY",
+      "sticker": "Zoek een sticker op KLIPY",
+      "clip": "Zoek een clip op KLIPY",
+      "meme": "Zoek een meme op KLIPY",
+      "aiemoji": "Zoek een AI-emoji op KLIPY",
+      "rolemenu": "Een menu plaatsen waarin leden hun rollen kiezen"
+    }
+  },
+  "notificationText": {
+    "dm": {
+      "addedTo": " heeft je toegevoegd aan {name}",
+      "addedToUnnamed": " heeft je aan een gesprek toegevoegd",
+      "calling": " belt je",
+      "sentMessage": " heeft je een bericht gestuurd",
+      "short": "DM van {name}",
+      "shortInvite": "Uitgenodigd door {name}"
+    },
+    "mention": {
+      "action": " heeft je genoemd in #{channel}",
+      "actionNoChannel": " heeft je genoemd",
+      "short": "Vermelding in #{channel}",
+      "shortNoChannel": "Nieuwe vermelding"
+    },
+    "reply": {
+      "action": " heeft op je bericht gereageerd in #{channel}",
+      "actionNoChannel": " heeft op je bericht gereageerd",
+      "short": "Antwoord in #{channel}",
+      "shortNoChannel": "Nieuw antwoord",
+      "noPreview": "Klik om het antwoord te bekijken"
+    },
+    "threadReply": {
+      "action": " heeft gereageerd in een thread in #{channel}",
+      "actionNoChannel": " heeft gereageerd in een thread",
+      "short": "Threadantwoord in #{channel}",
+      "shortNoChannel": "Threadantwoord",
+      "noPreview": "Klik om de thread te bekijken"
+    },
+    "call": {
+      "started": " is een gesprek gestart",
+      "incomingOpen": "📞 Inkomend gesprek — klik om te openen",
+      "incomingJoin": "📞 Inkomend gesprek — klik om deel te nemen",
+      "shortFrom": "Gesprek van {name}"
+    },
+    "chatMessage": {
+      "short": "Bericht van {name}"
+    },
+    "reaction": {
+      "action": " heeft op je bericht gereageerd",
+      "short": "Reactie"
+    },
+    "acceptOrDecline": "Klik om te accepteren of te weigeren",
+    "serverInvite": {
+      "title": "{inviter} heeft je uitgenodigd voor {server}",
+      "short": "Serveruitnodiging"
+    },
+    "followRequest": {
+      "title": "{name} wil je volgen",
+      "message": "{handle} heeft je een volgverzoek gestuurd",
+      "short": "Volgverzoek"
+    },
+    "voiceActivity": {
+      "title": "Spraakactiviteit in {channel}",
+      "message": "Iemand is het spraakkanaal binnengekomen",
+      "short": "Spraakactiviteit"
+    },
+    "serverUpdate": {
+      "title": "Serverupdate",
+      "message": "De server is bijgewerkt"
+    },
+    "emojiAdded": {
+      "title": "Nieuwe emoji toegevoegd: {name}",
+      "message": "{name} is nu beschikbaar in {server}",
+      "short": "Nieuwe emoji"
+    },
+    "apFollow": {
+      "title": "{name} ({handle}) volgt je nu",
+      "message": "{handle} volgt je nu",
+      "short": "Nieuwe volger"
+    },
+    "apFavorite": {
+      "action": " heeft je post als favoriet gemarkeerd",
+      "short": "Post als favoriet gemarkeerd"
+    },
+    "apReblog": {
+      "action": " heeft je post geboost",
+      "short": "Post geboost"
+    },
+    "viewPost": "Klik om de post te bekijken",
+    "apMention": {
+      "noPreview": "Klik om de vermelding te bekijken",
+      "short": "Gefedereerde vermelding"
+    },
+    "apReply": {
+      "action": " heeft op je post gereageerd",
+      "noPreview": "Klik om het antwoord te bekijken",
+      "short": "Nieuw antwoord"
+    },
+    "apReaction": {
+      "action": " heeft op je post gereageerd",
+      "noPreview": "Klik om de post te bekijken"
+    },
+    "followAccepted": {
+      "action": " heeft je volgverzoek geaccepteerd",
+      "message": "Je volgt nu {handle}",
+      "messageNoHandle": "Je volgt deze persoon nu",
+      "short": "Verzoek geaccepteerd"
+    },
+    "reportUpdate": {
+      "investigatingTitle": "Je melding wordt beoordeeld",
+      "resolvedTitle": "Je melding is afgehandeld",
+      "dismissedTitle": "Je melding is beoordeeld",
+      "updatedTitle": "Status van melding bijgewerkt",
+      "investigatingMessage": "De moderators bekijken je melding.",
+      "resolvedMessage": "Je melding is afgehandeld.",
+      "dismissedMessage": "Je melding is afgewezen.",
+      "updatedMessage": "Je melding is bijgewerkt.",
+      "withNote": "{message} Opmerking: {note}",
+      "short": "Update over melding"
+    },
+    "donation": {
+      "title": "Nieuwe {platform}-donatie moet worden beoordeeld",
+      "titleNoPlatform": "Nieuwe donatie moet worden beoordeeld",
+      "message": "{amount} kon niet aan een gebruiker worden gekoppeld - open het beheerpaneel om het toe te wijzen.",
+      "messageFrom": "{amount} van {donor} kon niet aan een gebruiker worden gekoppeld - open het beheerpaneel om het toe te wijzen.",
+      "short": "Donatie moet worden beoordeeld"
+    },
+    "fallback": {
+      "title": "Nieuwe melding",
+      "message": "Je hebt een nieuwe melding",
+      "short": "Melding",
+      "viewDetails": "Klik om details te bekijken"
+    },
+    "staffSender": "Beheerder/moderator",
+    "unknownSender": "Onbekend",
+    "toast": {
+      "loadFailed": "Meldingen konden niet worden geladen",
+      "refreshPage": "Vernieuw de pagina",
+      "processFailed": "Er is een melding ontvangen, maar die kon niet goed worden verwerkt",
+      "deleteFailed": "Melding kon niet worden verwijderd",
+      "clearFailed": "Meldingen konden niet worden gewist",
+      "markReadFailed": "Meldingen konden niet als gelezen worden gemarkeerd"
+    },
+    "native": {
+      "reaction": "Heeft op je bericht gereageerd",
+      "apReaction": "Heeft op je post gereageerd",
+      "apFavorite": "Heeft je post als favoriet gemarkeerd",
+      "apReblog": "Heeft je post geboost"
+    }
   }
 }

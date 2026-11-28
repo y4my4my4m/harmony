@@ -35,7 +35,7 @@
         <div class="bot-interaction-author">
           <Avatar :src="botAvatar(row)" size="sm" class="bot-interaction-author-avatar" />
           <span class="bot-interaction-author-name">{{ botName(row) }}</span>
-          <span class="bot-interaction-badge">BOT</span>
+          <span class="bot-interaction-badge">{{ t('message.badge.bot') }}</span>
         </div>
         <div
           v-for="reply in row.replies"

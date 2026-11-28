@@ -258,7 +258,7 @@ export function startMessageMediaUpload(
         throw new UploadAbortedError()
       }
       state.status = 'error'
-      state.error = error instanceof Error ? error.message : 'Upload failed'
+      state.error = error instanceof Error ? error.message : i18n.global.t('message.upload.failed')
       throw error
     },
   )

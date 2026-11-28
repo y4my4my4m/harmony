@@ -263,32 +263,32 @@
           <div class="setting-group">
             <label :for="`${idBase}-resolution`" class="setting-label">{{ t('settings.voice.resolution') }}</label>
             <select :id="`${idBase}-resolution`" v-model="videoQuality" class="setting-select" @change="updateVideoSettings">
-              <option value="360p">360p (Low)</option>
-              <option value="480p">480p (SD)</option>
-              <option value="720p">720p (HD)</option>
-              <option value="1080p">1080p (Full HD)</option>
-              <option value="source">Source (Native)</option>
+              <option value="360p">{{ t('settings.voice.videoOption.res360') }}</option>
+              <option value="480p">{{ t('settings.voice.videoOption.res480') }}</option>
+              <option value="720p">{{ t('settings.voice.videoOption.res720') }}</option>
+              <option value="1080p">{{ t('settings.voice.videoOption.res1080') }}</option>
+              <option value="source">{{ t('settings.voice.videoOption.source') }}</option>
             </select>
           </div>
 
           <div class="setting-group">
             <label :for="`${idBase}-fps`" class="setting-label">{{ t('settings.voice.frameRate') }}</label>
             <select :id="`${idBase}-fps`" v-model="frameRate" class="setting-select" @change="updateVideoSettings">
-              <option value="10">10 FPS (Low)</option>
-              <option value="15">15 FPS</option>
-              <option value="24">24 FPS (Cinema)</option>
-              <option value="30">30 FPS</option>
-              <option value="60">60 FPS</option>
+              <option value="10">{{ t('settings.voice.videoOption.fpsLow', { n: 10 }) }}</option>
+              <option value="15">{{ t('settings.voice.videoOption.fps', { n: 15 }) }}</option>
+              <option value="24">{{ t('settings.voice.videoOption.fpsCinema', { n: 24 }) }}</option>
+              <option value="30">{{ t('settings.voice.videoOption.fps', { n: 30 }) }}</option>
+              <option value="60">{{ t('settings.voice.videoOption.fps', { n: 60 }) }}</option>
             </select>
           </div>
 
           <div class="setting-group">
             <label :for="`${idBase}-bitrate`" class="setting-label">{{ t('settings.voice.audioBitrate') }}</label>
             <select :id="`${idBase}-bitrate`" v-model="audioBitrate" class="setting-select" @change="updateVideoSettings">
-              <option value="32">32 kbps (Low)</option>
-              <option value="64">64 kbps (Voice)</option>
-              <option value="128">128 kbps (Standard)</option>
-              <option value="256">256 kbps (High)</option>
+              <option value="32">{{ t('settings.voice.videoOption.kbpsLow', { n: 32 }) }}</option>
+              <option value="64">{{ t('settings.voice.videoOption.kbpsVoice', { n: 64 }) }}</option>
+              <option value="128">{{ t('settings.voice.videoOption.kbpsStandard', { n: 128 }) }}</option>
+              <option value="256">{{ t('settings.voice.videoOption.kbpsHigh', { n: 256 }) }}</option>
             </select>
           </div>
 

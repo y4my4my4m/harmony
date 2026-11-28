@@ -23,7 +23,7 @@ vi.mock('@/composables/useVisualTheme', () => ({
   cloneSettings: (s: unknown) => JSON.parse(JSON.stringify(s)),
   useVisualTheme: () => ({
     currentSettings: current,
-    getThemableVariables: () => [{ category: 'Surfaces', vars: ['--background-primary'] }],
+    getThemableVariables: () => [{ category: 'Surfaces', labelKey: 'settings.appearance.variableGroups.backgroundSurfaces', vars: ['--background-primary'] }],
     updateSettings,
     reapplySettings: vi.fn(),
   }),

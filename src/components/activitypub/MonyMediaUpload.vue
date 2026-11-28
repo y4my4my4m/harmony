@@ -71,7 +71,7 @@
             @click="openEditor(index, 'alt')"
           >
             <Icon v-if="attachment.description" name="check" :size="14" />
-            ALT
+            {{ t('activitypub.altBadge') }}
           </button>
 
           <button

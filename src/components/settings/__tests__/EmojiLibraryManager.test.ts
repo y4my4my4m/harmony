@@ -282,7 +282,7 @@ describe('EmojiLibraryManager', () => {
     await flushPromises()
     expect(adapter.removeMany).toHaveBeenCalledWith([expect.objectContaining({ id: 'e1' }), expect.objectContaining({ id: 'e3' })])
     expect(wrapper.emitted('deleted')?.[0]?.[0]).toEqual(['e1', 'e3'])
-    expect(h.toast.success).toHaveBeenCalledWith('2 emoji(s) deleted')
+    expect(h.toast.success).toHaveBeenCalledWith('2 emojis deleted')
     expect(wrapper.findAll('[role="listitem"]')).toHaveLength(1)
   })
 

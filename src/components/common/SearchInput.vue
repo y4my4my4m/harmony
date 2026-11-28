@@ -17,7 +17,7 @@
       @blur="isFocused = false"
       @keydown.escape="handleEscape"
       type="text" 
-      :placeholder="placeholder"
+      :placeholder="placeholder ?? t('searchInput.placeholder')"
       class="search-input__field"
       :disabled="disabled"
     />
@@ -27,7 +27,7 @@
       @click="handleClear"
       class="search-input__clear"
       type="button"
-      aria-label="Clear search"
+      :aria-label="t('messageSearch.clear')"
     >
       <svg viewBox="0 0 24 24" class="clear-icon">
         <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" fill="currentColor"/>
@@ -41,6 +41,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { i18n } from '@/i18n'
 
 interface Props {
   modelValue: string
@@ -58,13 +59,15 @@ interface Emits {
 }
 
 withDefaults(defineProps<Props>(), {
-  placeholder: 'Search...',
+  placeholder: undefined,
   isLoading: false,
   disabled: false,
   showClearButton: true
 })
 
 const emit = defineEmits<Emits>()
+
+const { t } = i18n.global
 
 const inputRef = ref<HTMLInputElement>()
 const isFocused = ref(false)

@@ -309,18 +309,18 @@
       <div class="setting-group">
         <label :for="`${idBase}-quality`" class="setting-label">{{ t('settings.voice.videoQuality') }}</label>
         <select :id="`${idBase}-quality`" v-model="videoQuality" class="setting-select" @change="updateVideoSettings">
-          <option value="480p">480p (Standard)</option>
-          <option value="720p">720p (HD)</option>
-          <option value="1080p">1080p (Full HD)</option>
+          <option value="480p">{{ t('settings.voice.quality480') }}</option>
+          <option value="720p">{{ t('settings.voice.quality720') }}</option>
+          <option value="1080p">{{ t('settings.voice.quality1080') }}</option>
         </select>
       </div>
 
       <div class="setting-group">
         <label :for="`${idBase}-fps`" class="setting-label">{{ t('settings.voice.frameRate') }}</label>
         <select :id="`${idBase}-fps`" v-model="frameRate" class="setting-select" @change="updateVideoSettings">
-          <option value="15">15 FPS</option>
-          <option value="30">30 FPS</option>
-          <option value="60">60 FPS</option>
+          <option value="15">{{ t('voice.fps', { n: 15 }) }}</option>
+          <option value="30">{{ t('voice.fps', { n: 30 }) }}</option>
+          <option value="60">{{ t('voice.fps', { n: 60 }) }}</option>
         </select>
       </div>
 

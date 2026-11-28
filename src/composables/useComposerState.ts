@@ -7,6 +7,7 @@
 
 import { ref, computed } from 'vue';
 import type { Post, MediaAttachment } from '@/types';
+import { i18n } from '@/i18n';
 
 export interface ComposerStateOptions {
   defaultVisibility?: Post['visibility'];
@@ -58,32 +59,32 @@ export function useComposerState(options: ComposerStateOptions = {}) {
   });
 
   // Visibility options configuration
-  const visibilityOptions = [
+  const visibilityOptions = computed(() => [
     {
       value: 'public' as const,
-      label: 'Public',
-      description: 'Visible to everyone',
+      label: i18n.global.t('activitypub.public'),
+      description: i18n.global.t('activitypub.visibleToEveryone'),
       icon: 'globe'
     },
     {
       value: 'unlisted' as const,
-      label: 'Unlisted',
-      description: 'Not shown in public timelines',
+      label: i18n.global.t('activitypub.unlisted'),
+      description: i18n.global.t('activitypub.notShownInPublicTimelines'),
       icon: 'unlock'
     },
     {
       value: 'followers' as const,
-      label: 'Followers',
-      description: 'Only visible to followers',
+      label: i18n.global.t('activitypub.followers'),
+      description: i18n.global.t('activitypub.onlyVisibleToFollowers'),
       icon: 'users'
     },
     {
       value: 'direct' as const,
-      label: 'Direct',
-      description: 'Only mentioned users',
+      label: i18n.global.t('activitypub.direct'),
+      description: i18n.global.t('activitypub.onlyMentionedUsers'),
       icon: 'mail'
     }
-  ];
+  ]);
 
   // Actions
   const reset = () => {

@@ -4,9 +4,9 @@
       <div class="modal-header">
         <h2 class="modal-title">
           <span class="title-icon"><Icon name="key" :size="20" /></span>
-          Restore encryption
+          {{ $t('encryption.recovery.title') }}
         </h2>
-        <button class="close-btn" @click="$emit('close')" :disabled="isRestoring" aria-label="Close">
+        <button class="close-btn" @click="$emit('close')" :disabled="isRestoring" :aria-label="$t('common.close')">
           <Icon name="x" :size="18" />
         </button>
       </div>
@@ -35,7 +35,7 @@
             @click="activeTab = 'phrase'"
           >
             <Icon name="file" :size="16" class="tab-icon" />
-            Recovery phrase
+            {{ $t('encryption.recovery.phraseTab') }}
           </button>
         </div>
 
@@ -47,7 +47,7 @@
         <!-- Recovery Phrase Tab -->
         <div v-if="activeTab === 'phrase'" class="tab-content">
           <p class="description">
-            Enter your 12-word recovery phrase to restore access to your encrypted messages.
+            {{ $t('encryption.recovery.phraseDescription') }}
           </p>
 
           <div class="phrase-input-wrap" :class="{ valid: isValid }">
@@ -61,7 +61,7 @@
               <input 
                 type="text"
                 v-model="recoveryWords[i - 1]"
-                :placeholder="`Word ${i}`"
+                :placeholder="$t('encryption.recovery.wordPlaceholder', { n: i })"
                 @input="validateWords"
                 @paste.prevent="handlePaste($event)"
               />
@@ -74,13 +74,13 @@
               class="btn btn-secondary btn-sm"
               @click="pasteFromClipboard"
             >
-              Paste
+              {{ $t('common.paste') }}
             </button>
             <button 
               class="btn btn-secondary btn-sm"
               @click="clearWords"
             >
-              Clear
+              {{ $t('common.clear') }}
             </button>
           </div>
 
@@ -110,15 +110,15 @@
 
         <!-- Verification Code (Optional) -->
         <div v-if="activeTab === 'phrase' && recoveryWords.every(w => w)" class="verification-section">
-          <label>Verification code (optional)</label>
+          <label>{{ $t('encryption.recovery.verificationLabel') }}</label>
           <input 
             type="text"
             v-model="verificationCode"
-            placeholder="6-character code"
+            :placeholder="$t('encryption.recovery.verificationPlaceholder')"
             maxlength="6"
           />
           <p class="hint">
-            If you saved a verification code, enter it here to confirm you have the correct phrase
+            {{ $t('encryption.recovery.verificationHint') }}
           </p>
         </div>
       </div>
@@ -129,7 +129,7 @@
           @click="$emit('close')"
           :disabled="isRestoring"
         >
-          Cancel
+          {{ $t('common.cancel') }}
         </button>
         <button 
           v-if="activeTab === 'phrase'"
@@ -139,10 +139,10 @@
         >
           <span v-if="isRestoring">
             <span class="btn-spinner"></span>
-            Restoring...
+            {{ $t('encryption.recovery.restoring') }}
           </span>
           <span v-else>
-            Restore encryption
+            {{ $t('encryption.recovery.title') }}
           </span>
         </button>
       </div>
@@ -192,14 +192,14 @@ async function validateWords() {
     const { recoveryKeyService } = await import('@/services/encryption/RecoveryKeyService')
     
     if (recoveryKeyService.validateMnemonic(words)) {
-      validationMessage.value = 'Valid recovery phrase'
+      validationMessage.value = t('encryption.recovery.valid')
       isValid.value = true
     } else {
-      validationMessage.value = 'Invalid recovery phrase. Check for typos.'
+      validationMessage.value = t('encryption.recovery.invalid')
       isValid.value = false
     }
   } catch {
-    validationMessage.value = 'Validation failed'
+    validationMessage.value = t('encryption.recovery.validationFailed')
     isValid.value = false
   }
 }
@@ -213,7 +213,7 @@ async function handlePaste(event: ClipboardEvent) {
   if (words.length === 12) {
     recoveryWords.value = words
     await validateWords()
-    toast.info('Pasted 12-word recovery phrase')
+    toast.info(t('encryption.recovery.pastedPhrase'))
   }
 }
 
@@ -226,12 +226,12 @@ async function pasteFromClipboard() {
     if (words.length === 12) {
       recoveryWords.value = words
       await validateWords()
-      toast.success('Recovery phrase pasted')
+      toast.success(t('encryption.recovery.phrasePasted'))
     } else {
-      toast.error(`Expected 12 words, got ${words.length}`)
+      toast.error(t('encryption.recovery.wrongWordCount', { count: words.length }))
     }
   } catch {
-    toast.error('Failed to read clipboard')
+    toast.error(t('encryption.recovery.clipboardFailed'))
   }
 }
 
@@ -250,7 +250,7 @@ async function onRecoveryQr(text: string) {
       recoveryWords.value = words
       showRecoveryQrScanner.value = false
       await validateWords()
-      toast.success('QR code read')
+      toast.success(t('encryption.recovery.qrRead'))
     } else if (text.startsWith('HMP:')) {
       toast.error(t('encryption.recovery.pairingCodeScanned'))
     } else {
@@ -275,7 +275,7 @@ async function restoreEncryption() {
       const isCorrect = await recoveryKeyService.verifyRecoveryPhrase(words, verificationCode.value)
       
       if (!isCorrect) {
-        toast.error('Verification code does not match')
+        toast.error(t('encryption.recovery.codeMismatch'))
         isRestoring.value = false
         return
       }
@@ -297,7 +297,7 @@ async function restoreEncryption() {
     emit('restored')
   } catch (error: any) {
     debug.error('Failed to restore encryption:', error)
-    toast.error(error.message || 'Failed to restore encryption')
+    toast.error(error.message || t('encryption.recovery.restoreFailed'))
   } finally {
     isRestoring.value = false
   }

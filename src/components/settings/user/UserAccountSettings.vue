@@ -275,7 +275,7 @@
       
       <div class="info-row">
         <div class="info-label">{{ $t('auth.email') }}</div>
-        <div class="info-value">{{ userEmail || 'Not provided' }}</div>
+        <div class="info-value">{{ userEmail || $t('settings.userAccount.emailNotProvided') }}</div>
       </div>
       
       <div class="info-row">
@@ -367,7 +367,6 @@ import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import type { User } from '@/types'
-import { format } from 'date-fns'
 import { getBannerUrl, getRawBannerUrl } from '@/utils/bannerUtils'
 import BannerImage from '@/components/common/BannerImage.vue'
 
@@ -414,7 +413,7 @@ const authStore = useAuthStore()
 const instanceSettings = useInstanceSettingsStore()
 const toast = useToast()
 const { cropImage } = useImageCrop()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { polite } = useAnnouncer()
 const uid = `account-${useId()}`
 
@@ -817,8 +816,8 @@ const resetChanges = () => {
 }
 
 const formatDate = (dateString?: string) => {
-  if (!dateString) return 'Unknown'
-  return format(new Date(dateString), 'MMMM d, yyyy')
+  if (!dateString) return t('settings.userAccount.dateUnknown')
+  return new Date(dateString).toLocaleDateString(locale.value, { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
 const vClickOutside = {

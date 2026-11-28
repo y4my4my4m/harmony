@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 import { uploadImageObject } from '@/utils/fileUpload'
 import { bannerRenderSize } from '@/utils/imageTransformUtils'
 import { publicImageUrl, rawStorageUrl, storageObjectPath } from '@/utils/storageImageUtils'
@@ -92,6 +93,6 @@ export async function deleteBanner(storagePath: string): Promise<{ success: bool
 
     return { success: true }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    return { success: false, error: error instanceof Error ? error.message : i18n.global.t('admin.users.unknownError') }
   }
 }

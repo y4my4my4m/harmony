@@ -675,7 +675,8 @@
       "emailRequired": "이메일을 입력하세요",
       "passwordRequired": "비밀번호를 입력하세요",
       "emailServiceUnavailable": "이메일 서비스가 설정되지 않았습니다. 인스턴스 관리자에게 문의하세요.",
-      "oauthFailed": "{provider}(으)로 로그인하지 못했습니다"
+      "oauthFailed": "{provider}(으)로 로그인하지 못했습니다",
+      "authRequired": "인증이 필요합니다"
     },
     "logoutConfirm": {
       "title": "이 기기에서 로그아웃하시겠습니까?",
@@ -718,7 +719,8 @@
       "invalidTitle": "이 초대 링크는 작동하지 않습니다",
       "invalidBody": "링크가 이미 사용되었거나, 만료되었거나, 취소되었습니다. 초대한 사람에게 새 링크를 요청하세요.",
       "subtitleNoEmail": "이곳에 계정을 만들도록 초대받았습니다. 로그인에 쓸 비밀번호를 정하세요."
-    }
+    },
+    "oauthWindowTitle": "Harmony에 로그인"
   },
   "server": {
     "create": "서버 만들기",
@@ -853,12 +855,7 @@
     "filesTooLargeSkipped": "{count}개 파일 건너뜀: 25 MB 초과",
     "noValidImageFiles": "유효한 이미지 파일이 선택되지 않았습니다",
     "cannotUploadEmojisLimit": "이모지 {count}개를 업로드할 수 없습니다: 한도 {max}개를 초과합니다(현재 {current}개)",
-    "emojisUploadedSuccess": "{count}개의 이모지{plural} 업로드 성공!",
-    "emojisFailedToUpload": "{count}개의 이모지{plural} 업로드 실패",
     "failedToUploadEmojis": "이모지 업로드 실패",
-    "confirmDeleteEmojis": "이모지 {count}개를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
-    "emojisDeletedSuccess": "이모지 {count}개 삭제됨",
-    "emojisFailedToDelete": "이모지 {count}개 삭제 실패",
     "failedToDeleteEmojis": "이모지 삭제 실패",
     "emojiRenamedSuccess": "이모지 이름이 :{name}:으로 변경되었습니다",
     "failedToRenameEmoji": "이모지 이름 변경 실패",
@@ -931,7 +928,9 @@
       "nameTooLong": "서버 이름은 50자 미만이어야 합니다",
       "invalidName": "서버 이름에 잘못된 문자가 포함되어 있습니다",
       "notSignedIn": "서버를 만들려면 로그인하세요.",
-      "createFailed": "서버를 만들지 못했습니다. 다시 시도해 주세요."
+      "createFailed": "서버를 만들지 못했습니다. 다시 시도해 주세요.",
+      "iconUploadFailedDetail": "서버가 생성되었지만 아이콘을 업로드하지 못했습니다: {error}. 나중에 서버 설정에서 변경할 수 있습니다.",
+      "iconUploadFailed": "서버가 생성되었지만 아이콘을 업로드하지 못했습니다. 나중에 서버 설정에서 변경할 수 있습니다."
     },
     "bannedFromServer": "이 서버에서 차단되었습니다.",
     "joinRequiresInvite": "이 서버는 초대를 통해 참여할 수 있습니다.",
@@ -1293,7 +1292,14 @@
       "expression": "표현",
       "integrations": "연동",
       "moderation": "모더레이션"
-    }
+    },
+    "alreadyMember": "이미 이 서버의 멤버입니다!",
+    "joinFailed": "서버에 참여하지 못했습니다. 다시 시도해 주세요.",
+    "emojisUploaded": "이모지 {count}개를 업로드했습니다 | 이모지 {count}개를 업로드했습니다",
+    "emojisUploadFailed": "이모지 {count}개를 업로드하지 못했습니다 | 이모지 {count}개를 업로드하지 못했습니다",
+    "confirmDeleteEmojiCount": "이모지 {count}개를 삭제할까요? 이 작업은 되돌릴 수 없습니다. | 이모지 {count}개를 삭제할까요? 이 작업은 되돌릴 수 없습니다.",
+    "emojisDeleted": "이모지 {count}개를 삭제했습니다 | 이모지 {count}개를 삭제했습니다",
+    "emojisDeleteFailed": "이모지 {count}개를 삭제하지 못했습니다 | 이모지 {count}개를 삭제하지 못했습니다"
   },
   "channel": {
     "create": "채널 만들기",
@@ -1577,7 +1583,43 @@
       "unmark": "스포일러 해제"
     },
     "jumpLoading": "메시지를 불러오는 중…",
-    "jumpFailed": "해당 메시지를 불러올 수 없습니다."
+    "jumpFailed": "해당 메시지를 불러올 수 없습니다.",
+    "copyText": "텍스트 복사",
+    "copyImage": "이미지 복사",
+    "saveImage": "이미지 저장",
+    "saveVideo": "동영상 저장",
+    "saveAudio": "오디오 저장",
+    "copyMessageLink": "메시지 링크 복사",
+    "copyLinkUrl": "링크 URL 복사",
+    "copyMediaUrl": "미디어 URL 복사",
+    "badge": {
+      "bot": "봇",
+      "admin": "관리자",
+      "mod": "모더레이터"
+    },
+    "unknownServer": "알 수 없는 서버",
+    "decryptFailed": "메시지를 복호화할 수 없습니다",
+    "composer": {
+      "dismissCommand": "닫기 (Esc)",
+      "enterValue": "값 입력...",
+      "slowmodeWait": "슬로우 모드: {seconds}초 후에 다시 보낼 수 있습니다",
+      "slowmodeOn": "슬로우 모드 켜짐: {seconds}초마다 메시지 1개",
+      "checkingPermissions": "권한 확인 중...",
+      "noPermissionThread": "이 스레드에서 메시지를 보낼 권한이 없습니다.",
+      "noPermissionChannel": "이 채널에서 메시지를 보낼 권한이 없습니다.",
+      "tooLongCount": "메시지가 너무 깁니다 ({count} / {max})",
+      "tooLongToast": "메시지가 너무 깁니다 ({count} / {max}). 줄인 후 다시 시도하세요.",
+      "slowmodeToast": "슬로우 모드가 켜져 있습니다. {seconds}초 후에 다시 보낼 수 있습니다",
+      "attachmentNeedsRoom": "첨부 파일에는 채널이나 대화가 필요합니다"
+    },
+    "replyingTo": "{name}님에게 답장 중",
+    "removeAttachmentConfirm": "이 첨부 파일이 이 메시지에서 영구적으로 제거됩니다.",
+    "brokenEmoji": "깨진 이모지",
+    "unknownRole": "알 수 없는 역할",
+    "editedAt": "{time}에 편집됨",
+    "deleteConfirmUndone": "이 메시지를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+    "yesterdayAt": "어제 {time}",
+    "composerPlaceholder": "메시지 입력…"
   },
   "messageA11y": {
     "list": {
@@ -1677,7 +1719,10 @@
       "uploading": "업로드 중...",
       "listLabel": "첨부 파일",
       "progressLabel": "{name} 업로드 중",
-      "remove": "{name} 제거"
+      "remove": "{name} 제거",
+      "statusUploading": "업로드 중",
+      "statusUploaded": "업로드됨",
+      "statusFailed": "실패"
     },
     "alt": {
       "saved": "{name}의 설명을 저장했습니다",
@@ -1696,7 +1741,15 @@
       "forged": "메시지 숨김: 서명이 보낸 사람과 일치하지 않습니다",
       "forgedHint": "이 암호화된 메시지의 서명이 보낸 사람의 키로 확인되지 않습니다. 변조되었거나 표시된 사람이 보낸 것이 아니므로 복호화하지 않습니다.",
       "replayed": "반복됨",
-      "replayedHint": "이 메시지는 같은 보낸 사람의 이전 암호화 메시지를 반복합니다. 서버가 메시지 하나를 두 번 저장하여 오래된 메시지가 다른 위치에 표시될 수 있습니다."
+      "replayedHint": "이 메시지는 같은 보낸 사람의 이전 암호화 메시지를 반복합니다. 서버가 메시지 하나를 두 번 저장하여 오래된 메시지가 다른 위치에 표시될 수 있습니다.",
+      "unverified": "확인되지 않은 작성자",
+      "unverifiedHint": "이 메시지는 복호화되었지만 보낸 사람의 신원을 암호학적으로 확인할 수 없습니다. 보낸 사람이 이전 클라이언트를 사용 중이거나 메시지가 변조되었을 수 있습니다.",
+      "lostHint": "이 메시지는 이 계정에 더 이상 없는 이전 키로 암호화되어 복호화할 수 없습니다.",
+      "decryptingTitle": "복호화 중...",
+      "clickToDecrypt": "클릭하여 복호화",
+      "lostIdentityHint": "이 메시지는 복호화할 수 없습니다. 현재 암호화 ID가 만들어지기 전(예: 키 재설정 전)에 암호화되었으며, 이를 열 수 있는 키가 이 계정에 더 이상 없습니다.",
+      "lockClickHint": "종단간 암호화됨 - 메시지 텍스트를 클릭하여 복호화",
+      "lockUnlockHintPath": "종단간 암호화됨 - 복호화하려면 암호화 잠금을 해제하세요 ({settings} → {privacy} → {encryption})"
     },
     "spoiler": {
       "hidden": "스포일러, 숨겨짐. 실행하면 표시",
@@ -2018,6 +2071,29 @@
     "toolbar": {
       "controls": "음성 컨트롤",
       "call": "통화"
+    },
+    "encryption": {
+      "encryptedTitle": "종단 간 암호화 — 미디어가 서버에 도달하기 전에 암호화됩니다",
+      "notEncryptedTitle": "종단 간 암호화되지 않음 — 미디어는 전송 중에 보호되지만(DTLS-SRTP) 서버가 접근할 수 있습니다",
+      "e2ee": "E2EE",
+      "notE2ee": "E2EE 아님"
+    },
+    "spatialModel": {
+      "linear": "선형",
+      "inverse": "역수",
+      "exponential": "지수",
+      "equalPower": "등전력"
+    },
+    "overlay": {
+      "notInCall": "통화 중이 아님"
+    },
+    "connectionLost": {
+      "title": "음성 연결이 끊어졌습니다",
+      "message": "음성 서버와의 연결이 끊어졌습니다."
+    },
+    "microphoneUnavailable": {
+      "title": "마이크를 사용할 수 없습니다",
+      "message": "음소거 상태로 참여했습니다: 마이크를 열 수 없습니다."
     }
   },
   "dm": {
@@ -2114,7 +2190,112 @@
       "deleted": "그룹이 삭제되었습니다",
       "deleteFailed": "그룹을 삭제하지 못했습니다"
     },
-    "callUndeliverable": "통화를 연결할 수 없습니다."
+    "callUndeliverable": "통화를 연결할 수 없습니다.",
+    "header": {
+      "federatedUserFrom": "{domain}의 연합 사용자",
+      "callInProgress": "통화 중",
+      "lastSeen": "마지막 접속: {when}",
+      "lastSeenUnknown": "얼마 전",
+      "startVoiceCall": "음성 통화 시작",
+      "endVoiceCall": "음성 통화 종료",
+      "searchInConversation": "대화에서 검색",
+      "addPeople": "사람 추가",
+      "startVideoCall": "영상 통화 시작",
+      "turnOffCamera": "카메라 끄기",
+      "muteConversation": "대화 음소거",
+      "unmuteConversation": "대화 음소거 해제",
+      "enableEncryption": "암호화 사용",
+      "disableEncryption": "암호화 사용 안 함",
+      "closeDm": "DM 닫기",
+      "encryptionSetup": {
+        "title": "암호화 설정이 필요합니다",
+        "intro": "암호화된 DM을 사용하려면 먼저 종단 간 암호화를 설정해야 합니다.",
+        "step1": "{path}(으)로 이동하세요",
+        "step2": "복구 키(12단어 문구)를 만드세요",
+        "step3": "여기로 돌아와 이 대화의 암호화를 사용하세요",
+        "note": "복구 키는 메시지를 복호화하는 유일한 방법입니다. 안전하게 보관하세요.",
+        "goToSettings": "설정으로 이동"
+      },
+      "encryptionSetupFirst": "먼저 설정에서 암호화를 설정하세요",
+      "clickToDisableEncryption": "클릭하여 암호화 사용 안 함",
+      "clickToEnableEncryption": "클릭하여 암호화 사용",
+      "federatedEncryptionWarning": "상대방은 Harmony의 종단 간 암호화를 지원하지 않을 수 있는 연합 서버에 있습니다. 상대방이 암호화된 메시지를 읽지 못할 수 있습니다. 그래도 암호화를 사용하시겠습니까?",
+      "enable": "사용",
+      "encryptionEnabled": "이 대화의 암호화를 사용합니다",
+      "encryptionDisabled": "이 대화의 암호화를 사용하지 않습니다",
+      "encryptionUpdateFailed": "암호화 설정을 업데이트하지 못했습니다",
+      "callEnded": "통화가 종료되었습니다",
+      "conversationMuted": "대화를 음소거했습니다",
+      "conversationUnmuted": "대화 음소거를 해제했습니다",
+      "notificationUpdateFailed": "알림 설정을 업데이트하지 못했습니다",
+      "startCallFailed": "통화를 시작하지 못했습니다",
+      "noLocalMembersToCall": "이 인스턴스에 통화할 멤버가 없습니다. 그룹 통화는 다른 인스턴스로 전달되지 않습니다.",
+      "noParticipantsToCall": "통화할 참여자가 없습니다",
+      "cannotCallUser": "이 사용자에게 전화할 수 없습니다",
+      "noFederatedIdentity": "이 사용자의 연합 ID를 확인할 수 없습니다",
+      "profileInfoFailed": "프로필 정보를 가져오지 못했습니다",
+      "federatedCallFailed": "연합 통화를 시작하지 못했습니다",
+      "cannotJoinCall": "이 통화에 참여할 수 없습니다",
+      "joinCallFailed": "통화에 참여하지 못했습니다",
+      "toggleCameraFailed": "카메라를 전환하지 못했습니다",
+      "defaultNameCount": "그룹 채팅({count}명) | 그룹 채팅({count}명)"
+    },
+    "followers": {
+      "loadFailed": "팔로우 중인 사용자를 불러오지 못했습니다",
+      "startFailed": "대화를 시작하지 못했습니다"
+    },
+    "groupInvite": {
+      "searchHintNew": "그룹 채팅을 만들 사용자를 검색하세요",
+      "searchHintAdd": "이 대화에 추가할 사용자를 검색하세요",
+      "selectedUsers": "선택한 사용자({count})",
+      "clearAll": "모두 해제",
+      "removeUser": "{name} 제거",
+      "configureHint": "새 그룹 채팅을 설정하세요",
+      "groupNameOptional": "그룹 이름(선택)",
+      "groupNamePlaceholder": "{names}님과의 채팅",
+      "privateGroup": "비공개 그룹",
+      "privateHintManual": "초대된 멤버만 참여할 수 있습니다. 멤버는 직접 추가해야 합니다.",
+      "privateHintInvite": "초대된 멤버만 참여할 수 있습니다. 멤버는 다른 사람을 초대할 수 있습니다.",
+      "currentParticipants": "현재 참여자({count})",
+      "federatedTitle": "연합 그룹 채팅",
+      "federatedText": "이 대화에는 다른 서버의 사용자가 포함되어 있습니다. 메시지는 ActivityPub 표준에 따라 연합됩니다.",
+      "searchFailed": "사용자를 검색하지 못했습니다",
+      "createGroupChat": "그룹 채팅 만들기",
+      "subtitleNew": "여러 사람과 대화를 시작하세요",
+      "subtitleAdd": "이 대화에 사람을 더 추가하세요",
+      "processing": "처리 중...",
+      "createChat": "채팅 만들기",
+      "createGroup": "그룹 만들기({count})",
+      "addPeopleCount": "{count}명 추가 | {count}명 추가",
+      "requestFailed": "요청을 처리하지 못했습니다",
+      "conversationCreated": "대화를 만들었습니다",
+      "groupCreated": "그룹 대화를 만들었습니다",
+      "groupCreateFailed": "그룹 대화를 만들지 못했습니다",
+      "groupCreatedWith": "사용자 {count}명을 추가해 그룹 대화를 만들었습니다 | 사용자 {count}명을 추가해 그룹 대화를 만들었습니다",
+      "usersAdded": "사용자 {count}명을 대화에 추가했습니다 | 사용자 {count}명을 대화에 추가했습니다",
+      "addFailed": "사용자를 대화에 추가하지 못했습니다"
+    },
+    "groupCall": "그룹 통화",
+    "callEnded": "통화가 종료되었습니다",
+    "callDeclined": "통화가 거절되었습니다",
+    "noAnswer": "응답 없음",
+    "callPermission": {
+      "blockedByYou": "이 사용자를 차단했습니다",
+      "blocked": "이 사용자에게 전화할 수 없습니다",
+      "dnd": "이 사용자는 방해 금지 모드입니다",
+      "busy": "사용자가 다른 통화 중입니다",
+      "notificationsDisabled": "이 사용자는 통화 알림을 껐습니다",
+      "checkFailed": "통화 권한을 확인하지 못했습니다. 다시 시도하세요.",
+      "decline": {
+        "blocked": "통화를 연결할 수 없습니다",
+        "busy": "사용자가 통화 중입니다",
+        "dnd": "사용자가 방해 금지 모드입니다",
+        "muted": "사용자가 이 대화를 음소거했습니다",
+        "notificationsDisabled": "사용자가 통화 알림을 껐습니다",
+        "timeout": "응답 없음",
+        "declined": "통화가 거절되었습니다"
+      }
+    }
   },
   "user": {
     "panelToggle": "계정 및 음성 컨트롤",
@@ -2149,7 +2330,9 @@
     "joined": "가입일",
     "placeholders": {
       "bio": "자신에 대해 알려주세요..."
-    }
+    },
+    "avatarAlt": "사용자 아바타",
+    "aboutLabel": "소개:"
   },
   "settings": {
     "title": "설정",
@@ -2317,7 +2500,247 @@
       },
       "savedThemeNameHint": "예: 늦은 밤",
       "fluxDockBottom": "막대를 아래에 표시",
-      "fluxDockBottomDesc": "서버 독, 채널 줄, 내 캡슐이 창 위쪽 대신 아래쪽을 따라 배치됩니다. 막대에서 여는 메뉴는 위로 열립니다. 가로 레이아웃이 필요합니다."
+      "fluxDockBottomDesc": "서버 독, 채널 줄, 내 캡슐이 창 위쪽 대신 아래쪽을 따라 배치됩니다. 막대에서 여는 메뉴는 위로 열립니다. 가로 레이아웃이 필요합니다.",
+      "importExport": "가져오기 및 내보내기",
+      "importExportHelp": "테마를 JSON으로 내보내거나 이전에 내보낸 테마를 가져옵니다",
+      "exportTheme": "테마 내보내기",
+      "importTheme": "테마 가져오기",
+      "skins": {
+        "title": "스킨",
+        "description": "스킨은 색상 변경을 넘어 테마, 글꼴, 그리고 테두리·모서리·장식 오버레이 등을 바꾸는 CSS 규칙을 하나로 묶은 것입니다. 스킨을 고르면 위의 해당 설정을 덮어쓰지만, 이후에도 색상은 조정할 수 있습니다. 스킨 레이어를 없애려면 '없음'을 선택하세요.",
+        "none": "없음",
+        "noneDescription": "위에서 설정한 테마와 글꼴을 그대로 사용합니다.",
+        "decorations": "{skin} - 장식",
+        "sdr001": {
+          "description": "스내처풍 누아르 사이버펑크: 청흑색 밤 표면 위의 핏빛 빨강 강조와 강철 회색 레이블, 픽셀 서체, 단단한 그림자가 드리운 각진 프레임, 픽셀 아트 아이콘, 그리고 선택형 CRT 주사선 오버레이. Neo Kobe 사운드 팩과 어울립니다. 아래에서 장식을 켜거나 끌 수 있습니다.",
+          "options": {
+            "scanline": {
+              "label": "CRT 주사선",
+              "description": "화면 전체에 겹치는 정적인 가로줄 오버레이. 흐림 효과가 꺼져 있으면 꺼집니다."
+            },
+            "viewportFrame": {
+              "label": "화면 가장자리 프레임",
+              "description": "화면 가장자리에 고정된 가는 빨간 테두리."
+            },
+            "hudBadge": {
+              "label": "SDR-001 HUD 배지",
+              "description": "넓은 화면에서 오른쪽 위에 작은 \"SDR-001\" 태그를 표시합니다."
+            },
+            "tacticalLabels": {
+              "label": "전술 텍스트 레이블",
+              "description": "터미널 표시: 채널 카테고리 앞의 \"//\", 열린 채널의 커서, 음성 독의 \"COMMS //\", 음성 오버레이의 \"TRANSMISSION //\", 사용자 막대의 괄호 속 상태."
+            },
+            "iconFlicker": {
+              "label": "아이콘 깜박임과 커서 점멸",
+              "description": "레일 아이콘에 가끔 CRT 깜박임이 생기고 채널 커서가 깜박입니다. 모션 줄이기가 요청되면 꺼집니다."
+            }
+          }
+        },
+        "skyglass": {
+          "description": "윤기 있고 가볍고 밝게: 구름, 빛줄기, 거품이 있는 하늘이나 그려진 초원 위에 반투명 유리 패널이 떠 있습니다. 젤 버튼, 유리구슬 서버와 아바타, 채팅 말풍선, 통통 튀는 메뉴. 테마를 어둡게 바꾸면 밤의 석호가 되고, 기본 색과 강조 색이 그려진 하늘을 물들입니다. 유리 종소리와 물방울 소리의 Skyglass 사운드 팩과 어울립니다.",
+          "options": {
+            "sky": {
+              "label": "하늘 장면",
+              "description": "그려진 배경 화면이 꺼져 있을 때 그려진 하늘 위에 구름, 햇빛, 빛줄기를 더합니다. 끄면 단순한 그라데이션만 남습니다."
+            },
+            "wallpaper": {
+              "label": "그려진 배경 화면",
+              "description": "윤기 나는 풀, 거품, 빛 리본의 초원. 어두운 테마에서는 오로라 석호. 끄면 테마 색으로 하늘을 그립니다."
+            },
+            "bubbles": {
+              "label": "거품",
+              "description": "배경에 떠 있는 윤기 나는 거품."
+            },
+            "drift": {
+              "label": "떠다니는 거품",
+              "description": "거품이 천천히 떠오릅니다. 유리 흐림이 켜져 있는 동안 GPU를 계속 사용합니다. 모션 줄이기가 요청되면 꺼집니다."
+            },
+            "gloss": {
+              "label": "젤 광택",
+              "description": "버튼, 배지, 서버 구슬, 아바타에 나뉜 하이라이트."
+            },
+            "chatBubbles": {
+              "label": "채팅 말풍선",
+              "description": "메시지 텍스트가 평평한 행 대신 유리 말풍선에 표시됩니다."
+            },
+            "uiSounds": {
+              "label": "인터페이스 소리",
+              "description": "버튼과 목록을 클릭할 때 활성 사운드 팩에서 부드러운 물방울 소리를 냅니다."
+            }
+          }
+        },
+        "lattice": {
+          "description": "크리스털과 콘크리트의 AI 콘솔: 점무늬 캔버스 위에 떠 있는 프레임 패널, 고정폭 레이블, 반전된 알약 버튼, 홀로그램 입력 막대가 있는 가운데 정렬 대화 열, 그리고 하나의 신호 색. 어두운 모드에서는 흑요석, 밝은 모드에서는 검은 프레임의 골분색 종이. FM 크리스털 울림과 릴레이 딸깍 소리의 Lattice 사운드 팩과 어울립니다.",
+          "options": {
+            "bento": {
+              "label": "떠 있는 패널",
+              "description": "레일, 채널, 헤더, 채팅, 멤버를 간격이 있는 별도 프레임으로 표시합니다. 끄면 가장자리끼리 붙습니다."
+            },
+            "focusColumn": {
+              "label": "가운데 정렬 대화",
+              "description": "넓은 창에서 메시지와 입력 막대를 가운데 정렬된 읽기 열에 둡니다."
+            },
+            "prism": {
+              "label": "홀로그램 강조",
+              "description": "캔버스, 입력 막대 가장자리, 활성 서버, 채널 제목에 무지갯빛 광채. 끄면 순수한 흑백입니다."
+            },
+            "marks": {
+              "label": "재단 표시",
+              "description": "모든 프레임 모서리의 꺾쇠와 번호가 매겨진 채널 카테고리."
+            },
+            "drift": {
+              "label": "떠다니는 광채",
+              "description": "홀로그램 광채가 천천히 움직입니다. 모션 줄이기가 요청되면 꺼집니다."
+            },
+            "uiSounds": {
+              "label": "인터페이스 소리",
+              "description": "버튼과 목록을 클릭할 때 활성 사운드 팩에서 릴레이 딸깍 소리를 냅니다."
+            }
+          }
+        },
+        "flux": {
+          "description": "액체 유리와 새로운 레이아웃. 서버는 위쪽 유리 독에 떠 있고, 채널은 탭 줄로 이어지며, 대화는 유리 입력창 아래 가운데 정렬된 열에 놓입니다. 이 모든 것이 떠다니는 메타볼 필드 위에 있습니다. 유리에는 두께, 가장자리 빛, 색 번짐이 있고 브라우저가 허용하면 뒤에 있는 것을 굴절시킵니다. 내 기본 색과 강조 색을 사용합니다. 울림 있는 액체 신스의 Flux 사운드 팩과 어울립니다.",
+          "options": {
+            "dock": {
+              "label": "가로 레이아웃",
+              "description": "서버는 위쪽 독에, 채널은 탭 줄로, 대화는 가운데 정렬된 열에, 나는 오른쪽 위 캡슐에 표시됩니다. 너비가 1024px보다 좁은 창은 나란히 놓인 레이아웃을 유지합니다. 서버 순서를 바꾸려면 이 옵션을 끄세요."
+            },
+            "lens": {
+              "label": "렌즈 굴절",
+              "description": "유리 컨트롤이 가장자리 뒤에 있는 것을 굴절시킵니다. Chromium 기반 브라우저와 Windows 앱 전용이며, 다른 곳에서는 굴절 없이 가장자리 빛만 유지합니다."
+            },
+            "liquid": {
+              "label": "액체 필드",
+              "description": "유리 뒤에서 떠다니는 메타볼. 끄면 정지된 오로라가 남습니다."
+            },
+            "drift": {
+              "label": "살아 있는 흐름",
+              "description": "창에 포커스가 있는 동안 필드가 초당 20프레임으로 움직입니다. 끄면 멈춰 있고 무언가 바뀔 때만 그립니다."
+            },
+            "orbits": {
+              "label": "궤도 고리",
+              "description": "액체 뒤에서 천천히 도는 가는 색 고리."
+            },
+            "morph": {
+              "label": "변형되는 모양",
+              "description": "포인터 아래에서 서버와 아바타가 녹아 움직이는 덩어리가 됩니다."
+            },
+            "uiSounds": {
+              "label": "인터페이스 소리",
+              "description": "버튼과 목록을 클릭할 때 활성 사운드 팩에서 액체 같은 짧은 소리를 냅니다."
+            }
+          }
+        },
+        "paper": {
+          "description": "1비트 창이 있는 종이 데스크톱: 신문지 책상, 따뜻한 잉크, 마스코트 파랑. 대화 상자와 설정은 줄무늬 제목 표시줄과 네모난 닫기 상자가 있는 창으로 열리고, 채팅은 테두리 있는 창에 놓이며, 모든 프레임이 단단한 잉크 그림자를 드리웁니다. 형광펜이 열린 채널과 내 멘션을 표시하고, 제목은 굵은 압축 그로테스크체, 레이블과 시간은 고정폭이며 코드는 어두운 화면에 표시됩니다. 테마를 어둡게 바꾸면 어두운 책상 위의 옅은 프레임이 됩니다.",
+          "options": {
+            "shadows": {
+              "label": "잉크 그림자",
+              "description": "창, 메뉴, 버튼, 서버 아이콘 아래의 단단한 오프셋 그림자. 끄면 잉크 프레임이 책상 위에 평평하게 놓입니다."
+            },
+            "jelly": {
+              "label": "젤리 움직임",
+              "description": "포인터를 올리면 버튼, 반응, 서버 아이콘이 눌렸다가 자리를 잡습니다. 모션 줄이기가 요청되면 꺼집니다."
+            },
+            "grain": {
+              "label": "종이 질감",
+              "description": "창 뒤 책상 위의 고운 노이즈."
+            },
+            "glyphs": {
+              "label": "글리프 배경 화면",
+              "description": "메시지 뒤에 진동하는 판의 마디선을 따라 놓인 흐릿한 고정폭 채팅 텍스트. 정적입니다."
+            }
+          }
+        }
+      },
+      "typography": "타이포그래피",
+      "font": "글꼴",
+      "fontDescription": "앱 전체에 사용할 서체를 선택합니다. 사용자 지정 글꼴은 필요할 때 불러오므로 기본값을 선택하면 추가로 다운로드하지 않습니다.",
+      "fontDefault": "기본 (Figtree)",
+      "fontSample": "다람쥐 헌 쳇바퀴에 타고파 0123",
+      "emojiStyle": "이모지 스타일",
+      "emojiPack": "이모지 팩",
+      "emojiPackDescription": "앱 전체에서 사용할 이모지 스타일을 선택합니다",
+      "effects": "효과",
+      "glassEffects": "흐림 및 유리 효과 사용",
+      "glassEffectsDescription": "모달, 팝오버, 음성 독, 사이드바 등 많은 화면 요소가 {property}을(를) 사용해 반투명 유리처럼 보입니다. 평평하고 선명한 UI를 원하거나 음성·영상 통화 중 흐림 효과로 기기가 버벅인다면 끄세요.",
+      "invalidCssColour": "CSS 색상이 아닙니다: {value}",
+      "palette": {
+        "title": "팔레트 아이디어",
+        "random": "무작위 팔레트",
+        "surprise": "아무거나",
+        "fromImageTitle": "이미지로 팔레트 만들기",
+        "fromImage": "이미지에서",
+        "mood": "팔레트 분위기",
+        "moods": {
+          "soft": "부드럽게",
+          "balanced": "균형",
+          "vivid": "선명하게",
+          "neon": "네온"
+        },
+        "schemes": {
+          "mono": "모노",
+          "analogous": "유사색",
+          "complement": "보색",
+          "split": "분할 보색",
+          "triad": "삼각 배색",
+          "dusk": "황혼"
+        },
+        "cardTitle": "{scheme}: 기본 {primary}, 강조 {accent}",
+        "noOpaquePixels": "이 이미지에는 추출할 불투명 픽셀이 없습니다.",
+        "imageReadFailed": "이미지를 읽을 수 없습니다."
+      },
+      "presets": {
+        "harmonyTeal": {
+          "name": "Harmony 틸",
+          "description": "Harmony를 대표하는 모습: 산뜻하고 현대적이며 친근함"
+        },
+        "emerald": {
+          "name": "에메랄드",
+          "description": "성장, 균형, 자연스러운 조화"
+        },
+        "coral": {
+          "name": "코랄",
+          "description": "따뜻하고 활기차며 커뮤니티 중심"
+        },
+        "violet": {
+          "name": "바이올렛",
+          "description": "깊은 보라 톤의 창의적이고 개성 있는 테마"
+        },
+        "rose": {
+          "name": "로즈",
+          "description": "대담하고 따뜻하며 커뮤니티 지향"
+        },
+        "oceanBlue": {
+          "name": "오션 블루",
+          "description": "차가운 톤의 깊은 바다색 테마"
+        },
+        "sakura": {
+          "name": "벚꽃",
+          "description": "벚꽃에서 영감을 받은 분홍 테마"
+        },
+        "forest": {
+          "name": "포레스트",
+          "description": "자연스러운 숲의 초록 톤"
+        },
+        "amber": {
+          "name": "앰버",
+          "description": "따뜻한 호박색과 금색 톤"
+        }
+      },
+      "variableGroups": {
+        "navigationRail": "내비게이션 레일",
+        "brand": "브랜드",
+        "primaryLayout": "기본(레이아웃)",
+        "backgroundSurfaces": "배경 표면",
+        "text": "텍스트",
+        "icons": "아이콘",
+        "status": "상태",
+        "semantic": "의미 색상",
+        "borders": "테두리",
+        "alphaTransparency": "알파 / 투명도",
+        "tooltipsOverlays": "툴팁 및 오버레이"
+      }
     },
     "voice": {
       "title": "음성 및 비디오",
@@ -2398,7 +2821,24 @@
       "inputThreshold": "임계값",
       "decibels": "{db} dB",
       "inputMeterHint": "마이크가 전송되는 동안 막대가 초록색으로 바뀝니다.",
-      "inputMeterIdle": "음성 채널에 참여하면 여기에서 입력 레벨을 볼 수 있습니다."
+      "inputMeterIdle": "음성 채널에 참여하면 여기에서 입력 레벨을 볼 수 있습니다.",
+      "videoOption": {
+        "res360": "360p(낮음)",
+        "res480": "480p(SD)",
+        "res720": "720p(HD)",
+        "res1080": "1080p(풀 HD)",
+        "source": "원본(네이티브)",
+        "fps": "{n} FPS",
+        "fpsLow": "{n} FPS(낮음)",
+        "fpsCinema": "{n} FPS(시네마)",
+        "kbpsLow": "{n} kbps(낮음)",
+        "kbpsVoice": "{n} kbps(음성)",
+        "kbpsStandard": "{n} kbps(표준)",
+        "kbpsHigh": "{n} kbps(높음)"
+      },
+      "quality480": "480p (표준)",
+      "quality720": "720p (HD)",
+      "quality1080": "1080p (풀 HD)"
     },
     "notifications": {
       "title": "알림",
@@ -2681,6 +3121,38 @@
           "title": "테스트 알림",
           "message": "테스트 알림입니다"
         }
+      },
+      "android": {
+        "title": "이 기기의 푸시",
+        "openSettings": "알림 설정 열기",
+        "allow": "알림 허용",
+        "unavailable": "이 빌드에서는 푸시 상태를 확인할 수 없습니다. Harmony가 실행 중일 때는 알림이 계속 표시됩니다.",
+        "service": "푸시 서비스",
+        "noDistributor": "Google 서비스 없이 푸시를 받으려면 ntfy 같은 UnifiedPush 배포 앱을 설치한 다음 여기에서 선택하세요.",
+        "sendTest": "테스트 푸시 보내기",
+        "testSent": "테스트 푸시를 보냈습니다",
+        "testFailed": "테스트 푸시를 보내지 못했습니다",
+        "off": "끔",
+        "auto": "자동",
+        "fcmThrough": "{host}을(를) 통한 Google (FCM)",
+        "unifiedPushVia": "{name}을(를) 통한 UnifiedPush",
+        "note": {
+          "notAllowed": "알림이 허용되지 않았습니다",
+          "chooseService": "아래에서 푸시 서비스를 선택하세요",
+          "noService": "사용할 수 있는 푸시 서비스가 없습니다",
+          "active": "활성",
+          "registering": "등록 중"
+        },
+        "hint": {
+          "notInBuild": "이 빌드에 포함되지 않음",
+          "needsPlay": "Google Play 서비스 필요",
+          "googleRelayed": "Google을 통해 전달, {host}에서 중계",
+          "notConfigured": "이 서버에 설정되지 않음",
+          "google": "Google을 통해 전달",
+          "auto": "직접 고른 푸시 서비스, 없으면 Google, 그것도 없으면 유일한 UnifiedPush 앱",
+          "ownService": "내 푸시 서비스를 통해 전달",
+          "off": "Harmony가 실행 중일 때만 알림"
+        }
       }
     },
     "announcements": {
@@ -2768,6 +3240,14 @@
           "name": "나가기 / 닫기",
           "description": "전체 화면이나 포커스 보기를 나가고, 패널을 닫은 뒤 통화 화면을 최소화합니다. 통화 화면 안에 포커스가 있을 때 작동합니다."
         }
+      },
+      "mouse": {
+        "left": "왼쪽 클릭",
+        "middle": "가운데 클릭",
+        "right": "오른쪽 클릭",
+        "back": "마우스 버튼 {n}(뒤로)",
+        "forward": "마우스 버튼 {n}(앞으로)",
+        "numbered": "마우스 버튼 {n}"
       }
     },
     "advanced": {
@@ -2779,7 +3259,41 @@
       "copyRawData": "원시 데이터 복사",
       "reportBugSection": "도움말",
       "reportBug": "버그 신고",
-      "reportBugDescription": "GitHub에서 버그를 신고하거나 기능을 요청할 수 있습니다."
+      "reportBugDescription": "GitHub에서 버그를 신고하거나 기능을 요청할 수 있습니다.",
+      "installApp": "앱 설치",
+      "installAppDescription": "Harmony를 앱으로 설치하면 더 빠르게 열리고 알림을 받을 수 있습니다. 데스크톱에서 아래 버튼을 사용할 수 없다면 브라우저 주소 표시줄의 설치 아이콘을 사용하세요.",
+      "runOnLogin": "로그인할 때 Harmony 시작",
+      "runOnLoginEnabled": "{url}에서 이 기능을 켰습니다. 변경이 필요하면 아래를 탭해 방법을 확인하세요.",
+      "runOnLoginAvailable": "{browser}에서는 컴퓨터에 로그인할 때마다 Harmony를 자동으로 실행할 수 있습니다.",
+      "runOnLoginChange": "변경",
+      "runOnLoginSetUp": "설정",
+      "betaFeatures": "베타 기능",
+      "todayDashboard": "오늘 대시보드",
+      "todayDashboardDescription": "읽지 않은 활동이 있는 채널, 참여 중인 스레드, 인기 게시물을 모은 일일 요약입니다. 서버 사이드바에 해 아이콘이 추가됩니다.",
+      "aiSummaries": "기기 내 AI 요약",
+      "aiSummariesDescription": "브라우저에 내장된 AI 모델(Chrome의 Gemini Nano)로 오늘 요약을 정리합니다. 모두 기기에서 실행되며 서버로 아무것도 보내지 않습니다.",
+      "aiSummariesUnsupported": "이 브라우저에서는 지원되지 않습니다.",
+      "desktopApp": "데스크톱 앱",
+      "launchAtStartup": "시작 시 실행",
+      "launchAtStartupDescription": "컴퓨터에 로그인하면 Harmony를 자동으로 시작합니다. 트레이에 최소화된 상태로 실행됩니다.",
+      "launchAtStartupFailed": "시작 시 실행 설정을 변경하지 못했습니다",
+      "richPresence": "게임 활동(리치 프레즌스)",
+      "richPresenceDescription": "플레이 중인 게임을 상태로 표시합니다. 감지는 기기에서 이루어지며, 게임 이름만 상태 텍스트로 공유됩니다.",
+      "gameOverlay": "게임 내 음성 오버레이",
+      "gameOverlayDescription": "통화 중 게임 위에 클릭이 통과되는 음성 타일을 띄웁니다. Ctrl+Shift+O를 눌러 상호작용을 전환하세요.",
+      "developerSettings": "개발자 설정",
+      "dataManagement": "데이터 관리",
+      "clearCache": "캐시 지우기",
+      "clearCacheDescription": "서비스 워커 캐시, 메모리 내 이모지 캐시, 로컬에 캐시된 배경 이미지 매니페스트를 지웁니다. 메시지, ID 키, 설정은 유지됩니다.",
+      "clearingCache": "지우는 중...",
+      "cacheCleared": "캐시 {count}개를 지우고 이모지 캐시를 재설정했습니다 | 캐시 {count}개를 지우고 이모지 캐시를 재설정했습니다",
+      "clearCacheFailed": "캐시를 지우지 못했습니다",
+      "deleteAccount": "계정 삭제",
+      "deleteAccountTitle": "계정을 삭제할까요?",
+      "deleteConfirmType": "확인하려면 {word}을(를) 입력하세요",
+      "deleting": "삭제 중…",
+      "deleteForever": "계정 영구 삭제",
+      "accountDeleted": "계정이 삭제되었습니다."
     },
     "security": "보안",
     "myBots": "내 봇",
@@ -2851,7 +3365,156 @@
         "cacheStats": "사운드 {sounds}개 캐시됨, 테마 {themes}개 로드됨",
         "exportSettings": "설정 내보내기",
         "importSettings": "설정 가져오기",
-        "resetDefaults": "기본값으로 재설정"
+        "resetDefaults": "기본값으로 재설정",
+        "cachedCount": "{size}/{max} 캐시됨",
+        "pickerLabel": "오디오 테마",
+        "status": {
+          "ready": "준비됨 • {theme}",
+          "unknownTheme": "알 수 없음",
+          "loading": "테마 시스템을 불러오는 중...",
+          "preloading": "{theme} 미리 불러오는 중...",
+          "error": "시스템 오류가 감지되었습니다",
+          "uninitialized": "초기화되지 않음",
+          "unknown": "알 수 없는 상태"
+        },
+        "toasts": {
+          "changeFailed": {
+            "title": "테마를 변경하지 못했습니다",
+            "message": "선택한 오디오 테마로 전환할 수 없습니다"
+          },
+          "error": {
+            "title": "테마 오류",
+            "message": "알 수 없는 오류가 발생했습니다"
+          },
+          "testDone": {
+            "title": "오디오 테스트",
+            "message": "테마 테스트를 완료했습니다"
+          },
+          "testFailed": {
+            "title": "오디오 테스트 실패",
+            "message": "테스트 소리를 재생할 수 없습니다"
+          },
+          "preview": {
+            "title": "테마 미리 듣기",
+            "message": "{theme} 테스트 중"
+          },
+          "previewFailed": {
+            "title": "테스트 실패",
+            "message": "테마 소리를 미리 들을 수 없습니다"
+          },
+          "cacheCleared": {
+            "title": "캐시 지움",
+            "message": "오디오 캐시를 지웠습니다"
+          },
+          "cacheClearFailed": {
+            "title": "캐시 지우기 실패",
+            "message": "오디오 캐시를 지울 수 없습니다"
+          },
+          "exported": {
+            "title": "설정 내보냄",
+            "message": "오디오 테마 설정을 다운로드했습니다"
+          },
+          "exportFailed": {
+            "title": "내보내기 실패",
+            "message": "테마 설정을 내보낼 수 없습니다"
+          },
+          "imported": {
+            "title": "설정 가져옴",
+            "message": "오디오 테마 설정을 복원했습니다"
+          },
+          "importFailed": {
+            "title": "가져오기 실패",
+            "message": "테마 설정을 가져올 수 없습니다. 파일 형식을 확인하세요."
+          },
+          "reset": {
+            "title": "설정 초기화됨",
+            "message": "오디오 테마 설정을 기본값으로 초기화했습니다"
+          },
+          "resetFailed": {
+            "title": "초기화 실패",
+            "message": "테마 설정을 초기화할 수 없습니다"
+          }
+        },
+        "packs": {
+          "default": {
+            "name": "기본",
+            "description": "집중을 위한 깔끔하고 미니멀한 효과음"
+          },
+          "futuristic": {
+            "name": "퓨처리스틱",
+            "description": "현대적이고 몰입감 있는 미래풍 오디오 신호"
+          },
+          "neokobe": {
+            "description": "SDR-001 스킨을 위한 누아르 사이버펑크 UI 사운드"
+          },
+          "skyglass": {
+            "description": "Skyglass 스킨을 위한 유리 종소리, 물방울, 거품 소리"
+          },
+          "lattice": {
+            "description": "Lattice 스킨을 위한 FM 크리스털 핑, 릴레이 틱, 스윕"
+          },
+          "flux": {
+            "description": "Flux 스킨을 위한 공명하는 리퀴드 신스, 서브 스웰, 유리 반짝임"
+          }
+        },
+        "errors": {
+          "init": "알 수 없는 초기화 오류",
+          "switch": "테마를 전환하지 못했습니다",
+          "preload": "미리 불러오기 실패: {theme}",
+          "playback": "오디오 재생 실패: {action}",
+          "test": "오디오 테스트 실패: {action}",
+          "import": "환경설정을 가져오지 못했습니다",
+          "reset": "설정을 초기화하지 못했습니다"
+        }
+      },
+      "page": {
+        "description": "알림, 통화, 인터페이스 동작에 재생되는 소리를 선택합니다.",
+        "testDescription": "현재 테마에서 여러 동작이 어떻게 들리는지 테스트합니다",
+        "packsTitle": "테마 팩 가져오기 및 내보내기",
+        "packsDescription": "전체 오디오 테마(소리 + 메타데이터)를 내보내 공유하거나 백업할 수 있습니다. 팩을 가져오면 사용자 지정 테마로 추가됩니다.",
+        "exporting": "내보내는 중...",
+        "exportPack": "팩 내보내기",
+        "importPack": "팩 가져오기",
+        "statusTitle": "오디오 시스템 상태",
+        "statusDescription": "오디오 테마 시스템의 현재 상태",
+        "status": {
+          "ready": "준비됨",
+          "loading": "불러오는 중",
+          "preloading": "미리 불러오는 중",
+          "error": "오류",
+          "uninitialized": "초기화되지 않음"
+        },
+        "clearCacheDescription": "캐시된 오디오 파일을 지워 모든 소리를 다시 불러옵니다",
+        "soundsLoaded": "소리 {size}/{max}개 불러옴",
+        "resetDescription": "모든 오디오 설정을 기본값으로 재설정합니다",
+        "toast": {
+          "soundTest": "소리 테스트",
+          "played": "{sound} 재생함",
+          "soundTestFailed": "소리 테스트 실패",
+          "testFailed": "{sound}을(를) 테스트하지 못했습니다",
+          "cacheCleared": "캐시 지움",
+          "audioCacheCleared": "오디오 캐시를 지웠습니다",
+          "cacheClearFailed": "캐시를 지울 수 없습니다",
+          "audioCacheClearFailed": "오디오 캐시를 지우지 못했습니다",
+          "reset": "오디오 재설정됨",
+          "resetDone": "오디오 설정이 기본값으로 복원되었습니다",
+          "resetFailed": "재설정 실패",
+          "resetFailedDetail": "오디오 시스템을 재설정하지 못했습니다",
+          "themeChanged": "테마 변경됨",
+          "switchedTheme": "{theme} 테마로 전환했습니다",
+          "packExported": "팩 내보냄",
+          "packExportedDetail": "오디오 테마 팩을 ZIP으로 다운로드했습니다",
+          "exportFailed": "내보내기 실패",
+          "exportFailedDetail": "테마 팩을 내보낼 수 없습니다",
+          "fileTooLarge": "파일이 너무 큽니다",
+          "fileTooLargeDetail": "팩은 {size} 미만이어야 합니다",
+          "packImported": "팩 가져옴",
+          "packImportedDetail": "{theme}을(를) 사용자 지정 테마로 추가했습니다",
+          "importFailed": "가져오기 실패",
+          "invalidPack": "잘못된 오디오 팩 형식입니다",
+          "initFailed": "초기화 실패",
+          "initFailedDetail": "오디오 시스템을 초기화하지 못했습니다"
+        }
       }
     },
     "buildInfo": {
@@ -2912,7 +3575,9 @@
       "unsavedChanges": "저장하지 않은 프로필 변경사항이 있습니다",
       "changesReset": "프로필 변경사항을 초기화했습니다",
       "handleCopied": "핸들을 복사했습니다",
-      "copyFailed": "복사하지 못했습니다"
+      "copyFailed": "복사하지 못했습니다",
+      "dateUnknown": "알 수 없음",
+      "emailNotProvided": "제공되지 않음"
     },
     "dmPolicy": {
       "title": "다이렉트 메시지",
@@ -2922,6 +3587,20 @@
       "known": "서버 멤버와 내가 팔로우하는 사람",
       "following": "내가 팔로우하는 사람만",
       "failed": "설정을 저장하지 못했습니다"
+    },
+    "privacyPage": {
+      "description": "나와 상호작용할 수 있는 사람을 정하고, 계정 보안을 관리하며, 데이터 사용 방식을 제어합니다.",
+      "accountSecurity": "계정 보안",
+      "encryption": "암호화 설정",
+      "dataPrivacy": "데이터 및 개인정보",
+      "stripTrackers": "URL에서 추적 매개변수 제거",
+      "stripTrackersDescription": "메시지에 포함된 YouTube, X/Twitter, TikTok, Instagram, Facebook URL에서 추적 매개변수(?si=... 등)를 자동으로 제거합니다.",
+      "blockedUsers": "차단한 사용자",
+      "mutedUsers": "음소거한 사용자",
+      "userUnblocked": "사용자 차단을 해제했습니다",
+      "unblockFailed": "사용자 차단을 해제하지 못했습니다",
+      "userUnmuted": "사용자 음소거를 해제했습니다",
+      "unmuteFailed": "사용자 음소거를 해제하지 못했습니다"
     }
   },
   "navigation": {
@@ -3482,7 +4161,26 @@
       "feedLabel": "{domain}의 게시물"
     },
     "instanceStatusFilter": "상태",
-    "instanceSoftwareFilter": "소프트웨어"
+    "instanceSoftwareFilter": "소프트웨어",
+    "fediverseUser": "페디버스 사용자",
+    "userNotFound": "사용자를 찾을 수 없습니다",
+    "altBadge": "ALT",
+    "postInteractions": {
+      "invalidUser": "잘못된 사용자 ID",
+      "invalidPost": "잘못된 게시물 ID",
+      "unknown": "알 수 없는 오류"
+    },
+    "requestFailed": "요청 실패",
+    "interactionErrors": {
+      "favorite": "게시물에 좋아요를 누르지 못했습니다",
+      "boost": "게시물을 부스트하지 못했습니다",
+      "bookmark": "게시물을 북마크하지 못했습니다"
+    },
+    "shareSheet": {
+      "title": "Harmony 게시물",
+      "text": "이 게시물을 확인해 보세요"
+    },
+    "mediaKindAlt": "{kind}: {alt}"
   },
   "moderation": {
     "reportAlert": {
@@ -3613,6 +4311,20 @@
       "moderators": "{server} 모더레이터",
       "outcomeBy": "{server} 모더레이터: {outcome}",
       "reviewedTitle": "{server} 모더레이터가 신고를 검토했습니다"
+    },
+    "reportModal": {
+      "reportedMessage": "신고한 메시지",
+      "reportedPost": "신고한 게시물",
+      "whyReporting": "신고하는 이유는 무엇인가요?",
+      "additionalDetails": "추가 세부 정보(선택)",
+      "detailsPlaceholder": "추가 맥락을 입력하세요...",
+      "submitting": "제출 중…",
+      "submitted": "신고가 제출되었습니다",
+      "thanks": "커뮤니티를 안전하게 지키는 데 도움을 주셔서 감사합니다. 곧 신고를 검토하겠습니다.",
+      "hideMessage": "이 메시지 숨기기",
+      "hidePost": "이 게시물 숨기기",
+      "hideHint": "내 화면에서 제거합니다",
+      "keepVisible": "계속 표시"
     }
   },
   "files": {
@@ -3652,7 +4364,16 @@
     "noFavoritesOf": "아직 즐겨찾는 {kind}이(가) 없습니다",
     "noneFound": "{kind}을(를) 찾을 수 없습니다",
     "results": "{kind} 결과",
-    "clip": "클립"
+    "clip": "클립",
+    "viaKlipy": "KLIPY 제공",
+    "adFrame": "광고",
+    "kind": {
+      "stickers": "스티커",
+      "clips": "클립",
+      "memes": "밈",
+      "aiEmoji": "AI 이모지",
+      "gifs": "GIF"
+    }
   },
   "emoji": {
     "messageReactionLimit": "이 메시지에는 이미 {count}가지 반응이 있습니다. 기존 반응 중 하나에 추가하세요.",
@@ -3679,7 +4400,35 @@
     "symbols": "기호",
     "flags": "깃발",
     "custom": "사용자 지정",
-    "noResults": "이모지를 찾을 수 없습니다"
+    "noResults": "이모지를 찾을 수 없습니다",
+    "picker": {
+      "favorites": "즐겨찾기",
+      "favoritesHint": "이모지를 마우스 오른쪽 버튼으로 클릭하거나 길게 누르면 여기에 추가됩니다.",
+      "frequent": "자주 사용",
+      "loading": "이모지 불러오는 중...",
+      "favorite": "이모지 즐겨찾기",
+      "unfavorite": "이모지 즐겨찾기 해제",
+      "copyId": "이모지 ID 복사",
+      "removeFrequent": "자주 사용에서 제거",
+      "copiedImageLink": "이미지 링크를 복사했습니다",
+      "addedFavorite": ":{name}: 을(를) 즐겨찾기에 추가했습니다",
+      "removedFavorite": ":{name}: 을(를) 즐겨찾기에서 제거했습니다",
+      "copied": ":{name}: 을(를) 복사했습니다",
+      "removedFrequent": ":{name}: 을(를) 자주 사용에서 제거했습니다"
+    },
+    "reactionPicker": {
+      "title": "반응 선택",
+      "currentPack": "현재: {pack}",
+      "systemPack": "시스템",
+      "loading": "이모지 불러오는 중...",
+      "frequent": "자주 사용"
+    },
+    "groups": {
+      "mine": "내 이모지",
+      "instance": "{name} 이모지",
+      "instanceUnnamed": "인스턴스 이모지",
+      "ai": "AI 생성"
+    }
   },
   "emojiInfo": {
     "dialog": "이모지",
@@ -3751,7 +4500,11 @@
       "socialHint": "Fediverse의 팔로우, 좋아요, 부스트가 여기에 표시됩니다.",
       "unread": "읽지 않은 알림 없음",
       "unreadHint": "읽은 알림은 전체 탭에 남아 있습니다."
-    }
+    },
+    "reactedToMessage": "{actor}님이 내 메시지에 {emoji} 반응을 남겼습니다",
+    "reactedToPost": "{actor}님이 내 게시물에 {emoji} 반응을 남겼습니다",
+    "followedYou": "{actor}님이 나를 팔로우했습니다",
+    "requestedFollow": "{actor}님이 팔로우를 요청했습니다"
   },
   "newcomerAlerts": {
     "notification": {
@@ -3848,7 +4601,10 @@
     "activityStarted": "{actor}님이 {app}을(를) 시작했습니다.",
     "activityEnded": "{actor}님이 {app}을(를) 시작했습니다: {players}명, {duration}.",
     "activityEndedAlone": "{actor}님이 {app}을(를) 시작했습니다: {duration}.",
-    "activityFallback": "활동"
+    "activityFallback": "활동",
+    "legacyJoin": "{name}님, 환영합니다!",
+    "legacyInvitedBy": "{name}님이 초대했습니다.",
+    "legacyLeave": "{name}님이 서버를 떠났습니다."
   },
   "time": {
     "now": "지금",
@@ -3928,12 +4684,7 @@
     "filesTooLargeSkipped": "{count}개 파일 건너뜀: 1MB 크기 제한 초과",
     "noValidImageFiles": "유효한 이미지 파일이 선택되지 않았습니다",
     "cannotUploadEmojisLimit": "{count}개의 이모지를 업로드할 수 없습니다. 서버 한도는 {max}개입니다 (현재 {current}개)",
-    "emojisUploadedSuccess": "{count}개의 이모지{plural}이(가) 업로드되었습니다!",
-    "emojisFailedToUpload": "{count}개의 이모지{plural} 업로드에 실패했습니다",
     "failedToUploadEmojis": "이모지 업로드에 실패했습니다",
-    "confirmDeleteEmojis": "{count}개의 이모지{plural}을(를) 삭제하시겠습니까?",
-    "emojisDeletedSuccess": "{count}개의 이모지{plural}이(가) 삭제되었습니다!",
-    "emojisFailedToDelete": "{count}개의 이모지{plural} 삭제에 실패했습니다",
     "failedToDeleteEmojis": "이모지 삭제에 실패했습니다",
     "emojiRenamedSuccess": "이모지 이름이 :{name}:(으)로 변경되었습니다",
     "failedToRenameEmoji": "이모지 이름 변경에 실패했습니다",
@@ -4071,7 +4822,10 @@
       "advertisedEmptyTitle": "아직 올라온 서버가 없습니다",
       "advertisedEmpty": "소유자가 연합 전체에 올린 서버가 여기에 표시됩니다. 이 인스턴스가 아는 인스턴스 중 아직 서버를 올린 곳이 없습니다. 도메인으로 다른 인스턴스를 둘러보세요.",
       "hostedOn": "{instance}에서 호스팅",
-      "advertisedErrorTitle": "알려진 인스턴스를 읽지 못했습니다"
+      "advertisedErrorTitle": "알려진 인스턴스를 읽지 못했습니다",
+      "signInToJoin": "서버에 참여하려면 로그인하세요",
+      "joinFailed": "서버에 참여하지 못했습니다. 다시 시도하세요.",
+      "profileFailed": "사용자 프로필을 불러올 수 없습니다"
     },
     "haveInviteLink": "초대 링크가 있나요? 여기에 붙여넣으세요",
     "inviteLink": "초대 링크",
@@ -4210,7 +4964,8 @@
       "agree": "동의하고 참가"
     },
     "joined": "{server}에 참여했습니다",
-    "joinFailed": "서버에 참여하지 못했습니다"
+    "joinFailed": "서버에 참여하지 못했습니다",
+    "acceptAs": "{name}(으)로 수락"
   },
   "nav": {
     "chat": "채팅",
@@ -4228,7 +4983,10 @@
     "chatNotFound": "이 채팅 또는 대화가 존재하지 않거나 액세스 권한이 없습니다.",
     "settingsNotFound": "이 설정 페이지는 존재하지 않습니다.",
     "defaultNotFound": "찾으시는 페이지가 존재하지 않거나 이동되었습니다.",
-    "requestedAddress": "요청한 주소"
+    "requestedAddress": "요청한 주소",
+    "serverTitle": "서버를 찾을 수 없습니다",
+    "serverNotFound": "찾는 서버가 없거나 접근 권한이 없습니다.",
+    "browseServers": "서버 둘러보기"
   },
   "onboarding": {
     "title": "프로필 설정",
@@ -4781,6 +5539,17 @@
       "unlock": "이 음성 채널은 종단 간 암호화되어 있습니다. 참여하려면 복구 키로 암호화 잠금을 해제하세요.",
       "dmSetup": "이 대화의 통화는 종단 간 암호화되어 있습니다. 전화를 걸거나 받으려면 암호화를 설정하세요.",
       "dmUnlock": "이 대화의 통화는 종단 간 암호화되어 있습니다. 전화를 걸거나 받으려면 복구 키로 암호화 잠금을 해제하세요."
+    },
+    "dmStatus": {
+      "noKeys": "암호화가 켜져 있지만 키가 설정되지 않았습니다",
+      "locked": "암호화가 켜져 있습니다. 암호화된 메시지를 읽으려면 잠금을 해제하세요",
+      "setup": "암호화가 켜져 있습니다. 참여하려면 키를 설정하세요"
+    },
+    "sendFallback": {
+      "notSent": "암호화에 실패했습니다. 메시지를 보내지 않았습니다.",
+      "sentUnencrypted": "암호화에 실패했습니다. 메시지가 암호화되지 않은 채 전송되었습니다.",
+      "required": "이 채널은 종단 간 암호화가 필요합니다.",
+      "declined": "메시지를 보내지 않았습니다."
     }
   },
   "today": {
@@ -5441,10 +6210,6 @@
       "title": "아직 등록된 기기가 없습니다",
       "description": "기기에서 암호화 잠금을 해제하면 여기에 표시됩니다."
     },
-    "screenSources": {
-      "screens": "사용할 수 있는 화면이 없습니다",
-      "windows": "사용할 수 있는 창이 없습니다"
-    },
     "admin": {
       "discoveredInstances": {
         "title": "아직 사용자 상호작용으로 발견된 인스턴스가 없습니다",
@@ -5540,7 +6305,22 @@
     "installDescription": "더 빠른 로딩과 오프라인 이용",
     "install": "설치",
     "installing": "설치 중…",
-    "dismiss": "설치 안내 닫기"
+    "dismiss": "설치 안내 닫기",
+    "update": {
+      "title": "업데이트 가능",
+      "body": "새 버전의 Harmony를 설치할 준비가 되었습니다",
+      "updating": "업데이트 중...",
+      "now": "지금 업데이트"
+    },
+    "shareTitle": "Harmony - 안전한 채팅 앱",
+    "shareText": "Harmony는 안전하고 사적인 채팅 앱입니다.",
+    "manualInstall": {
+      "ios": "공유를 탭한 다음 \"홈 화면에 추가\"를 선택하세요.",
+      "android": "Chrome 메뉴(⋮) → 앱 설치 또는 홈 화면에 추가를 사용하세요.",
+      "desktop": "주소 표시줄의 설치 아이콘이나 Chrome 메뉴 → \"Harmony 설치...\"를 사용하세요."
+    },
+    "installUnavailable": "지금은 이 페이지에서 설치할 수 없습니다. {hint}",
+    "installFailed": "설치가 취소되었거나 시작하지 못했습니다. {hint}"
   },
   "security": {
     "subtitle": "비밀번호, 2단계 인증, 내 계정에 로그인한 기기입니다.",
@@ -5872,7 +6652,27 @@
       "linkHint": "새 기기에서 로그인한 다음 표시되는 코드를 스캔하세요.",
       "pendingPairing": "연결 대기 중입니다. 표시되는 코드를 스캔하세요.",
       "pendingPlain": "로그인하여 암호화된 메시지의 잠금을 해제했습니다.",
-      "scanCode": "코드 스캔"
+      "scanCode": "코드 스캔",
+      "deny": "거부",
+      "rename": "이름 변경",
+      "signedOut": "로그아웃됨",
+      "showInactive": "로그아웃된 기기 {count}대 표시 | 로그아웃된 기기 {count}대 표시",
+      "hideInactive": "로그아웃된 기기 {count}대 숨기기 | 로그아웃된 기기 {count}대 숨기기",
+      "trust": {
+        "verified": "인증됨",
+        "recovery": "기록 잠금 해제됨",
+        "account": "새 메시지만",
+        "untrusted": "제한됨"
+      },
+      "platform": {
+        "web": "웹",
+        "desktop": "데스크톱",
+        "mobile": "모바일",
+        "other": "기기"
+      },
+      "lastActive": "{platform} · 마지막 활동 {time}",
+      "minutesAgo": "{count}분 전",
+      "hoursAgo": "{count}시간 전"
     },
     "approval": {
       "pairingText": "해당 기기가 암호화된 메시지를 기다리고 있습니다. 내 기기이고 지금 눈앞에 있다면 표시된 코드를 스캔하세요. 키는 스캔한 코드의 기기로만 전송됩니다.",
@@ -5882,7 +6682,20 @@
       "plainText": "새 기기가 내 계정에 로그인하여 직접 암호화된 메시지의 잠금을 해제했습니다. 여기에서는 아무것도 전송되지 않습니다. 본인이 아니라면 계정을 보호하세요.",
       "thatWasMe": "본인입니다",
       "staysSignedIn": "{device}은(는) 로그인 상태로 유지됩니다.",
-      "newDeviceFallback": "새 기기"
+      "newDeviceFallback": "새 기기",
+      "newLogin": "새 로그인",
+      "newLoginOn": "{device}에서 새 로그인",
+      "secureAccount": "아니요, 계정 보호하기",
+      "moreWaiting": "대기 중인 로그인 {count}개 더 | 대기 중인 로그인 {count}개 더",
+      "waitingTitle": "다른 기기에서 이 로그인을 승인하세요",
+      "waitingText": "이미 로그인된 기기에서 Harmony를 열고 {button}을(를) 탭하면 이 기기에서 암호화된 메시지 기록의 잠금이 해제됩니다. 그동안에도 새 메시지는 계속 사용할 수 있습니다.",
+      "notMeThisLogin": "본인이 아닙니다",
+      "approveFailed": "로그인을 승인하지 못했습니다",
+      "tryAgain": "다시 시도해 주세요.",
+      "secureFailed": "계정을 보호하지 못했습니다",
+      "signOutFailed": "로그아웃하지 못했습니다",
+      "signOutFailedHint": "사용자 메뉴에서 직접 로그아웃해 주세요.",
+      "secureFailedHintPath": "{settings} → {privacy}에서 다시 시도해 주세요."
     },
     "settings": {
       "devicesDescription": "내 계정에 로그인한 기기입니다. 새 기기에서 암호화된 메시지를 보려면 기기를 연결하세요: 새 기기에서 로그인한 후 이미 잠금 해제된 기기로 표시된 코드를 스캔하세요.",
@@ -5891,7 +6704,91 @@
       "pairingCopyTitle": "연결용으로 보관된 키",
       "pairingCopyDescription": "이 기기는 복구 문구 없이 기기를 연결할 수 있도록 암호화 키의 읽을 수 있는 사본을 보관합니다. 제거하면 여기에서 연결할 때 다시 복구 문구를 요구합니다.",
       "pairingCopyRemoved": "이 기기에서 키 사본을 제거했습니다",
-      "pairingCopyRemoveFailed": "키 사본을 제거하지 못했습니다"
+      "pairingCopyRemoveFailed": "키 사본을 제거하지 못했습니다",
+      "loadingStatus": "암호화 상태를 불러오는 중...",
+      "statusHeading": "암호화 상태",
+      "statusDescription": "종단 간 암호화는 나와 수신자만 메시지를 읽을 수 있도록 보호합니다.",
+      "setUp": "암호화 설정",
+      "unlockHistory": "메시지 기록 잠금 해제",
+      "recoveryKeyHeading": "복구 키",
+      "recoveryKeyActive": "복구 키 활성화됨",
+      "recoveryKeyActiveDescription": "암호화 키는 12단어 복구 문구로 보호됩니다.",
+      "viewInfo": "정보 보기",
+      "backupStored": "암호화된 백업이 서버에 저장됨",
+      "lastBackup": "마지막 백업: {time}",
+      "sessionKeys": "세션 키",
+      "activeRooms": "활성 방",
+      "activeRoomsDescription": "암호화된 메시지를 보낼 수 있는 방",
+      "receivedKeys": "받은 키",
+      "receivedKeysDescription": "다른 사용자에게서 받은 키",
+      "syncing": "동기화 중...",
+      "syncKeys": "키 동기화",
+      "diagnostics": "진단",
+      "diagnosticsDescription": "신원 키, 서버 백업, 기기 신뢰 상태를 한 번에 확인합니다.",
+      "checking": "확인 중...",
+      "runDiagnosis": "진단 실행",
+      "devicesHeading": "내 기기",
+      "backupHeading": "백업 및 복구",
+      "createBackup": "지금 백업 만들기",
+      "createBackupDescription": "서버로 암호화된 백업을 직접 실행합니다",
+      "backingUp": "백업 중...",
+      "backup": "백업",
+      "exportFile": "백업 파일 내보내기",
+      "exportFileDescription": "암호화된 백업 파일을 다운로드하여 로컬에 보관합니다",
+      "export": "내보내기",
+      "importFile": "백업 파일 가져오기",
+      "importFileDescription": "내보낸 백업 파일에서 복원합니다",
+      "import": "가져오기",
+      "importing": "가져오는 중...",
+      "importModalText": "암호화 키를 복원하려면 암호화된 백업 파일을 선택하세요.",
+      "backupFileLabel": "백업 파일",
+      "recoveryHeading": "복구",
+      "restoreWithKey": "복구 키로 복원",
+      "restoreWithKeyDescription": "복구 문구가 있나요? 입력하면 암호화를 복원할 수 있습니다",
+      "enterRecoveryKey": "복구 키 입력",
+      "reset": "암호화 초기화",
+      "resetDescription": "모든 암호화 키를 삭제하고 새로 시작합니다. 암호화된 모든 메시지에 접근할 수 없게 됩니다.",
+      "infoTitle": "복구 키 정보",
+      "infoStatus": "상태:",
+      "infoActive": "활성",
+      "infoWordCount": "단어 수:",
+      "infoWords": "{count}단어 | {count}단어",
+      "infoVerificationCode": "확인 코드:",
+      "infoStorageHint": "보관 힌트:",
+      "infoNeverStored": "복구 키는 서버에 저장되지 않습니다. 나만 가지고 있습니다.",
+      "infoLost": "복구 키를 잃어버렸다면 암호화를 새로 설정하세요.",
+      "resetConfirmTitle": "암호화를 초기화할까요?",
+      "resetConfirmText": "모든 암호화 키와 백업이 영구적으로 삭제됩니다.",
+      "resetConfirmWarning": "이전에 암호화된 메시지는 읽을 수 없게 됩니다.",
+      "resetConfirmUndone": "이 작업은 되돌릴 수 없습니다.",
+      "resetting": "초기화 중...",
+      "statusNotSetUp": "암호화가 설정되지 않음",
+      "statusLocked": "암호화 잠김",
+      "statusActive": "암호화 활성",
+      "statusNotSetUpDescription": "복구 키를 설정하여 종단 간 암호화를 사용하세요",
+      "statusLockedDescription": "복구 문구를 입력하거나 다른 기기에서 이 기기를 승인하면 메시지 기록의 잠금이 해제됩니다",
+      "statusActiveDescription": "메시지가 종단 간 암호화로 보호됩니다",
+      "toast": {
+        "loadFailed": "암호화 설정을 불러오지 못했습니다",
+        "diagnosisFailed": "진단에 실패했습니다",
+        "backupWrongPhrase": "서버의 키 백업이 다른 복구 문구로 만들어져 현재 문구로는 열 수 없습니다. 새 메시지에는 영향이 없습니다.",
+        "backupRestoreFailed": "키 백업 복원 실패: {error}",
+        "synced": "백업 세션 {restored}개와 새 세션 키 {claimed}개를 동기화했습니다",
+        "nothingToSync": "동기화할 새 키가 없습니다",
+        "syncFailed": "키를 동기화하지 못했습니다",
+        "backupCreated": "백업을 만들었습니다",
+        "backupFailed": "백업을 만들지 못했습니다",
+        "exported": "백업 파일을 내보냈습니다",
+        "exportFailed": "백업을 내보내지 못했습니다",
+        "imported": "세션 {count}개를 가져왔습니다 | 세션 {count}개를 가져왔습니다",
+        "importFailed": "백업을 가져오지 못했습니다",
+        "leftVoice": "암호화된 음성 통화에서 나갔습니다(키가 초기화됨)",
+        "resetDone": "암호화가 초기화되었습니다",
+        "resetFailed": "암호화를 초기화하지 못했습니다",
+        "enabled": "암호화가 사용 설정되었습니다",
+        "restored": "암호화가 복원되었습니다",
+        "syncedKeys": "세션 키 {count}개를 동기화했습니다 | 세션 키 {count}개를 동기화했습니다"
+      }
     },
     "recovery": {
       "anotherDevice": "다른 기기",
@@ -5901,7 +6798,25 @@
       "qrPasteLabel": "또는 QR 코드 데이터를 붙여넣으세요",
       "pairingCodeScanned": "기기 페어링 코드입니다. 다른 기기 탭을 사용하세요.",
       "notRecoveryKey": "이 QR 코드는 Harmony 복구 키가 아닙니다",
-      "qrReadFailed": "QR 코드를 읽지 못했습니다"
+      "qrReadFailed": "QR 코드를 읽지 못했습니다",
+      "title": "암호화 복원",
+      "phraseTab": "복구 문구",
+      "phraseDescription": "12단어 복구 문구를 입력하면 암호화된 메시지에 다시 접근할 수 있습니다.",
+      "wordPlaceholder": "단어 {n}",
+      "verificationLabel": "확인 코드(선택 사항)",
+      "verificationPlaceholder": "6자리 코드",
+      "verificationHint": "확인 코드를 저장해 두었다면 여기에 입력하여 올바른 문구인지 확인하세요",
+      "restoring": "복원 중...",
+      "valid": "유효한 복구 문구입니다",
+      "invalid": "복구 문구가 올바르지 않습니다. 오타가 있는지 확인하세요.",
+      "validationFailed": "검증에 실패했습니다",
+      "pastedPhrase": "12단어 복구 문구를 붙여넣었습니다",
+      "phrasePasted": "복구 문구를 붙여넣었습니다",
+      "wrongWordCount": "12단어가 필요하지만 {count}단어입니다",
+      "clipboardFailed": "클립보드를 읽지 못했습니다",
+      "qrRead": "QR 코드를 읽었습니다",
+      "codeMismatch": "확인 코드가 일치하지 않습니다",
+      "restoreFailed": "암호화를 복원하지 못했습니다"
     },
     "recoverySetup": {
       "multiDevice": "이 기기에서 QR 코드를 스캔하여 새 기기를 연결하세요. 복구 키는 대체 수단입니다",
@@ -5910,11 +6825,95 @@
       "qrHint": "이 코드를 본 사람은 누구나 암호화된 메시지를 읽을 수 있으니 스크린샷을 찍지 마세요. 다른 기기를 설정하려면 대신 연결하세요: 그 기기에서 로그인한 후 표시된 코드를 이 기기로 스캔하세요.",
       "newDeviceLabel": "새 기기인가요?",
       "newDeviceReminder": "{label} 그 기기에서 로그인하고 {another}를 선택한 다음 이 기기로 코드를 스캔하세요. 복구 키를 입력하지 않아도 메시지 잠금이 해제됩니다.",
-      "rememberNeed": "로그인된 모든 기기에 접근할 수 없게 되거나 브라우저 데이터를 지우면 필요합니다."
+      "rememberNeed": "로그인된 모든 기기에 접근할 수 없게 되거나 브라우저 데이터를 지우면 필요합니다.",
+      "title": "메시지 암호화 설정",
+      "introText": "메시지가 암호화되어 나와 수신자만 읽을 수 있습니다. Harmony 서버조차 메시지 내용에 접근할 수 없습니다.",
+      "featureRecoveryKey": "복구 키",
+      "featureRecoveryKeyText": "모든 암호화 키를 보호하는 12단어 문구",
+      "featureBackup": "암호화된 백업",
+      "featureBackupText": "키는 복구 키로 암호화되어 서버에 백업됩니다",
+      "featureMultiDevice": "다중 기기",
+      "featureRecovery": "복구",
+      "featureRecoveryText": "캐시를 지운 경우 복구 키를 입력하면 다시 접근할 수 있습니다",
+      "importantLabel": "중요:",
+      "importantWarning": "{label} 복구 키를 적어 안전하게 보관하세요. 복구 키와 기기를 모두 잃으면 암호화된 메시지를 읽을 수 없습니다.",
+      "keyHeading": "내 복구 키",
+      "keyInstruction": "이 12단어를 순서대로 적어 안전한 곳에 보관하세요. 암호화 키를 복구할 때 필요합니다.",
+      "generating": "복구 키를 생성하는 중...",
+      "qrAlt": "복구 키 QR 코드",
+      "verificationCode": "확인 코드: {code}",
+      "verificationCodeHint": "이 코드를 저장해 두면 나중에 올바른 문구인지 확인할 수 있습니다",
+      "verifyHeading": "복구 키 확인",
+      "verifyInstruction": "복구 키를 올바르게 저장했는지 확인하려면 다음 위치의 단어를 입력하세요:",
+      "wordLabel": "{n}번째 단어",
+      "wordPlaceholder": "{n}번째 단어 입력",
+      "verifyError": "모든 단어를 올바르게 확인하세요",
+      "doneHeading": "암호화가 설정되었습니다",
+      "doneText": "이제 종단 간 암호화가 활성화되었습니다. 메시지가 암호화되어 서버에 안전하게 백업됩니다.",
+      "summaryHeading": "설정된 항목",
+      "summaryKey": "복구 키 생성 및 확인 완료",
+      "summaryKeys": "암호화 키 생성 완료",
+      "summaryBackup": "암호화된 백업을 서버에 저장 완료",
+      "summaryReady": "암호화된 메시지를 보낼 준비 완료",
+      "rememberLabel": "기억하세요:",
+      "rememberKeep": "{label} 12단어 복구 키를 안전하게 보관하세요.",
+      "processing": "처리 중...",
+      "completeSetup": "설정 완료",
+      "steps": {
+        "intro": "소개",
+        "key": "복구 키",
+        "verify": "확인",
+        "complete": "완료"
+      },
+      "toast": {
+        "qrFailed": "QR 코드를 생성하지 못했습니다",
+        "copied": "복구 키를 복사했습니다",
+        "copyFailed": "클립보드에 복사하지 못했습니다",
+        "downloaded": "복구 키를 다운로드했습니다",
+        "generateFailed": "복구 키를 생성하지 못했습니다",
+        "setupFailed": "설정을 완료하지 못했습니다"
+      },
+      "file": {
+        "title": "Harmony 복구 키",
+        "body": "생성일: {date}\n\n12단어 복구 문구:\n{words}\n\n확인 코드: {code}\n\n중요: 이 파일을 안전하고 비공개로 보관하세요.\n이 단어를 가진 사람은 누구나 암호화된 메시지에 접근할 수 있습니다."
+      }
     },
     "keyShareFailed": {
       "title": "일부 멤버가 메시지를 읽지 못할 수 있습니다",
       "body": "{count}명의 멤버에게 메시지를 읽을 키가 전달되지 않았습니다. 메시지를 열면 앱이 키를 다시 요청합니다."
+    },
+    "diagnosticRows": {
+      "unlocked": "암호화 잠금 해제",
+      "profile": "프로필",
+      "identity": "신원 키",
+      "signing": "서명 키",
+      "backup": "키 백업",
+      "device": "기기 신뢰",
+      "unlockedYes": "이 세션에 키가 로드되었습니다",
+      "unlockedNo": "잠금을 해제하려면 복구 문구를 입력하세요",
+      "profileMissing": "암호화 서비스에 확인된 프로필 ID가 없습니다",
+      "identityUnpublished": "게시된 신원 키가 없습니다. 암호화 설정을 실행하세요",
+      "identityNoLocal": "게시된 키는 있지만 로컬 개인 키가 없습니다. 복구 문구로 잠금을 해제하세요",
+      "identityMatch": "로컬 개인 키가 게시된 공개 키와 일치합니다",
+      "identityMismatch": "로컬 키가 게시된 키와 일치하지 않습니다. 다시 잠금 해제하여 복구하세요",
+      "identityUnverified": "페어링이 확인되지 않았습니다(이전 기록). 다시 잠금 해제하여 확인하세요",
+      "signingPublished": "메시지 서명 키가 게시되었습니다",
+      "signingMissing": "서명 키가 없습니다. 다음 잠금 해제 시 자동으로 생성됩니다",
+      "identityLookupFailed": "조회 실패: {error}",
+      "backupNone": "아직 서버 백업이 없습니다. 암호화를 사용하면 자동으로 생성됩니다",
+      "backupLocked": "백업이 있습니다({count}개 세션). 잠금을 해제하여 확인하세요 | 백업이 있습니다({count}개 세션). 잠금을 해제하여 확인하세요",
+      "backupOk": "백업을 현재 문구로 복호화할 수 있습니다({count}개 세션) | 백업을 현재 문구로 복호화할 수 있습니다({count}개 세션)",
+      "backupWrongPhrase": "백업이 있지만 현재 복구 문구로 복호화할 수 없습니다(이전 문구로 생성됨)",
+      "backupCheckFailed": "백업 확인 실패: {error}",
+      "deviceUnregistered": "이 기기는 아직 등록되지 않았습니다",
+      "deviceRevoked": "이 기기는 해지되었습니다",
+      "deviceTrust": "신뢰 수준: {level}",
+      "deviceUnreadable": "기기 상태를 읽을 수 없습니다"
+    },
+    "identityChanged": {
+      "title": "보안 신원이 변경됨",
+      "message": "{name}님의 암호화 키가 변경되었습니다. 앱을 다시 설치했거나 새 기기에서 로그인했다면 정상입니다.",
+      "messageUnnamed": "연락처의 암호화 키가 변경되었습니다. 앱을 다시 설치했거나 새 기기에서 로그인했다면 정상입니다."
     }
   },
   "admin": {
@@ -5967,7 +6966,26 @@
         "reporter": "신고자",
         "reported": "신고된 사용자",
         "server": "서버"
-      }
+      },
+      "title": "신고 및 관리",
+      "pendingCount": "대기 중 {count}건",
+      "filters": {
+        "pending": "대기 중",
+        "investigating": "조사 중",
+        "resolved": "해결됨",
+        "dismissed": "기각됨",
+        "all": "전체"
+      },
+      "reporterComment": "신고자 의견",
+      "deletedSince": "신고 이후 삭제됨",
+      "sensitive": "민감한 콘텐츠",
+      "contentWarning": "CW: {warning}",
+      "viewRemote": "원격 인스턴스에서 보기",
+      "deleteMedia": "미디어 삭제 ({count})",
+      "deleteMediaTitle": "미디어 삭제",
+      "deleteMediaMessage": "저장소에서 미디어 파일 {count}개를 삭제할까요? 되돌릴 수 없습니다. | 저장소에서 미디어 파일 {count}개를 삭제할까요? 되돌릴 수 없습니다.",
+      "deleteMediaDone": "미디어 파일 {count}개를 삭제했습니다 | 미디어 파일 {count}개를 삭제했습니다",
+      "deleteMediaFailed": "미디어 파일을 삭제하지 못했습니다"
     },
     "federation": {
       "limited": "제한됨",
@@ -5985,7 +7003,78 @@
       "ignoreReportsConfirmBody": "앞으로 {domain}에서 보낸 신고는 버려집니다. 이미 받은 신고는 대기열에 남아 있으며, {domain} 쪽에는 아무것도 바뀌지 않습니다.",
       "reportsIgnoredToast": "{domain}의 신고를 무시합니다",
       "reportsAcceptedToast": "{domain}의 신고를 다시 받습니다",
-      "reportsFailed": "이 도메인의 신고 처리 방식을 바꾸지 못했습니다"
+      "reportsFailed": "이 도메인의 신고 처리 방식을 바꾸지 못했습니다",
+      "title": "연합 관리",
+      "addInstance": "인스턴스 추가",
+      "refresh": "새로고침",
+      "statTotal": "전체 인스턴스",
+      "statActive7d": "활성(7일)",
+      "trusted": "신뢰함",
+      "blocked": "차단됨",
+      "active": "활성",
+      "inactive": "비활성",
+      "endpointHealth": "엔드포인트 상태",
+      "successRate": "성공률 {rate}%",
+      "totalEndpoints": "전체 엔드포인트",
+      "deadEndpoints": "중단된 엔드포인트",
+      "healthyEndpoints": "정상",
+      "failingEndpoints": "실패 있음",
+      "deadWarning": "엔드포인트 {count}개가 중단으로 표시되어 팔로우에서 제거되었습니다 | 엔드포인트 {count}개가 중단으로 표시되어 팔로우에서 제거되었습니다",
+      "purgeAll": "모두 정리",
+      "endpointFailures": "실패 {count}회 | 실패 {count}회",
+      "lastFailure": "마지막 실패: {time}",
+      "removeEndpoint": "이 엔드포인트 제거",
+      "maintenance": "연합 유지 관리",
+      "keysOk": "모든 로컬 사용자가 유효한 키 쌍을 가지고 있습니다",
+      "keysIssues": "키가 없는 사용자: {missing}. 상태가 일관되지 않은 사용자: {inconsistent}.",
+      "keySweepTitle": "키 일괄 생성",
+      "keySweepDesc": "RSA 키가 없는 로컬 사용자에게 키를 생성합니다",
+      "runSweep": "실행",
+      "orphanTitle": "고아 키 정리",
+      "orphanDesc": "키 상태가 일관되지 않은 사용자를 수정합니다(공개 키만 있거나 개인 키만 있는 경우)",
+      "runCleanup": "정리 실행",
+      "scheduleNote": "유지 관리 작업은 자동으로 실행됩니다: 키 일괄 생성 03:00 UTC, 고아 키 정리 04:00 UTC",
+      "directory": "인스턴스 목록",
+      "filterAll": "모든 인스턴스",
+      "searchPlaceholder": "인스턴스 검색…",
+      "loadingInstances": "인스턴스 불러오는 중…",
+      "userCount": "사용자 {count}명 | 사용자 {count}명",
+      "postCount": "게시물 {count}개 | 게시물 {count}개",
+      "lastSeen": "마지막 확인: {time}",
+      "refreshInstance": "인스턴스 정보 새로고침",
+      "markTrusted": "신뢰함으로 표시",
+      "removeTrust": "신뢰 해제",
+      "blockInstance": "인스턴스 차단",
+      "unblockInstance": "인스턴스 차단 해제",
+      "deleteInstance": "인스턴스 삭제",
+      "pageRange": "{total}개 중 {from}-{to}",
+      "discovery": "인스턴스 찾기",
+      "tabInteractions": "상호작용에서",
+      "tabSearch": "검색 및 추가",
+      "interactionCount": "상호작용 {count}회 | 상호작용 {count}회",
+      "domainPlaceholder": "도메인 입력(예: mastodon.social)",
+      "discovering": "찾는 중…",
+      "federationEnabled": "연합 사용 중",
+      "apiAvailable": "API 사용 가능",
+      "detailSoftware": "소프트웨어:",
+      "detailDescription": "설명:",
+      "detailUsers": "사용자:",
+      "detailPosts": "게시물:",
+      "detailAdmin": "관리자:",
+      "addAsTrusted": "신뢰하는 인스턴스로 추가",
+      "purgeConfirmTitle": "중단된 엔드포인트 정리",
+      "purgeConfirmBody": "중단된 엔드포인트 {count}개와 실패한 전송을 영구 삭제할까요? 되돌릴 수 없습니다. | 중단된 엔드포인트 {count}개와 실패한 전송을 영구 삭제할까요? 되돌릴 수 없습니다.",
+      "purgeConfirm": "정리",
+      "refreshFailed": "인스턴스 정보를 새로고침하지 못했습니다",
+      "trustFailed": "인스턴스 신뢰 설정을 변경하지 못했습니다",
+      "blockConfirmBody": "이 인스턴스를 차단할까요?",
+      "blockConfirm": "차단",
+      "blockFailed": "인스턴스 차단 상태를 변경하지 못했습니다",
+      "deleteConfirmBody": "이 인스턴스를 삭제할까요? 모든 연합 데이터가 제거됩니다.",
+      "deleteFailed": "인스턴스를 삭제하지 못했습니다",
+      "addFailed": "인스턴스를 추가하지 못했습니다",
+      "discoverFailed": "인스턴스를 찾지 못했습니다. 도메인이 올바르고 ActivityPub을 지원하는지 확인하세요.",
+      "instanceAdded": "인스턴스를 추가했습니다"
     },
     "instance": {
       "mirrorStatusProgress": "Discord 파일 저장 중: {queued}개 대기 중, {size} 저장됨",
@@ -6027,7 +7116,126 @@
       "maxInstanceStickers": "인스턴스 스티커 수",
       "maxInstanceStickersHint": "0~500. 모든 로컬 계정이 인스턴스 스티커를 보낼 수 있습니다. 0이면 꺼집니다.",
       "maxPersonalStickers": "사용자당 개인 스티커 수",
-      "maxPersonalStickersHint": "0~100. 기본값 0이면 개인 스티커가 꺼집니다."
+      "maxPersonalStickersHint": "0~100. 기본값 0이면 개인 스티커가 꺼집니다.",
+      "title": "구성",
+      "tabGeneral": "일반",
+      "tabFederation": "연합",
+      "tabBranding": "브랜딩",
+      "tabAuth": "인증",
+      "chatSettings": "채팅 설정",
+      "maxServerSize": "최대 서버 크기",
+      "maxServersPerUser": "한 계정이 소유할 수 있는 서버",
+      "maxServersPerUserHint": "로컬 서버 기준이며 인스턴스 관리자와 모더레이터는 제외됩니다. 0 = 제한 없음. 기본값: 100.",
+      "maxBotsPerUser": "한 계정이 소유할 수 있는 봇",
+      "maxBotsPerUserHint": "채널 웹훅과 연결된 Discord 및 Matrix 브리지는 세지 않습니다. 0 = 제한 없음. 기본값: 25.",
+      "maxMessageLength": "최대 메시지 길이",
+      "maxMediaAttachments": "게시물/메시지당 최대 미디어 첨부 수",
+      "maxMediaAttachmentsHint": "게시물 또는 채팅 메시지당 이미지/동영상/파일 최대 개수. 기본값: 20.",
+      "allowFileUploads": "파일 업로드 허용",
+      "enableVoiceChannels": "음성 채널 사용",
+      "bridgeAttachmentsTitle": "브리지 첨부 파일",
+      "bridgeAttachmentsHint": "외부 플랫폼(Discord 등)에서 브리지된 이미지/파일에 대한 인스턴스 전체 정책입니다. 봇 소유자는 변경할 수 없습니다.",
+      "attachmentHandling": "첨부 파일 처리",
+      "attachmentModeLink": "링크만(외부 CDN URL — 만료될 수 있음)",
+      "attachmentModeRefresh": "필요할 때 새로 고침(볼 때 만료된 URL 재서명, 추가 디스크 없음)",
+      "attachmentModeMirror": "저장소에 미러링(영구, 디스크 사용 — 트래픽에 따라 증가)",
+      "attachmentMirrorWarning": "경고: 브리지된 모든 첨부 파일이 {table}에 복사됩니다. 활발한 브리지 채널은 저장 공간을 많이 차지할 수 있습니다.",
+      "attachmentRefreshHint": "봇 게이트웨이가 필요합니다. 만료된 Discord 링크는 누군가 볼 때 재서명됩니다(디스크 사용 없음, \"편집됨\" 표시 없음). 게시한 브리지가 연결되어 있으면 그 브리지가, 아니면 이 인스턴스의 Discord 봇이 처리하며, Harmony에 게시된 링크에도 이 봇이 필요합니다.",
+      "klipyTitle": "미디어 선택기(Klipy)",
+      "klipyHint": "GIF/미디어 검색은 연합 백엔드를 거칩니다. API 키는 여기가 아니라 백엔드 환경 변수({ads} / {noads})에 있습니다.",
+      "klipyAdsGroup": "광고 및 출처 표시",
+      "gifAdsTitle": "GIF 광고",
+      "gifAdsNoteLabel": "참고:",
+      "gifAdsNote": "{note} 이 설정은 모바일 GIF 선택기에만 적용됩니다. 데스크톱 사용자에게는 광고가 표시되지 않습니다. 광고 배포자인 KLIPY의 제한 사항입니다.",
+      "gifAdsDesc": "후원자가 아닌 사용자는 모바일 GIF 선택기에서 Klipy 광고를 보며, 광고 없는 후원자는 보지 않습니다. Klipy는 모바일 브라우저(설치된 PWA 포함)에만 광고를 제공하며, API상 데스크톱에는 광고가 제공되지 않습니다. 끄면 아무도 광고를 보지 않습니다. 광고가 활성화된 Klipy 키와 Klipy Partner Dashboard에서 광고 활성화도 필요합니다. 등급별 광고 제거는 후원 및 후원자에서 설정합니다.",
+      "klipyWatermarkTitle": "보낸 미디어에 KLIPY 워터마크",
+      "klipyWatermarkDesc": "공유한 GIF/스티커에 작은 KLIPY 배지를 붙입니다. 선택기의 \"Search KLIPY\" 표시는 항상 나타납니다(필수 출처 표시). 이 워터마크는 선택 사항이지만 권장됩니다.",
+      "optionalCollections": "선택 컬렉션",
+      "optionalCollectionsHint": "GIF와 스티커는 항상 사용할 수 있습니다. 이 항목을 켜면 선택기 탭과 슬래시 명령이 추가되고, 끄면 어디에도 표시되지 않습니다.",
+      "clipsTitle": "클립",
+      "clipsDesc": "짧은 반복 동영상(오디오 선택).",
+      "memesTitle": "밈",
+      "memesDesc": "Klipy의 밈 컬렉션.",
+      "aiEmojiBrowseTitle": "AI 이모지 둘러보기",
+      "aiEmojiBrowseDesc": "Klipy의 AI 이모지를 둘러봅니다. 하나를 고르면 입력창에 이모지로 삽입됩니다(여기에 호스팅되지 않으며 원격 이모지처럼 동작하고 자주 사용한 항목에 포함됩니다).",
+      "aiEmojiGenGroup": "AI 이모지 생성",
+      "aiEmojiGenTitle": "AI 이모지 생성 허용",
+      "aiEmojiGenDesc": "멤버가 텍스트 프롬프트로 자신만의 이모지를 만듭니다. 만든 이모지는 이 인스턴스에 호스팅되며 이모지 선택기의 \"AI 생성\" 카테고리에 나타납니다. Klipy는 인스턴스당 하루 20개(공유)와 사용자별 일일 한도로 생성을 제한합니다.",
+      "trendingTitle": "트렌드 및 탐색",
+      "trendingPosts": "인기 게시물",
+      "refreshing": "새로고침 중…",
+      "refreshTrending": "지금 트렌드 새로고침",
+      "refreshTrendingHint": "인기 게시물을 수동으로 다시 계산합니다. 보통 15분마다 실행됩니다.",
+      "federationSettings": "연합 설정",
+      "maxPostLength": "최대 게시물 길이",
+      "retryAttempts": "전송 재시도 횟수",
+      "maxCustomEmojis": "서버당 최대 사용자 지정 이모지",
+      "maxCustomEmojisHint": "서버당 허용되는 사용자 지정 이모지 최대 개수. 0 = 무제한.",
+      "emojiQuality": "사용자 지정 이모지 이미지 품질",
+      "emojiQualityHint": "저장소에서 크기를 줄인 사용자 지정 이모지 이미지의 JPEG/WebP 품질(20-100). 기본값 80. 값을 낮추면 대역폭이 줄지만 화질이 떨어집니다.",
+      "allowEmojiNames": "표시 이름에 사용자 지정 이모지 허용",
+      "allowEmojiNamesHint": "끄면 이름에 이모지가 표시되지 않고 추가할 수도 없습니다.",
+      "brandingTitle": "인스턴스 브랜딩",
+      "instanceName": "인스턴스 이름",
+      "namePlaceholder": "Harmony 인스턴스",
+      "nameHint": "이 이름은 로그인/가입 페이지에 표시됩니다. 변경 사항은 모든 사용자에게 보입니다.",
+      "instanceDescription": "인스턴스 설명",
+      "descriptionPlaceholder": "연합형 소셜 플랫폼",
+      "descriptionHint": "이 설명은 로그인/가입 페이지의 부제목으로 표시됩니다.",
+      "instanceRules": "인스턴스 규칙",
+      "rulesPlaceholder": "한 줄에 규칙 하나, 예:\n서로 존중하기\n스팸 금지",
+      "rulesHint": "이곳의 서버에 참여하는 사용자와 초대 링크로 참여하는 연합 사용자에게 한 번 표시됩니다.",
+      "instanceIcon": "인스턴스 아이콘",
+      "uploadIcon": "아이콘 업로드",
+      "iconHint": "인스턴스 로고입니다. 다른 연합 인스턴스와 인스턴스 목록에 표시됩니다.",
+      "instanceBanner": "인스턴스 배너",
+      "uploadBanner": "클릭하여 배너 업로드",
+      "changeBanner": "배너 변경",
+      "bannerHint": "인스턴스의 대표 이미지입니다. 인스턴스 목록에 표시되고 NodeInfo로 공개됩니다.",
+      "themeColor": "테마 색상",
+      "themeColorHint": "인스턴스의 강조 색상입니다. 다른 인스턴스가 쓸 수 있도록 NodeInfo로 공개됩니다.",
+      "defaultTheme": "새 사용자 기본 테마",
+      "defaultThemeHint": "테마 JSON 파일(모양 설정에서 내보낸 파일)을 가져와 새 사용자와 로그인하지 않은 사용자의 기본값으로 설정합니다.",
+      "importTheme": "테마 JSON 가져오기",
+      "clearTheme": "기본 테마 지우기",
+      "themeSet": "기본 테마가 설정되어 있습니다",
+      "legalTitle": "법적 고지 및 연락처",
+      "termsUrl": "서비스 약관 URL",
+      "termsHint": "서비스 약관 링크입니다. 가입 페이지에 표시됩니다. 비워 두면 숨겨집니다.",
+      "privacyUrl": "개인정보 처리방침 URL",
+      "privacyHint": "개인정보 처리방침 링크입니다. 가입 페이지에 표시됩니다. 비워 두면 숨겨집니다.",
+      "maintainerName": "운영자 이름",
+      "maintainerNamePlaceholder": "관리자",
+      "maintainerNameHint": "이 인스턴스 관리자의 공개 연락처 이름입니다.",
+      "maintainerEmail": "운영자 이메일",
+      "maintainerEmailHint": "공개 연락처 이메일입니다. 연합 투명성을 위해 NodeInfo로 공개됩니다.",
+      "saving": "저장 중…",
+      "saveBranding": "브랜딩 저장",
+      "webrtcTitle": "WebRTC/음성 설정",
+      "webrtcMode": "WebRTC 모드",
+      "modeHybrid": "하이브리드(설정된 경우 SFU, 아니면 P2P)",
+      "modeSfu": "SFU만(LiveKit)",
+      "modeP2p": "P2P만(피어 투 피어)",
+      "modeHint": "하이브리드는 LiveKit 서버가 설정되어 있으면 그것을, 아니면 P2P를 사용합니다. 통화 참가자 모두 같은 전송 방식을 씁니다.",
+      "livekitUrl": "LiveKit 서버 URL",
+      "livekitUrlHint": "LiveKit 서버의 WebSocket URL(백엔드 .env에서 설정)",
+      "maxStageListeners": "스테이지 최대 청취자",
+      "maxStageListenersHint": "스테이지 이벤트(발표자 모드)의 최대 청중 수",
+      "trendingRefreshed": "인기 게시물을 새로고침했습니다",
+      "trendingRefreshFailed": "인기 게시물을 새로고침하지 못했습니다",
+      "mustLogInConfig": "구성을 저장하려면 로그인해야 합니다",
+      "federationSaveFailed": "연합 설정을 저장하지 못했습니다",
+      "voiceSaveFailed": "음성 설정을 저장하지 못했습니다",
+      "configSaved": "구성을 저장했습니다",
+      "configSaveFailed": "구성을 저장하지 못했습니다",
+      "mustLogInBranding": "인스턴스 브랜딩을 저장하려면 로그인해야 합니다",
+      "brandingSaved": "인스턴스 브랜딩을 저장했습니다",
+      "brandingSaveFailed": "인스턴스 브랜딩을 저장하지 못했습니다",
+      "invalidThemeJson": "잘못된 테마 JSON 파일입니다",
+      "themeImported": "기본 테마를 가져와 저장했습니다",
+      "themeParseFailed": "테마 JSON 파일을 읽지 못했습니다",
+      "themeCleared": "기본 테마를 지웠습니다",
+      "themeClearFailed": "기본 테마를 지우지 못했습니다"
     },
     "signInProviders": {
       "title": "로그인 제공자",
@@ -6082,7 +7290,23 @@
         "maxPersonalEmojisPerUser": "사용자당 개인 이모지 수",
         "maxStickersPerServer": "서버당 스티커 수",
         "maxInstanceStickers": "인스턴스 스티커 수",
-        "maxPersonalStickersPerUser": "사용자당 개인 스티커 수"
+        "maxPersonalStickersPerUser": "사용자당 개인 스티커 수",
+        "instanceName": "인스턴스 이름",
+        "instanceDescription": "인스턴스 설명",
+        "termsUrl": "이용약관 URL",
+        "privacyUrl": "개인정보 처리방침 URL",
+        "maxPostLength": "게시물 최대 길이",
+        "maxServerSize": "서버 최대 규모",
+        "maxServersPerUser": "계정당 서버 수",
+        "maxBotsPerUser": "계정당 봇 수",
+        "driveInstanceLimit": "인스턴스 전체 Drive 저장 공간",
+        "maxMessageLength": "메시지 최대 길이",
+        "maxCustomEmojisPerServer": "서버당 최대 사용자 지정 이모지 수",
+        "customEmojiQuality": "사용자 지정 이모지 이미지 품질",
+        "allowFileUploads": "파일 업로드 허용",
+        "enableVoiceChannels": "음성 채널 사용",
+        "federationRetryAttempts": "연합 재시도 횟수",
+        "oauthProviders": "OAuth 제공자"
       },
       "staff": {
         "someServer": "어떤 서버",
@@ -6111,6 +7335,26 @@
         "inviteEmailed": "{email}에 초대 이메일 보냄",
         "inviteReissued": "{email}의 새 초대 링크 만듦",
         "inviteRevoked": "{email} 초대 취소"
+      },
+      "title": "최근 활동",
+      "filter": {
+        "all": "모든 이벤트",
+        "federation": "연합",
+        "moderation": "관리",
+        "security": "보안"
+      },
+      "source": "관리자: {name}",
+      "emptyValue": "(비어 있음)",
+      "event": "이벤트",
+      "configChanged": "{label}: {value} (이전: {old})",
+      "configSet": "{label}: {value}",
+      "userShort": "사용자 {id}…",
+      "userId": "사용자: {id}",
+      "userAction": {
+        "suspended": "{who}를 정지함",
+        "deleted": "{who}를 삭제함",
+        "unsuspended": "{who}의 정지를 해제함",
+        "moderated": "{who}를 관리함"
       }
     },
     "antiSpam": {
@@ -6418,6 +7662,192 @@
           "waiting": "대기 중"
         }
       }
+    },
+    "performance": {
+      "title": "성능 모니터링",
+      "subtitle": "Harmony 인스턴스의 지표와 분석입니다.",
+      "cronNote": "개요, 지연 시간, 느린 쿼리 데이터를 채우려면 {fn}을(를) 호출하는 pg_cron 작업이 필요합니다.",
+      "fullscreen": "전체 화면",
+      "exitFullscreen": "전체 화면 종료",
+      "range": {
+        "lastHour": "지난 1시간",
+        "last6Hours": "지난 6시간",
+        "last24Hours": "지난 24시간",
+        "last7Days": "지난 7일",
+        "lastMonth": "지난 1개월",
+        "last3Months": "지난 3개월"
+      },
+      "refresh": "새로고침",
+      "refreshing": "새로고침 중…",
+      "totalRequests": "전체 요청",
+      "avgResponseTime": "평균 응답 시간",
+      "errorRate": "오류율",
+      "federationSuccess": "연합 성공률",
+      "status": {
+        "excellent": "매우 좋음",
+        "good": "좋음",
+        "slow": "느림",
+        "healthy": "정상",
+        "elevated": "높음",
+        "critical": "심각",
+        "degraded": "저하",
+        "issues": "문제 있음"
+      },
+      "latencyChart": "시간별 요청 지연 시간",
+      "noChartData": "선택한 기간에 데이터가 없습니다",
+      "barTitle": "{label}: {value}ms",
+      "slowQueries": "느린 쿼리",
+      "queryTable": "테이블: {table}",
+      "queryRows": "행: {rows}",
+      "federationHealth": "연합 상태",
+      "unknownSoftware": "알 수 없음",
+      "statSuccess": "성공",
+      "statLatency": "지연 시간",
+      "lastSeen": "마지막 확인: {time}"
+    },
+    "announcements": {
+      "hint": "인스턴스 전체 사용자에게 표시되는 공지사항입니다. 여기에서 만들고 관리합니다.",
+      "newTitle": "새 공지",
+      "editTitle": "공지 수정",
+      "titleLabel": "제목",
+      "titlePlaceholder": "공지 제목",
+      "contentLabel": "내용 (기본 HTML 지원)",
+      "contentPlaceholder": "공지 내용",
+      "iconLabel": "아이콘 (이모지 또는 info, warning, megaphone, maintenance, update, security)",
+      "imageUrlLabel": "이미지 URL (선택)",
+      "startsAtLabel": "시작 시각 (선택)",
+      "startsAtHint": "비워 두면 바로 게시됩니다. 시간은 현지 시간대로 해석됩니다.",
+      "endsAtLabel": "종료 시각 (선택)",
+      "endsAtHint": "비워 두면 만료되지 않습니다. 이 시각이 지나면 공지가 사용자에게 자동으로 숨겨집니다.",
+      "pinned": "고정됨",
+      "showPopup": "팝업 표시",
+      "active": "활성",
+      "inactive": "비활성",
+      "endBeforeStart": "종료 시각은 시작 시각보다 뒤여야 합니다",
+      "updated": "공지를 업데이트했습니다",
+      "created": "공지를 만들었습니다",
+      "saveFailed": "공지를 저장하지 못했습니다",
+      "deleteTitle": "공지 삭제",
+      "deleteMessage": "이 공지를 삭제할까요?",
+      "deleted": "공지를 삭제했습니다",
+      "deleteFailed": "공지를 삭제하지 못했습니다"
+    },
+    "featured": {
+      "title": "추천 커뮤니티",
+      "hint": "공개 서버를 커뮤니티 둘러보기 페이지 상단에 고정합니다. 추천 서버가 먼저 표시됩니다.",
+      "loading": "커뮤니티를 불러오는 중…",
+      "addTitle": "추천에 추가",
+      "removeTitle": "추천에서 제거",
+      "pin": "고정",
+      "unpin": "고정 해제",
+      "added": "“{name}”을(를) 추천했습니다",
+      "removed": "“{name}”을(를) 추천에서 제거했습니다",
+      "toggleFailed": "추천 상태를 업데이트하지 못했습니다"
+    },
+    "panel": {
+      "title": "인스턴스 관리 패널",
+      "moderationTitle": "관리",
+      "tabs": {
+        "overview": "개요",
+        "federation": "연합",
+        "users": "사용자",
+        "reports": "신고",
+        "content": "콘텐츠",
+        "config": "설정",
+        "funding": "후원",
+        "tools": "도구"
+      },
+      "overviewTitle": "시스템 개요",
+      "healthTitle": "시스템 상태",
+      "performanceTitle": "성능 모니터링",
+      "approximate": "대략적인 값",
+      "approximately": "약",
+      "database": "데이터베이스",
+      "responseMs": "{ms}ms",
+      "connections": "연결 {count}개 | 연결 {count}개",
+      "federationQueue": "연합 대기열",
+      "pendingDeliveries": "대기 중인 전송",
+      "databaseSize": "데이터베이스 크기",
+      "totalSize": "전체 크기",
+      "stats": {
+        "users": "전체 사용자",
+        "servers": "채팅 서버",
+        "instances": "연합 인스턴스",
+        "posts": "전체 게시물",
+        "newLast24h": "최근 24시간 동안 +{count}",
+        "activeLast30d": "최근 30일 동안 활성 {count}개"
+      },
+      "updating": "업데이트 중…",
+      "updated": "업데이트: {age}",
+      "statsUnavailable": "통계를 사용할 수 없음",
+      "allOperational": "모든 시스템 정상 작동 중",
+      "unavailable": "사용할 수 없음",
+      "healthy": "정상"
+    },
+    "users": {
+      "title": "사용자 관리",
+      "searchPlaceholder": "사용자 검색…",
+      "searchLabel": "사용자 검색",
+      "filterCount": "{label} ({count})",
+      "filters": {
+        "all": "모든 사용자",
+        "local": "로컬",
+        "federated": "연합",
+        "suspended": "정지됨"
+      },
+      "badgeAdmin": "관리자",
+      "badgeMod": "모더레이터",
+      "badgeForceSensitive": "강제 민감",
+      "forceSensitiveTitle": "이 사용자의 모든 미디어가 강제로 민감한 콘텐츠로 표시됩니다",
+      "badgeSilenced": "침묵됨",
+      "silencedTitle": "이 사용자는 침묵 상태입니다 (공개 타임라인에서 숨겨짐)",
+      "joined": "{date} 가입",
+      "postCount": "게시물 {count}개 | 게시물 {count}개",
+      "serverCount": "서버 {count}개 | 서버 {count}개",
+      "federatedStat": "연합",
+      "makeModerator": "모더레이터로 지정",
+      "removeModerator": "모더레이터 해제",
+      "forceSensitive": "모든 미디어를 강제로 민감한 콘텐츠로 표시",
+      "removeForceSensitive": "강제 민감 해제",
+      "silence": "침묵 (공개 타임라인에서 숨기기)",
+      "removeSilence": "침묵 해제",
+      "suspendUser": "사용자 정지",
+      "unsuspendUser": "사용자 정지 해제",
+      "deleteUser": "사용자 삭제",
+      "serversFor": "{name}의 서버",
+      "loadingServers": "서버를 불러오는 중…",
+      "viewServer": "서버 보기",
+      "moderatorStatus": "모더레이터 상태",
+      "promoteConfirm": "{name}님을 모더레이터로 지정할까요?",
+      "demoteConfirm": "{name}님의 모더레이터 권한을 해제할까요?",
+      "promoted": "{name}님이 이제 모더레이터입니다",
+      "demoted": "{name}님은 더 이상 모더레이터가 아닙니다",
+      "moderatorFailed": "모더레이터 상태를 업데이트하지 못했습니다",
+      "suspend": "정지",
+      "unsuspend": "정지 해제",
+      "suspendConfirm": "{name}님을 정지할까요?",
+      "suspended": "사용자 {name}님을 정지했습니다",
+      "unsuspendConfirm": "{name}님의 정지를 해제할까요?",
+      "unsuspended": "{name}님의 정지를 해제했습니다",
+      "deleteConfirm": "{name}님을 삭제할까요? 되돌릴 수 없습니다.",
+      "deleted": "사용자 {name}님을 삭제했습니다",
+      "forceSensitiveTitleDialog": "미디어 강제 민감 표시",
+      "forceSensitiveConfirm": "{name}님의 모든 미디어를 민감한 콘텐츠로 표시할까요?",
+      "forceSensitiveDone": "{name}님의 앞으로의 모든 미디어가 민감한 콘텐츠로 표시됩니다",
+      "removeForceSensitiveConfirm": "{name}님의 강제 민감 표시를 해제할까요?",
+      "removeForceSensitiveDone": "{name}님의 강제 민감 표시를 해제했습니다",
+      "silenceUser": "사용자 침묵",
+      "silenceConfirm": "{name}님을 공개 타임라인에서 숨길까요?",
+      "silenceButton": "침묵",
+      "silenced": "사용자 {name}님을 침묵시켰습니다",
+      "removeSilenceConfirm": "{name}님의 침묵을 해제할까요?",
+      "unsilenced": "{name}님의 침묵을 해제했습니다",
+      "actionFailed": "{name}님에 대한 작업 실패: {error}",
+      "unknownError": "알 수 없는 오류"
+    },
+    "format": {
+      "never": "없음",
+      "justNow": "방금"
     }
   },
   "discordBridge": {
@@ -7289,14 +8719,22 @@
       "collapse": "폴더 접기",
       "expand": "폴더 펼치기",
       "ungroup": "폴더 해제",
-      "serverCount": "서버 {count}개"
+      "serverCount": "서버 {count}개",
+      "nameLabel": "폴더 이름",
+      "namePlaceholder": "비워 두면 이름이 없습니다",
+      "color": "폴더 색상",
+      "createFailed": "폴더를 만들지 못했습니다",
+      "updateFailed": "폴더를 업데이트하지 못했습니다",
+      "deleteFailed": "폴더를 삭제하지 못했습니다"
     },
     "leave": {
       "confirm": "'{name}'에서 나가시겠어요? 모든 채널과 메시지에 접근할 수 없게 됩니다.",
       "button": "나가기",
       "done": "서버에서 나갔습니다",
       "failed": "서버에서 나가지 못했습니다"
-    }
+    },
+    "serverDeleted": "\"{name}\" 서버가 삭제되었습니다",
+    "serverDeletedUnnamed": "이 서버가 삭제되었습니다"
   },
   "chatNav": {
     "channel": {
@@ -7351,7 +8789,19 @@
       "draftHint": "메시지를 보내 이 스레드를 시작하세요",
       "loading": "메시지를 불러오는 중…",
       "loadingOlder": "불러오는 중…",
-      "loadOlder": "이전 메시지 불러오기"
+      "loadOlder": "이전 메시지 불러오기",
+      "lockPrevent": "스레드 잠금 (새 메시지 차단)",
+      "archive": "스레드 보관",
+      "archiveNote": "보관된 스레드는 계속 볼 수 있지만 활성 목록에는 표시되지 않습니다.",
+      "lastReply": "마지막 답글 {time}",
+      "view": "스레드 보기",
+      "sidebarHint": "아무 메시지에서나 스레드를 시작하세요!",
+      "messageCount": "메시지 {count}개 | 메시지 {count}개",
+      "archived": "보관됨",
+      "backToChannel": "채널로 돌아가기",
+      "channelFallback": "채널",
+      "renameMessage": "이 스레드의 이름을 변경합니다.",
+      "deleteConfirm": "\"{name}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다."
     },
     "header": {
       "pinnedCount": "고정된 메시지 {count}개",
@@ -7387,7 +8837,13 @@
       "dismissNamed": "{name}님과의 대화 숨기기",
       "restored": "{name}님과의 대화를 복원했습니다",
       "restoreFailed": "대화를 복원하지 못했습니다",
-      "joinCallWith": "{name}님과의 통화 참여"
+      "joinCallWith": "{name}님과의 통화 참여",
+      "groupNamesMore": "{names} 외 {count}명 | {names} 외 {count}명",
+      "groupFallback": "그룹 채팅(멤버 {count}명) | 그룹 채팅(멤버 {count}명)",
+      "ageMinutes": "{count}분",
+      "ageHours": "{count}시간",
+      "ownPreview": "나: {text}",
+      "previewMessage": "메시지"
     },
     "members": {
       "search": "멤버 검색",
@@ -7445,7 +8901,17 @@
       "clips": "클립",
       "memes": "밈",
       "aiEmoji": "AI 이모지"
-    }
+    },
+    "voiceJoinFailed": "음성에 참여할 수 없습니다",
+    "deleteConfirm": {
+      "channelMessage": "#{name} 채널을 삭제하시겠습니까?",
+      "channelDetail": "이 작업은 취소할 수 없습니다. 이 채널의 모든 메시지가 영구적으로 삭제됩니다.",
+      "cannotUndo": "이 작업은 취소할 수 없습니다.",
+      "namedMessage": "\"{name}\"을(를) 삭제하시겠습니까?",
+      "categoryChannels": "이 카테고리에는 채널 {count}개가 있습니다. 채널은 채널 목록 맨 위(카테고리 없음)로 이동합니다. 채널도 모두 삭제하려면 \"{name}\" 대신 \"{name} DELETE\"를 입력하세요. | 이 카테고리에는 채널 {count}개가 있습니다. 채널은 채널 목록 맨 위(카테고리 없음)로 이동합니다. 채널도 모두 삭제하려면 \"{name}\" 대신 \"{name} DELETE\"를 입력하세요.",
+      "threadDetail": "스레드와 모든 메시지가 영구적으로 삭제됩니다. 이 작업은 취소할 수 없습니다."
+    },
+    "channelFallback": "채널"
   },
   "embeds": {
     "popOut": "팝아웃",
@@ -7473,14 +8939,30 @@
       "open": "서버로 이동",
       "joining": "참가 중…",
       "invalid": "유효하지 않은 초대",
-      "loading": "초대를 불러오는 중…"
+      "loading": "초대를 불러오는 중…",
+      "loadFailed": "초대 세부 정보를 불러오지 못했습니다"
     },
     "remoteInvite": {
       "hostedOn": "{instance}에서 호스팅",
       "notFound": "초대를 찾을 수 없거나 만료되었습니다",
       "closedTitle": "다른 인스턴스에 닫혀 있음",
       "closedMessage": "{instance}의 사용자만 이 서버에 참가할 수 있습니다."
-    }
+    },
+    "showContent": "내용 보기",
+    "hideContent": "내용 숨기기",
+    "replies": "답글",
+    "loadingHarmonyPost": "Harmony 게시물 불러오는 중...",
+    "loadingFediversePost": "페디버스 게시물 불러오는 중...",
+    "platformPost": "{platform} 게시물",
+    "fediversePost": "페디버스 게시물",
+    "serverInvite": "서버 초대",
+    "driveFile": "Drive 파일",
+    "linkPreview": "링크 미리보기",
+    "postUnavailable": "게시물을 볼 수 없음",
+    "harmonyPostFailed": "Harmony 게시물을 불러올 수 없습니다",
+    "noFediverseData": "페디버스 데이터가 없습니다",
+    "remotePostFailed": "원격 인스턴스에서 이 게시물을 불러올 수 없습니다",
+    "postFailed": "이 게시물을 불러올 수 없습니다"
   },
   "outsideLink": {
     "title": "Harmony를 떠납니다",
@@ -7924,7 +9406,9 @@
     "position": "재생 위치",
     "positionValue": "{total} 중 {current}",
     "speed": "재생 속도 {speed}배",
-    "playFailed": "이 음성 메시지를 재생할 수 없습니다."
+    "playFailed": "이 음성 메시지를 재생할 수 없습니다.",
+    "remaining": "{time} 남음",
+    "record": "음성 메시지 녹음"
   },
   "a11y": {
     "unreadNotifications": "읽지 않은 알림 {count}개",
@@ -8634,7 +10118,103 @@
         "pending": "승인 대기",
         "approved": "표시 중",
         "hidden": "숨김"
-      }
+      },
+      "fundingTitle": "후원 및 후원자",
+      "saveChanges": "변경 사항 저장",
+      "goalTitle": "후원 목표",
+      "enableFunding": "후원 사용",
+      "showInBar": "컨텍스트 바에 표시",
+      "showProgress": "진행률 표시줄 표시",
+      "goalAmount": "목표 금액",
+      "currency": "통화",
+      "period": "기간",
+      "periodMonthly": "매월 (매달 초기화)",
+      "periodAll": "전체 기간",
+      "periodHint": "합계는 후원 기록으로 계산되며, 기간에 따라 포함되는 후원이 정해집니다.",
+      "description": "설명",
+      "descriptionPlaceholder": "후원금의 용도…",
+      "thankYou": "감사 메시지",
+      "thankYouPlaceholder": "후원자에게 표시되는 메시지",
+      "donationLinks": "후원 링크",
+      "linkUrl": "링크 URL",
+      "linkLabel": "라벨 (선택)",
+      "removeLink": "링크 제거",
+      "platformPlaceholder": "플랫폼…",
+      "platformCustom": "사용자 지정",
+      "kofiTitle": "Ko-fi 웹훅",
+      "automation": "자동화",
+      "kofiIntro": "Ko-fi 후원을 자동으로 기록합니다. Ko-fi Gold 구독이 필요합니다. {link}에서 인증 토큰을 붙여 넣고 웹훅 URL을 다음으로 설정하세요:",
+      "kofiSettingsLink": "Ko-fi 설정 → API",
+      "copyUrl": "URL 복사",
+      "kofiToken": "인증 토큰",
+      "kofiTokenPlaceholder": "Ko-fi 설정 → API에서 붙여 넣기",
+      "showSecret": "표시",
+      "hideSecret": "숨기기",
+      "autoAssignTier": "후원 금액에 따라 후원 등급 자동 지정",
+      "kofiHint": "후원자는 Ko-fi 메시지 어딘가에 자신의 핸들({handle})을 적습니다. 웹훅이 자동으로 후원을 연결하고 주기 내 누적 후원액으로 등급을 다시 계산합니다. 일치하는 핸들이 없는 후원은 아래 {queue} 대기열로 들어가며, 나(와 인스턴스 모더레이터)에게 알림이 갑니다.",
+      "stripeIntro": "Stripe 결제 링크를 통한 후원은 후원자 계정에 반영됩니다. Harmony가 계정 ID와 함께 링크를 열고, Stripe가 이 웹훅으로 결제를 알립니다. Stripe 대시보드에서 결제 링크를 만들고(금액을 자유롭게 하려면 {choice} 선택, 정기 가격은 월간 후원이 됩니다) 플랫폼 {platform}(으)로 후원 링크에 추가하세요. 그런 다음 {link}에서 이 URL로 엔드포인트를 추가하세요:",
+      "webhookCopied": "웹훅 URL을 복사했습니다",
+      "stripeEvents": "{first}, {second}, {third} 이벤트를 수신하도록 설정하고 서명 시크릿을 여기에 붙여 넣으세요.",
+      "signingSecret": "서명 시크릿",
+      "stripeHint": "Harmony 밖에서 연 결제 링크로 들어온 결제는 계정 정보가 없어 아래 {queue} 대기열로 들어가며, 그렇게 시작된 구독의 갱신도 마찬가지입니다. 결제 링크에서 오지 않은 Checkout 결제는 무시됩니다.",
+      "pendingTitle": "대기 중인 후원",
+      "pendingHint": "사용자와 자동으로 연결하지 못한 웹훅 후원입니다. 대상을 검색하거나 기각하세요.",
+      "pendingFrom": "보낸 사람:",
+      "pendingSearch": "사용자 이름으로 검색…",
+      "attribute": "연결",
+      "dismiss": "기각",
+      "adFree": "광고 없는 GIF",
+      "adFreeTitle": "이 등급의 후원자에게는 GIF 광고가 표시되지 않습니다",
+      "pickEmoji": "이모지 선택",
+      "tierMin": "최소: {amount}",
+      "editTier": "등급 수정",
+      "deleteTier": "등급 삭제",
+      "tierName": "등급 이름",
+      "minAmount": "최소 금액",
+      "tierIcon": "아이콘",
+      "badgeColor": "배지 색상",
+      "activeSupporters": "활성 후원자",
+      "noTier": "등급 없음",
+      "editSupporter": "후원자 수정",
+      "recordDonation": "후원 기록",
+      "removeSupporter": "후원자 제거",
+      "addSupporterPlaceholder": "후원자로 추가할 사용자 이름…",
+      "amount": "금액",
+      "platform": "플랫폼",
+      "tier": "등급",
+      "editSupporterFor": "후원자 수정: {name}",
+      "recordDonationFor": "{name}님의 후원 기록",
+      "platformExample": "예: Patreon, Ko-fi",
+      "note": "메모",
+      "notePlaceholder": "메모 (선택)…",
+      "record": "기록",
+      "historyTitle": "후원 기록",
+      "totalDonated": "총 후원액",
+      "donations": "후원 횟수",
+      "uniqueDonors": "후원자 수",
+      "copyFailed": "복사하지 못했습니다",
+      "attributed": "후원을 연결했습니다",
+      "attributeFailed": "후원을 연결하지 못했습니다",
+      "dismissTitle": "후원 기각",
+      "dismissMessage": "이 후원을 기각할까요? 어떤 사용자에게도 연결되지 않습니다.",
+      "dismissed": "후원을 기각했습니다",
+      "dismissFailed": "후원을 기각하지 못했습니다",
+      "saved": "후원 설정을 저장했습니다",
+      "saveFailed": "후원 설정을 저장하지 못했습니다",
+      "tierCreated": "등급을 만들었습니다",
+      "tierUpdated": "등급을 업데이트했습니다",
+      "deleteTierMessage": "이 등급을 삭제할까요? 이 등급의 후원자는 상태를 유지하지만 등급 배지를 잃습니다.",
+      "tierDeleted": "등급을 삭제했습니다",
+      "userNotFound": "사용자를 찾을 수 없습니다",
+      "supporterAdded": "후원자를 추가했습니다",
+      "supporterUpdated": "후원자를 업데이트했습니다",
+      "removeSupporterMessage": "이 후원자를 제거할까요?",
+      "supporterRemoved": "후원자를 제거했습니다",
+      "donationRecorded": "후원을 기록했습니다",
+      "donationUpdated": "후원을 업데이트했습니다",
+      "deleteDonation": "후원 삭제",
+      "deleteDonationMessage": "이 후원 기록을 삭제할까요?",
+      "donationDeleted": "후원을 삭제했습니다"
     }
   },
   "authorizeInteraction": {
@@ -9028,13 +10608,13 @@
     "domainsHint": "한 줄에 하나씩, 예: myschool.edu. 하위 도메인도 포함됩니다. 서비스가 주소를 확인된 것으로 알려야 합니다.",
     "publicOpen": "{provider} 계정이 있는 누구나 여기에서 계정을 만들 수 있게 됩니다.",
     "switchOn": "인증 서비스가 아직 모든 새 계정을 거부합니다. 이 설정이 적용되도록 서버에서 harmony registration을 실행하세요.",
-    "none": "켜진 로그인 서비스가 없습니다. 기본 제공 서비스는 구성에서, 인스턴스 자체 서비스는 harmony auth add-provider로 설정합니다.",
     "save": "저장",
     "saved": "로그인 서비스 가입 설정을 저장했습니다",
     "saveFailed": "가입 설정을 저장할 수 없습니다.",
     "loadFailed": "로그인 서비스를 불러올 수 없습니다.",
     "invalidDomain": "{domain}은(는) 도메인 이름이 아닙니다.",
-    "noDomains": "{provider}의 도메인을 하나 이상 추가하세요."
+    "noDomains": "{provider}의 도메인을 하나 이상 추가하세요.",
+    "noneTab": "켜진 로그인 서비스가 없습니다. 기본 제공 서비스는 {tab}에서, 인스턴스 자체 서비스는 harmony auth add-provider로 설정합니다."
   },
   "adminSignupCaptcha": {
     "title": "가입 확인",
@@ -9645,5 +11225,255 @@
     "saved": "ICE 서버를 저장했습니다",
     "saveFailed": "ICE 서버를 저장하지 못했습니다.",
     "loadFailed": "ICE 서버를 불러오지 못했습니다."
+  },
+  "pushPrompt": {
+    "title": "푸시 알림 켜기",
+    "body": "Harmony가 닫혀 있어도 새 메시지 알림을 받습니다",
+    "enabling": "켜는 중...",
+    "enable": "켜기"
+  },
+  "runOnLogin": {
+    "prompt": {
+      "title": "로그인할 때 Harmony를 실행할까요?",
+      "body": "{browser}에서 컴퓨터에 로그인할 때 Harmony를 자동으로 실행할 수 있습니다.",
+      "showHow": "방법 보기"
+    },
+    "modal": {
+      "title": "로그인할 때 Harmony 실행",
+      "subtitle": "{browser}에서 컴퓨터에 로그인할 때마다 Harmony를 자동으로 실행할 수 있습니다.",
+      "step1": "앱 페이지 열기",
+      "step1Hint": "새 브라우저 탭에 붙여 넣으세요. 보안상의 이유로 앱 안에서는 이 링크를 바로 열 수 없습니다.",
+      "step2": "Harmony를 마우스 오른쪽 버튼으로 클릭한 다음 {option}을(를) 선택하세요",
+      "menuOpen": "열기",
+      "menuOpenWindow": "창에서 열기",
+      "menuStartApp": "로그인할 때 앱 시작",
+      "menuShortcuts": "바로가기 만들기...",
+      "menuRemove": "{browser}에서 삭제",
+      "step3": "완료되었습니다. 다음에 컴퓨터에 로그인하면 Harmony가 실행됩니다.",
+      "footnote": "Windows, macOS, Linux, ChromeOS의 {browser} 91 이상에서 사용할 수 있습니다. {url}에서 언제든지 변경할 수 있습니다.",
+      "enabled": "켰습니다",
+      "copyFailed": "복사하지 못했습니다. 새 브라우저 탭에 {url}을(를) 입력하세요.",
+      "saved": "저장했습니다. 로그인할 때 Harmony가 실행됩니다."
+    }
+  },
+  "profileModal": {
+    "sendServerInvite": "서버 초대 보내기",
+    "kickFromServer": "서버에서 추방",
+    "banFromServer": "서버에서 차단",
+    "viewAllPosts": "모든 게시물 보기",
+    "viewFollowing": "팔로잉 보기",
+    "viewFollowers": "팔로워 보기",
+    "federationInfo": "연합 정보",
+    "instanceLabel": "인스턴스:",
+    "profileUrlLabel": "프로필 URL:",
+    "viewOn": "{domain}에서 보기",
+    "lastActiveLabel": "마지막 활동:",
+    "about": "소개",
+    "profileFields": "프로필 항목",
+    "fieldVerified": "인증됨",
+    "activity": "활동",
+    "messages": "메시지",
+    "voiceTime": "음성 시간",
+    "interactions": "상호작용",
+    "chooseServer": "서버 선택:",
+    "activeNow": "최근 1시간 내 활동",
+    "activeToday": "오늘 활동",
+    "activeRecently": "최근 3일 내 활동",
+    "unknownUser": "알 수 없는 사용자"
+  },
+  "instanceDetail": {
+    "trusted": "신뢰됨",
+    "blocked": "차단됨",
+    "statistics": "인스턴스 통계",
+    "users": "사용자",
+    "connections": "연결",
+    "about": "이 인스턴스 정보",
+    "descriptionLabel": "설명:",
+    "adminContactLabel": "관리자 연락처:",
+    "typeLabel": "인스턴스 유형:",
+    "firstDiscoveredLabel": "처음 발견:",
+    "federationStatus": "연합 상태",
+    "federationEnabled": "연합 활성화됨",
+    "trustedInstance": "신뢰하는 인스턴스",
+    "standardInstance": "일반 인스턴스",
+    "recentPosts": "최근 게시물",
+    "loadingPosts": "게시물 불러오는 중...",
+    "visitInstance": "인스턴스 방문",
+    "copyUrl": "URL 복사",
+    "viewAllPosts": "모든 게시물 보기",
+    "noActivity": "기록된 활동 없음",
+    "activeToday": "오늘 활동",
+    "activeThisWeek": "이번 주 활동",
+    "lastActive": "마지막 활동: {time}",
+    "typeNamed": "{name} 인스턴스",
+    "typeActivityPub": "ActivityPub 인스턴스",
+    "minutesAgo": "{minutes}분 전",
+    "yearsAgo": "{years}년 전"
+  },
+  "searchInput": {
+    "placeholder": "검색..."
+  },
+  "platformIcon": {
+    "donate": "후원하기"
+  },
+  "codeBlock": {
+    "copyCode": "코드 복사"
+  },
+  "autoSuggest": {
+    "headers": {
+      "serverMembers": "서버 멤버",
+      "users": "사용자"
+    },
+    "commands": {
+      "kick": "서버에서 멤버 추방",
+      "ban": "서버에서 멤버 차단",
+      "gif": "KLIPY에서 GIF 검색",
+      "sticker": "KLIPY에서 스티커 검색",
+      "clip": "KLIPY에서 클립 검색",
+      "meme": "KLIPY에서 밈 검색",
+      "aiemoji": "KLIPY에서 AI 이모지 검색",
+      "rolemenu": "멤버가 역할을 고르는 메뉴 게시"
+    }
+  },
+  "notificationText": {
+    "dm": {
+      "addedTo": "님이 나를 {name}에 추가했습니다",
+      "addedToUnnamed": "님이 나를 대화에 추가했습니다",
+      "calling": "님이 전화를 걸고 있습니다",
+      "sentMessage": "님이 메시지를 보냈습니다",
+      "short": "{name}님의 DM",
+      "shortInvite": "{name}님의 초대"
+    },
+    "mention": {
+      "action": "님이 #{channel}에서 나를 멘션했습니다",
+      "actionNoChannel": "님이 나를 멘션했습니다",
+      "short": "#{channel}의 멘션",
+      "shortNoChannel": "새 멘션"
+    },
+    "reply": {
+      "action": "님이 #{channel}에서 내 메시지에 답장했습니다",
+      "actionNoChannel": "님이 내 메시지에 답장했습니다",
+      "short": "#{channel}의 답장",
+      "shortNoChannel": "새 답장",
+      "noPreview": "클릭하여 답장 보기"
+    },
+    "threadReply": {
+      "action": "님이 #{channel}의 스레드에서 답장했습니다",
+      "actionNoChannel": "님이 스레드에서 답장했습니다",
+      "short": "#{channel}의 스레드 답장",
+      "shortNoChannel": "스레드 답장",
+      "noPreview": "클릭하여 스레드 보기"
+    },
+    "call": {
+      "started": "님이 통화를 시작했습니다",
+      "incomingOpen": "📞 수신 전화 — 클릭하여 열기",
+      "incomingJoin": "📞 수신 전화 — 클릭하여 참여",
+      "shortFrom": "{name}님의 전화"
+    },
+    "chatMessage": {
+      "short": "{name}님의 메시지"
+    },
+    "reaction": {
+      "action": "님이 내 메시지에 반응했습니다",
+      "short": "반응"
+    },
+    "acceptOrDecline": "클릭하여 수락 또는 거절",
+    "serverInvite": {
+      "title": "{inviter}님이 {server}에 초대했습니다",
+      "short": "서버 초대"
+    },
+    "followRequest": {
+      "title": "{name}님이 나를 팔로우하려고 합니다",
+      "message": "{handle}님이 팔로우 요청을 보냈습니다",
+      "short": "팔로우 요청"
+    },
+    "voiceActivity": {
+      "title": "{channel}의 음성 활동",
+      "message": "누군가 음성 채널에 참여했습니다",
+      "short": "음성 활동"
+    },
+    "serverUpdate": {
+      "title": "서버 업데이트",
+      "message": "서버가 업데이트되었습니다"
+    },
+    "emojiAdded": {
+      "title": "새 이모지 추가됨: {name}",
+      "message": "{name} 이모지를 이제 {server}에서 사용할 수 있습니다",
+      "short": "새 이모지"
+    },
+    "apFollow": {
+      "title": "{name}({handle})님이 나를 팔로우하기 시작했습니다",
+      "message": "{handle}님이 이제 나를 팔로우합니다",
+      "short": "새 팔로워"
+    },
+    "apFavorite": {
+      "action": "님이 내 게시물을 좋아합니다",
+      "short": "게시물 좋아요"
+    },
+    "apReblog": {
+      "action": "님이 내 게시물을 부스트했습니다",
+      "short": "게시물 부스트됨"
+    },
+    "viewPost": "클릭하여 게시물 보기",
+    "apMention": {
+      "noPreview": "클릭하여 멘션 보기",
+      "short": "연합 멘션"
+    },
+    "apReply": {
+      "action": "님이 내 게시물에 답글을 달았습니다",
+      "noPreview": "클릭하여 답글 보기",
+      "short": "새 답글"
+    },
+    "apReaction": {
+      "action": "님이 내 게시물에 반응했습니다",
+      "noPreview": "클릭하여 게시물 보기"
+    },
+    "followAccepted": {
+      "action": "님이 팔로우 요청을 수락했습니다",
+      "message": "이제 {handle}님을 팔로우합니다",
+      "messageNoHandle": "이제 이 사용자를 팔로우합니다",
+      "short": "요청 수락됨"
+    },
+    "reportUpdate": {
+      "investigatingTitle": "신고를 검토하고 있습니다",
+      "resolvedTitle": "신고가 처리되었습니다",
+      "dismissedTitle": "신고가 검토되었습니다",
+      "updatedTitle": "신고 상태가 업데이트되었습니다",
+      "investigatingMessage": "모더레이터가 신고를 살펴보고 있습니다.",
+      "resolvedMessage": "신고가 처리되었습니다.",
+      "dismissedMessage": "신고가 기각되었습니다.",
+      "updatedMessage": "신고가 업데이트되었습니다.",
+      "withNote": "{message} 메모: {note}",
+      "short": "신고 업데이트"
+    },
+    "donation": {
+      "title": "새 {platform} 후원을 검토해야 합니다",
+      "titleNoPlatform": "새 후원을 검토해야 합니다",
+      "message": "{amount}을(를) 사용자와 연결하지 못했습니다. 관리자 패널을 열어 지정하세요.",
+      "messageFrom": "{donor}님의 {amount}을(를) 사용자와 연결하지 못했습니다. 관리자 패널을 열어 지정하세요.",
+      "short": "후원 검토 필요"
+    },
+    "fallback": {
+      "title": "새 알림",
+      "message": "새 알림이 있습니다",
+      "short": "알림",
+      "viewDetails": "클릭하여 세부 정보 보기"
+    },
+    "staffSender": "관리자/모더레이터",
+    "unknownSender": "알 수 없음",
+    "toast": {
+      "loadFailed": "알림을 불러오지 못했습니다",
+      "refreshPage": "페이지를 새로 고치세요",
+      "processFailed": "알림을 받았지만 제대로 처리하지 못했습니다",
+      "deleteFailed": "알림을 삭제하지 못했습니다",
+      "clearFailed": "알림을 지우지 못했습니다",
+      "markReadFailed": "알림을 읽음으로 표시하지 못했습니다"
+    },
+    "native": {
+      "reaction": "내 메시지에 반응함",
+      "apReaction": "내 게시물에 반응함",
+      "apFavorite": "내 게시물을 좋아함",
+      "apReblog": "내 게시물을 부스트함"
+    }
   }
 }

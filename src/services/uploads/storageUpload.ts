@@ -813,7 +813,7 @@ export function startStorageUpload(options: StorageUploadOptions): StorageUpload
         throw new UploadAbortedError()
       }
       state.status = 'error'
-      state.error = error instanceof Error ? error.message : 'Upload failed'
+      state.error = error instanceof Error ? error.message : i18n.global.t('message.upload.failed')
       if (entry) settleTransfer(entry)
       throw error
     },

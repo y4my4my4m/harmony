@@ -263,7 +263,7 @@
                 </div>
 
                 <template v-for="(group, gi) in themableVariables" :key="group.category">
-                  <div class="tp-var-category-label" :class="{ 'is-first': gi === 0 }">{{ group.category }}</div>
+                  <div class="tp-var-category-label" :class="{ 'is-first': gi === 0 }">{{ t(group.labelKey) }}</div>
                   <div
                     v-for="varName in group.vars"
                     :key="varName"
@@ -285,7 +285,7 @@
                         :class="{ invalid: invalidVar?.name === varName }"
                         :value="working.customCssOverrides[varName] || ''"
                         :placeholder="getComputedVar(varName)"
-                        :title="invalidVar?.name === varName ? `Not a CSS colour: ${invalidVar.text}` : undefined"
+                        :title="invalidVar?.name === varName ? t('settings.appearance.invalidCssColour', { value: invalidVar.text }) : undefined"
                         @change="commitCssOverrideText(varName, $event.target as HTMLInputElement)"
                       />
                       <button

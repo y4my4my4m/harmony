@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import en from '@/locales/en.json'
 
 // A bridged Discord reaction names its emoji discord:[a:]name:id and carries no url; the row
 // shows the emoji image from Discord's CDN, not the token.
@@ -10,7 +11,7 @@ vi.mock('@/components/common/Avatar.vue', () => ({ default: { template: '<span /
 vi.mock('@/components/common/Icon.vue', () => ({ default: { template: '<i />' } }))
 
 const NotificationItem = (await import('../NotificationItem.vue')).default
-const i18n = createI18n({ legacy: false, locale: 'en', missingWarn: false, fallbackWarn: false })
+const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
 
 function row(emojiName: string) {
   return mount(NotificationItem, {

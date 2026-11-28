@@ -403,11 +403,13 @@ const uploadIcon = async (serverId: string, file: File) => {
       await serverChannelStore.updateServer({ id: serverId, icon: uploadResult.url });
     } else {
       debug.error('Server icon upload failed:', uploadResult.error);
-      toast.warning(`Server created, but the icon couldn't be uploaded: ${uploadResult.error || 'unknown error'}. You can update it later in server settings.`);
+      toast.warning(uploadResult.error
+        ? t('server.errors.iconUploadFailedDetail', { error: uploadResult.error })
+        : t('server.errors.iconUploadFailed'));
     }
   } catch (uploadError) {
     debug.error('Server icon upload error:', uploadError);
-    toast.warning('Server created but icon upload failed. You can update it later in server settings.');
+    toast.warning(t('server.errors.iconUploadFailed'));
   }
 };
 

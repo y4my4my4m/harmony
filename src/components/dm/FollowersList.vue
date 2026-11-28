@@ -57,7 +57,7 @@
           <span class="user-handle">{{ formatUserHandle(user) }}</span>
         </div>
 
-        <button class="message-btn" @click.stop="startConversation(user)" :title="$t('dm.sendMessage') || 'Message'">
+        <button class="message-btn" @click.stop="startConversation(user)" :title="$t('dm.sendMessage')">
           <svg viewBox="0 0 24 24" class="message-icon">
             <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2Z" fill="currentColor"/>
           </svg>
@@ -72,7 +72,7 @@
           :disabled="isLoadingMore"
         >
           <span v-if="isLoadingMore" class="loading-spinner-sm"></span>
-          <span>{{ isLoadingMore ? 'Loading...' : 'Load more' }}</span>
+          <span>{{ isLoadingMore ? $t('common.loading') : $t('activitypub.loadMore') }}</span>
         </button>
       </div>
     </div>
@@ -85,6 +85,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import { useDMStore } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
 import { useUserData } from '@/composables/useUserData'
@@ -93,6 +94,8 @@ import type { Profile } from '@/types'
 import Avatar from '../common/Avatar.vue'
 import DisplayName from '../DisplayName.vue'
 import EmptyState from '../common/EmptyState.vue'
+
+const { t } = useI18n()
 
 // Emits
 const emit = defineEmits<{
@@ -146,7 +149,7 @@ const loadFollowingUsers = async (offset = 0, showLoading = true) => {
 
   } catch (error) {
     debug.error('Failed to load following users:', error)
-    toast.error('Failed to load following users')
+    toast.error(t('dm.followers.loadFailed'))
   } finally {
     isLoading.value = false
     isLoadingMore.value = false
@@ -182,7 +185,7 @@ const startConversation = async (user: Profile) => {
     }
   } catch (error) {
     debug.error('Failed to start conversation:', error)
-    toast.error('Failed to start conversation')
+    toast.error(t('dm.followers.startFailed'))
   }
 }
 

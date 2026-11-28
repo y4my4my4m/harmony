@@ -675,7 +675,8 @@
       "emailRequired": "L’adresse e-mail est requise",
       "passwordRequired": "Le mot de passe est requis",
       "emailServiceUnavailable": "Le service d’e-mail n’est pas configuré. Contactez l’administration de l’instance.",
-      "oauthFailed": "Impossible de se connecter avec {provider}"
+      "oauthFailed": "Impossible de se connecter avec {provider}",
+      "authRequired": "Authentification requise"
     },
     "logoutConfirm": {
       "title": "Se déconnecter de cet appareil ?",
@@ -718,7 +719,8 @@
       "invalidTitle": "Ce lien d’invitation ne fonctionne pas",
       "invalidBody": "Le lien a déjà servi, a expiré ou a été révoqué. Demandez-en un nouveau à la personne qui vous a invité.",
       "subtitleNoEmail": "Vous avez été invité à créer un compte ici. Choisissez le mot de passe avec lequel vous vous connecterez."
-    }
+    },
+    "oauthWindowTitle": "Se connecter à Harmony"
   },
   "server": {
     "create": "Créer un serveur",
@@ -853,12 +855,7 @@
     "filesTooLargeSkipped": "{count} fichier(s) ignoré(s) : taille supérieure à 25 Mo",
     "noValidImageFiles": "Aucun fichier image valide sélectionné",
     "cannotUploadEmojisLimit": "Impossible d'envoyer {count} émoji(s) : la limite de {max} serait dépassée (actuellement {current})",
-    "emojisUploadedSuccess": "{count} émoji{plural} téléversé{plural} avec succès !",
-    "emojisFailedToUpload": "Échec de l'envoi de {count} émoji{plural}",
     "failedToUploadEmojis": "Échec du téléversement des émojis",
-    "confirmDeleteEmojis": "Voulez-vous vraiment supprimer {count} émoji(s) ? Cette action est irréversible.",
-    "emojisDeletedSuccess": "{count} émoji(s) supprimé(s)",
-    "emojisFailedToDelete": "Échec de la suppression de {count} émoji(s)",
     "failedToDeleteEmojis": "Échec de la suppression des émojis",
     "emojiRenamedSuccess": "Émoji renommé en :{name}:",
     "failedToRenameEmoji": "Échec du renommage de l'émoji",
@@ -931,7 +928,9 @@
       "nameTooLong": "Le nom du serveur doit contenir moins de 50 caractères",
       "invalidName": "Le nom du serveur contient des caractères invalides",
       "notSignedIn": "Connectez-vous pour créer un serveur.",
-      "createFailed": "Impossible de créer le serveur. Veuillez réessayer."
+      "createFailed": "Impossible de créer le serveur. Veuillez réessayer.",
+      "iconUploadFailedDetail": "Serveur créé, mais l'icône n'a pas pu être envoyée : {error}. Vous pourrez la modifier plus tard dans les paramètres du serveur.",
+      "iconUploadFailed": "Serveur créé, mais l'icône n'a pas pu être envoyée. Vous pourrez la modifier plus tard dans les paramètres du serveur."
     },
     "bannedFromServer": "Vous êtes banni de ce serveur.",
     "joinRequiresInvite": "Ce serveur se rejoint par invitation.",
@@ -1293,7 +1292,14 @@
       "expression": "Expression",
       "integrations": "Intégrations",
       "moderation": "Modération"
-    }
+    },
+    "alreadyMember": "Vous êtes déjà membre de ce serveur !",
+    "joinFailed": "Impossible de rejoindre le serveur. Veuillez réessayer.",
+    "emojisUploaded": "{count} emoji téléversé | {count} emojis téléversés",
+    "emojisUploadFailed": "Échec du téléversement de {count} emoji | Échec du téléversement de {count} emojis",
+    "confirmDeleteEmojiCount": "Voulez-vous vraiment supprimer {count} emoji ? Cette action est irréversible. | Voulez-vous vraiment supprimer {count} emojis ? Cette action est irréversible.",
+    "emojisDeleted": "{count} emoji supprimé | {count} emojis supprimés",
+    "emojisDeleteFailed": "Échec de la suppression de {count} emoji | Échec de la suppression de {count} emojis"
   },
   "channel": {
     "create": "Créer un canal",
@@ -1577,7 +1583,43 @@
       "unmark": "Retirer le spoiler"
     },
     "jumpLoading": "Chargement du message…",
-    "jumpFailed": "Ce message n'a pas pu être chargé."
+    "jumpFailed": "Ce message n'a pas pu être chargé.",
+    "copyText": "Copier le texte",
+    "copyImage": "Copier l’image",
+    "saveImage": "Enregistrer l’image",
+    "saveVideo": "Enregistrer la vidéo",
+    "saveAudio": "Enregistrer l’audio",
+    "copyMessageLink": "Copier le lien du message",
+    "copyLinkUrl": "Copier l’URL du lien",
+    "copyMediaUrl": "Copier l’URL du média",
+    "badge": {
+      "bot": "BOT",
+      "admin": "ADMIN",
+      "mod": "MODO"
+    },
+    "unknownServer": "Serveur inconnu",
+    "decryptFailed": "Impossible de déchiffrer le message",
+    "composer": {
+      "dismissCommand": "Fermer (Échap)",
+      "enterValue": "Saisissez une valeur...",
+      "slowmodeWait": "Mode lent : vous pourrez envoyer à nouveau dans {seconds} s",
+      "slowmodeOn": "Mode lent actif : un message toutes les {seconds} s",
+      "checkingPermissions": "Vérification des permissions...",
+      "noPermissionThread": "Vous n’avez pas la permission d’envoyer des messages dans ce fil.",
+      "noPermissionChannel": "Vous n’avez pas la permission d’envoyer des messages dans ce salon.",
+      "tooLongCount": "Message trop long ({count} / {max})",
+      "tooLongToast": "Message trop long ({count} / {max}). Raccourcissez-le et réessayez.",
+      "slowmodeToast": "Le mode lent est actif : vous pourrez envoyer à nouveau dans {seconds} s",
+      "attachmentNeedsRoom": "Les pièces jointes nécessitent un salon ou une conversation"
+    },
+    "replyingTo": "En réponse à {name}",
+    "removeAttachmentConfirm": "Cette pièce jointe sera définitivement retirée de ce message.",
+    "brokenEmoji": "Emoji cassé",
+    "unknownRole": "Rôle inconnu",
+    "editedAt": "Modifié le {time}",
+    "deleteConfirmUndone": "Voulez-vous vraiment supprimer ce message ? Cette action est irréversible.",
+    "yesterdayAt": "Hier à {time}",
+    "composerPlaceholder": "Écrivez un message…"
   },
   "messageA11y": {
     "list": {
@@ -1677,7 +1719,10 @@
       "uploading": "Envoi en cours...",
       "listLabel": "Pièces jointes",
       "progressLabel": "Envoi de {name}",
-      "remove": "Retirer {name}"
+      "remove": "Retirer {name}",
+      "statusUploading": "Envoi en cours",
+      "statusUploaded": "Envoyé",
+      "statusFailed": "Échec"
     },
     "alt": {
       "saved": "Description enregistrée pour {name}",
@@ -1696,7 +1741,15 @@
       "forged": "Message masqué : sa signature ne correspond pas à son expéditeur",
       "forgedHint": "La signature de ce message chiffré ne se vérifie pas avec la clé de son expéditeur. Il a été modifié ou ne vient pas de la personne indiquée ; il n'est donc pas déchiffré.",
       "replayed": "Répété",
-      "replayedHint": "Ce message répète un message chiffré antérieur du même expéditeur. Le serveur a enregistré un message deux fois, ce qui peut afficher un ancien message à un autre endroit."
+      "replayedHint": "Ce message répète un message chiffré antérieur du même expéditeur. Le serveur a enregistré un message deux fois, ce qui peut afficher un ancien message à un autre endroit.",
+      "unverified": "Auteur non vérifié",
+      "unverifiedHint": "Ce message a été déchiffré, mais l’identité de l’expéditeur n’a pas pu être vérifiée cryptographiquement. L’expéditeur utilise peut-être un ancien client, ou le message a peut-être été altéré.",
+      "lostHint": "Ce message a été chiffré avec une ancienne clé qui n’existe plus sur ce compte ; il ne peut donc pas être déchiffré.",
+      "decryptingTitle": "Déchiffrement...",
+      "clickToDecrypt": "Cliquez pour déchiffrer",
+      "lostIdentityHint": "Ce message ne peut pas être déchiffré : il a été chiffré avant la création de votre identité de chiffrement actuelle (par exemple avant une réinitialisation des clés), et la clé qui pourrait le déverrouiller n’existe plus sur ce compte.",
+      "lockClickHint": "Chiffré de bout en bout - cliquez sur le texte du message pour le déchiffrer",
+      "lockUnlockHintPath": "Chiffré de bout en bout - déverrouillez le chiffrement ({settings} → {privacy} → {encryption}) pour le déchiffrer"
     },
     "spoiler": {
       "hidden": "Spoiler, masqué. Activez pour l'afficher",
@@ -2018,6 +2071,29 @@
     "toolbar": {
       "controls": "Commandes vocales",
       "call": "Appel"
+    },
+    "encryption": {
+      "encryptedTitle": "Chiffré de bout en bout — les médias sont chiffrés avant d'atteindre le serveur",
+      "notEncryptedTitle": "Non chiffré de bout en bout — les médias sont protégés en transit (DTLS-SRTP), mais le serveur peut y accéder",
+      "e2ee": "E2EE",
+      "notE2ee": "Non E2EE"
+    },
+    "spatialModel": {
+      "linear": "Linéaire",
+      "inverse": "Inverse",
+      "exponential": "Exponentielle",
+      "equalPower": "Puissance égale"
+    },
+    "overlay": {
+      "notInCall": "Pas d'appel en cours"
+    },
+    "connectionLost": {
+      "title": "Déconnecté du vocal",
+      "message": "La connexion au serveur vocal a été perdue."
+    },
+    "microphoneUnavailable": {
+      "title": "Microphone indisponible",
+      "message": "Rejoint en sourdine : le microphone n'a pas pu être ouvert."
     }
   },
   "dm": {
@@ -2114,7 +2190,112 @@
       "deleted": "Groupe supprimé",
       "deleteFailed": "Impossible de supprimer le groupe"
     },
-    "callUndeliverable": "Votre appel n'a pas pu aboutir."
+    "callUndeliverable": "Votre appel n'a pas pu aboutir.",
+    "header": {
+      "federatedUserFrom": "Utilisateur fédéré de {domain}",
+      "callInProgress": "Appel en cours",
+      "lastSeen": "Vu pour la dernière fois {when}",
+      "lastSeenUnknown": "il y a un moment",
+      "startVoiceCall": "Démarrer un appel vocal",
+      "endVoiceCall": "Terminer l'appel vocal",
+      "searchInConversation": "Rechercher dans la conversation",
+      "addPeople": "Ajouter des personnes",
+      "startVideoCall": "Démarrer un appel vidéo",
+      "turnOffCamera": "Désactiver la caméra",
+      "muteConversation": "Mettre la conversation en sourdine",
+      "unmuteConversation": "Réactiver le son de la conversation",
+      "enableEncryption": "Activer le chiffrement",
+      "disableEncryption": "Désactiver le chiffrement",
+      "closeDm": "Fermer le MP",
+      "encryptionSetup": {
+        "title": "Configuration du chiffrement requise",
+        "intro": "Pour activer les MP chiffrés, vous devez d'abord configurer le chiffrement de bout en bout.",
+        "step1": "Accédez à {path}",
+        "step2": "Créez votre clé de récupération (phrase de 12 mots)",
+        "step3": "Revenez ici et activez le chiffrement pour cette conversation",
+        "note": "Votre clé de récupération est le seul moyen de déchiffrer vos messages. Conservez-la en lieu sûr.",
+        "goToSettings": "Aller aux paramètres"
+      },
+      "encryptionSetupFirst": "Configurez d'abord le chiffrement dans les paramètres",
+      "clickToDisableEncryption": "Cliquez pour désactiver le chiffrement",
+      "clickToEnableEncryption": "Cliquez pour activer le chiffrement",
+      "federatedEncryptionWarning": "L'autre utilisateur est sur un serveur fédéré qui ne prend peut-être pas en charge le chiffrement de bout en bout de Harmony. Il ne pourra peut-être pas lire les messages chiffrés. Voulez-vous quand même activer le chiffrement ?",
+      "enable": "Activer",
+      "encryptionEnabled": "Chiffrement activé pour cette conversation",
+      "encryptionDisabled": "Chiffrement désactivé pour cette conversation",
+      "encryptionUpdateFailed": "Impossible de mettre à jour le paramètre de chiffrement",
+      "callEnded": "Appel terminé",
+      "conversationMuted": "Conversation mise en sourdine",
+      "conversationUnmuted": "Son de la conversation réactivé",
+      "notificationUpdateFailed": "Impossible de mettre à jour le paramètre de notification",
+      "startCallFailed": "Impossible de démarrer l'appel",
+      "noLocalMembersToCall": "Aucun membre de cette instance à appeler. Les appels de groupe n'atteignent pas les autres instances.",
+      "noParticipantsToCall": "Aucun participant à appeler",
+      "cannotCallUser": "Impossible d'appeler cet utilisateur",
+      "noFederatedIdentity": "Impossible de déterminer l'identité fédérée de cet utilisateur",
+      "profileInfoFailed": "Impossible d'obtenir les informations du profil",
+      "federatedCallFailed": "Impossible de lancer l'appel fédéré",
+      "cannotJoinCall": "Impossible de rejoindre cet appel",
+      "joinCallFailed": "Impossible de rejoindre l'appel",
+      "toggleCameraFailed": "Impossible de basculer la caméra",
+      "defaultNameCount": "Discussion de groupe ({count} membre) | Discussion de groupe ({count} membres)"
+    },
+    "followers": {
+      "loadFailed": "Impossible de charger les utilisateurs suivis",
+      "startFailed": "Impossible de démarrer la conversation"
+    },
+    "groupInvite": {
+      "searchHintNew": "Recherchez des utilisateurs avec qui créer une discussion de groupe",
+      "searchHintAdd": "Recherchez des utilisateurs à ajouter à cette conversation",
+      "selectedUsers": "Utilisateurs sélectionnés ({count})",
+      "clearAll": "Tout désélectionner",
+      "removeUser": "Retirer {name}",
+      "configureHint": "Configurez votre nouvelle discussion de groupe",
+      "groupNameOptional": "Nom du groupe (facultatif)",
+      "groupNamePlaceholder": "Discussion avec {names}",
+      "privateGroup": "Groupe privé",
+      "privateHintManual": "Seuls les membres invités peuvent rejoindre. Les membres doivent être ajoutés manuellement.",
+      "privateHintInvite": "Seuls les membres invités peuvent rejoindre. Les membres peuvent inviter d'autres personnes.",
+      "currentParticipants": "Participants actuels ({count})",
+      "federatedTitle": "Discussion de groupe fédérée",
+      "federatedText": "Cette conversation inclut des utilisateurs d'autres serveurs. Les messages seront fédérés selon les standards ActivityPub.",
+      "searchFailed": "Impossible de rechercher des utilisateurs",
+      "createGroupChat": "Créer une discussion de groupe",
+      "subtitleNew": "Démarrez une conversation avec plusieurs personnes",
+      "subtitleAdd": "Ajoutez d'autres personnes à cette conversation",
+      "processing": "Traitement...",
+      "createChat": "Créer la discussion",
+      "createGroup": "Créer le groupe ({count})",
+      "addPeopleCount": "Ajouter {count} personne | Ajouter {count} personnes",
+      "requestFailed": "Impossible de traiter la demande",
+      "conversationCreated": "Conversation créée",
+      "groupCreated": "Conversation de groupe créée",
+      "groupCreateFailed": "Impossible de créer la conversation de groupe",
+      "groupCreatedWith": "Conversation de groupe créée avec {count} utilisateur supplémentaire | Conversation de groupe créée avec {count} utilisateurs supplémentaires",
+      "usersAdded": "{count} utilisateur ajouté à la conversation | {count} utilisateurs ajoutés à la conversation",
+      "addFailed": "Impossible d'ajouter des utilisateurs à la conversation"
+    },
+    "groupCall": "Appel de groupe",
+    "callEnded": "Appel terminé",
+    "callDeclined": "Appel refusé",
+    "noAnswer": "Pas de réponse",
+    "callPermission": {
+      "blockedByYou": "Vous avez bloqué cet utilisateur",
+      "blocked": "Vous ne pouvez pas appeler cet utilisateur",
+      "dnd": "Cet utilisateur est en mode Ne pas déranger",
+      "busy": "L'utilisateur est déjà dans un autre appel",
+      "notificationsDisabled": "Cet utilisateur a désactivé les notifications d'appel",
+      "checkFailed": "Impossible de vérifier les autorisations d'appel — veuillez réessayer.",
+      "decline": {
+        "blocked": "L'appel ne peut pas aboutir",
+        "busy": "L'utilisateur est occupé",
+        "dnd": "L'utilisateur est en mode Ne pas déranger",
+        "muted": "L'utilisateur a mis cette conversation en sourdine",
+        "notificationsDisabled": "L'utilisateur a désactivé les notifications d'appel",
+        "timeout": "Pas de réponse",
+        "declined": "Appel refusé"
+      }
+    }
   },
   "user": {
     "panelToggle": "Votre compte et vos commandes vocales",
@@ -2149,7 +2330,9 @@
     "joined": "A rejoint",
     "placeholders": {
       "bio": "Parlez-nous de vous..."
-    }
+    },
+    "avatarAlt": "Avatar de l'utilisateur",
+    "aboutLabel": "À propos :"
   },
   "settings": {
     "title": "Paramètres",
@@ -2317,7 +2500,247 @@
       },
       "savedThemeNameHint": "ex. : Nuit blanche",
       "fluxDockBottom": "Barre en bas",
-      "fluxDockBottomDesc": "Le dock des serveurs, la bande des salons et ta capsule longent le bas de la fenêtre au lieu du haut ; les menus de la barre s'ouvrent vers le haut. Nécessite la disposition horizontale."
+      "fluxDockBottomDesc": "Le dock des serveurs, la bande des salons et ta capsule longent le bas de la fenêtre au lieu du haut ; les menus de la barre s'ouvrent vers le haut. Nécessite la disposition horizontale.",
+      "importExport": "Importer et exporter",
+      "importExportHelp": "Exportez votre thème en JSON ou importez un thème exporté précédemment",
+      "exportTheme": "Exporter le thème",
+      "importTheme": "Importer un thème",
+      "skins": {
+        "title": "Skins",
+        "description": "Les skins vont au-delà du changement de couleurs : ils regroupent un thème, une police et un ensemble de règles CSS qui modifient les bordures, les coins, les superpositions décoratives et plus encore. En choisir un remplace les paramètres correspondants ci-dessus ; vous pouvez toujours ajuster les couleurs ensuite. Choisissez « Aucun » pour retirer la couche de skin.",
+        "none": "Aucun",
+        "noneDescription": "Utiliser le thème et la police définis ci-dessus, tels quels.",
+        "decorations": "{skin} - décorations",
+        "sdr001": {
+          "description": "Cyberpunk noir façon Snatcher : accents rouge sang et libellés gris acier sur des surfaces nocturnes bleu-noir, typographie pixel, cadres carrés aux ombres portées dures, icônes en pixel art et un calque optionnel de lignes de balayage CRT. S'accorde avec le pack de sons Neo Kobe. Active ou désactive les décorations ci-dessous.",
+          "options": {
+            "scanline": {
+              "label": "Lignes de balayage CRT",
+              "description": "Calque statique de lignes horizontales sur tout l'écran. Désactivé tant que les effets de flou sont coupés."
+            },
+            "viewportFrame": {
+              "label": "Cadre au bord de l'écran",
+              "description": "Fine bordure rouge collée aux bords de l'écran."
+            },
+            "hudBadge": {
+              "label": "Badge HUD SDR-001",
+              "description": "Petite étiquette « SDR-001 » en haut à droite sur les écrans larges."
+            },
+            "tacticalLabels": {
+              "label": "Libellés tactiques",
+              "description": "Affichages de terminal : « // » devant les catégories de salons, un curseur sur le salon ouvert, « COMMS // » sur le dock vocal, « TRANSMISSION // » sur la superposition vocale et un statut entre crochets dans la barre utilisateur."
+            },
+            "iconFlicker": {
+              "label": "Scintillement des icônes et clignotement du curseur",
+              "description": "Scintillement CRT occasionnel des icônes de la barre et un curseur de salon qui clignote. Désactivé quand la réduction des mouvements est demandée."
+            }
+          }
+        },
+        "skyglass": {
+          "description": "Brillant, aérien et lumineux : des panneaux en verre dépoli flottent sur un ciel de nuages, de rayons et de bulles, ou sur une prairie peinte. Boutons en gel, serveurs et avatars en orbes de verre, bulles de discussion et menus élastiques. Passe le thème en sombre pour un lagon de nuit ; les couleurs principale et d'accent teintent le ciel dessiné. S'accorde avec le pack de sons Skyglass, fait de cloches de verre et de gouttes d'eau.",
+          "options": {
+            "sky": {
+              "label": "Scène de ciel",
+              "description": "Nuages, halo solaire et rayons de lumière sur le ciel dessiné, avec le fond peint désactivé. Désactivé, il reste un simple dégradé."
+            },
+            "wallpaper": {
+              "label": "Fond peint",
+              "description": "Une prairie d'herbe brillante, de bulles et de rubans de lumière ; un lagon d'aurore en thème sombre. Désactivé, le ciel est dessiné à partir des couleurs du thème."
+            },
+            "bubbles": {
+              "label": "Bulles",
+              "description": "Des bulles brillantes flottent à l'arrière-plan."
+            },
+            "drift": {
+              "label": "Bulles qui dérivent",
+              "description": "Les bulles montent lentement. Sollicite le GPU tant que le flou du verre est actif ; désactivé quand la réduction des mouvements est demandée."
+            },
+            "gloss": {
+              "label": "Brillance gel",
+              "description": "Reflets partagés sur les boutons, badges, orbes de serveurs et avatars."
+            },
+            "chatBubbles": {
+              "label": "Bulles de discussion",
+              "description": "Le texte des messages s'affiche dans des bulles de verre plutôt qu'en lignes plates."
+            },
+            "uiSounds": {
+              "label": "Sons de l'interface",
+              "description": "Une douce goutte au clic sur les boutons et les listes, issue du pack de sons actif."
+            }
+          }
+        },
+        "lattice": {
+          "description": "Console d'IA de cristal et de béton : panneaux encadrés flottant sur une toile pointillée, libellés à chasse fixe, boutons pilule inversés, une colonne de conversation centrée avec une barre de saisie holographique et une seule couleur de signal. Obsidienne en mode sombre, papier os aux cadres noirs en clair. S'accorde avec le pack de sons Lattice, fait de tintements de cristal FM et de cliquetis de relais.",
+          "options": {
+            "bento": {
+              "label": "Panneaux flottants",
+              "description": "Barre, salons, en-tête, discussion et membres en cadres séparés avec des espaces. Désactivé, ils sont joints bord à bord."
+            },
+            "focusColumn": {
+              "label": "Conversation centrée",
+              "description": "Les messages et la barre de saisie dans une colonne de lecture centrée sur les fenêtres larges."
+            },
+            "prism": {
+              "label": "Accents holographiques",
+              "description": "Lueur irisée sur la toile, le bord de la barre de saisie, le serveur actif et les titres des salons. Désactivé, tout est en pur monochrome."
+            },
+            "marks": {
+              "label": "Repères d'impression",
+              "description": "Équerres aux coins de chaque cadre et catégories de salons numérotées."
+            },
+            "drift": {
+              "label": "Lueur qui dérive",
+              "description": "La lueur holographique se déplace lentement. Désactivée quand la réduction des mouvements est demandée."
+            },
+            "uiSounds": {
+              "label": "Sons de l'interface",
+              "description": "Un cliquetis de relais au clic sur les boutons et les listes, issu du pack de sons actif."
+            }
+          }
+        },
+        "flux": {
+          "description": "Du verre liquide et une nouvelle disposition. Les serveurs flottent dans un dock de verre en haut, les salons défilent en bande d'onglets, la conversation tient dans une colonne centrée sous une saisie en verre, le tout sur un champ de métaballes qui dérive. Le verre a de l'épaisseur, une lumière de bord et des franges colorées, et courbe ce qui se trouve derrière lui quand le navigateur le permet. Reprend tes couleurs principale et d'accent. S'accorde avec le pack de sons Flux, un synthé liquide et résonant.",
+          "options": {
+            "dock": {
+              "label": "Disposition horizontale",
+              "description": "Les serveurs dans un dock en haut, les salons en bande d'onglets, la conversation dans une colonne centrée et toi dans une capsule en haut à droite. Les fenêtres de moins de 1024 px gardent la disposition côte à côte. Désactive cette option pour réordonner les serveurs."
+            },
+            "lens": {
+              "label": "Réfraction de lentille",
+              "description": "Les commandes en verre courbent ce qui se trouve derrière leurs bords. Uniquement dans les navigateurs basés sur Chromium et l'application Windows ; ailleurs, le verre garde sa lumière de bord sans la courbure."
+            },
+            "liquid": {
+              "label": "Champ liquide",
+              "description": "Des métaballes dérivent derrière le verre. Désactivé, il reste une aurore immobile."
+            },
+            "drift": {
+              "label": "Dérive vivante",
+              "description": "Le champ bouge à 20 images par seconde tant que la fenêtre a le focus. Désactivé, il reste immobile et ne se redessine que lorsque quelque chose change."
+            },
+            "orbits": {
+              "label": "Anneaux en orbite",
+              "description": "De fins anneaux colorés tournent lentement derrière le liquide."
+            },
+            "morph": {
+              "label": "Formes qui se transforment",
+              "description": "Les serveurs et avatars fondent en blobs mouvants sous le pointeur."
+            },
+            "uiSounds": {
+              "label": "Sons de l'interface",
+              "description": "Un blip liquide au clic sur les boutons et les listes, issu du pack de sons actif."
+            }
+          }
+        },
+        "paper": {
+          "description": "Un bureau de papier aux fenêtres 1 bit : table en papier journal, encre chaude et le bleu de la mascotte. Les boîtes de dialogue et les paramètres s'ouvrent comme des fenêtres à barre de titre rayée et case de fermeture carrée, la discussion tient dans une fenêtre encadrée et chaque cadre projette une ombre d'encre dure. Un surligneur marque le salon ouvert et tes mentions, les titres sont dans une grotesque condensée épaisse, les libellés et les heures sont à chasse fixe et le code s'imprime sur un écran sombre. Passe le thème en sombre pour des cadres pâles sur une table sombre.",
+          "options": {
+            "shadows": {
+              "label": "Ombres d'encre",
+              "description": "Ombres dures décalées sous les fenêtres, menus, boutons et icônes de serveurs. Désactivé, les cadres d'encre restent à plat sur la table."
+            },
+            "jelly": {
+              "label": "Mouvement gélatine",
+              "description": "Les boutons, réactions et icônes de serveurs s'écrasent puis se stabilisent quand tu les survoles. Désactivé quand la réduction des mouvements est demandée."
+            },
+            "grain": {
+              "label": "Grain de papier",
+              "description": "Un bruit fin sur la table derrière les fenêtres."
+            },
+            "glyphs": {
+              "label": "Fond de glyphes",
+              "description": "Un texte de discussion pâle à chasse fixe derrière les messages, disposé le long des lignes nodales d'une plaque vibrante. Statique."
+            }
+          }
+        }
+      },
+      "typography": "Typographie",
+      "font": "Police",
+      "fontDescription": "Choisissez la police utilisée dans toute l’application. Les polices personnalisées sont chargées à la demande : la police par défaut ne télécharge rien de plus.",
+      "fontDefault": "Par défaut (Figtree)",
+      "fontSample": "Portez ce vieux whisky 0123",
+      "emojiStyle": "Style des emojis",
+      "emojiPack": "Pack d’emojis",
+      "emojiPackDescription": "Choisissez le style d’emoji utilisé dans toute l’application",
+      "effects": "Effets",
+      "glassEffects": "Activer les effets de flou et de verre",
+      "glassEffectsDescription": "De nombreuses surfaces (fenêtres modales, popovers, le dock vocal, la barre latérale) utilisent {property} pour un effet de verre dépoli. Désactivez-le pour une interface plate et plus nette, ou si votre appareil peine avec le flou pendant les appels vocaux ou vidéo.",
+      "invalidCssColour": "Pas une couleur CSS : {value}",
+      "palette": {
+        "title": "Idées de palettes",
+        "random": "Palette aléatoire",
+        "surprise": "Surprenez-moi",
+        "fromImageTitle": "Créer une palette à partir d’une image",
+        "fromImage": "Depuis une image",
+        "mood": "Ambiance de la palette",
+        "moods": {
+          "soft": "Douce",
+          "balanced": "Équilibrée",
+          "vivid": "Vive",
+          "neon": "Néon"
+        },
+        "schemes": {
+          "mono": "Mono",
+          "analogous": "Analogue",
+          "complement": "Complémentaire",
+          "split": "Divisée",
+          "triad": "Triade",
+          "dusk": "Crépuscule"
+        },
+        "cardTitle": "{scheme} : principale {primary}, accent {accent}",
+        "noOpaquePixels": "Cette image n’a aucun pixel opaque à échantillonner.",
+        "imageReadFailed": "Impossible de lire cette image."
+      },
+      "presets": {
+        "harmonyTeal": {
+          "name": "Turquoise Harmony",
+          "description": "Le look emblématique de Harmony : frais, moderne et accueillant"
+        },
+        "emerald": {
+          "name": "Émeraude",
+          "description": "Croissance, équilibre et harmonie naturelle"
+        },
+        "coral": {
+          "name": "Corail",
+          "description": "Chaleureux, énergique et tourné vers la communauté"
+        },
+        "violet": {
+          "name": "Violet",
+          "description": "Créatif et singulier, aux tons violets profonds"
+        },
+        "rose": {
+          "name": "Rose",
+          "description": "Audacieux, chaleureux et axé sur la communauté"
+        },
+        "oceanBlue": {
+          "name": "Bleu océan",
+          "description": "Un thème bleu océan profond aux tons froids"
+        },
+        "sakura": {
+          "name": "Sakura",
+          "description": "Thème rose inspiré des cerisiers en fleurs"
+        },
+        "forest": {
+          "name": "Forêt",
+          "description": "Tons verts naturels de forêt"
+        },
+        "amber": {
+          "name": "Ambre",
+          "description": "Tons chauds d'ambre et d'or"
+        }
+      },
+      "variableGroups": {
+        "navigationRail": "Barre de navigation",
+        "brand": "Marque",
+        "primaryLayout": "Principale (mise en page)",
+        "backgroundSurfaces": "Surfaces d'arrière-plan",
+        "text": "Texte",
+        "icons": "Icônes",
+        "status": "Statut",
+        "semantic": "Sémantique",
+        "borders": "Bordures",
+        "alphaTransparency": "Alpha / transparence",
+        "tooltipsOverlays": "Infobulles et superpositions"
+      }
     },
     "voice": {
       "title": "Voix et vidéo",
@@ -2398,7 +2821,24 @@
       "inputThreshold": "Seuil",
       "decibels": "{db} dB",
       "inputMeterHint": "La barre devient verte tant que ton micro est envoyé.",
-      "inputMeterIdle": "Rejoins un salon vocal pour voir ton niveau ici."
+      "inputMeterIdle": "Rejoins un salon vocal pour voir ton niveau ici.",
+      "videoOption": {
+        "res360": "360p (Basse)",
+        "res480": "480p (SD)",
+        "res720": "720p (HD)",
+        "res1080": "1080p (Full HD)",
+        "source": "Source (native)",
+        "fps": "{n} ips",
+        "fpsLow": "{n} ips (Faible)",
+        "fpsCinema": "{n} ips (Cinéma)",
+        "kbpsLow": "{n} kbps (Faible)",
+        "kbpsVoice": "{n} kbps (Voix)",
+        "kbpsStandard": "{n} kbps (Standard)",
+        "kbpsHigh": "{n} kbps (Élevée)"
+      },
+      "quality480": "480p (standard)",
+      "quality720": "720p (HD)",
+      "quality1080": "1080p (Full HD)"
     },
     "notifications": {
       "title": "Notifications",
@@ -2681,6 +3121,38 @@
           "title": "Notification de test",
           "message": "Ceci est une notification de test"
         }
+      },
+      "android": {
+        "title": "Push sur cet appareil",
+        "openSettings": "Ouvrir les paramètres de notification",
+        "allow": "Autoriser les notifications",
+        "unavailable": "L’état du push n’est pas disponible dans cette version. Les notifications s’affichent toujours tant que Harmony est ouvert.",
+        "service": "Service push",
+        "noDistributor": "Pour recevoir le push sans les services Google, installez un distributeur UnifiedPush comme ntfy, puis choisissez-le ici.",
+        "sendTest": "Envoyer un push de test",
+        "testSent": "Push de test envoyé",
+        "testFailed": "Impossible d’envoyer le push de test",
+        "off": "Désactivé",
+        "auto": "Automatique",
+        "fcmThrough": "Google (FCM) via {host}",
+        "unifiedPushVia": "UnifiedPush via {name}",
+        "note": {
+          "notAllowed": "les notifications ne sont pas autorisées",
+          "chooseService": "choisissez un service push ci-dessous",
+          "noService": "aucun service push n’est disponible",
+          "active": "actif",
+          "registering": "enregistrement"
+        },
+        "hint": {
+          "notInBuild": "Non inclus dans cette version",
+          "needsPlay": "Nécessite les services Google Play",
+          "googleRelayed": "Distribué par Google, relayé par {host}",
+          "notConfigured": "Non configuré sur ce serveur",
+          "google": "Distribué par Google",
+          "auto": "Un service push que vous avez choisi, sinon Google, sinon la seule application UnifiedPush",
+          "ownService": "Distribué par votre propre service push",
+          "off": "Notifications uniquement tant que Harmony est ouvert"
+        }
       }
     },
     "announcements": {
@@ -2768,6 +3240,14 @@
           "name": "Quitter / fermer",
           "description": "Quitte le plein écran ou la vue focalisée, ferme les panneaux, puis réduit la vue d’appel. Fonctionne quand le focus est dans la vue d’appel."
         }
+      },
+      "mouse": {
+        "left": "Clic gauche",
+        "middle": "Clic du milieu",
+        "right": "Clic droit",
+        "back": "Bouton {n} de la souris (précédent)",
+        "forward": "Bouton {n} de la souris (suivant)",
+        "numbered": "Bouton {n} de la souris"
       }
     },
     "advanced": {
@@ -2779,7 +3259,41 @@
       "copyRawData": "Copier les données brutes",
       "reportBugSection": "Aide",
       "reportBug": "Signaler un bug",
-      "reportBugDescription": "Ouvrir GitHub pour signaler un bug ou demander une fonctionnalité."
+      "reportBugDescription": "Ouvrir GitHub pour signaler un bug ou demander une fonctionnalité.",
+      "installApp": "Installer l’application",
+      "installAppDescription": "Installez Harmony comme application pour un chargement plus rapide et des notifications. Sur ordinateur, utilisez l’icône d’installation de la barre d’adresse de votre navigateur si le bouton ci-dessous n’est pas disponible.",
+      "runOnLogin": "Lancer Harmony à l’ouverture de session",
+      "runOnLoginEnabled": "Vous l’avez activé depuis {url}. Appuyez ci-dessous pour voir les instructions si vous devez le modifier.",
+      "runOnLoginAvailable": "{browser} peut lancer Harmony automatiquement chaque fois que vous ouvrez une session sur votre ordinateur.",
+      "runOnLoginChange": "Modifier",
+      "runOnLoginSetUp": "Configurer",
+      "betaFeatures": "Fonctionnalités bêta",
+      "todayDashboard": "Tableau de bord Aujourd’hui",
+      "todayDashboardDescription": "Un résumé quotidien des salons avec de l’activité non lue, des fils auxquels vous participez et des publications tendance. Ajoute une icône de soleil à la barre latérale des serveurs.",
+      "aiSummaries": "Résumés IA sur l’appareil",
+      "aiSummariesDescription": "Résumez le récapitulatif Aujourd’hui avec le modèle d’IA intégré à votre navigateur (Gemini Nano de Chrome). Tout s’exécute sur votre appareil - rien n’est envoyé à un serveur.",
+      "aiSummariesUnsupported": "Non pris en charge par ce navigateur.",
+      "desktopApp": "Application de bureau",
+      "launchAtStartup": "Lancer au démarrage",
+      "launchAtStartupDescription": "Lancez Harmony automatiquement à l’ouverture de session sur votre ordinateur. L’application démarre réduite dans la zone de notification.",
+      "launchAtStartupFailed": "Impossible de modifier le lancement au démarrage",
+      "richPresence": "Activité de jeu (rich presence)",
+      "richPresenceDescription": "Affichez le jeu auquel vous jouez comme statut. La détection se fait localement ; seul le nom du jeu est partagé, comme texte de statut.",
+      "gameOverlay": "Overlay vocal en jeu",
+      "gameOverlayDescription": "Des tuiles vocales flottantes, transparentes aux clics, au-dessus de votre jeu pendant un appel. Appuyez sur Ctrl+Maj+O pour activer ou désactiver l’interaction.",
+      "developerSettings": "Paramètres développeur",
+      "dataManagement": "Gestion des données",
+      "clearCache": "Vider le cache",
+      "clearCacheDescription": "Vide les caches du service worker, le cache des emojis en mémoire et le manifeste des images d’arrière-plan mis en cache localement. Vos messages, clés d’identité et paramètres sont conservés.",
+      "clearingCache": "Vidage...",
+      "cacheCleared": "{count} cache vidé et cache des emojis réinitialisé | {count} caches vidés et cache des emojis réinitialisé",
+      "clearCacheFailed": "Impossible de vider le cache",
+      "deleteAccount": "Supprimer le compte",
+      "deleteAccountTitle": "Supprimer votre compte ?",
+      "deleteConfirmType": "Saisissez {word} pour confirmer",
+      "deleting": "Suppression…",
+      "deleteForever": "Supprimer le compte définitivement",
+      "accountDeleted": "Votre compte a été supprimé."
     },
     "security": "Sécurité",
     "myBots": "Mes bots",
@@ -2851,7 +3365,156 @@
         "cacheStats": "{sounds} sons en cache, {themes} thèmes chargés",
         "exportSettings": "Exporter les paramètres",
         "importSettings": "Importer les paramètres",
-        "resetDefaults": "Rétablir les valeurs par défaut"
+        "resetDefaults": "Rétablir les valeurs par défaut",
+        "cachedCount": "{size}/{max} en cache",
+        "pickerLabel": "Thème sonore",
+        "status": {
+          "ready": "Prêt • {theme}",
+          "unknownTheme": "Inconnu",
+          "loading": "Chargement du système de thèmes...",
+          "preloading": "Préchargement de {theme}...",
+          "error": "Erreur système détectée",
+          "uninitialized": "Non initialisé",
+          "unknown": "État inconnu"
+        },
+        "toasts": {
+          "changeFailed": {
+            "title": "Échec du changement de thème",
+            "message": "Impossible de passer au thème sonore sélectionné"
+          },
+          "error": {
+            "title": "Erreur de thème",
+            "message": "Une erreur inconnue s'est produite"
+          },
+          "testDone": {
+            "title": "Test audio",
+            "message": "Test du thème terminé"
+          },
+          "testFailed": {
+            "title": "Échec du test audio",
+            "message": "Impossible de lire le son de test"
+          },
+          "preview": {
+            "title": "Aperçu du thème",
+            "message": "Test de {theme}"
+          },
+          "previewFailed": {
+            "title": "Échec du test",
+            "message": "Impossible de prévisualiser le son du thème"
+          },
+          "cacheCleared": {
+            "title": "Cache vidé",
+            "message": "Le cache audio a bien été vidé"
+          },
+          "cacheClearFailed": {
+            "title": "Échec du vidage du cache",
+            "message": "Impossible de vider le cache audio"
+          },
+          "exported": {
+            "title": "Paramètres exportés",
+            "message": "Les paramètres du thème sonore ont été téléchargés"
+          },
+          "exportFailed": {
+            "title": "Échec de l'exportation",
+            "message": "Impossible d'exporter les paramètres du thème"
+          },
+          "imported": {
+            "title": "Paramètres importés",
+            "message": "Les paramètres du thème sonore ont été restaurés"
+          },
+          "importFailed": {
+            "title": "Échec de l'importation",
+            "message": "Impossible d'importer les paramètres du thème. Vérifie le format du fichier."
+          },
+          "reset": {
+            "title": "Paramètres réinitialisés",
+            "message": "Les paramètres du thème sonore ont été réinitialisés aux valeurs par défaut"
+          },
+          "resetFailed": {
+            "title": "Échec de la réinitialisation",
+            "message": "Impossible de réinitialiser les paramètres du thème"
+          }
+        },
+        "packs": {
+          "default": {
+            "name": "Par défaut",
+            "description": "Des effets sonores sobres et minimalistes pour rester concentré"
+          },
+          "futuristic": {
+            "name": "Futuriste",
+            "description": "Des signaux sonores futuristes pour une expérience moderne et vivante"
+          },
+          "neokobe": {
+            "description": "Sons d'interface noir-cyberpunk pour le skin SDR-001"
+          },
+          "skyglass": {
+            "description": "Cloches de verre, gouttes d'eau et bulles pour le skin Skyglass"
+          },
+          "lattice": {
+            "description": "Pings cristallins FM, clics de relais et balayages pour le skin Lattice"
+          },
+          "flux": {
+            "description": "Synthé liquide résonant, graves enveloppants et scintillements de verre pour le skin Flux"
+          }
+        },
+        "errors": {
+          "init": "Erreur d'initialisation inconnue",
+          "switch": "Échec du changement de thème",
+          "preload": "Échec du préchargement : {theme}",
+          "playback": "Échec de la lecture audio : {action}",
+          "test": "Échec du test audio : {action}",
+          "import": "Impossible d'importer les préférences",
+          "reset": "Impossible de réinitialiser les paramètres"
+        }
+      },
+      "page": {
+        "description": "Choisissez les sons joués pour les notifications, les appels et les actions de l’interface.",
+        "testDescription": "Testez le son des différentes actions avec votre thème actuel",
+        "packsTitle": "Importer et exporter des packs de thèmes",
+        "packsDescription": "Exportez un thème sonore complet (sons + métadonnées) pour le partager ou le sauvegarder. Importez un pack pour l’ajouter comme thème personnalisé.",
+        "exporting": "Exportation...",
+        "exportPack": "Exporter le pack",
+        "importPack": "Importer un pack",
+        "statusTitle": "État du système audio",
+        "statusDescription": "État actuel du système de thèmes sonores",
+        "status": {
+          "ready": "Prêt",
+          "loading": "Chargement",
+          "preloading": "Préchargement",
+          "error": "Erreur",
+          "uninitialized": "Non initialisé"
+        },
+        "clearCacheDescription": "Vider les fichiers audio en cache pour forcer le rechargement de tous les sons",
+        "soundsLoaded": "{size}/{max} sons chargés",
+        "resetDescription": "Rétablir tous les paramètres audio par défaut",
+        "toast": {
+          "soundTest": "Test du son",
+          "played": "{sound} joué",
+          "soundTestFailed": "Échec du test du son",
+          "testFailed": "Impossible de tester {sound}",
+          "cacheCleared": "Cache vidé",
+          "audioCacheCleared": "Cache audio vidé",
+          "cacheClearFailed": "Impossible de vider le cache",
+          "audioCacheClearFailed": "Impossible de vider le cache audio",
+          "reset": "Audio réinitialisé",
+          "resetDone": "Paramètres audio rétablis par défaut",
+          "resetFailed": "Échec de la réinitialisation",
+          "resetFailedDetail": "Impossible de réinitialiser le système audio",
+          "themeChanged": "Thème modifié",
+          "switchedTheme": "Thème {theme} activé",
+          "packExported": "Pack exporté",
+          "packExportedDetail": "Pack de thème sonore téléchargé au format ZIP",
+          "exportFailed": "Échec de l’exportation",
+          "exportFailedDetail": "Impossible d’exporter le pack de thème",
+          "fileTooLarge": "Fichier trop volumineux",
+          "fileTooLargeDetail": "Le pack doit faire moins de {size}",
+          "packImported": "Pack importé",
+          "packImportedDetail": "{theme} ajouté comme thème personnalisé",
+          "importFailed": "Échec de l’importation",
+          "invalidPack": "Format de pack audio non valide",
+          "initFailed": "Échec de l’initialisation",
+          "initFailedDetail": "Impossible d’initialiser le système audio"
+        }
       }
     },
     "buildInfo": {
@@ -2912,7 +3575,9 @@
       "unsavedChanges": "Vous avez des modifications de profil non enregistrées",
       "changesReset": "Modifications du profil réinitialisées",
       "handleCopied": "Identifiant copié",
-      "copyFailed": "Impossible de copier"
+      "copyFailed": "Impossible de copier",
+      "dateUnknown": "Inconnue",
+      "emailNotProvided": "Non renseigné"
     },
     "dmPolicy": {
       "title": "Messages directs",
@@ -2922,6 +3587,20 @@
       "known": "Membres de serveurs et personnes que je suis",
       "following": "Seulement les personnes que je suis",
       "failed": "Impossible d'enregistrer ce réglage"
+    },
+    "privacyPage": {
+      "description": "Choisissez qui peut interagir avec vous, gérez la sécurité de votre compte et contrôlez l’utilisation de vos données.",
+      "accountSecurity": "Sécurité du compte",
+      "encryption": "Paramètres de chiffrement",
+      "dataPrivacy": "Données et confidentialité",
+      "stripTrackers": "Retirer les paramètres de suivi des URL",
+      "stripTrackersDescription": "Retire automatiquement les paramètres de suivi (comme ?si=...) des URL de vos messages pour YouTube, X/Twitter, TikTok, Instagram et Facebook.",
+      "blockedUsers": "Utilisateurs bloqués",
+      "mutedUsers": "Utilisateurs masqués",
+      "userUnblocked": "Utilisateur débloqué",
+      "unblockFailed": "Impossible de débloquer l’utilisateur",
+      "userUnmuted": "Utilisateur réaffiché",
+      "unmuteFailed": "Impossible de réafficher l’utilisateur"
     }
   },
   "navigation": {
@@ -3482,7 +4161,26 @@
       "feedLabel": "Publications de {domain}"
     },
     "instanceStatusFilter": "Statut",
-    "instanceSoftwareFilter": "Logiciel"
+    "instanceSoftwareFilter": "Logiciel",
+    "fediverseUser": "Utilisateur du fédivers",
+    "userNotFound": "Utilisateur introuvable",
+    "altBadge": "ALT",
+    "postInteractions": {
+      "invalidUser": "ID d'utilisateur invalide",
+      "invalidPost": "ID de publication invalide",
+      "unknown": "Erreur inconnue"
+    },
+    "requestFailed": "Échec de la requête",
+    "interactionErrors": {
+      "favorite": "Impossible d’ajouter la publication aux favoris",
+      "boost": "Impossible de booster la publication",
+      "bookmark": "Impossible d’ajouter la publication aux marque-pages"
+    },
+    "shareSheet": {
+      "title": "Publication Harmony",
+      "text": "Découvrez cette publication"
+    },
+    "mediaKindAlt": "{kind} : {alt}"
   },
   "moderation": {
     "reportAlert": {
@@ -3613,6 +4311,20 @@
       "moderators": "Modérateurs de {server}",
       "outcomeBy": "Modérateurs de {server} : {outcome}",
       "reviewedTitle": "Les modérateurs de {server} ont examiné ton signalement"
+    },
+    "reportModal": {
+      "reportedMessage": "Message signalé",
+      "reportedPost": "Publication signalée",
+      "whyReporting": "Pourquoi signalez-vous ce contenu ?",
+      "additionalDetails": "Détails supplémentaires (facultatif)",
+      "detailsPlaceholder": "Ajoutez tout contexte utile...",
+      "submitting": "Envoi…",
+      "submitted": "Signalement envoyé",
+      "thanks": "Merci de contribuer à la sécurité de la communauté. Nous examinerons votre signalement prochainement.",
+      "hideMessage": "Masquer ce message",
+      "hidePost": "Masquer cette publication",
+      "hideHint": "Le retirer de votre affichage",
+      "keepVisible": "Garder visible"
     }
   },
   "files": {
@@ -3652,7 +4364,16 @@
     "noFavoritesOf": "Aucun favori ({kind}) pour le moment",
     "noneFound": "Aucun résultat ({kind})",
     "results": "Résultats ({kind})",
-    "clip": "Clip"
+    "clip": "Clip",
+    "viaKlipy": "via KLIPY",
+    "adFrame": "Publicité",
+    "kind": {
+      "stickers": "autocollants",
+      "clips": "clips",
+      "memes": "mèmes",
+      "aiEmoji": "emoji IA",
+      "gifs": "GIF"
+    }
   },
   "emoji": {
     "messageReactionLimit": "Ce message a {count} réactions différentes. Ajoutez-vous à l'une d'elles.",
@@ -3679,7 +4400,35 @@
     "symbols": "Symboles",
     "flags": "Drapeaux",
     "custom": "Personnalisés",
-    "noResults": "Aucun émoji trouvé"
+    "noResults": "Aucun émoji trouvé",
+    "picker": {
+      "favorites": "Favoris",
+      "favoritesHint": "Faites un clic droit (ou un appui long) sur un emoji pour l’ajouter ici.",
+      "frequent": "Fréquemment utilisés",
+      "loading": "Chargement des emojis...",
+      "favorite": "Ajouter l’emoji aux favoris",
+      "unfavorite": "Retirer l’emoji des favoris",
+      "copyId": "Copier l’ID de l’emoji",
+      "removeFrequent": "Retirer des emojis fréquemment utilisés",
+      "copiedImageLink": "Lien de l’image copié",
+      "addedFavorite": ":{name}: ajouté aux favoris",
+      "removedFavorite": ":{name}: retiré des favoris",
+      "copied": ":{name}: copié",
+      "removedFrequent": ":{name}: retiré des emojis fréquemment utilisés"
+    },
+    "reactionPicker": {
+      "title": "Choisissez une réaction",
+      "currentPack": "Actuel : {pack}",
+      "systemPack": "Système",
+      "loading": "Chargement des émojis...",
+      "frequent": "Fréquemment utilisés"
+    },
+    "groups": {
+      "mine": "Mes emojis",
+      "instance": "Emojis de {name}",
+      "instanceUnnamed": "Emojis de l'instance",
+      "ai": "Générés par IA"
+    }
   },
   "emojiInfo": {
     "dialog": "Emoji",
@@ -3751,7 +4500,11 @@
       "socialHint": "Les abonnements, j'aime et boosts du Fediverse apparaissent ici.",
       "unread": "Rien de non lu",
       "unreadHint": "Les notifications lues restent sous Toutes."
-    }
+    },
+    "reactedToMessage": "{actor} a réagi avec {emoji} à votre message",
+    "reactedToPost": "{actor} a réagi avec {emoji} à votre publication",
+    "followedYou": "{actor} s'est abonné à vous",
+    "requestedFollow": "{actor} a demandé à s'abonner à vous"
   },
   "newcomerAlerts": {
     "notification": {
@@ -3848,7 +4601,10 @@
     "activityStarted": "{actor} a lancé {app}.",
     "activityEnded": "{actor} a lancé {app} : {players} joueurs, {duration}.",
     "activityEndedAlone": "{actor} a lancé {app} : {duration}.",
-    "activityFallback": "une activité"
+    "activityFallback": "une activité",
+    "legacyJoin": "Bienvenue à {name} !",
+    "legacyInvitedBy": "Invité par {name}.",
+    "legacyLeave": "{name} a quitté le serveur."
   },
   "time": {
     "now": "maintenant",
@@ -3928,12 +4684,7 @@
     "filesTooLargeSkipped": "{count} fichier(s) ignoré(s) : dépassent la limite de 1 Mo",
     "noValidImageFiles": "Aucun fichier image valide sélectionné",
     "cannotUploadEmojisLimit": "Impossible de téléverser {count} emojis. La limite du serveur est de {max} emojis (actuellement {current})",
-    "emojisUploadedSuccess": "{count} emoji{plural} téléversé{plural} avec succès !",
-    "emojisFailedToUpload": "Échec du téléversement de {count} emoji{plural}",
     "failedToUploadEmojis": "Échec du téléversement des emojis",
-    "confirmDeleteEmojis": "Êtes-vous sûr de vouloir supprimer {count} emoji{plural} ?",
-    "emojisDeletedSuccess": "{count} emoji{plural} supprimé{plural} avec succès !",
-    "emojisFailedToDelete": "Échec de la suppression de {count} emoji{plural}",
     "failedToDeleteEmojis": "Échec de la suppression des emojis",
     "emojiRenamedSuccess": "Emoji renommé en :{name}:",
     "failedToRenameEmoji": "Échec du renommage de l'emoji",
@@ -4071,7 +4822,10 @@
       "advertisedEmptyTitle": "Aucun serveur inscrit pour l'instant",
       "advertisedEmpty": "Les serveurs que leurs propriétaires inscrivent dans la fédération apparaissent ici. Aucune instance connue de celle-ci n'en inscrit encore : parcourez une autre instance par son domaine.",
       "hostedOn": "Hébergé sur {instance}",
-      "advertisedErrorTitle": "Impossible de lire les instances connues"
+      "advertisedErrorTitle": "Impossible de lire les instances connues",
+      "signInToJoin": "Connectez-vous pour rejoindre des serveurs",
+      "joinFailed": "Impossible de rejoindre le serveur. Réessayez.",
+      "profileFailed": "Impossible de charger le profil de l'utilisateur"
     },
     "haveInviteLink": "Vous avez un lien d'invitation ? Collez-le ici",
     "inviteLink": "Lien d'invitation",
@@ -4210,7 +4964,8 @@
       "agree": "Accepter et rejoindre"
     },
     "joined": "Vous avez rejoint {server}",
-    "joinFailed": "Impossible de rejoindre le serveur"
+    "joinFailed": "Impossible de rejoindre le serveur",
+    "acceptAs": "Accepter en tant que {name}"
   },
   "nav": {
     "chat": "Chat",
@@ -4228,7 +4983,10 @@
     "chatNotFound": "Ce chat ou cette conversation n'existe pas ou vous n'y avez pas accès.",
     "settingsNotFound": "Cette page de paramètres n'existe pas.",
     "defaultNotFound": "La page que vous recherchez n'existe pas ou a été déplacée.",
-    "requestedAddress": "Adresse demandée"
+    "requestedAddress": "Adresse demandée",
+    "serverTitle": "Serveur introuvable",
+    "serverNotFound": "Le serveur que vous cherchez n'existe pas ou vous n'y avez pas accès.",
+    "browseServers": "Parcourir les serveurs"
   },
   "onboarding": {
     "title": "Configurez votre profil",
@@ -4781,6 +5539,17 @@
       "unlock": "Ce canal vocal est chiffré de bout en bout. Déverrouillez le chiffrement avec votre clé de récupération pour le rejoindre.",
       "dmSetup": "Les appels de cette conversation sont chiffrés de bout en bout. Configurez le chiffrement pour appeler ou répondre.",
       "dmUnlock": "Les appels de cette conversation sont chiffrés de bout en bout. Déverrouillez le chiffrement avec votre clé de récupération pour appeler ou répondre."
+    },
+    "dmStatus": {
+      "noKeys": "Le chiffrement est activé, mais vos clés ne sont pas configurées",
+      "locked": "Le chiffrement est activé. Déverrouillez-le pour lire les messages chiffrés",
+      "setup": "Le chiffrement est activé. Configurez vos clés pour participer"
+    },
+    "sendFallback": {
+      "notSent": "Échec du chiffrement. Le message n’a pas été envoyé.",
+      "sentUnencrypted": "Échec du chiffrement. Le message a été envoyé sans chiffrement.",
+      "required": "Ce canal exige le chiffrement de bout en bout.",
+      "declined": "Le message n’a pas été envoyé."
     }
   },
   "today": {
@@ -5441,10 +6210,6 @@
       "title": "Aucun appareil enregistré pour le moment",
       "description": "Les appareils apparaissent ici une fois le chiffrement déverrouillé sur ceux-ci."
     },
-    "screenSources": {
-      "screens": "Aucun écran disponible",
-      "windows": "Aucune fenêtre disponible"
-    },
     "admin": {
       "discoveredInstances": {
         "title": "Aucune instance découverte à partir des interactions des utilisateurs pour le moment",
@@ -5540,7 +6305,22 @@
     "installDescription": "Chargement plus rapide et accès hors ligne",
     "install": "Installer",
     "installing": "Installation…",
-    "dismiss": "Masquer l'invitation à installer"
+    "dismiss": "Masquer l'invitation à installer",
+    "update": {
+      "title": "Mise à jour disponible",
+      "body": "Une nouvelle version de Harmony est prête à être installée",
+      "updating": "Mise à jour...",
+      "now": "Mettre à jour maintenant"
+    },
+    "shareTitle": "Harmony - Application de chat sécurisée",
+    "shareText": "Harmony est une application de chat sécurisée et privée.",
+    "manualInstall": {
+      "ios": "Touchez Partager, puis « Sur l'écran d'accueil ».",
+      "android": "Utilisez le menu Chrome (⋮) → Installer l'application, ou Ajouter à l'écran d'accueil.",
+      "desktop": "Utilisez l'icône d'installation dans la barre d'adresse, ou le menu Chrome → « Installer Harmony… »."
+    },
+    "installUnavailable": "L'installation n'est pas disponible depuis cette page pour le moment. {hint}",
+    "installFailed": "L'installation a été annulée ou n'a pas pu démarrer. {hint}"
   },
   "security": {
     "subtitle": "Votre mot de passe, l'authentification à deux facteurs et les appareils connectés à votre compte.",
@@ -5872,7 +6652,27 @@
       "linkHint": "Connectez-vous sur le nouvel appareil, puis scannez le code qu'il affiche.",
       "pendingPairing": "En attente de liaison. Scannez le code qu'il affiche.",
       "pendingPlain": "S'est connecté et a déverrouillé vos messages chiffrés.",
-      "scanCode": "Scanner le code"
+      "scanCode": "Scanner le code",
+      "deny": "Refuser",
+      "rename": "Renommer",
+      "signedOut": "Déconnecté",
+      "showInactive": "Afficher {count} appareil déconnecté | Afficher {count} appareils déconnectés",
+      "hideInactive": "Masquer {count} appareil déconnecté | Masquer {count} appareils déconnectés",
+      "trust": {
+        "verified": "Vérifié",
+        "recovery": "Historique déverrouillé",
+        "account": "Nouveaux messages uniquement",
+        "untrusted": "Limité"
+      },
+      "platform": {
+        "web": "web",
+        "desktop": "ordinateur",
+        "mobile": "mobile",
+        "other": "appareil"
+      },
+      "lastActive": "{platform} · dernière activité {time}",
+      "minutesAgo": "il y a {count} min",
+      "hoursAgo": "il y a {count} h"
     },
     "approval": {
       "pairingText": "Cet appareil attend vos messages chiffrés. S'il vous appartient et se trouve devant vous, scannez le code qu'il affiche : les clés ne sont envoyées qu'à l'appareil dont vous scannez le code.",
@@ -5882,7 +6682,20 @@
       "plainText": "Un nouvel appareil s'est connecté à votre compte et a déverrouillé lui-même vos messages chiffrés ; rien n'est envoyé depuis cet appareil. Si ce n'était pas vous, sécurisez votre compte.",
       "thatWasMe": "C'était moi",
       "staysSignedIn": "{device} reste connecté.",
-      "newDeviceFallback": "Le nouvel appareil"
+      "newDeviceFallback": "Le nouvel appareil",
+      "newLogin": "Nouvelle connexion",
+      "newLoginOn": "Nouvelle connexion sur {device}",
+      "secureAccount": "Non, sécuriser mon compte",
+      "moreWaiting": "+{count} autre connexion en attente | +{count} autres connexions en attente",
+      "waitingTitle": "Approuvez cette connexion sur un autre appareil",
+      "waitingText": "Ouvrez Harmony sur un appareil où vous êtes déjà connecté et appuyez sur {button} pour déverrouiller ici l'historique de vos messages chiffrés. Les nouveaux messages fonctionnent en attendant.",
+      "notMeThisLogin": "Ce n'était pas moi",
+      "approveFailed": "Impossible d'approuver la connexion",
+      "tryAgain": "Veuillez réessayer.",
+      "secureFailed": "Impossible de sécuriser le compte",
+      "signOutFailed": "Impossible de se déconnecter",
+      "signOutFailedHint": "Veuillez vous déconnecter manuellement depuis le menu de l'utilisateur.",
+      "secureFailedHintPath": "Veuillez réessayer depuis {settings} → {privacy}."
     },
     "settings": {
       "devicesDescription": "Les appareils connectés à votre compte. Pour donner vos messages chiffrés à un nouvel appareil, liez-le : connectez-vous dessus et scannez le code qu'il affiche depuis un appareil déjà déverrouillé.",
@@ -5891,7 +6704,91 @@
       "pairingCopyTitle": "Clés conservées pour la liaison",
       "pairingCopyDescription": "Cet appareil conserve une copie lisible de vos clés de chiffrement pour pouvoir lier des appareils sans la phrase de récupération. Si vous la supprimez, la liaison depuis cet appareil demandera à nouveau la phrase.",
       "pairingCopyRemoved": "Copie de vos clés supprimée de cet appareil",
-      "pairingCopyRemoveFailed": "Impossible de supprimer la copie de vos clés"
+      "pairingCopyRemoveFailed": "Impossible de supprimer la copie de vos clés",
+      "loadingStatus": "Chargement de l'état du chiffrement...",
+      "statusHeading": "État du chiffrement",
+      "statusDescription": "Le chiffrement de bout en bout protège vos messages : seuls vous et vos destinataires pouvez les lire.",
+      "setUp": "Configurer le chiffrement",
+      "unlockHistory": "Déverrouiller l'historique des messages",
+      "recoveryKeyHeading": "Clé de récupération",
+      "recoveryKeyActive": "Clé de récupération active",
+      "recoveryKeyActiveDescription": "Vos clés de chiffrement sont protégées par une phrase de récupération de 12 mots.",
+      "viewInfo": "Voir les infos",
+      "backupStored": "Sauvegarde chiffrée stockée sur le serveur",
+      "lastBackup": "Dernière sauvegarde : {time}",
+      "sessionKeys": "Clés de session",
+      "activeRooms": "Salons actifs",
+      "activeRoomsDescription": "Salons où vous pouvez envoyer des messages chiffrés",
+      "receivedKeys": "Clés reçues",
+      "receivedKeysDescription": "Clés reçues d'autres utilisateurs",
+      "syncing": "Synchronisation...",
+      "syncKeys": "Synchroniser les clés",
+      "diagnostics": "Diagnostic",
+      "diagnosticsDescription": "Vérifie en une seule fois vos clés d'identité, la sauvegarde sur le serveur et la confiance des appareils.",
+      "checking": "Vérification...",
+      "runDiagnosis": "Lancer le diagnostic",
+      "devicesHeading": "Vos appareils",
+      "backupHeading": "Sauvegarde et récupération",
+      "createBackup": "Créer une sauvegarde maintenant",
+      "createBackupDescription": "Déclencher manuellement une sauvegarde chiffrée sur le serveur",
+      "backingUp": "Sauvegarde...",
+      "backup": "Sauvegarder",
+      "exportFile": "Exporter un fichier de sauvegarde",
+      "exportFileDescription": "Télécharger un fichier de sauvegarde chiffré à conserver localement",
+      "export": "Exporter",
+      "importFile": "Importer un fichier de sauvegarde",
+      "importFileDescription": "Restaurer depuis un fichier de sauvegarde exporté",
+      "import": "Importer",
+      "importing": "Importation...",
+      "importModalText": "Sélectionnez votre fichier de sauvegarde chiffré pour restaurer vos clés de chiffrement.",
+      "backupFileLabel": "Fichier de sauvegarde",
+      "recoveryHeading": "Récupération",
+      "restoreWithKey": "Restaurer avec la clé de récupération",
+      "restoreWithKeyDescription": "Vous avez une phrase de récupération ? Saisissez-la pour restaurer votre chiffrement",
+      "enterRecoveryKey": "Saisir la clé de récupération",
+      "reset": "Réinitialiser le chiffrement",
+      "resetDescription": "Supprimer toutes les clés de chiffrement et repartir de zéro. Vous perdrez l'accès à tous les messages chiffrés.",
+      "infoTitle": "Informations sur la clé de récupération",
+      "infoStatus": "État :",
+      "infoActive": "Active",
+      "infoWordCount": "Nombre de mots :",
+      "infoWords": "{count} mot | {count} mots",
+      "infoVerificationCode": "Code de vérification :",
+      "infoStorageHint": "Indice de stockage :",
+      "infoNeverStored": "Votre clé de récupération n'est jamais stockée sur le serveur. Vous seul la possédez.",
+      "infoLost": "Si vous avez perdu votre clé de récupération, configurez un nouveau chiffrement.",
+      "resetConfirmTitle": "Réinitialiser le chiffrement ?",
+      "resetConfirmText": "Toutes vos clés de chiffrement et sauvegardes seront définitivement supprimées.",
+      "resetConfirmWarning": "Vous ne pourrez plus lire aucun message chiffré auparavant.",
+      "resetConfirmUndone": "Cette action est irréversible.",
+      "resetting": "Réinitialisation...",
+      "statusNotSetUp": "Chiffrement non configuré",
+      "statusLocked": "Chiffrement verrouillé",
+      "statusActive": "Chiffrement actif",
+      "statusNotSetUpDescription": "Configurez une clé de récupération pour activer le chiffrement de bout en bout",
+      "statusLockedDescription": "Saisissez votre phrase de récupération, ou approuvez cet appareil depuis un autre, pour déverrouiller l'historique de vos messages",
+      "statusActiveDescription": "Vos messages sont protégés par le chiffrement de bout en bout",
+      "toast": {
+        "loadFailed": "Impossible de charger les paramètres de chiffrement",
+        "diagnosisFailed": "Échec du diagnostic",
+        "backupWrongPhrase": "Votre sauvegarde de clés sur le serveur a été créée avec une autre phrase de récupération et ne peut pas être ouverte avec l'actuelle. Les nouveaux messages ne sont pas concernés.",
+        "backupRestoreFailed": "Échec de la restauration de la sauvegarde des clés : {error}",
+        "synced": "{restored} sessions de sauvegarde et {claimed} nouvelles clés de session synchronisées",
+        "nothingToSync": "Aucune nouvelle clé à synchroniser",
+        "syncFailed": "Impossible de synchroniser les clés",
+        "backupCreated": "Sauvegarde créée",
+        "backupFailed": "Impossible de créer la sauvegarde",
+        "exported": "Fichier de sauvegarde exporté",
+        "exportFailed": "Impossible d'exporter la sauvegarde",
+        "imported": "{count} session importée | {count} sessions importées",
+        "importFailed": "Impossible d'importer la sauvegarde",
+        "leftVoice": "Vous avez quitté l'appel vocal chiffré (ses clés ont été réinitialisées)",
+        "resetDone": "Le chiffrement a été réinitialisé",
+        "resetFailed": "Impossible de réinitialiser le chiffrement",
+        "enabled": "Chiffrement activé",
+        "restored": "Chiffrement restauré",
+        "syncedKeys": "{count} clé de session synchronisée | {count} clés de session synchronisées"
+      }
     },
     "recovery": {
       "anotherDevice": "Un autre appareil",
@@ -5901,7 +6798,25 @@
       "qrPasteLabel": "Ou collez les données du QR code",
       "pairingCodeScanned": "C'est un code d'appairage d'appareil. Utilisez l'onglet Un autre appareil.",
       "notRecoveryKey": "Ce QR code n'est pas une clé de récupération Harmony",
-      "qrReadFailed": "Échec de la lecture du QR code"
+      "qrReadFailed": "Échec de la lecture du QR code",
+      "title": "Restaurer le chiffrement",
+      "phraseTab": "Phrase de récupération",
+      "phraseDescription": "Saisissez votre phrase de récupération de 12 mots pour retrouver l'accès à vos messages chiffrés.",
+      "wordPlaceholder": "Mot {n}",
+      "verificationLabel": "Code de vérification (facultatif)",
+      "verificationPlaceholder": "Code à 6 caractères",
+      "verificationHint": "Si vous avez enregistré un code de vérification, saisissez-le ici pour confirmer que vous avez la bonne phrase",
+      "restoring": "Restauration...",
+      "valid": "Phrase de récupération valide",
+      "invalid": "Phrase de récupération invalide. Vérifiez les fautes de frappe.",
+      "validationFailed": "Échec de la validation",
+      "pastedPhrase": "Phrase de récupération de 12 mots collée",
+      "phrasePasted": "Phrase de récupération collée",
+      "wrongWordCount": "12 mots attendus, {count} reçus",
+      "clipboardFailed": "Impossible de lire le presse-papiers",
+      "qrRead": "QR code lu",
+      "codeMismatch": "Le code de vérification ne correspond pas",
+      "restoreFailed": "Impossible de restaurer le chiffrement"
     },
     "recoverySetup": {
       "multiDevice": "Liez un nouvel appareil en scannant un QR code depuis celui-ci ; votre clé de récupération sert de solution de secours",
@@ -5910,11 +6825,95 @@
       "qrHint": "Quiconque voit ce code peut lire vos messages chiffrés ; n'en faites pas de capture d'écran. Pour configurer un autre appareil, liez-le plutôt : connectez-vous dessus et scannez le code qu'il affiche depuis cet appareil.",
       "newDeviceLabel": "Nouvel appareil ?",
       "newDeviceReminder": "{label} Connectez-vous dessus et choisissez {another}, puis scannez son code depuis cet appareil. Vos messages se déverrouillent sans saisir la clé de récupération.",
-      "rememberNeed": "Vous en aurez besoin si vous perdez l'accès à tous vos appareils connectés ou effacez les données de votre navigateur."
+      "rememberNeed": "Vous en aurez besoin si vous perdez l'accès à tous vos appareils connectés ou effacez les données de votre navigateur.",
+      "title": "Configurer le chiffrement des messages",
+      "introText": "Vos messages seront chiffrés : seuls vous et vos destinataires pourrez les lire. Même les serveurs de Harmony ne peuvent pas accéder à leur contenu.",
+      "featureRecoveryKey": "Clé de récupération",
+      "featureRecoveryKeyText": "Une phrase de 12 mots qui protège toutes vos clés de chiffrement",
+      "featureBackup": "Sauvegarde chiffrée",
+      "featureBackupText": "Vos clés sont sauvegardées sur le serveur, chiffrées avec votre clé de récupération",
+      "featureMultiDevice": "Multi-appareil",
+      "featureRecovery": "Récupération",
+      "featureRecoveryText": "Si vous videz votre cache, saisissez votre clé de récupération pour retrouver l'accès",
+      "importantLabel": "Important :",
+      "importantWarning": "{label} Notez votre clé de récupération et conservez-la en lieu sûr. Si vous la perdez ainsi que vos appareils, vous ne pourrez plus lire vos messages chiffrés.",
+      "keyHeading": "Votre clé de récupération",
+      "keyInstruction": "Notez ces 12 mots dans l'ordre. Conservez-les en lieu sûr : vous en aurez besoin pour récupérer vos clés de chiffrement.",
+      "generating": "Génération de votre clé de récupération...",
+      "qrAlt": "QR code de la clé de récupération",
+      "verificationCode": "Code de vérification : {code}",
+      "verificationCodeHint": "Enregistrez ce code pour vérifier plus tard que vous avez la bonne phrase",
+      "verifyHeading": "Vérifiez votre clé de récupération",
+      "verifyInstruction": "Pour vous assurer que vous avez bien enregistré votre clé de récupération, saisissez les mots à ces positions :",
+      "wordLabel": "Mot nº {n}",
+      "wordPlaceholder": "Saisissez le mot {n}",
+      "verifyError": "Veuillez vérifier correctement tous les mots",
+      "doneHeading": "Le chiffrement est configuré",
+      "doneText": "Votre chiffrement de bout en bout est maintenant actif. Vos messages seront chiffrés et sauvegardés en toute sécurité sur le serveur.",
+      "summaryHeading": "Ce qui est configuré",
+      "summaryKey": "Clé de récupération générée et vérifiée",
+      "summaryKeys": "Clés de chiffrement créées",
+      "summaryBackup": "Sauvegarde chiffrée stockée sur le serveur",
+      "summaryReady": "Prêt à envoyer des messages chiffrés",
+      "rememberLabel": "À retenir :",
+      "rememberKeep": "{label} Conservez en lieu sûr votre clé de récupération de 12 mots.",
+      "processing": "Traitement...",
+      "completeSetup": "Terminer la configuration",
+      "steps": {
+        "intro": "Introduction",
+        "key": "Clé de récupération",
+        "verify": "Vérifier",
+        "complete": "Terminé"
+      },
+      "toast": {
+        "qrFailed": "Impossible de générer le QR code",
+        "copied": "Clé de récupération copiée",
+        "copyFailed": "Impossible de copier dans le presse-papiers",
+        "downloaded": "Clé de récupération téléchargée",
+        "generateFailed": "Impossible de générer la clé de récupération",
+        "setupFailed": "Impossible de terminer la configuration"
+      },
+      "file": {
+        "title": "Clé de récupération Harmony",
+        "body": "Générée le : {date}\n\nVotre phrase de récupération de 12 mots :\n{words}\n\nCode de vérification : {code}\n\nIMPORTANT : conservez ce fichier en lieu sûr et ne le partagez pas.\nToute personne disposant de ces mots peut accéder à vos messages chiffrés."
+      }
     },
     "keyShareFailed": {
       "title": "Certains membres ne pourront peut-être pas lire votre message",
       "body": "La clé pour le lire n'a pas atteint {count} membre. Son application la redemandera à l'ouverture du message. | La clé pour le lire n'a pas atteint {count} membres. Leurs applications la redemanderont à l'ouverture du message."
+    },
+    "diagnosticRows": {
+      "unlocked": "Chiffrement déverrouillé",
+      "profile": "Profil",
+      "identity": "Clé d'identité",
+      "signing": "Clé de signature",
+      "backup": "Sauvegarde des clés",
+      "device": "Confiance de l'appareil",
+      "unlockedYes": "Les clés sont chargées dans cette session",
+      "unlockedNo": "Saisissez votre phrase de récupération pour déverrouiller",
+      "profileMissing": "Le service de chiffrement n'a pas d'identifiant de profil résolu",
+      "identityUnpublished": "Aucune clé d'identité publiée — lancez la configuration du chiffrement",
+      "identityNoLocal": "Une clé publiée existe mais aucune clé privée locale — déverrouillez avec votre phrase de récupération",
+      "identityMatch": "La clé privée locale correspond à la clé publique publiée",
+      "identityMismatch": "La clé locale ne correspond PAS à la clé publiée — déverrouillez à nouveau pour réparer",
+      "identityUnverified": "Association non vérifiée (ancien enregistrement) — déverrouillez à nouveau pour vérifier",
+      "signingPublished": "Clé de signature des messages publiée",
+      "signingMissing": "Aucune clé de signature — elle sera créée automatiquement au prochain déverrouillage",
+      "identityLookupFailed": "Échec de la recherche : {error}",
+      "backupNone": "Pas encore de sauvegarde sur le serveur — elle est créée automatiquement lorsque vous utilisez le chiffrement",
+      "backupLocked": "Une sauvegarde existe ({count} session) — déverrouillez pour la vérifier | Une sauvegarde existe ({count} sessions) — déverrouillez pour la vérifier",
+      "backupOk": "La sauvegarde se déchiffre avec votre phrase actuelle ({count} session) | La sauvegarde se déchiffre avec votre phrase actuelle ({count} sessions)",
+      "backupWrongPhrase": "La sauvegarde existe mais ne se déchiffre PAS avec votre phrase de récupération actuelle (créée avec une ancienne phrase)",
+      "backupCheckFailed": "Échec de la vérification de la sauvegarde : {error}",
+      "deviceUnregistered": "Cet appareil n'est pas encore enregistré",
+      "deviceRevoked": "Cet appareil a été révoqué",
+      "deviceTrust": "Niveau de confiance : {level}",
+      "deviceUnreadable": "Impossible de lire l'état de l'appareil"
+    },
+    "identityChanged": {
+      "title": "Identité de sécurité modifiée",
+      "message": "Les clés de chiffrement de {name} ont changé. C’est normal si l’application a été réinstallée ou si la personne s’est connectée sur un nouvel appareil.",
+      "messageUnnamed": "Les clés de chiffrement d’un contact ont changé. C’est normal si l’application a été réinstallée ou si la personne s’est connectée sur un nouvel appareil."
     }
   },
   "admin": {
@@ -5967,7 +6966,26 @@
         "reporter": "Auteur du signalement",
         "reported": "Utilisateur signalé",
         "server": "Serveur"
-      }
+      },
+      "title": "Signalements et modération",
+      "pendingCount": "{count} en attente",
+      "filters": {
+        "pending": "En attente",
+        "investigating": "En cours d'examen",
+        "resolved": "Résolus",
+        "dismissed": "Rejetés",
+        "all": "Tous"
+      },
+      "reporterComment": "Commentaire de l'auteur du signalement",
+      "deletedSince": "Supprimé depuis le signalement",
+      "sensitive": "Sensible",
+      "contentWarning": "CW : {warning}",
+      "viewRemote": "Voir sur l'instance distante",
+      "deleteMedia": "Supprimer les médias ({count})",
+      "deleteMediaTitle": "Supprimer les médias",
+      "deleteMediaMessage": "Supprimer {count} fichier média du stockage ? Cette action est irréversible. | Supprimer {count} fichiers médias du stockage ? Cette action est irréversible.",
+      "deleteMediaDone": "{count} fichier média supprimé | {count} fichiers médias supprimés",
+      "deleteMediaFailed": "Impossible de supprimer les fichiers médias"
     },
     "federation": {
       "limited": "Limité",
@@ -5985,7 +7003,78 @@
       "ignoreReportsConfirmBody": "Les signalements envoyés depuis {domain} seront désormais écartés. Les signalements déjà reçus restent dans la file, et rien ne change pour {domain}.",
       "reportsIgnoredToast": "Les signalements de {domain} sont ignorés",
       "reportsAcceptedToast": "Les signalements de {domain} sont de nouveau acceptés",
-      "reportsFailed": "Impossible de modifier le traitement des signalements de ce domaine"
+      "reportsFailed": "Impossible de modifier le traitement des signalements de ce domaine",
+      "title": "Gestion de la fédération",
+      "addInstance": "Ajouter une instance",
+      "refresh": "Actualiser",
+      "statTotal": "Instances au total",
+      "statActive7d": "Actives (7 jours)",
+      "trusted": "De confiance",
+      "blocked": "Bloquées",
+      "active": "Actives",
+      "inactive": "Inactive",
+      "endpointHealth": "État des points de terminaison",
+      "successRate": "{rate} % de réussite",
+      "totalEndpoints": "Points de terminaison au total",
+      "deadEndpoints": "Points de terminaison morts",
+      "healthyEndpoints": "Sains",
+      "failingEndpoints": "Avec des échecs",
+      "deadWarning": "{count} point de terminaison marqué comme mort et retiré des abonnements | {count} points de terminaison marqués comme morts et retirés des abonnements",
+      "purgeAll": "Tout purger",
+      "endpointFailures": "{count} échec | {count} échecs",
+      "lastFailure": "Dernier échec : {time}",
+      "removeEndpoint": "Retirer ce point de terminaison",
+      "maintenance": "Maintenance de la fédération",
+      "keysOk": "Tous les utilisateurs locaux ont des paires de clés valides",
+      "keysIssues": "Utilisateurs sans clés : {missing}. Avec un état incohérent : {inconsistent}.",
+      "keySweepTitle": "Génération des clés",
+      "keySweepDesc": "Générer les clés RSA manquantes pour les utilisateurs locaux qui n’en ont pas",
+      "runSweep": "Lancer",
+      "orphanTitle": "Nettoyage des clés orphelines",
+      "orphanDesc": "Corriger les utilisateurs dont les clés sont incohérentes (publique sans privée ou l’inverse)",
+      "runCleanup": "Nettoyer",
+      "scheduleNote": "Les tâches de maintenance s’exécutent automatiquement : génération des clés à 03:00 UTC, nettoyage des orphelines à 04:00 UTC",
+      "directory": "Annuaire des instances",
+      "filterAll": "Toutes les instances",
+      "searchPlaceholder": "Rechercher des instances…",
+      "loadingInstances": "Chargement des instances…",
+      "userCount": "{count} utilisateur | {count} utilisateurs",
+      "postCount": "{count} publication | {count} publications",
+      "lastSeen": "Vu pour la dernière fois : {time}",
+      "refreshInstance": "Actualiser les infos de l’instance",
+      "markTrusted": "Marquer comme de confiance",
+      "removeTrust": "Retirer la confiance",
+      "blockInstance": "Bloquer l’instance",
+      "unblockInstance": "Débloquer l’instance",
+      "deleteInstance": "Supprimer l’instance",
+      "pageRange": "{from}-{to} sur {total}",
+      "discovery": "Découverte d’instances",
+      "tabInteractions": "Depuis les interactions",
+      "tabSearch": "Rechercher et ajouter",
+      "interactionCount": "{count} interaction | {count} interactions",
+      "domainPlaceholder": "Saisissez un domaine (ex. : mastodon.social)",
+      "discovering": "Recherche…",
+      "federationEnabled": "Fédération activée",
+      "apiAvailable": "API disponible",
+      "detailSoftware": "Logiciel :",
+      "detailDescription": "Description :",
+      "detailUsers": "Utilisateurs :",
+      "detailPosts": "Publications :",
+      "detailAdmin": "Administrateur :",
+      "addAsTrusted": "Ajouter comme instance de confiance",
+      "purgeConfirmTitle": "Purger les points de terminaison morts",
+      "purgeConfirmBody": "Supprimer définitivement {count} point de terminaison mort et ses livraisons échouées ? Cette action est irréversible. | Supprimer définitivement les {count} points de terminaison morts et leurs livraisons échouées ? Cette action est irréversible.",
+      "purgeConfirm": "Purger",
+      "refreshFailed": "Échec de l’actualisation des infos de l’instance",
+      "trustFailed": "Échec de la modification de la confiance de l’instance",
+      "blockConfirmBody": "Bloquer cette instance ?",
+      "blockConfirm": "Bloquer",
+      "blockFailed": "Échec de la modification du blocage de l’instance",
+      "deleteConfirmBody": "Voulez-vous vraiment supprimer cette instance ? Toutes les données de fédération seront supprimées.",
+      "deleteFailed": "Échec de la suppression de l’instance",
+      "addFailed": "Échec de l’ajout de l’instance",
+      "discoverFailed": "Échec de la découverte de l’instance. Vérifiez que le domaine est valide et prend en charge ActivityPub.",
+      "instanceAdded": "Instance ajoutée"
     },
     "instance": {
       "mirrorStatusProgress": "Stockage des fichiers Discord : {queued} en attente, {size} stockés",
@@ -6027,7 +7116,126 @@
       "maxInstanceStickers": "Stickers de l'instance",
       "maxInstanceStickersHint": "De 0 à 500. Chaque compte local peut envoyer les stickers de l'instance. 0 les désactive.",
       "maxPersonalStickers": "Stickers personnels par utilisateur",
-      "maxPersonalStickersHint": "De 0 à 100. 0, la valeur par défaut, désactive les stickers personnels."
+      "maxPersonalStickersHint": "De 0 à 100. 0, la valeur par défaut, désactive les stickers personnels.",
+      "title": "Configuration",
+      "tabGeneral": "Général",
+      "tabFederation": "Fédération",
+      "tabBranding": "Identité",
+      "tabAuth": "Authentification",
+      "chatSettings": "Paramètres du chat",
+      "maxServerSize": "Taille maximale d’un serveur",
+      "maxServersPerUser": "Serveurs qu’un compte peut posséder",
+      "maxServersPerUserHint": "Serveurs locaux ; administrateurs et modérateurs de l’instance exemptés. 0 = aucune limite. Par défaut : 100.",
+      "maxBotsPerUser": "Bots qu’un compte peut posséder",
+      "maxBotsPerUserHint": "Les webhooks de salon et les ponts Discord et Matrix liés ne sont pas comptés. 0 = aucune limite. Par défaut : 25.",
+      "maxMessageLength": "Longueur maximale d’un message",
+      "maxMediaAttachments": "Pièces jointes maximales par publication/message",
+      "maxMediaAttachmentsHint": "Nombre maximal d’images, vidéos ou fichiers par publication ou message. Par défaut : 20.",
+      "allowFileUploads": "Autoriser l’envoi de fichiers",
+      "enableVoiceChannels": "Activer les salons vocaux",
+      "bridgeAttachmentsTitle": "Pièces jointes des ponts",
+      "bridgeAttachmentsHint": "Règle pour toute l’instance concernant les images et fichiers venant de plateformes externes via un pont (Discord, etc.). Les propriétaires de bots ne peuvent pas la modifier.",
+      "attachmentHandling": "Traitement des pièces jointes",
+      "attachmentModeLink": "Lien uniquement (URL de CDN externes, peuvent expirer)",
+      "attachmentModeRefresh": "Actualiser à la demande (re-signer les URL expirées à l’affichage ; pas de disque en plus)",
+      "attachmentModeMirror": "Copier dans le stockage (permanent ; utilise le disque, croît avec le trafic)",
+      "attachmentMirrorWarning": "Attention : chaque pièce jointe relayée est copiée dans {table}. Les salons reliés très actifs peuvent consommer beaucoup de stockage.",
+      "attachmentRefreshHint": "Nécessite la passerelle des bots. Les liens Discord expirés sont re-signés à l’affichage (pas de disque, pas de badge « modifié ») : par le pont qui les a publiés tant qu’il est connecté, sinon par le bot Discord de cette instance, dont ont aussi besoin les liens publiés sur Harmony.",
+      "klipyTitle": "Sélecteur de médias (Klipy)",
+      "klipyHint": "La recherche de GIF et de médias passe par le backend de fédération. Les clés d’API se trouvent dans l’environnement du backend ({ads} / {noads}), pas ici.",
+      "klipyAdsGroup": "Publicités et attribution",
+      "gifAdsTitle": "Publicités GIF",
+      "gifAdsNoteLabel": "Remarque :",
+      "gifAdsNote": "{note} Ce réglage ne concerne que le sélecteur de GIF sur mobile. Sur ordinateur, aucune publicité n’est affichée. C’est une limite de KLIPY en tant que régie publicitaire.",
+      "gifAdsDesc": "Les non-soutiens voient des publicités Klipy dans le sélecteur de GIF mobile ; les soutiens sans publicité jamais. Klipy ne diffuse des publicités que sur les navigateurs mobiles (PWA installées comprises) : d’après leur API, l’ordinateur n’en reçoit jamais. Désactivé, personne ne voit de publicité. Nécessite aussi une clé Klipy avec publicités et les publicités activées dans le Klipy Partner Dashboard. L’option sans publicité par palier se trouve dans Financement et soutiens.",
+      "klipyWatermarkTitle": "Filigrane KLIPY sur les médias envoyés",
+      "klipyWatermarkDesc": "Ajoute un petit badge KLIPY aux GIF et stickers partagés. La mention « Search KLIPY » du sélecteur est toujours affichée (attribution obligatoire) ; ce filigrane est facultatif mais recommandé.",
+      "optionalCollections": "Collections facultatives",
+      "optionalCollectionsHint": "Les GIF et les stickers sont toujours disponibles. Activer ces options ajoute des onglets au sélecteur et des commandes slash ; désactivées, elles sont masquées partout.",
+      "clipsTitle": "Clips",
+      "clipsDesc": "Courtes vidéos en boucle (avec son facultatif).",
+      "memesTitle": "Mèmes",
+      "memesDesc": "La collection de mèmes de Klipy.",
+      "aiEmojiBrowseTitle": "Parcourir les émojis IA",
+      "aiEmojiBrowseDesc": "Parcourez les émojis IA de Klipy. En choisir un l’insère dans la zone de saisie comme émoji (il n’est pas hébergé ici : il se comporte comme un émoji distant et compte parmi les plus utilisés).",
+      "aiEmojiGenGroup": "Génération d’émojis IA",
+      "aiEmojiGenTitle": "Autoriser la génération d’émojis IA",
+      "aiEmojiGenDesc": "Les membres génèrent leurs propres émojis à partir d’un texte ; ils sont hébergés sur cette instance et apparaissent dans la catégorie « Générés par IA » du sélecteur d’émojis. Klipy limite la génération à 20 par jour et par instance (partagé), plus une limite quotidienne par utilisateur.",
+      "trendingTitle": "Tendances et découverte",
+      "trendingPosts": "Publications tendance",
+      "refreshing": "Actualisation…",
+      "refreshTrending": "Actualiser les tendances",
+      "refreshTrendingHint": "Recalculer manuellement les publications tendance. Se fait normalement toutes les 15 minutes.",
+      "federationSettings": "Paramètres de fédération",
+      "maxPostLength": "Longueur maximale d’une publication",
+      "retryAttempts": "Tentatives de livraison",
+      "maxCustomEmojis": "Émojis personnalisés maximum par serveur",
+      "maxCustomEmojisHint": "Nombre maximal d’émojis personnalisés par serveur. 0 = illimité.",
+      "emojiQuality": "Qualité d’image des émojis personnalisés",
+      "emojiQualityHint": "Qualité JPEG/WebP (20-100) des images d’émojis personnalisés redimensionnées depuis le stockage. Par défaut : 80. Des valeurs plus basses réduisent la bande passante au prix d’artefacts.",
+      "allowEmojiNames": "Autoriser les émojis personnalisés dans les noms affichés",
+      "allowEmojiNamesHint": "Désactivé, les émojis ne s’affichent pas dans les noms et ne peuvent pas être ajoutés.",
+      "brandingTitle": "Identité de l’instance",
+      "instanceName": "Nom de l’instance",
+      "namePlaceholder": "Instance Harmony",
+      "nameHint": "Ce nom apparaît sur la page de connexion et d’inscription. Les modifications seront visibles par tous les utilisateurs.",
+      "instanceDescription": "Description de l’instance",
+      "descriptionPlaceholder": "Une plateforme sociale fédérée",
+      "descriptionHint": "Cette description apparaît en sous-titre sur la page de connexion et d’inscription.",
+      "instanceRules": "Règles de l’instance",
+      "rulesPlaceholder": "Une règle par ligne, par ex.\nSoyez respectueux\nPas de spam",
+      "rulesHint": "Affichées une fois aux utilisateurs qui rejoignent un serveur ici, et aux utilisateurs fédérés qui rejoignent via un lien d’invitation.",
+      "instanceIcon": "Icône de l’instance",
+      "uploadIcon": "Envoyer une icône",
+      "iconHint": "Le logo de votre instance. Affiché aux autres instances fédérées et dans l’annuaire des instances.",
+      "instanceBanner": "Bannière de l’instance",
+      "uploadBanner": "Cliquez pour envoyer une bannière",
+      "changeBanner": "Changer la bannière",
+      "bannerHint": "Une image d’en-tête pour votre instance. Affichée dans l’annuaire des instances et exposée via NodeInfo.",
+      "themeColor": "Couleur du thème",
+      "themeColorHint": "La couleur d’accentuation de votre instance. Exposée via NodeInfo pour les autres instances.",
+      "defaultTheme": "Thème par défaut pour les nouveaux utilisateurs",
+      "defaultThemeHint": "Importez un fichier JSON de thème (exporté depuis les paramètres d’apparence) à utiliser par défaut pour les nouveaux utilisateurs et les visiteurs non connectés.",
+      "importTheme": "Importer un thème JSON",
+      "clearTheme": "Retirer le thème par défaut",
+      "themeSet": "Un thème par défaut est défini",
+      "legalTitle": "Mentions légales et contact",
+      "termsUrl": "URL des conditions d’utilisation",
+      "termsHint": "Lien vers vos conditions d’utilisation. Affiché sur la page d’inscription. Laissez vide pour le masquer.",
+      "privacyUrl": "URL de la politique de confidentialité",
+      "privacyHint": "Lien vers votre politique de confidentialité. Affiché sur la page d’inscription. Laissez vide pour le masquer.",
+      "maintainerName": "Nom du responsable",
+      "maintainerNamePlaceholder": "Administrateur",
+      "maintainerNameHint": "Nom de contact public de l’administrateur de cette instance.",
+      "maintainerEmail": "E-mail du responsable",
+      "maintainerEmailHint": "E-mail de contact public. Exposé via NodeInfo pour la transparence de la fédération.",
+      "saving": "Enregistrement…",
+      "saveBranding": "Enregistrer l’identité",
+      "webrtcTitle": "Paramètres WebRTC / voix",
+      "webrtcMode": "Mode WebRTC",
+      "modeHybrid": "Hybride (SFU si configuré, sinon P2P)",
+      "modeSfu": "SFU uniquement (LiveKit)",
+      "modeP2p": "P2P uniquement (pair à pair)",
+      "modeHint": "Le mode hybride utilise le serveur LiveKit s’il est configuré, sinon le P2P. Tous les participants d’un appel utilisent le même transport.",
+      "livekitUrl": "URL du serveur LiveKit",
+      "livekitUrlHint": "URL WebSocket du serveur LiveKit (configurée dans le .env du backend)",
+      "maxStageListeners": "Auditeurs maximum d’une scène",
+      "maxStageListenersHint": "Taille maximale de l’audience des événements sur scène (mode orateur)",
+      "trendingRefreshed": "Publications tendance actualisées",
+      "trendingRefreshFailed": "Échec de l’actualisation des publications tendance",
+      "mustLogInConfig": "Vous devez être connecté pour enregistrer la configuration",
+      "federationSaveFailed": "Échec de l’enregistrement des paramètres de fédération",
+      "voiceSaveFailed": "Échec de l’enregistrement des paramètres vocaux",
+      "configSaved": "Configuration enregistrée",
+      "configSaveFailed": "Échec de l’enregistrement de la configuration",
+      "mustLogInBranding": "Vous devez être connecté pour enregistrer l’identité de l’instance",
+      "brandingSaved": "Identité de l’instance enregistrée",
+      "brandingSaveFailed": "Échec de l’enregistrement de l’identité de l’instance",
+      "invalidThemeJson": "Fichier JSON de thème invalide",
+      "themeImported": "Thème par défaut importé et enregistré",
+      "themeParseFailed": "Impossible de lire le fichier JSON du thème",
+      "themeCleared": "Thème par défaut retiré",
+      "themeClearFailed": "Échec du retrait du thème par défaut"
     },
     "signInProviders": {
       "title": "Fournisseurs de connexion",
@@ -6082,7 +7290,23 @@
         "maxPersonalEmojisPerUser": "Emojis personnels par utilisateur",
         "maxStickersPerServer": "Stickers par serveur",
         "maxInstanceStickers": "Stickers de l'instance",
-        "maxPersonalStickersPerUser": "Stickers personnels par utilisateur"
+        "maxPersonalStickersPerUser": "Stickers personnels par utilisateur",
+        "instanceName": "Nom de l'instance",
+        "instanceDescription": "Description de l'instance",
+        "termsUrl": "URL des conditions",
+        "privacyUrl": "URL de confidentialité",
+        "maxPostLength": "Longueur maximale des publications",
+        "maxServerSize": "Taille maximale des serveurs",
+        "maxServersPerUser": "Serveurs par compte",
+        "maxBotsPerUser": "Bots par compte",
+        "driveInstanceLimit": "Stockage Drive sur toute l'instance",
+        "maxMessageLength": "Longueur maximale des messages",
+        "maxCustomEmojisPerServer": "Emojis personnalisés max. par serveur",
+        "customEmojiQuality": "Qualité d'image des emojis personnalisés",
+        "allowFileUploads": "Autoriser l'envoi de fichiers",
+        "enableVoiceChannels": "Activer les salons vocaux",
+        "federationRetryAttempts": "Nouvelles tentatives de fédération",
+        "oauthProviders": "Fournisseurs OAuth"
       },
       "staff": {
         "someServer": "un serveur",
@@ -6111,6 +7335,26 @@
         "inviteEmailed": "A envoyé une invitation par e-mail à {email}",
         "inviteReissued": "A créé un nouveau lien d’invitation pour {email}",
         "inviteRevoked": "A révoqué l’invitation pour {email}"
+      },
+      "title": "Activité récente",
+      "filter": {
+        "all": "Tous les événements",
+        "federation": "Fédération",
+        "moderation": "Modération",
+        "security": "Sécurité"
+      },
+      "source": "Admin : {name}",
+      "emptyValue": "(vide)",
+      "event": "Événement",
+      "configChanged": "{label} : {value} (avant : {old})",
+      "configSet": "{label} : {value}",
+      "userShort": "utilisateur {id}…",
+      "userId": "utilisateur : {id}",
+      "userAction": {
+        "suspended": "A suspendu {who}",
+        "deleted": "A supprimé {who}",
+        "unsuspended": "A levé la suspension de {who}",
+        "moderated": "A modéré {who}"
       }
     },
     "antiSpam": {
@@ -6418,6 +7662,192 @@
           "waiting": "En attente"
         }
       }
+    },
+    "performance": {
+      "title": "Suivi des performances",
+      "subtitle": "Mesures et analyses de votre instance Harmony.",
+      "cronNote": "La vue d’ensemble, la latence et les requêtes lentes nécessitent une tâche pg_cron appelant {fn} pour être alimentées.",
+      "fullscreen": "Plein écran",
+      "exitFullscreen": "Quitter le plein écran",
+      "range": {
+        "lastHour": "Dernière heure",
+        "last6Hours": "6 dernières heures",
+        "last24Hours": "24 dernières heures",
+        "last7Days": "7 derniers jours",
+        "lastMonth": "Dernier mois",
+        "last3Months": "3 derniers mois"
+      },
+      "refresh": "Actualiser",
+      "refreshing": "Actualisation…",
+      "totalRequests": "Requêtes totales",
+      "avgResponseTime": "Temps de réponse moyen",
+      "errorRate": "Taux d’erreur",
+      "federationSuccess": "Réussite de la fédération",
+      "status": {
+        "excellent": "Excellent",
+        "good": "Bon",
+        "slow": "Lent",
+        "healthy": "Sain",
+        "elevated": "Élevé",
+        "critical": "Critique",
+        "degraded": "Dégradé",
+        "issues": "Problèmes"
+      },
+      "latencyChart": "Latence des requêtes dans le temps",
+      "noChartData": "Aucune donnée pour la période sélectionnée",
+      "barTitle": "{label} : {value} ms",
+      "slowQueries": "Requêtes lentes",
+      "queryTable": "Table : {table}",
+      "queryRows": "Lignes : {rows}",
+      "federationHealth": "État de la fédération",
+      "unknownSoftware": "Inconnu",
+      "statSuccess": "Réussite",
+      "statLatency": "Latence",
+      "lastSeen": "Vu pour la dernière fois : {time}"
+    },
+    "announcements": {
+      "hint": "Annonces visibles par tous les utilisateurs de l'instance. Créez-les et gérez-les ici.",
+      "newTitle": "Nouvelle annonce",
+      "editTitle": "Modifier l'annonce",
+      "titleLabel": "Titre",
+      "titlePlaceholder": "Titre de l'annonce",
+      "contentLabel": "Contenu (HTML de base accepté)",
+      "contentPlaceholder": "Contenu de l'annonce",
+      "iconLabel": "Icône (un emoji, ou info, warning, megaphone, maintenance, update, security)",
+      "imageUrlLabel": "URL de l'image (facultatif)",
+      "startsAtLabel": "Commence le (facultatif)",
+      "startsAtHint": "Laissez vide pour publier immédiatement. Les heures sont interprétées dans votre fuseau horaire local.",
+      "endsAtLabel": "Se termine le (facultatif)",
+      "endsAtHint": "Laissez vide pour qu'elle n'expire pas. Passé cette heure, l'annonce est masquée automatiquement aux utilisateurs.",
+      "pinned": "Épinglée",
+      "showPopup": "Afficher une fenêtre",
+      "active": "Active",
+      "inactive": "Inactive",
+      "endBeforeStart": "L'heure de fin doit être postérieure à l'heure de début",
+      "updated": "Annonce mise à jour",
+      "created": "Annonce créée",
+      "saveFailed": "Impossible d'enregistrer l'annonce",
+      "deleteTitle": "Supprimer l'annonce",
+      "deleteMessage": "Supprimer cette annonce ?",
+      "deleted": "Annonce supprimée",
+      "deleteFailed": "Impossible de supprimer l'annonce"
+    },
+    "featured": {
+      "title": "Communautés en vedette",
+      "hint": "Épinglez des serveurs publics en haut de la page de découverte des communautés. Les serveurs en vedette apparaissent en premier.",
+      "loading": "Chargement des communautés…",
+      "addTitle": "Mettre en vedette",
+      "removeTitle": "Retirer de la vedette",
+      "pin": "Épingler",
+      "unpin": "Désépingler",
+      "added": "« {name} » est en vedette",
+      "removed": "« {name} » n'est plus en vedette",
+      "toggleFailed": "Impossible de modifier la mise en vedette"
+    },
+    "panel": {
+      "title": "Panneau de contrôle de l'instance",
+      "moderationTitle": "Modération",
+      "tabs": {
+        "overview": "Aperçu",
+        "federation": "Fédération",
+        "users": "Utilisateurs",
+        "reports": "Signalements",
+        "content": "Contenu",
+        "config": "Configuration",
+        "funding": "Financement",
+        "tools": "Outils"
+      },
+      "overviewTitle": "Aperçu du système",
+      "healthTitle": "État du système",
+      "performanceTitle": "Surveillance des performances",
+      "approximate": "Approximatif",
+      "approximately": "environ",
+      "database": "Base de données",
+      "responseMs": "{ms} ms",
+      "connections": "{count} connexion | {count} connexions",
+      "federationQueue": "File de fédération",
+      "pendingDeliveries": "livraisons en attente",
+      "databaseSize": "Taille de la base de données",
+      "totalSize": "taille totale",
+      "stats": {
+        "users": "Utilisateurs au total",
+        "servers": "Serveurs de discussion",
+        "instances": "Instances fédérées",
+        "posts": "Publications au total",
+        "newLast24h": "+{count} au cours des dernières 24 heures",
+        "activeLast30d": "{count} actifs au cours des 30 derniers jours"
+      },
+      "updating": "Mise à jour…",
+      "updated": "Mis à jour : {age}",
+      "statsUnavailable": "Statistiques indisponibles",
+      "allOperational": "Tous les systèmes fonctionnent",
+      "unavailable": "Indisponible",
+      "healthy": "Opérationnel"
+    },
+    "users": {
+      "title": "Gestion des utilisateurs",
+      "searchPlaceholder": "Rechercher des utilisateurs…",
+      "searchLabel": "Rechercher des utilisateurs",
+      "filterCount": "{label} ({count})",
+      "filters": {
+        "all": "Tous les utilisateurs",
+        "local": "Locaux",
+        "federated": "Fédérés",
+        "suspended": "Suspendus"
+      },
+      "badgeAdmin": "Admin",
+      "badgeMod": "Modo",
+      "badgeForceSensitive": "Sensible forcé",
+      "forceSensitiveTitle": "Tous les médias de cet utilisateur sont marqués comme sensibles d'office",
+      "badgeSilenced": "Restreint",
+      "silencedTitle": "Cet utilisateur est restreint (absent des fils publics)",
+      "joined": "Inscrit le {date}",
+      "postCount": "{count} publication | {count} publications",
+      "serverCount": "{count} serveur | {count} serveurs",
+      "federatedStat": "fédéré",
+      "makeModerator": "Nommer modérateur",
+      "removeModerator": "Retirer le rôle de modérateur",
+      "forceSensitive": "Forcer tous les médias comme sensibles",
+      "removeForceSensitive": "Retirer le marquage sensible forcé",
+      "silence": "Restreindre (retirer des fils publics)",
+      "removeSilence": "Lever la restriction",
+      "suspendUser": "Suspendre l'utilisateur",
+      "unsuspendUser": "Lever la suspension",
+      "deleteUser": "Supprimer l'utilisateur",
+      "serversFor": "Serveurs de {name}",
+      "loadingServers": "Chargement des serveurs…",
+      "viewServer": "Voir le serveur",
+      "moderatorStatus": "Statut de modérateur",
+      "promoteConfirm": "Nommer {name} modérateur ?",
+      "demoteConfirm": "Retirer le rôle de modérateur à {name} ?",
+      "promoted": "{name} est désormais modérateur",
+      "demoted": "{name} n'est plus modérateur",
+      "moderatorFailed": "Impossible de modifier le statut de modérateur",
+      "suspend": "Suspendre",
+      "unsuspend": "Lever la suspension",
+      "suspendConfirm": "Suspendre {name} ?",
+      "suspended": "Utilisateur {name} suspendu",
+      "unsuspendConfirm": "Lever la suspension de {name} ?",
+      "unsuspended": "Suspension de {name} levée",
+      "deleteConfirm": "Supprimer {name} ? Cette action est irréversible.",
+      "deleted": "Utilisateur {name} supprimé",
+      "forceSensitiveTitleDialog": "Forcer les médias sensibles",
+      "forceSensitiveConfirm": "Marquer tous les médias de {name} comme sensibles ?",
+      "forceSensitiveDone": "Tous les futurs médias de {name} seront marqués comme sensibles",
+      "removeForceSensitiveConfirm": "Retirer le marquage sensible forcé de {name} ?",
+      "removeForceSensitiveDone": "Marquage sensible forcé retiré de {name}",
+      "silenceUser": "Restreindre l'utilisateur",
+      "silenceConfirm": "Retirer {name} des fils publics ?",
+      "silenceButton": "Restreindre",
+      "silenced": "Utilisateur {name} restreint",
+      "removeSilenceConfirm": "Lever la restriction de {name} ?",
+      "unsilenced": "Restriction de {name} levée",
+      "actionFailed": "L'action sur {name} a échoué : {error}",
+      "unknownError": "Erreur inconnue"
+    },
+    "format": {
+      "never": "Jamais",
+      "justNow": "À l'instant"
     }
   },
   "discordBridge": {
@@ -7289,14 +8719,22 @@
       "collapse": "Replier le dossier",
       "expand": "Déplier le dossier",
       "ungroup": "Dissoudre le dossier",
-      "serverCount": "{count} serveur | {count} serveurs"
+      "serverCount": "{count} serveur | {count} serveurs",
+      "nameLabel": "Nom du dossier",
+      "namePlaceholder": "Laissez vide pour ne pas donner de nom",
+      "color": "Couleur du dossier",
+      "createFailed": "Impossible de créer le dossier",
+      "updateFailed": "Impossible de mettre à jour le dossier",
+      "deleteFailed": "Impossible de supprimer le dossier"
     },
     "leave": {
       "confirm": "Quitter « {name} » ? Vous perdrez l'accès à tous ses salons et messages.",
       "button": "Quitter",
       "done": "Serveur quitté",
       "failed": "Impossible de quitter le serveur"
-    }
+    },
+    "serverDeleted": "Le serveur « {name} » a été supprimé",
+    "serverDeletedUnnamed": "Ce serveur a été supprimé"
   },
   "chatNav": {
     "channel": {
@@ -7351,7 +8789,19 @@
       "draftHint": "Envoyez un message pour démarrer ce fil",
       "loading": "Chargement des messages…",
       "loadingOlder": "Chargement…",
-      "loadOlder": "Charger les messages plus anciens"
+      "loadOlder": "Charger les messages plus anciens",
+      "lockPrevent": "Verrouiller le fil (empêche les nouveaux messages)",
+      "archive": "Archiver le fil",
+      "archiveNote": "Les fils archivés restent consultables mais n’apparaissent pas dans la liste des fils actifs.",
+      "lastReply": "Dernière réponse {time}",
+      "view": "Voir le fil",
+      "sidebarHint": "Démarrez un fil à partir de n’importe quel message !",
+      "messageCount": "{count} message | {count} messages",
+      "archived": "Archivé",
+      "backToChannel": "Retour au salon",
+      "channelFallback": "salon",
+      "renameMessage": "Renommez ce fil.",
+      "deleteConfirm": "Voulez-vous vraiment supprimer « {name} » ? Cette action est irréversible."
     },
     "header": {
       "pinnedCount": "{count} message épinglé | {count} messages épinglés",
@@ -7387,7 +8837,13 @@
       "dismissNamed": "Masquer la conversation avec {name}",
       "restored": "Conversation avec {name} rétablie",
       "restoreFailed": "Impossible de rétablir la conversation",
-      "joinCallWith": "Rejoindre l'appel avec {name}"
+      "joinCallWith": "Rejoindre l'appel avec {name}",
+      "groupNamesMore": "{names} et {count} autre | {names} et {count} autres",
+      "groupFallback": "Discussion de groupe ({count} membre) | Discussion de groupe ({count} membres)",
+      "ageMinutes": "{count} min",
+      "ageHours": "{count} h",
+      "ownPreview": "Vous : {text}",
+      "previewMessage": "Message"
     },
     "members": {
       "search": "Rechercher des membres",
@@ -7445,7 +8901,17 @@
       "clips": "Clips",
       "memes": "Mèmes",
       "aiEmoji": "Emoji IA"
-    }
+    },
+    "voiceJoinFailed": "Impossible de rejoindre le vocal",
+    "deleteConfirm": {
+      "channelMessage": "Êtes-vous sûr de vouloir supprimer #{name} ?",
+      "channelDetail": "Cette action ne peut pas être annulée. Tous les messages de ce canal seront définitivement supprimés.",
+      "cannotUndo": "Cette action ne peut pas être annulée.",
+      "namedMessage": "Êtes-vous sûr de vouloir supprimer « {name} » ?",
+      "categoryChannels": "Cette catégorie contient {count} canal. Il sera déplacé en haut de la liste des canaux (sans catégorie). Pour le supprimer aussi, saisissez « {name} DELETE » au lieu de « {name} ». | Cette catégorie contient {count} canaux. Ils seront déplacés en haut de la liste des canaux (sans catégorie). Pour supprimer aussi tous les canaux, saisissez « {name} DELETE » au lieu de « {name} ».",
+      "threadDetail": "Le fil et tous ses messages seront définitivement supprimés. Cette action ne peut pas être annulée."
+    },
+    "channelFallback": "Canal"
   },
   "embeds": {
     "popOut": "Détacher",
@@ -7473,14 +8939,30 @@
       "open": "Aller au serveur",
       "joining": "Adhésion en cours…",
       "invalid": "Invitation invalide",
-      "loading": "Chargement de l'invitation…"
+      "loading": "Chargement de l'invitation…",
+      "loadFailed": "Impossible de charger les détails de l'invitation"
     },
     "remoteInvite": {
       "hostedOn": "Hébergé sur {instance}",
       "notFound": "Invitation introuvable ou expirée",
       "closedTitle": "Fermé aux autres instances",
       "closedMessage": "Seules les personnes de {instance} peuvent rejoindre ce serveur."
-    }
+    },
+    "showContent": "Afficher le contenu",
+    "hideContent": "Masquer le contenu",
+    "replies": "Réponses",
+    "loadingHarmonyPost": "Chargement de la publication Harmony...",
+    "loadingFediversePost": "Chargement de la publication du fédivers...",
+    "platformPost": "Publication {platform}",
+    "fediversePost": "Publication du fédivers",
+    "serverInvite": "Invitation au serveur",
+    "driveFile": "Fichier Drive",
+    "linkPreview": "Aperçu du lien",
+    "postUnavailable": "Publication indisponible",
+    "harmonyPostFailed": "Impossible de charger la publication Harmony",
+    "noFediverseData": "Aucune donnée du fédivers",
+    "remotePostFailed": "Impossible de charger cette publication depuis l'instance distante",
+    "postFailed": "Impossible de charger cette publication"
   },
   "outsideLink": {
     "title": "Vous quittez Harmony",
@@ -7924,7 +9406,9 @@
     "position": "Position de lecture",
     "positionValue": "{current} sur {total}",
     "speed": "Vitesse de lecture {speed}x",
-    "playFailed": "Impossible de lire ce message vocal."
+    "playFailed": "Impossible de lire ce message vocal.",
+    "remaining": "{time} restantes",
+    "record": "Enregistrer un message vocal"
   },
   "a11y": {
     "unreadNotifications": "{count} notification non lue | {count} notifications non lues",
@@ -8634,7 +10118,103 @@
         "pending": "En attente d'approbation",
         "approved": "Affiché",
         "hidden": "Masqué"
-      }
+      },
+      "fundingTitle": "Financement et soutiens",
+      "saveChanges": "Enregistrer les modifications",
+      "goalTitle": "Objectif de financement",
+      "enableFunding": "Activer le financement",
+      "showInBar": "Afficher dans la barre contextuelle",
+      "showProgress": "Afficher la barre de progression",
+      "goalAmount": "Montant de l'objectif",
+      "currency": "Devise",
+      "period": "Période",
+      "periodMonthly": "Mensuel (remis à zéro chaque mois)",
+      "periodAll": "Depuis le début",
+      "periodHint": "Le total est calculé à partir de l'historique des dons ; la période détermine quels dons comptent.",
+      "description": "Description",
+      "descriptionPlaceholder": "À quoi sert le financement…",
+      "thankYou": "Message de remerciement",
+      "thankYouPlaceholder": "Message affiché aux soutiens",
+      "donationLinks": "Liens de don",
+      "linkUrl": "URL du lien",
+      "linkLabel": "Libellé (facultatif)",
+      "removeLink": "Retirer le lien",
+      "platformPlaceholder": "Plateforme…",
+      "platformCustom": "Personnalisée",
+      "kofiTitle": "Webhook Ko-fi",
+      "automation": "Automatisation",
+      "kofiIntro": "Enregistrez automatiquement les dons Ko-fi. Nécessite un abonnement Ko-fi Gold. Collez votre jeton de vérification depuis {link} et définissez l'URL du webhook sur :",
+      "kofiSettingsLink": "Paramètres Ko-fi → API",
+      "copyUrl": "Copier l'URL",
+      "kofiToken": "Jeton de vérification",
+      "kofiTokenPlaceholder": "Collez depuis Paramètres Ko-fi → API",
+      "showSecret": "Afficher",
+      "hideSecret": "Masquer",
+      "autoAssignTier": "Attribuer automatiquement le palier de soutien selon le montant du don",
+      "kofiHint": "Les donateurs indiquent leur identifiant ({handle}) n'importe où dans leur message Ko-fi : le webhook attribue le don automatiquement et recalcule leur palier selon les dons cumulés du cycle. Les dons sans identifiant reconnu arrivent dans la file {queue} ci-dessous, et vous (ainsi que les modérateurs de l'instance) recevez une notification.",
+      "stripeIntro": "Les dons passant par un lien de paiement Stripe sont crédités sur le compte du donateur : Harmony ouvre le lien avec l'identifiant de son compte, et Stripe signale le paiement à ce webhook. Dans le tableau de bord Stripe, créez un lien de paiement (pour un montant libre, choisissez {choice} ; un prix récurrent crée un don mensuel) et ajoutez-le dans Liens de don avec la plateforme {platform}. Ensuite, dans {link}, ajoutez un endpoint avec cette URL :",
+      "webhookCopied": "URL du webhook copiée",
+      "stripeEvents": "qui écoute {first}, {second} et {third}, puis collez ici son secret de signature.",
+      "signingSecret": "Secret de signature",
+      "stripeHint": "Les paiements d'un lien de paiement ouvert hors de Harmony ne portent aucun compte et arrivent dans la file {queue} ci-dessous, tout comme les renouvellements d'abonnements commencés ainsi. Les paiements Checkout qui ne viennent pas d'un lien de paiement sont ignorés.",
+      "pendingTitle": "Dons en attente",
+      "pendingHint": "Dons reçus par webhook qui n'ont pas pu être associés automatiquement à un utilisateur. Recherchez le destinataire ou rejetez-les.",
+      "pendingFrom": "De :",
+      "pendingSearch": "Rechercher un utilisateur par nom d'utilisateur…",
+      "attribute": "Attribuer",
+      "dismiss": "Rejeter",
+      "adFree": "GIF sans publicité",
+      "adFreeTitle": "Les soutiens de ce palier ne voient pas de publicités GIF",
+      "pickEmoji": "Choisir un emoji",
+      "tierMin": "Min. : {amount}",
+      "editTier": "Modifier le palier",
+      "deleteTier": "Supprimer le palier",
+      "tierName": "Nom du palier",
+      "minAmount": "Montant minimum",
+      "tierIcon": "Icône",
+      "badgeColor": "Couleur du badge",
+      "activeSupporters": "Soutiens actifs",
+      "noTier": "Aucun palier",
+      "editSupporter": "Modifier le soutien",
+      "recordDonation": "Enregistrer un don",
+      "removeSupporter": "Retirer le soutien",
+      "addSupporterPlaceholder": "Nom d'utilisateur à ajouter comme soutien…",
+      "amount": "Montant",
+      "platform": "Plateforme",
+      "tier": "Palier",
+      "editSupporterFor": "Modifier le soutien : {name}",
+      "recordDonationFor": "Enregistrer un don pour {name}",
+      "platformExample": "p. ex. Patreon, Ko-fi",
+      "note": "Note",
+      "notePlaceholder": "Note facultative…",
+      "record": "Enregistrer",
+      "historyTitle": "Historique des dons",
+      "totalDonated": "Total des dons",
+      "donations": "Dons",
+      "uniqueDonors": "Donateurs uniques",
+      "copyFailed": "Impossible de copier",
+      "attributed": "Don attribué",
+      "attributeFailed": "Impossible d'attribuer le don",
+      "dismissTitle": "Rejeter le don",
+      "dismissMessage": "Rejeter ce don ? Il ne sera attribué à aucun utilisateur.",
+      "dismissed": "Don rejeté",
+      "dismissFailed": "Impossible de rejeter le don",
+      "saved": "Paramètres de financement enregistrés",
+      "saveFailed": "Impossible d'enregistrer les paramètres de financement",
+      "tierCreated": "Palier créé",
+      "tierUpdated": "Palier mis à jour",
+      "deleteTierMessage": "Supprimer ce palier ? Les soutiens de ce palier gardent leur statut mais perdent le badge du palier.",
+      "tierDeleted": "Palier supprimé",
+      "userNotFound": "Utilisateur introuvable",
+      "supporterAdded": "Soutien ajouté",
+      "supporterUpdated": "Soutien mis à jour",
+      "removeSupporterMessage": "Retirer ce soutien ?",
+      "supporterRemoved": "Soutien retiré",
+      "donationRecorded": "Don enregistré",
+      "donationUpdated": "Don mis à jour",
+      "deleteDonation": "Supprimer le don",
+      "deleteDonationMessage": "Supprimer cet enregistrement de don ?",
+      "donationDeleted": "Don supprimé"
     }
   },
   "authorizeInteraction": {
@@ -9028,13 +10608,13 @@
     "domainsHint": "Un par ligne, par exemple myschool.edu. Les sous-domaines comptent aussi. Le fournisseur doit indiquer l’adresse comme vérifiée.",
     "publicOpen": "Toute personne ayant un compte {provider} pourra alors créer un compte ici.",
     "switchOn": "Le service d’authentification refuse toujours tout nouveau compte. Sur le serveur, lancez harmony registration pour que ces réglages s’appliquent.",
-    "none": "Aucun fournisseur de connexion n’est actif. Les fournisseurs intégrés se configurent dans Configuration, ceux de l’instance avec harmony auth add-provider.",
     "save": "Enregistrer",
     "saved": "Inscriptions par fournisseur enregistrées",
     "saveFailed": "Impossible d’enregistrer les réglages d’inscription.",
     "loadFailed": "Impossible de charger les fournisseurs de connexion.",
     "invalidDomain": "{domain} n’est pas un nom de domaine.",
-    "noDomains": "Ajoutez au moins un domaine pour {provider}."
+    "noDomains": "Ajoutez au moins un domaine pour {provider}.",
+    "noneTab": "Aucun fournisseur de connexion n’est actif. Les fournisseurs intégrés se configurent dans {tab}, ceux de l’instance avec harmony auth add-provider."
   },
   "adminSignupCaptcha": {
     "title": "Vérification d'inscription",
@@ -9645,5 +11225,255 @@
     "saved": "Serveurs ICE enregistrés",
     "saveFailed": "Les serveurs ICE n'ont pas pu être enregistrés.",
     "loadFailed": "Les serveurs ICE n'ont pas pu être chargés."
+  },
+  "pushPrompt": {
+    "title": "Activer les notifications push",
+    "body": "Soyez averti des nouveaux messages même lorsque Harmony est fermé",
+    "enabling": "Activation...",
+    "enable": "Activer"
+  },
+  "runOnLogin": {
+    "prompt": {
+      "title": "Lancer Harmony à la connexion ?",
+      "body": "{browser} peut lancer Harmony automatiquement lorsque vous vous connectez à votre ordinateur.",
+      "showHow": "Me montrer comment"
+    },
+    "modal": {
+      "title": "Lancer Harmony à la connexion",
+      "subtitle": "{browser} peut lancer Harmony automatiquement chaque fois que vous vous connectez à votre ordinateur.",
+      "step1": "Ouvrez la page des applications",
+      "step1Hint": "Collez-le dans un nouvel onglet du navigateur. Pour des raisons de sécurité, le lien ne peut pas être ouvert directement depuis l'application.",
+      "step2": "Faites un clic droit sur Harmony, puis choisissez {option}",
+      "menuOpen": "Ouvrir",
+      "menuOpenWindow": "Ouvrir dans une fenêtre",
+      "menuStartApp": "Lancer l'application lors de la connexion",
+      "menuShortcuts": "Créer des raccourcis...",
+      "menuRemove": "Supprimer de {browser}",
+      "step3": "C’est tout : Harmony se lancera la prochaine fois que vous vous connecterez à votre ordinateur.",
+      "footnote": "Disponible dans {browser} 91+ sur Windows, macOS, Linux et ChromeOS. Vous pouvez le modifier à tout moment depuis {url}.",
+      "enabled": "Je l'ai activé",
+      "copyFailed": "Impossible de copier. Saisissez {url} dans un nouvel onglet du navigateur.",
+      "saved": "Enregistré. Harmony se lancera lorsque vous vous connecterez."
+    }
+  },
+  "profileModal": {
+    "sendServerInvite": "Envoyer une invitation au serveur",
+    "kickFromServer": "Expulser du serveur",
+    "banFromServer": "Bannir du serveur",
+    "viewAllPosts": "Voir toutes les publications",
+    "viewFollowing": "Voir les abonnements",
+    "viewFollowers": "Voir les abonnés",
+    "federationInfo": "Informations de fédération",
+    "instanceLabel": "Instance :",
+    "profileUrlLabel": "URL du profil :",
+    "viewOn": "Voir sur {domain}",
+    "lastActiveLabel": "Dernière activité :",
+    "about": "À propos",
+    "profileFields": "Champs du profil",
+    "fieldVerified": "Vérifié",
+    "activity": "Activité",
+    "messages": "Messages",
+    "voiceTime": "Temps vocal",
+    "interactions": "Interactions",
+    "chooseServer": "Choisissez un serveur :",
+    "activeNow": "Actif dans la dernière heure",
+    "activeToday": "Actif aujourd'hui",
+    "activeRecently": "Actif ces 3 derniers jours",
+    "unknownUser": "Utilisateur inconnu"
+  },
+  "instanceDetail": {
+    "trusted": "De confiance",
+    "blocked": "Bloquée",
+    "statistics": "Statistiques de l'instance",
+    "users": "Utilisateurs",
+    "connections": "Connexions",
+    "about": "À propos de cette instance",
+    "descriptionLabel": "Description :",
+    "adminContactLabel": "Contact de l'administrateur :",
+    "typeLabel": "Type d'instance :",
+    "firstDiscoveredLabel": "Découverte le :",
+    "federationStatus": "État de la fédération",
+    "federationEnabled": "Fédération activée",
+    "trustedInstance": "Instance de confiance",
+    "standardInstance": "Instance standard",
+    "recentPosts": "Publications récentes",
+    "loadingPosts": "Chargement des publications...",
+    "visitInstance": "Visiter l'instance",
+    "copyUrl": "Copier l'URL",
+    "viewAllPosts": "Voir toutes les publications",
+    "noActivity": "Aucune activité enregistrée",
+    "activeToday": "Active aujourd'hui",
+    "activeThisWeek": "Active cette semaine",
+    "lastActive": "Dernière activité : {time}",
+    "typeNamed": "Instance {name}",
+    "typeActivityPub": "Instance ActivityPub",
+    "minutesAgo": "il y a {minutes}min",
+    "yearsAgo": "il y a {years}a"
+  },
+  "searchInput": {
+    "placeholder": "Rechercher..."
+  },
+  "platformIcon": {
+    "donate": "Faire un don"
+  },
+  "codeBlock": {
+    "copyCode": "Copier le code"
+  },
+  "autoSuggest": {
+    "headers": {
+      "serverMembers": "Membres du serveur",
+      "users": "Utilisateurs"
+    },
+    "commands": {
+      "kick": "Expulser un membre du serveur",
+      "ban": "Bannir un membre du serveur",
+      "gif": "Chercher un GIF sur KLIPY",
+      "sticker": "Chercher un sticker sur KLIPY",
+      "clip": "Chercher un clip sur KLIPY",
+      "meme": "Chercher un mème sur KLIPY",
+      "aiemoji": "Chercher un émoji IA sur KLIPY",
+      "rolemenu": "Publier un menu où les membres choisissent leurs rôles"
+    }
+  },
+  "notificationText": {
+    "dm": {
+      "addedTo": " vous a ajouté à {name}",
+      "addedToUnnamed": " vous a ajouté à une conversation",
+      "calling": " vous appelle",
+      "sentMessage": " vous a envoyé un message",
+      "short": "Message privé de {name}",
+      "shortInvite": "Invité par {name}"
+    },
+    "mention": {
+      "action": " vous a mentionné dans #{channel}",
+      "actionNoChannel": " vous a mentionné",
+      "short": "Mention dans #{channel}",
+      "shortNoChannel": "Nouvelle mention"
+    },
+    "reply": {
+      "action": " a répondu à votre message dans #{channel}",
+      "actionNoChannel": " a répondu à votre message",
+      "short": "Réponse dans #{channel}",
+      "shortNoChannel": "Nouvelle réponse",
+      "noPreview": "Cliquez pour voir la réponse"
+    },
+    "threadReply": {
+      "action": " a répondu dans un fil de #{channel}",
+      "actionNoChannel": " a répondu dans un fil",
+      "short": "Réponse dans un fil de #{channel}",
+      "shortNoChannel": "Réponse dans un fil",
+      "noPreview": "Cliquez pour voir le fil"
+    },
+    "call": {
+      "started": " a lancé un appel",
+      "incomingOpen": "📞 Appel entrant — cliquez pour ouvrir",
+      "incomingJoin": "📞 Appel entrant — cliquez pour rejoindre",
+      "shortFrom": "Appel de {name}"
+    },
+    "chatMessage": {
+      "short": "Message de {name}"
+    },
+    "reaction": {
+      "action": " a réagi à votre message",
+      "short": "Réaction"
+    },
+    "acceptOrDecline": "Cliquez pour accepter ou refuser",
+    "serverInvite": {
+      "title": "{inviter} vous a invité à rejoindre {server}",
+      "short": "Invitation au serveur"
+    },
+    "followRequest": {
+      "title": "{name} souhaite s'abonner à vous",
+      "message": "{handle} vous a envoyé une demande d'abonnement",
+      "short": "Demande d'abonnement"
+    },
+    "voiceActivity": {
+      "title": "Activité vocale dans {channel}",
+      "message": "Quelqu'un a rejoint le salon vocal",
+      "short": "Activité vocale"
+    },
+    "serverUpdate": {
+      "title": "Mise à jour du serveur",
+      "message": "Le serveur a été mis à jour"
+    },
+    "emojiAdded": {
+      "title": "Nouvel emoji ajouté : {name}",
+      "message": "{name} est maintenant disponible dans {server}",
+      "short": "Nouvel emoji"
+    },
+    "apFollow": {
+      "title": "{name} ({handle}) s'est abonné à vous",
+      "message": "{handle} est maintenant abonné à vous",
+      "short": "Nouvel abonné"
+    },
+    "apFavorite": {
+      "action": " a ajouté votre publication aux favoris",
+      "short": "Publication ajoutée aux favoris"
+    },
+    "apReblog": {
+      "action": " a boosté votre publication",
+      "short": "Publication boostée"
+    },
+    "viewPost": "Cliquez pour voir la publication",
+    "apMention": {
+      "noPreview": "Cliquez pour voir la mention",
+      "short": "Mention fédérée"
+    },
+    "apReply": {
+      "action": " a répondu à votre publication",
+      "noPreview": "Cliquez pour voir la réponse",
+      "short": "Nouvelle réponse"
+    },
+    "apReaction": {
+      "action": " a réagi à votre publication",
+      "noPreview": "Cliquez pour voir la publication"
+    },
+    "followAccepted": {
+      "action": " a accepté votre demande d'abonnement",
+      "message": "Vous êtes maintenant abonné à {handle}",
+      "messageNoHandle": "Vous êtes maintenant abonné à cette personne",
+      "short": "Demande acceptée"
+    },
+    "reportUpdate": {
+      "investigatingTitle": "Votre signalement est en cours d'examen",
+      "resolvedTitle": "Votre signalement a été traité",
+      "dismissedTitle": "Votre signalement a été examiné",
+      "updatedTitle": "Statut du signalement mis à jour",
+      "investigatingMessage": "Les modérateurs examinent votre signalement.",
+      "resolvedMessage": "Votre signalement a été traité.",
+      "dismissedMessage": "Votre signalement a été rejeté.",
+      "updatedMessage": "Votre signalement a été mis à jour.",
+      "withNote": "{message} Remarque : {note}",
+      "short": "Mise à jour du signalement"
+    },
+    "donation": {
+      "title": "Un nouveau don {platform} doit être vérifié",
+      "titleNoPlatform": "Un nouveau don doit être vérifié",
+      "message": "{amount} n'a pu être associé à aucun utilisateur — ouvrez le panneau d'administration pour l'attribuer.",
+      "messageFrom": "{amount} de {donor} n'a pu être associé à aucun utilisateur — ouvrez le panneau d'administration pour l'attribuer.",
+      "short": "Don à vérifier"
+    },
+    "fallback": {
+      "title": "Nouvelle notification",
+      "message": "Vous avez une nouvelle notification",
+      "short": "Notification",
+      "viewDetails": "Cliquez pour voir les détails"
+    },
+    "staffSender": "Admin/Modérateur",
+    "unknownSender": "Inconnu",
+    "toast": {
+      "loadFailed": "Impossible de charger les notifications",
+      "refreshPage": "Veuillez actualiser la page",
+      "processFailed": "Une notification a été reçue mais n'a pas pu être traitée correctement",
+      "deleteFailed": "Impossible de supprimer la notification",
+      "clearFailed": "Impossible d'effacer les notifications",
+      "markReadFailed": "Impossible de marquer les notifications comme lues"
+    },
+    "native": {
+      "reaction": "A réagi à votre message",
+      "apReaction": "A réagi à votre publication",
+      "apFavorite": "A ajouté votre publication aux favoris",
+      "apReblog": "A boosté votre publication"
+    }
   }
 }

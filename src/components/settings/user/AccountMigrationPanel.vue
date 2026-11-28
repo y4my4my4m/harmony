@@ -403,7 +403,7 @@ import { readFollowingFile, type FollowingImportSource } from '@/utils/following
 import { getBannerUrl } from '@/utils/bannerUtils'
 import './securitySettings.css'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const toast = useToast()
 const router = useRouter()
 const authStore = useAuthStore()
@@ -468,7 +468,7 @@ const hasPassword = computed(() => {
 })
 
 const movedDate = computed(() =>
-  state.value?.movedAt ? new Date(state.value.movedAt).toLocaleDateString() : '',
+  state.value?.movedAt ? new Date(state.value.movedAt).toLocaleDateString(locale.value) : '',
 )
 
 const targetLabel = computed(() => {

@@ -162,6 +162,7 @@ refactor(activitypub): simplify inbox handler
 ```vue
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useUserData } from '@/composables/useUserData';
 
 interface Props {
@@ -173,10 +174,24 @@ const emit = defineEmits<{
   (e: 'update', value: string): void;
 }>();
 
+const { t } = useI18n();
 const { user, loading } = useUserData(props.userId);
-const displayName = computed(() => user.value?.display_name || 'Unknown');
+const displayName = computed(() => user.value?.display_name || t('activitypub.unknown'));
 </script>
 ```
+
+### UI text
+
+Text a user sees goes through `t()` with its key in every file of `src/locales/` (`en`, `de`, `es`, `fr`,
+`nl`, `ja`, `ko`, `zh`), translated. This covers template text, attributes such as `title`, `placeholder` and
+`aria-label`, toasts, dialogs and labels built in scripts.
+
+- One key per sentence, with placeholders: `t('server.membersCount', { count })`. Plurals use `|`
+  forms and `t(key, { count }, count)`.
+- Text with markup uses `<i18n-t>` with named slots.
+- Dates and numbers take the app locale: `locale.value` from `useI18n()`, or `getLocale()` from `@/i18n`.
+- `npm run lint:i18n` flags literal text in templates; CI runs it. `src/__tests__/locales.test.ts` checks
+  that every locale has every key with the same placeholders, and that each message compiles.
 
 ### Backend Code
 

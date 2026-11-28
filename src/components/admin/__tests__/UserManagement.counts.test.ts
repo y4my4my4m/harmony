@@ -6,6 +6,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
+import en from '@/locales/en.json'
 
 const moderateUser = vi.fn(async () => {})
 const getAdminInstanceStats = vi.fn()
@@ -31,7 +33,6 @@ vi.mock('@/services/userDataService', () => ({ userDataService: { ensureUsersLoa
 vi.mock('@/composables/useConfirmDialog', () => ({
   useConfirmDialog: () => ({ confirm: vi.fn(async () => true), prompt: vi.fn(async () => 'spam') }),
 }))
-vi.mock('@/composables/useT', () => ({ useT: () => ({ t: (key: string) => key }) }))
 
 async function stub(name: string) {
   const { defineComponent, h } = await import('vue')
@@ -47,6 +48,8 @@ import { mapInstanceStats } from '@/services/AdminService'
 import UserManagement from '../UserManagement.vue'
 
 enableAutoUnmount(afterEach)
+
+const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
 
 const SNAPSHOT = {
   computed_at: '2026-11-24T07:00:00+00:00', age_seconds: 30, refreshing_elsewhere: false, approximate: [],
@@ -71,7 +74,7 @@ beforeEach(() => {
 
 describe('UserManagement counts', () => {
   it('reads the snapshot once for the filter counts', async () => {
-    const w = mount(UserManagement)
+    const w = mount(UserManagement, { global: { plugins: [i18n] } })
     await flushPromises()
     expect(getAdminInstanceStats).toHaveBeenCalledTimes(1)
     expect(getAdminInstanceStats).toHaveBeenCalledWith(false)
@@ -79,7 +82,7 @@ describe('UserManagement counts', () => {
   })
 
   it('moves Suspended at once when an account is suspended and unsuspended', async () => {
-    const w = mount(UserManagement)
+    const w = mount(UserManagement, { global: { plugins: [i18n] } })
     await flushPromises()
     await w.find('.suspend-btn').trigger('click')
     await flushPromises()
@@ -92,7 +95,7 @@ describe('UserManagement counts', () => {
   })
 
   it('keeps a suspension made here when the tab is opened again', async () => {
-    const before = mount(UserManagement)
+    const before = mount(UserManagement, { global: { plugins: [i18n] } })
     await flushPromises()
     await before.find('.suspend-btn').trigger('click')
     await flushPromises()
@@ -100,7 +103,7 @@ describe('UserManagement counts', () => {
     before.unmount()
 
     getUsers.mockImplementation(async () => ({ users: [{ ...MEMBER, is_suspended: true }], total: 1 }))
-    const w = mount(UserManagement)
+    const w = mount(UserManagement, { global: { plugins: [i18n] } })
     await flushPromises()
     expect(getAdminInstanceStats).toHaveBeenCalledTimes(2)
     expect(filterText(w)[3]).toBe('Suspended (4)')
@@ -110,7 +113,7 @@ describe('UserManagement counts', () => {
   })
 
   it('applies the UsersDelta of an admin:users-changed event', async () => {
-    const w = mount(UserManagement)
+    const w = mount(UserManagement, { global: { plugins: [i18n] } })
     await flushPromises()
     window.dispatchEvent(new CustomEvent('admin:users-changed', { detail: { suspended: 5 } }))
     await flushPromises()

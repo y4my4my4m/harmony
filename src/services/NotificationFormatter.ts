@@ -13,7 +13,7 @@ import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
 import { securityNoticeText } from '@/utils/securityNotice'
 import { moveNoticeText } from '@/utils/moveNotice'
-import { i18n } from '@/i18n'
+import { i18n, getLocale } from '@/i18n'
 import { getInstanceDomain } from '@/services/instanceConfig'
 import { urlPartPlainText } from '@/utils/maskedLinks'
 import { bridgedAuthorHandle, bridgedAuthorName, getBridgedAuthor } from '@/utils/messageAuthor'
@@ -25,6 +25,8 @@ export interface NotificationMessage {
   /** Action phrase shown after the actor display name in the notification list UI */
   titleAction?: string
 }
+
+const t = (key: string, params: Record<string, unknown> = {}): string => i18n.global.t(key, params)
 
 function getActorFromData(data: Record<string, any>) {
   return (
@@ -52,7 +54,7 @@ function getActorDisplayName(data: Record<string, any>): string {
     actor?.username ||
     data.sender_display_name ||
     data.sender_username ||
-    'Someone'
+    t('systemEvents.someone')
   )
 }
 
@@ -90,8 +92,8 @@ function extractContentText(content: any): string | null {
   return String(content)
 }
 
-// Matches the preview redact_encrypted_notification_preview() writes server-side.
-const ENCRYPTED_MESSAGE_PREVIEW = 'Encrypted message'
+// Server-side redact_encrypted_notification_preview() writes the English form of this preview.
+const encryptedMessagePreview = () => t('channelEncryption.encryptedMessage')
 
 /** The notification names an encrypted message; its preview must not render message content. */
 function isEncryptedMessageData(data: Record<string, any>): boolean {
@@ -111,22 +113,42 @@ function isIncomingCallData(data: Record<string, any>): boolean {
 
 function dmTitleAction(data: Record<string, any>): string {
   if (data.is_invite) {
-    return ` added you to ${data.conversation?.name || 'a conversation'}`
+    const name = data.conversation?.name
+    return name
+      ? t('notificationText.dm.addedTo', { name })
+      : t('notificationText.dm.addedToUnnamed')
   }
   if (isIncomingCallData(data)) {
-    return ' is calling you'
+    return t('notificationText.dm.calling')
   }
-  return ' sent you a message'
+  return t('notificationText.dm.sentMessage')
+}
+
+function channelOf(data: Record<string, any>): string | null {
+  return data.location?.channel_name || data.channel_name || null
 }
 
 function mentionTitleAction(data: Record<string, any>): string {
-  const channelName = data.location?.channel_name || data.channel_name || 'channel'
-  return ` mentioned you in #${channelName}`
+  const channel = channelOf(data)
+  return channel
+    ? t('notificationText.mention.action', { channel })
+    : t('notificationText.mention.actionNoChannel')
 }
 
 function replyTitleAction(data: Record<string, any>): string {
-  const channelName = data.location?.channel_name || data.channel_name || 'channel'
-  return ` replied to your message in #${channelName}`
+  const channel = channelOf(data)
+  return channel
+    ? t('notificationText.reply.action', { channel })
+    : t('notificationText.reply.actionNoChannel')
+}
+
+const CLICK_TO_VIEW_MESSAGE = 'notificationSettings.notification.noPreview'
+
+/** Notification body text quoting a post excerpt. */
+function quotedExcerpt(text: string, max: number, ellipsisAtMax = false): string {
+  const truncated = text.substring(0, max)
+  const cut = ellipsisAtMax ? text.length >= max : text.length > max
+  return `"${truncated}${cut ? '...' : ''}"`
 }
 
 function channelMessageTitleAction(data: Record<string, any>): string {
@@ -137,8 +159,10 @@ function channelMessageTitleAction(data: Record<string, any>): string {
 }
 
 function threadReplyTitleAction(data: Record<string, any>): string {
-  const channelName = data.location?.channel_name || data.channel_name || 'a thread'
-  return ` replied in a thread in #${channelName}`
+  const channel = channelOf(data)
+  return channel
+    ? t('notificationText.threadReply.action', { channel })
+    : t('notificationText.threadReply.actionNoChannel')
 }
 
 function newcomerChannel(data: Record<string, any>): string | null {
@@ -163,6 +187,17 @@ function noticeServerName(data: Record<string, any>): string {
   }
 }
 
+/** Amount in the app locale; an unknown currency code prints as "<code> <amount>". */
+function donationAmount(value: unknown, currency: string): string {
+  if (value == null) return `${currency} ?`
+  const n = Number(value)
+  try {
+    return new Intl.NumberFormat(getLocale(), { style: 'currency', currency }).format(n)
+  } catch {
+    return `${currency} ${n.toLocaleString(getLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+}
+
 const MESSAGE_TEMPLATES = {
   mention: {
     titleAction: mentionTitleAction,
@@ -174,11 +209,13 @@ const MESSAGE_TEMPLATES = {
       if (text) {
         return text.length > 100 ? text.substring(0, 100) + '...' : text
       }
-      return 'Click to view message'
+      return t(CLICK_TO_VIEW_MESSAGE)
     },
     shortTitle: (data: any) => {
-      const channelName = data.location?.channel_name || data.channel_name || 'channel'
-      return `Mention in #${channelName}`
+      const channel = channelOf(data)
+      return channel
+        ? t('notificationText.mention.short', { channel })
+        : t('notificationText.mention.shortNoChannel')
     }
   },
   
@@ -187,7 +224,7 @@ const MESSAGE_TEMPLATES = {
     title: (data: any) => getActorDisplayName(data) + dmTitleAction(data),
     message: (data: any) => {
       if (isIncomingCallData(data)) {
-        return '📞 Incoming call — click to open'
+        return t('notificationText.call.incomingOpen')
       }
       const text = extractContentText(data.message?.content_preview)
         || extractContentText(data.message?.content || data.content)
@@ -195,36 +232,40 @@ const MESSAGE_TEMPLATES = {
       if (text) {
         return text.length > 100 ? text.substring(0, 100) + '...' : text
       }
-      return 'Click to view message'
+      return t(CLICK_TO_VIEW_MESSAGE)
     },
     shortTitle: (data: any) => {
       const sender = data.sender
-      const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
-      if (data.is_invite) return `Invited by ${senderUsername}`
-      if (isIncomingCallData(data)) return `Call from ${senderUsername}`
-      return `DM from ${senderUsername}`
+      const name = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || t('systemEvents.someone')
+      if (data.is_invite) return t('notificationText.dm.shortInvite', { name })
+      if (isIncomingCallData(data)) return t('notificationText.call.shortFrom', { name })
+      return t('notificationText.dm.short', { name })
     }
   },
 
   chat_message: {
-    titleAction: (data: any) => isIncomingCallData(data) ? ' started a call' : ' sent a message',
-    title: (data: any) => getActorDisplayName(data) + (isIncomingCallData(data) ? ' started a call' : ' sent a message'),
+    titleAction: (data: any) => isIncomingCallData(data)
+      ? t('notificationText.call.started')
+      : t('notificationSettings.notification.actionNoChannel'),
+    title: (data: any) => getActorDisplayName(data) + (isIncomingCallData(data)
+      ? t('notificationText.call.started')
+      : t('notificationSettings.notification.actionNoChannel')),
     message: (data: any) => {
       if (isIncomingCallData(data)) {
-        return '📞 Incoming call — click to join'
+        return t('notificationText.call.incomingJoin')
       }
       const text = extractContentText(data.message?.content_preview)
         || extractContentText(data.preview || data.content_preview)
       if (text) {
         return text.length > 100 ? text.substring(0, 100) + '...' : text
       }
-      return 'Click to view message'
+      return t(CLICK_TO_VIEW_MESSAGE)
     },
     shortTitle: (data: any) => {
       const sender = data.sender
-      const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
-      if (isIncomingCallData(data)) return `Call from ${senderUsername}`
-      return `Message from ${senderUsername}`
+      const name = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || t('systemEvents.someone')
+      if (isIncomingCallData(data)) return t('notificationText.call.shortFrom', { name })
+      return t('notificationText.chatMessage.short', { name })
     }
   },
   
@@ -248,8 +289,8 @@ const MESSAGE_TEMPLATES = {
   },
 
   reaction: {
-    titleAction: () => ' reacted to your message',
-    title: (data: any) => getActorDisplayName(data) + ' reacted to your message',
+    titleAction: () => t('notificationText.reaction.action'),
+    title: (data: any) => getActorDisplayName(data) + t('notificationText.reaction.action'),
     message: (data: any) => {
       const preview = extractContentText(data.message_preview)
         || extractContentText(data.message?.content_preview)
@@ -257,9 +298,9 @@ const MESSAGE_TEMPLATES = {
         const truncated = preview.substring(0, 100)
         return truncated + (preview.length > 100 ? '...' : '')
       }
-      return 'Click to view message'
+      return t(CLICK_TO_VIEW_MESSAGE)
     },
-    shortTitle: () => 'Reaction'
+    shortTitle: () => t('notificationText.reaction.short')
   },
   
   reply: {
@@ -270,114 +311,104 @@ const MESSAGE_TEMPLATES = {
       if (preview && preview.length > 100) {
         return preview.substring(0, 100) + '...'
       }
-      return preview || 'Click to view reply'
+      return preview || t('notificationText.reply.noPreview')
     },
     shortTitle: (data: any) => {
-      const channelName = data.location?.channel_name || data.channel_name || 'channel'
-      return `Reply in #${channelName}`
+      const channel = channelOf(data)
+      return channel
+        ? t('notificationText.reply.short', { channel })
+        : t('notificationText.reply.shortNoChannel')
     }
   },
   
   server_invite: {
-    title: (data: any) => `${data.inviter.username} invited you to join ${data.server.name}`,
-    message: (data: any) => data.message || 'Click to accept or decline',
-    shortTitle: (_data: any) => `Server invite`
+    title: (data: any) => t('notificationText.serverInvite.title', { inviter: data.inviter.username, server: data.server.name }),
+    message: (data: any) => data.message || t('notificationText.acceptOrDecline'),
+    shortTitle: (_data: any) => t('notificationText.serverInvite.short')
   },
   
   friend_request: {
-    title: (data: any) => `${data.sender.username} wants to follow you`,
-    message: (data: any) => data.message || 'Click to accept or decline',
-    shortTitle: (_data: any) => `Follow request`
+    title: (data: any) => t('notificationText.followRequest.title', { name: data.sender.username }),
+    message: (data: any) => data.message || t('notificationText.acceptOrDecline'),
+    shortTitle: (_data: any) => t('notificationText.followRequest.short')
   },
   
   voice_channel_activity: {
-    title: (data: any) => `Voice activity in ${data.location.channel_name}`,
-    message: (data: any) => data.message || 'Someone joined the voice channel',
-    shortTitle: (_data: any) => `Voice activity`
+    title: (data: any) => t('notificationText.voiceActivity.title', { channel: data.location.channel_name }),
+    message: (data: any) => data.message || t('notificationText.voiceActivity.message'),
+    shortTitle: (_data: any) => t('notificationText.voiceActivity.short')
   },
   
   server_update: {
-    title: (data: any) => data.title || 'Server update',
-    message: (data: any) => data.message || 'Server has been updated',
-    shortTitle: (_data: any) => `Server update`
+    title: (data: any) => data.title || t('notificationText.serverUpdate.title'),
+    message: (data: any) => data.message || t('notificationText.serverUpdate.message'),
+    shortTitle: (_data: any) => t('notificationText.serverUpdate.title')
   },
   
   emoji_added: {
-    title: (data: any) => `New emoji added: ${data.emoji.name}`,
-    message: (data: any) => `${data.emoji.name} is now available in ${data.location.server_name}`,
-    shortTitle: (_data: any) => `New emoji`
+    title: (data: any) => t('notificationText.emojiAdded.title', { name: data.emoji.name }),
+    message: (data: any) => t('notificationText.emojiAdded.message', { name: data.emoji.name, server: data.location.server_name }),
+    shortTitle: (_data: any) => t('notificationText.emojiAdded.short')
   },
 
   // ActivityPub notification templates
   activitypub_follow: {
     title: (data: any) => {
-      const displayName = data.follower.display_name || data.follower.username
+      const name = data.follower.display_name || data.follower.username
       const handle = data.follower.handle || `@${data.follower.username}${!data.follower.is_local ? '@' + data.follower.domain : ''}`
-      return `${displayName} (${handle}) started following you`
+      return t('notificationText.apFollow.title', { name, handle })
     },
     message: (data: any) => {
       const handle = data.follower.handle || `@${data.follower.username}${!data.follower.is_local ? '@' + data.follower.domain : ''}`
-      return `${handle} is now following you`
+      return t('notificationText.apFollow.message', { handle })
     },
-    shortTitle: (_data: any) => `New follower`
+    shortTitle: (_data: any) => t('notificationText.apFollow.short')
   },
 
   activitypub_favorite: {
-    titleAction: () => ' favorited your post',
-    title: (data: any) => getActorDisplayName(data) + ' favorited your post',
+    titleAction: () => t('notificationText.apFavorite.action'),
+    title: (data: any) => getActorDisplayName(data) + t('notificationText.apFavorite.action'),
     message: (data: any) => {
       const text = extractContentText(data.post_content) || extractContentText(data.post?.content_preview)
-      if (text) {
-        const truncated = text.substring(0, 120)
-        return `"${truncated}${text.length > 120 ? '...' : ''}"`
-      }
-      return 'Click to see the post';
+      if (text) return quotedExcerpt(text, 120)
+      return t('notificationText.viewPost');
     },
-    shortTitle: () => `Post favorited`
+    shortTitle: () => t('notificationText.apFavorite.short')
   },
 
   activitypub_reblog: {
-    titleAction: () => ' reblogged your post',
-    title: (data: any) => getActorDisplayName(data) + ' reblogged your post',
+    titleAction: () => t('notificationText.apReblog.action'),
+    title: (data: any) => getActorDisplayName(data) + t('notificationText.apReblog.action'),
     message: (data: any) => {
       const text = extractContentText(data.post_content) || extractContentText(data.post?.content_preview)
-      if (text) {
-        const truncated = text.substring(0, 120)
-        return `"${truncated}${text.length > 120 ? '...' : ''}"`
-      }
-      return 'Click to see the post';
+      if (text) return quotedExcerpt(text, 120)
+      return t('notificationText.viewPost');
     },
-    shortTitle: () => `Post reblogged`
+    shortTitle: () => t('notificationText.apReblog.short')
   },
 
   activitypub_mention: {
-    titleAction: () => ' mentioned you',
-    title: (data: any) => getActorDisplayName(data) + ' mentioned you',
+    titleAction: () => t('notificationText.mention.actionNoChannel'),
+    title: (data: any) => getActorDisplayName(data) + t('notificationText.mention.actionNoChannel'),
     message: (data: any) => {
       const text = extractContentText(data.post?.content_preview) || extractContentText(data.post_content)
-      if (text) {
-        const truncated = text.substring(0, 120)
-        return `"${truncated}${text.length >= 120 ? '...' : ''}"`
-      }
-      return 'Click to see the mention'
+      if (text) return quotedExcerpt(text, 120, true)
+      return t('notificationText.apMention.noPreview')
     },
-    shortTitle: () => `Federated mention`
+    shortTitle: () => t('notificationText.apMention.short')
   },
 
   activitypub_reply: {
-    titleAction: () => ' replied to your post',
-    title: (data: any) => getActorDisplayName(data) + ' replied to your post',
+    titleAction: () => t('notificationText.apReply.action'),
+    title: (data: any) => getActorDisplayName(data) + t('notificationText.apReply.action'),
     message: (data: any) => {
       const text = extractContentText(data.post_content)
         || extractContentText(data.post?.content_preview)
         || extractContentText(data.post?.content)
-      if (text) {
-        const truncated = text.substring(0, 120)
-        return `"${truncated}${text.length > 120 ? '...' : ''}"`
-      }
-      return 'Click to see the reply';
+      if (text) return quotedExcerpt(text, 120)
+      return t('notificationText.apReply.noPreview');
     },
-    shortTitle: () => `New reply`
+    shortTitle: () => t('notificationText.apReply.short')
   },
 
   activitypub_quote: {
@@ -395,8 +426,8 @@ const MESSAGE_TEMPLATES = {
   },
 
   activitypub_reaction: {
-    titleAction: () => ' reacted to your post',
-    title: (data: any) => getActorDisplayName(data) + ' reacted to your post',
+    titleAction: () => t('notificationText.apReaction.action'),
+    title: (data: any) => getActorDisplayName(data) + t('notificationText.apReaction.action'),
     message: (data: any) => {
       const text = extractContentText(data.post?.content_preview)
         || extractContentText(data.post_content)
@@ -404,26 +435,28 @@ const MESSAGE_TEMPLATES = {
         const truncated = text.substring(0, 100)
         return truncated + (text.length > 100 ? '...' : '')
       }
-      return 'Click to view post'
+      return t('notificationText.apReaction.noPreview')
     },
-    shortTitle: () => 'Reaction'
+    shortTitle: () => t('notificationText.reaction.short')
   },
 
   activitypub_follow_request: {
-    title: (data: any) => `${data.follower.display_name || data.follower.username} wants to follow you`,
-    message: (data: any) => `${data.follower.handle || '@' + data.follower.username} sent you a follow request`,
-    shortTitle: (_data: any) => `Follow request`
+    title: (data: any) => t('notificationText.followRequest.title', { name: data.follower.display_name || data.follower.username }),
+    message: (data: any) => t('notificationText.followRequest.message', { handle: data.follower.handle || '@' + data.follower.username }),
+    shortTitle: (_data: any) => t('notificationText.followRequest.short')
   },
 
   activitypub_follow_accepted: {
-    titleAction: () => ' accepted your follow request',
-    title: (data: any) => getActorDisplayName(data) + ' accepted your follow request',
+    titleAction: () => t('notificationText.followAccepted.action'),
+    title: (data: any) => getActorDisplayName(data) + t('notificationText.followAccepted.action'),
     message: (data: any) => {
       const sender = data.sender
       const handle = sender?.handle || (sender?.username ? '@' + sender.username : '')
-      return handle ? `You are now following ${handle}` : 'You are now following them'
+      return handle
+        ? t('notificationText.followAccepted.message', { handle })
+        : t('notificationText.followAccepted.messageNoHandle')
     },
-    shortTitle: () => 'Request accepted'
+    shortTitle: () => t('notificationText.followAccepted.short')
   },
 
   thread_reply: {
@@ -435,11 +468,13 @@ const MESSAGE_TEMPLATES = {
       if (text) {
         return text.length > 100 ? text.substring(0, 100) + '...' : text
       }
-      return 'Click to view thread'
+      return t('notificationText.threadReply.noPreview')
     },
     shortTitle: (data: any) => {
-      const channelName = data.location?.channel_name || data.channel_name || 'thread'
-      return `Thread reply in #${channelName}`
+      const channel = channelOf(data)
+      return channel
+        ? t('notificationText.threadReply.short', { channel })
+        : t('notificationText.threadReply.shortNoChannel')
     }
   },
 
@@ -543,12 +578,11 @@ const MESSAGE_TEMPLATES = {
       if (typeof data.resolved_by_server === 'string') {
         return i18n.global.t('moderation.serverReport.reviewedTitle', { server: data.resolved_by_server })
       }
-      const status = data.status || 'updated'
-      switch (status) {
-        case 'investigating': return 'Your report is being reviewed'
-        case 'resolved': return 'Your report has been resolved'
-        case 'dismissed': return 'Your report has been reviewed'
-        default: return 'Report status updated'
+      switch (data.status) {
+        case 'investigating': return t('notificationText.reportUpdate.investigatingTitle')
+        case 'resolved': return t('notificationText.reportUpdate.resolvedTitle')
+        case 'dismissed': return t('notificationText.reportUpdate.dismissedTitle')
+        default: return t('notificationText.reportUpdate.updatedTitle')
       }
     },
     message: (data: any) => {
@@ -558,14 +592,12 @@ const MESSAGE_TEMPLATES = {
           outcome: i18n.global.t(`moderation.serverReport.outcome.${data.status}`),
         })
       }
-      const type = data.report_type || 'content'
-      const status = data.status || 'updated'
-      const note = data.resolution_note
-      let msg = `Your ${type} report has been ${status}.`
-      if (note && note.trim()) msg += ` Note: ${note.trim()}`
-      return msg
+      const status = ['investigating', 'resolved', 'dismissed'].includes(data.status) ? data.status : 'updated'
+      const note = typeof data.resolution_note === 'string' ? data.resolution_note.trim() : ''
+      const msg = t(`notificationText.reportUpdate.${status}Message`)
+      return note ? t('notificationText.reportUpdate.withNote', { message: msg, note }) : msg
     },
-    shortTitle: () => 'Report update'
+    shortTitle: () => t('notificationText.reportUpdate.short')
   },
 
   moderation_warning: {
@@ -603,18 +635,19 @@ const MESSAGE_TEMPLATES = {
    */
   admin_pending_donation: {
     title: (data: any) => {
-      const platform = (data.platform || 'unknown').toString()
+      if (!data.platform) return t('notificationText.donation.titleNoPlatform')
+      const platform = data.platform.toString()
       const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1)
-      return `New ${platformLabel} donation needs review`
+      return t('notificationText.donation.title', { platform: platformLabel })
     },
     message: (data: any) => {
-      const amount = data.amount != null ? Number(data.amount).toFixed(2) : '?'
-      const currency = data.currency || 'USD'
+      const amount = donationAmount(data.amount, data.currency || 'USD')
       const donor = data.donor_name?.trim()
-      const donorPart = donor ? ` from ${donor}` : ''
-      return `${currency} ${amount}${donorPart} couldn't be matched to a user - open the admin panel to attribute it.`
+      return donor
+        ? t('notificationText.donation.messageFrom', { amount, donor })
+        : t('notificationText.donation.message', { amount })
     },
-    shortTitle: () => 'Donation needs review',
+    shortTitle: () => t('notificationText.donation.short'),
   },
 } as const
 
@@ -628,9 +661,9 @@ export class NotificationFormatter {
     if (!template) {
       // Fallback for unknown notification types
       return {
-        title: 'New notification',
-        message: 'You have a new notification',
-        shortTitle: 'Notification'
+        title: t('notificationText.fallback.title'),
+        message: t('notificationText.fallback.message'),
+        shortTitle: t('notificationText.fallback.short')
       }
     }
     
@@ -641,15 +674,15 @@ export class NotificationFormatter {
       title = template.title(data)
     } catch (e) {
       debug.warn('Error formatting notification title:', e, notification)
-      title = `New ${notification.type} notification`
+      title = t('notificationText.fallback.title')
     }
 
     let message: string
     try {
-      message = isEncryptedMessageData(data) ? ENCRYPTED_MESSAGE_PREVIEW : template.message(data)
+      message = isEncryptedMessageData(data) ? encryptedMessagePreview() : template.message(data)
     } catch (e) {
       debug.warn('Error formatting notification message:', e, notification)
-      message = 'Click to view details'
+      message = t('notificationText.fallback.viewDetails')
     }
 
     let shortTitle: string
@@ -767,7 +800,7 @@ export class NotificationFormatter {
         if (!user.is_local && user.domain) {
           return `@${user.username}@${user.domain}`
         }
-        return username || 'Unknown'
+        return username || t('notificationText.unknownSender')
       }
     }
     
@@ -778,21 +811,21 @@ export class NotificationFormatter {
       if (data.sender.domain && !data.sender.is_local) {
         return `${displayName}@${data.sender.domain}`
       }
-      return displayName || 'Unknown'
+      return displayName || t('notificationText.unknownSender')
     }
     
     // Legacy format fallbacks
     if (data.sender_username || data.sender_display_name) {
-      return data.sender_display_name || data.sender_username || 'Unknown'
+      return data.sender_display_name || data.sender_username || t('notificationText.unknownSender')
     }
     
     // Other notification types
     if (data.reactor) {
-      return data.reactor.display_name || data.reactor.username || 'Unknown'
+      return data.reactor.display_name || data.reactor.username || t('notificationText.unknownSender')
     }
     
     if (data.inviter) {
-      return data.inviter.display_name || data.inviter.username || 'Unknown'
+      return data.inviter.display_name || data.inviter.username || t('notificationText.unknownSender')
     }
 
     if (notification.type === 'moderation_warning') {
@@ -809,12 +842,12 @@ export class NotificationFormatter {
         return i18n.global.t('moderation.serverReport.moderators', { server: data.resolved_by_server })
       }
       if (data.show_resolver && (data.resolver_display_name || data.resolver_username)) {
-        return data.resolver_display_name || data.resolver_username || 'Admin/Moderator'
+        return data.resolver_display_name || data.resolver_username
       }
-      return 'Admin/Moderator'
+      return t('notificationText.staffSender')
     }
     
-    return 'Unknown'
+    return t('notificationText.unknownSender')
   }
   
   /**

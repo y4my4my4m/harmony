@@ -135,7 +135,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     getChannelNameById: (state) => (channelId: string): string => {
       const channel = state.channels.find((c: Channel) => c.id === channelId);
-      return channel?.name || 'Unknown Channel';
+      return channel?.name || i18n.global.t('messageSearch.unknownChannel');
     },
   },
 
@@ -2387,7 +2387,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
       
       if (this.currentServerId === deletedServer.id) {
         const toast = useToast();
-        toast.info(`Server "${deletedServer.name || 'Unknown'}" has been deleted`);
+        toast.info(deletedServer.name
+          ? i18n.global.t('serverRail.serverDeleted', { name: deletedServer.name })
+          : i18n.global.t('serverRail.serverDeletedUnnamed'));
         
         if (this.servers.length > 0) {
           this.setCurrentServer(this.servers[0].id);
@@ -2468,7 +2470,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         if (error) {
           debug.error('Error creating folder:', error);
           const toast = useToast();
-          toast.error('Failed to create folder');
+          toast.error(i18n.global.t('serverRail.folder.createFailed'));
           return null;
         }
 
@@ -2498,7 +2500,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         if (error) {
           debug.error('Error updating folder:', error);
           const toast = useToast();
-          toast.error('Failed to update folder');
+          toast.error(i18n.global.t('serverRail.folder.updateFailed'));
           return false;
         }
 
@@ -2552,7 +2554,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         if (error) {
           debug.error('Error deleting folder:', error);
           const toast = useToast();
-          toast.error('Failed to delete folder');
+          toast.error(i18n.global.t('serverRail.folder.deleteFailed'));
           return false;
         }
 

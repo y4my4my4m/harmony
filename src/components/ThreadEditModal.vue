@@ -3,7 +3,7 @@
     <div v-if="show" class="modal-overlay" @click="closeModal">
       <div class="modal-container" @click.stop>
         <div class="modal-header">
-          <h2 class="modal-title">Edit thread</h2>
+          <h2 class="modal-title">{{ t('chatNav.thread.edit') }}</h2>
           <button class="modal-close" @click="closeModal">
             <svg width="24" height="24" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
@@ -13,7 +13,7 @@
         
         <div class="modal-body">
           <div class="form-group">
-            <label for="thread-name">Thread name</label>
+            <label for="thread-name">{{ t('threadCreate.nameLabel') }}</label>
             <input
               id="thread-name"
               v-model="editedName"
@@ -34,7 +34,7 @@
                 v-model="editedLocked"
                 class="checkbox-input"
               />
-              <span>Lock thread (prevent new messages)</span>
+              <span>{{ t('chatNav.thread.lockPrevent') }}</span>
             </label>
           </div>
 
@@ -45,18 +45,18 @@
                 v-model="editedArchived"
                 class="checkbox-input"
               />
-              <span>Archive thread</span>
+              <span>{{ t('chatNav.thread.archive') }}</span>
             </label>
           </div>
 
           <div v-if="editedArchived" class="archive-note">
-            Archived threads can still be viewed but won't appear in the active list.
+            {{ t('chatNav.thread.archiveNote') }}
           </div>
         </div>
         
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="closeModal">
-            Cancel
+            {{ t('common.cancel') }}
           </button>
           <button 
             class="btn btn-primary" 
@@ -64,7 +64,7 @@
             :disabled="!isValidName || isLoading"
           >
             <span v-if="isLoading" class="loading-spinner"></span>
-            {{ isLoading ? 'Saving...' : 'Save changes' }}
+            {{ isLoading ? t('channel.edit.saving') : t('server.saveChanges') }}
           </button>
         </div>
       </div>
@@ -77,6 +77,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { threadService } from '@/services/ThreadService'
 import type { Thread } from '@/types'
+import { useI18n } from 'vue-i18n'
 
 interface Props {
   show: boolean
@@ -90,6 +91,7 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const { t } = useI18n()
 
 const editedName = ref('')
 const editedLocked = ref(false)

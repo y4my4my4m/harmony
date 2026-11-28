@@ -61,7 +61,7 @@ const getSpeakerAvatar = (userId: string) => {
 
 const getSpeakerName = (userId: string) => {
   const profile = getUser(userId)?.value;
-  return profile?.displayName || profile?.username || 'User';
+  return profile?.displayName || profile?.username || t('chatNav.user.fallbackName');
 };
 
 const speakerLabel = (userId: string) =>

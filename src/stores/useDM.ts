@@ -615,7 +615,7 @@ export const useDMStore = defineStore('dm', () => {
         resolved = (await processMessageDecryption([message]))[0] ?? message
       }
       if (resolved.encrypted && !resolved.decrypted) {
-        resolved = { ...resolved, content: [{ type: 'text', text: 'Encrypted message' }] }
+        resolved = { ...resolved, content: [{ type: 'text', text: i18n.global.t('channelEncryption.encryptedMessage') }] }
       }
 
       try {

@@ -80,7 +80,7 @@
 
     <button v-if="hasTextContent" type="button" role="menuitem" class="context-menu-item" @click="copyText">
       <Icon name="copy" size="sm" />
-      <span>Copy text</span>
+      <span>{{ t('message.copyText') }}</span>
     </button>
 
     <!-- Image-specific actions. When the message has multiple image
@@ -91,26 +91,26 @@
     <template v-if="firstImageAttachment">
       <button type="button" role="menuitem" class="context-menu-item" @click="copyImage">
         <Icon name="copy" size="sm" />
-        <span>Copy image</span>
+        <span>{{ t('message.copyImage') }}</span>
       </button>
 
       <button type="button" role="menuitem" class="context-menu-item" @click="saveImage">
         <Icon name="download" size="sm" />
-        <span>Save image</span>
+        <span>{{ t('message.saveImage') }}</span>
       </button>
     </template>
 
     <template v-if="firstVideoAttachment">
       <button type="button" role="menuitem" class="context-menu-item" @click="saveVideo">
         <Icon name="download" size="sm" />
-        <span>Save video</span>
+        <span>{{ t('message.saveVideo') }}</span>
       </button>
     </template>
 
     <template v-if="firstAudioAttachment">
       <button type="button" role="menuitem" class="context-menu-item" @click="saveAudio">
         <Icon name="download" size="sm" />
-        <span>Save audio</span>
+        <span>{{ t('message.saveAudio') }}</span>
       </button>
     </template>
 
@@ -123,7 +123,7 @@
 
     <button type="button" role="menuitem" class="context-menu-item" @click="copyMessageURL">
       <Icon name="link" size="sm" />
-      <span>Copy message link</span>
+      <span>{{ t('message.copyMessageLink') }}</span>
     </button>
 
     <button v-if="canToggleEmbeds" type="button" role="menuitem" class="context-menu-item" data-testid="context-menu-toggle-embeds" @click="toggleEmbeds">
@@ -151,7 +151,7 @@
 
       <button v-if="canReport" type="button" role="menuitem" class="context-menu-item destructive-item" aria-haspopup="dialog" @click="reportMessage">
         <Icon name="flag" size="sm" />
-        <span>Report message</span>
+        <span>{{ t('moderation.reportMessage') }}</span>
       </button>
 
       <button
@@ -444,11 +444,11 @@ const hasTextContent = computed(() => hasCopyableText(props.message?.content));
 // "Copy Link URL" for plain URLs. Matches Discord's wording: media files
 // (images/videos/audio) get "Media URL"; bare links get "Link".
 const mediaUrlLabel = computed(() => {
-  if (!props.message || !Array.isArray(props.message.content)) return 'Copy Link URL';
+  if (!props.message || !Array.isArray(props.message.content)) return t('message.copyLinkUrl');
   const hasFileMedia = props.message.content.some(
     part => part.type === 'file' && ['image', 'video', 'audio'].includes(part.fileType)
   );
-  return hasFileMedia ? 'Copy Media URL' : 'Copy Link URL';
+  return hasFileMedia ? t('message.copyMediaUrl') : t('message.copyLinkUrl');
 });
 
 const copyMessageURL = async () => {

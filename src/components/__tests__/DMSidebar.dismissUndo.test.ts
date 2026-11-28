@@ -67,6 +67,7 @@ vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
   useI18n: () => ({
     t: (key: string, named?: Record<string, unknown>) => (named ? `${key}(${Object.values(named).join(',')})` : key),
+    locale: { value: 'en' },
   }),
 }))
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }))

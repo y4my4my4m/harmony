@@ -1,6 +1,7 @@
 import type { AudioTheme, AudioAction, AudioThemeSettings } from '@/types'
 import { isAndroidApp } from '@/services/androidReleaseNotice'
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 import { userStorage } from '@/utils/userScopedStorage'
 import { savePackBlob, getPackBlob, getAllPackBlobs, deletePackBlobs } from '@/utils/audioPackStorage'
 
@@ -226,8 +227,8 @@ export class AudioThemeService {
     // Default theme (fallback for all missing sounds)
     this.registerTheme({
       id: 'default',
-      name: 'Default',
-      description: 'Clean and minimal sound effects for focused productivity',
+      get name() { return i18n.global.t('settings.audio.themes.packs.default.name') },
+      get description() { return i18n.global.t('settings.audio.themes.packs.default.description') },
       author: 'Harmony Team',
       version: '1.0.0',
       isBuiltIn: true,
@@ -271,8 +272,8 @@ export class AudioThemeService {
     // Futuristic theme - Subtle and refined
     this.registerTheme({
       id: 'futuristic',
-      name: 'Futuristic',
-      description: 'Futuristic audio cues for a modern and engaging experience',
+      get name() { return i18n.global.t('settings.audio.themes.packs.futuristic.name') },
+      get description() { return i18n.global.t('settings.audio.themes.packs.futuristic.description') },
       author: 'Harmony Team',
       version: '1.0.0',
       isBuiltIn: true,
@@ -313,7 +314,7 @@ export class AudioThemeService {
     this.registerTheme({
       id: 'neokobe',
       name: 'Neo Kobe',
-      description: 'Noir-cyberpunk UI sounds for the SDR-001 skin',
+      get description() { return i18n.global.t('settings.audio.themes.packs.neokobe.description') },
       author: 'Harmony Team',
       version: '1.0.0',
       isBuiltIn: true,
@@ -348,14 +349,15 @@ export class AudioThemeService {
     // public/assets/sounds/<id>/, one file per action. Each pairs with the
     // skin of the same id.
     const generatedPacks = [
-      { id: 'skyglass', name: 'Skyglass', description: 'Glass bells, water drops and bubbles for the Skyglass skin' },
-      { id: 'lattice', name: 'Lattice', description: 'FM crystal pings, relay ticks and sweeps for the Lattice skin' },
-      { id: 'flux', name: 'Flux', description: 'Resonant liquid synth, sub swells and glass sparkle for the Flux skin' },
+      { id: 'skyglass', name: 'Skyglass' },
+      { id: 'lattice', name: 'Lattice' },
+      { id: 'flux', name: 'Flux' },
     ]
     for (const pack of generatedPacks) {
       const base = `/assets/sounds/${pack.id}`
       this.registerTheme({
         ...pack,
+        get description() { return i18n.global.t(`settings.audio.themes.packs.${pack.id}.description`) },
         author: 'Harmony Team',
         version: '1.0.0',
         isBuiltIn: true,

@@ -309,7 +309,7 @@ import { focusElement, uid } from '@/utils/a11y/focus'
 import { formatHandle } from '@/utils/handles'
 
 const toast = useToast()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 withDefaults(defineProps<{
   /** False where the page header around the list names it. */
@@ -390,14 +390,14 @@ const filteredSearchResults = computed(() => {
 
 // Helper functions for conversation display
 const getConversationDisplayName = (conversation: DMConversation): string => {
-  if (!conversation.other_user) return 'Unknown User'
+  if (!conversation.other_user) return t('voice.unknownUser')
   
   if (conversation.other_user._isPlaceholder) {
-    return 'Loading...' // Show loading state for placeholder data
+    return t('common.loading')
   }
   
   // Use the existing helper for loaded data
-  return getUserDisplayName(conversation.other_user.id).value || conversation.other_user.display_name || conversation.other_user.username || 'Unknown User'
+  return getUserDisplayName(conversation.other_user.id).value || conversation.other_user.display_name || conversation.other_user.username || t('voice.unknownUser')
 }
 
 const getConversationAvatarUrl = (conversation: DMConversation): string => {
@@ -598,12 +598,12 @@ const getDefaultGroupName = (conversation: DMConversation): string => {
       .join(', ')
     
     if (conversation.participants.length > 3) {
-      return `${names}, and ${conversation.participants.length - 3} others`
+      return t('chatNav.dm.groupNamesMore', { names, count: conversation.participants.length - 3 }, conversation.participants.length - 3)
     }
     return names
   }
   
-  return `Group Chat (${conversation.participant_count || 0} members)`
+  return t('chatNav.dm.groupFallback', { count: conversation.participant_count || 0 }, conversation.participant_count || 0)
 }
 
 const formatMessageTime = (timestamp: string): string => {
@@ -611,17 +611,17 @@ const formatMessageTime = (timestamp: string): string => {
   const now = new Date()
   const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
   
-  if (diffInMinutes < 1) return 'now'
-  if (diffInMinutes < 60) return `${diffInMinutes}m`
-  if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h`
-  if (diffInMinutes < 10080) return `${Math.floor(diffInMinutes / 1440)}d`
+  if (diffInMinutes < 1) return t('time.now')
+  if (diffInMinutes < 60) return t('chatNav.dm.ageMinutes', { count: diffInMinutes })
+  if (diffInMinutes < 1440) return t('chatNav.dm.ageHours', { count: Math.floor(diffInMinutes / 60) })
+  if (diffInMinutes < 10080) return t('drive.state.daysShort', { count: Math.floor(diffInMinutes / 1440) })
   
-  return date.toLocaleDateString()
+  return date.toLocaleDateString(locale.value)
 }
 
 const getLastMessagePreview = (conversation: DMConversation): string => {
   if (!conversation.last_message && conversation.preview_pending) return ''
-  if (!conversation.last_message?.content) return 'No messages yet'
+  if (!conversation.last_message?.content) return t('empty.threadMessages.title')
   
   try {
     const message = conversation.last_message
@@ -629,12 +629,12 @@ const getLastMessagePreview = (conversation: DMConversation): string => {
     
     // Only show preview if the message is from the other user (not from current user)
     if (message.user_id === currentUser?.id) {
-      return 'You: ' + getMessagePreviewText(message)
+      return t('chatNav.dm.ownPreview', { text: getMessagePreviewText(message) })
     }
     
     return getMessagePreviewText(message)
   } catch (error) {
-    return 'Message'
+    return t('chatNav.dm.previewMessage')
   }
 }
 
@@ -643,7 +643,7 @@ const getMessagePreviewText = (message: Message): string => {
   if (systemKey) return t(systemKey)
   if (isUndecrypted(message)) return t('channelEncryption.encryptedMessage')
   const content = message.content as MessagePart[]
-  if (!Array.isArray(content)) return 'No messages yet'
+  if (!Array.isArray(content)) return t('empty.threadMessages.title')
   const poll = pollPreview(content)
   if (poll) return poll.length > 50 ? poll.substring(0, 50) + '...' : poll
   
@@ -662,12 +662,12 @@ const getMessagePreviewText = (message: Message): string => {
   if (sticker) return t('stickers.preview', { name: sticker.name })
 
   const filePart = content.find(part => part.type === 'file')
-  if (filePart) return 'File'
+  if (filePart) return t('activitypub.file')
   
   const emojiPart = content.find(part => part.type === 'emoji')
-  if (emojiPart) return 'Emoji'
+  if (emojiPart) return t('messageA11y.image.emoji')
   
-  return 'Message'
+  return t('chatNav.dm.previewMessage')
 }
 
 // Same intent threshold as the server rail and channel list.

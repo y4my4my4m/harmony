@@ -2,15 +2,15 @@
   <div class="thread-full-view">
     <!-- Thread Header -->
     <div class="thread-header">
-      <button class="back-btn" @click="goBack" title="Back to channel">
+      <button class="back-btn" @click="goBack" :title="t('chatNav.thread.backToChannel')">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
         </svg>
       </button>
       <div class="header-info">
-        <h2 class="thread-title">{{ thread?.name || 'Thread' }}</h2>
+        <h2 class="thread-title">{{ thread?.name || t('systemEvents.threadFallbackName') }}</h2>
         <span class="thread-channel" @click="goToChannel">
-          <span class="hash">#</span>{{ thread?.channel_name || 'channel' }}
+          <span class="hash">#</span>{{ thread?.channel_name || t('chatNav.thread.channelFallback') }}
         </span>
       </div>
       <div class="header-actions">
@@ -20,7 +20,7 @@
           </svg>
           {{ thread?.member_count }}
         </span>
-        <button class="options-btn" @click.stop="showOptions = !showOptions" title="Thread options">
+        <button class="options-btn" @click.stop="showOptions = !showOptions" :title="t('chatNav.thread.options')">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="12" cy="5" r="2"/>
             <circle cx="12" cy="12" r="2"/>
@@ -54,7 +54,7 @@
           <line x1="20" y1="8" x2="20" y2="14"/>
           <line x1="23" y1="11" x2="17" y2="11"/>
         </svg>
-        Join thread
+        {{ t('chatNav.thread.join') }}
       </button>
       <button v-if="isMember" @click="leaveThread" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -62,7 +62,7 @@
           <polyline points="16 17 21 12 16 7"/>
           <line x1="21" y1="12" x2="9" y2="12"/>
         </svg>
-        Leave thread
+        {{ t('chatNav.thread.leave') }}
       </button>
 
       <div class="options-divider"></div>
@@ -71,42 +71,42 @@
         <svg width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
         </svg>
-        Edit thread
+        {{ t('chatNav.thread.edit') }}
       </button>
 
       <button v-if="canManageThread && !thread?.archived" @click="closeThread" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
         </svg>
-        Close thread
+        {{ t('chatNav.thread.close') }}
       </button>
 
       <button v-if="canManageThread && thread?.archived" @click="reopenThread" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5L17.5 12H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
         </svg>
-        Reopen thread
+        {{ t('chatNav.thread.reopen') }}
       </button>
 
       <button v-if="canManageThread && !thread?.locked" @click="lockThread" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
         </svg>
-        Lock thread
+        {{ t('chatNav.thread.lock') }}
       </button>
 
       <button v-if="canManageThread && thread?.locked" @click="unlockThread" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/>
         </svg>
-        Unlock thread
+        {{ t('chatNav.thread.unlock') }}
       </button>
 
       <button v-if="canManageThread" @click="deleteThread" class="option-item danger">
         <svg width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
         </svg>
-        Delete thread
+        {{ t('chatNav.thread.delete') }}
       </button>
 
       <div class="options-divider"></div>
@@ -118,7 +118,7 @@
         <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
         </svg>
-        {{ isMuted ? 'Unmute thread' : 'Mute thread' }}
+        {{ isMuted ? t('chatNav.thread.unmute') : t('chatNav.thread.mute') }}
       </button>
 
       <div class="options-divider"></div>
@@ -127,14 +127,14 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
         </svg>
-        Copy link
+        {{ t('message.copyLink') }}
       </button>
 
       <button @click="copyThreadId" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
         </svg>
-        Copy thread ID
+        {{ t('chatNav.thread.copyId') }}
       </button>
     </div>
 
@@ -203,7 +203,7 @@
           </div>
 
           <button v-if="hasMore && !loading" class="load-more-btn" @click="loadMore">
-            Load older messages
+            {{ t('chatNav.thread.loadOlder') }}
           </button>
 
           <EmptyState
@@ -279,7 +279,6 @@ import { supabase } from '@/supabase'
 import { useUserData } from '@/composables/useUserData'
 import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
 import { useProfileStore } from '@/stores/useProfile'
-import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue'
@@ -344,7 +343,7 @@ const { canManageChannels } = useServerPermissions()
 const mediaHidden = useServerMediaHidden(() => props.serverId)
 const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
 const toast = useToast()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const canManageThread = computed(() => canManageChannels.value)
 
@@ -411,7 +410,7 @@ const threadSubscription = ref<(() => void) | null>(null)
 const reactionsSubscription = ref<(() => void) | null>(null)
 
 const formatDate = (date: string | Date) => {
-  return format(new Date(date), 'MMM d, yyyy \'at\' h:mm a')
+  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date))
 }
 
 
@@ -602,7 +601,7 @@ const toggleNotifications = async () => {
 const editThread = async () => {
   showOptions.value = false
   if (!thread.value) return
-  const newName = (await prompt({ title: 'Edit thread', message: 'Rename this thread.', label: 'Thread name', initialValue: thread.value.name, confirmButtonText: 'Save' }))?.trim()
+  const newName = (await prompt({ title: t('chatNav.thread.edit'), message: t('chatNav.thread.renameMessage'), label: t('threadCreate.nameLabel'), initialValue: thread.value.name, confirmButtonText: t('common.save') }))?.trim()
   if (newName && thread.value && newName !== thread.value.name) {
     threadService.updateThread(thread.value.id, { name: newName }).then((updated) => {
       if (updated && thread.value) {
@@ -662,7 +661,7 @@ const unlockThread = async () => {
 const deleteThread = async () => {
   showOptions.value = false
   if (!thread.value) return
-  if (!(await confirm({ title: 'Delete thread', message: `Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
+  if (!(await confirm({ title: t('chatNav.thread.delete'), message: t('chatNav.thread.deleteConfirm', { name: thread.value.name }), confirmButtonText: t('common.delete'), dangerAction: true }))) return
   try {
     const deletedId = thread.value.id
     await threadService.deleteThread(deletedId)

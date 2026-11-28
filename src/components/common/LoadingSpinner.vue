@@ -1,9 +1,12 @@
 <template>
-  <div class="harmony-spinner" :style="spinnerStyle" role="status" aria-label="Loading"></div>
+  <div class="harmony-spinner" :style="spinnerStyle" role="status" :aria-label="t('common.loading')"></div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { i18n } from '@/i18n'
+
+const { t } = i18n.global
 
 /**
  * Canonical loading spinner. Uses the active theme's primary colour across

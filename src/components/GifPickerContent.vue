@@ -139,7 +139,7 @@
       <!-- Loading State -->
       <div v-else-if="isLoading" class="loading-state">
         <LoadingSpinner :size="24" />
-        <span>Loading...</span>
+        <span>{{ t('common.loading') }}</span>
       </div>
 
       <!-- Favorites View -->
@@ -434,11 +434,11 @@ const isClips = computed(() => props.mediaType === 'clips');
 // Human-readable noun for empty states (the picker spans several media types).
 const mediaNoun = computed(() => {
   switch (props.mediaType) {
-    case 'stickers': return 'stickers';
-    case 'clips': return 'clips';
-    case 'memes': return 'memes';
-    case 'ai-emojis': return 'AI emoji';
-    default: return 'GIFs';
+    case 'stickers': return t('gif.kind.stickers');
+    case 'clips': return t('gif.kind.clips');
+    case 'memes': return t('gif.kind.memes');
+    case 'ai-emojis': return t('gif.kind.aiEmoji');
+    default: return t('gif.kind.gifs');
   }
 });
 // Stickers and AI emojis are small, transparent, sticker-like media.

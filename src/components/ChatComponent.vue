@@ -647,12 +647,12 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           if (svc.isInitialized() && svc.isUnlocked()) {
             const hasKey = await svc.hasRecoveryKey()
             if (hasKey) {
-              encryptionStatusData.value = { level: 'active', icon: 'lock', text: 'End-to-end encrypted' }
+              encryptionStatusData.value = { level: 'active', icon: 'lock', text: t('channelEncryption.status.active') }
             } else {
               encryptionStatusData.value = {
                 level: 'locked',
                 icon: 'unlock',
-                text: 'Encryption enabled but keys not set up',
+                text: t('channelEncryption.dmStatus.noKeys'),
                 showSetup: true
               }
             }
@@ -662,14 +662,14 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
               encryptionStatusData.value = {
                 level: 'locked',
                 icon: 'unlock',
-                text: 'Encryption enabled - unlock to read encrypted messages',
+                text: t('channelEncryption.dmStatus.locked'),
                 showUnlock: true
               }
             } else {
               encryptionStatusData.value = {
                 level: 'locked',
                 icon: 'unlock',
-                text: 'Encryption enabled - set up your keys to participate',
+                text: t('channelEncryption.dmStatus.setup'),
                 showSetup: true
               }
             }
@@ -748,8 +748,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         // went out unencrypted, which is also surfaced here.
         const detail = (e as CustomEvent).detail || {}
         sendError.value = detail.failClosed
-          ? 'Encryption failed - message NOT sent (confirm fallback to send unencrypted)'
-          : 'Encryption failed - message sent unencrypted'
+          ? t('channelEncryption.sendFallback.notSent')
+          : t('channelEncryption.sendFallback.sentUnencrypted')
         setTimeout(() => { sendError.value = null }, 6000)
       };
 
@@ -1202,7 +1202,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
             // rather than a "send plaintext" prompt. A refusal carrying a
             // reason has its own toast and setup or unlock prompt.
             if (!error?.reason) {
-              toast.error(msg || 'This channel requires end-to-end encryption.')
+              toast.error(msg || t('channelEncryption.sendFallback.required'))
             }
             messageInputRef.value?.flashRejection?.()
             restoreDraft()
@@ -1272,7 +1272,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
 
         const outcome = await sendToTarget(target, authorId, messageParts, replyMessageId, { turn })
         if (outcome === 'declined') {
-          sendError.value = 'Message was not sent.'
+          sendError.value = t('channelEncryption.sendFallback.declined')
           setTimeout(() => { sendError.value = null }, 6000)
           return 'declined'
         }

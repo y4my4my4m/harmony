@@ -25,17 +25,20 @@ export const fluxSkin: Skin = {
     'has thickness, rim light and colour fringing, and bends what is behind ' +
     'it where the browser allows. Takes your primary and accent colours. ' +
     'Pairs with the Flux sound pack of resonant liquid synth.',
+  descriptionKey: 'settings.appearance.skins.flux.description',
   isBeta: true,
   preview: '/assets/skins/flux-preview.svg',
   options: [
     {
       id: 'dock',
       label: 'Horizontal layout',
+      labelKey: 'settings.appearance.skins.flux.options.dock.label',
       description:
         'Servers in a dock across the top, channels as a tab strip, the ' +
         'conversation in a centred column and you in a capsule at the top ' +
         'right. Windows narrower than 1024px keep the side-by-side layout. ' +
         'Reorder servers with this off.',
+      descriptionKey: 'settings.appearance.skins.flux.options.dock.description',
       type: 'boolean',
       default: true,
     },
@@ -55,47 +58,59 @@ export const fluxSkin: Skin = {
     {
       id: 'lens',
       label: 'Lens refraction',
+      labelKey: 'settings.appearance.skins.flux.options.lens.label',
       description:
         'Glass controls bend what is behind their rims. Chromium-based ' +
         'browsers and the Windows app only; elsewhere the glass keeps its ' +
         'rim light without the bend.',
+      descriptionKey: 'settings.appearance.skins.flux.options.lens.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'liquid',
       label: 'Liquid field',
+      labelKey: 'settings.appearance.skins.flux.options.liquid.label',
       description: 'Metaballs drifting behind the glass. Off leaves a still aurora.',
+      descriptionKey: 'settings.appearance.skins.flux.options.liquid.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'drift',
       label: 'Living drift',
+      labelKey: 'settings.appearance.skins.flux.options.drift.label',
       description:
         'The field moves at 20 frames a second while the window is focused. ' +
         'Off, it holds still and draws only when something changes.',
+      descriptionKey: 'settings.appearance.skins.flux.options.drift.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'orbits',
       label: 'Orbit rings',
+      labelKey: 'settings.appearance.skins.flux.options.orbits.label',
       description: 'Thin colour rings turning slowly behind the liquid.',
+      descriptionKey: 'settings.appearance.skins.flux.options.orbits.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'morph',
       label: 'Morphing shapes',
+      labelKey: 'settings.appearance.skins.flux.options.morph.label',
       description: 'Servers and avatars melt into moving blobs under the pointer.',
+      descriptionKey: 'settings.appearance.skins.flux.options.morph.description',
       type: 'boolean',
       default: true,
     },
     {
       id: 'ui-sounds',
       label: 'Interface sounds',
+      labelKey: 'settings.appearance.skins.flux.options.uiSounds.label',
       description: 'A liquid blip on button and list clicks, from the active sound pack.',
+      descriptionKey: 'settings.appearance.skins.flux.options.uiSounds.description',
       type: 'boolean',
       default: true,
     },

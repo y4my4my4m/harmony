@@ -38,16 +38,16 @@
             v-for="id in bannerParticipants.slice(0, 4)"
             :key="id"
             :src="getUserAvatarUrl(id).value"
-            :alt="getUserDisplayName(id).value || 'User'"
+            :alt="getUserDisplayName(id).value || t('chatNav.user.fallbackName')"
             size="xs"
             class="call-banner-avatar"
           />
         </div>
         <span class="call-banner-text">
-          {{ bannerParticipants.length ? `${bannerParticipants.length} in call` : 'A call is in progress' }}
+          {{ bannerParticipants.length ? t('voice.inCallCount', { count: bannerParticipants.length }, bannerParticipants.length) : t('dm.callInProgress') }}
         </span>
         <button class="call-banner-join" @click="joinCallFromBanner">
-          Join call
+          {{ t('dm.joinCall') }}
         </button>
       </div>
     </div>

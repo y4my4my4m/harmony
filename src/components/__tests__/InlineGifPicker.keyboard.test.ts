@@ -8,6 +8,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { ref } from 'vue'
+import { createI18n } from 'vue-i18n'
+import en from '@/locales/en.json'
 import InlineGifPicker from '../InlineGifPicker.vue'
 
 vi.mock('@/composables/useLayoutState', () => ({
@@ -44,7 +46,7 @@ describe('InlineGifPicker keyboard and magnification', () => {
     wrapper = mount(InlineGifPicker, {
       props: { query: '' },
       attachTo: document.body,
-      global: { mocks: { $t: (k: string) => k }, stubs: { GifAdSlot: true } },
+      global: { plugins: [createI18n({ legacy: false, locale: 'en', messages: { en } })], stubs: { GifAdSlot: true } },
     })
     await flushPromises()
   })
@@ -123,8 +125,12 @@ describe('InlineGifPicker keyboard and magnification', () => {
     button.matches = ((sel: string) => sel === ':focus-visible') as typeof button.matches
     button.focus()
     await wrapper.vm.$nextTick()
+    // Vue drops a bubbling event whose capture-phase stamp (Date.now) is not later than the
+    // bubble listener's attach time; a click in the same millisecond as the render is lost.
+    await new Promise((r) => setTimeout(r, 2))
     ;(document.querySelector('[data-dock-tile="g2"]') as HTMLElement).click()
     const sent = wrapper.emitted('selectGif')?.[0]?.[0] as { id: string }
+    if (!sent) (await import('node:fs')).appendFileSync('/tmp/claude-1000/-home-y4my4m-gits-hobby-harmony-rebuild/ca1c573d-bcf7-47a2-93da-9613d8b3569f/scratchpad/dbg.txt', JSON.stringify({ dock: Object.keys(wrapper.findComponent({ name: 'InlineGifDock' }).emitted?.() ?? {}), tiles: document.querySelectorAll('[data-dock-tile]').length, html: document.querySelector('[data-dock-tile="g2"]')?.outerHTML?.slice(0,200), emitted: Object.keys(wrapper.emitted()) }) + '\n')
     expect(sent.id).toBe('g2')
   })
 })

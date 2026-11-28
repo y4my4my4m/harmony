@@ -2,15 +2,15 @@
 <div class="admin-module federation-module">
   <div class="module-header">
     <Icon name="federation" :size="20" />
-    <h2>Federation management</h2>
+    <h2>{{ t('admin.federation.title') }}</h2>
     <div class="module-actions">
       <button v-if="isAdmin" @click="handleAddInstance" class="primary-btn">
         <Icon name="plus" :size="16" />
-        Add instance
+        {{ t('admin.federation.addInstance') }}
       </button>
       <button @click="refreshFederationData(true)" class="action-btn" :disabled="loadingStates.federationStats">
         <Icon name="refresh-cw" :size="16" />
-        Refresh
+        {{ t('admin.federation.refresh') }}
       </button>
     </div>
   </div>
@@ -19,54 +19,54 @@
   <div class="federation-stats">
     <div class="stat-card">
       <div class="stat-value" data-testid="federation-stat-total">{{ formatNumber(stats?.instances.total) }}</div>
-      <div class="stat-label">Total instances</div>
+      <div class="stat-label">{{ t('admin.federation.statTotal') }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-value">{{ formatNumber(stats?.instances.active7d) }}</div>
-      <div class="stat-label">Active (7 days)</div>
+      <div class="stat-label">{{ t('admin.federation.statActive7d') }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-value">{{ formatNumber(stats?.instances.trusted) }}</div>
-      <div class="stat-label">Trusted</div>
+      <div class="stat-label">{{ t('admin.federation.trusted') }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-value">{{ formatNumber(stats?.instances.blocked) }}</div>
-      <div class="stat-label">Blocked</div>
+      <div class="stat-label">{{ t('admin.federation.blocked') }}</div>
     </div>
   </div>
 
   <!-- Endpoint Health Stats -->
   <div class="federation-section" v-if="stats">
     <div class="section-header">
-      <h3>Endpoint health</h3>
+      <h3>{{ t('admin.federation.endpointHealth') }}</h3>
       <div class="health-indicator" :class="endpointHealthClass">
-        {{ stats.endpoints.successRate }}% success rate
+        {{ t('admin.federation.successRate', { rate: stats.endpoints.successRate }) }}
       </div>
     </div>
     <div class="federation-stats">
       <div class="stat-card">
         <div class="stat-value">{{ formatNumber(stats.endpoints.total) }}</div>
-        <div class="stat-label">Total endpoints</div>
+        <div class="stat-label">{{ t('admin.federation.totalEndpoints') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value" :class="{ 'error-text': stats.endpoints.dead > 0 }">
           {{ formatNumber(stats.endpoints.dead) }}
         </div>
-        <div class="stat-label">Dead endpoints</div>
+        <div class="stat-label">{{ t('admin.federation.deadEndpoints') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ formatNumber(stats.endpoints.healthy) }}</div>
-        <div class="stat-label">Healthy</div>
+        <div class="stat-label">{{ t('admin.federation.healthyEndpoints') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ formatNumber(stats.endpoints.failing) }}</div>
-        <div class="stat-label">With failures</div>
+        <div class="stat-label">{{ t('admin.federation.failingEndpoints') }}</div>
       </div>
     </div>
     <div class="endpoint-details" v-if="stats.endpoints.dead > 0">
       <div class="warning-banner">
         <Icon name="alert-triangle" :size="16" />
-        <span>{{ stats.endpoints.dead }} endpoint(s) marked as dead and removed from follows</span>
+        <span>{{ t('admin.federation.deadWarning', { count: stats.endpoints.dead }, stats.endpoints.dead) }}</span>
         <button
           v-if="isAdmin"
           class="danger-btn purge-btn"
@@ -75,7 +75,7 @@
         >
           <Icon v-if="!loadingStates.purgingDead" name="trash" :size="14" />
           <span v-if="loadingStates.purgingDead" class="spinner-small"></span>
-          Purge all
+          {{ t('admin.federation.purgeAll') }}
         </button>
       </div>
       <div class="dead-endpoints-list" v-if="deadEndpointsList.length > 0">
@@ -89,8 +89,8 @@
             <div class="dead-endpoint-meta">
               <span class="meta-tag domain">{{ ep.domain }}</span>
               <span class="meta-tag" v-if="ep.last_http_status">HTTP {{ ep.last_http_status }}</span>
-              <span class="meta-tag failures">{{ ep.total_failures }} failures</span>
-              <span class="meta-tag" v-if="ep.last_failure_at">Last fail: {{ formatTimeAgo(ep.last_failure_at) }}</span>
+              <span class="meta-tag failures">{{ t('admin.federation.endpointFailures', { count: ep.total_failures }, ep.total_failures) }}</span>
+              <span class="meta-tag" v-if="ep.last_failure_at">{{ t('admin.federation.lastFailure', { time: formatTimeAgo(ep.last_failure_at) }) }}</span>
             </div>
             <div class="dead-endpoint-error" v-if="ep.last_error_message" :title="ep.last_error_message">
               {{ ep.last_error_message }}
@@ -101,7 +101,7 @@
             class="purge-single-btn"
             :disabled="purgingEndpointIds.has(ep.id)"
             @click="purgeSingleEndpoint(ep)"
-            title="Remove this endpoint"
+            :title="t('admin.federation.removeEndpoint')" :aria-label="t('admin.federation.removeEndpoint')"
           >
             <span v-if="purgingEndpointIds.has(ep.id)" class="spinner-small"></span>
             <Icon v-else name="trash" :size="14" />
@@ -114,7 +114,7 @@
   <!-- Federation Maintenance -->
   <div v-if="isAdmin" class="federation-section">
     <div class="section-header-row">
-      <h3>Federation maintenance</h3>
+      <h3>{{ t('admin.federation.maintenance') }}</h3>
       <button @click="refreshKeyConsistency" class="action-btn" :disabled="loadingStates.keyConsistency">
         <Icon name="refresh-cw" :size="16" />
       </button>
@@ -124,11 +124,8 @@
     <div class="maintenance-status" v-if="keyConsistency">
       <div class="status-indicator" :class="keyConsistency.status">
         <Icon :name="keyConsistency.status === 'ok' ? 'check-circle' : 'alert-triangle'" :size="16" />
-        <span v-if="keyConsistency.status === 'ok'">All local users have valid key pairs</span>
-        <span v-else>
-          {{ keyConsistency.users_missing_keys }} user(s) missing keys, 
-          {{ keyConsistency.users_with_inconsistent_keys }} with inconsistent state
-        </span>
+        <span v-if="keyConsistency.status === 'ok'">{{ t('admin.federation.keysOk') }}</span>
+        <span v-else>{{ t('admin.federation.keysIssues', { missing: keyConsistency.users_missing_keys, inconsistent: keyConsistency.users_with_inconsistent_keys }) }}</span>
       </div>
     </div>
     
@@ -136,8 +133,8 @@
     <div class="maintenance-actions">
       <div class="maintenance-card">
         <div class="maintenance-info">
-          <h4>Key generation sweep</h4>
-          <p>Generate missing RSA keys for local users who don't have them</p>
+          <h4>{{ t('admin.federation.keySweepTitle') }}</h4>
+          <p>{{ t('admin.federation.keySweepDesc') }}</p>
         </div>
         <button 
           @click="runKeyGenerationSweep" 
@@ -146,14 +143,14 @@
         >
           <Icon v-if="loadingStates.keySweep" name="loader" :size="16" class="spin" />
           <Icon v-else name="key" :size="16" />
-          Run sweep
+          {{ t('admin.federation.runSweep') }}
         </button>
       </div>
       
       <div class="maintenance-card">
         <div class="maintenance-info">
-          <h4>Orphan cleanup</h4>
-          <p>Fix users with inconsistent key states (public without private or vice versa)</p>
+          <h4>{{ t('admin.federation.orphanTitle') }}</h4>
+          <p>{{ t('admin.federation.orphanDesc') }}</p>
         </div>
         <button 
           @click="runOrphanCleanup" 
@@ -162,7 +159,7 @@
         >
           <Icon v-if="loadingStates.orphanCleanup" name="loader" :size="16" class="spin" />
           <Icon v-else name="trash-2" :size="16" />
-          Run cleanup
+          {{ t('admin.federation.runCleanup') }}
         </button>
       </div>
     </div>
@@ -170,25 +167,25 @@
     <!-- Scheduled Jobs Info -->
     <div class="scheduled-info">
       <Icon name="clock" :size="14" />
-      <span>Maintenance jobs run automatically: key sweep at 03:00 UTC, orphan cleanup at 04:00 UTC</span>
+      <span>{{ t('admin.federation.scheduleNote') }}</span>
     </div>
   </div>
 
   <!-- Instance Management -->
   <div class="federation-section">
     <div class="section-controls">
-      <h3>Instance directory</h3>
+      <h3>{{ t('admin.federation.directory') }}</h3>
       <div class="filter-controls">
         <select v-model="instanceFilter" @change="loadFederatedInstances" class="cyber-select">
-          <option value="all">All instances</option>
-          <option value="active">Active</option>
-          <option value="trusted">Trusted</option>
-          <option value="blocked">Blocked</option>
+          <option value="all">{{ t('admin.federation.filterAll') }}</option>
+          <option value="active">{{ t('admin.federation.active') }}</option>
+          <option value="trusted">{{ t('admin.federation.trusted') }}</option>
+          <option value="blocked">{{ t('admin.federation.blocked') }}</option>
         </select>
         <input
           v-model="instanceSearch"
           @input="debouncedSearchInstances"
-          placeholder="Search instances…"
+          :placeholder="t('admin.federation.searchPlaceholder')"
           class="cyber-input"
         />
       </div>
@@ -197,7 +194,7 @@
     <!-- Loading State -->
     <div v-if="loadingStates.instances" class="loading-state">
       <LoadingSpinner :size="20" />
-      <span>Loading instances…</span>
+      <span>{{ t('admin.federation.loadingInstances') }}</span>
     </div>
 
     <!-- Instance List -->
@@ -217,11 +214,11 @@
             <div class="instance-domain">
               <strong>{{ instance.domain }}</strong>
               <div class="instance-badges">
-                <span v-if="instance.is_trusted" class="badge trusted">Trusted</span>
-                <span v-if="instance.is_blocked" class="badge blocked">Blocked</span>
+                <span v-if="instance.is_trusted" class="badge trusted">{{ t('admin.federation.trusted') }}</span>
+                <span v-if="instance.is_blocked" class="badge blocked">{{ t('admin.federation.blocked') }}</span>
                 <span v-if="instance.limited_at" class="badge limited" :title="$t('admin.federation.limitedTitle')">{{ $t('admin.federation.limited') }}</span>
                 <span v-if="instance.reject_reports" class="badge limited" data-testid="instance-reports-ignored">{{ $t('admin.federation.reportsIgnored') }}</span>
-                <span v-if="isInstanceInactive(instance)" class="badge inactive">Inactive</span>
+                <span v-if="isInstanceInactive(instance)" class="badge inactive">{{ t('admin.federation.inactive') }}</span>
               </div>
             </div>
             <div class="instance-details">
@@ -229,13 +226,13 @@
                 {{ instance.software }} {{ instance.version }}
               </span>
               <span class="detail-item">
-                {{ formatNumber(instance.user_count) }} users
+                {{ t('admin.federation.userCount', { count: formatNumber(instance.user_count) }, instance.user_count ?? 0) }}
               </span>
               <span class="detail-item">
-                {{ formatNumber(instance.status_count) }} posts
+                {{ t('admin.federation.postCount', { count: formatNumber(instance.status_count) }, instance.status_count ?? 0) }}
               </span>
               <span class="detail-item">
-                Last seen: {{ formatRelativeTime(instance.last_seen_at) }}
+                {{ t('admin.federation.lastSeen', { time: formatRelativeTime(instance.last_seen_at) }) }}
               </span>
             </div>
             <div v-if="instance.description" class="instance-description">
@@ -246,7 +243,7 @@
             <button 
               @click="refreshInstance(instance.id)" 
               class="action-btn-sm"
-              title="Refresh instance info"
+              :title="t('admin.federation.refreshInstance')" :aria-label="t('admin.federation.refreshInstance')"
             >
               <Icon name="refresh-cw" :size="14" />
             </button>
@@ -254,7 +251,7 @@
               v-if="!instance.is_trusted && !instance.is_blocked"
               @click="toggleInstanceTrust(instance.id, true)" 
               class="action-btn-sm"
-              title="Mark as trusted"
+              :title="t('admin.federation.markTrusted')" :aria-label="t('admin.federation.markTrusted')"
             >
               <Icon name="check" :size="14" />
             </button>
@@ -262,7 +259,7 @@
               v-if="instance.is_trusted"
               @click="toggleInstanceTrust(instance.id, false)" 
               class="action-btn-sm trusted"
-              title="Remove trust"
+              :title="t('admin.federation.removeTrust')" :aria-label="t('admin.federation.removeTrust')"
             >
               <Icon name="check" :size="14" />
             </button>
@@ -296,7 +293,7 @@
               v-if="!instance.is_blocked"
               @click="toggleInstanceBlock(instance.id, true)" 
               class="danger-btn-sm"
-              title="Block instance"
+              :title="t('admin.federation.blockInstance')" :aria-label="t('admin.federation.blockInstance')"
             >
               <Icon name="shield" :size="14" />
             </button>
@@ -304,14 +301,14 @@
               v-if="instance.is_blocked"
               @click="toggleInstanceBlock(instance.id, false)" 
               class="action-btn-sm"
-              title="Unblock instance"
+              :title="t('admin.federation.unblockInstance')" :aria-label="t('admin.federation.unblockInstance')"
             >
               <Icon name="shield-off" :size="14" />
             </button>
             <button 
               @click="deleteInstance(instance.id)" 
               class="danger-btn-sm"
-              title="Delete instance"
+              :title="t('admin.federation.deleteInstance')" :aria-label="t('admin.federation.deleteInstance')"
             >
               <Icon name="trash" :size="14" />
             </button>
@@ -327,39 +324,38 @@
         :disabled="instancePagination.offset === 0"
         class="pagination-btn"
       >
-        Previous
+        {{ t('admin.instanceEmojis.previous') }}
       </button>
       <span class="pagination-info">
-        {{ instancePagination.offset + 1 }}-{{ Math.min(instancePagination.offset + instancePagination.limit, instancePagination.total) }} 
-        of {{ instancePagination.total }}
+        {{ t('admin.federation.pageRange', { from: instancePagination.offset + 1, to: Math.min(instancePagination.offset + instancePagination.limit, instancePagination.total), total: instancePagination.total }) }}
       </span>
       <button 
         @click="loadNextInstances" 
         :disabled="instancePagination.offset + instancePagination.limit >= instancePagination.total"
         class="pagination-btn"
       >
-        Next
+        {{ t('common.next') }}
       </button>
     </div>
   </div>
 
   <!-- Discovery Section -->
   <div class="federation-section">
-    <h3>Instance discovery</h3>
+    <h3>{{ t('admin.federation.discovery') }}</h3>
     <div class="discovery-tabs">
       <button 
         @click="discoveryTab = 'discovered'" 
         :class="{ active: discoveryTab === 'discovered' }"
         class="tab-btn"
       >
-        From interactions
+        {{ t('admin.federation.tabInteractions') }}
       </button>
       <button 
         @click="discoveryTab = 'search'" 
         :class="{ active: discoveryTab === 'search' }"
         class="tab-btn"
       >
-        Search & Add
+        {{ t('admin.federation.tabSearch') }}
       </button>
     </div>
 
@@ -380,14 +376,14 @@
         >
           <div class="discovered-info">
             <strong>{{ discovered.domain }}</strong>
-            <span class="interaction-count">{{ discovered.interaction_count }} interactions</span>
+            <span class="interaction-count">{{ t('admin.federation.interactionCount', { count: discovered.interaction_count }, discovered.interaction_count) }}</span>
           </div>
           <button 
             @click="addDiscoveredInstance(discovered.domain)" 
             class="primary-btn-sm"
           >
             <Icon name="plus" :size="14" />
-            Add
+            {{ t('common.add') }}
           </button>
         </div>
       </div>
@@ -399,7 +395,7 @@
         <input
           v-model="newInstanceDomain"
           @keyup.enter="discoverInstance"
-          placeholder="Enter domain (e.g., mastodon.social)"
+          :placeholder="t('admin.federation.domainPlaceholder')"
           class="cyber-input"
         />
         <button 
@@ -409,7 +405,7 @@
         >
           <Icon v-if="loadingStates.discovering" name="loader" :size="16" class="spinning" />
           <Icon v-else name="search" :size="16" />
-          {{ loadingStates.discovering ? 'Discovering…' : 'Discover' }}
+          {{ loadingStates.discovering ? t('admin.federation.discovering') : t('federation.discover') }}
         </button>
       </div>
 
@@ -418,35 +414,35 @@
         <div class="result-header">
           <h4>{{ discoveryResult.domain }}</h4>
           <div class="result-badges">
-            <span v-if="discoveryResult.federation_enabled" class="badge success">Federation enabled</span>
-            <span v-if="discoveryResult.api_available" class="badge info">API available</span>
+            <span v-if="discoveryResult.federation_enabled" class="badge success">{{ t('admin.federation.federationEnabled') }}</span>
+            <span v-if="discoveryResult.api_available" class="badge info">{{ t('admin.federation.apiAvailable') }}</span>
           </div>
         </div>
         <div class="result-details">
           <div v-if="discoveryResult.software" class="detail-row">
-            <strong>Software:</strong> {{ discoveryResult.software }} {{ discoveryResult.version }}
+            <strong>{{ t('admin.federation.detailSoftware') }}</strong> {{ discoveryResult.software }} {{ discoveryResult.version }}
           </div>
           <div v-if="discoveryResult.description" class="detail-row">
-            <strong>Description:</strong> {{ discoveryResult.description }}
+            <strong>{{ t('admin.federation.detailDescription') }}</strong> {{ discoveryResult.description }}
           </div>
           <div class="detail-row">
-            <strong>Users:</strong> {{ formatNumber(discoveryResult.user_count) }}
+            <strong>{{ t('admin.federation.detailUsers') }}</strong> {{ formatNumber(discoveryResult.user_count) }}
           </div>
           <div class="detail-row">
-            <strong>Posts:</strong> {{ formatNumber(discoveryResult.status_count) }}
+            <strong>{{ t('admin.federation.detailPosts') }}</strong> {{ formatNumber(discoveryResult.status_count) }}
           </div>
           <div v-if="discoveryResult.admin_contact" class="detail-row">
-            <strong>Admin:</strong> {{ discoveryResult.admin_contact }}
+            <strong>{{ t('admin.federation.detailAdmin') }}</strong> {{ discoveryResult.admin_contact }}
           </div>
         </div>
         <div class="result-actions">
           <label class="checkbox-label">
             <input type="checkbox" v-model="addAsTrusted" />
-            Add as trusted instance
+            {{ t('admin.federation.addAsTrusted') }}
           </label>
           <button @click="addInstanceFromDiscovery" class="primary-btn">
             <Icon name="plus" :size="16" />
-            Add instance
+            {{ t('admin.federation.addInstance') }}
           </button>
         </div>
       </div>
@@ -566,9 +562,9 @@ const endpointHealthClass = computed(() => {
 
 const purgeDeadEndpoints = async () => {
   const ok = await confirm({
-    title: 'Purge dead endpoints',
-    message: `Permanently remove all ${stats.value?.endpoints.dead} dead endpoint(s) and their failed deliveries? This cannot be undone.`,
-    confirmButtonText: 'Purge',
+    title: t('admin.federation.purgeConfirmTitle'),
+    message: t('admin.federation.purgeConfirmBody', { count: stats.value?.endpoints.dead ?? 0 }, stats.value?.endpoints.dead ?? 0),
+    confirmButtonText: t('admin.federation.purgeConfirm'),
     dangerAction: true,
   })
   if (!ok) return
@@ -701,7 +697,7 @@ const refreshInstance = async (instanceId: string) => {
     await loadFederatedInstances()
   } catch (error) {
     debug.error('Failed to refresh instance:', error)
-    toast.error('Failed to refresh instance info')
+    toast.error(t('admin.federation.refreshFailed'))
   }
 }
 
@@ -715,7 +711,7 @@ const toggleInstanceTrust = async (instanceId: string, trusted: boolean) => {
     await loadFederatedInstances()
   } catch (error) {
     debug.error('Failed to update instance trust:', error)
-    toast.error('Failed to update instance trust')
+    toast.error(t('admin.federation.trustFailed'))
   }
 }
 
@@ -723,7 +719,7 @@ const toggleInstanceBlock = async (instanceId: string, blocked: boolean) => {
   try {
     let reason = 'Admin unblock'
     if (blocked) {
-      const answer = await prompt({ title: 'Block instance', message: 'Block this instance?', label: 'Reason', confirmButtonText: 'Block', dangerAction: true })
+      const answer = await prompt({ title: t('admin.federation.blockInstance'), message: t('admin.federation.blockConfirmBody'), label: t('moderation.reason'), confirmButtonText: t('admin.federation.blockConfirm'), dangerAction: true })
       if (answer === null) return
       reason = answer.trim() || 'Admin decision'
     }
@@ -733,7 +729,7 @@ const toggleInstanceBlock = async (instanceId: string, blocked: boolean) => {
     await loadFederatedInstances()
   } catch (error) {
     debug.error('Failed to update instance block status:', error)
-    toast.error('Failed to update instance block status')
+    toast.error(t('admin.federation.blockFailed'))
   }
 }
 
@@ -773,9 +769,9 @@ const toggleInstanceReports = async (domain: string, ignore: boolean) => {
 
 const deleteInstance = async (instanceId: string) => {
   const ok = await confirm({
-    title: 'Delete instance',
-    message: 'Are you sure you want to delete this instance? This will remove all federation data.',
-    confirmButtonText: 'Delete',
+    title: t('admin.federation.deleteInstance'),
+    message: t('admin.federation.deleteConfirmBody'),
+    confirmButtonText: t('common.delete'),
     dangerAction: true,
   })
   if (!ok) return
@@ -787,7 +783,7 @@ const deleteInstance = async (instanceId: string) => {
     await loadFederatedInstances()
   } catch (error) {
     debug.error('Failed to delete instance:', error)
-    toast.error('Failed to delete instance')
+    toast.error(t('admin.federation.deleteFailed'))
   }
 }
 
@@ -814,7 +810,7 @@ const addDiscoveredInstance = async (domain: string) => {
     discoveredInstances.value = discoveredInstances.value.filter(i => i.domain !== domain)
   } catch (error) {
     debug.error('Failed to add discovered instance:', error)
-    toast.error('Failed to add instance')
+    toast.error(t('admin.federation.addFailed'))
   }
 }
 
@@ -827,7 +823,7 @@ const discoverInstance = async () => {
     discoveryResult.value = result
   } catch (error) {
     debug.error('Failed to discover instance:', error)
-    toast.error('Failed to discover instance. Check if the domain is valid and supports ActivityPub.')
+    toast.error(t('admin.federation.discoverFailed'))
   } finally {
     loadingStates.value.discovering = false
   }
@@ -849,10 +845,10 @@ const addInstanceFromDiscovery = async () => {
     discoveryResult.value = null
     addAsTrusted.value = false
     
-    toast.success('Instance added')
+    toast.success(t('admin.federation.instanceAdded'))
   } catch (error) {
     debug.error('Failed to add instance:', error)
-    toast.error('Failed to add instance')
+    toast.error(t('admin.federation.addFailed'))
   }
 }
 

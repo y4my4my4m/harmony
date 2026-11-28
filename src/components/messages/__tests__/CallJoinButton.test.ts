@@ -42,7 +42,11 @@ vi.mock('@/services/AuthContextService', () => ({
   authContextService: { getCurrentProfileId: async () => 'me' },
 }))
 vi.mock('@/stores/useDM', () => ({ useDMStore: () => ({ currentDMMessages: [] }) }))
-vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
+vi.mock('@/i18n', async () => {
+  const { createI18n } = await import('vue-i18n')
+  const en = (await import('@/locales/en.json')).default
+  return { i18n: createI18n({ legacy: false, locale: 'en', messages: { en } }) }
+})
 
 const toast = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn(), success: vi.fn() }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
@@ -61,6 +65,7 @@ const listener = vi.hoisted(() => ({ dismissIncomingCall: vi.fn() }))
 vi.mock('@/services/GlobalDMCallListener', () => ({ globalDMCallListener: listener }))
 
 import CallJoinButton from '../CallJoinButton.vue'
+import { i18n } from '@/i18n'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 
 const settle = async () => {
@@ -83,7 +88,7 @@ const answeredCall = () => {
 
 let wrapper: VueWrapper | null = null
 const mountButton = (messageId = 'msg-1') => {
-  wrapper = mount(CallJoinButton, { props: { messageId, conversationId: CONV } })
+  wrapper = mount(CallJoinButton, { props: { messageId, conversationId: CONV }, global: { plugins: [i18n] } })
   return wrapper
 }
 

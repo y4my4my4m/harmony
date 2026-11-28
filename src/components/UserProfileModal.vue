@@ -23,11 +23,11 @@
             @click.stop="showActionsMenu = !showActionsMenu"
             class="action-button"
             :class="{ active: showActionsMenu }"
-            aria-label="More actions"
+            :aria-label="t('message.moreActions')"
           >
             <Icon name="dots-vertical" :size="16" class="action-icon" />
           </button>
-          <button @click="$emit('close')" class="close-button" aria-label="Close">
+          <button @click="$emit('close')" class="close-button" :aria-label="t('common.close')">
             <Icon name="close" :size="16" class="close-icon" />
           </button>
         </div>
@@ -41,7 +41,7 @@
       >
         <div class="action-item" @click="copyUserId">
           <Icon name="copy" class="action-item-icon" />
-          Copy user ID
+          {{ t('chatNav.user.copyId') }}
         </div>
         <div v-if="copyHandleText" class="action-item" data-testid="profile-menu-copy-handle" @click="copyHandleFromMenu">
           <Icon name="at-sign" class="action-item-icon" />
@@ -49,26 +49,26 @@
         </div>
         <div v-if="isInServerContext && canInvite" class="action-item" @click="openInviteModal">
           <Icon name="share" class="action-item-icon" />
-          Send server invite
+          {{ t('profileModal.sendServerInvite') }}
         </div>
         <div class="action-divider"></div>
         <div class="action-item" @click="toggleMute">
           <Icon :name="isMuted ? 'volume-2' : 'volume-x'" class="action-item-icon" />
-          {{ isMuted ? 'Unmute user' : 'Mute user' }}
+          {{ isMuted ? t('chatNav.user.unmute') : t('chatNav.user.mute') }}
         </div>
         <div class="action-item" :class="{ danger: !isBlocked }" @click="toggleBlock">
           <Icon :name="isBlocked ? 'user-check' : 'ban'" class="action-item-icon" />
-          {{ isBlocked ? 'Unblock user' : 'Block user' }}
+          {{ isBlocked ? t('user.unblockUser') : t('user.blockUser') }}
         </div>
         <template v-if="isInServerContext && !isCurrentUser && (canKick || canBan)">
           <div class="action-divider"></div>
           <div v-if="canKick" class="action-item danger" @click="openKickModal">
             <Icon name="door-open" class="action-item-icon" :size="16" />
-            Kick from server
+            {{ t('profileModal.kickFromServer') }}
           </div>
           <div v-if="canBan" class="action-item danger" @click="openBanModal">
             <Icon name="user-x" class="action-item-icon" :size="16" />
-            Ban from server
+            {{ t('profileModal.banFromServer') }}
           </div>
         </template>
       </div>
@@ -81,7 +81,7 @@
             <div class="avatar-wrapper">
               <Avatar 
                 :src="avatarUrl" 
-                :alt="`${displayName}'s avatar`"
+                :alt="displayName"
                 class="profile-avatar"
                 expandable
                 @error="handleAvatarError"
@@ -182,24 +182,24 @@
           <template v-else>
           <div class="stat-item">
             <span class="stat-value">{{ formatJoinDate(user?.created_at) }}</span>
-            <span class="stat-label">Member since</span>
+            <span class="stat-label">{{ t('user.since') }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ userStatusText }}</span>
-            <span class="stat-label">Status</span>
+            <span class="stat-label">{{ t('user.status') }}</span>
           </div>
           
           <!-- Post and follow counts (clickable to navigate to profile) -->
           <template v-if="showSocialStats">
-            <div class="stat-item clickable" @click="navigateToProfile" title="View all posts">
+            <div class="stat-item clickable" @click="navigateToProfile" :title="t('profileModal.viewAllPosts')">
               <span class="stat-value" data-testid="profile-stat-posts">{{ socialStats ? formatSocialCount(socialStats.posts) : STAT_PLACEHOLDER }}</span>
-              <span class="stat-label">Posts</span>
+              <span class="stat-label">{{ t('activitypub.posts') }}</span>
             </div>
-            <div class="stat-item clickable" @click="navigateToProfile" title="View following">
+            <div class="stat-item clickable" @click="navigateToProfile" :title="t('profileModal.viewFollowing')">
               <span class="stat-value" data-testid="profile-stat-following">{{ socialStats ? formatSocialCount(socialStats.following) : STAT_PLACEHOLDER }}</span>
               <span class="stat-label">{{ t('activitypub.following') }}</span>
             </div>
-            <div class="stat-item clickable" @click="navigateToProfile" title="View followers">
+            <div class="stat-item clickable" @click="navigateToProfile" :title="t('profileModal.viewFollowers')">
               <span class="stat-value" data-testid="profile-stat-followers">{{ socialStats ? formatSocialCount(socialStats.followers) : STAT_PLACEHOLDER }}</span>
               <span class="stat-label">{{ t('activitypub.followers') }}</span>
             </div>
@@ -208,44 +208,44 @@
           <!-- No profiles row came: role count instead -->
           <div v-else class="stat-item">
             <span class="stat-value">{{ getUserRoles(user).length || 0 }}</span>
-            <span class="stat-label">Roles</span>
+            <span class="stat-label">{{ t('user.roles') }}</span>
           </div>
           </template>
         </div>
 
         <!-- Custom Status (global, for any user with one set) -->
         <div v-if="customStatusDisplay" class="custom-status-section">
-          <span class="custom-status-label">Status</span>
+          <span class="custom-status-label">{{ t('user.status') }}</span>
           <span class="custom-status-text">{{ customStatusDisplay }}</span>
         </div>
 
         <!-- Federation Info (for remote users) -->
         <div v-if="isFederatedUser(user)" class="federation-section">
           <h3 class="section-title">
-            Federation info
+            {{ t('profileModal.federationInfo') }}
           </h3>
           <div class="federation-info">
             <div class="federation-item">
-              <span class="federation-label">Instance:</span>
+              <span class="federation-label">{{ t('profileModal.instanceLabel') }}</span>
               <span class="federation-value">{{ user.domain || currentDomain }}</span>
               <div v-if="instanceInfo" class="instance-badge" :class="instanceInfo.status">
-                {{ instanceInfo.software || 'Unknown' }}
+                {{ instanceInfo.software || t('activitypub.unknown') }}
               </div>
               <div v-else-if="isLoadingInstanceInfo" class="instance-badge loading">
-                Loading...
+                {{ t('common.loading') }}
               </div>
             </div>
             <div class="federation-item">
-              <span class="federation-label">Profile URL:</span>
+              <span class="federation-label">{{ t('profileModal.profileUrlLabel') }}</span>
               <a :href="safeHref(getProfileUrl(user))" 
                  target="_blank" 
                  rel="noopener noreferrer" 
                  class="federation-link">
-                View on {{ user.domain || currentDomain }}
+                {{ t('profileModal.viewOn', { domain: user.domain || currentDomain }) }}
               </a>
             </div>
             <div v-if="user.last_status_at" class="federation-item">
-              <span class="federation-label">Last active:</span>
+              <span class="federation-label">{{ t('profileModal.lastActiveLabel') }}</span>
               <span class="federation-value">{{ formatLastSeen(user.last_status_at) }}</span>
             </div>
           </div>
@@ -253,7 +253,7 @@
 
         <!-- About Section -->
         <div v-if="displayAbout" class="about-section">
-          <h3 class="section-title">About</h3>
+          <h3 class="section-title">{{ t('profileModal.about') }}</h3>
           <div class="about-content">
             <p class="about-text">{{ displayAbout }}</p>
           </div>
@@ -261,12 +261,12 @@
 
         <!-- Custom Fields (for federated users) -->
         <div v-if="isFederatedUser(user) && user.fields?.length" class="fields-section">
-          <h3 class="section-title">Profile fields</h3>
+          <h3 class="section-title">{{ t('profileModal.profileFields') }}</h3>
           <div class="profile-fields">
             <div v-for="field in user.fields" :key="field.name" class="profile-field">
               <div class="field-name">{{ field.name }}</div>
               <div class="field-value" v-html="formatFieldValue(field.value)"></div>
-              <div v-if="field.verified_at" class="field-verified" title="Verified">
+              <div v-if="field.verified_at" class="field-verified" :title="t('profileModal.fieldVerified')">
                 <Icon name="check-circle" class="verified-icon" />
               </div>
             </div>
@@ -275,7 +275,7 @@
 
         <!-- User Activities -->
         <div v-if="!isBridged" class="activities-section">
-          <h3 class="section-title">Activity</h3>
+          <h3 class="section-title">{{ t('profileModal.activity') }}</h3>
           <div class="activity-grid">
             <!-- Chat User Activities -->
             <template v-if="!isFederatedUser(user)">
@@ -284,7 +284,7 @@
                   <Icon name="message" :size="16" />
                 </div>
                 <div class="activity-info">
-                  <span class="activity-title">Messages</span>
+                  <span class="activity-title">{{ t('profileModal.messages') }}</span>
                   <span class="activity-value" data-testid="profile-activity-messages">{{ activityCounts ? activityCounts.messages : STAT_PLACEHOLDER }}</span>
                 </div>
               </div>
@@ -294,7 +294,7 @@
                   <Icon name="microphone" :size="16" />
                 </div>
                 <div class="activity-info">
-                  <span class="activity-title">Voice time</span>
+                  <span class="activity-title">{{ t('profileModal.voiceTime') }}</span>
                   <span class="activity-value" data-testid="profile-activity-voice">{{ activityCounts ? formatVoiceTime(activityCounts.voiceMinutes) : STAT_PLACEHOLDER }}</span>
                 </div>
               </div>
@@ -302,22 +302,22 @@
             
             <!-- Federated User Activities -->
             <template v-else>
-              <div class="activity-card clickable" @click="navigateToProfile" title="View all posts">
+              <div class="activity-card clickable" @click="navigateToProfile" :title="t('profileModal.viewAllPosts')">
                 <div class="activity-icon">
                   <Icon name="post" :size="16" />
                 </div>
                 <div class="activity-info">
-                  <span class="activity-title">Posts</span>
+                  <span class="activity-title">{{ t('activitypub.posts') }}</span>
                   <span class="activity-value">{{ socialStats ? formatSocialCount(socialStats.posts) : STAT_PLACEHOLDER }}</span>
                 </div>
               </div>
               
-              <div class="activity-card clickable" @click="navigateToProfile" title="View profile">
+              <div class="activity-card clickable" @click="navigateToProfile" :title="t('user.viewProfile')">
                 <div class="activity-icon">
                   <Icon name="interaction" :size="16" />
                 </div>
                 <div class="activity-info">
-                  <span class="activity-title">Interactions</span>
+                  <span class="activity-title">{{ t('profileModal.interactions') }}</span>
                   <span class="activity-value">{{ formatSocialCount(interactionsCount) }}</span>
                 </div>
               </div>
@@ -336,7 +336,7 @@
             <textarea
               v-model="userNote"
               class="note-input"
-              placeholder="Click to add a note about this user..."
+              :placeholder="t('user.addNote')"
               rows="3"
               maxlength="256"
               @input="debouncedSaveNote"
@@ -370,7 +370,7 @@
               class="primary-action-btn single-action-btn"
             >
               <Icon name="pencil" :size="16" />
-              Edit profile
+              {{ t('user.editProfile') }}
             </button>
           </template>
 
@@ -383,7 +383,7 @@
               class="primary-action-btn"
             >
               <Icon name="message" :size="16" />
-              Send message
+              {{ t('user.sendMessage') }}
             </button>
             
             <!-- All Users: Follow/Unfollow (both local and remote); a moved account only unfollows -->
@@ -407,7 +407,7 @@
               class="secondary-action-btn"
             >
               <Icon name="mention" :size="16"/>
-              Mention
+              {{ t('chatNav.user.mention') }}
             </button>
 
             <!-- Invite to Server -->
@@ -418,7 +418,7 @@
                 class="secondary-action-btn"
               >
                 <Icon name="share" :size="16" />
-                Invite to server
+                {{ t('chatNav.user.invite') }}
               </button>
               <button 
                 v-else-if="availableServers.length > 0"
@@ -426,10 +426,10 @@
                 class="secondary-action-btn"
               >
                 <Icon name="share" :size="16" />
-                Invite to server
+                {{ t('chatNav.user.invite') }}
               </button>
               <div v-if="showServerPicker && !isInServerContext" class="server-picker-dropdown" @click.stop>
-                <p class="picker-label">Choose a server:</p>
+                <p class="picker-label">{{ t('profileModal.chooseServer') }}</p>
                 <button
                   v-for="server in availableServers"
                   :key="server.id"
@@ -513,7 +513,7 @@ import { activityPubService } from '@/services/activityPubService'
 import { profileCount, remoteCountFields, type ProfileCountSource } from '@/utils/profileCounts'
 import { knownProfileCardRow, readProfileCardRow, updateKnownProfileCardRow, type ProfileCardRow } from '@/services/profileCardRow'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const toast = useToast()
 
 interface Props {
@@ -665,7 +665,7 @@ async function loadInstanceInfo(domain: string) {
       const info = await probeRes.json()
       instanceInfo.value = {
         status: 'active',
-        software: info.software || 'Unknown'
+        software: info.software || t('activitypub.unknown')
       }
       return
     }
@@ -877,14 +877,14 @@ const userStatus = computed(() => {
 })
 
 const userStatusText = computed(() => {
-  if (!props.user) return 'Offline'
+  if (!props.user) return t('user.offline')
 
   if (isBridged.value) {
     switch (props.user.status) {
-      case 1: return 'Online'
-      case 2: return 'Away'
-      case 3: return 'Do Not Disturb'
-      default: return 'Offline'
+      case 1: return t('user.online')
+      case 2: return t('user.away')
+      case 3: return t('user.dnd')
+      default: return t('user.offline')
     }
   }
   
@@ -897,16 +897,16 @@ const userStatusText = computed(() => {
       const lastStatusDate = new Date(lastStatus)
       const now = new Date()
       const hoursDiff = (now.getTime() - lastStatusDate.getTime()) / (1000 * 60 * 60)
-      if (hoursDiff < 1) return 'Recently Active'
-      if (hoursDiff < 24) return 'Active Today'
-      if (hoursDiff < 72) return 'Active Recently'
+      if (hoursDiff < 1) return t('profileModal.activeNow')
+      if (hoursDiff < 24) return t('profileModal.activeToday')
+      if (hoursDiff < 72) return t('profileModal.activeRecently')
     }
-    return 'Unknown'
+    return t('activitypub.unknown')
   }
   
   // Local users: real-time status text.
   const statusText = getUserStatusText(props.user.id).value
-  return statusText || 'Offline'
+  return statusText || t('user.offline')
 })
 
 // Custom status (global, stored on profile)
@@ -923,7 +923,7 @@ const customStatusDisplay = computed(() => {
 })
 
 const displayName = computed(() => {
-  if (!props.user) return 'Unknown User'
+  if (!props.user) return t('profileModal.unknownUser')
   if (bridgedPlatform.value) {
     return bridgedAuthorName({
       platform: bridgedPlatform.value,
@@ -932,7 +932,7 @@ const displayName = computed(() => {
       display_name: props.user.display_name,
     })
   }
-  return getUserDisplayName(props.user.id).value || props.user.display_name || 'Unknown User'
+  return getUserDisplayName(props.user.id).value || props.user.display_name || t('profileModal.unknownUser')
 })
 
 const avatarUrl = computed(() => {
@@ -990,9 +990,9 @@ const handleAvatarError = (event: Event) => {
 const formatJoinDate = (dateString: string | undefined) => {
   // The card's row stands in when the user object carries no created_at.
   const effectiveDate = dateString || cardRow.value?.created_at
-  if (!effectiveDate) return 'Unknown'
+  if (!effectiveDate) return t('activitypub.unknown')
   const date = new Date(effectiveDate)
-  return date.toLocaleDateString('en-US', { 
+  return date.toLocaleDateString(locale.value, { 
     year: 'numeric', 
     month: 'short',
     day: 'numeric' 
@@ -1000,11 +1000,11 @@ const formatJoinDate = (dateString: string | undefined) => {
 }
 
 const formatVoiceTime = (minutes: number | undefined) => {
-  if (!minutes) return '0m'
-  if (minutes < 60) return `${minutes}m`
+  if (!minutes) return t('systemEvents.duration.minutes', { m: 0 })
+  if (minutes < 60) return t('systemEvents.duration.minutes', { m: minutes })
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
-  return `${hours}h ${remainingMinutes}m`
+  return t('systemEvents.duration.hoursMinutes', { h: hours, m: remainingMinutes })
 }
 
 // null: the account's server withholds the figure.
@@ -1018,7 +1018,7 @@ const formatSocialCount = (count: number | null | undefined) => {
 
 const formatLastSeen = (dateString: string) => {
   const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', { 
+  return date.toLocaleDateString(locale.value, { 
     year: 'numeric', 
     month: 'short',
     day: 'numeric',

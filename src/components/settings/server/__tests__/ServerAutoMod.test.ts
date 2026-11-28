@@ -25,7 +25,7 @@ const { toast, confirmMock, api } = vi.hoisted(() => ({
 }))
 
 vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ t: (key: string) => key }),
+  useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }),
 }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
 vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))

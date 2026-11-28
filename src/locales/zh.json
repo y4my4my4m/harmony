@@ -675,7 +675,8 @@
       "emailRequired": "请输入电子邮件",
       "passwordRequired": "请输入密码",
       "emailServiceUnavailable": "电子邮件服务未配置。请联系实例管理员。",
-      "oauthFailed": "无法使用 {provider} 登录"
+      "oauthFailed": "无法使用 {provider} 登录",
+      "authRequired": "需要身份验证"
     },
     "logoutConfirm": {
       "title": "从此设备注销?",
@@ -718,7 +719,8 @@
       "invalidTitle": "此邀请链接无法使用",
       "invalidBody": "链接已被使用、已过期或已被撤销。请向邀请你的人索取新链接。",
       "subtitleNoEmail": "你受邀在此创建账号。请设置用于登录的密码。"
-    }
+    },
+    "oauthWindowTitle": "登录 Harmony"
   },
   "server": {
     "create": "创建服务器",
@@ -853,12 +855,7 @@
     "filesTooLargeSkipped": "{count} 个文件已跳过：超过 25 MB",
     "noValidImageFiles": "未选择有效的图片文件",
     "cannotUploadEmojisLimit": "无法上传 {count} 个表情：将超过 {max} 个的上限（当前 {current} 个）",
-    "emojisUploadedSuccess": "成功上传 {count} 个表情{plural}！",
-    "emojisFailedToUpload": "{count} 个表情{plural} 上传失败",
     "failedToUploadEmojis": "上传表情失败",
-    "confirmDeleteEmojis": "您确定要删除 {count} 个表情吗？此操作无法撤销。",
-    "emojisDeletedSuccess": "已删除 {count} 个表情",
-    "emojisFailedToDelete": "{count} 个表情删除失败",
     "failedToDeleteEmojis": "删除表情失败",
     "emojiRenamedSuccess": "表情已重命名为 :{name}:",
     "failedToRenameEmoji": "重命名表情失败",
@@ -931,7 +928,9 @@
       "nameTooLong": "服务器名称必须少于50个字符",
       "invalidName": "服务器名称包含无效字符",
       "notSignedIn": "请登录以创建服务器。",
-      "createFailed": "无法创建服务器。请重试。"
+      "createFailed": "无法创建服务器。请重试。",
+      "iconUploadFailedDetail": "服务器已创建，但图标上传失败：{error}。你可以稍后在服务器设置中更改。",
+      "iconUploadFailed": "服务器已创建，但图标上传失败。你可以稍后在服务器设置中更改。"
     },
     "bannedFromServer": "您已被此服务器封禁。",
     "joinRequiresInvite": "需要通过邀请加入此服务器。",
@@ -1293,7 +1292,14 @@
       "expression": "表达",
       "integrations": "集成",
       "moderation": "审核"
-    }
+    },
+    "alreadyMember": "你已经是此服务器的成员了！",
+    "joinFailed": "加入服务器失败。请重试。",
+    "emojisUploaded": "已上传 {count} 个表情 | 已上传 {count} 个表情",
+    "emojisUploadFailed": "{count} 个表情上传失败 | {count} 个表情上传失败",
+    "confirmDeleteEmojiCount": "确定要删除 {count} 个表情吗？此操作无法撤销。 | 确定要删除 {count} 个表情吗？此操作无法撤销。",
+    "emojisDeleted": "已删除 {count} 个表情 | 已删除 {count} 个表情",
+    "emojisDeleteFailed": "{count} 个表情删除失败 | {count} 个表情删除失败"
   },
   "channel": {
     "create": "创建频道",
@@ -1577,7 +1583,43 @@
       "unmark": "取消剧透"
     },
     "jumpLoading": "正在加载消息…",
-    "jumpFailed": "无法加载该消息。"
+    "jumpFailed": "无法加载该消息。",
+    "copyText": "复制文本",
+    "copyImage": "复制图片",
+    "saveImage": "保存图片",
+    "saveVideo": "保存视频",
+    "saveAudio": "保存音频",
+    "copyMessageLink": "复制消息链接",
+    "copyLinkUrl": "复制链接 URL",
+    "copyMediaUrl": "复制媒体 URL",
+    "badge": {
+      "bot": "机器人",
+      "admin": "管理员",
+      "mod": "版主"
+    },
+    "unknownServer": "未知服务器",
+    "decryptFailed": "无法解密消息",
+    "composer": {
+      "dismissCommand": "关闭 (Esc)",
+      "enterValue": "输入值...",
+      "slowmodeWait": "慢速模式：{seconds} 秒后可再次发送",
+      "slowmodeOn": "慢速模式已开启：每 {seconds} 秒一条消息",
+      "checkingPermissions": "正在检查权限...",
+      "noPermissionThread": "你没有在此子区发送消息的权限。",
+      "noPermissionChannel": "你没有在此频道发送消息的权限。",
+      "tooLongCount": "消息过长（{count} / {max}）",
+      "tooLongToast": "消息过长（{count} / {max}）。请删减后重试。",
+      "slowmodeToast": "慢速模式已开启，{seconds} 秒后可再次发送",
+      "attachmentNeedsRoom": "附件需要频道或会话"
+    },
+    "replyingTo": "回复 {name}",
+    "removeAttachmentConfirm": "这将从此消息中永久移除此附件。",
+    "brokenEmoji": "损坏的表情",
+    "unknownRole": "未知身份组",
+    "editedAt": "编辑于 {time}",
+    "deleteConfirmUndone": "确定要删除此消息吗？此操作无法撤销。",
+    "yesterdayAt": "昨天 {time}",
+    "composerPlaceholder": "输入消息…"
   },
   "messageA11y": {
     "list": {
@@ -1677,7 +1719,10 @@
       "uploading": "正在上传...",
       "listLabel": "附件",
       "progressLabel": "正在上传 {name}",
-      "remove": "移除 {name}"
+      "remove": "移除 {name}",
+      "statusUploading": "正在上传",
+      "statusUploaded": "已上传",
+      "statusFailed": "失败"
     },
     "alt": {
       "saved": "已保存 {name} 的描述",
@@ -1696,7 +1741,15 @@
       "forged": "消息已隐藏：签名与发送者不符",
       "forgedHint": "此加密消息的签名无法用发送者的密钥验证。它已被篡改，或并非来自所示的发送者，因此不会解密。",
       "replayed": "重复",
-      "replayedHint": "此消息重复了同一发送者之前的一条加密消息。服务器将同一条消息存储了两次，可能使旧消息出现在新的位置。"
+      "replayedHint": "此消息重复了同一发送者之前的一条加密消息。服务器将同一条消息存储了两次，可能使旧消息出现在新的位置。",
+      "unverified": "未验证的发送者",
+      "unverifiedHint": "此消息已解密，但无法通过加密方式验证发送者身份。发送者可能在使用旧版客户端，或消息可能已被篡改。",
+      "lostHint": "此消息使用此账号上已不存在的旧密钥加密，因此无法解密。",
+      "decryptingTitle": "正在解密...",
+      "clickToDecrypt": "点击解密",
+      "lostIdentityHint": "此消息无法解密：它在你当前的加密身份创建之前（例如密钥重置之前）加密，能够解锁它的密钥已不在此账号上。",
+      "lockClickHint": "端到端加密 - 点击消息文本即可解密",
+      "lockUnlockHintPath": "端到端加密 - 解锁加密（{settings} → {privacy} → {encryption}）后即可解密"
     },
     "spoiler": {
       "hidden": "剧透，已隐藏。激活以显示",
@@ -2018,6 +2071,29 @@
     "toolbar": {
       "controls": "语音控制",
       "call": "通话"
+    },
+    "encryption": {
+      "encryptedTitle": "端到端加密 — 媒体在到达服务器之前已加密",
+      "notEncryptedTitle": "未端到端加密 — 媒体在传输中受保护（DTLS-SRTP），但服务器可以访问",
+      "e2ee": "E2EE",
+      "notE2ee": "非 E2EE"
+    },
+    "spatialModel": {
+      "linear": "线性",
+      "inverse": "反比",
+      "exponential": "指数",
+      "equalPower": "等功率"
+    },
+    "overlay": {
+      "notInCall": "未在通话中"
+    },
+    "connectionLost": {
+      "title": "已断开语音连接",
+      "message": "与语音服务器的连接已断开。"
+    },
+    "microphoneUnavailable": {
+      "title": "麦克风不可用",
+      "message": "已静音加入：无法打开麦克风。"
     }
   },
   "dm": {
@@ -2114,7 +2190,112 @@
       "deleted": "群组已删除",
       "deleteFailed": "无法删除群组"
     },
-    "callUndeliverable": "你的通话无法接通。"
+    "callUndeliverable": "你的通话无法接通。",
+    "header": {
+      "federatedUserFrom": "来自 {domain} 的联邦用户",
+      "callInProgress": "通话进行中",
+      "lastSeen": "上次在线：{when}",
+      "lastSeenUnknown": "一段时间前",
+      "startVoiceCall": "发起语音通话",
+      "endVoiceCall": "结束语音通话",
+      "searchInConversation": "在会话中搜索",
+      "addPeople": "添加成员",
+      "startVideoCall": "发起视频通话",
+      "turnOffCamera": "关闭摄像头",
+      "muteConversation": "将会话静音",
+      "unmuteConversation": "取消会话静音",
+      "enableEncryption": "启用加密",
+      "disableEncryption": "停用加密",
+      "closeDm": "关闭私信",
+      "encryptionSetup": {
+        "title": "需要设置加密",
+        "intro": "要启用加密私信，需要先设置端到端加密。",
+        "step1": "前往 {path}",
+        "step2": "创建恢复密钥（12 个单词的短语）",
+        "step3": "回到这里，为此会话启用加密",
+        "note": "恢复密钥是解密消息的唯一方式，请妥善保管。",
+        "goToSettings": "前往设置"
+      },
+      "encryptionSetupFirst": "请先在设置中设置加密",
+      "clickToDisableEncryption": "点击停用加密",
+      "clickToEnableEncryption": "点击启用加密",
+      "federatedEncryptionWarning": "对方位于可能不支持 Harmony 端到端加密的联邦服务器上，可能无法读取加密消息。仍要启用加密吗？",
+      "enable": "启用",
+      "encryptionEnabled": "已为此会话启用加密",
+      "encryptionDisabled": "已为此会话停用加密",
+      "encryptionUpdateFailed": "无法更新加密设置",
+      "callEnded": "通话已结束",
+      "conversationMuted": "已将会话静音",
+      "conversationUnmuted": "已取消会话静音",
+      "notificationUpdateFailed": "无法更新通知设置",
+      "startCallFailed": "无法发起通话",
+      "noLocalMembersToCall": "此实例上没有可呼叫的成员。群组通话无法到达其他实例。",
+      "noParticipantsToCall": "没有可呼叫的参与者",
+      "cannotCallUser": "无法呼叫此用户",
+      "noFederatedIdentity": "无法确定此用户的联邦身份",
+      "profileInfoFailed": "无法获取个人资料信息",
+      "federatedCallFailed": "无法发起联邦通话",
+      "cannotJoinCall": "无法加入此通话",
+      "joinCallFailed": "无法加入通话",
+      "toggleCameraFailed": "无法切换摄像头",
+      "defaultNameCount": "群聊（{count} 名成员） | 群聊（{count} 名成员）"
+    },
+    "followers": {
+      "loadFailed": "无法加载关注的用户",
+      "startFailed": "无法开始会话"
+    },
+    "groupInvite": {
+      "searchHintNew": "搜索要一起创建群聊的用户",
+      "searchHintAdd": "搜索要添加到此会话的用户",
+      "selectedUsers": "已选用户（{count}）",
+      "clearAll": "全部清除",
+      "removeUser": "移除 {name}",
+      "configureHint": "配置新群聊",
+      "groupNameOptional": "群组名称（可选）",
+      "groupNamePlaceholder": "与 {names} 的聊天",
+      "privateGroup": "私密群组",
+      "privateHintManual": "仅受邀成员可以加入。成员需要手动添加。",
+      "privateHintInvite": "仅受邀成员可以加入。成员可以邀请其他人。",
+      "currentParticipants": "当前参与者（{count}）",
+      "federatedTitle": "联邦群聊",
+      "federatedText": "此会话包含来自其他服务器的用户。消息将按照 ActivityPub 标准进行联邦传递。",
+      "searchFailed": "无法搜索用户",
+      "createGroupChat": "创建群聊",
+      "subtitleNew": "与多人开始会话",
+      "subtitleAdd": "向此会话添加更多成员",
+      "processing": "处理中...",
+      "createChat": "创建聊天",
+      "createGroup": "创建群组（{count}）",
+      "addPeopleCount": "添加 {count} 人 | 添加 {count} 人",
+      "requestFailed": "无法处理请求",
+      "conversationCreated": "会话已创建",
+      "groupCreated": "群组会话已创建",
+      "groupCreateFailed": "无法创建群组会话",
+      "groupCreatedWith": "已创建群组会话并添加 {count} 名用户 | 已创建群组会话并添加 {count} 名用户",
+      "usersAdded": "已将 {count} 名用户添加到会话 | 已将 {count} 名用户添加到会话",
+      "addFailed": "无法将用户添加到会话"
+    },
+    "groupCall": "群组通话",
+    "callEnded": "通话已结束",
+    "callDeclined": "通话被拒绝",
+    "noAnswer": "无人接听",
+    "callPermission": {
+      "blockedByYou": "你已屏蔽此用户",
+      "blocked": "你无法呼叫此用户",
+      "dnd": "此用户处于请勿打扰模式",
+      "busy": "用户正在进行其他通话",
+      "notificationsDisabled": "此用户已关闭通话通知",
+      "checkFailed": "无法验证通话权限，请重试。",
+      "decline": {
+        "blocked": "无法完成通话",
+        "busy": "用户正忙",
+        "dnd": "用户处于请勿打扰模式",
+        "muted": "用户已将此对话静音",
+        "notificationsDisabled": "用户已关闭通话通知",
+        "timeout": "无人接听",
+        "declined": "通话被拒绝"
+      }
+    }
   },
   "user": {
     "panelToggle": "您的账户和语音控制",
@@ -2149,7 +2330,9 @@
     "joined": "加入时间",
     "placeholders": {
       "bio": "告诉我们关于您的信息..."
-    }
+    },
+    "avatarAlt": "用户头像",
+    "aboutLabel": "简介："
   },
   "settings": {
     "title": "设置",
@@ -2317,7 +2500,247 @@
       },
       "savedThemeNameHint": "例如：深夜",
       "fluxDockBottom": "栏位于底部",
-      "fluxDockBottomDesc": "服务器坞、频道条和你的胶囊沿窗口底部而不是顶部排列；从栏打开的菜单向上展开。需要横向布局。"
+      "fluxDockBottomDesc": "服务器坞、频道条和你的胶囊沿窗口底部而不是顶部排列；从栏打开的菜单向上展开。需要横向布局。",
+      "importExport": "导入和导出",
+      "importExportHelp": "将主题导出为 JSON，或导入之前导出的主题",
+      "exportTheme": "导出主题",
+      "importTheme": "导入主题",
+      "skins": {
+        "title": "皮肤",
+        "description": "皮肤不只是切换颜色——它将主题、字体以及一组 CSS 规则打包在一起，可改变边框、圆角、装饰浮层等。选择皮肤会覆盖上方对应的设置，之后仍可调整颜色。选择“无”可清除皮肤层。",
+        "none": "无",
+        "noneDescription": "直接使用您在上方设置的主题和字体。",
+        "decorations": "{skin} - 装饰",
+        "sdr001": {
+          "description": "仿《Snatcher》的黑色赛博朋克：蓝黑色夜间表面上的血红强调色和钢灰色标签、像素字体、带硬投影的方形边框、像素风图标，以及可选的 CRT 扫描线叠加层。可搭配 Neo Kobe 音效包。可在下方开关各项装饰。",
+          "options": {
+            "scanline": {
+              "label": "CRT 扫描线",
+              "description": "覆盖整个屏幕的静态水平线叠加层。模糊效果关闭时此项也关闭。"
+            },
+            "viewportFrame": {
+              "label": "屏幕边缘边框",
+              "description": "贴着屏幕边缘的细红色边框。"
+            },
+            "hudBadge": {
+              "label": "SDR-001 HUD 徽章",
+              "description": "在宽屏右上角显示小小的“SDR-001”标签。"
+            },
+            "tacticalLabels": {
+              "label": "战术文字标签",
+              "description": "终端读数：频道分类前的“//”、当前频道上的光标、语音坞上的“COMMS //”、语音叠加层上的“TRANSMISSION //”以及用户栏中带方括号的状态。"
+            },
+            "iconFlicker": {
+              "label": "图标闪烁和光标闪动",
+              "description": "导航栏图标偶尔出现 CRT 闪烁，频道光标闪动。请求减少动画时关闭。"
+            }
+          }
+        },
+        "skyglass": {
+          "description": "光亮、轻盈、明快：磨砂玻璃面板漂浮在云朵、光束和气泡组成的天空上，或一片手绘草地上。凝胶按钮、玻璃球状的服务器和头像、聊天气泡和富有弹性的菜单。将主题切换为深色即为夜晚泻湖；主色和强调色会为绘制的天空着色。可搭配玻璃铃声和水滴声的 Skyglass 音效包。",
+          "options": {
+            "sky": {
+              "label": "天空场景",
+              "description": "在关闭手绘壁纸时，于绘制的天空上添加云朵、阳光和光束。关闭后只剩简单的渐变。"
+            },
+            "wallpaper": {
+              "label": "手绘壁纸",
+              "description": "一片由光亮草地、气泡和光带组成的草原；深色主题下为极光泻湖。关闭后用主题颜色绘制天空。"
+            },
+            "bubbles": {
+              "label": "气泡",
+              "description": "漂浮在背景中的光亮气泡。"
+            },
+            "drift": {
+              "label": "漂浮气泡",
+              "description": "气泡缓缓上升。玻璃模糊开启时会持续占用 GPU；请求减少动画时关闭。"
+            },
+            "gloss": {
+              "label": "凝胶光泽",
+              "description": "按钮、徽章、服务器球和头像上的分割高光。"
+            },
+            "chatBubbles": {
+              "label": "聊天气泡",
+              "description": "消息文字显示在玻璃气泡中，而不是平铺的行中。"
+            },
+            "uiSounds": {
+              "label": "界面音效",
+              "description": "点击按钮和列表时，从当前音效包播放柔和的水滴声。"
+            }
+          }
+        },
+        "lattice": {
+          "description": "水晶与混凝土风格的 AI 控制台：点阵画布上漂浮的带框面板、等宽标签、反色药丸按钮、带全息输入栏的居中对话列，以及唯一的信号色。深色模式下为黑曜石，浅色模式下为黑框骨白纸。可搭配 FM 水晶音和继电器咔嗒声的 Lattice 音效包。",
+          "options": {
+            "bento": {
+              "label": "漂浮面板",
+              "description": "导航栏、频道、标题栏、聊天和成员显示为带间隙的独立框。关闭后它们边对边相连。"
+            },
+            "focusColumn": {
+              "label": "居中对话",
+              "description": "在宽窗口中，消息和输入栏位于居中的阅读列中。"
+            },
+            "prism": {
+              "label": "全息强调",
+              "description": "画布、输入栏边缘、当前服务器和频道标题上的虹彩光晕。关闭后为纯单色。"
+            },
+            "marks": {
+              "label": "套准标记",
+              "description": "每个框角上的角标和带编号的频道分类。"
+            },
+            "drift": {
+              "label": "漂移光晕",
+              "description": "全息光晕缓缓移动。请求减少动画时关闭。"
+            },
+            "uiSounds": {
+              "label": "界面音效",
+              "description": "点击按钮和列表时，从当前音效包播放继电器咔嗒声。"
+            }
+          }
+        },
+        "flux": {
+          "description": "液态玻璃和全新布局。服务器漂浮在顶部的玻璃坞中，频道排成标签条，对话位于玻璃输入框下方的居中列中，这一切都在漂移的元球场之上。玻璃有厚度、边缘光和色散，并在浏览器支持时折射其后的内容。使用你的主色和强调色。可搭配共鸣液态合成器的 Flux 音效包。",
+          "options": {
+            "dock": {
+              "label": "横向布局",
+              "description": "服务器在顶部的坞中，频道为标签条，对话在居中的列中，你在右上角的胶囊中。宽度小于 1024px 的窗口保持并排布局。关闭此项可重新排列服务器。"
+            },
+            "lens": {
+              "label": "透镜折射",
+              "description": "玻璃控件会折射其边缘后的内容。仅限基于 Chromium 的浏览器和 Windows 应用；在其他环境中玻璃保留边缘光但不折射。"
+            },
+            "liquid": {
+              "label": "液态场",
+              "description": "在玻璃后漂移的元球。关闭后只留下静止的极光。"
+            },
+            "drift": {
+              "label": "动态漂移",
+              "description": "窗口获得焦点时，场以每秒 20 帧运动。关闭后保持静止，仅在内容变化时绘制。"
+            },
+            "orbits": {
+              "label": "轨道环",
+              "description": "在液体后缓慢旋转的细彩环。"
+            },
+            "morph": {
+              "label": "变形形状",
+              "description": "服务器和头像在指针下融化为流动的团块。"
+            },
+            "uiSounds": {
+              "label": "界面音效",
+              "description": "点击按钮和列表时，从当前音效包播放液态的短音。"
+            }
+          }
+        },
+        "paper": {
+          "description": "带 1 位窗口的纸质桌面：新闻纸桌面、温暖的墨色和吉祥物蓝。对话框和设置以带条纹标题栏和方形关闭框的窗口打开，聊天位于带框窗口中，每个框都投下硬朗的墨影。荧光笔标出当前频道和提及你的内容，标题使用粗重的窄体无衬线字体，标签和时间为等宽字体，代码显示在深色屏幕上。将主题切换为深色即为深色桌面上的浅色边框。",
+          "options": {
+            "shadows": {
+              "label": "墨影",
+              "description": "窗口、菜单、按钮和服务器图标下的硬朗偏移阴影。关闭后墨框平放在桌面上。"
+            },
+            "jelly": {
+              "label": "果冻动效",
+              "description": "指针指向时，按钮、回应和服务器图标会被压扁再回弹。请求减少动画时关闭。"
+            },
+            "grain": {
+              "label": "纸张颗粒",
+              "description": "窗口后方桌面上的细微噪点。"
+            },
+            "glyphs": {
+              "label": "字形壁纸",
+              "description": "消息后方沿振动板节线排布的淡淡等宽聊天文字。静态。"
+            }
+          }
+        }
+      },
+      "typography": "排版",
+      "font": "字体",
+      "fontDescription": "选择整个应用使用的字体。自定义字体按需加载，因此选择默认字体不会下载任何额外内容。",
+      "fontDefault": "默认 (Figtree)",
+      "fontSample": "敏捷的棕色狐狸 Aa 0123",
+      "emojiStyle": "表情样式",
+      "emojiPack": "表情包",
+      "emojiPackDescription": "选择整个应用中使用的表情样式",
+      "effects": "效果",
+      "glassEffects": "启用模糊和玻璃效果",
+      "glassEffectsDescription": "许多界面（弹窗、浮动面板、语音坞、侧边栏）使用 {property} 呈现磨砂玻璃效果。如果想要更扁平、更清晰的界面，或您的设备在语音/视频通话中处理模糊较吃力，请将其关闭。",
+      "invalidCssColour": "不是 CSS 颜色：{value}",
+      "palette": {
+        "title": "配色灵感",
+        "random": "随机配色",
+        "surprise": "给我惊喜",
+        "fromImageTitle": "从图片生成配色",
+        "fromImage": "从图片",
+        "mood": "配色风格",
+        "moods": {
+          "soft": "柔和",
+          "balanced": "均衡",
+          "vivid": "鲜艳",
+          "neon": "霓虹"
+        },
+        "schemes": {
+          "mono": "单色",
+          "analogous": "类似色",
+          "complement": "互补色",
+          "split": "分裂互补",
+          "triad": "三角配色",
+          "dusk": "黄昏"
+        },
+        "cardTitle": "{scheme}：主色 {primary}，强调色 {accent}",
+        "noOpaquePixels": "该图片没有可取样的不透明像素。",
+        "imageReadFailed": "无法读取该图片。"
+      },
+      "presets": {
+        "harmonyTeal": {
+          "name": "Harmony 青绿",
+          "description": "Harmony 的标志性外观：清新、现代、亲切"
+        },
+        "emerald": {
+          "name": "翡翠绿",
+          "description": "成长、平衡与自然的和谐"
+        },
+        "coral": {
+          "name": "珊瑚",
+          "description": "温暖、活力、以社区为本"
+        },
+        "violet": {
+          "name": "紫罗兰",
+          "description": "深紫色调，富有创意且独具一格"
+        },
+        "rose": {
+          "name": "玫瑰",
+          "description": "大胆、温暖、注重社区"
+        },
+        "oceanBlue": {
+          "name": "海洋蓝",
+          "description": "冷色调的深海蓝主题"
+        },
+        "sakura": {
+          "name": "樱花",
+          "description": "以樱花为灵感的粉色主题"
+        },
+        "forest": {
+          "name": "森林",
+          "description": "自然的森林绿色调"
+        },
+        "amber": {
+          "name": "琥珀",
+          "description": "温暖的琥珀与金色调"
+        }
+      },
+      "variableGroups": {
+        "navigationRail": "导航栏",
+        "brand": "品牌",
+        "primaryLayout": "主色（布局）",
+        "backgroundSurfaces": "背景表面",
+        "text": "文字",
+        "icons": "图标",
+        "status": "状态",
+        "semantic": "语义色",
+        "borders": "边框",
+        "alphaTransparency": "透明度 / Alpha",
+        "tooltipsOverlays": "提示框与叠加层"
+      }
     },
     "voice": {
       "title": "语音与视频",
@@ -2398,7 +2821,24 @@
       "inputThreshold": "阈值",
       "decibels": "{db} dB",
       "inputMeterHint": "麦克风声音发送时，进度条变为绿色。",
-      "inputMeterIdle": "加入语音频道后可在此查看输入电平。"
+      "inputMeterIdle": "加入语音频道后可在此查看输入电平。",
+      "videoOption": {
+        "res360": "360p（低）",
+        "res480": "480p（标清）",
+        "res720": "720p（高清）",
+        "res1080": "1080p（全高清）",
+        "source": "源（原生）",
+        "fps": "{n} FPS",
+        "fpsLow": "{n} FPS（低）",
+        "fpsCinema": "{n} FPS（电影）",
+        "kbpsLow": "{n} kbps（低）",
+        "kbpsVoice": "{n} kbps（语音）",
+        "kbpsStandard": "{n} kbps（标准）",
+        "kbpsHigh": "{n} kbps（高）"
+      },
+      "quality480": "480p（标清）",
+      "quality720": "720p（高清）",
+      "quality1080": "1080p（全高清）"
     },
     "notifications": {
       "title": "通知",
@@ -2681,6 +3121,38 @@
           "title": "测试通知",
           "message": "这是一条测试通知"
         }
+      },
+      "android": {
+        "title": "此设备上的推送",
+        "openSettings": "打开通知设置",
+        "allow": "允许通知",
+        "unavailable": "此版本无法显示推送状态。Harmony 运行时仍会显示通知。",
+        "service": "推送服务",
+        "noDistributor": "若要在没有 Google 服务的情况下接收推送，请安装 ntfy 等 UnifiedPush 分发器，然后在此处选择它。",
+        "sendTest": "发送测试推送",
+        "testSent": "测试推送已发送",
+        "testFailed": "发送测试推送失败",
+        "off": "关闭",
+        "auto": "自动",
+        "fcmThrough": "通过 {host} 的 Google (FCM)",
+        "unifiedPushVia": "通过 {name} 的 UnifiedPush",
+        "note": {
+          "notAllowed": "未允许通知",
+          "chooseService": "请在下方选择推送服务",
+          "noService": "没有可用的推送服务",
+          "active": "已启用",
+          "registering": "正在注册"
+        },
+        "hint": {
+          "notInBuild": "此版本未包含",
+          "needsPlay": "需要 Google Play 服务",
+          "googleRelayed": "通过 Google 送达，由 {host} 中转",
+          "notConfigured": "此服务器未配置",
+          "google": "通过 Google 送达",
+          "auto": "优先使用您选择的推送服务，其次是 Google，再次是唯一的 UnifiedPush 应用",
+          "ownService": "通过您自己的推送服务送达",
+          "off": "仅在 Harmony 运行时通知"
+        }
       }
     },
     "announcements": {
@@ -2768,6 +3240,14 @@
           "name": "退出 / 关闭",
           "description": "退出全屏或聚焦视图、关闭面板，然后最小化通话视图。焦点在通话视图内时生效。"
         }
+      },
+      "mouse": {
+        "left": "左键单击",
+        "middle": "中键单击",
+        "right": "右键单击",
+        "back": "鼠标按键 {n}（后退）",
+        "forward": "鼠标按键 {n}（前进）",
+        "numbered": "鼠标按键 {n}"
       }
     },
     "advanced": {
@@ -2779,7 +3259,41 @@
       "copyRawData": "复制原始数据",
       "reportBugSection": "帮助",
       "reportBug": "报告问题",
-      "reportBugDescription": "在 GitHub 上报告错误或请求新功能。"
+      "reportBugDescription": "在 GitHub 上报告错误或请求新功能。",
+      "installApp": "安装应用",
+      "installAppDescription": "将 Harmony 安装为应用，加载更快并可接收通知。在桌面端，如果下方按钮不可用，请使用浏览器地址栏中的安装图标。",
+      "runOnLogin": "登录时启动 Harmony",
+      "runOnLoginEnabled": "您已在 {url} 中启用此功能。如需更改，请点按下方查看说明。",
+      "runOnLoginAvailable": "{browser} 可以在您每次登录电脑时自动启动 Harmony。",
+      "runOnLoginChange": "更改",
+      "runOnLoginSetUp": "设置",
+      "betaFeatures": "测试版功能",
+      "todayDashboard": "今日仪表板",
+      "todayDashboardDescription": "每日摘要，汇总有未读动态的频道、您参与的子区和热门帖子。会在服务器侧边栏添加一个太阳图标。",
+      "aiSummaries": "设备端 AI 摘要",
+      "aiSummariesDescription": "使用浏览器内置的 AI 模型（Chrome 的 Gemini Nano）总结今日摘要。完全在您的设备上运行，不会向服务器发送任何内容。",
+      "aiSummariesUnsupported": "此浏览器不支持。",
+      "desktopApp": "桌面应用",
+      "launchAtStartup": "开机时启动",
+      "launchAtStartupDescription": "登录电脑时自动启动 Harmony，并最小化到托盘。",
+      "launchAtStartupFailed": "无法更改开机启动设置",
+      "richPresence": "游戏动态（丰富状态）",
+      "richPresenceDescription": "将您正在玩的游戏显示为状态。检测在本地进行，只会以状态文字的形式分享游戏名称。",
+      "gameOverlay": "游戏内语音浮层",
+      "gameOverlayDescription": "通话时在游戏上方显示可点击穿透的浮动语音卡片。按 Ctrl+Shift+O 切换交互。",
+      "developerSettings": "开发者设置",
+      "dataManagement": "数据管理",
+      "clearCache": "清除缓存",
+      "clearCacheDescription": "清除 Service Worker 缓存、内存中的表情缓存以及本地缓存的背景图片清单。您的消息、身份密钥和设置都会保留。",
+      "clearingCache": "正在清除...",
+      "cacheCleared": "已清除 {count} 个缓存并重置表情缓存 | 已清除 {count} 个缓存并重置表情缓存",
+      "clearCacheFailed": "清除缓存失败",
+      "deleteAccount": "删除账户",
+      "deleteAccountTitle": "删除您的账户？",
+      "deleteConfirmType": "输入 {word} 以确认",
+      "deleting": "正在删除…",
+      "deleteForever": "永久删除账户",
+      "accountDeleted": "您的账户已删除。"
     },
     "security": "安全",
     "myBots": "我的机器人",
@@ -2851,7 +3365,156 @@
         "cacheStats": "已缓存 {sounds} 个声音，已加载 {themes} 个主题",
         "exportSettings": "导出设置",
         "importSettings": "导入设置",
-        "resetDefaults": "恢复默认设置"
+        "resetDefaults": "恢复默认设置",
+        "cachedCount": "已缓存 {size}/{max}",
+        "pickerLabel": "音频主题",
+        "status": {
+          "ready": "就绪 • {theme}",
+          "unknownTheme": "未知",
+          "loading": "正在加载主题系统...",
+          "preloading": "正在预加载 {theme}...",
+          "error": "检测到系统错误",
+          "uninitialized": "未初始化",
+          "unknown": "未知状态"
+        },
+        "toasts": {
+          "changeFailed": {
+            "title": "无法切换主题",
+            "message": "无法切换到所选的音频主题"
+          },
+          "error": {
+            "title": "主题错误",
+            "message": "发生未知错误"
+          },
+          "testDone": {
+            "title": "音频测试",
+            "message": "主题测试完成"
+          },
+          "testFailed": {
+            "title": "音频测试失败",
+            "message": "无法播放测试音"
+          },
+          "preview": {
+            "title": "主题预览",
+            "message": "正在测试 {theme}"
+          },
+          "previewFailed": {
+            "title": "测试失败",
+            "message": "无法预览主题音效"
+          },
+          "cacheCleared": {
+            "title": "缓存已清除",
+            "message": "已清除音频缓存"
+          },
+          "cacheClearFailed": {
+            "title": "清除缓存失败",
+            "message": "无法清除音频缓存"
+          },
+          "exported": {
+            "title": "设置已导出",
+            "message": "已下载音频主题设置"
+          },
+          "exportFailed": {
+            "title": "导出失败",
+            "message": "无法导出主题设置"
+          },
+          "imported": {
+            "title": "设置已导入",
+            "message": "已恢复音频主题设置"
+          },
+          "importFailed": {
+            "title": "导入失败",
+            "message": "无法导入主题设置。请检查文件格式。"
+          },
+          "reset": {
+            "title": "设置已重置",
+            "message": "音频主题设置已重置为默认值"
+          },
+          "resetFailed": {
+            "title": "重置失败",
+            "message": "无法重置主题设置"
+          }
+        },
+        "packs": {
+          "default": {
+            "name": "默认",
+            "description": "简洁的音效，助你专注工作"
+          },
+          "futuristic": {
+            "name": "未来感",
+            "description": "富有未来感的提示音，带来现代而生动的体验"
+          },
+          "neokobe": {
+            "description": "为 SDR-001 皮肤打造的黑色赛博朋克界面音效"
+          },
+          "skyglass": {
+            "description": "为 Skyglass 皮肤打造的玻璃铃声、水滴与气泡音"
+          },
+          "lattice": {
+            "description": "为 Lattice 皮肤打造的 FM 水晶音、继电器滴答声与扫频"
+          },
+          "flux": {
+            "description": "为 Flux 皮肤打造的共鸣流体合成音、低频涌动与玻璃闪烁"
+          }
+        },
+        "errors": {
+          "init": "未知的初始化错误",
+          "switch": "切换主题失败",
+          "preload": "预加载失败：{theme}",
+          "playback": "音频播放失败：{action}",
+          "test": "音频测试失败：{action}",
+          "import": "无法导入偏好设置",
+          "reset": "无法重置设置"
+        }
+      },
+      "page": {
+        "description": "选择通知、通话和界面操作时播放的声音。",
+        "testDescription": "测试不同操作在当前主题下的声音",
+        "packsTitle": "导入和导出主题包",
+        "packsDescription": "导出完整的音频主题（声音 + 元数据）以便分享或备份。导入主题包可将其添加为自定义主题。",
+        "exporting": "正在导出...",
+        "exportPack": "导出主题包",
+        "importPack": "导入主题包",
+        "statusTitle": "音频系统状态",
+        "statusDescription": "音频主题系统的当前状态",
+        "status": {
+          "ready": "就绪",
+          "loading": "加载中",
+          "preloading": "预加载中",
+          "error": "错误",
+          "uninitialized": "未初始化"
+        },
+        "clearCacheDescription": "清除已缓存的音频文件，强制重新加载所有声音",
+        "soundsLoaded": "已加载 {size}/{max} 个声音",
+        "resetDescription": "将所有音频设置恢复为默认值",
+        "toast": {
+          "soundTest": "声音测试",
+          "played": "已播放 {sound}",
+          "soundTestFailed": "声音测试失败",
+          "testFailed": "无法测试 {sound}",
+          "cacheCleared": "缓存已清除",
+          "audioCacheCleared": "音频缓存已清除",
+          "cacheClearFailed": "无法清除缓存",
+          "audioCacheClearFailed": "清除音频缓存失败",
+          "reset": "音频已重置",
+          "resetDone": "音频设置已恢复为默认值",
+          "resetFailed": "重置失败",
+          "resetFailedDetail": "重置音频系统失败",
+          "themeChanged": "主题已更改",
+          "switchedTheme": "已切换到 {theme} 主题",
+          "packExported": "主题包已导出",
+          "packExportedDetail": "音频主题包已下载为 ZIP",
+          "exportFailed": "导出失败",
+          "exportFailedDetail": "无法导出主题包",
+          "fileTooLarge": "文件过大",
+          "fileTooLargeDetail": "主题包必须小于 {size}",
+          "packImported": "主题包已导入",
+          "packImportedDetail": "已将 {theme} 添加为自定义主题",
+          "importFailed": "导入失败",
+          "invalidPack": "音频包格式无效",
+          "initFailed": "初始化失败",
+          "initFailedDetail": "初始化音频系统失败"
+        }
       }
     },
     "buildInfo": {
@@ -2912,7 +3575,9 @@
       "unsavedChanges": "您有未保存的个人资料更改",
       "changesReset": "已重置个人资料更改",
       "handleCopied": "已复制用户标识",
-      "copyFailed": "无法复制"
+      "copyFailed": "无法复制",
+      "dateUnknown": "未知",
+      "emailNotProvided": "未提供"
     },
     "dmPolicy": {
       "title": "私信",
@@ -2922,6 +3587,20 @@
       "known": "服务器成员和我关注的人",
       "following": "仅限我关注的人",
       "failed": "无法保存此设置"
+    },
+    "privacyPage": {
+      "description": "控制谁可以与您互动，管理账户安全，并控制您的数据如何被使用。",
+      "accountSecurity": "账户安全",
+      "encryption": "加密设置",
+      "dataPrivacy": "数据与隐私",
+      "stripTrackers": "移除 URL 中的跟踪参数",
+      "stripTrackersDescription": "自动移除消息中 YouTube、X/Twitter、TikTok、Instagram 和 Facebook 链接的跟踪参数（如 ?si=...）。",
+      "blockedUsers": "已屏蔽的用户",
+      "mutedUsers": "已静音的用户",
+      "userUnblocked": "已取消屏蔽该用户",
+      "unblockFailed": "取消屏蔽用户失败",
+      "userUnmuted": "已取消静音该用户",
+      "unmuteFailed": "取消静音用户失败"
     }
   },
   "navigation": {
@@ -3482,7 +4161,26 @@
       "feedLabel": "来自 {domain} 的帖子"
     },
     "instanceStatusFilter": "状态",
-    "instanceSoftwareFilter": "软件"
+    "instanceSoftwareFilter": "软件",
+    "fediverseUser": "联邦宇宙用户",
+    "userNotFound": "找不到用户",
+    "altBadge": "ALT",
+    "postInteractions": {
+      "invalidUser": "无效的用户 ID",
+      "invalidPost": "无效的帖子 ID",
+      "unknown": "未知错误"
+    },
+    "requestFailed": "请求失败",
+    "interactionErrors": {
+      "favorite": "无法收藏该帖子",
+      "boost": "无法转发该帖子",
+      "bookmark": "无法将该帖子加入书签"
+    },
+    "shareSheet": {
+      "title": "Harmony 帖子",
+      "text": "来看看这条帖子"
+    },
+    "mediaKindAlt": "{kind}：{alt}"
   },
   "moderation": {
     "reportAlert": {
@@ -3613,6 +4311,20 @@
       "moderators": "{server} 的版主",
       "outcomeBy": "{server} 的版主：{outcome}",
       "reviewedTitle": "{server} 的管理员已审核你的举报"
+    },
+    "reportModal": {
+      "reportedMessage": "被举报的消息",
+      "reportedPost": "被举报的帖子",
+      "whyReporting": "举报原因是什么？",
+      "additionalDetails": "补充说明（可选）",
+      "detailsPlaceholder": "提供任何补充信息...",
+      "submitting": "提交中…",
+      "submitted": "举报已提交",
+      "thanks": "感谢您帮助维护社区安全。我们会尽快审核您的举报。",
+      "hideMessage": "隐藏此消息",
+      "hidePost": "隐藏此帖子",
+      "hideHint": "从您的视图中移除",
+      "keepVisible": "保持可见"
     }
   },
   "files": {
@@ -3652,7 +4364,16 @@
     "noFavoritesOf": "暂无收藏的{kind}",
     "noneFound": "未找到{kind}",
     "results": "{kind}结果",
-    "clip": "片段"
+    "clip": "片段",
+    "viaKlipy": "来自 KLIPY",
+    "adFrame": "广告",
+    "kind": {
+      "stickers": "贴纸",
+      "clips": "短片",
+      "memes": "梗图",
+      "aiEmoji": "AI 表情",
+      "gifs": "GIF"
+    }
   },
   "emoji": {
     "messageReactionLimit": "此消息已有 {count} 种不同的反应。请在现有反应中选择一个。",
@@ -3679,7 +4400,35 @@
     "symbols": "符号",
     "flags": "旗帜",
     "custom": "自定义",
-    "noResults": "未找到表情"
+    "noResults": "未找到表情",
+    "picker": {
+      "favorites": "收藏",
+      "favoritesHint": "右键点击（或长按）任意表情即可添加到这里。",
+      "frequent": "常用",
+      "loading": "正在加载表情...",
+      "favorite": "收藏表情",
+      "unfavorite": "取消收藏表情",
+      "copyId": "复制表情 ID",
+      "removeFrequent": "从常用中移除",
+      "copiedImageLink": "已复制图片链接",
+      "addedFavorite": "已将 :{name}: 添加到收藏",
+      "removedFavorite": "已将 :{name}: 从收藏中移除",
+      "copied": "已复制 :{name}:",
+      "removedFrequent": "已将 :{name}: 从常用中移除"
+    },
+    "reactionPicker": {
+      "title": "选择回应",
+      "currentPack": "当前：{pack}",
+      "systemPack": "系统",
+      "loading": "正在加载表情...",
+      "frequent": "常用"
+    },
+    "groups": {
+      "mine": "我的表情",
+      "instance": "{name} 表情",
+      "instanceUnnamed": "实例表情",
+      "ai": "AI 生成"
+    }
   },
   "emojiInfo": {
     "dialog": "表情",
@@ -3751,7 +4500,11 @@
       "socialHint": "来自 Fediverse 的关注、喜欢和转发会显示在这里。",
       "unread": "没有未读通知",
       "unreadHint": "已读通知保留在“全部”中。"
-    }
+    },
+    "reactedToMessage": "{actor} 用 {emoji} 回应了你的消息",
+    "reactedToPost": "{actor} 用 {emoji} 回应了你的帖子",
+    "followedYou": "{actor} 关注了你",
+    "requestedFollow": "{actor} 请求关注你"
   },
   "newcomerAlerts": {
     "notification": {
@@ -3848,7 +4601,10 @@
     "activityStarted": "{actor} 开启了 {app}。",
     "activityEnded": "{actor} 开启了 {app}：{players} 名玩家，{duration}。",
     "activityEndedAlone": "{actor} 开启了 {app}：{duration}。",
-    "activityFallback": "一个活动"
+    "activityFallback": "一个活动",
+    "legacyJoin": "欢迎 {name}！",
+    "legacyInvitedBy": "由 {name} 邀请。",
+    "legacyLeave": "{name} 离开了服务器。"
   },
   "time": {
     "now": "现在",
@@ -3928,12 +4684,7 @@
     "filesTooLargeSkipped": "已跳过 {count} 个文件: 超出 1 MB 大小限制",
     "noValidImageFiles": "未选择有效的图像文件",
     "cannotUploadEmojisLimit": "无法上传 {count} 个表情。服务器上限为 {max} 个 (当前 {current} 个)",
-    "emojisUploadedSuccess": "已成功上传 {count} 个表情{plural}!",
-    "emojisFailedToUpload": "{count} 个表情{plural}上传失败",
     "failedToUploadEmojis": "上传表情失败",
-    "confirmDeleteEmojis": "确定要删除 {count} 个表情{plural}吗?",
-    "emojisDeletedSuccess": "已成功删除 {count} 个表情{plural}!",
-    "emojisFailedToDelete": "{count} 个表情{plural}删除失败",
     "failedToDeleteEmojis": "删除表情失败",
     "emojiRenamedSuccess": "表情已重命名为 :{name}:",
     "failedToRenameEmoji": "重命名表情失败",
@@ -4071,7 +4822,10 @@
       "advertisedEmptyTitle": "尚无列出的服务器",
       "advertisedEmpty": "所有者在联邦中列出的服务器会显示在这里。本实例已知的实例中还没有列出服务器：可以按域名浏览其他实例。",
       "hostedOn": "托管于 {instance}",
-      "advertisedErrorTitle": "无法读取已知实例"
+      "advertisedErrorTitle": "无法读取已知实例",
+      "signInToJoin": "登录后才能加入服务器",
+      "joinFailed": "无法加入服务器。请重试。",
+      "profileFailed": "无法加载用户资料"
     },
     "haveInviteLink": "有邀请链接吗? 粘贴在此处",
     "inviteLink": "邀请链接",
@@ -4210,7 +4964,8 @@
       "agree": "同意并加入"
     },
     "joined": "已加入 {server}",
-    "joinFailed": "无法加入服务器"
+    "joinFailed": "无法加入服务器",
+    "acceptAs": "以 {name} 身份接受"
   },
   "nav": {
     "chat": "聊天",
@@ -4228,7 +4983,10 @@
     "chatNotFound": "此聊天或对话不存在,或您没有访问权限。",
     "settingsNotFound": "此设置页面不存在。",
     "defaultNotFound": "您查找的页面不存在或已被移动。",
-    "requestedAddress": "请求的地址"
+    "requestedAddress": "请求的地址",
+    "serverTitle": "未找到服务器",
+    "serverNotFound": "你要找的服务器不存在，或你没有访问权限。",
+    "browseServers": "浏览服务器"
   },
   "onboarding": {
     "title": "设置您的个人资料",
@@ -4781,6 +5539,17 @@
       "unlock": "此语音频道已端到端加密。请使用恢复密钥解锁加密以加入。",
       "dmSetup": "此对话中的通话已端到端加密。请设置加密以拨打或接听通话。",
       "dmUnlock": "此对话中的通话已端到端加密。请使用恢复密钥解锁加密以拨打或接听通话。"
+    },
+    "dmStatus": {
+      "noKeys": "加密已开启，但你的密钥尚未设置",
+      "locked": "加密已开启。解锁后即可阅读加密消息",
+      "setup": "加密已开启。设置密钥后即可参与"
+    },
+    "sendFallback": {
+      "notSent": "加密失败。消息未发送。",
+      "sentUnencrypted": "加密失败。消息已以未加密方式发送。",
+      "required": "此频道要求端到端加密。",
+      "declined": "消息未发送。"
     }
   },
   "today": {
@@ -5441,10 +6210,6 @@
       "title": "尚未注册任何设备",
       "description": "在设备上解锁加密后，设备会显示在这里。"
     },
-    "screenSources": {
-      "screens": "没有可用的屏幕",
-      "windows": "没有可用的窗口"
-    },
     "admin": {
       "discoveredInstances": {
         "title": "尚未从用户互动中发现任何实例",
@@ -5540,7 +6305,22 @@
     "installDescription": "加载更快，并可离线访问",
     "install": "安装",
     "installing": "正在安装…",
-    "dismiss": "关闭安装提示"
+    "dismiss": "关闭安装提示",
+    "update": {
+      "title": "有可用更新",
+      "body": "新版本的 Harmony 已可安装",
+      "updating": "正在更新...",
+      "now": "立即更新"
+    },
+    "shareTitle": "Harmony - 安全的聊天应用",
+    "shareText": "Harmony 是一款安全、私密的聊天应用。",
+    "manualInstall": {
+      "ios": "点按“分享”，然后选择“添加到主屏幕”。",
+      "android": "使用 Chrome 菜单（⋮）→“安装应用”或“添加到主屏幕”。",
+      "desktop": "使用地址栏中的安装图标，或 Chrome 菜单 →“安装 Harmony...”。"
+    },
+    "installUnavailable": "目前无法从此页面安装。{hint}",
+    "installFailed": "安装已取消或无法启动。{hint}"
   },
   "security": {
     "subtitle": "您的密码、双重验证以及已登录您账户的设备。",
@@ -5872,7 +6652,27 @@
       "linkHint": "在新设备上登录，然后扫描其显示的代码。",
       "pendingPairing": "等待关联。请扫描其显示的代码。",
       "pendingPlain": "已登录并自行解锁了您的加密消息。",
-      "scanCode": "扫描代码"
+      "scanCode": "扫描代码",
+      "deny": "拒绝",
+      "rename": "重命名",
+      "signedOut": "已退出登录",
+      "showInactive": "显示 {count} 台已退出登录的设备 | 显示 {count} 台已退出登录的设备",
+      "hideInactive": "隐藏 {count} 台已退出登录的设备 | 隐藏 {count} 台已退出登录的设备",
+      "trust": {
+        "verified": "已验证",
+        "recovery": "历史已解锁",
+        "account": "仅限新消息",
+        "untrusted": "受限"
+      },
+      "platform": {
+        "web": "网页",
+        "desktop": "桌面",
+        "mobile": "移动设备",
+        "other": "设备"
+      },
+      "lastActive": "{platform} · 上次活动 {time}",
+      "minutesAgo": "{count}分钟前",
+      "hoursAgo": "{count}小时前"
     },
     "approval": {
       "pairingText": "该设备正在等待获取您的加密消息。如果它是您的设备且就在您面前，请扫描其显示的代码：密钥只会发送给您扫描了其代码的设备。",
@@ -5882,7 +6682,20 @@
       "plainText": "一台新设备登录了您的账户，并自行解锁了您的加密消息；此处不会发送任何内容。如果这不是您本人，请保护好您的账户。",
       "thatWasMe": "是我本人",
       "staysSignedIn": "{device} 保持登录状态。",
-      "newDeviceFallback": "新设备"
+      "newDeviceFallback": "新设备",
+      "newLogin": "新的登录",
+      "newLoginOn": "{device} 上的新登录",
+      "secureAccount": "不是，保护我的账户",
+      "moreWaiting": "另有 {count} 个登录在等待 | 另有 {count} 个登录在等待",
+      "waitingTitle": "请在另一台设备上批准此次登录",
+      "waitingText": "在已登录的设备上打开 Harmony，然后点按“{button}”，即可在此处解锁您的加密消息历史。在此期间，新消息仍可正常使用。",
+      "notMeThisLogin": "这不是我",
+      "approveFailed": "无法批准登录",
+      "tryAgain": "请重试。",
+      "secureFailed": "无法保护账户",
+      "signOutFailed": "无法退出登录",
+      "signOutFailedHint": "请从用户菜单中手动退出登录。",
+      "secureFailedHintPath": "请在“{settings} → {privacy}”中重试。"
     },
     "settings": {
       "devicesDescription": "已登录您账户的设备。要让新设备获取您的加密消息，请关联它：在新设备上登录，然后用一台已解锁的设备扫描其显示的代码。",
@@ -5891,7 +6704,91 @@
       "pairingCopyTitle": "为关联保留的密钥",
       "pairingCopyDescription": "此设备保留了一份可读取的加密密钥副本，以便无需恢复短语即可关联设备。移除后，从此处关联设备将再次要求输入恢复短语。",
       "pairingCopyRemoved": "已从此设备移除您的密钥副本",
-      "pairingCopyRemoveFailed": "无法移除您的密钥副本"
+      "pairingCopyRemoveFailed": "无法移除您的密钥副本",
+      "loadingStatus": "正在加载加密状态...",
+      "statusHeading": "加密状态",
+      "statusDescription": "端到端加密可保护您的消息，只有您和接收者才能阅读。",
+      "setUp": "设置加密",
+      "unlockHistory": "解锁消息历史",
+      "recoveryKeyHeading": "恢复密钥",
+      "recoveryKeyActive": "恢复密钥已启用",
+      "recoveryKeyActiveDescription": "您的加密密钥受 12 个单词的恢复短语保护。",
+      "viewInfo": "查看信息",
+      "backupStored": "加密备份已存储在服务器上",
+      "lastBackup": "上次备份：{time}",
+      "sessionKeys": "会话密钥",
+      "activeRooms": "活跃房间",
+      "activeRoomsDescription": "您可以发送加密消息的房间",
+      "receivedKeys": "已接收的密钥",
+      "receivedKeysDescription": "从其他用户处接收的密钥",
+      "syncing": "正在同步...",
+      "syncKeys": "同步密钥",
+      "diagnostics": "诊断",
+      "diagnosticsDescription": "一次性检查您的身份密钥、服务器备份和设备信任状态。",
+      "checking": "正在检查...",
+      "runDiagnosis": "运行诊断",
+      "devicesHeading": "您的设备",
+      "backupHeading": "备份与恢复",
+      "createBackup": "立即创建备份",
+      "createBackupDescription": "手动将加密备份上传到服务器",
+      "backingUp": "正在备份...",
+      "backup": "备份",
+      "exportFile": "导出备份文件",
+      "exportFileDescription": "下载加密备份文件并保存在本地",
+      "export": "导出",
+      "importFile": "导入备份文件",
+      "importFileDescription": "从导出的备份文件恢复",
+      "import": "导入",
+      "importing": "正在导入...",
+      "importModalText": "选择您的加密备份文件以恢复加密密钥。",
+      "backupFileLabel": "备份文件",
+      "recoveryHeading": "恢复",
+      "restoreWithKey": "使用恢复密钥恢复",
+      "restoreWithKeyDescription": "有恢复短语？输入它即可恢复您的加密",
+      "enterRecoveryKey": "输入恢复密钥",
+      "reset": "重置加密",
+      "resetDescription": "删除所有加密密钥并重新开始。您将无法再访问所有加密消息。",
+      "infoTitle": "恢复密钥信息",
+      "infoStatus": "状态：",
+      "infoActive": "已启用",
+      "infoWordCount": "单词数：",
+      "infoWords": "{count} 个单词 | {count} 个单词",
+      "infoVerificationCode": "验证码：",
+      "infoStorageHint": "存放提示：",
+      "infoNeverStored": "您的恢复密钥从不存储在服务器上。只有您拥有它。",
+      "infoLost": "如果您丢失了恢复密钥，应重新设置加密。",
+      "resetConfirmTitle": "要重置加密吗？",
+      "resetConfirmText": "这将永久删除您所有的加密密钥和备份。",
+      "resetConfirmWarning": "您将无法阅读任何之前加密的消息。",
+      "resetConfirmUndone": "此操作无法撤销。",
+      "resetting": "正在重置...",
+      "statusNotSetUp": "尚未设置加密",
+      "statusLocked": "加密已锁定",
+      "statusActive": "加密已启用",
+      "statusNotSetUpDescription": "设置恢复密钥以启用端到端加密",
+      "statusLockedDescription": "输入您的恢复短语，或在另一台设备上批准此设备，即可解锁您的消息历史",
+      "statusActiveDescription": "您的消息受端到端加密保护",
+      "toast": {
+        "loadFailed": "无法加载加密设置",
+        "diagnosisFailed": "诊断失败",
+        "backupWrongPhrase": "服务器上的密钥备份是用另一个恢复短语创建的，无法用当前短语打开。新消息不受影响。",
+        "backupRestoreFailed": "密钥备份恢复失败：{error}",
+        "synced": "已同步 {restored} 个备份会话和 {claimed} 个新会话密钥",
+        "nothingToSync": "没有需要同步的新密钥",
+        "syncFailed": "无法同步密钥",
+        "backupCreated": "备份已创建",
+        "backupFailed": "无法创建备份",
+        "exported": "备份文件已导出",
+        "exportFailed": "无法导出备份",
+        "imported": "已导入 {count} 个会话 | 已导入 {count} 个会话",
+        "importFailed": "无法导入备份",
+        "leftVoice": "已离开加密语音通话（其密钥已重置）",
+        "resetDone": "加密已重置",
+        "resetFailed": "无法重置加密",
+        "enabled": "加密已启用",
+        "restored": "加密已恢复",
+        "syncedKeys": "已同步 {count} 个会话密钥 | 已同步 {count} 个会话密钥"
+      }
     },
     "recovery": {
       "anotherDevice": "另一台设备",
@@ -5901,7 +6798,25 @@
       "qrPasteLabel": "或粘贴 QR 码数据",
       "pairingCodeScanned": "这是设备配对代码。请使用“另一台设备”选项卡。",
       "notRecoveryKey": "该 QR 码不是 Harmony 恢复密钥",
-      "qrReadFailed": "无法读取 QR 码"
+      "qrReadFailed": "无法读取 QR 码",
+      "title": "恢复加密",
+      "phraseTab": "恢复短语",
+      "phraseDescription": "输入您的 12 个单词恢复短语，以重新访问您的加密消息。",
+      "wordPlaceholder": "单词 {n}",
+      "verificationLabel": "验证码（可选）",
+      "verificationPlaceholder": "6 位代码",
+      "verificationHint": "如果您保存了验证码，请在此输入，以确认短语正确",
+      "restoring": "正在恢复...",
+      "valid": "恢复短语有效",
+      "invalid": "恢复短语无效。请检查是否有拼写错误。",
+      "validationFailed": "验证失败",
+      "pastedPhrase": "已粘贴 12 个单词的恢复短语",
+      "phrasePasted": "已粘贴恢复短语",
+      "wrongWordCount": "需要 12 个单词，实际为 {count} 个",
+      "clipboardFailed": "无法读取剪贴板",
+      "qrRead": "已读取 QR 码",
+      "codeMismatch": "验证码不匹配",
+      "restoreFailed": "无法恢复加密"
     },
     "recoverySetup": {
       "multiDevice": "从此设备扫描 QR 码即可关联新设备；恢复密钥作为备用方式",
@@ -5910,11 +6825,95 @@
       "qrHint": "任何看到此代码的人都能读取您的加密消息；请勿截图。要设置另一台设备，请改为关联它：在该设备上登录，然后用此设备扫描其显示的代码。",
       "newDeviceLabel": "新设备？",
       "newDeviceReminder": "{label}在该设备上登录并选择“{another}”，然后用此设备扫描其代码。无需输入恢复密钥即可解锁您的消息。",
-      "rememberNeed": "如果您无法访问所有已登录的设备，或清除了浏览器数据，就需要用到它。"
+      "rememberNeed": "如果您无法访问所有已登录的设备，或清除了浏览器数据，就需要用到它。",
+      "title": "设置消息加密",
+      "introText": "您的消息将被加密，只有您和接收者才能阅读。即使是 Harmony 的服务器也无法访问您的消息内容。",
+      "featureRecoveryKey": "恢复密钥",
+      "featureRecoveryKeyText": "保护您所有加密密钥的 12 个单词短语",
+      "featureBackup": "加密备份",
+      "featureBackupText": "您的密钥会备份到服务器，并用您的恢复密钥加密",
+      "featureMultiDevice": "多设备",
+      "featureRecovery": "恢复",
+      "featureRecoveryText": "如果您清除了缓存，只需输入恢复密钥即可恢复访问",
+      "importantLabel": "重要：",
+      "importantWarning": "{label}请记下您的恢复密钥并妥善保管。如果您同时丢失了它和您的设备，将无法阅读您的加密消息。",
+      "keyHeading": "您的恢复密钥",
+      "keyInstruction": "请按顺序记下这 12 个单词，并存放在安全的地方——恢复加密密钥时需要用到它们。",
+      "generating": "正在生成您的恢复密钥...",
+      "qrAlt": "恢复密钥 QR 码",
+      "verificationCode": "验证码：{code}",
+      "verificationCodeHint": "保存此代码，以便日后确认短语是否正确",
+      "verifyHeading": "验证您的恢复密钥",
+      "verifyInstruction": "为确保您已正确保存恢复密钥，请输入以下位置的单词：",
+      "wordLabel": "第 {n} 个单词",
+      "wordPlaceholder": "输入第 {n} 个单词",
+      "verifyError": "请正确验证所有单词",
+      "doneHeading": "加密已设置完成",
+      "doneText": "您的端到端加密现已启用。您的消息将被加密并安全地备份到服务器。",
+      "summaryHeading": "已设置的内容",
+      "summaryKey": "恢复密钥已生成并验证",
+      "summaryKeys": "加密密钥已创建",
+      "summaryBackup": "加密备份已存储在服务器上",
+      "summaryReady": "已可发送加密消息",
+      "rememberLabel": "请记住：",
+      "rememberKeep": "{label}请妥善保管您的 12 个单词恢复密钥。",
+      "processing": "正在处理...",
+      "completeSetup": "完成设置",
+      "steps": {
+        "intro": "简介",
+        "key": "恢复密钥",
+        "verify": "验证",
+        "complete": "完成"
+      },
+      "toast": {
+        "qrFailed": "无法生成 QR 码",
+        "copied": "已复制恢复密钥",
+        "copyFailed": "无法复制到剪贴板",
+        "downloaded": "已下载恢复密钥",
+        "generateFailed": "无法生成恢复密钥",
+        "setupFailed": "无法完成设置"
+      },
+      "file": {
+        "title": "Harmony 恢复密钥",
+        "body": "生成时间：{date}\n\n您的 12 个单词恢复短语：\n{words}\n\n验证码：{code}\n\n重要：请妥善保管此文件，切勿泄露。\n任何拥有这些单词的人都能访问您的加密消息。"
+      }
     },
     "keyShareFailed": {
       "title": "部分成员可能无法阅读你的消息",
       "body": "有 {count} 位成员未收到阅读此消息的密钥。他们打开消息时，应用会再次请求密钥。"
+    },
+    "diagnosticRows": {
+      "unlocked": "加密已解锁",
+      "profile": "个人资料",
+      "identity": "身份密钥",
+      "signing": "签名密钥",
+      "backup": "密钥备份",
+      "device": "设备信任",
+      "unlockedYes": "密钥已在本次会话中加载",
+      "unlockedNo": "输入恢复短语以解锁",
+      "profileMissing": "加密服务未解析到个人资料 ID",
+      "identityUnpublished": "没有已发布的身份密钥，请运行加密设置",
+      "identityNoLocal": "已有发布的密钥，但本地没有私钥，请使用恢复短语解锁",
+      "identityMatch": "本地私钥与已发布的公钥匹配",
+      "identityMismatch": "本地密钥与已发布的密钥不匹配，请重新解锁以修复",
+      "identityUnverified": "配对未验证（旧记录），请重新解锁以验证",
+      "signingPublished": "消息签名密钥已发布",
+      "signingMissing": "没有签名密钥，下次解锁时会自动生成",
+      "identityLookupFailed": "查询失败：{error}",
+      "backupNone": "服务器上还没有备份，使用加密时会自动创建",
+      "backupLocked": "备份已存在（{count} 个会话），请解锁以验证 | 备份已存在（{count} 个会话），请解锁以验证",
+      "backupOk": "备份可用当前短语解密（{count} 个会话） | 备份可用当前短语解密（{count} 个会话）",
+      "backupWrongPhrase": "备份存在，但无法用当前恢复短语解密（由旧短语创建）",
+      "backupCheckFailed": "备份检查失败：{error}",
+      "deviceUnregistered": "此设备尚未注册",
+      "deviceRevoked": "此设备已被撤销",
+      "deviceTrust": "信任级别：{level}",
+      "deviceUnreadable": "无法读取设备状态"
+    },
+    "identityChanged": {
+      "title": "安全身份已更改",
+      "message": "{name} 的加密密钥已更改。如果对方重新安装了应用或在新设备上登录，这是正常的。",
+      "messageUnnamed": "某位联系人的加密密钥已更改。如果对方重新安装了应用或在新设备上登录，这是正常的。"
     }
   },
   "admin": {
@@ -5967,7 +6966,26 @@
         "reporter": "举报者",
         "reported": "被举报用户",
         "server": "服务器"
-      }
+      },
+      "title": "举报与管理",
+      "pendingCount": "{count} 条待处理",
+      "filters": {
+        "pending": "待处理",
+        "investigating": "调查中",
+        "resolved": "已解决",
+        "dismissed": "已驳回",
+        "all": "全部"
+      },
+      "reporterComment": "举报者的评论",
+      "deletedSince": "举报后已被删除",
+      "sensitive": "敏感内容",
+      "contentWarning": "CW：{warning}",
+      "viewRemote": "在远程实例上查看",
+      "deleteMedia": "删除媒体（{count}）",
+      "deleteMediaTitle": "删除媒体",
+      "deleteMediaMessage": "要从存储中删除 {count} 个媒体文件吗？此操作无法撤销。 | 要从存储中删除 {count} 个媒体文件吗？此操作无法撤销。",
+      "deleteMediaDone": "已删除 {count} 个媒体文件 | 已删除 {count} 个媒体文件",
+      "deleteMediaFailed": "无法删除媒体文件"
     },
     "federation": {
       "limited": "已限制",
@@ -5985,7 +7003,78 @@
       "ignoreReportsConfirmBody": "今后从 {domain} 发来的举报将被丢弃。已收到的举报仍留在队列中，{domain} 本身不受任何影响。",
       "reportsIgnoredToast": "已忽略来自 {domain} 的举报",
       "reportsAcceptedToast": "已重新接受来自 {domain} 的举报",
-      "reportsFailed": "无法更改此域名举报的处理方式"
+      "reportsFailed": "无法更改此域名举报的处理方式",
+      "title": "联邦管理",
+      "addInstance": "添加实例",
+      "refresh": "刷新",
+      "statTotal": "实例总数",
+      "statActive7d": "活跃（7 天）",
+      "trusted": "受信任",
+      "blocked": "已屏蔽",
+      "active": "活跃",
+      "inactive": "不活跃",
+      "endpointHealth": "端点健康状况",
+      "successRate": "成功率 {rate}%",
+      "totalEndpoints": "端点总数",
+      "deadEndpoints": "失效端点",
+      "healthyEndpoints": "健康",
+      "failingEndpoints": "有失败",
+      "deadWarning": "{count} 个端点被标记为失效并已从关注中移除 | {count} 个端点被标记为失效并已从关注中移除",
+      "purgeAll": "全部清除",
+      "endpointFailures": "{count} 次失败 | {count} 次失败",
+      "lastFailure": "最近一次失败：{time}",
+      "removeEndpoint": "移除此端点",
+      "maintenance": "联邦维护",
+      "keysOk": "所有本地用户都有有效的密钥对",
+      "keysIssues": "缺少密钥的用户：{missing}。状态不一致的用户：{inconsistent}。",
+      "keySweepTitle": "密钥生成扫描",
+      "keySweepDesc": "为没有 RSA 密钥的本地用户生成缺失的密钥",
+      "runSweep": "运行扫描",
+      "orphanTitle": "孤立密钥清理",
+      "orphanDesc": "修复密钥状态不一致的用户（有公钥无私钥或相反）",
+      "runCleanup": "运行清理",
+      "scheduleNote": "维护任务自动运行：密钥扫描于 03:00 UTC，孤立密钥清理于 04:00 UTC",
+      "directory": "实例目录",
+      "filterAll": "所有实例",
+      "searchPlaceholder": "搜索实例…",
+      "loadingInstances": "正在加载实例…",
+      "userCount": "{count} 位用户 | {count} 位用户",
+      "postCount": "{count} 条帖子 | {count} 条帖子",
+      "lastSeen": "最后出现：{time}",
+      "refreshInstance": "刷新实例信息",
+      "markTrusted": "标记为受信任",
+      "removeTrust": "取消信任",
+      "blockInstance": "屏蔽实例",
+      "unblockInstance": "取消屏蔽实例",
+      "deleteInstance": "删除实例",
+      "pageRange": "第 {from}-{to} 项，共 {total} 项",
+      "discovery": "发现实例",
+      "tabInteractions": "来自互动",
+      "tabSearch": "搜索并添加",
+      "interactionCount": "{count} 次互动 | {count} 次互动",
+      "domainPlaceholder": "输入域名（例如 mastodon.social）",
+      "discovering": "正在发现…",
+      "federationEnabled": "已启用联邦",
+      "apiAvailable": "API 可用",
+      "detailSoftware": "软件：",
+      "detailDescription": "描述：",
+      "detailUsers": "用户：",
+      "detailPosts": "帖子：",
+      "detailAdmin": "管理员：",
+      "addAsTrusted": "作为受信任实例添加",
+      "purgeConfirmTitle": "清除失效端点",
+      "purgeConfirmBody": "永久移除 {count} 个失效端点及其失败的投递？此操作无法撤销。 | 永久移除全部 {count} 个失效端点及其失败的投递？此操作无法撤销。",
+      "purgeConfirm": "清除",
+      "refreshFailed": "无法刷新实例信息",
+      "trustFailed": "无法更新实例信任状态",
+      "blockConfirmBody": "屏蔽此实例？",
+      "blockConfirm": "屏蔽",
+      "blockFailed": "无法更新实例屏蔽状态",
+      "deleteConfirmBody": "确定要删除此实例吗？这将移除所有联邦数据。",
+      "deleteFailed": "无法删除实例",
+      "addFailed": "无法添加实例",
+      "discoverFailed": "无法发现实例。请检查域名是否有效并支持 ActivityPub。",
+      "instanceAdded": "已添加实例"
     },
     "instance": {
       "mirrorStatusProgress": "正在保存 Discord 文件：{queued} 个等待中，已保存 {size}",
@@ -6027,7 +7116,126 @@
       "maxInstanceStickers": "实例贴纸数",
       "maxInstanceStickersHint": "0 到 500。所有本地账号都可以发送实例贴纸。0 表示关闭。",
       "maxPersonalStickers": "每位用户的个人贴纸数",
-      "maxPersonalStickersHint": "0 到 100。默认值 0 表示关闭个人贴纸。"
+      "maxPersonalStickersHint": "0 到 100。默认值 0 表示关闭个人贴纸。",
+      "title": "配置",
+      "tabGeneral": "常规",
+      "tabFederation": "联邦",
+      "tabBranding": "品牌",
+      "tabAuth": "身份验证",
+      "chatSettings": "聊天设置",
+      "maxServerSize": "服务器最大规模",
+      "maxServersPerUser": "每个账户可拥有的服务器数",
+      "maxServersPerUserHint": "仅计本地服务器，实例管理员和版主除外。0 = 不限。默认：100。",
+      "maxBotsPerUser": "每个账户可拥有的机器人数",
+      "maxBotsPerUserHint": "频道 Webhook 以及已关联的 Discord 和 Matrix 桥接不计入。0 = 不限。默认：25。",
+      "maxMessageLength": "消息最大长度",
+      "maxMediaAttachments": "每条帖子/消息的媒体附件上限",
+      "maxMediaAttachmentsHint": "每条帖子或聊天消息的图片/视频/文件上限。默认：20。",
+      "allowFileUploads": "允许上传文件",
+      "enableVoiceChannels": "启用语音频道",
+      "bridgeAttachmentsTitle": "桥接附件",
+      "bridgeAttachmentsHint": "针对来自外部平台（Discord 等）的桥接图片/文件的全实例策略。机器人所有者无法覆盖。",
+      "attachmentHandling": "附件处理方式",
+      "attachmentModeLink": "仅链接（外部 CDN 地址，可能过期）",
+      "attachmentModeRefresh": "按需刷新（查看时重新签名过期链接，不占额外磁盘）",
+      "attachmentModeMirror": "镜像到存储（永久，占用磁盘，随流量增长）",
+      "attachmentMirrorWarning": "警告：每个桥接附件都会复制到 {table}。活跃的桥接频道可能占用大量存储空间。",
+      "attachmentRefreshHint": "需要机器人网关。过期的 Discord 链接会在有人查看时重新签名（不占磁盘，也不显示“已编辑”）：发布它们的桥接在线时由该桥接处理，否则由本实例的 Discord 机器人处理，在 Harmony 上发布的链接同样需要它。",
+      "klipyTitle": "媒体选择器（Klipy）",
+      "klipyHint": "GIF/媒体搜索通过联邦后端代理。API 密钥位于后端环境变量（{ads} / {noads}）中，而不在这里。",
+      "klipyAdsGroup": "广告与署名",
+      "gifAdsTitle": "GIF 广告",
+      "gifAdsNoteLabel": "注意：",
+      "gifAdsNote": "{note} 此设置仅影响移动端 GIF 选择器。桌面端用户永远不会看到广告。这是 KLIPY 作为广告分发方的限制。",
+      "gifAdsDesc": "非支持者会在移动端 GIF 选择器中看到 Klipy 广告，免广告支持者则不会。Klipy 只向移动浏览器（包括已安装的 PWA）投放广告，按其 API 桌面端从不接收广告。关闭后任何人都看不到广告。还需要启用了广告的 Klipy 密钥，并在 Klipy Partner Dashboard 中开启广告。按等级免广告的设置位于“资助与支持者”。",
+      "klipyWatermarkTitle": "发送的媒体带 KLIPY 水印",
+      "klipyWatermarkDesc": "为分享的 GIF/贴纸添加一个小的 KLIPY 标记。选择器中的“Search KLIPY”标签始终显示（必需的署名）；此水印可选但推荐开启。",
+      "optionalCollections": "可选合集",
+      "optionalCollectionsHint": "GIF 和贴纸始终可用。启用这些会添加选择器标签页和斜杠命令；关闭时在所有地方隐藏。",
+      "clipsTitle": "短片",
+      "clipsDesc": "循环播放的短视频（可带音频）。",
+      "memesTitle": "表情包",
+      "memesDesc": "Klipy 的表情包合集。",
+      "aiEmojiBrowseTitle": "浏览 AI 表情",
+      "aiEmojiBrowseDesc": "浏览 Klipy 的 AI 表情。选中后会作为表情插入输入框（不托管在此处，表现为远程表情，并计入常用）。",
+      "aiEmojiGenGroup": "AI 表情生成",
+      "aiEmojiGenTitle": "允许生成 AI 表情",
+      "aiEmojiGenDesc": "成员可以根据文字提示生成自己的表情；这些表情托管在本实例上，并显示在表情选择器的“AI 生成”分类中。Klipy 将生成次数限制为每个实例每天 20 次（共享），另有每位用户的每日上限。",
+      "trendingTitle": "热门与发现",
+      "trendingPosts": "热门帖子",
+      "refreshing": "正在刷新…",
+      "refreshTrending": "立即刷新热门",
+      "refreshTrendingHint": "手动重新计算热门帖子。通常每 15 分钟运行一次。",
+      "federationSettings": "联邦设置",
+      "maxPostLength": "帖子最大长度",
+      "retryAttempts": "投递重试次数",
+      "maxCustomEmojis": "每个服务器的自定义表情上限",
+      "maxCustomEmojisHint": "每个服务器允许的自定义表情上限。0 = 不限。",
+      "emojiQuality": "自定义表情图片质量",
+      "emojiQualityHint": "从存储中缩放的自定义表情图片的 JPEG/WebP 质量（20-100）。默认 80。值越低越省带宽，但会出现压缩痕迹。",
+      "allowEmojiNames": "允许在显示名称中使用自定义表情",
+      "allowEmojiNamesHint": "关闭后，名称中不显示表情，用户也无法添加。",
+      "brandingTitle": "实例品牌",
+      "instanceName": "实例名称",
+      "namePlaceholder": "Harmony 实例",
+      "nameHint": "此名称显示在登录/注册页面上。更改对所有用户可见。",
+      "instanceDescription": "实例描述",
+      "descriptionPlaceholder": "一个联邦式社交平台",
+      "descriptionHint": "此描述作为副标题显示在登录/注册页面上。",
+      "instanceRules": "实例规则",
+      "rulesPlaceholder": "每行一条规则，例如：\n互相尊重\n禁止垃圾信息",
+      "rulesHint": "向加入此处服务器的用户，以及通过邀请链接加入的联邦用户显示一次。",
+      "instanceIcon": "实例图标",
+      "uploadIcon": "上传图标",
+      "iconHint": "你的实例的标志。显示给其他联邦实例以及实例目录中。",
+      "instanceBanner": "实例横幅",
+      "uploadBanner": "点击上传横幅",
+      "changeBanner": "更换横幅",
+      "bannerHint": "你的实例的主图。显示在实例目录中，并通过 NodeInfo 公开。",
+      "themeColor": "主题色",
+      "themeColorHint": "你的实例的强调色。通过 NodeInfo 公开供其他实例使用。",
+      "defaultTheme": "新用户的默认主题",
+      "defaultThemeHint": "导入主题 JSON 文件（从外观设置导出），作为新用户和未登录用户的默认主题。",
+      "importTheme": "导入主题 JSON",
+      "clearTheme": "清除默认主题",
+      "themeSet": "已设置默认主题",
+      "legalTitle": "法律与联系方式",
+      "termsUrl": "服务条款网址",
+      "termsHint": "指向服务条款的链接。显示在注册页面上。留空则隐藏。",
+      "privacyUrl": "隐私政策网址",
+      "privacyHint": "指向隐私政策的链接。显示在注册页面上。留空则隐藏。",
+      "maintainerName": "维护者名称",
+      "maintainerNamePlaceholder": "管理员",
+      "maintainerNameHint": "本实例管理员的公开联系名称。",
+      "maintainerEmail": "维护者邮箱",
+      "maintainerEmailHint": "公开联系邮箱。通过 NodeInfo 公开，以保证联邦透明度。",
+      "saving": "正在保存…",
+      "saveBranding": "保存品牌",
+      "webrtcTitle": "WebRTC / 语音设置",
+      "webrtcMode": "WebRTC 模式",
+      "modeHybrid": "混合（已配置时用 SFU，否则 P2P）",
+      "modeSfu": "仅 SFU（LiveKit）",
+      "modeP2p": "仅 P2P（点对点）",
+      "modeHint": "混合模式在配置了 LiveKit 服务器时使用它，否则使用 P2P。通话中的所有参与者使用相同的传输方式。",
+      "livekitUrl": "LiveKit 服务器地址",
+      "livekitUrlHint": "LiveKit 服务器的 WebSocket 地址（在后端 .env 中配置）",
+      "maxStageListeners": "舞台最大听众数",
+      "maxStageListenersHint": "舞台活动（发言模式）的最大听众人数",
+      "trendingRefreshed": "热门帖子已刷新",
+      "trendingRefreshFailed": "无法刷新热门帖子",
+      "mustLogInConfig": "必须登录才能保存配置",
+      "federationSaveFailed": "无法保存联邦设置",
+      "voiceSaveFailed": "无法保存语音设置",
+      "configSaved": "配置已保存",
+      "configSaveFailed": "无法保存配置",
+      "mustLogInBranding": "必须登录才能保存实例品牌",
+      "brandingSaved": "实例品牌已保存",
+      "brandingSaveFailed": "无法保存实例品牌",
+      "invalidThemeJson": "主题 JSON 文件无效",
+      "themeImported": "默认主题已导入并保存",
+      "themeParseFailed": "无法解析主题 JSON 文件",
+      "themeCleared": "默认主题已清除",
+      "themeClearFailed": "无法清除默认主题"
     },
     "signInProviders": {
       "title": "登录提供方",
@@ -6082,7 +7290,23 @@
         "maxPersonalEmojisPerUser": "每位用户的个人表情数",
         "maxStickersPerServer": "每个服务器的贴纸数",
         "maxInstanceStickers": "实例贴纸数",
-        "maxPersonalStickersPerUser": "每位用户的个人贴纸数"
+        "maxPersonalStickersPerUser": "每位用户的个人贴纸数",
+        "instanceName": "实例名称",
+        "instanceDescription": "实例描述",
+        "termsUrl": "条款 URL",
+        "privacyUrl": "隐私政策 URL",
+        "maxPostLength": "帖子最大长度",
+        "maxServerSize": "服务器最大规模",
+        "maxServersPerUser": "每个账户的服务器数",
+        "maxBotsPerUser": "每个账户的机器人数",
+        "driveInstanceLimit": "整个实例的 Drive 存储",
+        "maxMessageLength": "消息最大长度",
+        "maxCustomEmojisPerServer": "每个服务器的自定义表情上限",
+        "customEmojiQuality": "自定义表情图片质量",
+        "allowFileUploads": "允许上传文件",
+        "enableVoiceChannels": "启用语音频道",
+        "federationRetryAttempts": "联邦重试次数",
+        "oauthProviders": "OAuth 提供方"
       },
       "staff": {
         "someServer": "某个服务器",
@@ -6111,6 +7335,26 @@
         "inviteEmailed": "向 {email} 发送了邀请邮件",
         "inviteReissued": "为 {email} 创建了新邀请链接",
         "inviteRevoked": "撤销了给 {email} 的邀请"
+      },
+      "title": "最近活动",
+      "filter": {
+        "all": "所有事件",
+        "federation": "联邦",
+        "moderation": "管理",
+        "security": "安全"
+      },
+      "source": "管理员：{name}",
+      "emptyValue": "（空）",
+      "event": "事件",
+      "configChanged": "{label}：{value}（原为 {old}）",
+      "configSet": "{label}：{value}",
+      "userShort": "用户 {id}…",
+      "userId": "用户：{id}",
+      "userAction": {
+        "suspended": "已停用 {who}",
+        "deleted": "已删除 {who}",
+        "unsuspended": "已解除 {who} 的停用",
+        "moderated": "已处理 {who}"
       }
     },
     "antiSpam": {
@@ -6418,6 +7662,192 @@
           "waiting": "等待中"
         }
       }
+    },
+    "performance": {
+      "title": "性能监控",
+      "subtitle": "你的 Harmony 实例的指标与洞察。",
+      "cronNote": "概览、延迟和慢查询需要一个调用 {fn} 的 pg_cron 任务来填充数据。",
+      "fullscreen": "全屏",
+      "exitFullscreen": "退出全屏",
+      "range": {
+        "lastHour": "过去 1 小时",
+        "last6Hours": "过去 6 小时",
+        "last24Hours": "过去 24 小时",
+        "last7Days": "过去 7 天",
+        "lastMonth": "过去 1 个月",
+        "last3Months": "过去 3 个月"
+      },
+      "refresh": "刷新",
+      "refreshing": "正在刷新…",
+      "totalRequests": "请求总数",
+      "avgResponseTime": "平均响应时间",
+      "errorRate": "错误率",
+      "federationSuccess": "联邦成功率",
+      "status": {
+        "excellent": "优秀",
+        "good": "良好",
+        "slow": "缓慢",
+        "healthy": "健康",
+        "elevated": "偏高",
+        "critical": "严重",
+        "degraded": "降级",
+        "issues": "有问题"
+      },
+      "latencyChart": "请求延迟趋势",
+      "noChartData": "所选时间范围内没有数据",
+      "barTitle": "{label}：{value}ms",
+      "slowQueries": "慢查询",
+      "queryTable": "表：{table}",
+      "queryRows": "行数：{rows}",
+      "federationHealth": "联邦健康状况",
+      "unknownSoftware": "未知",
+      "statSuccess": "成功率",
+      "statLatency": "延迟",
+      "lastSeen": "最后出现：{time}"
+    },
+    "announcements": {
+      "hint": "向整个实例的用户显示的公告。在此创建和管理。",
+      "newTitle": "新公告",
+      "editTitle": "编辑公告",
+      "titleLabel": "标题",
+      "titlePlaceholder": "公告标题",
+      "contentLabel": "内容（支持基本 HTML）",
+      "contentPlaceholder": "公告内容",
+      "iconLabel": "图标（表情，或 info、warning、megaphone、maintenance、update、security）",
+      "imageUrlLabel": "图片 URL（可选）",
+      "startsAtLabel": "开始时间（可选）",
+      "startsAtHint": "留空即立即发布。时间按你的本地时区解析。",
+      "endsAtLabel": "结束时间（可选）",
+      "endsAtHint": "留空则不过期。过了此时间，公告会自动对用户隐藏。",
+      "pinned": "已置顶",
+      "showPopup": "显示弹窗",
+      "active": "启用",
+      "inactive": "未启用",
+      "endBeforeStart": "结束时间必须晚于开始时间",
+      "updated": "公告已更新",
+      "created": "公告已创建",
+      "saveFailed": "无法保存公告",
+      "deleteTitle": "删除公告",
+      "deleteMessage": "删除此公告？",
+      "deleted": "公告已删除",
+      "deleteFailed": "无法删除公告"
+    },
+    "featured": {
+      "title": "精选社区",
+      "hint": "将公开服务器置顶在社区发现页。精选服务器排在最前。",
+      "loading": "正在加载社区…",
+      "addTitle": "加入精选",
+      "removeTitle": "移出精选",
+      "pin": "置顶",
+      "unpin": "取消置顶",
+      "added": "已将“{name}”设为精选",
+      "removed": "已将“{name}”移出精选",
+      "toggleFailed": "无法更新精选状态"
+    },
+    "panel": {
+      "title": "实例控制面板",
+      "moderationTitle": "管理",
+      "tabs": {
+        "overview": "概述",
+        "federation": "联邦",
+        "users": "用户",
+        "reports": "举报",
+        "content": "内容",
+        "config": "配置",
+        "funding": "资助",
+        "tools": "工具"
+      },
+      "overviewTitle": "系统概览",
+      "healthTitle": "系统健康状况",
+      "performanceTitle": "性能监控",
+      "approximate": "近似值",
+      "approximately": "约",
+      "database": "数据库",
+      "responseMs": "{ms} 毫秒",
+      "connections": "{count} 个连接 | {count} 个连接",
+      "federationQueue": "联邦队列",
+      "pendingDeliveries": "待投递",
+      "databaseSize": "数据库大小",
+      "totalSize": "总大小",
+      "stats": {
+        "users": "用户总数",
+        "servers": "聊天服务器",
+        "instances": "联邦实例",
+        "posts": "帖子总数",
+        "newLast24h": "过去 24 小时 +{count}",
+        "activeLast30d": "过去 30 天活跃 {count} 个"
+      },
+      "updating": "正在更新…",
+      "updated": "更新于：{age}",
+      "statsUnavailable": "统计信息不可用",
+      "allOperational": "所有系统运行正常",
+      "unavailable": "不可用",
+      "healthy": "正常"
+    },
+    "users": {
+      "title": "用户管理",
+      "searchPlaceholder": "搜索用户…",
+      "searchLabel": "搜索用户",
+      "filterCount": "{label}（{count}）",
+      "filters": {
+        "all": "所有用户",
+        "local": "本地",
+        "federated": "联邦",
+        "suspended": "已停用"
+      },
+      "badgeAdmin": "管理员",
+      "badgeMod": "版主",
+      "badgeForceSensitive": "强制敏感",
+      "forceSensitiveTitle": "此用户的所有媒体都会被强制标记为敏感内容",
+      "badgeSilenced": "已限制",
+      "silencedTitle": "此用户已被限制（在公共时间线中隐藏）",
+      "joined": "加入于 {date}",
+      "postCount": "{count} 条帖子 | {count} 条帖子",
+      "serverCount": "{count} 个服务器 | {count} 个服务器",
+      "federatedStat": "联邦",
+      "makeModerator": "设为版主",
+      "removeModerator": "取消版主",
+      "forceSensitive": "将所有媒体强制标记为敏感内容",
+      "removeForceSensitive": "取消强制敏感",
+      "silence": "限制（在公共时间线中隐藏）",
+      "removeSilence": "取消限制",
+      "suspendUser": "停用用户",
+      "unsuspendUser": "解除停用用户",
+      "deleteUser": "删除用户",
+      "serversFor": "{name} 的服务器",
+      "loadingServers": "正在加载服务器…",
+      "viewServer": "查看服务器",
+      "moderatorStatus": "版主状态",
+      "promoteConfirm": "将 {name} 设为版主？",
+      "demoteConfirm": "取消 {name} 的版主身份？",
+      "promoted": "{name} 现在是版主",
+      "demoted": "{name} 不再是版主",
+      "moderatorFailed": "无法更新版主状态",
+      "suspend": "停用",
+      "unsuspend": "解除停用",
+      "suspendConfirm": "停用 {name}？",
+      "suspended": "已停用用户 {name}",
+      "unsuspendConfirm": "解除 {name} 的停用？",
+      "unsuspended": "已解除用户 {name} 的停用",
+      "deleteConfirm": "删除 {name}？此操作无法撤销。",
+      "deleted": "已删除用户 {name}",
+      "forceSensitiveTitleDialog": "强制媒体为敏感内容",
+      "forceSensitiveConfirm": "将 {name} 的所有媒体标记为敏感内容？",
+      "forceSensitiveDone": "{name} 今后的所有媒体都会被标记为敏感内容",
+      "removeForceSensitiveConfirm": "取消 {name} 的强制敏感？",
+      "removeForceSensitiveDone": "已取消 {name} 的强制敏感",
+      "silenceUser": "限制用户",
+      "silenceConfirm": "在公共时间线中隐藏 {name}？",
+      "silenceButton": "限制",
+      "silenced": "已限制用户 {name}",
+      "removeSilenceConfirm": "取消 {name} 的限制？",
+      "unsilenced": "已取消用户 {name} 的限制",
+      "actionFailed": "对 {name} 的操作失败：{error}",
+      "unknownError": "未知错误"
+    },
+    "format": {
+      "never": "从不",
+      "justNow": "刚刚"
     }
   },
   "discordBridge": {
@@ -7289,14 +8719,22 @@
       "collapse": "收起文件夹",
       "expand": "展开文件夹",
       "ungroup": "解散文件夹",
-      "serverCount": "{count} 个服务器"
+      "serverCount": "{count} 个服务器",
+      "nameLabel": "文件夹名称",
+      "namePlaceholder": "留空则不设名称",
+      "color": "文件夹颜色",
+      "createFailed": "无法创建文件夹",
+      "updateFailed": "无法更新文件夹",
+      "deleteFailed": "无法删除文件夹"
     },
     "leave": {
       "confirm": "要离开“{name}”吗？你将无法再访问其所有频道和消息。",
       "button": "离开",
       "done": "已离开服务器",
       "failed": "无法离开服务器"
-    }
+    },
+    "serverDeleted": "服务器“{name}”已被删除",
+    "serverDeletedUnnamed": "此服务器已被删除"
   },
   "chatNav": {
     "channel": {
@@ -7351,7 +8789,19 @@
       "draftHint": "发送一条消息以开始此子区",
       "loading": "正在加载消息…",
       "loadingOlder": "加载中…",
-      "loadOlder": "加载更早的消息"
+      "loadOlder": "加载更早的消息",
+      "lockPrevent": "锁定子区（禁止新消息）",
+      "archive": "归档子区",
+      "archiveNote": "已归档的子区仍可查看，但不会出现在活跃列表中。",
+      "lastReply": "最新回复 {time}",
+      "view": "查看子区",
+      "sidebarHint": "从任意消息开启子区！",
+      "messageCount": "{count} 条消息 | {count} 条消息",
+      "archived": "已归档",
+      "backToChannel": "返回频道",
+      "channelFallback": "频道",
+      "renameMessage": "重命名此子区。",
+      "deleteConfirm": "确定要删除“{name}”吗？此操作无法撤销。"
     },
     "header": {
       "pinnedCount": "{count} 条置顶消息",
@@ -7387,7 +8837,13 @@
       "dismissNamed": "隐藏与 {name} 的会话",
       "restored": "已恢复与 {name} 的会话",
       "restoreFailed": "无法恢复会话",
-      "joinCallWith": "加入与 {name} 的通话"
+      "joinCallWith": "加入与 {name} 的通话",
+      "groupNamesMore": "{names} 等 {count} 人 | {names} 等 {count} 人",
+      "groupFallback": "群聊（{count} 名成员） | 群聊（{count} 名成员）",
+      "ageMinutes": "{count}分钟",
+      "ageHours": "{count}小时",
+      "ownPreview": "你：{text}",
+      "previewMessage": "消息"
     },
     "members": {
       "search": "搜索成员",
@@ -7445,7 +8901,17 @@
       "clips": "短片",
       "memes": "梗图",
       "aiEmoji": "AI 表情"
-    }
+    },
+    "voiceJoinFailed": "无法加入语音",
+    "deleteConfirm": {
+      "channelMessage": "您确定要删除 #{name} 吗？",
+      "channelDetail": "此操作无法撤销。此频道中的所有消息将被永久删除。",
+      "cannotUndo": "此操作无法撤销。",
+      "namedMessage": "您确定要删除“{name}”吗？",
+      "categoryChannels": "此分类包含 {count} 个频道。频道将被移到频道列表顶部（未分类）。如需同时删除所有频道，请输入“{name} DELETE”，而不只是“{name}”。 | 此分类包含 {count} 个频道。频道将被移到频道列表顶部（未分类）。如需同时删除所有频道，请输入“{name} DELETE”，而不只是“{name}”。",
+      "threadDetail": "这将永久删除该子区及其所有消息。此操作无法撤销。"
+    },
+    "channelFallback": "频道"
   },
   "embeds": {
     "popOut": "弹出",
@@ -7473,14 +8939,30 @@
       "open": "前往服务器",
       "joining": "正在加入…",
       "invalid": "无效邀请",
-      "loading": "正在加载邀请…"
+      "loading": "正在加载邀请…",
+      "loadFailed": "无法加载邀请详情"
     },
     "remoteInvite": {
       "hostedOn": "托管于 {instance}",
       "notFound": "未找到邀请或邀请已过期",
       "closedTitle": "不对其他实例开放",
       "closedMessage": "只有 {instance} 上的用户可以加入此服务器。"
-    }
+    },
+    "showContent": "显示内容",
+    "hideContent": "隐藏内容",
+    "replies": "回复",
+    "loadingHarmonyPost": "正在加载 Harmony 帖子...",
+    "loadingFediversePost": "正在加载联邦宇宙帖子...",
+    "platformPost": "{platform} 帖子",
+    "fediversePost": "联邦宇宙帖子",
+    "serverInvite": "服务器邀请",
+    "driveFile": "Drive 文件",
+    "linkPreview": "链接预览",
+    "postUnavailable": "帖子不可用",
+    "harmonyPostFailed": "无法加载 Harmony 帖子",
+    "noFediverseData": "没有联邦宇宙数据",
+    "remotePostFailed": "无法从远程实例加载此帖子",
+    "postFailed": "无法加载此帖子"
   },
   "outsideLink": {
     "title": "即将离开 Harmony",
@@ -7924,7 +9406,9 @@
     "position": "播放位置",
     "positionValue": "{current} / {total}",
     "speed": "播放速度 {speed}x",
-    "playFailed": "无法播放此语音消息。"
+    "playFailed": "无法播放此语音消息。",
+    "remaining": "剩余 {time}",
+    "record": "录制语音消息"
   },
   "a11y": {
     "unreadNotifications": "{count} 条未读通知",
@@ -8634,7 +10118,103 @@
         "pending": "等待批准",
         "approved": "已显示",
         "hidden": "已隐藏"
-      }
+      },
+      "fundingTitle": "资助与支持者",
+      "saveChanges": "保存更改",
+      "goalTitle": "资助目标",
+      "enableFunding": "启用资助",
+      "showInBar": "在上下文栏中显示",
+      "showProgress": "显示进度条",
+      "goalAmount": "目标金额",
+      "currency": "货币",
+      "period": "周期",
+      "periodMonthly": "每月（每月重置）",
+      "periodAll": "全部时间",
+      "periodHint": "总额根据捐赠记录计算；周期决定计入哪些捐赠。",
+      "description": "描述",
+      "descriptionPlaceholder": "资助的用途…",
+      "thankYou": "感谢留言",
+      "thankYouPlaceholder": "向支持者显示的留言",
+      "donationLinks": "捐赠链接",
+      "linkUrl": "链接 URL",
+      "linkLabel": "标签（可选）",
+      "removeLink": "移除链接",
+      "platformPlaceholder": "平台…",
+      "platformCustom": "自定义",
+      "kofiTitle": "Ko-fi Webhook",
+      "automation": "自动化",
+      "kofiIntro": "自动记录来自 Ko-fi 的捐赠。需要 Ko-fi Gold 订阅。粘贴 {link} 中的验证令牌，并将 Webhook URL 设为：",
+      "kofiSettingsLink": "Ko-fi 设置 → API",
+      "copyUrl": "复制 URL",
+      "kofiToken": "验证令牌",
+      "kofiTokenPlaceholder": "从 Ko-fi 设置 → API 粘贴",
+      "showSecret": "显示",
+      "hideSecret": "隐藏",
+      "autoAssignTier": "根据捐赠金额自动分配支持者等级",
+      "kofiHint": "捐赠者在 Ko-fi 留言中任意位置写上自己的账号（{handle}），Webhook 会自动归属该捐赠，并根据本周期的累计捐赠重新计算等级。没有匹配账号的捐赠会进入下方的 {queue} 队列，你（以及实例版主）会收到通知。",
+      "stripeIntro": "通过 Stripe 付款链接的捐赠会记入捐赠者的账户：Harmony 打开链接时带上其账户 ID，Stripe 会把付款通知到此 Webhook。在 Stripe 控制台中创建付款链接（若要任意金额，选择 {choice}；定期价格即为每月捐赠），并以平台 {platform} 添加到捐赠链接中。然后在 {link} 下，用此 URL 添加一个端点：",
+      "webhookCopied": "已复制 Webhook URL",
+      "stripeEvents": "监听 {first}、{second} 和 {third}，并在此粘贴其签名密钥。",
+      "signingSecret": "签名密钥",
+      "stripeHint": "在 Harmony 之外打开的付款链接所产生的付款不带账户，会进入下方的 {queue} 队列，以此方式开始的订阅续费也一样。并非来自付款链接的 Checkout 付款会被忽略。",
+      "pendingTitle": "待处理的捐赠",
+      "pendingHint": "无法自动匹配到用户的 Webhook 捐赠。搜索接收者或驳回。",
+      "pendingFrom": "来自：",
+      "pendingSearch": "按用户名搜索用户…",
+      "attribute": "归属",
+      "dismiss": "驳回",
+      "adFree": "无广告 GIF",
+      "adFreeTitle": "此等级的支持者不会看到 GIF 广告",
+      "pickEmoji": "选择表情",
+      "tierMin": "最低：{amount}",
+      "editTier": "编辑等级",
+      "deleteTier": "删除等级",
+      "tierName": "等级名称",
+      "minAmount": "最低金额",
+      "tierIcon": "图标",
+      "badgeColor": "徽章颜色",
+      "activeSupporters": "活跃支持者",
+      "noTier": "无等级",
+      "editSupporter": "编辑支持者",
+      "recordDonation": "记录捐赠",
+      "removeSupporter": "移除支持者",
+      "addSupporterPlaceholder": "要添加为支持者的用户名…",
+      "amount": "金额",
+      "platform": "平台",
+      "tier": "等级",
+      "editSupporterFor": "编辑支持者：{name}",
+      "recordDonationFor": "为 {name} 记录捐赠",
+      "platformExample": "例如 Patreon、Ko-fi",
+      "note": "备注",
+      "notePlaceholder": "备注（可选）…",
+      "record": "记录",
+      "historyTitle": "捐赠记录",
+      "totalDonated": "捐赠总额",
+      "donations": "捐赠次数",
+      "uniqueDonors": "独立捐赠者",
+      "copyFailed": "复制失败",
+      "attributed": "已归属捐赠",
+      "attributeFailed": "无法归属捐赠",
+      "dismissTitle": "驳回捐赠",
+      "dismissMessage": "驳回此捐赠？它不会归属到任何用户。",
+      "dismissed": "已驳回捐赠",
+      "dismissFailed": "无法驳回捐赠",
+      "saved": "资助设置已保存",
+      "saveFailed": "无法保存资助设置",
+      "tierCreated": "已创建等级",
+      "tierUpdated": "已更新等级",
+      "deleteTierMessage": "删除此等级？此等级的支持者会保留身份，但失去等级徽章。",
+      "tierDeleted": "已删除等级",
+      "userNotFound": "未找到用户",
+      "supporterAdded": "已添加支持者",
+      "supporterUpdated": "已更新支持者",
+      "removeSupporterMessage": "移除此支持者？",
+      "supporterRemoved": "已移除支持者",
+      "donationRecorded": "已记录捐赠",
+      "donationUpdated": "已更新捐赠",
+      "deleteDonation": "删除捐赠",
+      "deleteDonationMessage": "删除此捐赠记录？",
+      "donationDeleted": "已删除捐赠"
     }
   },
   "authorizeInteraction": {
@@ -9028,13 +10608,13 @@
     "domainsHint": "每行一个，例如 myschool.edu。子域名也包括在内。登录服务必须将该地址标记为已验证。",
     "publicOpen": "任何拥有 {provider} 账号的人都能在这里创建账号。",
     "switchOn": "认证服务仍会拒绝所有新账号。请在服务器上运行 harmony registration，使这些设置生效。",
-    "none": "没有已启用的登录服务。内置服务在“配置”中设置，实例自己的服务用 harmony auth add-provider 添加。",
     "save": "保存",
     "saved": "登录服务注册设置已保存",
     "saveFailed": "无法保存注册设置。",
     "loadFailed": "无法加载登录服务。",
     "invalidDomain": "{domain} 不是域名。",
-    "noDomains": "请为 {provider} 至少添加一个域名。"
+    "noDomains": "请为 {provider} 至少添加一个域名。",
+    "noneTab": "没有已启用的登录服务。内置服务在“{tab}”中设置，实例自己的服务用 harmony auth add-provider 添加。"
   },
   "adminSignupCaptcha": {
     "title": "注册验证",
@@ -9645,5 +11225,255 @@
     "saved": "ICE 服务器已保存",
     "saveFailed": "无法保存 ICE 服务器。",
     "loadFailed": "无法加载 ICE 服务器。"
+  },
+  "pushPrompt": {
+    "title": "启用推送通知",
+    "body": "即使 Harmony 已关闭，也能收到新消息通知",
+    "enabling": "正在启用...",
+    "enable": "启用"
+  },
+  "runOnLogin": {
+    "prompt": {
+      "title": "登录时启动 Harmony？",
+      "body": "{browser} 可以在你登录电脑时自动启动 Harmony。",
+      "showHow": "告诉我怎么做"
+    },
+    "modal": {
+      "title": "登录时启动 Harmony",
+      "subtitle": "{browser} 可以在你每次登录电脑时自动启动 Harmony。",
+      "step1": "打开应用页面",
+      "step1Hint": "请将其粘贴到新的浏览器标签页中。出于安全原因，无法在应用内直接打开此链接。",
+      "step2": "右键点击 Harmony，然后选择{option}",
+      "menuOpen": "打开",
+      "menuOpenWindow": "在窗口中打开",
+      "menuStartApp": "登录时启动应用",
+      "menuShortcuts": "创建快捷方式...",
+      "menuRemove": "从 {browser} 中移除",
+      "step3": "完成了，下次登录电脑时 Harmony 就会启动。",
+      "footnote": "适用于 Windows、macOS、Linux 和 ChromeOS 上的 {browser} 91 及以上版本。你可以随时在 {url} 中更改。",
+      "enabled": "我已启用",
+      "copyFailed": "无法复制。请在新的浏览器标签页中输入 {url}。",
+      "saved": "已保存。登录时将启动 Harmony。"
+    }
+  },
+  "profileModal": {
+    "sendServerInvite": "发送服务器邀请",
+    "kickFromServer": "踢出服务器",
+    "banFromServer": "从服务器封禁",
+    "viewAllPosts": "查看所有帖子",
+    "viewFollowing": "查看关注",
+    "viewFollowers": "查看关注者",
+    "federationInfo": "联合信息",
+    "instanceLabel": "实例：",
+    "profileUrlLabel": "个人资料 URL：",
+    "viewOn": "在 {domain} 上查看",
+    "lastActiveLabel": "最后活跃：",
+    "about": "关于",
+    "profileFields": "个人资料字段",
+    "fieldVerified": "已验证",
+    "activity": "活动",
+    "messages": "消息",
+    "voiceTime": "语音时长",
+    "interactions": "互动",
+    "chooseServer": "选择服务器：",
+    "activeNow": "过去一小时内活跃",
+    "activeToday": "今天活跃",
+    "activeRecently": "过去 3 天内活跃",
+    "unknownUser": "未知用户"
+  },
+  "instanceDetail": {
+    "trusted": "受信任",
+    "blocked": "已屏蔽",
+    "statistics": "实例统计",
+    "users": "用户",
+    "connections": "连接",
+    "about": "关于此实例",
+    "descriptionLabel": "描述：",
+    "adminContactLabel": "管理员联系方式：",
+    "typeLabel": "实例类型：",
+    "firstDiscoveredLabel": "首次发现：",
+    "federationStatus": "联合状态",
+    "federationEnabled": "已启用联合",
+    "trustedInstance": "受信任的实例",
+    "standardInstance": "标准实例",
+    "recentPosts": "最近的帖子",
+    "loadingPosts": "正在加载帖子...",
+    "visitInstance": "访问实例",
+    "copyUrl": "复制 URL",
+    "viewAllPosts": "查看所有帖子",
+    "noActivity": "无活动记录",
+    "activeToday": "今天活跃",
+    "activeThisWeek": "本周活跃",
+    "lastActive": "最后活跃：{time}",
+    "typeNamed": "{name} 实例",
+    "typeActivityPub": "ActivityPub 实例",
+    "minutesAgo": "{minutes}分钟前",
+    "yearsAgo": "{years}年前"
+  },
+  "searchInput": {
+    "placeholder": "搜索..."
+  },
+  "platformIcon": {
+    "donate": "捐赠"
+  },
+  "codeBlock": {
+    "copyCode": "复制代码"
+  },
+  "autoSuggest": {
+    "headers": {
+      "serverMembers": "服务器成员",
+      "users": "用户"
+    },
+    "commands": {
+      "kick": "将成员踢出服务器",
+      "ban": "将成员从服务器封禁",
+      "gif": "在 KLIPY 中搜索 GIF",
+      "sticker": "在 KLIPY 中搜索贴纸",
+      "clip": "在 KLIPY 中搜索短片",
+      "meme": "在 KLIPY 中搜索表情包",
+      "aiemoji": "在 KLIPY 中搜索 AI 表情",
+      "rolemenu": "发布一个供成员选择角色的菜单"
+    }
+  },
+  "notificationText": {
+    "dm": {
+      "addedTo": " 将你添加到了 {name}",
+      "addedToUnnamed": " 将你添加到了一个对话",
+      "calling": " 正在呼叫你",
+      "sentMessage": " 给你发送了一条消息",
+      "short": "来自 {name} 的私信",
+      "shortInvite": "{name} 邀请了你"
+    },
+    "mention": {
+      "action": " 在 #{channel} 中提到了你",
+      "actionNoChannel": " 提到了你",
+      "short": "#{channel} 中的提及",
+      "shortNoChannel": "新提及"
+    },
+    "reply": {
+      "action": " 在 #{channel} 中回复了你的消息",
+      "actionNoChannel": " 回复了你的消息",
+      "short": "#{channel} 中的回复",
+      "shortNoChannel": "新回复",
+      "noPreview": "点击查看回复"
+    },
+    "threadReply": {
+      "action": " 在 #{channel} 的帖子串中回复了",
+      "actionNoChannel": " 在帖子串中回复了",
+      "short": "#{channel} 中的帖子串回复",
+      "shortNoChannel": "帖子串回复",
+      "noPreview": "点击查看帖子串"
+    },
+    "call": {
+      "started": " 发起了通话",
+      "incomingOpen": "📞 来电 — 点击打开",
+      "incomingJoin": "📞 来电 — 点击加入",
+      "shortFrom": "来自 {name} 的通话"
+    },
+    "chatMessage": {
+      "short": "来自 {name} 的消息"
+    },
+    "reaction": {
+      "action": " 回应了你的消息",
+      "short": "回应"
+    },
+    "acceptOrDecline": "点击接受或拒绝",
+    "serverInvite": {
+      "title": "{inviter} 邀请你加入 {server}",
+      "short": "服务器邀请"
+    },
+    "followRequest": {
+      "title": "{name} 想关注你",
+      "message": "{handle} 向你发送了关注请求",
+      "short": "关注请求"
+    },
+    "voiceActivity": {
+      "title": "{channel} 中的语音活动",
+      "message": "有人加入了语音频道",
+      "short": "语音活动"
+    },
+    "serverUpdate": {
+      "title": "服务器更新",
+      "message": "服务器已更新"
+    },
+    "emojiAdded": {
+      "title": "已添加新表情：{name}",
+      "message": "{name} 现已可在 {server} 中使用",
+      "short": "新表情"
+    },
+    "apFollow": {
+      "title": "{name}（{handle}）开始关注你",
+      "message": "{handle} 现在关注了你",
+      "short": "新关注者"
+    },
+    "apFavorite": {
+      "action": " 收藏了你的帖子",
+      "short": "帖子被收藏"
+    },
+    "apReblog": {
+      "action": " 转发了你的帖子",
+      "short": "帖子被转发"
+    },
+    "viewPost": "点击查看帖子",
+    "apMention": {
+      "noPreview": "点击查看提及",
+      "short": "联邦提及"
+    },
+    "apReply": {
+      "action": " 回复了你的帖子",
+      "noPreview": "点击查看回复",
+      "short": "新回复"
+    },
+    "apReaction": {
+      "action": " 回应了你的帖子",
+      "noPreview": "点击查看帖子"
+    },
+    "followAccepted": {
+      "action": " 接受了你的关注请求",
+      "message": "你现在关注了 {handle}",
+      "messageNoHandle": "你现在关注了对方",
+      "short": "请求已接受"
+    },
+    "reportUpdate": {
+      "investigatingTitle": "你的举报正在审核中",
+      "resolvedTitle": "你的举报已处理",
+      "dismissedTitle": "你的举报已审核",
+      "updatedTitle": "举报状态已更新",
+      "investigatingMessage": "管理员正在调查你的举报。",
+      "resolvedMessage": "你的举报已处理。",
+      "dismissedMessage": "你的举报已被驳回。",
+      "updatedMessage": "你的举报已更新。",
+      "withNote": "{message} 备注：{note}",
+      "short": "举报更新"
+    },
+    "donation": {
+      "title": "新的 {platform} 捐款需要审核",
+      "titleNoPlatform": "新的捐款需要审核",
+      "message": "{amount} 无法匹配到用户，请打开管理面板进行归属。",
+      "messageFrom": "来自 {donor} 的 {amount} 无法匹配到用户，请打开管理面板进行归属。",
+      "short": "捐款需要审核"
+    },
+    "fallback": {
+      "title": "新通知",
+      "message": "你有一条新通知",
+      "short": "通知",
+      "viewDetails": "点击查看详情"
+    },
+    "staffSender": "管理员/版主",
+    "unknownSender": "未知",
+    "toast": {
+      "loadFailed": "无法加载通知",
+      "refreshPage": "请刷新页面",
+      "processFailed": "收到了一条通知，但无法正确处理",
+      "deleteFailed": "无法删除通知",
+      "clearFailed": "无法清除通知",
+      "markReadFailed": "无法将通知标记为已读"
+    },
+    "native": {
+      "reaction": "回应了你的消息",
+      "apReaction": "回应了你的帖子",
+      "apFavorite": "收藏了你的帖子",
+      "apReblog": "转发了你的帖子"
+    }
   }
 }

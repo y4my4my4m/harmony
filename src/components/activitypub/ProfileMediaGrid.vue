@@ -287,7 +287,7 @@ function tileLabel(tile: ProfileMediaTile): string {
   const kind = cover.kind === 'gif'
     ? t('activitypub.gifLabel')
     : cover.kind === 'video' ? t('activitypub.video') : t('activitypub.image');
-  const parts = [cover.alt ? `${kind}: ${cover.alt}` : kind];
+  const parts = [cover.alt ? t('activitypub.mediaKindAlt', { kind, alt: cover.alt }) : kind];
   if (tile.items.length > 1) parts.push(t('activitypub.mediaItemsCount', { count: tile.items.length }, tile.items.length));
   return parts.join(', ');
 }

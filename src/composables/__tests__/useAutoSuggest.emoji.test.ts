@@ -295,7 +295,7 @@ describe('useAutoSuggest - emoji trigger for `:+1`', () => {
     await nextTick()
 
     const both = auto.suggestions.value.filter((s: any) => s.name === 'thumbs_up')
-    expect(both.map((s: any) => s.server_name)).toEqual(['Emojis', 'Lounge'])
+    expect(both.map((s: any) => s.server_name)).toEqual(['server.emojis', 'Lounge'])
 
     auto.selectSuggestion(both[0] as any)
     expect(text.value).toBe('👍 ')

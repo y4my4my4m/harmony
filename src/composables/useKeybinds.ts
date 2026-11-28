@@ -18,6 +18,7 @@ import { ref, computed, readonly } from 'vue'
 import { debug } from '@/utils/debug'
 import { armNativePtt, disarmNativePtt } from '@/services/nativePtt'
 import { isTauriDesktop } from '@/utils/platform'
+import { i18n } from '@/i18n'
 
 // TYPES
 
@@ -227,18 +228,21 @@ let nativeArmToken = 0
 
 // HELPERS
 
-/**
- * Mouse button name mappings
- */
-const MOUSE_BUTTON_NAMES: Record<string, string> = {
-  'Mouse0': 'Left Click',
-  'Mouse1': 'Middle Click',
-  'Mouse2': 'Right Click',
-  'Mouse3': 'Mouse 4 (Back)',
-  'Mouse4': 'Mouse 5 (Forward)',
-  'Mouse5': 'Mouse 6',
-  'Mouse6': 'Mouse 7',
-  'Mouse7': 'Mouse 8',
+/** Mouse button codes to locale keys; `n` is the 1-based button number. */
+const MOUSE_BUTTON_LABELS: Record<string, { key: string; n?: number }> = {
+  'Mouse0': { key: 'settings.keybinds.mouse.left' },
+  'Mouse1': { key: 'settings.keybinds.mouse.middle' },
+  'Mouse2': { key: 'settings.keybinds.mouse.right' },
+  'Mouse3': { key: 'settings.keybinds.mouse.back', n: 4 },
+  'Mouse4': { key: 'settings.keybinds.mouse.forward', n: 5 },
+  'Mouse5': { key: 'settings.keybinds.mouse.numbered', n: 6 },
+  'Mouse6': { key: 'settings.keybinds.mouse.numbered', n: 7 },
+  'Mouse7': { key: 'settings.keybinds.mouse.numbered', n: 8 },
+}
+
+function mouseButtonName(key: string): string {
+  const label = MOUSE_BUTTON_LABELS[key]
+  return label ? i18n.global.t(label.key, { n: label.n }) : key
 }
 
 /**
@@ -260,7 +264,7 @@ export function keyToDisplay(key: string, modifiers: KeybindModifiers): string {
   if (modifiers.meta) parts.push('Meta')
   
   if (isMouseButton(key)) {
-    parts.push(MOUSE_BUTTON_NAMES[key] || key)
+    parts.push(mouseButtonName(key))
     return parts.join(' + ')
   }
   
@@ -671,7 +675,7 @@ export function useKeybinds() {
   
   const getKeybindDisplay = (action: KeybindAction): string => {
     const keybind = keybinds.value.get(action)
-    if (!keybind) return 'Not set'
+    if (!keybind) return i18n.global.t('settings.keybinds.notSet')
     return keyToDisplay(keybind.key, keybind.modifiers)
   }
   

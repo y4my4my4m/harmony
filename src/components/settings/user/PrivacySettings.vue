@@ -3,14 +3,14 @@
     <div class="settings-header">
       <h2 class="settings-title">{{ $t('settings.privacy') }}</h2>
       <p class="settings-description">
-        Control who can interact with you, manage your account security, and control how your data is used.
+        {{ $t('settings.privacyPage.description') }}
       </p>
     </div>
 
     <div class="settings-section security-section">
       <h3 class="section-title">
         <ShieldIcon class="section-icon" />
-        Account security
+        {{ $t('settings.privacyPage.accountSecurity') }}
       </h3>
       <i18n-t keypath="security.privacyLink" tag="p" class="setting-description">
         <template #link>
@@ -68,19 +68,19 @@
     <div class="settings-section security-section">
       <h3 class="section-title">
         <ShieldIcon class="section-icon" />
-        Encryption settings
+        {{ $t('settings.privacyPage.encryption') }}
       </h3>
       <EncryptionSettings :loading="loading" />
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Data & privacy</h3>
+      <h3 class="section-title">{{ $t('settings.privacyPage.dataPrivacy') }}</h3>
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label" :id="`${a11yId}-t2`">Strip tracking parameters from URLs</h4>
+          <h4 class="setting-label" :id="`${a11yId}-t2`">{{ $t('settings.privacyPage.stripTrackers') }}</h4>
           <p class="setting-description" :id="`${a11yId}-t2-desc`">
-            Automatically remove tracking parameters (like ?si=...) from URLs in your messages for YouTube, X/Twitter, TikTok, Instagram, and Facebook.
+            {{ $t('settings.privacyPage.stripTrackersDescription') }}
           </p>
         </div>
         <div class="setting-control">
@@ -150,7 +150,7 @@
     <DataExportPanel class="export-card" />
 
     <div class="settings-section">
-      <h3 class="section-title">Blocked users</h3>
+      <h3 class="section-title">{{ $t('settings.privacyPage.blockedUsers') }}</h3>
       
       <EmptyState
         v-if="blockedUsers.length === 0"
@@ -176,14 +176,14 @@
             class="unblock-btn"
             @click="unblockUser(user.id)"
           >
-            Unblock
+            {{ $t('moderation.unblock') }}
           </button>
         </div>
       </div>
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Muted users</h3>
+      <h3 class="section-title">{{ $t('settings.privacyPage.mutedUsers') }}</h3>
       
       <EmptyState
         v-if="mutedUsers.length === 0"
@@ -209,7 +209,7 @@
             class="unblock-btn"
             @click="unmuteUser(user.id)"
           >
-            Unmute
+            {{ $t('moderation.unmute') }}
           </button>
         </div>
       </div>
@@ -396,10 +396,10 @@ const unblockUser = async (userId: string) => {
 
     blockedUsers.value = blockedUsers.value.filter(user => user.id !== userId)
     activityPubStore.loadBlockingData()
-    toast.success('User unblocked')
+    toast.success(t('settings.privacyPage.userUnblocked'))
   } catch (error: any) {
     debug.error('Failed to unblock user:', error)
-    toast.error('Failed to unblock user')
+    toast.error(t('settings.privacyPage.unblockFailed'))
   }
 }
 
@@ -418,10 +418,10 @@ const unmuteUser = async (userId: string) => {
 
     mutedUsers.value = mutedUsers.value.filter(user => user.id !== userId)
     activityPubStore.loadBlockingData()
-    toast.success('User unmuted')
+    toast.success(t('settings.privacyPage.userUnmuted'))
   } catch (error: any) {
     debug.error('Failed to unmute user:', error)
-    toast.error('Failed to unmute user')
+    toast.error(t('settings.privacyPage.unmuteFailed'))
   }
 }
 

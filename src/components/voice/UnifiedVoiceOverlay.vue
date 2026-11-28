@@ -41,8 +41,8 @@
             </div>
             <div class="channel-details">
               <h2 :id="titleId" class="channel-name">
-                <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="props.channelName" />
-                <template v-else>{{ props.channelName }}</template>
+                <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelLabel" />
+                <template v-else>{{ channelLabel }}</template>
               </h2>
               <p :id="descriptionId" class="participant-count">
                 {{ t('voice.participantCount', { count: connectionStats.total }, connectionStats.total) }}
@@ -233,7 +233,7 @@
               :style="tileStyle"
             >
               <div class="ringing-avatar">
-                <Avatar :src="getUserAvatarUrl(id).value" :alt="getUserDisplayName(id).value || 'User'" size="xl" />
+                <Avatar :src="getUserAvatarUrl(id).value" :alt="getUserDisplayName(id).value || t('chatNav.user.fallbackName')" size="xl" />
               </div>
               <span class="ringing-name"><DisplayName :user-id="id" :truncate="true" /></span>
               <span class="ringing-label">{{ t('voice.ringing') }}</span>
@@ -607,9 +607,11 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  channelName: 'Voice Channel',
+  channelName: '',
   returnFocus: undefined,
 });
+
+const channelLabel = computed(() => props.channelName || t('voice.voiceChannel'));
 
 interface Emits {
   (e: 'close'): void;
@@ -1170,7 +1172,7 @@ const chatSheet = computed(() => chatShown.value && narrowView.value);
 
 // POP-OUT CONTROL
 
-const popoutTitle = computed(() => t('voice.popout.windowTitle', { name: props.channelName }));
+const popoutTitle = computed(() => t('voice.popout.windowTitle', { name: channelLabel.value }));
 
 const popOut = async () => {
   const opened = await openCallPopout({ title: popoutTitle.value });

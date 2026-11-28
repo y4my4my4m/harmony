@@ -366,7 +366,7 @@ test('emoji picker from the composer works by keyboard', async ({ page }) => {
   await expect(search).toBeFocused()
 
   await test.step('category headers are disclosure buttons named without their icon', async () => {
-    const header = picker.getByRole('button', { name: 'People', exact: true })
+    const header = picker.getByRole('button', { name: 'Smileys & People', exact: true })
     await expect(header).toHaveAttribute('aria-expanded', 'false')
     await header.focus()
     const favourites = page.waitForResponse((r) => r.url().includes('/rest/v1/emoji_favorites'))

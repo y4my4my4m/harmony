@@ -118,7 +118,7 @@ import { getServerBannerUrl, getRawServerBannerUrl } from '@/utils/serverUtils'
 import { categoryIcon, categoryLabelKey } from '@/utils/serverDiscovery'
 import { serverMonogramUrl } from '@/utils/serverMonogram'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 interface Props {
   server: PublicServerWithStats
@@ -169,11 +169,9 @@ const categoryLabel = computed(() => {
 const categoryIconName = computed(() => categoryIcon(props.server.discovery_category ?? '') ?? 'tag')
 
 const formatMemberCount = (count?: number): string => {
-  if (!count) return `0 ${t('server.members')}`
-  if (count === 1) return `1 ${t('server.member')}`
-  if (count < 1000) return `${count} ${t('server.members')}`
-  if (count < 1000000) return `${(count / 1000).toFixed(1)}k ${t('server.members')}`
-  return `${(count / 1000000).toFixed(1)}m ${t('server.members')}`
+  const n = count ?? 0
+  const shown = new Intl.NumberFormat(locale.value, { notation: 'compact', maximumFractionDigits: 1 }).format(n)
+  return t('server.membersCount', { count: shown }, n)
 }
 
 const handleImageError = (event: Event) => {

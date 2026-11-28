@@ -18,6 +18,7 @@ import { UserStatus } from '@/types'
 import { userDataService } from '@/services/userDataService'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 
 export interface CallPermissionCheck {
   allowed: boolean
@@ -43,10 +44,10 @@ class DMCallPermissionService {
       return false
     })
     if (blocked) {
-      return { allowed: false, reason: 'blocked', message: 'You have blocked this user' }
+      return { allowed: false, reason: 'blocked', message: i18n.global.t('dm.callPermission.blockedByYou') }
     }
     if (await this.isUserInDND(receiverId)) {
-      return { allowed: false, reason: 'dnd', message: 'This user is in Do Not Disturb mode' }
+      return { allowed: false, reason: 'dnd', message: i18n.global.t('dm.callPermission.dnd') }
     }
     return { allowed: true }
   }
@@ -62,16 +63,16 @@ class DMCallPermissionService {
   ): Promise<CallPermissionCheck> {
     try {
       if (await this.isUserBlocked(receiverId, callerId)) {
-        return { allowed: false, reason: 'blocked', message: 'You cannot call this user' }
+        return { allowed: false, reason: 'blocked', message: i18n.global.t('dm.callPermission.blocked') }
       }
       if (await this.isUserInDND(receiverId)) {
-        return { allowed: false, reason: 'dnd', message: 'This user is in Do Not Disturb mode' }
+        return { allowed: false, reason: 'dnd', message: i18n.global.t('dm.callPermission.dnd') }
       }
       if (await this.isInOtherDMCall(conversationId)) {
-        return { allowed: false, reason: 'busy', message: 'User is currently in another call' }
+        return { allowed: false, reason: 'busy', message: i18n.global.t('dm.callPermission.busy') }
       }
       if (!(await this.areCallNotificationsEnabled(receiverId))) {
-        return { allowed: false, reason: 'notifications_disabled', message: 'This user has disabled call notifications' }
+        return { allowed: false, reason: 'notifications_disabled', message: i18n.global.t('dm.callPermission.notificationsDisabled') }
       }
       if (await this.isCallMuted(receiverId, callerId, conversationId)) {
         return { allowed: true, silent: true }
@@ -84,7 +85,7 @@ class DMCallPermissionService {
       return {
         allowed: false,
         reason: 'error',
-        message: 'Could not verify call permissions - please try again.'
+        message: i18n.global.t('dm.callPermission.checkFailed')
       }
     }
   }
@@ -202,19 +203,19 @@ class DMCallPermissionService {
   getDeclineReasonMessage(reason?: string): string {
     switch (reason) {
       case 'blocked':
-        return 'Call cannot be completed'
+        return i18n.global.t('dm.callPermission.decline.blocked')
       case 'busy':
-        return 'User is busy'
+        return i18n.global.t('dm.callPermission.decline.busy')
       case 'dnd':
-        return 'User is in Do Not Disturb mode'
+        return i18n.global.t('dm.callPermission.decline.dnd')
       case 'muted':
-        return 'User has muted this conversation'
+        return i18n.global.t('dm.callPermission.decline.muted')
       case 'notifications_disabled':
-        return 'User has call notifications disabled'
+        return i18n.global.t('dm.callPermission.decline.notificationsDisabled')
       case 'timeout':
-        return 'No answer'
+        return i18n.global.t('dm.callPermission.decline.timeout')
       default:
-        return 'Call declined'
+        return i18n.global.t('dm.callPermission.decline.declined')
     }
   }
 }

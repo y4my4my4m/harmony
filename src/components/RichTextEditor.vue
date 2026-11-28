@@ -20,7 +20,7 @@
     :aria-controls="props.autoSuggestActive ? 'auto-suggest-listbox' : undefined"
     autocorrect="on"
     data-can-focus="true"
-    :aria-label="placeholder"
+    :aria-label="placeholderText"
     contenteditable="true"
     @beforeinput="handleBeforeInput"
     @input="handleInput"
@@ -33,7 +33,7 @@
     @dblclick="handleDoubleClick"
     @copy="handleCopy"
     @cut="handleCut"
-    :data-placeholder="placeholder"
+    :data-placeholder="placeholderText"
     :style="{
       '--min-height': `${props.minHeight}px`,
       '--max-height': `${props.maxHeight}px`
@@ -44,6 +44,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick, computed } from 'vue';
+import { i18n } from '@/i18n';
 import { debug } from '@/utils/debug'
 import { parseMarkdownWithMarkers, type MarkdownToken } from '@/utils/markdownParser';
 import { splitIntoBlockSegments } from '@/utils/chatBlockquotes';
@@ -102,11 +103,13 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  placeholder: 'Type a message...',
   maxHeight: 200,
   minHeight: 44,
   bordered: false
 });
+
+const t = i18n.global.t;
+const placeholderText = computed(() => props.placeholder ?? t('message.composerPlaceholder'));
 
 const emit = defineEmits<Emits>();
 
@@ -159,7 +162,7 @@ async function resolveRoleDisplay(roleId: string): Promise<{ name: string; color
       return entry;
     }
   } catch { /* fall through */ }
-  return { name: 'Unknown Role', color: null };
+  return { name: t('message.unknownRole'), color: null };
 }
 
 function getCachedRoleDisplay(roleId: string): { name: string; color: string | null } | null {

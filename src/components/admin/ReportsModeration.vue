@@ -3,8 +3,8 @@
 <div class="admin-module reports-module">
   <div class="module-header">
     <Icon name="flag" :size="20" />
-    <h2>{{ serverId ? t('admin.reports.titleServer') : 'Reports & moderation' }}</h2>
-    <span v-if="pendingCount > 0" class="reports-badge">{{ pendingCount }} pending</span>
+    <h2>{{ serverId ? t('admin.reports.titleServer') : t('admin.reports.title') }}</h2>
+    <span v-if="pendingCount > 0" class="reports-badge">{{ t('admin.reports.pendingCount', { count: pendingCount }) }}</span>
     <label v-if="notificationStore.preferences" class="report-alerts-toggle" data-testid="report-alerts-toggle">
       <span :id="`${alertsId}-label`">{{ t('moderation.reportAlert.setting') }}</span>
       <ToggleSwitch
@@ -22,7 +22,7 @@
       @click="setFilter(filter.key)"
       :class="['filter-btn', { active: activeReportFilter === filter.key }]"
     >
-      {{ filter.label }}
+      {{ t(filter.label) }}
     </button>
   </div>
 
@@ -60,7 +60,7 @@
             <span class="report-user-link" @click.stop="navigateToReportUser(report, 'reported')">
               <DisplayName v-if="report.reported_user_id" :user-id="report.reported_user_id" :fallback="(report.reported_user_display_name || report.reported_user_username) ?? undefined" />
               <template v-else>{{ report.reported_user_display_name || report.reported_user_username }}</template>
-              <span v-if="!report.reported_user_is_local && report.reported_user_domain" class="federation-badge" title="Federated user">
+              <span v-if="!report.reported_user_is_local && report.reported_user_domain" class="federation-badge" :title="t('federation.federatedUser')">
                 @{{ report.reported_user_domain }}
               </span>
             </span>
@@ -73,7 +73,7 @@
         </div>
         <div class="report-reason">{{ reasonLabel(report.reason) }}</div>
         <div class="report-meta">
-          <span v-if="report.source === 'local'" class="report-source-local">local</span>
+          <span v-if="report.source === 'local'" class="report-source-local">{{ t('moderation.reportSource.local') }}</span>
           <span v-if="report.forwarded_at" class="report-source federation-badge" :title="t('admin.reports.forwardedTitle')">{{ t('admin.reports.forwarded') }}</span>
           <span v-if="report.assigned_username" class="report-source">@{{ report.assigned_username }}</span>
           <time class="report-time">{{ formatDate(report.created_at) }}</time>
@@ -108,7 +108,7 @@
           </dl>
         </div>
         <div v-if="report.comment" class="report-comment">
-          <label>{{ report.source === 'federation' ? t('admin.reports.commentFrom', { instance: report.source_instance }) : "Reporter's comment" }}</label>
+          <label>{{ report.source === 'federation' ? t('admin.reports.commentFrom', { instance: report.source_instance }) : t('admin.reports.reporterComment') }}</label>
           <p>{{ report.comment }}</p>
         </div>
 
@@ -158,18 +158,18 @@
 
         <div v-if="report.reported_message_id || report.report_type === 'message'" class="report-proof">
           <label>{{ t('admin.reports.messageNow') }}</label>
-          <p v-if="report.reported_message_is_deleted" class="evidence-gone">Deleted since the report</p>
+          <p v-if="report.reported_message_is_deleted" class="evidence-gone">{{ t('admin.reports.deletedSince') }}</p>
           <blockquote v-else-if="report.reported_message_preview" v-html="linkifyReportPreview(report.reported_message_preview)"></blockquote>
         </div>
 
         <div v-if="report.reported_post_id || report.report_type === 'post'" class="report-proof">
           <label>{{ t('admin.reports.postNow') }}</label>
-          <p v-if="report.reported_post_is_deleted" class="evidence-gone">Deleted since the report</p>
+          <p v-if="report.reported_post_is_deleted" class="evidence-gone">{{ t('admin.reports.deletedSince') }}</p>
           <template v-else>
             <blockquote v-if="report.reported_post_preview" v-html="linkifyReportPreview(report.reported_post_preview)"></blockquote>
             <div class="report-post-meta">
-              <span v-if="report.reported_post_is_sensitive" class="badge sensitive">Sensitive</span>
-              <span v-if="report.reported_post_content_warning" class="badge cw">CW: {{ report.reported_post_content_warning }}</span>
+              <span v-if="report.reported_post_is_sensitive" class="badge sensitive">{{ t('admin.reports.sensitive') }}</span>
+              <span v-if="report.reported_post_content_warning" class="badge cw">{{ t('admin.reports.contentWarning', { warning: report.reported_post_content_warning }) }}</span>
             </div>
             <div class="report-post-links">
               <button
@@ -177,7 +177,7 @@
                 class="report-link-btn"
                 @click.stop="navigateToPost(report.reported_post_id!)"
               >
-                <Icon name="eye" :size="14" /> View post
+                <Icon name="eye" :size="14" /> {{ t('activitypub.viewPost') }}
               </button>
               <a
                 v-if="report.reported_post_url || report.reported_post_ap_id"
@@ -187,7 +187,7 @@
                 class="report-link-btn"
                 @click.stop="activateStoppedLink"
               >
-                <Icon name="external-link" :size="14" /> View on remote instance
+                <Icon name="external-link" :size="14" /> {{ t('admin.reports.viewRemote') }}
               </a>
             </div>
           </template>
@@ -219,7 +219,7 @@
               class="report-action-btn danger"
               :disabled="busy"
               @click.stop="deleteReportedMedia(report)"
-            >Delete media ({{ extractStorageUrls(report).length }})</button>
+            >{{ t('admin.reports.deleteMedia', { count: extractStorageUrls(report).length }) }}</button>
           </div>
 
           <template v-if="isOpenReport(report.status)">
@@ -260,7 +260,7 @@
   <EmptyState
     v-else
     icon="check-circle"
-    :title="activeReportFilter !== 'all' ? $t('empty.admin.reports.filtered', { status: activeReportFilter }) : $t('empty.admin.reports.title')"
+    :title="activeReportFilter !== 'all' ? t('empty.admin.reports.filtered', { status: activeReportFilter }) : t('empty.admin.reports.title')"
   />
 </div>
 </template>
@@ -408,11 +408,11 @@ const isInstanceModerator = ref(false)
 const currentProfileId = ref<string | null>(null)
 
 const reportFilters = [
-  { key: 'pending', label: 'Pending' },
-  { key: 'investigating', label: 'Investigating' },
-  { key: 'resolved', label: 'Resolved' },
-  { key: 'dismissed', label: 'Dismissed' },
-  { key: 'all', label: 'All' },
+  { key: 'pending', label: 'admin.reports.filters.pending' },
+  { key: 'investigating', label: 'admin.reports.filters.investigating' },
+  { key: 'resolved', label: 'admin.reports.filters.resolved' },
+  { key: 'dismissed', label: 'admin.reports.filters.dismissed' },
+  { key: 'all', label: 'admin.reports.filters.all' },
 ]
 
 const STATUS_ACTIONS: ReadonlySet<ReportAction> = new Set<ReportAction>([
@@ -639,7 +639,7 @@ const extractStorageUrls = (report: ReportWithDetails): string[] => {
 const deleteReportedMedia = async (report: ReportWithDetails) => {
   const urls = extractStorageUrls(report)
   if (urls.length === 0) return
-  if (!(await confirm({ title: 'Delete media', message: `Delete ${urls.length} media file(s) from storage? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
+  if (!(await confirm({ title: t('admin.reports.deleteMediaTitle'), message: t('admin.reports.deleteMediaMessage', { count: urls.length }, urls.length), confirmButtonText: t('common.delete'), dangerAction: true }))) return
 
   let deleted = 0
   for (const url of urls) {
@@ -658,9 +658,9 @@ const deleteReportedMedia = async (report: ReportWithDetails) => {
 
   if (deleted > 0) {
     await adminService.logAdminAction({ action: 'media_delete', targetType: 'storage', details: { count: deleted, urls, report_id: report.id } })
-    toast.success(`Deleted ${deleted} media file(s)`)
+    toast.success(t('admin.reports.deleteMediaDone', { count: deleted }, deleted))
   } else {
-    toast.error('Failed to delete media files')
+    toast.error(t('admin.reports.deleteMediaFailed'))
   }
 }
 

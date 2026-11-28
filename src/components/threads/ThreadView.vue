@@ -559,11 +559,11 @@ const displayThreadName = computed(() => {
   if (isDraftMode.value && props.draftParentMessage) {
     // find() doesn't narrow the discriminated union, so cast to access .text safely.
     const text = Array.isArray(props.draftParentMessage.content)
-      ? ((props.draftParentMessage.content.find(p => p.type === 'text') as any)?.text || 'Thread')
-      : 'Thread'
+      ? ((props.draftParentMessage.content.find(p => p.type === 'text') as any)?.text || t('message.thread'))
+      : t('message.thread')
     return text.substring(0, 50) + (text.length > 50 ? '...' : '')
   }
-  return 'Thread'
+  return t('message.thread')
 })
 
 
@@ -841,7 +841,7 @@ const toggleMute = async () => {
 const editThread = async () => {
   showOptions.value = false
   if (!thread.value) return
-  const newName = (await prompt({ title: 'Edit thread', message: 'Rename this thread.', label: 'Thread name', initialValue: thread.value.name, confirmButtonText: 'Save' }))?.trim()
+  const newName = (await prompt({ title: t('chatNav.thread.edit'), message: t('chatNav.thread.renameMessage'), label: t('threadCreate.nameLabel'), initialValue: thread.value.name, confirmButtonText: t('common.save') }))?.trim()
   if (newName && thread.value && newName !== thread.value.name) {
     threadService.updateThread(thread.value.id, { name: newName }).then((updated) => {
       if (updated && thread.value) {
@@ -912,7 +912,7 @@ const unlockThread = async () => {
 const deleteThread = async () => {
   showOptions.value = false
   if (!thread.value) return
-  if (!(await confirm({ title: 'Delete thread', message: `Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
+  if (!(await confirm({ title: t('chatNav.thread.delete'), message: t('chatNav.thread.deleteConfirm', { name: thread.value.name }), confirmButtonText: t('common.delete'), dangerAction: true }))) return
   try {
     const deletedId = thread.value.id
     await threadService.deleteThread(deletedId)
@@ -1083,7 +1083,7 @@ const scrollToBottom = () => {
 }
 
 const getAuthorName = (userId?: string) => {
-  if (!userId) return 'Unknown'
+  if (!userId) return t('activitypub.unknown')
   return getDisplayName(userId).value
 }
 

@@ -1,6 +1,6 @@
 <template>
   <div v-if="mode === ViewMode.CHAT" class="chat-header">
-    <div class="channel-header"><HashTagIcon class="channel-icon" /><span>{{ currentChannel?.name || 'Channel' }}</span></div>
+    <div class="channel-header"><HashTagIcon class="channel-icon" /><span>{{ currentChannel?.name || t('chatNav.channelFallback') }}</span></div>
   </div>
   <div v-else class="mony-header">
     <div></div>

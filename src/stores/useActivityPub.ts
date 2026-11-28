@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { i18n } from '@/i18n'
 import { apiUrl } from '@/services/instanceConfig';
 import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
@@ -103,7 +104,7 @@ const FEED_KEEP_MS = 30 * 60 * 1000;
 function loadErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   const message = (error as { message?: unknown } | null)?.message;
-  return typeof message === 'string' && message ? message : 'Request failed';
+  return typeof message === 'string' && message ? message : i18n.global.t('activitypub.requestFailed');
 }
 
 interface ActivityPubState {

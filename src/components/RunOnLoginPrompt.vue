@@ -8,14 +8,14 @@
           </svg>
         </div>
         <div class="banner-text">
-          <h3>Launch Harmony at sign in?</h3>
-          <p>{{ browserLabel }} can start Harmony automatically when you log into your computer.</p>
+          <h3>{{ t('runOnLogin.prompt.title') }}</h3>
+          <p>{{ t('runOnLogin.prompt.body', { browser: browserLabel }) }}</p>
         </div>
         <div class="banner-actions">
-          <button class="banner-btn secondary" @click="dismiss">Not now</button>
-          <button class="banner-btn primary" @click="openInstructions">Show me how</button>
+          <button class="banner-btn secondary" @click="dismiss">{{ t('activities.notNow') }}</button>
+          <button class="banner-btn primary" @click="openInstructions">{{ t('runOnLogin.prompt.showHow') }}</button>
         </div>
-        <button class="close-btn" aria-label="Close" @click="close">
+        <button class="close-btn" :aria-label="t('common.close')" @click="close">
           <svg viewBox="0 0 24 24" width="18" height="18">
             <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
           </svg>
@@ -32,6 +32,9 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { debug } from '@/utils/debug'
 import { getChromiumBrowserLabel, isChromiumDesktop, isPWA } from '@/utils/pwaUtils'
 import RunOnLoginInstructionsModal from '@/components/RunOnLoginInstructionsModal.vue'
+import { useT } from '@/composables/useT'
+
+const { t } = useT()
 
 const STORAGE_KEYS = {
   enabled: 'harmony-run-on-login-enabled',

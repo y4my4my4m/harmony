@@ -9,6 +9,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { shallowMount, type VueWrapper } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
+import en from '@/locales/en.json'
 
 const rt = vi.hoisted(() => {
   const channels: any[] = []
@@ -151,6 +153,8 @@ vi.mock('@/components/DisplayName.vue', () => stub('DisplayName'))
 vi.mock('@/components/dm/GroupSettingsModal.vue', () => stub('GroupSettingsModal'))
 vi.mock('@/components/search/MessageSearchModal.vue', () => stub('MessageSearchModal'))
 
+const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
+
 import DMHeader from '../DMHeader.vue'
 import { CallRingLimitedError, dmCallSignaling } from '@/services/DMCallSignaling'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
@@ -181,7 +185,7 @@ let wrapper: VueWrapper | null = null
 const mountHeader = () => {
   wrapper = shallowMount(DMHeader, {
     props: { conversation },
-    global: { directives: { 'click-outside': {} } },
+    global: { plugins: [i18n], directives: { 'click-outside': {} } },
   })
   return wrapper
 }
@@ -227,7 +231,7 @@ describe('DMHeader outgoing call', () => {
     const member = (id: string) => ({ id, username: id, is_local: true })
     wrapper = shallowMount(DMHeader, {
       props: { conversation: { id: CONV, type: 'group', name: 'Group', participants: [member('me'), member('b'), member('c')] } as any },
-      global: { directives: { 'click-outside': {} } },
+      global: { plugins: [i18n], directives: { 'click-outside': {} } },
     })
     await settle()
     await wrapper.find('.voice-btn').trigger('click')
@@ -477,7 +481,7 @@ describe('DMHeader outgoing call', () => {
       return { roomName: `federated-dm-${conversationId}-1`, callId: 'c1' } as any
     })
     const end = vi.spyOn(dmCallSignaling, 'endFederatedCall').mockResolvedValue()
-    wrapper = shallowMount(DMHeader, { props: { conversation: fed }, global: { directives: { 'click-outside': {} } } })
+    wrapper = shallowMount(DMHeader, { props: { conversation: fed }, global: { plugins: [i18n], directives: { 'click-outside': {} } } })
     await settle()
     await wrapper.find('.voice-btn').trigger('click')
     await settle()
@@ -514,7 +518,7 @@ describe('DMHeader outgoing call', () => {
     const fed = { ...conversation, other_user: { ...conversation.other_user, is_local: false, federated_id: 'https://remote.example/users/them' } }
     const single = vi.spyOn(rt.query, 'single').mockResolvedValue({ data: { federated_id: 'https://harmony.test/users/me', username: 'me' }, error: null })
     const initiate = vi.spyOn(dmCallSignaling, 'initiateFederatedCall').mockRejectedValue(new CallRingLimitedError(LIMITED))
-    wrapper = shallowMount(DMHeader, { props: { conversation: fed }, global: { directives: { 'click-outside': {} } } })
+    wrapper = shallowMount(DMHeader, { props: { conversation: fed }, global: { plugins: [i18n], directives: { 'click-outside': {} } } })
     await settle()
     await wrapper.find('.voice-btn').trigger('click')
     await settle()

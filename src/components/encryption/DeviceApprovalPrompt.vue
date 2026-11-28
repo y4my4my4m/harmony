@@ -13,7 +13,7 @@
           <Icon name="smartphone" :size="22" />
         </div>
         <div class="dap-body">
-          <strong class="dap-title">New login{{ currentApprover.requesting_label ? ` on ${currentApprover.requesting_label}` : '' }}</strong>
+          <strong class="dap-title">{{ currentApprover.requesting_label ? $t('encryption.approval.newLoginOn', { device: currentApprover.requesting_label }) : $t('encryption.approval.newLogin') }}</strong>
           <template v-if="currentIsPairing">
             <p class="dap-text">{{ $t('encryption.approval.pairingText') }}</p>
             <div class="dap-actions">
@@ -35,12 +35,12 @@
                 {{ $t('encryption.approval.thatWasMe') }}
               </button>
               <button class="dap-btn dap-btn-deny" :disabled="busy" @click="onDeny">
-                No, secure my account
+                {{ $t('encryption.approval.secureAccount') }}
               </button>
             </div>
           </template>
           <p v-if="pendingApprovals.length > 1" class="dap-more">
-            +{{ pendingApprovals.length - 1 }} more login{{ pendingApprovals.length - 1 > 1 ? 's' : '' }} waiting
+            {{ $t('encryption.approval.moreWaiting', { count: pendingApprovals.length - 1 }, pendingApprovals.length - 1) }}
           </p>
         </div>
       </div>
@@ -58,18 +58,16 @@
           <Icon name="clock" :size="22" />
         </div>
         <div class="dap-body">
-          <strong class="dap-title">Approve this login on another device</strong>
-          <p class="dap-text">
-            Open Harmony on a device where you're already signed in and tap
-            <strong>Yes, it's me</strong> to unlock your encrypted message history here.
-            New messages still work in the meantime.
-          </p>
+          <strong class="dap-title">{{ $t('encryption.approval.waitingTitle') }}</strong>
+          <i18n-t keypath="encryption.approval.waitingText" tag="p" class="dap-text">
+            <template #button><strong>{{ $t('encryption.approval.thatWasMe') }}</strong></template>
+          </i18n-t>
           <div class="dap-actions">
             <button class="dap-btn dap-btn-approve" :disabled="busy" @click="onDismissWaiting">
-              Got it
+              {{ $t('auth.gotIt') }}
             </button>
             <button class="dap-btn dap-btn-deny" :disabled="busy" @click="onSecureThisLogin">
-              This wasn't me
+              {{ $t('encryption.approval.notMeThisLogin') }}
             </button>
           </div>
         </div>
@@ -81,6 +79,7 @@
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import { useDeviceApprovals } from '@/composables/useDeviceApprovals'
 import { isPairingRequest, type DeviceApprovalRequest } from '@/services/encryption/DeviceIdentityService'
@@ -99,6 +98,7 @@ const {
   dismissOwnPending,
   secureThisLogin,
 } = useDeviceApprovals()
+const { t } = useI18n()
 const busy = ref(false)
 const linkMode = ref<'scan' | 'show' | null>(null)
 
@@ -122,8 +122,8 @@ async function onApprove() {
       const { useNotificationStore } = await import('@/stores/useNotification')
       useNotificationStore().showToast(
         'server_update',
-        'Could not approve login',
-        err instanceof Error ? err.message : 'Please try again.',
+        t('encryption.approval.approveFailed'),
+        err instanceof Error ? err.message : t('encryption.approval.tryAgain'),
         6000,
       )
     } catch { /* non-fatal */ }
@@ -143,8 +143,8 @@ async function onDeny() {
       const { useNotificationStore } = await import('@/stores/useNotification')
       useNotificationStore().showToast(
         'server_update',
-        'Could not secure account',
-        err instanceof Error ? err.message : 'Please try again from Settings → Privacy.',
+        t('encryption.approval.secureFailed'),
+        err instanceof Error ? err.message : t('encryption.approval.secureFailedHintPath', { settings: t('settings.title'), privacy: t('settings.privacy') }),
         7000,
       )
     } catch { /* non-fatal */ }
@@ -168,8 +168,8 @@ async function onSecureThisLogin() {
       const { useNotificationStore } = await import('@/stores/useNotification')
       useNotificationStore().showToast(
         'server_update',
-        'Could not sign out',
-        err instanceof Error ? err.message : 'Please sign out manually from the user menu.',
+        t('encryption.approval.signOutFailed'),
+        err instanceof Error ? err.message : t('encryption.approval.signOutFailedHint'),
         7000,
       )
     } catch { /* non-fatal */ }

@@ -453,7 +453,7 @@ describe('ChatComponent image descriptions and send errors', () => {
       window.dispatchEvent(new CustomEvent('encryption-fallback', { detail: { failClosed: true } }))
       await flushPromises()
       vi.advanceTimersByTime(THROTTLE_MS + WRITE_DELAY_MS + 1)
-      expect(assertiveText.value).toMatch(/Encryption failed/)
+      expect(assertiveText.value).toBe('channelEncryption.sendFallback.notSent')
     } finally {
       vi.useRealTimers()
       resetAnnouncer()

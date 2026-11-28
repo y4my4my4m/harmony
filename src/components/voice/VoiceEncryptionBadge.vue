@@ -2,17 +2,18 @@
   <span
     class="voice-encryption-badge"
     :class="[{ encrypted }, size]"
-    :title="encrypted
-      ? 'End-to-end encrypted — media is encrypted before it reaches the server'
-      : 'Not end-to-end encrypted — media is secured in transit (DTLS-SRTP) but the server can access it'"
+    :title="encrypted ? t('voice.encryption.encryptedTitle') : t('voice.encryption.notEncryptedTitle')"
   >
     <Icon :name="encrypted ? 'shield-check' : 'shield-off'" />
-    <span v-if="showLabel" class="voice-encryption-label">{{ encrypted ? 'E2EE' : 'Not E2EE' }}</span>
+    <span v-if="showLabel" class="voice-encryption-label">{{ encrypted ? t('voice.encryption.e2ee') : t('voice.encryption.notE2ee') }}</span>
   </span>
 </template>
 
 <script setup lang="ts">
 import Icon from '@/components/common/Icon.vue';
+import { useT } from '@/composables/useT';
+
+const { t } = useT();
 
 withDefaults(
   defineProps<{

@@ -3,6 +3,7 @@ import { effectScope, markRaw, watch } from 'vue';
 import { supabase } from '@/supabase';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n';
 import { getAvatarUrl } from '@/utils/avatarUtils';
 import { isDefaultShortcode } from '@/services/unifiedEmojiService';
 import {
@@ -47,9 +48,9 @@ function personalGroupLabels(
 ): Record<string, GroupLabel> {
   const name = instanceName?.trim();
   return {
-    [PERSONAL_EMOJI_GROUPS.user]: { name: 'My Emoji', icon: getAvatarUrl(avatarUrl, 64) },
+    [PERSONAL_EMOJI_GROUPS.user]: { name: i18n.global.t('emoji.groups.mine'), icon: getAvatarUrl(avatarUrl, 64) },
     [PERSONAL_EMOJI_GROUPS.instance]: {
-      name: name ? `${name} Emoji` : 'Instance Emoji',
+      name: name ? i18n.global.t('emoji.groups.instance', { name }) : i18n.global.t('emoji.groups.instanceUnnamed'),
       icon: instanceIcon?.trim() || INSTANCE_ICON_FALLBACK,
     },
   };
@@ -499,7 +500,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         await this.followPersonalGroupLabels();
         const labels = this._personalGroupLabels;
 
-        this.updateServerCache(PERSONAL_EMOJI_GROUPS.ai, aiEmojis, { name: 'AI Generated' }, false);
+        this.updateServerCache(PERSONAL_EMOJI_GROUPS.ai, aiEmojis, { name: i18n.global.t('emoji.groups.ai') }, false);
         this.updateServerCache(PERSONAL_EMOJI_GROUPS.user, ownEmojis, labels[PERSONAL_EMOJI_GROUPS.user], false);
         this.updateServerCache(PERSONAL_EMOJI_GROUPS.instance, instanceEmojis, labels[PERSONAL_EMOJI_GROUPS.instance], false);
         this.rebuildResolvedEmojis();

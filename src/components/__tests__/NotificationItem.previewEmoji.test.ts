@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import en from '@/locales/en.json'
 import { shallowReactive } from 'vue'
 
 // The preview the server wrote holds no custom emojis; the row draws those of the message itself.
@@ -17,7 +18,7 @@ vi.mock('@/components/common/Icon.vue', () => ({ default: { template: '<i />' } 
 vi.mock('@/components/common/TwemojiText.vue', () => ({ default: { props: ['text'], template: '<span>{{ text }}</span>' } }))
 
 const NotificationItem = (await import('../NotificationItem.vue')).default
-const i18n = createI18n({ legacy: false, locale: 'en', missingWarn: false, fallbackWarn: false })
+const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
 const pog = { type: 'emoji', emoji: { id: 'e', name: 'pog', url: 'https://remote.example/pog.png' } }
 const text = (value: string) => ({ type: 'text', text: value })
 

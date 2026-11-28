@@ -267,7 +267,7 @@ import {
 const WINDOWS = [1, 7, 30] as const
 const STATUSES: readonly SignupStatus[] = ['all', 'active', 'suspended']
 
-const { t } = useT()
+const { t, locale } = useT()
 const toast = useToast()
 const uid = `recent-signups-${useId()}`
 const profileStore = useProfileStore()
@@ -301,7 +301,7 @@ const activeGroupKey = computed(() => (activeGroup.value ? groupKey(activeGroup.
 const dailyRows = computed(() => daily.value.filter((d, i) => i === 0 || d.signups > 0 || d.refused > 0 || d.would_refuse > 0))
 
 function formatMoment(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
+  return new Date(iso).toLocaleString(locale.value, { dateStyle: 'short', timeStyle: 'short' })
 }
 
 let rowSeq = 0

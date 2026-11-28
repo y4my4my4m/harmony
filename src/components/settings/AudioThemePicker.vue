@@ -1,7 +1,7 @@
 <template>
   <div class="audio-theme-picker">
     <div class="picker-header">
-      <label class="picker-label">Audio Theme</label>
+      <label class="picker-label">{{ t('settings.audio.themes.pickerLabel') }}</label>
       <button 
         v-if="showTestButton"
         @click="testCurrentTheme" 
@@ -66,6 +66,7 @@
 <script setup lang="ts">
 import { useAudioThemeCommon } from '@/composables/useAudioThemeCommon'
 import Icon from '@/components/common/Icon.vue'
+import { useI18n } from 'vue-i18n'
 
 interface Props {
   showTestButton?: boolean
@@ -78,6 +79,8 @@ withDefaults(defineProps<Props>(), {
   showVolumeControl: true,
   compact: false
 })
+
+const { t } = useI18n()
 
 // Use shared composable
 const {

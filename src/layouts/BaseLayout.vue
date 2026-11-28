@@ -104,7 +104,7 @@
     <IncomingCallModal
       :show="showGlobalIncomingCall"
       :caller-id="globalIncomingCallData?.callerId || ''"
-      :caller-name="globalIncomingCallData?.callerName || 'Unknown'"
+      :caller-name="globalIncomingCallData?.callerName || t('voice.unknownUser')"
       :caller-avatar="globalIncomingCallData?.callerAvatar || '/default_avatar.webp'"
       :call-type="globalIncomingCallData?.callType || 'voice'"
       :conversation-id="globalIncomingCallData?.conversationId || ''"
@@ -351,7 +351,7 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
       // between the click and the accept.
       if (!(await dmCallSignaling.acceptCall(incomingCall.conversationId, currentUserId))) {
         voiceStore.isOverlayVisible = false
-        useToast().info('Call ended')
+        useToast().info(t('dm.callEnded'))
         return
       }
 
