@@ -55,7 +55,7 @@ Any instance can install an activity that is not built in. Build your entry into
 
 | File | Limit |
 | --- | --- |
-| `manifest.json` | 64 KB; the fields above, `accent` as `#rrggbb`, `i18n` keys among `en es fr de ja ko zh` |
+| `manifest.json` | 64 KB; the fields above, `accent` as `#rrggbb`, `i18n` keys among `en es fr de nl ja ko zh` |
 | the script `manifest.entry` names, ending `.js` | 5 MB, UTF-8 |
 | the icon `manifest.icon` names | SVG, PNG or WebP, 256 KB |
 

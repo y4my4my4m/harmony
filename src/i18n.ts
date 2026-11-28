@@ -10,7 +10,7 @@ import { createI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 
 // Supported locales
-const supportedLocales = ['en', 'es', 'fr', 'de', 'ja', 'ko', 'zh'] as const
+const supportedLocales = ['en', 'es', 'fr', 'de', 'nl', 'ja', 'ko', 'zh'] as const
 export type SupportedLocale = typeof supportedLocales[number]
 
 // Locale loading cache
@@ -176,6 +176,7 @@ export const availableLocales = [
   { code: 'es', name: 'Español' },
   { code: 'fr', name: 'Français' },
   { code: 'de', name: 'Deutsch' },
+  { code: 'nl', name: 'Nederlands' },
   { code: 'ja', name: '日本語' },
   { code: 'ko', name: '한국어' },
   { code: 'zh', name: '中文' },

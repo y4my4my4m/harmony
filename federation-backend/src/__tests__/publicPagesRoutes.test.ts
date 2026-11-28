@@ -288,6 +288,13 @@ describe('GET /@:username', () => {
     const res = await get('/@alice').set('Accept-Language', 'fr-CA,fr;q=0.9,en;q=0.5')
     expect(res.text).toContain('<html lang="fr">')
   })
+
+  it('writes the page in Dutch for a Dutch reader', async () => {
+    answer = { data: profilePage(), error: null }
+    const res = await get('/@alice').set('Accept-Language', 'nl-NL,nl;q=0.9,en;q=0.5')
+    expect(res.text).toContain('<html lang="nl">')
+    expect(res.text).toContain('Volgers')
+  })
 })
 
 describe('GET /@:username/:postId', () => {

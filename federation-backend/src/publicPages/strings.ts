@@ -1,5 +1,5 @@
 /**
- * Text of the public profile and post pages, in the SPA's seven languages. The page language
+ * Text of the public profile and post pages, in the SPA's eight languages. The page language
  * is the first Accept-Language tag naming one of them, English otherwise.
  *
  * `{name}` placeholders take HTML from the caller (fillHtml); the templates themselves are
@@ -8,7 +8,7 @@
 
 import { escapeHtml } from '../utils/html.js';
 
-export const PAGE_LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'zh'] as const;
+export const PAGE_LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'nl', 'zh'] as const;
 export type PageLocale = (typeof PAGE_LOCALES)[number];
 
 export interface PageStrings {
@@ -291,6 +291,46 @@ const ko: PageStrings = {
   remoteOrigin: '{instance}에 도착한 게시물입니다. 전체 프로필은 {origin}에 있습니다.',
 };
 
+const nl: PageStrings = {
+  signIn: 'Inloggen',
+  createAccount: 'Account aanmaken',
+  joinTitle: 'Word lid van {instance}',
+  joinText: 'Volg {name}, antwoord en reageer met een account op {instance} of op een andere server in het fediverse.',
+  posts: 'Posts',
+  followers: 'Volgers',
+  following: 'Volgend',
+  pinned: 'Vastgemaakt',
+  joined: 'Lid sinds {date}',
+  locked: 'Keurt volgers goed',
+  noPosts: 'Nog geen openbare posts.',
+  olderPosts: 'Oudere posts',
+  newestPosts: 'Nieuwste posts',
+  showMore: 'Meer tonen',
+  showLess: 'Minder tonen',
+  sensitive: 'Gevoelige media',
+  unlisted: 'Minder openbaar',
+  edited: 'Bewerkt',
+  replyingTo: 'Antwoord aan {handle}',
+  replies: 'Antwoorden',
+  boosts: 'Boosts',
+  favourites: 'Favorieten',
+  reactions: 'Reacties',
+  pollPeople: '{count} personen',
+  pollClosed: 'Gesloten',
+  pollEnds: 'Eindigt {date}',
+  movedTo: 'Dit account is verhuisd naar {account}.',
+  notFoundTitle: 'Niets gevonden',
+  notFoundText: 'Dit profiel of deze post bestaat niet of is niet openbaar.',
+  unavailableTitle: 'Tijdelijk niet beschikbaar',
+  unavailableText: 'Deze pagina kon niet worden geladen. Probeer het zo opnieuw.',
+  backHome: 'Naar {instance}',
+  poweredBy: 'Draait op {harmony}',
+  moreFrom: 'Meer van {name}',
+  postBy: 'Post van {name}',
+  profileOn: '{name} op {instance}',
+  remoteOrigin: 'Posts die {instance} heeft ontvangen. Het volledige profiel staat op {origin}.',
+};
+
 const zh: PageStrings = {
   signIn: '登录',
   createAccount: '创建账号',
@@ -331,7 +371,7 @@ const zh: PageStrings = {
   remoteOrigin: '{instance} 已收到的帖子。完整资料位于 {origin}。',
 };
 
-export const PAGE_STRINGS: Record<PageLocale, PageStrings> = { en, de, es, fr, ja, ko, zh };
+export const PAGE_STRINGS: Record<PageLocale, PageStrings> = { en, de, es, fr, ja, ko, nl, zh };
 
 /** First Accept-Language tag naming a page locale, by q then order; 'en' otherwise. */
 export function pickPageLocale(acceptLanguage: string | undefined | null): PageLocale {
