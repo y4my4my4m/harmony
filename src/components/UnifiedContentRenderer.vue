@@ -41,11 +41,12 @@
         <span 
           v-else-if="part && part.type === 'mention'" 
           class="mention"
-          :class="{ 'federated-mention': isFederatedMention(part) }"
+          :class="{ 'federated-mention': isFederatedMention(part), 'bridged-mention': !!bridgedMentionPlatform(part) }"
           :title="getMentionTooltip(part)"
           @click="handleMentionClick(part)"
         >
-          <template v-if="part.userId && readsAsMassMention(part)">
+          <template v-if="bridgedMentionPlatform(part)"><span class="mention-at">@</span>{{ bridgedMentionName(part, bridgedMentionPlatform(part)!) }}<BridgeSourceBadge :source="bridgedMentionPlatform(part)!" /></template>
+          <template v-else-if="part.userId && readsAsMassMention(part)">
             <span class="mention-at">@</span>{{ part.username }}<span v-if="mentionSuffixOrLocal(part)" class="mention-domain">@{{ mentionSuffixOrLocal(part) }}</span>
           </template>
           <template v-else-if="part.userId">
@@ -220,6 +221,8 @@ import { isMaskedUrlPart, shownLinkLabel } from '@/utils/maskedLinks';
 import VideoControls from '@/components/common/VideoControls.vue';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import { useUserData } from '@/composables/useUserData';
+import { bridgedMentionName, bridgedMentionPlatform, bridgedMentionTitle } from '@/utils/bridgedMentions';
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
 import { mentionDisplayDomain } from '@/utils/mentionGrammar';
 import Icon from '@/components/common/Icon.vue';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
@@ -337,6 +340,11 @@ const handleContentClick = (event: Event) => {
 
 const handleMentionClick = (mention: MessagePart) => {
   if (mention.type !== 'mention') return;
+  const bridged = bridgedMentionPlatform(mention);
+  if (bridged) {
+    if (mention.userId) emit('user-mention-click', `${bridged}:${mention.userId}`, new Event('click'));
+    return;
+  }
   if (mention.userId) {
     emit('user-mention-click', mention.userId, new Event('click'));
     return;
@@ -355,7 +363,7 @@ const currentDomain = runtimeConfig.domain as string;
 
 const { getUser, getUserDisplayName } = useUserData();
 const mentionSuffix = (part: MessagePart): string | null => {
-  if (part.type !== 'mention') return null;
+  if (part.type !== 'mention' || bridgedMentionPlatform(part)) return null;
   const user = part.userId ? getUser(part.userId).value : null;
   return mentionDisplayDomain(part, user ? { domain: user.domain, isLocal: user.isLocal } : null, currentDomain);
 };
@@ -372,7 +380,7 @@ const roleMentionStyle = (roleColor: string | null | undefined) => {
 
 /** A user pill whose name would read as @everyone or @here shows the handle, unlike the role pill. */
 const readsAsMassMention = (part: MessagePart): boolean => {
-  if (part.type !== 'mention' || part.domain === 'discord.com') return false;
+  if (part.type !== 'mention' || bridgedMentionPlatform(part)) return false;
   return isMassMentionWord(part.userId ? getUserDisplayName(part.userId).value : (part.displayName || part.username));
 };
 
@@ -384,9 +392,8 @@ const mentionSuffixOrLocal = (part: MessagePart): string | null => {
 
 const getMentionTooltip = (part: MessagePart): string => {
   if (part.type !== 'mention') return '';
-  if (part.domain === 'discord.com') {
-    return `Discord user: ${part.displayName || part.username}`;
-  }
+  const bridged = bridgedMentionPlatform(part);
+  if (bridged) return bridgedMentionTitle(part, bridged);
   const suffix = mentionSuffix(part) ?? (readsAsMassMention(part) ? currentDomain : null);
   if (suffix) {
     return `@${part.username}@${suffix}`;

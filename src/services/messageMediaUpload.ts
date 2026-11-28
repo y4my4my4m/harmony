@@ -2,7 +2,8 @@ import { shallowReactive } from 'vue'
 import { i18n } from '@/i18n'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
-import { getBucketLimits, validateImageUpload } from '@/utils/uploadValidation'
+import { getBucketLimits, validateUploadSize } from '@/utils/uploadValidation'
+import { storedTypeFor } from '@/services/uploads/storedType'
 import {
   MESSAGE_MEDIA_BUCKET,
   compatUrlFor,
@@ -55,6 +56,8 @@ export type MessageMediaUploadState = UploadState
 export interface MessageMediaUploadResult extends UploadedMessageMedia {
   /** The bytes were in Drive already; `path` names that object, not the planned one. */
   reused?: boolean
+  /** The type the object is stored and served with (storedContentType). */
+  contentType: string
 }
 
 export interface MessageMediaUploadOptions {
@@ -134,18 +137,21 @@ export function resetMessageMediaUploads(): void {
 }
 
 /**
- * Client-side pre-upload gate (BUGS.md H28). The bucket enforces size limits
- * server-side, but only after the whole upload. SVGs are rejected here: they can
- * embed script.
+ * Client-side pre-upload gate: the bucket's size limit, checked before the whole
+ * upload instead of after it. Any type is accepted; storedContentType decides how it is served.
  */
 export async function validateChatUpload(file: Blob): Promise<void> {
-  const name = (file as File).name || ''
-  if (file.type === 'image/svg+xml' || /\.svg$/i.test(name)) {
-    throw new Error('SVG uploads are not allowed (they can contain embedded scripts). Please convert to PNG or WebP.')
-  }
-  const asFile = file instanceof File ? file : new File([file], name || 'file', { type: file.type })
-  const validationError = await validateImageUpload(asFile, MESSAGE_MEDIA_BUCKET)
-  if (validationError) throw new Error(validationError)
+  const error = await validateUploadSize(file, MESSAGE_MEDIA_BUCKET)
+  if (error) throw new Error(error)
+}
+
+/**
+ * The Content-Type an attachment or Drive file is stored with, by the bucket's live list
+ * (uploads/storedType.ts). The name is kept, so the download is named as sent.
+ */
+export async function storedContentType(file: Blob): Promise<string> {
+  const { allowedMime } = await getBucketLimits(MESSAGE_MEDIA_BUCKET)
+  return storedTypeFor(file.type, (file as File).name || '', allowedMime)
 }
 
 /**
@@ -166,7 +172,7 @@ export function startMessageMediaUpload(
 
   const label = options.label ?? options.name ?? (stored ? stored.name : ((file as File).name || undefined))
 
-  const transfer = async (): Promise<{ path: string; reused: boolean }> => {
+  const transfer = async (): Promise<{ path: string; reused: boolean; contentType: string }> => {
     if (!isMessageMediaPath(path)) throw new Error('Attachments need a channel or conversation')
     // Validation (bucket limits) and the Drive probe are independent reads, once per session each.
     const drive = driveAvailable()
@@ -174,6 +180,7 @@ export function startMessageMediaUpload(
     if (aborted) throw new UploadAbortedError()
     const source = options.keepMetadata ? original : await stripMediaMetadata(original)
     if (options.validate) await validateChatUpload(source)
+    const contentType = await storedContentType(source)
     // Before the hash: a file over the account's limit is not read.
     try {
       await checkUploadLimit(MESSAGE_MEDIA_BUCKET, source, label)
@@ -196,7 +203,7 @@ export function startMessageMediaUpload(
       if (options.reuse !== false) {
         const existing = (await findDriveFilesByHash(metadata.sha256).catch(() => []))
           .find((f) => f.bucket === MESSAGE_MEDIA_BUCKET && f.state === 'drive' && f.size_bytes === source.size)
-        if (existing) return { path: existing.path, reused: true }
+        if (existing) return { path: existing.path, reused: true, contentType }
       }
     }
     if (aborted) throw new UploadAbortedError()
@@ -205,6 +212,7 @@ export function startMessageMediaUpload(
       bucket: MESSAGE_MEDIA_BUCKET,
       path,
       file: source,
+      contentType,
       keepMetadata: options.keepMetadata,
       cacheControl: DEFAULT_CACHE_CONTROL,
       metadata: metadata as Record<string, unknown>,
@@ -216,7 +224,7 @@ export function startMessageMediaUpload(
       state,
     })
     try {
-      return { path: (await inner.result).path, reused: false }
+      return { path: (await inner.result).path, reused: false, contentType }
     } catch (error) {
       // A blocked hash surfaces as storage-api's generic row-level security refusal.
       if (metadata.sha256 && error instanceof StorageUploadError && error.status < 500
@@ -232,7 +240,7 @@ export function startMessageMediaUpload(
   }
 
   const result = transfer().then(
-    async ({ path: stored, reused }) => {
+    async ({ path: stored, reused, contentType }) => {
       if (stored !== path && !reused) {
         // A continued upload: the state follows the object it names.
         states.delete(path)
@@ -242,7 +250,7 @@ export function startMessageMediaUpload(
       state.progress = 1
       state.status = 'completed'
       options.onProgress?.(1)
-      return reused ? { path: stored, url, reused: true } : { path: stored, url }
+      return reused ? { path: stored, url, reused: true, contentType } : { path: stored, url, contentType }
     },
     (error: unknown) => {
       if (aborted || error instanceof UploadAbortedError) {

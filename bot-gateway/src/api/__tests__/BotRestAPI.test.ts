@@ -389,6 +389,7 @@ describe('GET /channels/:id/messages system notices', () => {
     routeTables({
       ...OPEN_CHANNEL_FIXTURES,
       channels: { data: { server_id: '00000000-0000-0000-0000-0000000000s1' }, error: null },
+      bots: { data: [{ id: BOT_ID, bot_type: null, bridge_platform: null }], error: null },
       messages: {
         data: [{
           id: 'n1', channel_id: CHANNEL_ID, user_id: null, bot_id: null, user: null, bot: null, is_system: true,
@@ -441,6 +442,7 @@ describe('POST /channels/:id/messages file parts', () => {
   it('stores audio and Discord sticker parts as sent, without a bot-supplied path', async () => {
     const inserts = captureInserts('messages', {
       ...OPEN_CHANNEL_FIXTURES,
+      bots: { data: { id: BOT_ID, bridge_platform: null }, error: null },
       channels: { data: { server_id: '00000000-0000-0000-0000-0000000000s1' }, error: null },
       instance_config: { data: { config_value: '"link"' }, error: null },
       bot_audit_log: { data: null, error: null },
@@ -730,15 +732,19 @@ describe('server routes', () => {
       user: { id: ALICE, username: 'alice', display_name: 'Alice', avatar_url: null, domain: null, is_local: true },
     }
 
-    it('reports joined_at from the membership row', async () => {
-      routeTables({ ...INSTALLED, user_servers: { data: [membership], error: null } })
+    it('reports joined_at from the membership row and the member\'s role ids', async () => {
+      routeTables({
+        ...INSTALLED,
+        user_servers: { data: [membership], error: null },
+        user_roles: { data: [{ user_id: ALICE, role_id: '00000000-0000-0000-0000-0000000000e1' }], error: null },
+      })
       const res = await supertest(makeApp()).get(`/api/v1/servers/${SERVER_ID}/members`)
 
       expect(res.status).toBe(200)
       expect(res.body).toEqual([{
         user: { id: ALICE, username: 'alice', display_name: 'Alice', domain: null, is_local: true },
         nick: 'Al',
-        roles: [],
+        roles: ['00000000-0000-0000-0000-0000000000e1'],
         joined_at: '2026-10-01T09:00:00+00:00',
       }])
     })

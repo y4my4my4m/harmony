@@ -7,7 +7,9 @@
 // through storage's resumable (tus) endpoint: its first PATCH is cut after half its bytes reach
 // storage, and the upload resumes from the offset storage reports rather than from zero. Cut after
 // 5.5 MiB, which S3 storage keeps as a short part R2 cannot complete, the upload is terminated and
-// sent again from zero.
+// sent again from zero. A one-request upload whose POST fails before reaching storage is sent once
+// more; one whose POST storage stored but whose answer was lost completes on the duplicate refusal
+// of the second POST. A server icon picked at creation goes up the same way.
 
 import { createHash, randomBytes } from 'node:crypto'
 import { test, expect, type Download, type Page, type Route } from '@playwright/test'
@@ -34,6 +36,7 @@ const PNG = Buffer.from(
 const EMOJI_POST = '**/storage/v1/object/emojis/**'
 const TUS = '**/storage/v1/upload/resumable**'
 const MEDIA_POST = '**/storage/v1/object/message_media/**'
+const ICON_POST = '**/storage/v1/object/server_icons/**'
 const MiB = 1024 * 1024
 
 let owner: SpecUser
@@ -352,4 +355,102 @@ test('a large upload cut with a short part stored starts over', async ({ page })
   const got = Buffer.from(await stored.data!.arrayBuffer())
   expect(createHash('sha256').update(got).digest('hex')).toBe(createHash('sha256').update(bytes).digest('hex'))
   await page.unroute(TUS)
+})
+
+/** The stored object of the file part of the owner's message carrying `text`. */
+async function storedFileOf(text: string): Promise<Buffer> {
+  const { data } = await admin.from('messages').select('content').eq('channel_id', server.generalChannelId).eq('user_id', owner.id)
+  const content = (data ?? []).map((row) => row.content as Array<{ type: string; text?: string; path?: string }>)
+    .find((parts) => JSON.stringify(parts).includes(text))
+  const part = content?.find((p) => p.type === 'file' || p.type === 'image')
+  expect(part?.path).toBeTruthy()
+  const stored = await admin.storage.from('message_media').download(part!.path!)
+  expect(stored.error).toBeNull()
+  return Buffer.from(await stored.data!.arrayBuffer())
+}
+
+test('a one-request upload whose POST never reaches storage is sent again', async ({ page }) => {
+  test.setTimeout(120_000)
+  const posts: string[] = []
+  await page.route(MEDIA_POST, async (route: Route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    posts.push(route.request().url())
+    // The first POST fails in the browser, as a Firefox upload that sent its preflight and nothing else.
+    if (posts.length === 1) return route.abort('failed')
+    return route.fallback()
+  })
+
+  await signIn(page, owner)
+  await openChannel(page, server.id, server.generalChannelId)
+  const bytes = randomBytes(4096)
+  const text = `dropped once by ${owner.username}`
+  await sendAttachment(page, { name: 'dropped once.bin', mimeType: 'application/octet-stream', buffer: bytes }, text)
+
+  expect(posts).toHaveLength(2)
+  expect(posts[1]).toBe(posts[0])
+  expect((await storedFileOf(text)).equals(bytes)).toBe(true)
+  await page.unroute(MEDIA_POST)
+})
+
+test('a one-request upload stored with its answer lost completes on the second POST', async ({ page }) => {
+  test.setTimeout(120_000)
+  const answers: number[] = []
+  await page.route(MEDIA_POST, async (route: Route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    if (answers.length === 0) {
+      // Storage stores the object; the connection drops before its answer reaches the page.
+      const stored = await route.fetch()
+      answers.push(stored.status())
+      return route.abort('connectionreset')
+    }
+    const again = await route.fetch()
+    answers.push(again.status())
+    return route.fulfill({ response: again })
+  })
+
+  await signIn(page, owner)
+  await openChannel(page, server.id, server.generalChannelId)
+  const bytes = randomBytes(4096)
+  const text = `answer lost by ${owner.username}`
+  await sendAttachment(page, { name: 'answer lost.bin', mimeType: 'application/octet-stream', buffer: bytes }, text)
+
+  // storage-api answers the second POST of an existing object 400, statusCode "409" in its body.
+  expect(answers).toEqual([200, 400])
+  expect((await storedFileOf(text)).equals(bytes)).toBe(true)
+  await page.unroute(MEDIA_POST)
+})
+
+test('a server icon picked at creation is sent again after a dropped POST', async ({ page }) => {
+  test.setTimeout(120_000)
+  const name = `Icon retry ${owner.username}`
+  let posts = 0
+  await page.route(ICON_POST, async (route: Route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    posts++
+    if (posts === 1) return route.abort('failed')
+    return route.fallback()
+  })
+
+  await signIn(page, owner)
+  await page.goto('/chat')
+  await dismissAnnouncements(page)
+  await page.getByRole('button', { name: 'Harmony Portal' }).click()
+  await page.getByRole('dialog', { name: 'Discover communities' }).locator('.create-server-btn').click()
+  const dialog = page.locator('[aria-labelledby="create-server-title"]')
+  await dialog.locator('input[type="file"][accept="image/*"]').setInputFiles({ name: '36834.png', mimeType: 'image/png', buffer: PNG })
+  await page.getByTestId('crop-apply').click()
+  await expect(dialog.locator('img').first()).toBeVisible({ timeout: 10000 })
+  await page.getByTestId('create-server-name-input').fill(name)
+  await page.getByTestId('create-server-btn').click()
+
+  await expect.poll(async () => (await admin.from('servers').select('icon').eq('owner', owner.id).eq('name', name)).data?.[0]?.icon ?? null,
+    { timeout: 30000 }).toMatch(/\/icon-\d+\.\w+$/)
+  expect(posts).toBe(2)
+  await expect(page.getByText("the icon couldn't be uploaded")).toHaveCount(0)
+  const { data: made } = await admin.from('servers').select('id, icon').eq('owner', owner.id).eq('name', name).single()
+  // Creation stores the public URL, server settings the object name.
+  const object = made!.icon!.split('/storage/v1/object/public/server_icons/').pop()!
+  const stored = await admin.storage.from('server_icons').download(object)
+  expect(stored.error).toBeNull()
+  await page.unroute(ICON_POST)
 })

@@ -61,6 +61,9 @@ import { findEmojiByName } from '@/services/emojiShortcodeResolver';
 import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richTextFormatting';
 import { createImeKeyFilter, historyShortcut, isImeKeyEvent } from '@/utils/editorShortcuts';
 import { HANDLE_PATTERN } from '@/utils/mentionGrammar';
+import { parseMatrixMentionToken } from '@/utils/matrixMentions';
+import { bridgedMentionName, bridgedMentionPlatform, bridgedMentionTitle, type BridgedMentionLike } from '@/utils/bridgedMentions';
+import { isEscapedAt } from '@/utils/markupEscapes';
 import { editorSpaces, linearize, offsetForPoint, plainTextOf, pointForOffset } from '@/utils/editorText';
 import { linkPasteText } from '@/utils/maskedLinks';
 import { HERE_ROLE_ID } from '@/utils/hereMention';
@@ -318,6 +321,24 @@ const hasUndrawnEmoji = (): boolean => {
   return false;
 };
 
+/** Pill of a bridged person's token: `@name`, the token kept for getPlainText. Null for a malformed token. */
+const bridgedTokenPill = (token: string): HTMLElement | null => {
+  let part: BridgedMentionLike | null = null;
+  const matrix = token.startsWith('<@matrix:') ? parseMatrixMentionToken(token) : null;
+  if (matrix) part = { userId: matrix.id, username: matrix.username, bridgeSource: 'matrix' };
+  const discord = /^@d!(\d+):([a-zA-Z0-9_.-]+)$/.exec(token);
+  if (discord) part = { userId: discord[1], username: discord[2], bridgeSource: 'discord' };
+  const platform = bridgedMentionPlatform(part);
+  if (!part || !platform) return null;
+  const span = document.createElement('span');
+  span.className = 'editor-mention editor-bridged-mention';
+  span.contentEditable = 'false';
+  span.setAttribute('data-display-text', token);
+  span.textContent = `@${bridgedMentionName(part, platform)}`;
+  span.title = bridgedMentionTitle(part, platform);
+  return span;
+};
+
 const processMentionsInText = (text: string): DocumentFragment => {
   const fragment = document.createDocumentFragment();
   
@@ -332,13 +353,15 @@ const processMentionsInText = (text: string): DocumentFragment => {
   const isInsideUrl = (pos: number): boolean =>
     urlRanges.some(r => pos >= r.start && pos < r.end);
 
-  // Alternation order: role mention first, then user mention.
+  // Alternation order: bridged tokens, role mention, then user mention; `@d!` precedes the handle `@d`.
+  // <@matrix:%40u%3Ahs>  Matrix person (URI-encoded MXID)
+  // @d!ID:username      Discord person
   // @role:UUID          role
   // @role:here          @here
   // @username@domain    remote user
   // @username           local user
   const mentionRegex = new RegExp(
-    `((?<!\\\\)@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|${HERE_ROLE_ID}(?![\\p{L}\\p{N}_-])))|(${HANDLE_PATTERN})`,
+    `(<@matrix:[^<>\\s]*>)|(@d!\\d+:[a-zA-Z0-9_.-]+)|((?<!\\\\)@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|${HERE_ROLE_ID}(?![\\p{L}\\p{N}_-])))|(${HANDLE_PATTERN})`,
     'gu',
   );
   
@@ -355,9 +378,12 @@ const processMentionsInText = (text: string): DocumentFragment => {
       fragment.appendChild(emojiText(editorSpaces(textBefore)));
     }
     
-    if (match[1]) {
+    if (match[1] || match[2]) {
+      const pill = isEscapedAt(text, matchStart) ? null : bridgedTokenPill(match[0]);
+      fragment.appendChild(pill ?? document.createTextNode(match[0]));
+    } else if (match[3]) {
       // Displays @RoleName; @role:UUID is retained for extraction.
-      const roleId = match[2];
+      const roleId = match[4];
       const cached = getCachedRoleDisplay(roleId);
       const rawName = cached?.name || 'loading...';
       const roleName = rawName.replace(/^@/, '');
@@ -393,21 +419,21 @@ const processMentionsInText = (text: string): DocumentFragment => {
         });
       }
       fragment.appendChild(span);
-    } else if (match[3]) {
+    } else if (match[5]) {
       // A match ending at end-of-text is an in-progress autosuggest query and
       // stays text: in "@username test @use", "@use" is not yet a pill.
       if (matchEnd === text.length) {
         fragment.appendChild(document.createTextNode(editorSpaces(match[0])));
         lastIndex = matchStart; // Held back so the trailing-text branch emits it
-      } else if (!match[5] && isMassMentionWord(match[4])) {
+      } else if (!match[7] && isMassMentionWord(match[6])) {
         // Bare @everyone and @here name no user; the send path decides ping or text.
         fragment.appendChild(document.createTextNode(match[0]));
-      } else if (namesNoLocalAccount(match[4], match[5]?.toLowerCase())) {
+      } else if (namesNoLocalAccount(match[6], match[7]?.toLowerCase())) {
         // Text, as the send path stores it (unifiedContentProcessing).
         fragment.appendChild(document.createTextNode(match[0]));
       } else {
-        const username = match[4];
-        const domain = match[5]?.toLowerCase();
+        const username = match[6];
+        const domain = match[7]?.toLowerCase();
         const mentionElement = createMentionElementFromDisplay(match[0], username, domain);
         fragment.appendChild(mentionElement);
       }
@@ -859,7 +885,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
         el.appendChild(className === 'editor-link-label' ? emojiText(text) : document.createTextNode(text));
         span.appendChild(el);
       };
-      piece('editor-marker', '[');
+      piece('editor-marker', token.image ? '![' : '[');
       piece('editor-link-label', token.content);
       piece('editor-marker', '](');
       piece('editor-link-url', token.destination ?? '');

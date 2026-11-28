@@ -368,6 +368,7 @@ import { enumerateMediaDevices } from '@/utils/mediaDevices';
 import { webrtcManager } from '@/services/webrtcManager';
 import { VoiceSettingsService, normalizeInputVolume, normalizeOutputVolume } from '@/services/VoiceSettingsService';
 import { useMicTest } from '@/composables/useMicTest';
+import { useCameraPreview } from '@/composables/useCameraPreview';
 import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug';
 import Icon from '@/components/common/Icon.vue';
@@ -443,7 +444,8 @@ export default defineComponent({
         });
     });
     const testMicrophone = () => micTest.toggle(selectedInputDevice.value || null, inputVolume.value);
-    const previewStream = ref<MediaStream | null>(null);
+    const cameraPreview = useCameraPreview();
+    const previewStream = cameraPreview.stream;
     const previewVideo = ref<HTMLVideoElement | null>(null);
 
     // Touch device detection (hide keybinds on touch devices)
@@ -541,27 +543,16 @@ export default defineComponent({
     };
 
     const updateVideoPreview = async () => {
-      if (previewStream.value) {
-        previewStream.value.getTracks().forEach(track => track.stop());
-        previewStream.value = null;
-      }
-
+      cameraPreview.stop();
       if (selectedVideoDevice.value && previewVideo.value) {
-        try {
-          const constraints = {
-            video: {
-              deviceId: selectedVideoDevice.value,
-              width: { ideal: videoQuality.value === '1080p' ? 1920 : videoQuality.value === '720p' ? 1280 : 640 },
-              height: { ideal: videoQuality.value === '1080p' ? 1080 : videoQuality.value === '720p' ? 720 : 480 },
-              frameRate: { ideal: parseInt(frameRate.value) }
-            }
-          };
-
-          previewStream.value = await navigator.mediaDevices.getUserMedia(constraints);
-          previewVideo.value.srcObject = previewStream.value;
-        } catch (error) {
-          debug.error('Error starting video preview:', error);
-        }
+        await cameraPreview.start({
+          video: {
+            deviceId: selectedVideoDevice.value,
+            width: { ideal: videoQuality.value === '1080p' ? 1920 : videoQuality.value === '720p' ? 1280 : 640 },
+            height: { ideal: videoQuality.value === '1080p' ? 1080 : videoQuality.value === '720p' ? 720 : 480 },
+            frameRate: { ideal: parseInt(frameRate.value) }
+          }
+        }, () => previewVideo.value);
       }
     };
 
@@ -715,9 +706,6 @@ export default defineComponent({
     onUnmounted(() => {
       navigator.mediaDevices.removeEventListener('devicechange', getDevices);
       window.removeEventListener('harmony-device-changed', handleExternalDeviceChange);
-      if (previewStream.value) {
-        previewStream.value.getTracks().forEach(track => track.stop());
-      }
       micTest.stop();
     });
 

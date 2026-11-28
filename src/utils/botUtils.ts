@@ -65,13 +65,14 @@ export function botMemberStatus(presence: BotPresenceRow | null | undefined, now
 /**
  * bot_server_permissions columns the gateway checks: BotRestAPI.ts route guards
  * and EventDispatcher.ts (read_messages gates event delivery). The table's
- * other flags (embed_links, attach_files, mention_everyone, kick_members,
- * ban_members) have no reader.
+ * other flags (embed_links, mention_everyone, kick_members, ban_members) have
+ * no reader.
  */
 export const ENFORCED_BOT_PERMISSIONS = [
   'read_messages',
   'send_messages',
   'add_reactions',
+  'attach_files',
   'manage_messages',
   'manage_channels',
   'manage_roles',
@@ -90,6 +91,7 @@ export function defaultBotPermissions(botType?: string | null): Record<EnforcedB
     read_messages: true,
     send_messages: true,
     add_reactions: true,
+    attach_files: true,
     manage_messages: false,
     manage_channels: botType === 'bridge',
     manage_roles: false,

@@ -256,6 +256,14 @@ describe('push payload', () => {
     expect(payload.data.url).toBe('/social/post/p1');
   });
 
+  it('names the recipient, so a quick reply is sent only as that account', () => {
+    const payload = (PushNotificationService as any).buildPayloadFromNotification({
+      id: 'n1', user_id: 'profile-of-recipient', type: 'dm',
+      data: { sender: { username: 'alice' }, conversation: { id: 'c1' }, from_user_id: 'profile-of-sender' },
+    });
+    expect(payload.data).toMatchObject({ conversation_id: 'c1', recipient_id: 'profile-of-recipient' });
+  });
+
   it('titles group chat and thread replies', () => {
     const chat = (PushNotificationService as any).buildPayloadFromNotification({
       id: 'n2', user_id: 'u1', type: 'chat_message',

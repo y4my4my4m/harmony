@@ -119,14 +119,14 @@ DELETE FROM public.server_member_timeouts
 
 -- SEND ---------------------------------------------------------------------------------------
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-SELECT is(public.can_send_to_topic('dm-call:77777777-0000-0000-0000-000000000007'), true,
-          'a participant sends on the DM call topic');
+SELECT is(public.can_send_to_topic('dm-call:77777777-0000-0000-0000-000000000007'), false,
+          'a participant does not broadcast on the DM call topic: send_signal relays (20261124100001)');
 SELECT is(public.can_send_to_topic('dm-calls:22222222-0000-0000-0000-000000000002'), false,
           'nobody sends on a ring topic, its owner included');
 SELECT is(public.can_send_to_topic('voice-channels:55555555-0000-0000-0000-000000000005'), false,
           'an accepted member does not send on the server voice topic');
-SELECT is(public.can_send_to_topic('harmony-voice-70000000-0000-0000-0000-0000000000c1'), true,
-          'a member who can join the voice room sends on it');
+SELECT is(public.can_send_to_topic('harmony-voice-70000000-0000-0000-0000-0000000000c1'), false,
+          'a member who can join the voice room does not send on it: voice_signal relays (20261124100001)');
 SELECT is(public.can_send_to_topic('harmony-voice-70000000-0000-0000-0000-0000000000c3'), false,
           'a member without CONNECT cannot send on the voice room');
 SELECT is(public.can_send_to_topic('typing:channel:66666666-0000-0000-0000-000000000006'), true,
@@ -198,8 +198,8 @@ INSERT INTO public.user_blocks (blocker_id, blocked_user_id)
 VALUES ('22222222-0000-0000-0000-000000000002', '11111111-0000-0000-0000-000000000001');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is(public.ring_dm_call('77777777-0000-0000-0000-000000000007',
-                              ARRAY['22222222-0000-0000-0000-000000000002']::uuid[], 'initiate', 'voice'), 0,
-          'a receiver who blocked the caller is not rung');
+                              ARRAY['22222222-0000-0000-0000-000000000002']::uuid[], 'initiate', 'voice'), 1,
+          'a receiver who blocked the caller counts as an unblocked one would (20261123500005)');
 SELECT tests.clear_authentication();
 UPDATE public.user_blocks SET expires_at = now() - interval '1 minute'
  WHERE blocker_id = '22222222-0000-0000-0000-000000000002'
@@ -226,10 +226,10 @@ SELECT ok(NOT has_function_privilege('anon', 'public.ring_dm_call(uuid,uuid[],te
 
 -- REALTIME POLICY ----------------------------------------------------------------------------
 SELECT is(
-    (SELECT with_check FROM pg_policies
+    (SELECT btrim(regexp_replace(with_check, '\s+', ' ', 'g')) FROM pg_policies
       WHERE schemaname = 'realtime' AND tablename = 'messages' AND policyname = 'authenticated_users_can_send'),
-    'can_send_to_topic(topic)',
-    'realtime.messages INSERT reads the send gate');
+    'CASE WHEN (extension = ''presence''::text) THEN can_track_on_topic(topic) ELSE can_send_to_topic(topic) END',
+    'realtime.messages INSERT reads the presence gate for presence and the send gate otherwise (20261124100001)');
 
 -- Realtime enables RLS on realtime.messages at start; the pgTAP image's stub table has it off
 -- and belongs to supabase_admin, so these two run only where RLS is on.

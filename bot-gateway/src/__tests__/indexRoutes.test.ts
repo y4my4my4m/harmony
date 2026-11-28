@@ -20,6 +20,8 @@ const state = vi.hoisted(() => ({
   db: null as any,
   instanceToken: null as string | null,
   silentWrites: [] as Array<{ p_message_id: string; p_old_content: unknown; p_content: any[] }>,
+  matrixPlatform: 'matrix' as string | null,
+  matrixError: false,
 }))
 
 vi.mock('../config/supabase.js', () => ({
@@ -30,6 +32,7 @@ vi.mock('../config/supabase.js', () => ({
         const views = args.p_user_id === MEMBER_ID && args.p_server_id === SERVER_ID && args.p_channel_id === GENERAL
         return { data: views, error: null }
       }
+      if (name === 'bridge_channel_platform') return { data: state.matrixPlatform, error: state.matrixError ? { message: 'offline' } : null }
       if (name === 'channel_message_changes') return { data: { now: new Date().toISOString(), messages: [] }, error: null }
       if (name === 'discord_bridge_instance_hosted') {
         return { data: state.instanceToken ? { discord_token: state.instanceToken, bridges: [] } : null, error: null }
@@ -76,6 +79,7 @@ state.db = new FakeDb({
 
 const mod = await import('../index.js')
 const { app, gateway, linkRefresher } = mod
+const { forgetBridgeConsent } = await import('../bridge/memberConsent.js')
 
 afterAll(async () => {
   mod.interactionPoller.stop()
@@ -90,9 +94,16 @@ function connect(botId: string, username: string) {
 }
 
 function bridgeMembers(channelId: string, username: string) {
-  const byChannel = (gateway as any).bridgedUsersByChannel as Map<string, any[]>
-  byChannel.set(channelId, [{ id: username, username, displayName: username, source: 'discord' }])
+  const byChannel = (gateway as any).bridgedUsersByChannel as Map<string, Map<string, any[]>>
+  byChannel.set(channelId, new Map([[BRIDGE_BOT, [{ id: username, username, displayName: username, source: 'discord' }]]]))
 }
+
+describe('the HTTP server', () => {
+  it('gives a request body 1800 s, an upload reservation\'s lease, and its headers 60 s', () => {
+    expect(mod.server.requestTimeout).toBe(1_800_000)
+    expect(mod.server.headersTimeout).toBe(60_000)
+  })
+})
 
 describe('GET /status', () => {
   connect(BRIDGE_BOT, 'public-bridge')
@@ -113,6 +124,28 @@ describe('GET /status', () => {
 })
 
 describe('GET /bridged-users', () => {
+  it('lists a Matrix registration only while its bot relays the channel to Matrix', async () => {
+    ;(gateway as any).bridgedUsersByChannel.set(GENERAL, new Map([[BRIDGE_BOT, [{ id: '@sam:example.org', username: 'sam', displayName: 'Sam', avatarUrl: '', source: 'matrix' }]]]))
+    const route = `/bridged-users/${GENERAL}`
+    const get = () => supertest(app).get(route).set('Authorization', 'Bearer auth-member')
+    try {
+      forgetBridgeConsent()
+      expect((await get()).body).toMatchObject({ has_bridge: true, users: [{ id: '@sam:example.org', source: 'matrix' }] })
+      state.matrixPlatform = null
+      forgetBridgeConsent()
+      // has_bridge reports the registration; the unbound registration lists no one.
+      expect((await get()).body).toMatchObject({ has_bridge: true, users: [] })
+      state.matrixPlatform = 'matrix'
+      state.matrixError = true
+      forgetBridgeConsent()
+      expect((await get()).status).toBe(503)
+    } finally {
+      state.matrixPlatform = 'matrix'
+      state.matrixError = false
+      forgetBridgeConsent()
+    }
+  })
+
   it('serves a channel\'s Discord members only to a member who views the channel', async () => {
     bridgeMembers(GENERAL, 'discord_member')
     bridgeMembers(STAFF, 'discord_admin')
@@ -131,8 +164,8 @@ describe('GET /bridged-users', () => {
   it('leaves out a member who opted out or whom a manager removed, whatever the bridge registered', async () => {
     const KEPT = '400000000000000001'
     const REMOVED = '400000000000000002'
-    const byChannel = (gateway as any).bridgedUsersByChannel as Map<string, any[]>
-    byChannel.set(GENERAL, [KEPT, REMOVED].map((id) => ({ id, username: `u${id}`, displayName: `u${id}`, source: 'discord' })))
+    const byChannel = (gateway as any).bridgedUsersByChannel as Map<string, Map<string, any[]>>
+    byChannel.set(GENERAL, new Map([[BRIDGE_BOT, [KEPT, REMOVED].map((id) => ({ id, username: `u${id}`, displayName: `u${id}`, source: 'discord' }))]]))
     state.db.rows('bridge_remote_optouts').push(
       { server_id: SERVER_ID, platform: 'discord', remote_user_id: REMOVED, source: 'manager' },
       { server_id: 'another-server', platform: 'discord', remote_user_id: KEPT, source: 'self' },
@@ -147,6 +180,17 @@ describe('GET /bridged-users', () => {
       expect(server.body.users.map((u: { id: string }) => u.id)).toEqual([KEPT])
     } finally {
       state.db.tables.bridge_remote_optouts = []
+    }
+  })
+
+  it('answers 503 when the opt-out list cannot be read', async () => {
+    bridgeMembers(GENERAL, 'discord_member')
+    state.db.failures.bridge_remote_optouts = { message: 'connection reset' }
+    try {
+      expect((await supertest(app).get(`/bridged-users/${GENERAL}`).set('Authorization', 'Bearer auth-member')).status).toBe(503)
+      expect((await supertest(app).get(`/bridged-users/server/${SERVER_ID}`).set('Authorization', 'Bearer auth-member')).status).toBe(503)
+    } finally {
+      delete state.db.failures.bridge_remote_optouts
     }
   })
 })

@@ -30,7 +30,8 @@
             :class="{ pinned: announcement.is_pinned }"
           >
             <div class="card-header">
-              <Icon :name="getIconName(announcement.icon)" size="sm" class="announcement-icon" aria-hidden="true" />
+              <span v-if="announcementIcon(announcement.icon).emoji" class="announcement-icon announcement-emoji" aria-hidden="true">{{ announcementIcon(announcement.icon).emoji }}</span>
+              <Icon v-else :name="announcementIcon(announcement.icon).name!" size="sm" class="announcement-icon" aria-hidden="true" />
               <h3 class="announcement-title">{{ announcement.title }}</h3>
               <span v-if="announcement.is_pinned" class="pin-badge">{{ $t('a11y.announcements.pinned') }}</span>
             </div>
@@ -103,6 +104,7 @@ import { ref, onMounted } from 'vue'
 import { useDialog } from '@/composables/useDialog'
 import { useRouter } from 'vue-router'
 import { renderAnnouncementHtml } from '@/utils/announcementContent'
+import { announcementIcon } from '@/utils/announcementIcon'
 import { useInstanceEmojiUrls } from '@/composables/useInstanceEmojiUrls'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { userDataService } from '@/services/userDataService'
@@ -123,18 +125,6 @@ const { titleId } = useDialog({
 
 const instanceEmoji = useInstanceEmojiUrls()
 const sanitizeContent = (content: string) => renderAnnouncementHtml(content, instanceEmoji.value)
-
-const getIconName = (icon: string): string => {
-  const icons: Record<string, string> = {
-    info: 'info',
-    warning: 'alert-triangle',
-    celebration: 'megaphone',
-    maintenance: 'wrench',
-    update: 'refresh-cw',
-    security: 'shield'
-  }
-  return icons[icon] || 'info'
-}
 
 const formatDate = (dateStr: string): string => {
   return new Date(dateStr).toLocaleDateString(undefined, {
@@ -284,6 +274,12 @@ onMounted(async () => {
 .announcement-icon {
   flex-shrink: 0;
   color: var(--text-secondary);
+}
+
+/* An emoji in the icon's 16 px box. */
+.announcement-emoji {
+  font-size: 16px;
+  line-height: 1;
 }
 
 .announcement-title {

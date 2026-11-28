@@ -310,7 +310,7 @@ SQL
 	# database; afterwards the admin panel owns both. Name first: its condition
 	# reads the domain row the second statement changes.
 	if [[ -n "$DOMAIN" ]]; then
-		result="$(psql_exec -qtA -v domain="$DOMAIN" -v name="${INSTANCE_NAME:-Harmony}" <<'SQL'
+		result="$(psql_exec -qtA -v domain="$DOMAIN" -v name="${INSTANCE_NAME:-$DOMAIN}" <<'SQL'
 BEGIN;
 UPDATE public.instance_config
    SET config_value = to_jsonb(:'name'::text), updated_at = now()

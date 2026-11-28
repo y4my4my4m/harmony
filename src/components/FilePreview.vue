@@ -7,8 +7,8 @@
         <span>{{ t('messageA11y.upload.uploading') }}</span>
       </div>
     </div>
-    <ul class="file-preview-list" :aria-label="t('messageA11y.upload.listLabel')">
-      <li v-for="(file, index) in files" :key="index" class="file-preview-item" :class="{ uploading: file.uploadStatus === 'uploading', error: file.uploadStatus === 'error' }" data-testid="file-preview-item">
+    <ul ref="listEl" class="file-preview-list" :aria-label="t('messageA11y.upload.listLabel')">
+      <li v-for="(file, index) in files" :key="rowKey(file)" class="file-preview-item" :class="{ uploading: file.uploadStatus === 'uploading', error: file.uploadStatus === 'error' }" data-testid="file-preview-item">
         <div class="file-thumbnail">
           <img 
             v-if="isImage(file)" 
@@ -142,7 +142,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, toRaw } from 'vue';
 import type { MessageMediaUpload } from '@/services/messageMediaUpload';
 import { isSpoilerFileName } from '@/utils/spoiler';
 import Icon from '@/components/common/Icon.vue';
@@ -244,8 +244,31 @@ const hasUploading = computed(() => {
       return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     };
 
-    const removeFile = (index: number) => {
+    // Row identity per attachment: a removal or reorder leaves each row's element (thumbnail,
+    // upload bar, focus) with its own file.
+    const rowKeys = new WeakMap<FilePreviewData, number>();
+    let nextRowKey = 0;
+    const rowKey = (file: FilePreviewData) => {
+      const raw = toRaw(file);
+      let key = rowKeys.get(raw);
+      if (key === undefined) {
+        key = ++nextRowKey;
+        rowKeys.set(raw, key);
+      }
+      return key;
+    };
+
+    const listEl = ref<HTMLUListElement | null>(null);
+
+    // The removed row takes its focused button with it; focus goes to the Remove of the row
+    // now in its place, else of the row before.
+    const removeFile = async (index: number) => {
+      const hadFocus = !!listEl.value?.contains(document.activeElement);
       emit('remove-file', index);
+      if (!hadFocus) return;
+      await nextTick();
+      const buttons = listEl.value?.querySelectorAll<HTMLButtonElement>('.remove-file-btn');
+      if (buttons?.length) buttons[Math.min(index, buttons.length - 1)].focus();
     };
 
 

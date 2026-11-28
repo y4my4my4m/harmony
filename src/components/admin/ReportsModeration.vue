@@ -284,6 +284,7 @@ import DisplayName from '@/components/DisplayName.vue'
 import CopyIdButton from './CopyIdButton.vue'
 import { adminService } from '@/services/AdminService'
 import { reportService, type ReportWithDetails } from '@/services/ReportService'
+import type { UsersDelta } from '@/composables/useInstanceStats'
 import { userDataService } from '@/services/userDataService'
 import { supabase } from '@/supabase'
 import { MESSAGE_MEDIA_BUCKET, mediaPartSource, storageObjectFromUrl } from '@/services/privateMedia'
@@ -580,7 +581,9 @@ const runAction = async (report: ReportWithDetails, action: ReportAction) => {
       expandedReportId.value = null
     }
     if (action === 'suspend_account' || action === 'silence_account') {
-      window.dispatchEvent(new CustomEvent('admin:users-changed'))
+      const delta: UsersDelta | null =
+        action === 'suspend_account' && !report.reported_user_is_suspended ? { suspended: 1 } : null
+      window.dispatchEvent(new CustomEvent('admin:users-changed', { detail: delta }))
     }
     await refresh()
   } finally {

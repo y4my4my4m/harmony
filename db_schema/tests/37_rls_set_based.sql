@@ -150,7 +150,7 @@ SELECT is_empty(
 SELECT is_empty(
     $q$SELECT 1 FROM public.posts WHERE id = 'f3730000-0000-0000-0000-000000000006'$q$,
     'a blocked user does not read the public post of the user who blocked them');
-SELECT set_eq($q$SELECT public.current_user_block_peer_ids()$q$,
+SELECT set_eq($q$SELECT harmony_private.current_user_block_peer_ids()$q$,
               $q$VALUES ('f3710000-0000-0000-0000-0000000000a4'::uuid),
                         ('f3710000-0000-0000-0000-0000000000a5'::uuid),
                         ('f3710000-0000-0000-0000-0000000000a8'::uuid)$q$,
@@ -196,7 +196,7 @@ SELECT set_eq(
     $q$VALUES ('f3730000-0000-0000-0000-000000000005'::uuid),
               ('f3730000-0000-0000-0000-000000000006'::uuid)$q$,
     'a user outside every block reads both blocked parties'' public posts');
-SELECT is_empty($q$SELECT public.current_user_block_peer_ids()$q$,
+SELECT is_empty($q$SELECT harmony_private.current_user_block_peer_ids()$q$,
     'current_user_block_peer_ids is empty for a user with no blocks');
 
 SELECT tests.authenticate_as('f3700000-0000-0000-0000-0000000000a9');
@@ -212,7 +212,7 @@ SELECT set_eq(
     $q$SELECT ('f3730000-0000-0000-0000-00000000000' || k)::uuid
          FROM unnest(ARRAY['1','2','5','6']) k$q$,
     'anon reads public and unlisted posts only');
-SELECT is_empty($q$SELECT public.current_user_block_peer_ids()$q$,
+SELECT is_empty($q$SELECT harmony_private.current_user_block_peer_ids()$q$,
     'anon executes current_user_block_peer_ids and gets an empty set');
 
 -- EQUIVALENCE WITH THE BASELINE PREDICATES -----------------------------------------------
@@ -269,7 +269,7 @@ ALTER POLICY "posts_select_public" ON public.posts
     USING (
         author_id = ( SELECT public.get_current_profile_id() )
         OR (
-            NOT public.is_blocked_by(author_id)
+            NOT harmony_private.is_blocked_by(author_id)
             AND NOT public.has_blocked(author_id)
             AND (
                 visibility IN ('public', 'unlisted')

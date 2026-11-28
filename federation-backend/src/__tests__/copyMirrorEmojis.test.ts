@@ -97,7 +97,7 @@ const rpc = vi.fn(async (_name: string, _args: any) => ({ data: 0, error: null }
 vi.mock('../config/supabase.js', () => ({ getSupabaseClient: () => ({ from: query, rpc }) }))
 
 const { emojisToAp, parseGroupEmojis, MAX_EMOJIS } = await import('../activitypub/copyMirror.js')
-const { CopyMirrorService, urlChunks, COPY_EMOJI_INSERTS_PER_HOUR, COPY_EMOJI_REMOVED_KEPT } = await import('../services/CopyMirrorService.js')
+const { CopyMirrorService, urlChunks, COPY_EMOJI_INSERTS_PER_HOUR, COPY_EMOJI_CHANGES_PER_HOUR, COPY_EMOJI_REMOVED_KEPT } = await import('../services/CopyMirrorService.js')
 
 const copyRows = () => db.emojis.filter(e => e.server_id === COPY)
 const byAp = (n: number) => db.emojis.find(e => e.ap_id === apId(n))
@@ -198,7 +198,7 @@ describe('applyGroupEmojis', () => {
     expect(parts.length).toBeGreaterThan(1)
     for (const part of parts) expect(part.map((u) => encodeURIComponent(u).length + 9).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(4_000)
 
-    failSelect = 'id, url, domain, server_id, ap_id, scope, deleted_at, deleted_by'
+    failSelect = 'id, url, domain, server_id, ap_id, scope, deleted_at, deleted_by, ap_removed_at'
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'wave', url: img('wave') }])
     expect(db.emojis).toEqual([])
   })
@@ -206,14 +206,15 @@ describe('applyGroupEmojis', () => {
   it('renames, changes the image and restores what the Group lists again', async () => {
     db.emojis = [
       { id: 'r1', name: 'old', url: img('old'), server_id: COPY, scope: 'server', domain: 'remote.test', ap_id: apId(1), deleted_at: null },
-      { id: 'r2', name: 'back', url: img('back'), server_id: COPY, scope: 'server', domain: 'remote.test', ap_id: apId(2), deleted_at: '2026-01-01T00:00:00Z' },
+      { id: 'r2', name: 'back', url: img('back'), server_id: COPY, scope: 'server', domain: 'remote.test', ap_id: apId(2),
+        deleted_at: '2026-01-01T00:00:00Z', ap_removed_at: '2026-01-01T00:00:00Z' },
     ]
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [
       { apId: apId(1), name: 'new', url: img('new') },
       { apId: apId(2), name: 'back', url: img('back') },
     ])
     expect(db.emojis.find(e => e.id === 'r1')).toMatchObject({ name: 'new', url: img('new') })
-    expect(db.emojis.find(e => e.id === 'r2')?.deleted_at).toBeNull()
+    expect(db.emojis.find(e => e.id === 'r2')).toMatchObject({ deleted_at: null, ap_removed_at: null })
     expect(copyRows()).toHaveLength(2)
   })
 
@@ -226,6 +227,7 @@ describe('applyGroupEmojis', () => {
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'kept', url: img('kept') }])
     expect(byAp(1)?.deleted_at).toBeNull()
     expect(typeof byAp(2)?.deleted_at).toBe('string')
+    expect(byAp(2)?.ap_removed_at).toBe(byAp(2)?.deleted_at)
     expect(db.emojis.find(e => e.id === 'own')?.deleted_at).toBeNull()
 
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [])
@@ -245,8 +247,9 @@ describe('applyGroupEmojis', () => {
     db.emojis = [
       { id: 'banned', name: 'rude', url: img('rude'), server_id: null, scope: 'server', domain: 'remote.test', ap_id: null,
         deleted_at: '2026-01-01T00:00:00Z', deleted_by: 'admin-1' },
+      // A copy row the sync dropped, detached when its copy was deleted.
       { id: 'synced', name: 'wave', url: img('wave'), server_id: null, scope: 'server', domain: 'remote.test', ap_id: null,
-        deleted_at: '2026-01-02T00:00:00Z', deleted_by: null },
+        deleted_at: '2026-01-02T00:00:00Z', deleted_by: null, ap_removed_at: '2026-01-02T00:00:00Z' },
     ]
     await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [
       { apId: apId(1), name: 'rude', url: img('rude') },
@@ -255,7 +258,7 @@ describe('applyGroupEmojis', () => {
     expect(db.emojis.find(e => e.id === 'banned')).toMatchObject({
       server_id: COPY, ap_id: apId(1), deleted_at: '2026-01-01T00:00:00Z', deleted_by: 'admin-1',
     })
-    expect(db.emojis.find(e => e.id === 'synced')).toMatchObject({ server_id: COPY, ap_id: apId(2), deleted_at: null, deleted_by: null })
+    expect(db.emojis.find(e => e.id === 'synced')).toMatchObject({ server_id: COPY, ap_id: apId(2), deleted_at: null, deleted_by: null, ap_removed_at: null })
     expect(db.emojis).toHaveLength(2)
   })
 
@@ -289,6 +292,72 @@ describe('applyGroupEmojis', () => {
     ])
     expect(byAp(1)).toBeDefined()
     expect(byAp(2)).toBeUndefined()
+  })
+
+  it('keeps an admin\'s removal after the admin\'s account is gone, and drops the row again when relisted', async () => {
+    // deleted_by is ON DELETE SET NULL: the removal outlives the admin's account.
+    db.emojis = [
+      { id: 'r1', name: 'rude', url: img('rude'), server_id: COPY, scope: 'server', domain: 'remote.test', ap_id: apId(1),
+        deleted_at: '2026-01-01T00:00:00Z', deleted_by: null, ap_removed_at: null },
+      // Cached from the Group's instance and removed by an admin since deleted.
+      { id: 'cached', name: 'gross', url: img('gross'), server_id: null, scope: 'server', domain: 'remote.test', ap_id: null,
+        deleted_at: '2026-01-02T00:00:00Z', deleted_by: null, ap_removed_at: null },
+    ]
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [
+      { apId: apId(1), name: 'rude', url: img('rude') },
+      { apId: apId(2), name: 'gross', url: img('gross') },
+    ])
+    expect(byAp(1)).toMatchObject({ deleted_at: '2026-01-01T00:00:00Z', deleted_by: null })
+    expect(byAp(2)).toMatchObject({ id: 'cached', deleted_at: '2026-01-02T00:00:00Z' })
+  })
+
+  it('tells its own drop from a later removal by a person, which another deleted_at no longer matches', async () => {
+    db.emojis = [
+      { id: 'r1', name: 'wave', url: img('wave'), server_id: COPY, scope: 'server', domain: 'remote.test', ap_id: apId(1),
+        deleted_at: '2026-01-03T00:00:00Z', deleted_by: null, ap_removed_at: '2026-01-01T00:00:00Z' },
+    ]
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'wave', url: img('wave') }])
+    expect(byAp(1)?.deleted_at).toBe('2026-01-03T00:00:00Z')
+  })
+
+  it('merges the other cached rows of an image after taking one over', async () => {
+    db.emojis = [
+      { id: 'cached', name: 'wave', url: img('wave'), server_id: null, scope: 'server', domain: 'remote.test', ap_id: null, deleted_at: null },
+    ]
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'wave', url: img('wave') }])
+    expect(rpc).toHaveBeenCalledWith('merge_copy_emoji_duplicates', { p_server_id: COPY })
+    rpc.mockClear()
+    await CopyMirrorService.applyGroupEmojis(COPY, GROUP, [{ apId: apId(1), name: 'wave', url: img('wave') }])
+    expect(rpc).not.toHaveBeenCalledWith('merge_copy_emoji_duplicates', expect.anything())
+  })
+
+  it(`changes at most ${COPY_EMOJI_CHANGES_PER_HOUR} rows per copy an hour, renames, images and restores alike; drops are free`, async () => {
+    const copy = 'copy-churn'
+    const n = 1000
+    db.emojis = Array.from({ length: n }, (_, i) => ({
+      id: `c${i}`, name: `a${i}`, url: img(`a${i}`), server_id: copy, scope: 'server', domain: 'remote.test',
+      ap_id: apId(i + 1), deleted_at: null, deleted_by: null, created_at: '2026-01-01T00:00:00Z',
+    }))
+    const rows = () => db.emojis.filter(e => e.server_id === copy)
+    const list = (tag: string) => Array.from({ length: n }, (_, i) => ({ apId: apId(i + 1), name: `${tag}${i}`, url: img(`a${i}`) }))
+
+    await CopyMirrorService.applyGroupEmojis(copy, GROUP, list('b'))
+    await CopyMirrorService.applyGroupEmojis(copy, GROUP, list('a'))
+    expect(rows().every(e => e.name.startsWith('a'))).toBe(true)
+
+    // The budget is spent: the next rename waits.
+    await CopyMirrorService.applyGroupEmojis(copy, GROUP, list('c'))
+    expect(rows().filter(e => e.name.startsWith('c'))).toHaveLength(0)
+
+    // An unchanged list changes nothing and spends nothing.
+    await CopyMirrorService.applyGroupEmojis(copy, GROUP, list('a'))
+    expect(rows().every(e => e.name.startsWith('a'))).toBe(true)
+
+    // A drop still applies; the restore it calls for waits.
+    await CopyMirrorService.applyGroupEmojis(copy, GROUP, list('a').slice(1))
+    expect(typeof rows().find(e => e.id === 'c0')?.deleted_at).toBe('string')
+    await CopyMirrorService.applyGroupEmojis(copy, GROUP, list('a'))
+    expect(typeof rows().find(e => e.id === 'c0')?.deleted_at).toBe('string')
   })
 
   it(`leaves the dropped emojis past the most recent ${COPY_EMOJI_REMOVED_KEPT} to evict_copy_emojis`, async () => {

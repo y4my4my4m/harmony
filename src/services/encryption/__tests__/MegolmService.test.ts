@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { indexedDB } from 'fake-indexeddb'
 import { MegolmService } from '../MegolmService'
@@ -324,6 +324,94 @@ describe('MegolmService', () => {
       // Decrypt should work
       const decrypted = await service.decryptMessage(TEST_ROOM_ID, TEST_USER_ID, encrypted)
       expect(decrypted).toBe(plaintext)
+    })
+  })
+
+  // ─── Replay record ───────────────────────────────────────
+
+  describe('message index record', () => {
+    const SENDER = 'cccccccc-1111-2222-3333-444444444444'
+    let sessionId: string
+
+    beforeEach(async () => {
+      sessionId = 'c2Vzc2lvbi1yZXBsYXk='
+      await service.importInboundSession(TEST_ROOM_ID, SENDER, sessionId, btoa('k'.repeat(32)), 0)
+    })
+
+    const note = (index: number, id: string, at?: number) =>
+      service.noteMessageIndex(TEST_ROOM_ID, SENDER, sessionId, index, id, at)
+
+    it('a second message id at a held index is a replay', async () => {
+      expect(await note(4, 'original', 1000)).toBe(false)
+      expect(await note(4, 'copy', 5000)).toBe(true)
+    })
+
+    it('the same message read again is no replay', async () => {
+      expect(await note(4, 'original', 1000)).toBe(false)
+      expect(await note(4, 'original', 1000)).toBe(false)
+    })
+
+    it('an edit is a new index of the same message', async () => {
+      expect(await note(4, 'original', 1000)).toBe(false)
+      expect(await note(9, 'original', 1000)).toBe(false)
+      expect(await note(4, 'original', 1000)).toBe(false)
+    })
+
+    it('the earlier-sent message keeps the index when the copy is read first', async () => {
+      expect(await note(4, 'copy', 5000)).toBe(false)
+      expect(await note(4, 'original', 1000)).toBe(false)
+      expect(await note(4, 'copy', 5000)).toBe(true)
+    })
+
+    it('without send times the first message read keeps the index', async () => {
+      expect(await note(4, 'first')).toBe(false)
+      expect(await note(4, 'second')).toBe(true)
+    })
+
+    it('outlives a reload of the session store', async () => {
+      await note(4, 'original', 1000)
+      service.close()
+      await service.initialize(TEST_USER_ID, encryptionKey)
+      expect(await note(4, 'copy', 5000)).toBe(true)
+    })
+
+    it('every index noted by one page decrypt outlives a reload', async () => {
+      await Promise.all(Array.from({ length: 20 }, (_, i) => note(i, `m${i}`, 1000 + i)))
+      service.close()
+      await service.initialize(TEST_USER_ID, encryptionKey)
+      const replays = await Promise.all(Array.from({ length: 20 }, (_, i) => note(i, `copy${i}`, 9000)))
+      expect(replays.every(Boolean)).toBe(true)
+    })
+
+    it('a page decrypt writes the session a few times, not once per message', async () => {
+      const writes = vi.spyOn(service as any, 'saveInboundSession')
+      await Promise.all(Array.from({ length: 50 }, (_, i) => note(i, `m${i}`, 1000 + i)))
+      expect(writes.mock.calls.length).toBeLessThanOrEqual(2)
+      writes.mockRestore()
+    })
+
+    it('outlives a fresh import of the same session key', async () => {
+      await note(4, 'original', 1000)
+      await service.importInboundSession(TEST_ROOM_ID, SENDER, sessionId, btoa('k'.repeat(32)), 0)
+      expect(await note(4, 'copy', 5000)).toBe(true)
+    })
+
+    it('is kept apart per sender and session', async () => {
+      await note(4, 'original', 1000)
+      await service.importInboundSession(TEST_ROOM_ID, TEST_USER_ID, 'b3RoZXItc2Vzc2lvbg==', btoa('j'.repeat(32)), 0)
+      expect(await service.noteMessageIndex(TEST_ROOM_ID, TEST_USER_ID, 'b3RoZXItc2Vzc2lvbg==', 4, 'copy', 5000)).toBe(false)
+    })
+
+    it('stays out of the key backup', async () => {
+      await note(4, 'original', 1000)
+      const exported = await service.exportAllSessions()
+      const inbound = exported.inbound.find(s => s.sessionId === sessionId)!
+      expect(inbound.sessionKey).toBeTruthy()
+      expect(Object.keys(inbound)).not.toContain('seenIndices')
+    })
+
+    it('a session this device does not hold records nothing', async () => {
+      expect(await service.noteMessageIndex(TEST_ROOM_ID, SENDER, 'bm8tc3VjaC1zZXNzaW9u', 4, 'copy', 5000)).toBe(false)
     })
   })
 

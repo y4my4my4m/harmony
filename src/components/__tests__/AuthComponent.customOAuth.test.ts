@@ -101,7 +101,10 @@ describe('AuthComponent custom OAuth providers', () => {
     ]
     const w = await mountAuth()
     const buttons = w.findAll('.oauth-section button.oauth-btn')
-    expect(buttons.map((b) => b.text())).toEqual([
+    // Three buttons: two columns, labelled with the provider's name; the accessible name is unchanged.
+    expect(w.find('.oauth-section').classes()).toContain('compact')
+    expect(buttons.map((b) => b.text())).toEqual(['GitHub', 'Authentik', 'Better Auth'])
+    expect(buttons.map((b) => b.attributes('aria-label'))).toEqual([
       'auth.oauth.github',
       'auth.oauth.custom:Authentik',
       'auth.oauth.custom:Better Auth',
@@ -118,6 +121,8 @@ describe('AuthComponent custom OAuth providers', () => {
     rows.value = [{ config_key: 'custom_oauth_providers', config_value: [{ id: 'custom:dex', name: 'Dex' }] }]
     const w = await mountAuth()
     expect(w.findAll('.oauth-section button').map((b) => b.text())).toEqual(['auth.oauth.custom:Dex'])
+    expect(w.find('.oauth-section').classes()).not.toContain('compact')
+    expect(w.find('.oauth-section button').attributes('aria-label')).toBeUndefined()
   })
 
   it('signs in through GoTrue with the custom identifier', async () => {
@@ -127,6 +132,25 @@ describe('AuthComponent custom OAuth providers', () => {
     await flushPromises()
     expect(sb.auth.signInWithOAuth).toHaveBeenCalledWith({
       provider: 'custom:dex',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        skipBrowserRedirect: false,
+        queryParams: undefined,
+      },
+    })
+  })
+
+  it('offers Discord after the other built-in providers and signs in through GoTrue\'s discord provider', async () => {
+    rows.value = [{ config_key: 'oauth_providers', config_value: ['discord', 'google'] }]
+    const w = await mountAuth()
+    const buttons = w.findAll('.oauth-section button.oauth-btn')
+    expect(buttons.map((b) => b.text())).toEqual(['auth.oauth.google', 'auth.oauth.discord'])
+    expect(buttons[1].classes()).toContain('oauth-discord')
+    expect(buttons[1].find('.oauth-icon svg path').attributes('d')).toBeTruthy()
+    await buttons[1].trigger('click')
+    await flushPromises()
+    expect(sb.auth.signInWithOAuth).toHaveBeenCalledWith({
+      provider: 'discord',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
         skipBrowserRedirect: false,

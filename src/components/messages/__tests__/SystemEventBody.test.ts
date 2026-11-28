@@ -108,6 +108,16 @@ describe('SystemEventBody', () => {
     expect(text(render({ type: 'thread_created', actor_name: 'Remote Bot' }))).toBe('Remote Bot started a thread.')
   })
 
+  it.each([
+    ['discord', { discord_user: { id: '1', username: 'finn', display_name: 'Finn' } }],
+    ['matrix', { matrix_user: { id: '@finn:example.org', username: 'finn', display_name: 'Finn' } }],
+  ])('marks a %s thread starter with the platform badge', (platform, person) => {
+    const w = render({ type: 'thread_created', actor_bot_id: BOT, ...person, thread_id: THREAD, thread_name: 'Lounge' })
+    expect(text(w)).toBe('Finn started a thread: Lounge. See all threads.')
+    expect(w.getComponent({ name: 'BridgeSourceBadge' }).props('source')).toBe(platform)
+    expect(w.text()).not.toContain('example.org')
+  })
+
   it('reads calls from the caller in actor_id', () => {
     expect(text(render({ type: 'call_started', actor_id: BOB, call_type: 'video' }))).toBe('Bob started a video call. | Join')
     expect(text(render({ type: 'call_ended', actor_id: BOB, call_type: 'voice', participants: [BOB, ME], duration_seconds: 185 })))

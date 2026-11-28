@@ -5,8 +5,12 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.clear()
+  vi.resetModules()
+  // The choice is per account; the stored sign-in is read again on every module load.
+  const { userStorage } = await import('@/utils/userScopedStorage')
+  userStorage.setCurrentUser('account-1')
   vi.resetModules()
 })
 

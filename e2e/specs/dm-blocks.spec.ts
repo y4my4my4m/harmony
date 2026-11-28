@@ -1,9 +1,12 @@
-// Journey: a block in a direct conversation, both ways, and the unblock (20261111500001_dm_blocks.sql).
+// Journey: a block in a direct conversation, both ways, and the unblock (20261111500001_dm_blocks.sql,
+// 20261123500001_blocks_hidden_from_blocked.sql, 20261123500002_dm_block_guards_edits.sql).
 //
 // The blocker presses Block while its page still shows no block (the row was written behind it):
 // the block stays. The blocker's composer turns into an Unblock prompt and the blocked account's
 // earlier message collapses. The blocked account's send is refused once, with a toast and its draft
-// back, and nothing is stored. After Unblock both write again.
+// back, and nothing is stored. It reads no block naming it, and its edit of the earlier message is
+// refused as its send was. Its call, placed from another voice call, is refused before the switch
+// and leaves it in that call (20261123500007_check_dm_call.sql). After Unblock both write again.
 //
 // The e2e stack runs no realtime service: each page reads the other's writes on load.
 
@@ -18,6 +21,7 @@ import {
   messageList,
   sendMessage,
   signIn,
+  userClient,
   type SpecUser,
 } from './harness'
 
@@ -116,6 +120,65 @@ test('a block stops a direct conversation both ways until the unblock', async ({
     // A retried send would land after the toast: the auto-retries wait 2 s and 4 s.
     await blockedPage.waitForTimeout(7000)
     expect(await storedTexts()).toEqual(['before the block'])
+  })
+
+  await test.step('the blocked account reads no block and cannot ask who blocks it', async () => {
+    const client = await userClient(blocked)
+    const rows = await client.from('user_blocks').select('blocker_id, blocked_user_id')
+    expect(rows.error).toBeNull()
+    expect(rows.data).toEqual([])
+    expect((await client.rpc('is_blocked_by', { target_user_id: blocker.id })).error?.code).toBe('PGRST202')
+    expect((await client.rpc('current_user_block_peer_ids')).error?.code).toBe('PGRST202')
+  })
+
+  await test.step('the blocked account\'s edit of its earlier message is refused, its text kept', async () => {
+    const refusals = blockedPage.locator('.Vue-Toastification__toast--error').filter({ hasText: 'could not be delivered' })
+    await expect(refusals).toHaveCount(0, { timeout: 30000 })
+    const row = messageList(blockedPage).getByRole('article').filter({ hasText: 'before the block' })
+    await row.focus()
+    await blockedPage.keyboard.press('e')
+    const editor = row.getByRole('textbox', { name: 'Edit message' })
+    await expect(editor).toBeFocused()
+    await blockedPage.keyboard.press('ControlOrMeta+End')
+    await blockedPage.keyboard.type(' edited while blocked')
+    await blockedPage.keyboard.press('Enter')
+
+    await expect(refusals.first()).toBeVisible({ timeout: 30000 })
+    // The editor reopens with the attempted text; Escape leaves the row as stored.
+    await blockedPage.keyboard.press('Escape')
+    await expect(editor).toHaveCount(0)
+    await expect(row).not.toContainText('edited while blocked')
+    expect(await storedTexts()).toEqual(['before the block'])
+  })
+
+  await test.step('the blocked account\'s call from another voice call is refused before the switch', async () => {
+    // The stack has no voice server: the store is set as a joined call leaves it (activities.spec.ts).
+    const setVoice = (connected: boolean) => blockedPage.evaluate((on) => {
+      type Store = { $patch: (fn: (state: Record<string, any>) => void) => void }
+      const root = document.querySelector('#app') as unknown as {
+        __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, Store> } } } }
+      }
+      root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')!.$patch((state) => {
+        state.isConnected = on
+        state.currentChannelId = on ? 'lounge-elsewhere' : null
+        state.currentChannelName = on ? 'lounge' : null
+      })
+    }, connected)
+    const voiceChannel = () => blockedPage.evaluate(() => {
+      const root = document.querySelector('#app') as any
+      const voice = root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')
+      return voice.isConnected ? voice.currentChannelId : null
+    })
+    await setVoice(true)
+    await blockedPage.locator('[data-testid="dm-call"]').click()
+
+    await expect(blockedPage.locator('.Vue-Toastification__toast--error').filter({ hasText: 'Your call could not be placed.' }))
+      .toBeVisible({ timeout: 30000 })
+    await expect(blockedPage.getByText('Switch calls?')).toHaveCount(0)
+    expect(await voiceChannel()).toBe('lounge-elsewhere')
+    const notices = await admin.from('messages').select('id').eq('conversation_id', conversationId).eq('is_system', true)
+    expect(notices.data ?? []).toEqual([])
+    await setVoice(false)
   })
 
   await test.step('Unblock in the prompt brings the composer back', async () => {

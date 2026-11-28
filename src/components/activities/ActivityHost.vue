@@ -6,8 +6,9 @@
   in the DOM, so frames keep their state.
 
   Stacking: the player paints just above the slot's root-level stacking ancestor. It takes that
-  ancestor's z-index when it follows it in tree order (.persistent-voice; App.vue mounts the
-  player next), one more when it precedes it (the call view, teleported to the end of <body>).
+  ancestor's z-index when it follows it in tree order, one more when it precedes it (the voice
+  layer .persistent-voice and the call view, both teleported to <body>). The ancestor's z-index
+  is read every frame: the voice layer drops under dialogs while inert.
   Panels and pickers teleported above that layer cover the player as they cover the call.
   Under a slot inside an element marked data-activity-under (the call view in full screen, whose
   chrome floats over the video), the player paints just under that root instead: the root's
@@ -236,6 +237,8 @@ function trackSlot(): void {
       if (el !== layerFor) {
         layerFor = el
         layerRoot = rootLayer(el)
+      } else if (layerRoot) {
+        layerRoot.z = Number(getComputedStyle(layerRoot.el).zIndex) || 0
       }
       // Per frame: the player and the call view move between windows with the pop-out.
       const below = !!el.closest('[data-activity-under]')
@@ -420,8 +423,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .activity-host {
   position: fixed;
-  /* The voice layer (.persistent-voice); a slot's own root layer overrides it inline. */
-  z-index: 9998;
+  /* One over the voice layer (.persistent-voice, 9998), which follows it in tree order; a slot's
+     own root layer overrides it inline. */
+  z-index: 9999;
   overflow: hidden;
   background: #000;
   border-radius: 12px;

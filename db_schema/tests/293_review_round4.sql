@@ -243,16 +243,17 @@ INSERT INTO public.servers (id, name, owner, is_local_server, federation_enabled
 VALUES ('f2930000-0000-0000-0000-0000000000f0', 'Copy 293', 'f2930000-0000-0000-0000-0000000000e1', false, true,
         'remote.test', 'https://remote.test/servers/f2930000-0000-0000-0000-0000000000f0');
 -- 1600 dropped within the hour (they stay), then one dropped hours ago: past any window of 1500.
-INSERT INTO public.emojis (name, url, server_id, scope, domain, ap_id, created_at, deleted_at)
+-- The sync's drops carry ap_removed_at = deleted_at (20261123400002).
+INSERT INTO public.emojis (name, url, server_id, scope, domain, ap_id, created_at, deleted_at, ap_removed_at)
 SELECT 'n293_' || n, 'https://remote.test/e/n' || n || '.webp', 'f2930000-0000-0000-0000-0000000000f0', 'server',
        'remote.test', 'https://remote.test/servers/f2930000-0000-0000-0000-0000000000f0/emojis/n' || n,
-       now() - interval '10 minutes', now() - interval '1 minute' * (n % 9 + 1)
+       now() - interval '10 minutes', now() - interval '1 minute' * (n % 9 + 1), now() - interval '1 minute' * (n % 9 + 1)
   FROM generate_series(1, 1600) AS n;
-INSERT INTO public.emojis (id, name, url, server_id, scope, domain, ap_id, created_at, deleted_at)
+INSERT INTO public.emojis (id, name, url, server_id, scope, domain, ap_id, created_at, deleted_at, ap_removed_at)
 VALUES ('f2930000-0000-0000-0000-000000000101', 'old293', 'https://remote.test/e/old.webp',
         'f2930000-0000-0000-0000-0000000000f0', 'server', 'remote.test',
         'https://remote.test/servers/f2930000-0000-0000-0000-0000000000f0/emojis/old',
-        now() - interval '6 hours', now() - interval '5 hours');
+        now() - interval '6 hours', now() - interval '5 hours', now() - interval '5 hours');
 SELECT is(public.evict_copy_emojis('f2930000-0000-0000-0000-0000000000f0', 1), 1,
           'a row past many that must stay is evicted');
 SELECT is((SELECT count(*)::int FROM public.emojis WHERE id = 'f2930000-0000-0000-0000-000000000101'), 0, 'the old one');

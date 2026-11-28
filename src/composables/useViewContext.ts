@@ -29,7 +29,6 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { isSocialPath } from '@/utils/permalinks'
 import { viewContextTracker } from '@/services/ViewContextTracker'
-import { sessionHeartbeat } from '@/services/SessionHeartbeat'
 import { getClientDeviceId } from '@/utils/clientDeviceId'
 import { isMobileDevice, isTauri } from '@/utils/platform'
 import { useNotificationStore } from '@/stores/useNotification'
@@ -308,12 +307,6 @@ export async function updateViewContext(
     viewContextTracker.setAttentive(presence === 'viewing')
 
     void syncView(report(presence))
-
-    sessionHeartbeat.updateContext({
-      serverId,
-      channelId,
-      conversationId
-    })
   } catch (error) {
     debug.error('Error updating view context:', error)
   }
@@ -336,14 +329,6 @@ export async function markDeviceAway(timeoutMs = 2000): Promise<void> {
 }
 
 /**
- * Initialize session heartbeat for smart push notifications
- * Call this when user logs in
- */
-export async function initializeSessionHeartbeat(userId: string): Promise<void> {
-  await sessionHeartbeat.initialize(userId)
-}
-
-/**
  * Cleanup view context channel on logout
  */
 export async function cleanupViewContext(): Promise<void> {
@@ -358,8 +343,6 @@ export async function cleanupViewContext(): Promise<void> {
   released = false
   threadViewUnsupported = false
   viewContextTracker.reset()
-
-  await sessionHeartbeat.stop()
 }
 
 export interface RouteViewContext {

@@ -3,14 +3,14 @@ import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from '@/supabase';
 import type { User } from '@/types';
 import { UserStatus } from '@/types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { toRaw } from 'vue';
+import { markRaw } from 'vue';
 
 import { updateUserStatus } from '@/services/ProfileService';
 import { userDataService } from '@/services/userDataService';
 import { hasCapability } from '@/services/instanceCapabilities';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { debug } from '@/utils/debug'
-import { isChannelRefusal } from '@/utils/realtimeRefusal'
+import { openRebuildingChannel, type RebuildingChannel } from '@/services/rebuildingChannel';
 import { useActivitiesStore } from '@/stores/activities';
 import { useVoiceModerationStore } from '@/stores/voiceModeration';
 
@@ -55,8 +55,8 @@ export const useServerUsersStore = defineStore('serverUsers', {
     usersInVoiceChannels: {} as Record<string, string[]>,
     voiceChannelCallStartTimes: {} as Record<string, Date>,
     presenceChannel: null as RealtimeChannel | null,
-    voiceChannelBroadcast: null as RealtimeChannel | null,
-    // Server whose voice-channels topic voiceChannelBroadcast holds.
+    voiceChannelsTopic: null as RebuildingChannel | null,
+    // Server whose voice-channels topic is open.
     voiceBroadcastServerId: null as string | null,
     // That server is not a remote server's copy.
     voiceBroadcastServerLocal: true,
@@ -64,7 +64,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
     voiceStateAnswerTimer: null as ReturnType<typeof setTimeout> | null,
     // voice-channel:{channelId} topics of that server's restricted channels
     // this user can view (get_restricted_voice_channels).
-    restrictedVoiceBroadcasts: {} as Record<string, RealtimeChannel>,
+    restrictedVoiceBroadcasts: {} as Record<string, RebuildingChannel>,
     // Restricted channels of that server without a topic: past MAX_RESTRICTED_VOICE_TOPICS, or refused.
     unwatchedRestrictedVoice: [] as string[],
     onlineUsers: new Set<string>(),
@@ -263,10 +263,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         this.presenceChannel.unsubscribe()
         this.presenceChannel = null
       }
-      if (this.voiceChannelBroadcast) {
-        this.voiceChannelBroadcast.unsubscribe()
-        this.voiceChannelBroadcast = null
-      }
+      void this.closeVoiceChannelsTopic()
       this.voiceBroadcastServerId = null
       this.voiceBroadcastServerLocal = true
       if (this.voiceStateAnswerTimer) {
@@ -279,9 +276,9 @@ export const useServerUsersStore = defineStore('serverUsers', {
         this.offlineBroadcastChannel = null
       }
 
-      // BUGS.md Pattern B: also drop cached user state. Leaving profiles /
-      // voice membership / presence populated leaked the previous account's
-      // data into the next session on a shared device.
+      // Also drop cached user state. Profiles / voice membership / presence
+      // left populated leak the previous account's data into the next
+      // session on a shared device.
       this.userProfiles = {}
       this.usersInVoiceChannels = {}
       this.voiceChannelCallStartTimes = {}
@@ -292,45 +289,53 @@ export const useServerUsersStore = defineStore('serverUsers', {
       this.currentServerId = null
     },
 
+    closeVoiceChannelsTopic(): Promise<void> {
+      const topic = this.voiceChannelsTopic;
+      this.voiceChannelsTopic = null;
+      return topic ? topic.close() : Promise.resolve();
+    },
+
     closeRestrictedVoiceBroadcasts() {
       if (unwatchedVoiceTimer) {
         clearInterval(unwatchedVoiceTimer)
         unwatchedVoiceTimer = null
       }
-      for (const channel of Object.values(this.restrictedVoiceBroadcasts)) {
-        void supabase.removeChannel(channel)
+      for (const topic of Object.values(this.restrictedVoiceBroadcasts)) {
+        void topic.close()
       }
       this.restrictedVoiceBroadcasts = {}
       this.unwatchedRestrictedVoice = []
     },
 
-    openRestrictedVoiceTopic(serverId: string, channelId: string): RealtimeChannel {
-      const channel = supabase.channel(`voice-channel:${channelId}`, {
-        config: { private: true, broadcast: { self: true } },
-      });
-      channel.on('broadcast', { event: 'voice-channel-event' },
-        (payload) => this.handleVoiceChannelEvent(serverId, payload.payload));
-      channel.subscribe((status, err) => {
-        // realtime-js rejoins an errored channel until it is removed; each refusal holds the socket
-        // for CHANNEL_ERROR_BACKOFF_MS.
-        if (status !== 'CHANNEL_ERROR' || !isChannelRefusal(err)) return;
-        void supabase.removeChannel(channel);
-        if (toRaw(this.restrictedVoiceBroadcasts[channelId]) !== channel) return;
-        delete this.restrictedVoiceBroadcasts[channelId];
-        this.unwatchedRestrictedVoice.push(channelId);
-      });
-      this.restrictedVoiceBroadcasts[channelId] = channel;
-      return channel;
+    openRestrictedVoiceTopic(serverId: string, channelId: string): RebuildingChannel {
+      const topic: RebuildingChannel = markRaw(openRebuildingChannel({
+        topic: `voice-channel:${channelId}`,
+        config: { broadcast: { self: true } },
+        bind: (channel) => channel.on('broadcast', { event: 'voice-channel-event' },
+          (payload) => this.handleVoiceChannelEvent(serverId, payload.payload)),
+        onSubscribed: (resumed) => {
+          if (resumed && this.voiceBroadcastServerId === serverId) void this.reloadVoiceRoster(serverId);
+        },
+        onRefused: () => {
+          // Unwatched from here: no member-token retry.
+          void topic.close();
+          if (this.restrictedVoiceBroadcasts[channelId] !== topic) return;
+          delete this.restrictedVoiceBroadcasts[channelId];
+          this.unwatchedRestrictedVoice.push(channelId);
+        },
+      }));
+      this.restrictedVoiceBroadcasts[channelId] = topic;
+      return topic;
     },
 
     /** Topic of an unwatched channel this client is calling in. The oldest open topic gives way past the limit. */
-    watchRestrictedVoice(serverId: string, channelId: string): RealtimeChannel | undefined {
+    watchRestrictedVoice(serverId: string, channelId: string): RebuildingChannel | undefined {
       const at = this.unwatchedRestrictedVoice.indexOf(channelId);
       if (at < 0) return undefined;
       this.unwatchedRestrictedVoice.splice(at, 1);
       const open = Object.keys(this.restrictedVoiceBroadcasts);
       if (open.length >= MAX_RESTRICTED_VOICE_TOPICS) {
-        void supabase.removeChannel(this.restrictedVoiceBroadcasts[open[0]]);
+        void this.restrictedVoiceBroadcasts[open[0]].close();
         delete this.restrictedVoiceBroadcasts[open[0]];
         this.unwatchedRestrictedVoice.push(open[0]);
       }
@@ -350,29 +355,27 @@ export const useServerUsersStore = defineStore('serverUsers', {
      * remote server's copy (reloadVoiceRoster).
      */
     async setupVoiceChannelBroadcast(serverId: string, opts: { local?: boolean } = {}) {
-      if (this.voiceChannelBroadcast) {
-        await this.voiceChannelBroadcast.unsubscribe();
-      }
+      await this.closeVoiceChannelsTopic();
       this.closeRestrictedVoiceBroadcasts()
       this.attachRosterListeners()
 
       debug.log('Setting up voice channel broadcast for server:', serverId);
       void useVoiceModerationStore().load(serverId);
 
-      this.voiceChannelBroadcast = supabase.channel(`voice-channels:${serverId}`, {
-        config: {
-          private: true,
-          broadcast: { self: true },
-        },
-      });
       this.voiceBroadcastServerId = serverId;
       this.voiceBroadcastServerLocal = opts.local !== false;
-      this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' },
-        (payload) => this.handleVoiceChannelEvent(serverId, payload.payload));
-      await this.voiceChannelBroadcast.subscribe((status) => {
+      // A concurrent setup passes the await above.
+      void this.closeVoiceChannelsTopic();
+      this.voiceChannelsTopic = markRaw(openRebuildingChannel({
+        topic: `voice-channels:${serverId}`,
+        config: { broadcast: { self: true } },
+        bind: (channel) => channel.on('broadcast', { event: 'voice-channel-event' },
+          (payload) => this.handleVoiceChannelEvent(serverId, payload.payload)),
         // realtime-js reports SUBSCRIBED again after each of its own rejoins.
-        if (status === 'SUBSCRIBED' && this.voiceBroadcastServerId === serverId) void this.reloadVoiceRoster(serverId);
-      });
+        onSubscribed: () => {
+          if (this.voiceBroadcastServerId === serverId) void this.reloadVoiceRoster(serverId);
+        },
+      }));
 
       const [{ data: restricted, error }] = await Promise.all([
         supabase.rpc('get_restricted_voice_channels', { p_server_id: serverId }),
@@ -645,10 +648,10 @@ export const useServerUsersStore = defineStore('serverUsers', {
           event: 'voice-channel-event',
           payload: { event, userId, channelId, callStartTime },
         };
-        const topic = (channelId ? this.restrictedVoiceBroadcasts[channelId] : undefined) ?? this.voiceChannelBroadcast;
+        const topic = (channelId ? this.restrictedVoiceBroadcasts[channelId] : undefined) ?? this.voiceChannelsTopic;
         void topic?.send(message);
         if (!channelId) {
-          for (const channel of Object.values(this.restrictedVoiceBroadcasts)) void channel.send(message);
+          for (const restricted of Object.values(this.restrictedVoiceBroadcasts)) void restricted.send(message);
         }
         return;
       }

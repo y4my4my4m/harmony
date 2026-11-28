@@ -71,6 +71,7 @@
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
       :allow-polls="pollsAllowed"
+      :allow-role-menus="roleMenusAllowed"
       :encrypted-room="composerEncrypted"
       :draft-key="draftKey"
       background-send
@@ -153,6 +154,15 @@
       @thread-created="handleThreadCreated"
     />
 
+    <RoleMenuCreateModal
+      v-if="showRoleMenuModal && roleMenusAllowed"
+      :show="showRoleMenuModal"
+      :server-id="serverChannelStore.currentServerId!"
+      :channel-id="(props.channelId || serverChannelStore.currentChannelId)!"
+      :reply-to="replyToMessageId || null"
+      @close="showRoleMenuModal = false"
+    />
+
     <PollCreateModal
       v-if="showPollModal"
       :show="showPollModal"
@@ -197,6 +207,7 @@
   const RecoveryKeySetupWizard = defineAsyncComponent(() => import('@/components/encryption/RecoveryKeySetupWizard.vue'));
   const KeyRecoveryModal = defineAsyncComponent(() => import('@/components/encryption/KeyRecoveryModal.vue'));
   const PollCreateModal = defineAsyncComponent(() => import('@/components/polls/PollCreateModal.vue'));
+  const RoleMenuCreateModal = defineAsyncComponent(() => import('@/components/roles/RoleMenuCreateModal.vue'));
   import { useAuthStore } from '@/stores/auth'; 
   import { useProfileStore } from '@/stores/useProfile';
   import { useChatStore } from '@/stores/useChat';
@@ -356,6 +367,10 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
 
   // Polls. End-to-end encrypted channels and DMs refuse them (create_message_poll).
   const showPollModal = ref(false);
+  const showRoleMenuModal = ref(false);
+  // A copy's roles are its host's; DMs have none.
+  const roleMenusAllowed = computed(() =>
+    !props.isDM && !!serverChannelStore.currentServerId && serverChannelStore.currentServer?.is_local_server !== false);
   const dmEncryptionEnabled = ref(false);
   const pollsAllowed = computed(() => {
     if (props.isDM) return !!props.conversationId && !dmEncryptionEnabled.value;
@@ -389,6 +404,12 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     const { command } = (e as CustomEvent).detail;
     if (command === 'poll') {
       openPollModal();
+      return;
+    }
+    if (command === 'rolemenu') {
+      if (!roleMenusAllowed.value) return;
+      if (!isCurrentUserServerOwner.value && !hasCurrentUserPermission(Permission.MANAGE_ROLES)) return;
+      showRoleMenuModal.value = true;
       return;
     }
     if (command === 'kick' || command === 'ban') {

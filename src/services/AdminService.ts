@@ -10,29 +10,89 @@ import { DEFAULT_FEDERATE_IMAGE_MAX_PX, parseFederateImageMaxPx } from '@/utils/
 import { parseCustomOAuthProviders, type CustomOAuthProvider } from '@/utils/customOAuthProviders'
 import { staffActivityAuthorId, staffActivityServerId } from '@/utils/staffActivity'
 
-export interface SystemStats {
-  total_users: number;
-  total_servers: number;
-  active_servers: number;
-  total_posts: number;
-  federated_instances: number;
-  newUsersToday?: number;
-  postsToday?: number;
+/**
+ * The admin panel's statistics: admin_instance_stats (20261124600003), a snapshot refreshed every
+ * 5 minutes by pg_cron, on read when older than 15 minutes, and on p_refresh when older than 60 s.
+ */
+export interface InstanceStats {
+  /** When the snapshot's refresh began; null while none exists. */
+  computedAt: string | null;
+  /** Snapshot age when the server answered, s. */
+  ageSeconds: number | null;
+  /** The refresh asked for was skipped: another one held the lock. */
+  refreshingElsewhere: boolean;
+  /** Snapshot columns holding a planner estimate, e.g. 'posts_total'. */
+  approximate: string[];
+  /** federated: is_local false or null. */
+  users: { total: number; local: number; federated: number; suspended: number; new24h: number };
+  servers: { total: number; active30d: number };
+  posts: { total: number; last24h: number };
+  instances: { total: number; blocked: number; trusted: number; active7d: number; new24h: number };
+  endpoints: {
+    total: number;
+    dead: number;
+    healthy: number;
+    failing: number;
+    failures: number;
+    successes: number;
+    successRate: number;
+  };
+  /** Absent for instance moderators. */
+  queue: { pending: number; delivered: number; failed: number } | null;
+  /** Absent for instance moderators. db_connections is live, the size from the snapshot. */
+  database: { sizeBytes: number; connections: number } | null;
+  /** Round trip of the request, ms. */
+  responseMs: number;
 }
 
-export interface FederationStats {
-  pending_deliveries: number;
-  successful_deliveries: number;
-  failed_deliveries: number;
-  active_instances: number;
-  endpoint_health: {
-    total_endpoints: number;
-    dead_endpoints: number;
-    healthy_endpoints: number;
-    endpoints_with_failures: number;
-    total_failures: number;
-    total_successes: number;
-    success_rate: number;
+const statNumber = (row: Record<string, unknown>, key: string): number => Number(row[key] ?? 0) || 0
+
+/** Successes per delivery attempt, percent; 100 with no attempts. */
+export const successRate = (failures: number, successes: number): number =>
+  failures + successes > 0 ? Math.round((successes / (failures + successes)) * 100) : 100
+
+/** Maps the admin_instance_stats JSON object; a missing snapshot reads as zeros. */
+export function mapInstanceStats(row: Record<string, unknown>, responseMs: number): InstanceStats {
+  const n = (key: string) => statNumber(row, key)
+  const failures = n('endpoints_failures')
+  const successes = n('endpoints_successes')
+  return {
+    computedAt: typeof row.computed_at === 'string' ? row.computed_at : null,
+    ageSeconds: row.age_seconds == null ? null : Number(row.age_seconds),
+    refreshingElsewhere: row.refreshing_elsewhere === true,
+    approximate: Array.isArray(row.approximate) ? (row.approximate as string[]) : [],
+    users: {
+      total: n('users_total'),
+      local: n('users_local'),
+      federated: n('users_federated'),
+      suspended: n('users_suspended'),
+      new24h: n('users_new_24h'),
+    },
+    servers: { total: n('servers_total'), active30d: n('servers_active_30d') },
+    posts: { total: n('posts_total'), last24h: n('posts_24h') },
+    instances: {
+      total: n('instances_total'),
+      blocked: n('instances_blocked'),
+      trusted: n('instances_trusted'),
+      active7d: n('instances_active_7d'),
+      new24h: n('instances_new_24h'),
+    },
+    endpoints: {
+      total: n('endpoints_total'),
+      dead: n('endpoints_dead'),
+      healthy: n('endpoints_healthy'),
+      failing: n('endpoints_failing'),
+      failures,
+      successes,
+      successRate: successRate(failures, successes),
+    },
+    queue: 'queue_pending' in row
+      ? { pending: n('queue_pending'), delivered: n('queue_delivered'), failed: n('queue_failed') }
+      : null,
+    database: 'db_connections' in row
+      ? { sizeBytes: n('db_size_bytes'), connections: n('db_connections') }
+      : null,
+    responseMs,
   };
 }
 
@@ -93,21 +153,6 @@ export interface AdminActivity {
   created_at: string;
 }
 
-export interface SystemHealth {
-  database: {
-    responseTime: number;
-    connections: number;
-  };
-  federation: {
-    pending: number;
-    status: 'healthy' | 'warning' | 'error';
-  };
-  storage: {
-    used: number;
-    total: string;
-  };
-}
-
 export interface BlockedInstance {
   domain: string;
   reason: string;
@@ -152,14 +197,6 @@ export interface InstanceSearchResult {
   theme_color?: string;
 }
 
-export interface InstanceStats {
-  total_instances: number;
-  blocked_instances: number;
-  trusted_instances: number;
-  active_instances: number;
-  recently_discovered: number;
-}
-
 export type CohortPeriod = 'month' | 'week';
 
 /**
@@ -188,109 +225,12 @@ export interface SignupCohort {
 }
 
 class AdminService {
-  async getSystemStats(): Promise<SystemStats> {
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const [
-        usersResult,
-        postsResult,
-        serversResult,
-        federatedInstancesResult,
-        newUsersResult,
-        newPostsResult
-      ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_deleted', false),
-        supabase.from('servers').select('*', { count: 'exact', head: true }),
-        supabase.from('federated_instances').select('*', { count: 'exact', head: true }),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', today.toISOString()),
-        supabase.from('posts').select('*', { count: 'exact', head: true }).gte('created_at', today.toISOString())
-      ]);
-
-      return {
-        total_users: usersResult.count || 0,
-        total_servers: serversResult.count || 0,
-        active_servers: serversResult.count || 0, // Activity is not tracked; mirrors the total.
-        total_posts: postsResult.count || 0,
-        federated_instances: federatedInstancesResult.count || 0,
-        newUsersToday: newUsersResult.count || 0,
-        postsToday: newPostsResult.count || 0
-      };
-    } catch (error) {
-      debug.error('Failed to get system stats:', error);
-      return {
-        total_users: 0,
-        total_servers: 0,
-        active_servers: 0,
-        total_posts: 0,
-        federated_instances: 0,
-        newUsersToday: 0,
-        postsToday: 0
-      };
-    }
-  }
-
-  async getFederationStats(): Promise<FederationStats> {
-    try {
-      const [
-        pendingResult,
-        successfulResult,
-        failedResult,
-        instancesResult,
-        endpointHealthResult
-      ] = await Promise.all([
-        supabase.from('federation_delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('federation_delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'delivered'),
-        supabase.from('federation_delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'failed'),
-        supabase.from('federated_instances').select('*', { count: 'exact', head: true }).eq('is_blocked', false),
-        supabase.from('federation_endpoint_health').select('*')
-      ]);
-
-      const endpoints = endpointHealthResult.data || [];
-      const totalEndpoints = endpoints.length;
-      const deadEndpoints = endpoints.filter(e => e.is_dead).length;
-      const healthyEndpoints = endpoints.filter(e => !e.is_dead && e.consecutive_failures === 0).length;
-      const endpointsWithFailures = endpoints.filter(e => e.consecutive_failures > 0).length;
-      const totalFailures = endpoints.reduce((sum, e) => sum + (e.total_failures || 0), 0);
-      const totalSuccesses = endpoints.reduce((sum, e) => sum + (e.total_successes || 0), 0);
-      const totalAttempts = totalFailures + totalSuccesses;
-      const successRate = totalAttempts > 0 ? Math.round((totalSuccesses / totalAttempts) * 100) : 100;
-
-      return {
-        pending_deliveries: pendingResult.count || 0,
-        successful_deliveries: successfulResult.count || 0,
-        failed_deliveries: failedResult.count || 0,
-        active_instances: instancesResult.count || 0,
-        endpoint_health: {
-          total_endpoints: totalEndpoints,
-          dead_endpoints: deadEndpoints,
-          healthy_endpoints: healthyEndpoints,
-          endpoints_with_failures: endpointsWithFailures,
-          total_failures: totalFailures,
-          total_successes: totalSuccesses,
-          success_rate: successRate
-        }
-      };
-    } catch (error) {
-      debug.error('Failed to get federation stats:', error);
-      return {
-        pending_deliveries: 0,
-        successful_deliveries: 0,
-        failed_deliveries: 0,
-        active_instances: 0,
-        endpoint_health: {
-          total_endpoints: 0,
-          dead_endpoints: 0,
-          healthy_endpoints: 0,
-          endpoints_with_failures: 0,
-          total_failures: 0,
-          total_successes: 0,
-          success_rate: 100
-        }
-      };
-    }
+  /** One request: the statistics snapshot, refreshed first when stale or with `refresh`. */
+  async getAdminInstanceStats(refresh = false): Promise<InstanceStats> {
+    const started = performance.now();
+    const { data, error } = await supabase.rpc('admin_instance_stats', { p_refresh: refresh });
+    if (error) throw error;
+    return mapInstanceStats((data ?? {}) as Record<string, unknown>, Math.round(performance.now() - started));
   }
 
   /**
@@ -372,44 +312,6 @@ class AdminService {
       if (error) throw error;
     } catch (error) {
       debug.error('Failed to purge endpoint:', error);
-      throw error;
-    }
-  }
-
-  async getSystemHealth(): Promise<SystemHealth> {
-    try {
-      const federationStats = await this.getFederationStats();
-      
-      // Measure database response time
-      const start = Date.now();
-      await supabase.from('profiles').select('id').limit(1);
-      const dbResponseTime = Date.now() - start;
-
-      let connections = 0;
-      try {
-        const { data: connData } = await supabase.rpc('get_db_connection_count');
-        connections = connData || 0;
-      } catch { /* RPC may not exist yet */ }
-
-      let dbSize = '--';
-      try {
-        const { data: sizeData } = await supabase.rpc('get_db_size');
-        dbSize = sizeData || '--';
-      } catch { /* RPC may not exist yet */ }
-
-      return {
-        database: { 
-          responseTime: dbResponseTime, 
-          connections
-        },
-        federation: { 
-          pending: federationStats.pending_deliveries, 
-          status: federationStats.pending_deliveries > 100 ? 'warning' : 'healthy' 
-        },
-        storage: { used: 0, total: dbSize },
-      };
-    } catch (error) {
-      debug.error('Failed to get system health:', error);
       throw error;
     }
   }
@@ -504,30 +406,6 @@ class AdminService {
     } catch (error) {
       debug.error('Failed to get users:', error);
       throw error;
-    }
-  }
-
-  /**
-   * Counts backing the User Management filter tabs.
-   */
-  async getUserCounts(): Promise<{ total: number; local: number; federated: number; suspended: number }> {
-    try {
-      const [totalRes, localRes, federatedRes, suspendedRes] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).or('is_local.eq.false,is_local.is.null'),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_suspended', true)
-      ]);
-
-      return {
-        total: totalRes.count ?? 0,
-        local: localRes.count ?? 0,
-        federated: federatedRes.count ?? 0,
-        suspended: suspendedRes.count ?? 0
-      };
-    } catch (error) {
-      debug.error('Failed to get user counts:', error);
-      return { total: 0, local: 0, federated: 0, suspended: 0 };
     }
   }
 
@@ -633,7 +511,7 @@ class AdminService {
     details?: Record<string, any>;
   }): Promise<void> {
     try {
-      // BUGS.md Pattern A: `admin_audit_log.admin_id` references
+      // `admin_audit_log.admin_id` references
       // `profiles(id)`, not auth.users(id). Resolve to the profile id before
       // insert; an auth UUID yields a broken FK and wrong attribution.
       const { authContextService } = await import('@/services/AuthContextService');
@@ -1303,9 +1181,8 @@ class AdminService {
 
   async checkAdminPermissions(userId: string): Promise<boolean> {
     try {
-      // BUGS.md Pattern A: callers (router admin guard, AdminPanel.vue) pass
-      // `authStore.session?.user?.id`, the auth.users UUID, not `profiles.id`.
-      // Match on `auth_user_id`; filtering on `id` matches zero rows.
+      // `userId` is the auth.users UUID, not `profiles.id`. Match on
+      // `auth_user_id`; filtering on `id` matches zero rows.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_admin')
@@ -1323,8 +1200,7 @@ class AdminService {
 
   async checkModeratorPermissions(userId: string): Promise<boolean> {
     try {
-      // BUGS.md Pattern A, as in checkAdminPermissions: callers pass the
-      // auth.users UUID, so the filter is on `auth_user_id`.
+      // `userId` is the auth.users UUID, so the filter is on `auth_user_id`.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_moderator')
@@ -1342,8 +1218,8 @@ class AdminService {
 
   async checkAdminOrModPermissions(userId: string): Promise<boolean> {
     try {
-      // BUGS.md Pattern A: callers pass either the auth UUID or the profile
-      // id. Matching both avoids a false-negative permission check.
+      // `userId` is either the auth UUID or the profile id; the filter
+      // matches both.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_admin, is_moderator')
@@ -1564,37 +1440,6 @@ class AdminService {
     } catch (error) {
       debug.error('Failed to get federated instances:', error);
       throw error;
-    }
-  }
-
-  async getInstanceStats(): Promise<InstanceStats> {
-    try {
-      const [totalResult, blockedResult, trustedResult, activeResult, recentResult] = await Promise.all([
-        supabase.from('federated_instances').select('*', { count: 'exact', head: true }),
-        supabase.from('federated_instances').select('*', { count: 'exact', head: true }).eq('is_blocked', true),
-        supabase.from('federated_instances').select('*', { count: 'exact', head: true }).eq('is_trusted', true),
-        supabase.from('federated_instances').select('*', { count: 'exact', head: true })
-          .gte('last_seen_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
-        supabase.from('federated_instances').select('*', { count: 'exact', head: true })
-          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-      ]);
-
-      return {
-        total_instances: totalResult.count || 0,
-        blocked_instances: blockedResult.count || 0,
-        trusted_instances: trustedResult.count || 0,
-        active_instances: activeResult.count || 0,
-        recently_discovered: recentResult.count || 0
-      };
-    } catch (error) {
-      debug.error('Failed to get instance stats:', error);
-      return {
-        total_instances: 0,
-        blocked_instances: 0,
-        trusted_instances: 0,
-        active_instances: 0,
-        recently_discovered: 0
-      };
     }
   }
 

@@ -179,6 +179,17 @@ describe('POST /servers/:serverId/sounds/discord', () => {
     expect((await post({ ...body, update: true })).status).toBe(200)
   })
 
+  it('answers 403 SOUND_REMOVED for a sound a person deleted, without downloading it', async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: '42501', message: 'SOUND_REMOVED: a person deleted this sound on Harmony; the bridge does not copy it again' },
+    })
+    const res = await post(body)
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('SOUND_REMOVED')
+    expect(mocks.store).not.toHaveBeenCalled()
+  })
+
   it('removes the stored clip when the import RPC fails', async () => {
     mocks.rpc
       .mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'invalid sound file' } })

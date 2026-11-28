@@ -15,7 +15,7 @@
 # Re-running is safe: answers default to the current configuration, secrets
 # and data are kept, an existing admin is left alone.
 #
-# Options: --dir DIR, --ref REF, --non-interactive, -h
+# Options: --dir DIR, --ref REF, --name NAME (HARMONY_INSTANCE_NAME), --non-interactive, -h
 #
 # Without a terminal (or with --non-interactive / HARMONY_NONINTERACTIVE=1)
 # every question takes its answer from the environment:
@@ -23,7 +23,7 @@
 #   HARMONY_ADMIN_EMAIL       required: admin login, Let's Encrypt and push contact
 #   HARMONY_ADMIN_USERNAME    default: the email's local part
 #   HARMONY_ADMIN_PASSWORD    default: generated, shown once (reveal_secret, lib.sh)
-#   HARMONY_INSTANCE_NAME     default: Harmony
+#   HARMONY_INSTANCE_NAME     default: the domain (Harmony draws a warning)
 #   HARMONY_VOICE             y|n, default y (LiveKit; live.DOMAIN, 7881/tcp, 7882/udp)
 #   HARMONY_BOTS              y|n, default n (bot gateway)
 #   HARMONY_DISCORD           y|n, default n (Discord bridge hosting; implies bots)
@@ -354,8 +354,8 @@ questions() {
 		[[ -z "$ADMIN_PASSWORD" || ${#ADMIN_PASSWORD} -ge 8 ]] || die "HARMONY_ADMIN_PASSWORD needs at least 8 characters"
 	fi
 
-	cur="${HARMONY_INSTANCE_NAME:-$(env_get "$ENV_FILE" INSTANCE_NAME)}"
-	ask INSTANCE_NAME "Instance name (shown in the app; changeable in the admin panel)" "${cur:-Harmony}"
+	info "The instance name is what the app and other servers show; the admin panel changes it later."
+	ask_instance_name "$DOMAIN"
 
 	echo
 	info "Voice and video calls need one more DNS name ($LIVEKIT_DOMAIN) and ports 7881/tcp, 7882/udp."
@@ -543,6 +543,7 @@ install_stack() {
 	compose up -d
 
 	bash "$SELF_HOST_DIR/bootstrap.sh"
+	if $NAME_UNCHOSEN; then instance_name_default_renamed; fi
 	# The worker started before harmony_listener existed.
 	compose restart federation-worker >/dev/null
 
@@ -644,6 +645,7 @@ main() {
 		case "$1" in
 			--dir) HARMONY_DIR="${2:?--dir needs a path}"; export HARMONY_DIR; shift ;;
 			--ref) HARMONY_REF="${2:?--ref needs a tag or branch}"; export HARMONY_REF; shift ;;
+			--name) HARMONY_INSTANCE_NAME="${2:?--name needs the instance name}"; export HARMONY_INSTANCE_NAME; shift ;;
 			--non-interactive) export HARMONY_NONINTERACTIVE=1 ;;
 			-h|--help) sed -n '2,50p' "${BASH_SOURCE[0]:-/dev/null}" 2>/dev/null || echo "see https://docs.mony.lol/self-host/install"; exit 0 ;;
 			*) die "unknown argument: $1 (see --help)" ;;
@@ -679,7 +681,8 @@ main() {
 	cd "$SELF_HOST_DIR"
 	CLI="$SELF_HOST_DIR/harmony"
 
-	EXISTING=false; ADMIN_EXISTS=false
+	EXISTING=false; ADMIN_EXISTS=false; NAME_UNCHOSEN=false
+	instance_name_unchosen && NAME_UNCHOSEN=true
 	if [[ -f "$ENV_FILE" ]]; then
 		EXISTING=true
 		[[ -n "$(svc_id db)" ]] && bash "$SELF_HOST_DIR/admin.sh" has-admin && ADMIN_EXISTS=true

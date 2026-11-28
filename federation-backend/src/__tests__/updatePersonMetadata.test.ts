@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // ActivityProcessor calls parseEnv() at module load and exits when the
 // federation env vars are absent.
 vi.mock('../config/index.js', () => ({
+  config: { INSTANCE_DOMAIN: 'harmony.test' },
   default: {
     INSTANCE_DOMAIN: 'harmony.test',
     PORT: 3001,
@@ -22,6 +23,14 @@ vi.mock('../config/index.js', () => ({
 
 vi.mock('../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+vi.mock('../activitypub/webfingerClient.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../activitypub/webfingerClient.js')>()),
+  confirmActorAcct: vi.fn(async () => null),
+}));
+vi.mock('../activitypub/remoteCounts.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../activitypub/remoteCounts.js')>()),
+  refreshRemoteProfileCounts: vi.fn(async () => undefined),
 }));
 
 type Row = Record<string, any>;
@@ -48,6 +57,14 @@ function fakeSupabase() {
       const builder: any = {
         select() { return builder; },
         update(row: Row) { patch = row; return builder; },
+        upsert(row: Row, opts?: { onConflict?: string }) {
+          const key = opts?.onConflict ?? 'id';
+          const rows = (tables[table] ??= []);
+          const stored = rows.find((r) => r[key] === row[key]);
+          if (stored) Object.assign(stored, row);
+          else rows.push({ id: `new-${rows.length}`, ...row });
+          return Promise.resolve({ data: null, error: null });
+        },
         insert(row: Row) { inserted = { id: `new-${(tables[table] ?? []).length}`, ...row }; return builder; },
         eq(col: string, val: any) { filters.push((row) => row[col] === val); return builder; },
         maybeSingle() { return Promise.resolve({ data: run()[0] ?? null, error: null }); },
@@ -99,5 +116,40 @@ describe('Update(Person)', () => {
     expect(meta.url).toBe('https://mastodon.test/@alice');
     expect(meta.bio_emojis).toEqual([expect.objectContaining({ url: BLOBCAT })]);
     expect(meta.display_name_emojis).toEqual([expect.objectContaining({ url: BLOBCAT })]);
+  });
+
+  it('empties both emoji lists when the actor drops its emojis, keeping the other keys', async () => {
+    await (ActivityProcessor as any).processUpdate({ type: 'Update', actor: ALICE, object: person() });
+    const bare = { ...person(), name: 'Alice', summary: '<p>hi</p>', tag: [] };
+    await (ActivityProcessor as any).processUpdate({ type: 'Update', actor: ALICE, object: bare });
+    const meta = tables.profiles[0].federation_metadata;
+    expect(meta.bio_emojis).toEqual([]);
+    expect(meta.display_name_emojis).toEqual([]);
+    expect(meta.url).toBe('https://mastodon.test/@alice');
+    expect(tables.profiles[0].display_name).toBe('Alice');
+  });
+
+  it('empties both lists on an actor read that names no emoji', async () => {
+    tables.profiles[0].federation_metadata = {
+      url: 'https://mastodon.test/@alice',
+      bio_emojis: [{ name: 'blobcat', url: BLOBCAT }],
+      display_name_emojis: [{ name: 'blobcat', url: BLOBCAT }],
+    };
+    const existing = { ...tables.profiles[0] };
+    const bare = { ...person(), name: 'Alice', summary: '<p>hi</p>', tag: [] };
+    const saved = await (ActivityProcessor as any).storeRemoteActor(ALICE, bare, existing);
+    expect(saved?.id).toBe('alice-id');
+    const meta = tables.profiles[0].federation_metadata;
+    expect(meta.bio_emojis).toEqual([]);
+    expect(meta.display_name_emojis).toEqual([]);
+    expect(meta.url).toBe('https://mastodon.test/@alice');
+  });
+
+  it('empties only the list whose text no longer names an emoji', async () => {
+    await (ActivityProcessor as any).processUpdate({ type: 'Update', actor: ALICE, object: person() });
+    await (ActivityProcessor as any).processUpdate({ type: 'Update', actor: ALICE, object: { ...person(), name: 'Alice' } });
+    const meta = tables.profiles[0].federation_metadata;
+    expect(meta.display_name_emojis).toEqual([]);
+    expect(meta.bio_emojis).toEqual([expect.objectContaining({ url: BLOBCAT })]);
   });
 });

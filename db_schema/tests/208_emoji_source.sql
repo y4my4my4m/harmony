@@ -137,8 +137,8 @@ SELECT tests.clear_authentication();
 INSERT INTO public.user_blocks (blocker_id, blocked_user_id)
 VALUES ('22222222-0000-0000-0000-000000000002', '33333333-0000-0000-0000-000000000003');
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
-SELECT is(public.get_emoji_source('a2080000-0000-0000-0000-0000000000e6', 'https://cdn.test/bob_own.png'),
-          '{"kind": "personal", "owner": null}'::jsonb, 'an owner who blocked the viewer is not named');
+SELECT is(public.get_emoji_source('a2080000-0000-0000-0000-0000000000e6', 'https://cdn.test/bob_own.png') -> 'owner' ->> 'username',
+          'bob', 'an owner who blocked the viewer is named, as to anyone (20261123500006)');
 SELECT is(public.get_emoji_source('a2080000-0000-0000-0000-0000000000e7', 'https://cdn.test/inst_a.png'),
           '{"kind": "instance"}'::jsonb, 'an instance emoji');
 SELECT is(public.get_emoji_source('a2080000-0000-0000-0000-0000000000e8', 'https://cdn.test/imp_a.png'),

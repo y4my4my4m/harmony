@@ -123,9 +123,8 @@ const STYLE = `
       font-size: 14px;
     }`;
 
-/** Page of a live link. */
-export function renderDriveLinkPage(preview: DriveLinkPreview): string {
-  const instanceName = config.INSTANCE_NAME;
+/** Page of a live link. `instanceName` is the instance's name as utils/instanceName.ts resolves it. */
+export function renderDriveLinkPage(preview: DriveLinkPreview, instanceName: string): string {
   const url = driveLinkPageUrl(preview.token);
   const title = truncate(preview.name, NAME_LIMIT);
   const description = driveLinkDescription(preview);
@@ -179,17 +178,17 @@ export function renderDriveLinkPage(preview: DriveLinkPreview): string {
  * Restricted, expired, reset, unknown or malformed token and link sharing off ('invalid'), or a
  * failed lookup ('unavailable'): no OpenGraph tags at all, so an unfurler shows the bare URL.
  */
-export function renderDriveLinkUnavailablePage(reason: 'invalid' | 'unavailable'): string {
+export function renderDriveLinkUnavailablePage(reason: 'invalid' | 'unavailable', instanceName: string): string {
   const [heading, text] = reason === 'invalid'
     ? ['This link does not work', 'It expired, or its owner stopped sharing the file.']
-    : ['This link cannot be previewed', `Open it in ${config.INSTANCE_NAME} to see the file.`];
+    : ['This link cannot be previewed', `Open it in ${instanceName} to see the file.`];
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>${escapeHtml(config.INSTANCE_NAME)}</title>
+  <title>${escapeHtml(instanceName)}</title>
   <style>${STYLE}
   </style>
 </head>

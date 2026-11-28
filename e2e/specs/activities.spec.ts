@@ -81,6 +81,16 @@ async function enterVoice(page: Page, user: SpecUser, call?: Call) {
   }, { serverId, channelId, userId: user.id, roster })
 }
 
+/** Opens the call view, as the dock's expand does. */
+async function openCallView(page: Page) {
+  await page.evaluate(() => {
+    const root = document.querySelector('#app') as unknown as {
+      __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, { $patch: (fn: (s: Record<string, any>) => void) => void }> } } } }
+    }
+    root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')!.$patch((s) => { s.isOverlayVisible = true })
+  })
+}
+
 const media = (page: Page) => page.getByTestId('activity-media')
 const mediaState = (page: Page) => media(page).evaluate((el: HTMLMediaElement) => ({ paused: el.paused, time: el.currentTime }))
 
@@ -131,8 +141,8 @@ test('a Drive video plays for everyone in the call and follows the host', async 
     await enterVoice(page, host)
 
     await test.step('the host starts the video from the call dock and pauses it', async () => {
-      await page.getByTestId('activity-button').first().click()
-      await page.getByTestId('activity-launcher').getByTestId('activity-from-drive').click()
+      await page.getByTestId('dock-activities-button').first().click()
+      await page.getByTestId('activities-watch').getByTestId('activity-from-drive').click()
       await page.getByTestId('drive-picker').getByTestId('drive-picker-file').filter({ hasText: 'clip-6s.webm' }).click()
       await page.getByTestId('drive-picker-confirm').click()
       const card = page.getByTestId('activity-dock-card')
@@ -192,6 +202,21 @@ test('a Drive video plays for everyone in the call and follows the host', async 
       await expect(other.getByTestId('activity-join')).toBeVisible()
       expect((await mediaState(page)).paused).toBe(false)
       await other.getByTestId('activity-join').click()
+      await expect(other.getByTestId('activity-dock-card')).toContainText('clip-6s.webm', { timeout: 15000 })
+    })
+
+    await test.step('in the call view, the activity the guest left is a tile beside the participants, and its Join plays it there', async () => {
+      await other.getByTestId('activity-dock-leave').click()
+      await expect(other.getByTestId('activity-dock-card')).toHaveCount(0)
+      await openCallView(other)
+      const tile = other.locator('.voice-overlay .tile-grid [data-testid="call-activity-tile"][data-kind="watch"]')
+      await expect(tile).toContainText('clip-6s.webm', { timeout: 15000 })
+      await expect(tile.locator('img')).toHaveCount(0)
+      await expect(other.locator('.voice-overlay [data-testid="activity-invite"]')).toHaveCount(0)
+      await tile.getByTestId('activity-join').click()
+      await expect(other.locator('.voice-overlay [data-testid="activity-stage"]')).toBeVisible({ timeout: 15000 })
+      await expect(other.locator('.voice-overlay [data-testid="call-activity-tile"]')).toHaveCount(0)
+      await other.getByTestId('voice-overlay').getByRole('button', { name: 'Minimize call view', exact: true }).click()
       await expect(other.getByTestId('activity-dock-card')).toContainText('clip-6s.webm', { timeout: 15000 })
     })
 
@@ -262,7 +287,7 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
   })
 
   await test.step('a pasted link starts the video in the relay player', async () => {
-    await page.getByTestId('activity-button').first().click()
+    await page.getByTestId('dock-activities-button').first().click()
     await page.getByTestId('activity-link').fill('https://www.youtube.com/watch?v=rFrPz1WkBvk&si=share123')
     await page.getByTestId('activity-start').click()
     await expect.poll(() => asked, { timeout: 15000 }).toContain('rFrPz1WkBvk')
@@ -476,7 +501,7 @@ test('at 150% and 80% zoom the player covers its slot, in the dock card and on t
           }
           root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')!.$patch((s) => { s.connectionMode = 'livekit' })
         })
-        await page.getByTestId('activity-button').first().click()
+        await page.getByTestId('dock-activities-button').first().click()
         await page.getByTestId('activity-link').fill('https://www.youtube.com/watch?v=rFrPz1WkBvk')
         await page.getByTestId('activity-start').click()
 

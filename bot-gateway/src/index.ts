@@ -15,6 +15,7 @@ import { TTLCache } from './utils/TTLCache.js'
 import { getBridgeAttachmentMode, getUploadCeilingBytes, hasDiscordCdnFilePart, readBridgeAttachmentMode } from './utils/mirrorExternalMedia.js'
 import { mirrorFileToStorage } from './utils/mirrorFile.js'
 import { MirrorWorker } from './bridge/mirrorWorker.js'
+import { startAvatarPurge } from './bridge/avatarPurge.js'
 import { startEraseResume } from './bridge/bridgePrivacy.js'
 import { DISCORD_PLATFORM } from './bridge/bridgeConfig.js'
 import { removeUnreferencedMirrors } from './bridge/mirrorEnqueue.js'
@@ -41,6 +42,10 @@ app.get('/health', (req, res) => {
 })
 
 const server = createServer(app)
+// Node's requestTimeout counts from the first byte to the end of the body and answers 408; its 300 s
+// default ends a large or queued upload. 1800 s is an upload reservation's lease
+// (20261125200002). headersTimeout keeps its 60 s.
+server.requestTimeout = 1_800_000
 
 const wss = new WebSocketServer({ 
   server, 
@@ -96,6 +101,8 @@ const mirrorWorker = new MirrorWorker({
 mirrorWorker.start()
 // Unfinished bridge privacy erases continue after a restart.
 const stopEraseResume = startEraseResume()
+// Avatars of Matrix bridges that were unconfigured or whose bot or server was deleted.
+const stopAvatarPurge = startAvatarPurge()
 if (config.bridge.hostSecret && config.bridge.hostSecret.length < MIN_HOST_SECRET_LENGTH) {
   console.warn(`BRIDGE_HOST_SECRET is shorter than ${MIN_HOST_SECRET_LENGTH} characters; GET /bridge/v2/hosted stays disabled`)
 }
@@ -104,8 +111,8 @@ if (config.bridge.hostSecret && config.bridge.hostSecret.length < MIN_HOST_SECRE
 //
 // These require a valid Supabase user JWT. `/bridged-users` additionally
 // requires the caller to be a member of the channel's server; unauthenticated
-// access allowed enumeration of connected bots and of bridged Discord users
-// for arbitrary channel IDs. See BUGS.md C4.
+// access enumerates connected bots and bridged Discord users for arbitrary
+// channel IDs.
 
 /**
  * Validates the Supabase user JWT in `Authorization: Bearer <token>`.
@@ -217,13 +224,16 @@ async function canViewChannel(profileId: string, serverId: string, channelId: st
   return !error && data === true
 }
 
-/** Discord ids left out of a server's bridges (bridge_remote_optouts); null on a failed lookup. */
+/**
+ * Remote ids left out of a server's bridges (bridge_remote_optouts): Discord snowflakes and
+ * Matrix user ids, which cannot collide ('@' leads every MXID). Null on a failed lookup.
+ */
 async function bridgeOptOutIds(serverId: string): Promise<Set<string> | null> {
   const { data, error } = await supabase
     .from('bridge_remote_optouts')
     .select('remote_user_id')
     .eq('server_id', serverId)
-    .eq('platform', DISCORD_PLATFORM)
+    .in('platform', [DISCORD_PLATFORM, 'matrix'])
   if (error || !Array.isArray(data)) {
     console.error(`bridged-users: bridge_remote_optouts lookup for ${serverId} failed:`, error?.message)
     return null
@@ -267,15 +277,10 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
     res.status(503).json({ error: 'Lookup failed' })
     return
   }
-
-  const bridgedUsers = gateway.getBridgedUsers(channelId, excluded)
-  const hasBridge = gateway.hasChannelBridge(channelId)
-
-  res.json({
-    channel_id: channelId,
-    has_bridge: hasBridge,
-    users: bridgedUsers
-  })
+  try {
+    const bridgedUsers = await gateway.getAuthorizedBridgedUsers([channelId], excluded)
+    res.json({ channel_id: channelId, has_bridge: gateway.hasChannelBridge(channelId), users: bridgedUsers })
+  } catch { res.status(503).json({ error: 'Bridge membership unavailable' }) }
 })
 
 app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
@@ -313,14 +318,10 @@ app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
     res.status(503).json({ error: 'Lookup failed' })
     return
   }
-  const bridgedUsers = gateway.getBridgedUsersForServer(channelIds, excluded)
-  const hasBridge = gateway.hasBridgedUsersForServer(channelIds)
-
-  res.json({
-    server_id: serverId,
-    has_bridge: hasBridge,
-    users: bridgedUsers,
-  })
+  try {
+    const bridgedUsers = await gateway.getAuthorizedBridgedUsers(channelIds, excluded)
+    res.json({ server_id: serverId, has_bridge: gateway.hasBridgedUsersForServer(channelIds), users: bridgedUsers })
+  } catch { res.status(503).json({ error: 'Bridge membership unavailable' }) }
 })
 
 // On-demand attachment refresh, active when bridge_attachment_mode = 'refresh'.
@@ -463,6 +464,7 @@ async function shutdown() {
   bridgeConfigWatcher.stop()
   interactionPoller.stop()
   stopEraseResume()
+  stopAvatarPurge()
   // Awaited: the exit in the server.close callback drops bot_presence writes still in flight.
   await gateway.shutdown()
 

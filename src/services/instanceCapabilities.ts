@@ -32,6 +32,7 @@ export const KNOWN_CAPABILITIES = [
   'bot-commands',
   'voice-announce',
   'member-directory',
+  'signal-relay',
 ] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 

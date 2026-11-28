@@ -18,6 +18,7 @@ import { HERE_ROLE_ID } from '@/utils/hereMention'
 import { isMassMentionWord, typedMassMentionPart, type MassMentionOptions } from '@/utils/massMentions'
 import { anchorLinkLabel, findMaskedLinks, shownLinkLabel, urlPartSource } from '@/utils/maskedLinks'
 import { escapeHtml } from '@/utils/sanitize'
+import { isMatrixMention, matrixMentionToken, matrixProfileUrl, parseMatrixMentionToken } from '@/utils/matrixMentions';
 import { isEscapedAt } from '@/utils/markupEscapes'
 
 // UUID-based emojis (legacy) and shortcode emojis are both supported.
@@ -44,7 +45,7 @@ const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 const emojiShortcodeRegex = new RegExp(`:(${DISCORD_EMOJI_TOKEN_INNER}|${EMOJI_SHORTCODE_INNER}):`, 'g');
 
 // Hoisted to module scope; these helpers run per-segment per message, so a
-// fresh RegExp per call is hot-path waste (BUGS.md Pattern P-β, review M4).
+// fresh RegExp per call is hot-path waste (BUGS.md P-β).
 // Stateful 'g' patterns require a lastIndex reset at each call site.
 const MENTION_REGEX = createHandleRegex();
 const URL_PRESCAN_REGEX = URL_TOKEN_REGEX;
@@ -53,7 +54,8 @@ const COMBINED_MENTION_HASHTAG_REGEX = new RegExp(
   `(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|${HERE_ROLE_ID}(?![\\p{L}\\p{N}_-])))` +
   '|(@d!(\\d+):([a-zA-Z0-9_.-]+))' +
   `|(${HANDLE_PATTERN})` +
-  '|(?<![&\\w])#([\\p{L}\\p{N}_-]+)',
+  '|(?<![&\\w])#([\\p{L}\\p{N}_-]+)' +
+  '|(<@matrix:([^<>\\s]*)>)',
   'gu',
 );
 // Mirrors the inline-code rule of chatMessageTextRenderer.
@@ -96,15 +98,78 @@ const COMBINED_EMOJI_REGEX = new RegExp(
  */
 const absentLocalUsernames = new WeakMap<object, ReadonlySet<string>>();
 
+/** `domain`: the account's own domain, when the handle typed named it by another host. */
+export interface MentionUserData {
+  userId: string;
+  isLocal: boolean;
+  domain?: string;
+}
+
+function actorHost(actorId: unknown): string | null {
+  if (typeof actorId !== 'string') return null;
+  try {
+    return new URL(actorId).host.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remote handles that name no stored account of their domain, matched as
+ * findStoredRemoteAccount (federation-backend ActorService) matches them: the
+ * one stored remote account of that username whose actor id is on the typed
+ * host. A split-domain account (Mastodon LOCAL_DOMAIN + WEB_DOMAIN, Shoot
+ * webapp_url + instance_url) is stored under its account domain and also
+ * named by the host serving its actor; the mention takes the account domain,
+ * as Mastodon's ProcessMentionsService rewrites it to the account's acct. Two
+ * such accounts name neither.
+ */
+async function resolveByActorHost(
+  pairs: Array<{ username: string; domain: string }>,
+): Promise<Record<string, MentionUserData>> {
+  const found: Record<string, MentionUserData> = {};
+  // Quoted: the value holds ':' and '/', reserved in PostgREST logic trees.
+  const orFilter = pairs
+    .map(p => `and(username.eq.${p.username},federated_id.ilike."https://${p.domain}/*")`)
+    .join(',');
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, domain, federated_id')
+    .eq('is_local', false)
+    .or(orFilter);
+  if (error) {
+    debug.warn('Error resolving remote mentions by actor host:', error);
+    return found;
+  }
+
+  const accounts = new Map<string, Array<{ id: string; domain: string }>>();
+  for (const row of data ?? []) {
+    const host = actorHost(row.federated_id);
+    if (!host) continue;
+    const key = `${row.username}@${host}`;
+    accounts.set(key, [...(accounts.get(key) ?? []), { id: row.id, domain: String(row.domain).toLowerCase() }]);
+  }
+  for (const p of pairs) {
+    const key = `${p.username}@${p.domain}`;
+    const matches = accounts.get(key);
+    if (matches?.length === 1) found[key] = { userId: matches[0].id, isLocal: false, domain: matches[0].domain };
+  }
+  return found;
+}
+
 /**
  * Batch-resolves @mention user data. Call before parseContentToMessageParts;
  * otherwise mentions render unresolved.
  */
-export async function resolveMentionsUserData(content: string): Promise<Record<string, { userId: string; isLocal: boolean }>> {
-  const userDataMap: Record<string, { userId: string; isLocal: boolean }> = {};
+export async function resolveMentionsUserData(content: string): Promise<Record<string, MentionUserData>> {
+  const userDataMap: Record<string, MentionUserData> = {};
   
   // Handles inside URLs and inline code are not resolved.
   const skipRanges = opaqueRanges(content);
+  // Encoded Matrix tokens never resolve a local account named "matrix".
+  for (const token of content.matchAll(/<@matrix:[^<>\s]*>/g)) {
+    skipRanges.push({ start: token.index!, end: token.index! + token[0].length });
+  }
   const isOpaque = (pos: number): boolean =>
     skipRanges.some(r => pos >= r.start && pos < r.end);
 
@@ -188,6 +253,9 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
               };
             });
           }
+
+          const unmatched = pairs.filter(p => !userDataMap[`${p.username}@${p.domain}`]);
+          if (unmatched.length > 0) Object.assign(userDataMap, await resolveByActorHost(unmatched));
         }
       } catch (error) {
         debug.warn('Error batch-resolving remote mentions:', error);
@@ -455,7 +523,7 @@ function matchChannelUrl(
 // Parses one segment of content lying outside fenced code blocks.
 async function parseContentSegment(
   content: string,
-  usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean }>,
+  usernameToUserDataMap: Record<string, MentionUserData>,
   emojiDataMap: Record<string, any>,
   hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }>,
   roleDataMap: Record<string, { name: string; color: string | null }>,
@@ -486,6 +554,7 @@ async function parseContentSegment(
   //   @d!ID:username    Discord bridged user
   //   @username[@domain] user mention
   //   #hashtag
+  //   <@matrix:MXID>    Matrix bridged user, MXID URI-encoded; the closing '>' is required
   // Stateful 'g' regex hoisted to module scope; lastIndex reset per call.
   COMBINED_MENTION_HASHTAG_REGEX.lastIndex = 0;
   const parts: MessagePart[] = [];
@@ -497,6 +566,8 @@ async function parseContentSegment(
     // Matches inside a URL belong to the URL; parseTextForUrls handles them
     // (e.g. mastodon.social/@user/123).
     if (isInsideUrl(match.index) || isEscapedAt(content, match.index) || namesNoAccount(match)) continue;
+    // A raw angle-delimited token pasted directly into a URL is not a ping.
+    if (match[10] && /https?:\/\/[^\s]*$/i.test(content.slice(0, match.index))) continue;
 
     if (match.index > lastIndex) {
       const textBefore = content.substring(lastIndex, match.index);
@@ -538,6 +609,12 @@ async function parseContentSegment(
         isBridged: true,
         bridgeSource: 'discord'
       } as MessagePart);
+    } else if (match[10]) {
+      const matrix = parseMatrixMentionToken(match[10]);
+      parts.push(matrix ? {
+        type: 'mention', userId: matrix.id, username: matrix.username, domain: matrix.domain,
+        isLocal: false, displayName: matrix.username, isBridged: true, bridgeSource: 'matrix',
+      } : { type: 'text', text: match[0] });
     } else if (match[6]) {
       // User mention: @username or @username@host. A remote handle resolves
       // only under its own user@host key; the local host is never assigned
@@ -558,7 +635,7 @@ async function parseContentSegment(
         type: 'mention',
         userId: userId,
         username: username,
-        domain: isLocalHandle ? currentDomain : typedDomain!,
+        domain: isLocalHandle ? currentDomain : userData?.domain ?? typedDomain!,
         isLocal: isLocalHandle,
       });
     } else if (match[9]) {
@@ -647,7 +724,7 @@ export interface ContentParseOptions {
 
 export async function parseContentToMessageParts(
   content: string,
-  usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean }> = {},
+  usernameToUserDataMap: Record<string, MentionUserData> = {},
   emojiDataMap: Record<string, any> = {},
   hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {},
   roleDataMap: Record<string, { name: string; color: string | null }> = {},
@@ -767,8 +844,9 @@ function storedUrl(rawUrl: string, mirror: boolean): string {
 }
 
 /**
- * Splits text into url and emoji parts. Masked links `[label](url)` become url parts with a
- * label (utils/maskedLinks); the label stays as typed. URL tracking-parameter stripping and the
+ * Splits text into url and emoji parts. Masked links `[label](url)`, images and linked images
+ * become url parts with a label (utils/maskedLinks); the label stays as typed, and a blank alt
+ * gives none. URL tracking-parameter stripping and the
  * post-link mirrors of utils/mirrorLinks (storedUrl) happen here so every caller (ActivityPub,
  * DMs, chat) gets them.
  */
@@ -782,7 +860,7 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
   let last = 0;
   for (const link of links) {
     if (link.start > last) parts.push(...await parseTextForBareUrls(text.slice(last, link.start), emojiDataMap));
-    parts.push({ type: 'url', url: storedUrl(link.url, false), preview: link.preview, label: link.label });
+    parts.push({ type: 'url', url: storedUrl(link.url, false), preview: link.preview, ...(link.label ? { label: link.label } : {}) });
     last = link.end;
   }
   if (last < text.length) parts.push(...await parseTextForBareUrls(text.slice(last), emojiDataMap));
@@ -922,6 +1000,10 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         return part.text || '';
         
       case 'mention': {
+        if (isMatrixMention(part)) {
+          const href = matrixProfileUrl(part.userId);
+          return href ? `<a href="${escapeHtml(href)}" rel="noopener noreferrer">${escapeHtml(part.userId)}</a>` : escapeHtml(part.userId || '');
+        }
         const currentDomain = localDomain();
         const username = (part.username || '').replace(/^@+/, ''); // prevent @@
         const domain = (part.domain || currentDomain).toLowerCase();
@@ -977,6 +1059,7 @@ export function convertMessagePartsToText(parts: MessagePart[]): string {
         return part.text;
         
       case 'mention':
+        if (isMatrixMention(part)) return matrixMentionToken(part.userId) ?? part.userId;
         return part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
         
       case 'hashtag':
@@ -1013,7 +1096,7 @@ export function extractMentionsFromMessageParts(parts: MessagePart[]): Array<{
   name: string;
 }> {
   return parts
-    .filter((part): part is Extract<MessagePart, { type: 'mention' }> => part.type === 'mention')
+    .filter((part): part is Extract<MessagePart, { type: 'mention' }> => part.type === 'mention' && !isMatrixMention(part))
     .map(part => {
       const currentDomain = localDomain();
       const domain = (part.domain || currentDomain).toLowerCase();

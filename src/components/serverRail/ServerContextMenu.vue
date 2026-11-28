@@ -36,6 +36,10 @@
       {{ t('notificationSettings.menuEntry') }}
     </button>
 
+    <button v-if="showBridgePrivacy" type="button" role="menuitem" class="rail-menu-item" data-action="bridge-privacy" @click="act({ type: 'bridge-privacy' })">
+      {{ t('bridgePrivacy.title') }}
+    </button>
+
     <div class="rail-menu-divider" role="separator"></div>
 
     <button type="button" role="menuitem" class="rail-menu-item" data-action="settings" @click="act({ type: 'settings' })">
@@ -97,10 +101,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import RailMenu from './RailMenu.vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
+import { useBridgePrivacyStore } from '@/stores/useBridgePrivacy'
 import type { Server, ServerFolder } from '@/types'
 
 export type ServerMenuAction =
@@ -108,6 +113,7 @@ export type ServerMenuAction =
   | { type: 'invite' }
   | { type: 'mute'; until: Date | null | false }
   | { type: 'notification-settings' }
+  | { type: 'bridge-privacy' }
   | { type: 'settings' }
   | { type: 'create-channel' }
   | { type: 'create-category' }
@@ -150,6 +156,14 @@ const { t, locale } = useI18n()
 const { serverSettingsPermissions, channelPermissions } = useServerPermissions(() => props.server.id)
 const canManageServer = computed(() => serverSettingsPermissions.value.canEditBasicInfo)
 const canManageChannels = computed(() => channelPermissions.value.canCreateChannels)
+
+// A copy's bridges belong to its host instance.
+const bridgePrivacy = useBridgePrivacyStore()
+const isLocal = computed(() => props.server.is_local_server !== false)
+const showBridgePrivacy = computed(() => isLocal.value && bridgePrivacy.hasBridge(props.server.id))
+watch(() => (isLocal.value ? props.server.id : undefined), (serverId) => {
+  if (serverId) void bridgePrivacy.prefetch(serverId)
+}, { immediate: true })
 
 const targetFolders = computed(() => props.folders.filter(f => f.id !== props.folderId))
 

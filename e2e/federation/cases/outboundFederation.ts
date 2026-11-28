@@ -8,7 +8,11 @@
 //   - an edit of the content warning alone reaches followers as Update(Note);
 //   - deleting a post that mentioned a non-follower reaches that mentionee;
 //   - the peer's outbox, 20-item pages, and featured collection are imported in
-//     full, the featured posts pinned.
+//     full, the featured posts pinned;
+//   - an outbox of NeoDB's shape (bare Notes, `to` one compact `as:Public`) is
+//     imported public; a Create addressed on the activity alone keeps that audience;
+//     the followers collection is the one the actor declares, not any IRI with
+//     `followers` in it.
 //
 // Each write goes through PostgREST as fx_alice or the service role, so the
 // table triggers run. The job each trigger queues is read off the database's
@@ -67,6 +71,7 @@ const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public'
 const BOOST_TARGET = 'fed00085-0000-0000-0000-000000000001'
 const STRANGER = 'fed00085-0000-0000-0000-000000000002'
 const PUBLISHER = 'fed00085-0000-0000-0000-000000000003'
+const NEODB_READER = 'fed00085-0000-0000-0000-000000000004'
 
 // Host part of the stack subnet's TLS proxy address.
 const WEBFINGER_HOST_OCTET = 200
@@ -227,6 +232,7 @@ export async function runOutboundFederationCases(ctx: OutboundContext): Promise<
     await caseDeleteReachesMentionee(ctx, alice, tap, handlers)
     await caseMentionResolvedByWebFinger(ctx, alice, tap, handlers, docs, seen, project)
     await caseOutboxAndFeatured(ctx, docs, seen)
+    await caseOutboxAudience(ctx, docs)
     await caseBlock(ctx, alice, tap, handlers)
   } finally {
     await db.from('follows').delete().eq('follower_id', ctx.remote).eq('following_id', ctx.alice.id)
@@ -656,4 +662,72 @@ async function caseBlock(ctx: OutboundContext, alice: SupabaseClient, tap: JobTa
   ctx.eq(sent[0]?.body?.type, 'Undo', 'the unblock is an Undo')
   ctx.eq(sent[0]?.body?.object?.type, 'Block', 'the Undo embeds the Block')
   ctx.eq(sent[0]?.body?.object?.id, blockId, 'the embedded Block keeps the id it was sent under')
+}
+
+async function caseOutboxAudience(ctx: OutboundContext, docs: Docs) {
+  console.log('\nremote profile import -> outbox audience as NeoDB and Mastodon address it')
+  const { db, peer, localUrl } = ctx
+  const peerHost = new URL(peer.base).host
+  // NeoDB names actors and collections with a trailing slash.
+  const actorUrl = `${peer.base}/@reader/`
+  const outbox = `${actorUrl}outbox/`
+  const followers = `${actorUrl}followers/`
+  const post = (n: number, audience: Record<string, unknown>) => ({
+    id: `${actorUrl}posts/${n}/`,
+    type: 'Note',
+    attributedTo: actorUrl,
+    content: `<p>audience post ${n}</p>`,
+    published: new Date(Date.UTC(2026, 0, 2) - n * 60_000).toISOString(),
+    ...audience,
+  })
+  const items = [
+    post(1, { to: 'as:Public', tag: { type: 'Movie', href: `${peer.base}/movie/1`, name: 'Example Movie' } }),
+    { id: `${actorUrl}posts/2/activity`, type: 'Create', actor: actorUrl, to: [followers], cc: [], object: post(2, {}) },
+    { id: `${actorUrl}posts/3/activity`, type: 'Create', actor: actorUrl, to: [PUBLIC], cc: [followers], object: post(3, {}) },
+    post(4, { to: [`${peer.base}/users/followers_club`], cc: [] }),
+    // Another actor's followers collection on the same host: not the one this actor declares.
+    post(5, { to: [`${peer.base}/users/other/followers`], cc: [] }),
+  ]
+  docs.set('/@reader/', { contentType: AP, body: actorDoc(actorUrl, 'reader', { outbox, followers }) })
+  docs.set('/@reader/outbox/', {
+    contentType: AP,
+    body: { id: outbox, type: 'OrderedCollection', totalItems: items.length, orderedItems: items },
+  })
+
+  await db.from('posts').delete().eq('author_id', NEODB_READER)
+  await db.from('profiles').delete().eq('id', NEODB_READER)
+  const seeded = await db.from('profiles').insert({
+    id: NEODB_READER, username: 'reader', display_name: 'Reader', domain: peerHost, is_local: false,
+    federated_id: actorUrl, inbox_url: `${actorUrl}inbox/`, outbox_url: outbox, followers_url: followers,
+  })
+  if (seeded.error) return ctx.fail('seed reader', seeded.error.message)
+
+  // /lookup-user admits 30 requests a minute per client IP, shared with earlier cases.
+  let lookup = await postJson(`${localUrl}/lookup-user`, { handle: `reader@${peerHost}` })
+  for (let attempt = 0; lookup.status === 429 && attempt < 15; attempt++) {
+    await sleep(5000)
+    lookup = await postJson(`${localUrl}/lookup-user`, { handle: `reader@${peerHost}` })
+  }
+  ctx.assert(lookup.status === 200 && lookup.json?.backfilling === true,
+    'opening the NeoDB profile starts the outbox import', JSON.stringify(lookup.json)?.slice(0, 200))
+
+  const expected: Record<string, string> = {
+    [`${actorUrl}posts/1/`]: 'public',
+    [`${actorUrl}posts/2/`]: 'followers',
+    [`${actorUrl}posts/3/`]: 'public',
+    [`${actorUrl}posts/4/`]: 'direct',
+    [`${actorUrl}posts/5/`]: 'direct',
+  }
+  let stored: Record<string, string> = {}
+  for (let i = 0; i < 100; i++) {
+    const { data } = await db.from('posts').select('ap_id, visibility').eq('author_id', NEODB_READER)
+    stored = Object.fromEntries((data ?? []).map((r) => [r.ap_id, r.visibility]))
+    if (Object.keys(stored).length >= items.length) break
+    await sleep(200)
+  }
+  const sorted = (rows: Record<string, string>) => Object.fromEntries(Object.entries(rows).sort(([a], [b]) => a.localeCompare(b)))
+  ctx.eq(JSON.stringify(sorted(stored)), JSON.stringify(sorted(expected)),
+    'each outbox post is stored with the visibility its audience states, and nothing else')
+  await db.from('posts').delete().eq('author_id', NEODB_READER)
+  await db.from('profiles').delete().eq('id', NEODB_READER)
 }

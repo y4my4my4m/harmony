@@ -97,16 +97,13 @@
                 <span v-if="suggestion.isRole" class="suggest-name role-name" :style="{ color: suggestion.roleColor || '#99AAB5' }">
                   @{{ (suggestion.display_name || suggestion.name || '').replace(/^@/, '') }}
                 </span>
+                <span v-else-if="suggestion.isBridged" class="suggest-name">{{ suggestion.display_name || suggestion.username }}</span>
                 <DisplayName v-else-if="!suggestion.emoji && suggestion.id" class="suggest-name" :userId="suggestion.id" :fallback="suggestion.display_name || suggestion.name" :truncate="true" />
                 <span class="suggest-name" v-else>:{{ suggestion.emoji.name || suggestion.name }}:</span>
                 <span v-if="suggestion.isRole" class="bridge-badge role-badge" aria-hidden="true">
                   {{ t('mentionLabels.role') }}
                 </span>
-                <span v-else-if="suggestion.isBridged && suggestion.bridgeSource === 'discord'" class="bridge-badge discord" title="Discord user">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05-.01.07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12z"/>
-                  </svg>
-                </span>
+                <BridgeSourceBadge v-else-if="suggestion.isBridged && suggestion.bridgeSource" :source="suggestion.bridgeSource" />
               </div>
               <span v-if="suggestion.username && !suggestion.isRole" class="suggest-username">{{ suggestion.username }}</span>
               <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
@@ -125,6 +122,8 @@ import { useI18n } from 'vue-i18n';
 import Avatar from '@/components/common/Avatar.vue';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
+import { bridgePlatformLabel } from '@/utils/messageAuthor';
 import { usePortalTarget } from '@/composables/usePortalTarget';
 
 const portalTarget = usePortalTarget();
@@ -212,7 +211,10 @@ const optionLabel = (suggestion: SuggestionItem): string | undefined => {
   }
   if (suggestion.isCommand || suggestion.emoji || suggestion.isChannel || !suggestion.username) return undefined;
   const handle = suggestion.display_text || `@${suggestion.username}`;
-  return t('mentionLabels.memberOption', { name: name || suggestion.username, handle });
+  const label = t('mentionLabels.memberOption', { name: name || suggestion.username, handle });
+  return suggestion.isBridged && suggestion.bridgeSource
+    ? `${label}, ${t('bridgeSource.from', { platform: bridgePlatformLabel(suggestion.bridgeSource) })}`
+    : label;
 };
 
 const getSuggestionKey = (suggestion: SuggestionItem): string => {
@@ -367,10 +369,6 @@ watch(() => props.selectedIndex, (newIndex) => {
   flex-shrink: 0;
 }
 
-.bridge-badge.discord {
-  color: #5865F2; /* Discord blurple */
-}
-
 .bridge-badge.role-badge {
   font-size: var(--font-size-xs);
   font-weight: 600;
@@ -494,7 +492,8 @@ watch(() => props.selectedIndex, (newIndex) => {
   text-overflow: ellipsis;
 }
 
-.selected .bridge-badge {
+.selected .bridge-badge,
+.selected :deep(.bridged-source-icon) {
   color: var(--text-on-primary);
 }
 

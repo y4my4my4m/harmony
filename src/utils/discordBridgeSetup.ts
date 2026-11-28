@@ -1,6 +1,6 @@
 /**
  * Discord bridge v2: row shapes, status/snapshot parsing, setup-step derivation and
- * the copy-paste commands shown in Server Settings → Discord Bridge.
+ * the copy-paste commands shown in Server Settings → Bridges → Discord.
  */
 import { getInstanceDomain, getStoredInstance } from '@/services/instanceConfig'
 import { runtimeConfig } from '@/services/runtimeConfig'
@@ -266,6 +266,8 @@ export interface HarmonyChannelOption {
   id: string
   name: string
   categoryName: string | null
+  /** A voice channel: named in existing pairs, never offered for a new pair. */
+  voice?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +300,8 @@ export interface SnapshotChannel {
   canView: boolean
   canSend: boolean
   canManageWebhooks: boolean
+  /** @everyone can view the channel and read its history; null from a bridge before 2.8.0. */
+  everyoneCanView: boolean | null
 }
 
 export interface SnapshotGuild {
@@ -374,6 +378,7 @@ export function parseSnapshotGuilds(raw: unknown): SnapshotGuild[] {
               canView: channel.can_view === true,
               canSend: channel.can_send === true,
               canManageWebhooks: channel.can_manage_webhooks === true,
+              everyoneCanView: typeof channel.everyone_can_view === 'boolean' ? channel.everyone_can_view : null,
             }
           })
           .filter((c): c is SnapshotChannel => c !== null),
@@ -696,7 +701,7 @@ export function matchChannelsByName(
     }
     return map
   }
-  const harmony = index(harmonyChannels.filter((c) => !pairedHarmony.has(c.id)), (c) => c.name)
+  const harmony = index(harmonyChannels.filter((c) => !c.voice && !pairedHarmony.has(c.id)), (c) => c.name)
   const discord = index(
     discordChannels.filter((c) => DISCORD_TEXT_CHANNEL_TYPES.includes(c.type) && !pairedDiscord.has(c.id)),
     (c) => c.name,

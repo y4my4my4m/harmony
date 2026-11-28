@@ -14,7 +14,8 @@ const toast = vi.hoisted(() => vi.fn())
 const stored = vi.hoisted(() => new Map<string, string>())
 const serverUsers = vi.hoisted(() => ({ touchVoiceParticipant: vi.fn(async () => undefined), leaveVoiceChannelOnUnload: vi.fn() }))
 
-vi.mock('@/supabase', () => ({ supabase: {} }))
+const realtime = vi.hoisted(() => ({ accessTokenValue: '' }))
+vi.mock('@/supabase', () => ({ supabase: { realtime }, SUPABASE_ANON_KEY: 'anon-key' }))
 vi.mock('@/services/UserEventChannel', () => ({ userEventChannel: { on: () => () => {} } }))
 vi.mock('@/services/instanceConfig', () => ({ apiUrl: (p: string) => p }))
 vi.mock('@/services/webrtcManager', () => ({ webrtcManager: webrtc }))
@@ -76,6 +77,16 @@ describe('a closing page', () => {
     s.localState.userId = 'me'
     unload()
     expect(serverUsers.leaveVoiceChannelOnUnload).toHaveBeenCalledWith('s1', 'c1', 'me', 'token')
+  })
+
+  it('leaves it with the token refreshed since the sign-in', () => {
+    const s = store()
+    Object.assign(s, { isConnected: true, currentServerId: 's1', currentChannelId: 'c1' })
+    s.localState.userId = 'me'
+    realtime.accessTokenValue = 'refreshed'
+    unload()
+    expect(serverUsers.leaveVoiceChannelOnUnload).toHaveBeenCalledWith('s1', 'c1', 'me', 'refreshed')
+    realtime.accessTokenValue = ''
   })
 
   it('leaves a channel it is still joining', () => {

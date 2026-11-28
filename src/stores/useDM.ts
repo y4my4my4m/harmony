@@ -28,6 +28,7 @@ import { useMessagePollsStore } from '@/stores/useMessagePolls'
 import { useProfileStore } from '@/stores/useProfile'
 import { useToast } from 'vue-toastification'
 import { i18n } from '@/i18n'
+import { isMatrixMention } from '@/utils/matrixMentions'
 import { NEWER_PAGE, acceptsLiveRow, appendNewer, cursorOf, isPendingRow, mergeTail, newestPersisted } from '@/utils/messageWindow'
 
 /** Rows a catch-up after the newest loaded message reads at once. */
@@ -70,6 +71,9 @@ export interface DMConversation {
   // Per-user dismissal: when set, the conversation is hidden from the list
   // unless its latest activity is newer than this timestamp.
   hidden_at?: string | null
+
+  // The preview message was deleted and the newest row left is being read.
+  preview_pending?: boolean
 }
 
 /**
@@ -144,7 +148,7 @@ export const useDMStore = defineStore('dm', () => {
   })
   
   const getSortedConversations = computed(() => {
-    // BUGS.md H35: sort a copy. Sorting `conversations.value` in place mutates
+    // Sort a copy. Sorting `conversations.value` in place mutates
     // store state from inside a getter, reordering the source array on every
     // read.
     return [...conversations.value].sort((a, b) => {
@@ -410,8 +414,12 @@ export const useDMStore = defineStore('dm', () => {
       const rest = messageCache.value.get(conversation.id)?.messages ?? []
       const newest = rest[rest.length - 1]
       conversation.last_message = newest
-      if (newest) conversation.last_activity = new Date(newest.created_at).toISOString()
-      else void applyNewestRowAsPreview(conversation.id)
+      if (newest) {
+        conversation.last_activity = new Date(newest.created_at).toISOString()
+      } else {
+        conversation.preview_pending = true
+        void refreshConversationPreview(conversation.id)
+      }
     }
   }
 
@@ -775,8 +783,9 @@ export const useDMStore = defineStore('dm', () => {
       const lastMessageScanLimit = Math.min(conversationIds.length * 5, 1000)
       const { data: lastMessages, error: messagesError } = await supabase
         .from('messages')
-        .select('conversation_id, content, encrypted, created_at, user_id, is_system, metadata')
+        .select('id, conversation_id, content, encrypted, created_at, user_id, is_system, metadata')
         .in('conversation_id', conversationIds)
+        .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: false })
         .limit(lastMessageScanLimit)
 
@@ -824,7 +833,7 @@ export const useDMStore = defineStore('dm', () => {
           unread_count: 0, // filled in below from unread_counts
           participant_count: otherParticipants.length + 1, // +1 for current user
           last_message: lastMessage ? {
-            id: '', // preview only; ID unused
+            id: lastMessage.id,
             content: lastMessage.content,
             is_system: lastMessage.is_system === true,
             metadata: lastMessage.metadata || {},
@@ -1509,6 +1518,7 @@ export const useDMStore = defineStore('dm', () => {
       .from('messages')
       .select('id, user_id, content, encrypted, created_at, metadata')
       .eq('conversation_id', conversationId)
+      .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -1535,6 +1545,7 @@ export const useDMStore = defineStore('dm', () => {
         .from('messages')
         .select('id, user_id, content, created_at, metadata, conversation_id')
         .in('conversation_id', conversationIds)
+        .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: false })
         .limit(limit)
 
@@ -1734,7 +1745,7 @@ export const useDMStore = defineStore('dm', () => {
         }
       )
 
-      // BUGS.md H34: the stale-conversation guard covers pagination as well as
+      // The stale-conversation guard covers pagination as well as
       // the initial load. Without it, switching DMs mid-fetch prepends
       // conversation A's history into conversation B's messages and cache.
       if (signal?.aborted) {
@@ -2326,18 +2337,25 @@ export const useDMStore = defineStore('dm', () => {
       debug.log('Setting up DM realtime subscriptions for user:', userId)
       
       const { userDataService } = await import('@/services/userDataService')
+      // other_user is a copy of the partner's profile; it follows the cache.
       const userUpdatedHandler = (event: any) => {
         const { userId: updatedUserId } = event.detail
-        
-        const updatedConversations = conversations.value.filter(conv =>
-          conv.other_user?.id === updatedUserId && !(conv.other_user as any)?._isPlaceholder
-        )
-        
-        if (updatedConversations.length > 0) {
-          for (const conv of updatedConversations) {
-            loadConversationUserProfile(conv.id)
+        const cached = userDataService.getUser(updatedUserId)
+        if (!cached) return
+        conversations.value.forEach((conv, index) => {
+          const other = conv.other_user
+          if (!other || other.id !== updatedUserId || other._isPlaceholder) return
+          // A cleared field is null in the cache and absent here.
+          const next = {
+            display_name: cached.displayName || undefined,
+            avatar_url: cached.avatarUrl || undefined,
+            username: cached.username || other.username,
+            color: cached.color || undefined,
           }
-        }
+          if (next.display_name === other.display_name && next.avatar_url === other.avatar_url
+              && next.username === other.username && next.color === other.color) return
+          conversations.value[index] = { ...conv, other_user: { ...other, ...next } }
+        })
       }
       // Re-entrant: runs again on every conversation switch. Drop the previous
       // registration before overwriting the slot, or cleanup() cannot reach it.
@@ -2396,6 +2414,7 @@ export const useDMStore = defineStore('dm', () => {
         .from('messages')
         .select('*')
         .eq('conversation_id', conversationId)
+        .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: true })
         .limit(50)
 
@@ -2725,7 +2744,12 @@ export const useDMStore = defineStore('dm', () => {
       .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
       .limit(1)
-    if (error || !data?.length) return
+    if (error) return
+    if (!data?.length) {
+      const empty = conversations.value.find(c => c.id === conversationId)
+      if (empty) empty.preview_pending = false
+      return
+    }
 
     let row: Message = {
       ...data[0],
@@ -2745,6 +2769,7 @@ export const useDMStore = defineStore('dm', () => {
 
     const conv = conversations.value.find(c => c.id === conversationId)
     if (!conv) return
+    conv.preview_pending = false
     const shownAt = conv.last_message ? new Date(conv.last_message.created_at).getTime() : -Infinity
     if (row.created_at.getTime() >= shownAt) {
       conv.last_message = {
@@ -2818,7 +2843,7 @@ export const useDMStore = defineStore('dm', () => {
       }
     })
 
-    // BUGS.md #4: the DB broadcasts `unread:change` on `user:{profileId}`
+    // The DB broadcasts `unread:change` on `user:{profileId}`
     // whenever an `unread_messages_view` row changes. The DM sidebar reads this
     // store, not `useUnreadCounts`, so it must listen here. Patching
     // `unread_count` and `last_activity` updates the sidebar and its sort order
@@ -2876,7 +2901,14 @@ export const useDMStore = defineStore('dm', () => {
       }))
     })
 
-    _globalBroadcastUnsubs = [unsubNew, unsubUpdated, unsubUnread, unsubReconnect, unsubEncryption]
+    // A delete in any of the user's conversations, open or not. The open one also receives the
+    // row on dm-conversation-<id>; removal is idempotent.
+    const unsubMessageDeleted = userEventChannel.on('conversation:message_deleted', (data) => {
+      if (typeof data?.message_id !== 'string') return
+      removeMessageFromCache(data.message_id)
+    })
+
+    _globalBroadcastUnsubs = [unsubNew, unsubUpdated, unsubUnread, unsubReconnect, unsubEncryption, unsubMessageDeleted]
     _globalBroadcastRegistered = true
     debug.log('Global conversation broadcast handlers registered')
   }
@@ -2988,7 +3020,7 @@ export const useDMStore = defineStore('dm', () => {
     const processedUrls = new Set<string>()
     
     content.forEach(part => {
-      if (part.type === 'mention' && part.username) {
+      if (part.type === 'mention' && part.username && !isMatrixMention(part)) {
         const domain = part.domain || instanceDomain
         // `url` is absent from the narrowed `MentionContent` type but attached
         // at runtime by legacy paths, so it is read through `any`.

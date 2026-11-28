@@ -1,12 +1,24 @@
 <template>
-  <div class="public-servers-search">
-    <SearchInput
-      v-model="localSearchQuery"
-      class="search-field"
-      :placeholder="$t('server.searchCommunities')"
-      :is-loading="isSearching"
-      @clear="emit('update:searchQuery', '')"
-    />
+  <DiscoveryControls
+    ref="controls"
+    :expanded="expanded"
+    :filters="activeFilters"
+    :count="statsText"
+    count-test-id="discovery-local-stats"
+    @update:expanded="emit('update:expanded', $event)"
+    @remove="removeFilter"
+  >
+    <div class="public-servers-search">
+      <label :for="inputId" class="search-label">{{ $t('server.searchCommunitiesLabel') }}</label>
+      <SearchInput
+        v-model="localSearchQuery"
+        class="search-field"
+        :input-id="inputId"
+        :placeholder="$t('server.searchCommunities')"
+        :is-loading="isSearching"
+        @clear="emit('update:searchQuery', '')"
+      />
+    </div>
 
     <div class="category-chips" role="group" :aria-label="$t('server.categories')">
       <button
@@ -32,18 +44,15 @@
         {{ translateCategory(category) }}
       </button>
     </div>
-
-    <p class="search-stats" aria-live="polite">
-      {{ statsText }}
-    </p>
-  </div>
+  </DiscoveryControls>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SearchInput from '@/components/common/SearchInput.vue'
 import Icon from '@/components/common/Icon.vue'
+import DiscoveryControls, { type DiscoveryFilter } from '@/components/PublicServers/DiscoveryControls.vue'
 import { categoryIcon, categoryLabelKey } from '@/utils/serverDiscovery'
 
 const { t } = useI18n()
@@ -51,6 +60,7 @@ const { t } = useI18n()
 interface Props {
   searchQuery: string
   selectedCategory: string | null
+  expanded: boolean
   isSearching: boolean
   hasActiveFilter: boolean
   categories: string[]
@@ -61,10 +71,14 @@ interface Props {
 interface Emits {
   (e: 'update:searchQuery', value: string): void
   (e: 'update:selectedCategory', value: string | null): void
+  (e: 'update:expanded', value: boolean): void
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+
+const controls = ref<InstanceType<typeof DiscoveryControls> | null>(null)
+const inputId = `public-servers-search-${useId()}`
 
 const localSearchQuery = computed({
   get: () => props.searchQuery,
@@ -80,21 +94,48 @@ const translateCategory = (category: string): string => {
   return key ? t(key) : category
 }
 
+const activeFilters = computed<DiscoveryFilter[]>(() => {
+  const filters: DiscoveryFilter[] = []
+  if (props.selectedCategory) {
+    filters.push({
+      key: 'category',
+      label: translateCategory(props.selectedCategory),
+      icon: categoryIcon(props.selectedCategory) ?? 'tag',
+    })
+  }
+  const query = props.searchQuery.trim()
+  if (query) filters.push({ key: 'query', label: t('server.queryChip', { query }), icon: 'search' })
+  return filters
+})
+
+function removeFilter(key: string) {
+  if (key === 'category') emit('update:selectedCategory', null)
+  else if (key === 'query') emit('update:searchQuery', '')
+}
+
 const statsText = computed(() => {
   if (props.hasActiveFilter) {
     return t('server.communitiesOfTotal', { filtered: props.filteredCount, total: props.totalServers })
   }
   return t('server.communitiesFound', { total: props.totalServers })
 })
+
+defineExpose({
+  listScrolled: (scrollTop: number) => controls.value?.listScrolled(scrollTop),
+})
 </script>
 
 <style scoped>
 .public-servers-search {
-  padding: var(--space-4) var(--space-6) var(--space-3);
-  border-bottom: 1px solid var(--border-primary);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
+}
+
+.search-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
 }
 
 /* SearchInput ships its own translucent grey and accent bar; align it with form tokens. */
@@ -187,17 +228,7 @@ const statsText = computed(() => {
   color: var(--text-on-primary);
 }
 
-.search-stats {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-}
-
 @media (max-width: 768px) {
-  .public-servers-search {
-    padding: var(--space-3) var(--space-4);
-  }
-
   /* 16px keeps iOS Safari from zooming on focus. */
   .search-field :deep(.search-input__field) {
     font-size: 16px;
@@ -207,8 +238,8 @@ const statsText = computed(() => {
   .category-chips {
     flex-wrap: nowrap;
     overflow-x: auto;
-    margin: 0 calc(-1 * var(--space-4));
-    padding: 0 var(--space-4);
+    margin: -4px calc(-1 * var(--space-4));
+    padding: 4px var(--space-4);
     scrollbar-width: none;
   }
 

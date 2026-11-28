@@ -11,7 +11,7 @@ import { debug } from '@/utils/debug'
 class StatusLifecycleDebugger {
   private isDebugging = false
   private logHistory: string[] = []
-  // BUGS.md M12: startDebugging() must store the callbacks it registers so
+  // startDebugging() must store the callbacks it registers so
   // stopDebugging() passes the same references to removeEventListener.
   // Anonymous callbacks leak one listener per start/stop pair on
   // userDataService + activityTracker.

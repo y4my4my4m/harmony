@@ -1,7 +1,7 @@
 /**
  * The reactions list shows one tab per emoji with its count and, for the
  * selected tab, every reactor: Harmony users with their handle, bridged Discord
- * users with their Discord name and badge, bots with a bot tag. It follows the
+ * and Matrix people with their name, handle and platform badge, bots with a bot tag. It follows the
  * reactions store live.
  */
 
@@ -158,6 +158,29 @@ describe('ReactionsModal', () => {
     await nextTick()
     expect(wrapper.find('[data-testid="reactions-modal-empty"]').exists()).toBe(true)
     expect(wrapper.find('[role="tablist"]').exists()).toBe(false)
+  })
+
+  it('lists a Matrix reactor as it lists a Discord one, and emits it on click', async () => {
+    const group = thumbs()
+    group.reactions.push({
+      reaction_id: 'r5',
+      bot_id: 'matrix-bot',
+      metadata: { matrix_user: { id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn/sam.png' } },
+    })
+    state.store!.groups = { m1: [group] }
+    const wrapper = mountModal()
+    const rows = wrapper.findAll('[data-testid="reactions-modal-user"]')
+    const [discord, matrix] = [rows[1], rows[2]]
+    expect(matrix.text()).toContain('Sam')
+    expect(matrix.find('.reactions-modal-user-handle').text()).toBe('@sam:example.org')
+    expect(discord.find('.reactions-modal-user-handle').text()).toBe('@disco')
+    expect(matrix.find('.bridge-badge-stub').text()).toBe('matrix')
+    expect(matrix.find('.avatar-stub').attributes('src')).toBe('https://cdn/sam.png')
+    expect(matrix.attributes('disabled')).toBeUndefined()
+    expect(matrix.find('.reactions-modal-user-name').attributes('style')).toBe(discord.find('.reactions-modal-user-name').attributes('style'))
+    await matrix.trigger('click')
+    const [user] = wrapper.emitted('select-user')![0] as any[]
+    expect(user).toMatchObject({ kind: 'matrix', id: '@sam:example.org', bridgedAuthor: { platform: 'matrix', id: '@sam:example.org' } })
   })
 
   it('preloads every reactor and emits the clicked user', async () => {

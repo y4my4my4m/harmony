@@ -4,7 +4,8 @@
 // member counts and description, Join server, and under the button the hosting instance's
 // icon and name. The card reads its counts again through this instance's backend; Join opens
 // the cross-instance join dialog for the link, and a viewer who has the server's copy goes to
-// it. A dead invite renders the invalid state. An invite link of this instance still renders
+// it. A dead invite renders the invalid state; a server closed to other instances names its host
+// by domain, as an unrenamed host calls itself "Harmony". An invite link of this instance still renders
 // the local card.
 //
 // This stack runs no federation backend: the cards are written through update_message_embeds
@@ -45,6 +46,7 @@ const links = {
   join: `https://${HOST}/invite/JOIN${crypto.randomUUID().slice(0, 4).toUpperCase()}`,
   dead: `https://${HOST}/invite/DEAD${crypto.randomUUID().slice(0, 4).toUpperCase()}`,
   copy: `https://${HOST}/invite/COPY${crypto.randomUUID().slice(0, 4).toUpperCase()}`,
+  closed: `https://${HOST}/invite/SHUT${crypto.randomUUID().slice(0, 4).toUpperCase()}`,
 }
 let localCode = ''
 
@@ -73,6 +75,7 @@ const cards = {
   }),
   dead: { status: 'invalid', code: links.dead.split('/').pop()!, domain: HOST, instance },
   copy: card(links.copy.split('/').pop()!, { name: copy.name, memberCount: 4, onlineCount: 1, id: copyGroup }),
+  closed: { status: 'closed', code: links.closed.split('/').pop()!, domain: HOST, instance: { name: 'Harmony', icon: null } },
 }
 
 /** A message of the viewer naming `url`; its card is then stored as the link-preview worker stores it. */
@@ -125,6 +128,7 @@ test.beforeAll(async () => {
   await linkMessage('join timbre over there', links.join, cards.join)
   await linkMessage('this invite died', links.dead, cards.dead)
   await linkMessage('the lounge I am in', links.copy, cards.copy)
+  await linkMessage('members of that instance only', links.closed, cards.closed)
 })
 
 test.afterAll(async () => {
@@ -205,6 +209,14 @@ test('an invite to a server on another Harmony instance renders as the invite ca
     await expect(dead.locator('.error-title')).toHaveText('Invalid invite')
     await expect(dead.locator('.error-message')).toHaveText('Invite not found or has expired')
     await expect(dead.getByRole('button')).toHaveCount(0)
+  })
+
+  await test.step('a server closed to other instances names its host by domain', async () => {
+    const closed = remoteCard(page, 'members of that instance only')
+    await expect(closed).toHaveAttribute('data-status', 'closed')
+    await expect(closed.locator('.error-title')).toHaveText('Closed to other instances')
+    await expect(closed.locator('.error-message')).toHaveText(`Only people on ${HOST} can join this server.`)
+    await expect(closed.getByRole('button')).toHaveCount(0)
   })
 
   await test.step('an invite of this instance renders the local card', async () => {

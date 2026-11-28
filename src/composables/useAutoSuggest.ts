@@ -18,12 +18,14 @@ import { supabase } from '@/supabase';
 import {
   clearBridgedUsersCache,
   fetchBridgedChannelUsers,
+  bridgedUserKey,
   type BridgedChannelUser,
 } from '@/services/bridgedChannelUsersService';
 import { runtimeConfig } from '@/services/runtimeConfig';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
 import { useExternalEmojiPolicy } from '@/composables/useExternalEmojiPolicy';
+import { matrixMentionToken, parseMatrixId } from '@/utils/matrixMentions';
 import { discordEmojiCdnUrl, discordEmojiRefFromPicked, discordEmojiToken } from '@/utils/discordEmoji';
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
 import { HERE_MENTION_TOKEN, HERE_ROLE_ID } from '@/utils/hereMention';
@@ -47,6 +49,8 @@ export { clearBridgedUsersCache };
 // Bridge bot presence is a server-level fact; cached per server id.
 const bridgeBotCheckCache = new Map<string, { hasBridge: boolean; timestamp: number }>();
 const BRIDGE_BOT_CHECK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+/** Postgres: the select names a column the instance lacks; PostgREST answers 400 with it. */
+const UNDEFINED_COLUMN = '42703';
 
 // In-flight checks per server id; concurrent callers share one request.
 const bridgeBotCheckPending = new Map<string, Promise<boolean>>();
@@ -76,6 +80,8 @@ export interface AutoSuggestConfig {
   enableCommands?: boolean;
   /** '/poll' is offered while this returns true. */
   pollsEnabled?: () => boolean;
+  /** /rolemenu: a channel of a server this instance hosts. */
+  roleMenusEnabled?: () => boolean;
   /** Server channel the text goes to; without USE_EXTERNAL_EMOJIS there, only its server's custom emoji are offered. */
   channelId?: () => string | null | undefined;
   /**
@@ -274,7 +280,7 @@ export function useAutoSuggest(
     }, MEMBER_SEARCH_MS);
   };
   
-  // Discord users, fetched from bot-gateway.
+  // Bridged people, fetched from bot-gateway.
   const bridgedUsers = ref<BridgedChannelUser[]>([]);
   const bridgedUsersLoaded = ref(false);
   const bridgedUsersChannelId = ref<string | null>(null);
@@ -536,7 +542,7 @@ export function useAutoSuggest(
       
       // NOTE: the bridge bot check runs in handleInput on '@'; this list stays empty until then.
       for (const bridgedUser of bridgedUsers.value) {
-        const bridgedKey = `discord:${bridgedUser.id}`;
+        const bridgedKey = bridgedUserKey(bridgedUser);
         if (seenUsers.has(bridgedKey)) {
           continue;
         }
@@ -546,25 +552,26 @@ export function useAutoSuggest(
         const usernameStr = normalizeSearchText(bridgedUser.username || '');
         
         if (displayName.includes(query) || usernameStr.includes(query)) {
-          // Discord mentions store `@d!ID:username`: the id drives translation, the username display.
-          const displayText = `@${bridgedUser.username}`;
-          const mentionText = `@d!${bridgedUser.id}:${bridgedUser.username}`;
+          const matrix = bridgedUser.source === 'matrix' ? parseMatrixId(bridgedUser.id) : null;
+          // Discord `@d!ID:username`; Matrix `<@matrix:URI-encoded MXID>`.
+          const mentionText = bridgedUser.source === 'matrix' ? matrixMentionToken(bridgedUser.id) : `@d!${bridgedUser.id}:${bridgedUser.username}`;
+          if (!mentionText) continue;
           
           suggestions.push({
-            id: bridgedUser.id,
+            id: bridgedKey,
             display_name: bridgedUser.displayName,
             username: bridgedUser.username,
             avatar: bridgedUser.avatarUrl,
-            display_text: displayText, // @username
-            mention_text: mentionText, // @d!ID:username
+            display_text: `@${bridgedUser.username}`,
+            mention_text: mentionText,
             isBridged: true,
-            bridgeSource: 'discord',
+            bridgeSource: bridgedUser.source || 'discord',
             user: {
               id: bridgedUser.id,
               username: bridgedUser.username,
               displayName: bridgedUser.displayName,
               avatarUrl: bridgedUser.avatarUrl,
-              domain: 'discord.com',
+              domain: matrix?.domain || 'discord.com',
               isLocal: false
             }
           });
@@ -676,6 +683,7 @@ export function useAutoSuggest(
     { id: 'cmd:meme', name: 'meme', description: 'Search KLIPY for a meme', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a meme' }], enabled: () => instanceSettings.gifMemesEnabled },
     { id: 'cmd:aiemoji', name: 'aiemoji', description: 'Search KLIPY for an AI emoji', permission: '', params: [{ name: 'query', description: 'Search KLIPY for an AI emoji' }], enabled: () => instanceSettings.gifAiEmojisEnabled },
     { id: 'cmd:poll', name: 'poll', description: 'Create a poll', permission: '', enabled: () => finalConfig.pollsEnabled?.() === true },
+    { id: 'cmd:rolemenu', name: 'rolemenu', description: 'Post a menu members pick their roles from', permission: 'MANAGE_ROLES', enabled: () => finalConfig.roleMenusEnabled?.() === true },
   ];
 
   const currentBotTarget = (): BotCommandTarget | null => {
@@ -836,16 +844,14 @@ export function useAutoSuggest(
     
     const requestPromise = (async () => {
       try {
-        const { data, error } = await supabase
+        const readBots = (columns: string) => supabase
           .from('bot_server_permissions')
-          .select(`
-            bot:bots(
-              id,
-              bot_type
-            )
-          `)
+          .select(`bot:bots(${columns})`)
           .eq('server_id', serverId)
           .eq('is_active', true);
+        let { data, error } = await readBots('id, bot_type, bridge_platform');
+        // bots.bridge_platform is 1.9.8 (20261117900001); the native app also opens older instances.
+        if (error?.code === UNDEFINED_COLUMN) ({ data, error } = await readBots('id, bot_type'));
         
         if (error) {
           debug.warn('Failed to check for bridge bots:', error);
@@ -854,13 +860,17 @@ export function useAutoSuggest(
           return false;
         }
         
-        const bridgeBots = (data || []).filter((perm: any) => perm.bot?.bot_type === 'bridge');
+        // Matrix bridge bots carry bridge_platform and no bot_type (20261117900001). RLS hides a
+        // private bot's row from members other than its owner: it may be a bridge, and the
+        // bridged-users endpoint answers for it.
+        const bridgeBots = (data || []).filter((perm: any) =>
+          !perm.bot || perm.bot.bot_type === 'bridge' || perm.bot.bridge_platform != null);
         const hasBridge = bridgeBots.length > 0;
         
         bridgeBotCheckCache.set(serverId, { hasBridge, timestamp: Date.now() });
         
         if (hasBridge) {
-          debug.log(`Server ${serverId} has ${bridgeBots.length} bridge bot(s)`);
+          debug.log(`Server ${serverId} may have ${bridgeBots.length} bridge bot(s)`);
         }
         return hasBridge;
       } catch (error) {
@@ -886,10 +896,12 @@ export function useAutoSuggest(
 
     try {
       const result = await fetchBridgedChannelUsers(channelId);
+      if (channelId !== serverChannelStore.currentChannelId) return;
       bridgedUsers.value = result.users;
       bridgedUsersChannelId.value = channelId;
       bridgedUsersLoaded.value = true;
     } catch {
+      if (channelId !== serverChannelStore.currentChannelId) return;
       bridgedUsers.value = [];
       bridgedUsersLoaded.value = true;
     }

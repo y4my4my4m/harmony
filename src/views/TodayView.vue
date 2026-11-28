@@ -62,7 +62,8 @@
             :key="announcement.id"
             class="today-announcement"
           >
-            <Icon :name="announcementIcon(announcement.icon)" :size="18" class="today-announcement-icon" aria-hidden="true" />
+            <span v-if="announcementIcon(announcement.icon).emoji" class="today-announcement-icon today-announcement-emoji" aria-hidden="true">{{ announcementIcon(announcement.icon).emoji }}</span>
+            <Icon v-else :name="announcementIcon(announcement.icon).name!" :size="18" class="today-announcement-icon" aria-hidden="true" />
             <div class="today-announcement-body">
               <h2 class="today-announcement-title">
                 {{ announcement.title }}
@@ -536,7 +537,6 @@ import { useInstanceEmojiUrls } from '@/composables/useInstanceEmojiUrls'
 import { formatShortRelativeTime } from '@/utils/shortRelativeTime'
 import { userStorage } from '@/utils/userScopedStorage'
 import {
-  announcementIcon,
   channelRoute,
   headlineStats,
   postRoute,
@@ -550,6 +550,7 @@ import {
   type TodaySocialItem,
   type TodayVoiceChannel,
 } from '@/utils/todaySummary'
+import { announcementIcon } from '@/utils/announcementIcon'
 
 const PREVIEW_COUNT = 5
 const SERVER_PREVIEW_COUNT = 6
@@ -1010,6 +1011,12 @@ button.today-stat:hover {
   flex-shrink: 0;
   margin-top: 2px;
   color: var(--text-link);
+}
+
+/* An emoji in the icon's 18 px box. */
+.today-announcement-emoji {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .today-announcement-body {

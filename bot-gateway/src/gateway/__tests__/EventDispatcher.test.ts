@@ -23,6 +23,7 @@ vi.mock('../../config/supabase.js', () => ({
 }))
 
 import { EventDispatcher, timestampMicros } from '../EventDispatcher.js'
+import { forgetBridgeConsent } from '../../bridge/memberConsent.js'
 
 let db: FakeDb
 let sent: Array<{ botIds: string[]; event: any }>
@@ -112,6 +113,7 @@ beforeEach(() => {
   })
   mocks.from.mockReset()
   mocks.from.mockImplementation((table: string) => db.from(table))
+  forgetBridgeConsent()
   dbClock = T0
   feedCalls = []
   feedFailure = null
@@ -285,6 +287,24 @@ describe('author.nickname', () => {
     expect(nicknameQueries()).toBe(0)
   })
 
+  it('names a Matrix-relayed message by its matrix_user, not the backing bot', async () => {
+    db.rows('bots').push({ id: BRIDGE_BOT, username: 'matrix-bridge', display_name: 'Matrix Bridge', avatar_url: null })
+    await dispatcher.handleMessageCreate({
+      new: {
+        ...message(GENERAL, 'from matrix'),
+        user_id: null,
+        bot_id: BRIDGE_BOT,
+        metadata: { matrix_user: { id: '@sam:example.org', username: 'sam', display_name: 'Sam' }, bridge_source: 'matrix' },
+      },
+    })
+
+    expect(authorOf('MESSAGE_CREATE')).toEqual([{
+      id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar: undefined,
+      nickname: null, bot: false, bridge_source: 'matrix', bridge_author: true,
+    }])
+    expect(nicknameQueries()).toBe(0)
+  })
+
   it('is null for a system notice, which names its member in metadata', async () => {
     const metadata = { type: 'member_join', subject_id: OWNER_ID }
     await dispatcher.handleMessageCreate({
@@ -292,7 +312,7 @@ describe('author.nickname', () => {
     })
 
     expect(sent.filter((s) => s.event.t === 'MESSAGE_CREATE').map((s) => s.event.d)).toEqual([
-      expect.objectContaining({ author: null, is_system: true, mention_everyone: false, metadata }),
+      expect.objectContaining({ server_id: SERVER_ID, author: null, is_system: true, mention_everyone: false, metadata }),
     ])
     expect(nicknameQueries()).toBe(0)
   })
@@ -440,7 +460,7 @@ describe('message change feed', () => {
     db.rows('messages').find((m) => m.id === 'm-soft')!.updated_at = at(dbClock)
     await poll()
 
-    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-soft', channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA }])
+    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-soft', server_id: SERVER_ID, channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA }])
     expect(events('MESSAGE_UPDATE')).toEqual([])
   })
 
@@ -452,7 +472,7 @@ describe('message change feed', () => {
     await dispatcher.messageHardDeleted({ id: 'm-hard', channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA })
     await poll()
 
-    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-hard', channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA }])
+    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-hard', server_id: SERVER_ID, channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA }])
   })
 
   // A thread's messages carry the parent channel's channel_id plus thread_id.
@@ -464,7 +484,7 @@ describe('message change feed', () => {
     await poll()
 
     expect(events('MESSAGE_DELETE')).toEqual([
-      { id: 'm-in-thread', channel_id: GENERAL, thread_id: THREAD_ID, metadata: BRIDGE_METADATA },
+      { id: 'm-in-thread', server_id: SERVER_ID, channel_id: GENERAL, thread_id: THREAD_ID, metadata: BRIDGE_METADATA },
     ])
   })
 
@@ -473,7 +493,7 @@ describe('message change feed', () => {
     await dispatcher.messageHardDeleted({ id: 'm-hard-thread', channel_id: GENERAL, thread_id: THREAD_ID, metadata: null })
 
     expect(events('MESSAGE_DELETE')).toEqual([
-      { id: 'm-hard-thread', channel_id: GENERAL, thread_id: THREAD_ID, metadata: null },
+      { id: 'm-hard-thread', server_id: SERVER_ID, channel_id: GENERAL, thread_id: THREAD_ID, metadata: null },
     ])
   })
 
@@ -709,6 +729,7 @@ describe('reaction removal', () => {
     expect(events('MESSAGE_REACTION_REMOVE')).toEqual([{
       reaction_id: 'r1',
       message_id: 'm1',
+      server_id: SERVER_ID,
       channel_id: GENERAL,
       user_id: OWNER_ID,
       bot_id: null,
@@ -874,6 +895,271 @@ describe('install changes reach the permission cache within the refresh bound', 
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('member bridge opt-outs at event delivery', () => {
+  // SCOPED_BOT relays BRIDGED to Matrix; OPEN_BOT is an ordinary bot. OWNER_ID opted out of Matrix.
+  let optedOut: Record<string, string[]>
+  let optOutsFail: boolean
+  const consentLookups = () => mocks.rpc.mock.calls
+    .filter(([fn]) => fn === 'bridge_channel_platform' || fn === 'bridge_member_optout_ids')
+
+  beforeEach(() => {
+    db.rows('bots').push(
+      { id: OPEN_BOT, bot_type: null, bridge_platform: null },
+      { id: SCOPED_BOT, bot_type: null, bridge_platform: 'matrix' },
+    )
+    optedOut = { matrix: [OWNER_ID] }
+    optOutsFail = false
+    const original = mocks.rpc.getMockImplementation()!
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      if (fn === 'bridge_channel_platform') {
+        return { data: args.p_bot_id === SCOPED_BOT && args.p_channel_id === BRIDGED ? 'matrix' : null, error: null }
+      }
+      if (fn === 'bridge_member_optout_ids') {
+        if (optOutsFail) return { data: null, error: { message: 'offline' } }
+        expect(args.p_server_id).toBe(SERVER_ID)
+        return { data: { user_ids: optedOut[args.p_platform] ?? [] }, error: null }
+      }
+      return original(fn, args)
+    })
+  })
+
+  it('withholds the create, edit and reaction of a member from the bridge of a platform the member opted out of', async () => {
+    const d = dispatcher as any
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'hello') })
+    await d.handleMessageUpdate({ new: message(BRIDGED, 'edited') })
+    await d.handleReactionEvent('MESSAGE_REACTION_ADD', {
+      id: 'r1', message_id: 'm', channel_id: BRIDGED, user_id: OWNER_ID, custom_emoji_content: '👍',
+    })
+    for (const type of ['MESSAGE_CREATE', 'MESSAGE_UPDATE', 'MESSAGE_REACTION_ADD']) {
+      expect(recipients(type, BRIDGED)).toEqual([OPEN_BOT])
+    }
+
+    forgetBridgeConsent()
+    sent = []
+    optedOut = { discord: [OWNER_ID] }
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'again') })
+    expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual([OPEN_BOT, SCOPED_BOT])
+  })
+
+  it("withholds a bot's interaction reply whose invoker opted out", async () => {
+    await dispatcher.handleMessageCreate({
+      new: {
+        ...message(BRIDGED, 'reply'), user_id: null, bot_id: OPEN_BOT,
+        metadata: { interaction: { id: 'i1', name: 'weather', user_id: OWNER_ID } },
+      },
+    })
+    expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual([OPEN_BOT])
+  })
+
+  it('withholds the thread_created notice of a member who opted out, which has no author', async () => {
+    const notice = (actor: string) => ({
+      ...message(BRIDGED, 'notice'), id: `notice-${actor}`, user_id: null, bot_id: null, is_system: true,
+      metadata: { type: 'thread_created', actor_id: actor, thread_id: 't1', thread_name: 'private title' },
+    })
+    const d = dispatcher as any
+    await dispatcher.handleMessageCreate({ new: notice(OWNER_ID) })
+    await d.handleMessageUpdate({ new: notice(OWNER_ID) })
+    for (const type of ['MESSAGE_CREATE', 'MESSAGE_UPDATE']) expect(recipients(type, BRIDGED)).toEqual([OPEN_BOT])
+
+    sent = []
+    await dispatcher.handleMessageCreate({ new: notice('00000000-0000-0000-0000-0000000000a9') })
+    expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual([OPEN_BOT, SCOPED_BOT])
+  })
+
+  describe('a thread_created notice', () => {
+    const MEMBER = '00000000-0000-0000-0000-0000000000a9'
+    const STARTER = '00000000-0000-0000-0000-0000000000f3'
+    const THREAD = '00000000-0000-0000-0000-0000000000f4'
+    const NAMED = 'what the starter says'
+    // `creator`'s thread on a message of `author`, named after it.
+    const notice = (creator: string, author: string): Row => {
+      db.tables.threads = [{ id: THREAD, channel_id: BRIDGED, parent_message_id: STARTER, created_by: creator }]
+      db.tables.messages = [{ ...message(BRIDGED, NAMED), id: STARTER, user_id: author }]
+      return {
+        ...message(BRIDGED, 'notice'), user_id: null, bot_id: null, is_system: true, content: [{ type: 'text', text: 'started a thread' }],
+        metadata: { type: 'thread_created', actor_id: creator, thread_id: THREAD, thread_name: NAMED, discord_message_id: '77', bridge_source: 'harmony' },
+      }
+    }
+    /** thread_name by bot, for each bot that got the event. */
+    const names = (type: string) => Object.fromEntries(sent.filter(s => s.event.t === type)
+      .flatMap(s => s.botIds.map(id => [id, s.event.d.metadata?.thread_name])))
+
+    it.each([
+      ['neither', MEMBER, MEMBER, { [OPEN_BOT]: NAMED, [SCOPED_BOT]: NAMED }],
+      ['the starter\'s author', MEMBER, OWNER_ID, { [OPEN_BOT]: NAMED, [SCOPED_BOT]: 'Thread' }],
+      ['the creator', OWNER_ID, MEMBER, { [OPEN_BOT]: NAMED }],
+      ['both', OWNER_ID, OWNER_ID, { [OPEN_BOT]: NAMED }],
+    ])('reaches a bridge by its consent when %s opted out', async (_who, creator, author, expected) => {
+      await dispatcher.handleMessageCreate({ new: notice(creator, author) })
+      await (dispatcher as any).handleMessageUpdate({ new: notice(creator, author) })
+      expect(names('MESSAGE_CREATE')).toEqual(expected)
+      expect(names('MESSAGE_UPDATE')).toEqual(expected)
+    })
+
+    it('reads Thread for a bridge when the thread or its starter cannot be read', async () => {
+      const row = notice(MEMBER, MEMBER)
+      db.tables.messages = []
+      await dispatcher.handleMessageCreate({ new: row })
+      expect(names('MESSAGE_CREATE')).toEqual({ [OPEN_BOT]: NAMED, [SCOPED_BOT]: 'Thread' })
+      sent = []
+      db.failures.threads = { message: 'offline' }
+      await dispatcher.handleMessageCreate({ new: row })
+      expect(names('MESSAGE_CREATE')).toEqual({ [OPEN_BOT]: NAMED, [SCOPED_BOT]: 'Thread' })
+    })
+
+    it('carries the name to no webhook of the bridge, and once to the server\'s', async () => {
+      routes = [
+        { bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_CREATE', 'MESSAGE_DELETE'] },
+        { bot_id: OPEN_BOT, server_id: null, events: ['MESSAGE_CREATE', 'MESSAGE_DELETE'] },
+        { bot_id: SCOPED_BOT, server_id: null, events: ['MESSAGE_CREATE', 'MESSAGE_DELETE'] },
+      ]
+      await (dispatcher as any).webhooks.refresh()
+      const row = notice(MEMBER, OWNER_ID)
+      await dispatcher.handleMessageCreate({ new: row })
+      await dispatcher.messageHardDeleted(row as any)
+      expect(enqueued.map(e => [e.p_event, e.p_server_id, e.p_bot_ids, e.p_payload.metadata.thread_name, e.p_payload.server_id])).toEqual([
+        ['MESSAGE_CREATE', SERVER_ID, [OPEN_BOT], NAMED, SERVER_ID],
+        ['MESSAGE_CREATE', null, [SCOPED_BOT], 'Thread', SERVER_ID],
+        ['MESSAGE_DELETE', SERVER_ID, [OPEN_BOT], NAMED, SERVER_ID],
+        ['MESSAGE_DELETE', null, [SCOPED_BOT], undefined, SERVER_ID],
+      ])
+    })
+
+    it.each([
+      ['neither', MEMBER, MEMBER, NAMED],
+      ['the starter\'s author', MEMBER, OWNER_ID, undefined],
+      ['the creator', OWNER_ID, MEMBER, undefined],
+    ])('is deleted at a bridge without the name it was withheld from, when %s opted out', async (_who, creator, author, named) => {
+      const d = dispatcher as any
+      await d.initializeChangeFeed()
+      dbClock += 1000
+      const row = notice(creator, author)
+      db.rows('messages').push({ ...row, is_deleted: true, updated_at: at(dbClock) })
+      await d.pollMessageChanges()
+      await dispatcher.messageHardDeleted({ ...row, id: 'hard' } as any)
+      for (const id of [row.id, 'hard']) {
+        const events = sent.filter(s => s.event.t === 'MESSAGE_DELETE' && s.event.d.id === id)
+        expect(events.flatMap(s => s.botIds).sort()).toEqual([OPEN_BOT, SCOPED_BOT])
+        const metadata = (bot: string) => events.find(s => s.botIds.includes(bot))!.event.d.metadata
+        expect(metadata(OPEN_BOT)).toEqual(row.metadata)
+        expect(metadata(SCOPED_BOT).thread_name).toBe(named)
+        expect(metadata(SCOPED_BOT)).toMatchObject({ discord_message_id: '77', bridge_source: 'harmony' })
+      }
+    })
+  })
+
+  it('deletes a withheld row at the bridge with the mapping alone as its metadata', async () => {
+    const mapping = { discord_message_id: '77', discord_message_ids: ['77'], discord_via_webhook: true, bridge_source: 'harmony' }
+    const moderator = '00000000-0000-0000-0000-0000000000a9'
+    const row = (id: string, extra: Row) => ({ ...message(BRIDGED, id), id, ...extra }) as any
+    const system = (metadata: Row) => ({ user_id: null, is_system: true, metadata: { ...metadata, ...mapping } })
+    for (const deleted of [
+      row('links', { metadata: { embeds: { 'https://private.example': { title: 'private' } }, ...mapping } }),
+      row('ban', system({ type: 'member_ban', subject_id: OWNER_ID, actor_id: moderator, reason: 'private' })),
+      row('alert', system({ type: 'automod_alert', automod: { user_id: OWNER_ID, excerpt: 'private' } })),
+      row('reply', { user_id: null, bot_id: OPEN_BOT, metadata: { interaction: { id: 'i', name: 'private', user_id: OWNER_ID }, ...mapping } }),
+    ]) {
+      sent = []
+      await dispatcher.messageHardDeleted(deleted)
+      expect(sent.map(s => [s.botIds, s.event.d.metadata])).toEqual([[[OPEN_BOT], deleted.metadata], [[SCOPED_BOT], mapping]])
+    }
+    sent = []
+    await dispatcher.messageHardDeleted(row('other', { user_id: moderator, metadata: { embeds: {}, ...mapping } }))
+    expect(sent.map(s => [s.botIds, s.event.d.metadata])).toEqual([[[OPEN_BOT, SCOPED_BOT], { embeds: {}, ...mapping }]])
+
+    // A delete is not held up by a failed consent lookup.
+    sent = []
+    optOutsFail = true
+    forgetBridgeConsent()
+    await dispatcher.messageHardDeleted(row('offline', { user_id: moderator, metadata: { embeds: {}, ...mapping } }))
+    expect(sent.map(s => [s.botIds, s.event.d.metadata])).toEqual([[[OPEN_BOT], { embeds: {}, ...mapping }], [[SCOPED_BOT], mapping]])
+  })
+
+  it('withholds a removal notice from a bridge when the moderator or the removed member opted out', async () => {
+    const other = '00000000-0000-0000-0000-0000000000a9'
+    const ban = (subject: string, actor: string) => ({
+      ...message(BRIDGED, 'ban'), user_id: null, is_system: true,
+      metadata: { type: 'member_ban', subject_id: subject, actor_id: actor, reason: 'private' },
+    })
+    for (const [subject, actor, readers] of [
+      [other, OWNER_ID, [OPEN_BOT]], [OWNER_ID, other, [OPEN_BOT]], [other, other, [OPEN_BOT, SCOPED_BOT]],
+    ] as Array<[string, string, string[]]>) {
+      sent = []
+      await dispatcher.handleMessageCreate({ new: ban(subject, actor) })
+      expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual(readers)
+    }
+  })
+
+  it('sends deletes and reaction removals to every reader', async () => {
+    const d = dispatcher as any
+    await d.initializeChangeFeed()
+    dbClock += 1000
+    db.rows('messages').push({ ...message(BRIDGED, 'soft'), is_deleted: true, updated_at: at(dbClock) })
+    await d.pollMessageChanges()
+    await dispatcher.messageHardDeleted({ id: 'hard', channel_id: BRIDGED, thread_id: null, metadata: {} })
+    const before = consentLookups()
+    db.rows('reactions').push({
+      id: 'r-gone', message_id: 'm', channel_id: BRIDGED, user_id: OWNER_ID, bot_id: null, emoji_id: null,
+      custom_emoji_content: '👍', metadata: {}, created_at: new Date(Date.now() - 1000).toISOString(),
+    })
+    await d.initializeKnownReactions()
+    db.rows('reactions').splice(0)
+    await d.pollReactions()
+
+    expect(sent.filter((s) => s.event.t === 'MESSAGE_DELETE').map((s) => [s.event.d.id, s.botIds])).toEqual([
+      [`${BRIDGED.slice(-2)}-soft`, [OPEN_BOT]],
+      [`${BRIDGED.slice(-2)}-soft`, [SCOPED_BOT]],
+      ['hard', [OPEN_BOT, SCOPED_BOT]],
+    ])
+    expect(recipients('MESSAGE_REACTION_REMOVE', BRIDGED)).toEqual([OPEN_BOT, SCOPED_BOT])
+    expect(consentLookups()).toEqual(before)
+  })
+
+  it('reads reactions without their parent message', async () => {
+    const selects: Array<{ mock: { calls: unknown[][] } }> = []
+    mocks.from.mockImplementation((table: string) => {
+      const query = db.from(table)
+      if (table === 'reactions') selects.push(vi.spyOn(query, 'select'))
+      return query
+    })
+    db.rows('reactions').push({
+      id: 'r1', message_id: 'm', channel_id: BRIDGED, user_id: OWNER_ID, bot_id: null, emoji_id: null,
+      custom_emoji_content: '👍', metadata: {}, created_at: new Date(Date.now() + 1000).toISOString(),
+    })
+    const d = dispatcher as any
+    await d.initializeKnownReactions()
+    await d.pollReactions()
+
+    const columns = selects.flatMap((spy) => spy.mock.calls.map((call) => String(call[0])))
+    expect(columns.length).toBeGreaterThan(0)
+    for (const list of columns) expect(list).not.toMatch(/messages|source/)
+  })
+
+  it('withholds from the bridge only when the opt-outs cannot be read', async () => {
+    optOutsFail = true
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'hello') })
+    expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual([OPEN_BOT])
+  })
+
+  it('applies an opt-out to events once the 5 s opt-out cache expires', async () => {
+    let clock = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => clock)
+    optedOut = {}
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'before') })
+    optedOut = { matrix: [OWNER_ID] }
+    clock += 4_000
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'cached') })
+    clock += 1_001
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'after') })
+
+    expect(sent.map((s) => [s.event.d.id, s.botIds])).toEqual([
+      [`${BRIDGED.slice(-2)}-before`, [OPEN_BOT, SCOPED_BOT]],
+      [`${BRIDGED.slice(-2)}-cached`, [OPEN_BOT, SCOPED_BOT]],
+      [`${BRIDGED.slice(-2)}-after`, [OPEN_BOT]],
+    ])
   })
 })
 

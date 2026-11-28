@@ -364,7 +364,17 @@ SELECT ok(NOT EXISTS (SELECT 1 FROM public.signup_spike_status() s WHERE to_json
 SELECT is((SELECT fired FROM public.signup_spike_status(p_domain_min => 4) WHERE rule = 'concentrated'), true,
     'concentrated fires at its minimum');
 SELECT is((SELECT fired FROM public.signup_spike_status(p_burst => 2) WHERE rule = 'burst'), true, 'burst fires at its minimum');
+-- busy_day counts from UTC midnight, and h1-h4 are 58 minutes to 3 hours old: in the first hour
+-- of a UTC day none of them is today's. One account at now() is, whatever the clock; it goes
+-- again before the assertions below count signups.
+INSERT INTO auth.users (id, instance_id, aud, role, email, created_at)
+VALUES ('e2500000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-000000000000',
+        'authenticated', 'authenticated', 'today@today250.test', now());
+INSERT INTO public.profiles (id, auth_user_id, username, display_name, is_local)
+VALUES ('f2500000-0000-0000-0000-0000000000d1', 'e2500000-0000-0000-0000-0000000000d1', 'today250', 'T', true);
 SELECT is((SELECT fired FROM public.signup_spike_status(p_daily => 1) WHERE rule = 'busy_day'), true, 'busy_day fires at its minimum');
+DELETE FROM public.profiles WHERE id = 'f2500000-0000-0000-0000-0000000000d1';
+DELETE FROM auth.users WHERE id = 'e2500000-0000-0000-0000-0000000000d1';
 SELECT is((SELECT fired FROM public.signup_spike_status(p_refused => 6) WHERE rule = 'refused'), true, 'refused fires at its minimum');
 
 -- Five more on common250.test, which has four earlier accounts: a common provider, not concentrated.

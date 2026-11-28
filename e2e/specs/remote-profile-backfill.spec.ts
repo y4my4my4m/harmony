@@ -83,8 +83,9 @@ test('an outbox backfill fills a remote profile in date order, newest on top', a
     await page.evaluate(async ({ topic, event }) => {
       const { supabase } = await import('/src/supabase.ts')
       const channel = supabase.getChannels().find((c) => c.topic === topic)!
-      ;(channel as unknown as { _trigger: (type: string, payload: unknown) => void })
-        ._trigger('broadcast', { type: 'broadcast', event: 'feed_event', payload: event })
+      // realtime-js 2.119: incoming events dispatch through the Phoenix channel it wraps.
+      ;(channel as unknown as { channelAdapter: { channel: { trigger: (type: string, payload: unknown) => void } } })
+        .channelAdapter.channel.trigger('broadcast', { type: 'broadcast', event: 'feed_event', payload: event })
     }, {
       topic: `realtime:feed:user:${remote.id}`,
       event: { type: 'post:new', post_id: data!.id, author_id: remote.id, visibility: 'public', is_local: false },

@@ -67,6 +67,49 @@ describe('webrtcManager transport selection', () => {
     expect(m.getLastJoinError()).toBe('Could not connect to the voice server: could not establish signal connection')
   })
 
+  it('a silent leave reaches the P2P service as one', async () => {
+    tokens.fetchLiveKitConfig.mockResolvedValue(unconfigured)
+    const m = await manager()
+    await m.joinChannel('c1', 'u1')
+    await m.leaveChannel({ silent: true })
+    expect(p2p.leaveChannel).toHaveBeenCalledWith({ silent: true })
+    expect(m.getActiveService()).toBeNull()
+  })
+
+  it('a failed join leaves its service: a later leave reaches no service', async () => {
+    tokens.fetchLiveKitConfig.mockResolvedValue(unconfigured)
+    p2p.joinChannel.mockResolvedValue(false)
+    const m = await manager()
+    let activeAtLeave: unknown = 'unset'
+    p2p.leaveChannel.mockImplementation(async () => { activeAtLeave = m.getActiveService() })
+    await expect(m.joinChannel('c1', 'u1')).resolves.toBe(false)
+    expect(p2p.leaveChannel).toHaveBeenCalledTimes(1)
+    // Its channel-left is not forwarded.
+    expect(activeAtLeave).toBeNull()
+    expect(m.getLastJoinError()).toBe('Could not connect to the call.')
+    await m.leaveChannel()
+    expect(p2p.leaveChannel).toHaveBeenCalledTimes(1)
+  })
+
+  it('a join that ends after a newer one started leaves the newer one alone', async () => {
+    tokens.fetchLiveKitConfig.mockResolvedValue(unconfigured)
+    let endFirst!: (ok: boolean) => void
+    p2p.joinChannel
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => { endFirst = resolve }))
+      .mockResolvedValueOnce(true)
+    const m = await manager()
+    const first = m.joinChannel('c1', 'u1')
+    await vi.waitFor(() => expect(p2p.joinChannel).toHaveBeenCalledTimes(1))
+    await m.leaveChannel()
+    await expect(m.joinChannel('c2', 'u1')).resolves.toBe(true)
+    p2p.leaveChannel.mockClear()
+    endFirst(false)
+    await expect(first).resolves.toBe(false)
+    expect(p2p.leaveChannel).not.toHaveBeenCalled()
+    expect(m.getActiveService()).toBe('p2p')
+    expect(m.getLastJoinError()).toBeNull()
+  })
+
   it('fails the join when the config cannot be fetched and none was seen before', async () => {
     tokens.fetchLiveKitConfig.mockResolvedValue(null)
     const m = await manager()
@@ -115,6 +158,41 @@ describe('webrtcManager transport selection', () => {
     const m = await manager()
     await expect(m.joinChannel('c1', 'u1', 'voice_channel', undefined, true)).resolves.toBe(false)
     expect(p2p.joinChannel).not.toHaveBeenCalled()
+  })
+})
+
+describe('webrtcManager token join', () => {
+  it('hands the join its cancellation', async () => {
+    const m = await manager()
+    const { signal } = new AbortController()
+    await expect(m.joinWithToken('wss://remote.test', 't', 'c1', 'u1', signal)).resolves.toBe(true)
+    expect(livekit.joinWithToken).toHaveBeenCalledWith('wss://remote.test', 't', 'c1', 'u1', signal)
+  })
+
+  it('cancelled before it starts, reaches no transport', async () => {
+    const m = await manager()
+    await expect(m.joinWithToken('wss://remote.test', 't', 'c1', 'u1', AbortSignal.abort())).resolves.toBe(false)
+    expect(livekit.joinWithToken).not.toHaveBeenCalled()
+    expect(m.getActiveService()).toBeNull()
+  })
+
+  it.each([
+    ['its transport ends it', () => Promise.reject(new DOMException('Connection cancelled', 'AbortError'))],
+    ['it connects all the same', () => Promise.resolve(true)],
+  ])('cancelled while it connects, leaves the transport directly: %s', async (_what, end) => {
+    const m = await manager()
+    const errors = vi.fn()
+    m.on('error', errors)
+    const controller = new AbortController()
+    livekit.joinWithToken.mockImplementation(async () => {
+      controller.abort()
+      return end()
+    })
+    await expect(m.joinWithToken('wss://remote.test', 't', 'c1', 'u1', controller.signal)).resolves.toBe(false)
+    expect(livekit.leaveChannel).toHaveBeenCalledTimes(1)
+    expect(m.getActiveService()).toBeNull()
+    expect(m.getLastJoinError()).toBeNull()
+    expect(errors).not.toHaveBeenCalled()
   })
 })
 

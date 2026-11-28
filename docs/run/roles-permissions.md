@@ -88,6 +88,23 @@ Rank also limits moderation: kicking and banning need a highest role strictly ab
 - **Display role members separately**: members with this role are grouped under it in the member list, under their highest such role.
 - **Allow anyone to @mention this role**: when off, mentioning the role notifies its members only if the sender holds **Mention @everyone** in that channel. The mention still renders either way. Roles created in the role editor start with this off.
 
+### Roles members pick themselves
+
+Turn on **Members can pick this role** on a role's **Display** tab, and members give it to themselves and take it off again, without anyone with **Manage roles**. Use it for colours, pronouns, notification roles or opt-in channels.
+
+- **Group** files the role under a heading, such as *Colours* or *Pronouns*. **Short description** is a line shown under the role.
+- Members pick from **Pick roles** in the server menu, from **Pick roles** under their roles on their own profile card, and from role menus posted in a channel.
+- A role can be picked only while it gives nothing a member could misuse: no permission `@everyone` lacks, a position below every role that has such a permission (so picking it never outranks a moderator), and channel overrides that allow no more than `@everyone`'s permissions plus **View channel**. A role that opens a hidden channel to its members still qualifies. The editor says why when a role does not; members never see it listed.
+- Picking works in end-to-end encrypted servers too. It is recorded in the audit log as the member giving themselves the role.
+
+#### Role menus
+
+Type `/rolemenu` in a channel (needs **Manage roles**) to post a role menu: choose a group or every pickable role, give it a title and post. Members tap a role on the card to take it and tap again to drop it; each member sees their own choices. The card follows later changes to the roles, and readers that do not draw it, such as notifications, search and other instances, see the title and the role names as text. A role menu cannot be edited; post a new one instead.
+
+### Role for new members
+
+At the top of **Server settings** → **Roles**, **Role for new members** picks a role everyone who joins from then on gets, whether through an invite, the server directory or approval of a pending request. The owner and members already in the server keep their roles. `@everyone` and administrator roles cannot be chosen, nor a role that gives permissions `@everyone` lacks or sits above one that does, and a member with **Manage roles** can choose only a role below their highest role. If a role is given such permissions later, new members stop getting it; the setting shows a note. A role stored by an earlier version that would be refused was cleared. Servers you follow on another instance get their roles from that instance and have no such setting here.
+
 ### Delete a role
 
 Select the role, then **Delete role** and confirm. `@everyone` and `Admin` have no delete button. Deleting a role removes it from every member and removes its channel overrides.

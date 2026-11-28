@@ -2,14 +2,17 @@
 # The self-host stack as configure.sh assembles it: self-host/docker-compose.yml, upstream's
 # docker/ directory at SUPABASE_REF_DEFAULT and self-host/supabase-overrides.yml.
 #
-#   check-self-host-stack.sh                    both checks below
-#   check-self-host-stack.sh --images           image platforms only
+#   check-self-host-stack.sh                    the checks below
+#   check-self-host-stack.sh --images           image platforms and storage environment only
 #   check-self-host-stack.sh --gateway          Kong only
 #   check-self-host-stack.sh --platforms IMAGE  platforms of the named images only
 #
 # Image platforms. install.sh offers amd64 and arm64, and one image without the host's platform
 # stops install and update at the pull. Harmony's own three images are absent from the check: their
 # platforms are images.yml's. Services of the profile nothing enables are absent too.
+#
+# Storage environment. The bucket comes from supabase/.env alone: an admin's exported AWS CLI
+# variables and REGION do not reach the container.
 #
 # Kong. Boots from the stack's own entrypoint and environment on this host's platform, with one
 # stub nginx answering as every upstream. The E2E stack has no Kong, so nothing else runs it.
@@ -125,6 +128,36 @@ if [ "$RUN_IMAGES" = 1 ]; then
   [ -n "$IMAGES" ] || { err "compose rendered no images"; exit 1; }
   # shellcheck disable=SC2086
   check_platforms $(printf '%s\n' "$IMAGES" | grep -vE "$OWN_IMAGES")
+
+  log "storage environment"
+  # expect_storage NAME EXPECTED: the storage container's bucket settings, '|' between them.
+  expect_storage() {
+    local got
+    got="$(cd "$STACK" && AWS_ACCESS_KEY_ID=shell AWS_SECRET_ACCESS_KEY=shell REGION=shell \
+      docker compose config --format json 2>/dev/null | python3 -c '
+import json, sys
+env = json.load(sys.stdin)["services"]["storage"]["environment"]
+keys = "STORAGE_BACKEND GLOBAL_S3_BUCKET GLOBAL_S3_ENDPOINT REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY"
+print("|".join(str(env.get(k)) for k in keys.split()))')"
+    if [ "$got" = "$2" ]; then printf 'ok   %s\n' "$1"; else fail "$1: expected '$2', got '$got'"; fi
+  }
+  expect_storage "the file backend when nothing is set" 'file|stub|None|stub|None|None'
+  # Settings an override file gives, the keys through env_file.
+  printf '%s\n' AWS_ACCESS_KEY_ID=file AWS_SECRET_ACCESS_KEY=file > "$STACK/s3.env"
+  cat > "$STACK/docker-compose.override.yml" <<'OVERRIDE'
+services:
+  storage:
+    env_file: [./s3.env]
+    environment:
+      STORAGE_BACKEND: s3
+      GLOBAL_S3_BUCKET: own
+      REGION: own
+OVERRIDE
+  expect_storage "the bucket of docker-compose.override.yml" 's3|own|None|own|file|file'
+  rm "$STACK/docker-compose.override.yml" "$STACK/s3.env"
+  printf '%s\n' STORAGE_BACKEND=s3 STORAGE_S3_BUCKET=media STORAGE_S3_ENDPOINT=https://s3.test STORAGE_S3_REGION=auto \
+    STORAGE_S3_ACCESS_KEY_ID=key STORAGE_S3_SECRET_ACCESS_KEY=secret >> "$STACK/supabase/.env"
+  expect_storage "the bucket of supabase/.env" 's3|media|https://s3.test|auto|key|secret'
 fi
 
 if [ "$RUN_GATEWAY" = 1 ]; then

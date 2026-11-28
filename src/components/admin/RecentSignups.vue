@@ -246,6 +246,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import BulkSuspendDialog from './BulkSuspendDialog.vue'
 import CopyIdButton from './CopyIdButton.vue'
 import { useT } from '@/composables/useT'
+import type { UsersDelta } from '@/composables/useInstanceStats'
 import { hasCapability } from '@/services/instanceCapabilities'
 import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
@@ -405,7 +406,10 @@ function onBulkDone({ action, count }: { action: BulkAction; count: number }) {
   toast.success(t(DONE_KEY[action], { count }, count))
   clearSelection()
   window.dispatchEvent(new CustomEvent('admin:activity-changed'))
-  window.dispatchEvent(new CustomEvent('admin:users-changed'))
+  // A deleted account keeps its anonymized profile row, local and suspended as before.
+  const delta: UsersDelta | null =
+    action === 'suspend' ? { suspended: count } : action === 'unsuspend' ? { suspended: -count } : null
+  window.dispatchEvent(new CustomEvent('admin:users-changed', { detail: delta }))
   reloadAll()
   // The selection bar that opened the dialog is gone.
   void nextTick(() => {

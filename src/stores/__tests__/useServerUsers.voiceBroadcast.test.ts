@@ -40,6 +40,7 @@ vi.mock('@/supabase', () => ({
     from: () => ({ upsert: () => ({ then: () => undefined }), delete: () => ({ eq: () => ({ eq: () => ({ then: () => undefined }) }) }) }),
   },
 }))
+vi.mock('@/services/realtimeMemberToken', () => ({ currentRealtimeToken: () => 'member', onMemberToken: () => () => {} }))
 vi.mock('@/services/ProfileService', () => ({ updateUserStatus: vi.fn() }))
 vi.mock('@/services/userDataService', () => ({ userDataService: { getAllUsers: () => [], ensureUsersLoaded: vi.fn(async () => undefined) } }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'me' } } }) }))
@@ -318,6 +319,66 @@ describe('restricted voice topics past the limit', () => {
     realtime.opened[1].status!('CHANNEL_ERROR', new Error('"ChannelRateLimitReached: Too many channels"'))
     expect(realtime.removed).toEqual([])
     expect(Object.keys(store.restrictedVoiceBroadcasts)).toEqual(['voice-staff'])
+  })
+})
+
+describe('voice topics closed by the server', () => {
+  it('opens voice-channels again after the backoff and re-reads the roster', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = useServerUsersStore()
+      await store.setupVoiceChannelBroadcast(S)
+      const read = vi.spyOn(store, 'reloadVoiceRoster').mockResolvedValue(undefined)
+      const topics = () => realtime.opened.filter((o) => o.topic === `voice-channels:${S}`)
+      topics()[0].status!('SUBSCRIBED')
+      read.mockClear()
+
+      topics()[0].status!('CLOSED')
+      await vi.advanceTimersByTimeAsync(7_500)
+      expect(topics()).toHaveLength(2)
+      expect(topics()[1].opts.config).toMatchObject({ private: true, broadcast: { self: true } })
+      topics()[1].status!('SUBSCRIBED')
+      expect(read).toHaveBeenCalledWith(S)
+
+      topics()[1].handlers['voice-channel-event']({ payload: { event: 'user-joined', userId: 'u2', channelId: 'voice-a' } })
+      expect(store.getUsersInVoiceChannel('voice-a')).toEqual(['u2'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('opens a restricted channel\'s topic again, and re-reads the roster once it is back', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = useServerUsersStore()
+      await store.setupVoiceChannelBroadcast(S)
+      const read = vi.spyOn(store, 'reloadVoiceRoster').mockResolvedValue(undefined)
+      const topics = () => realtime.opened.filter((o) => o.topic === 'voice-channel:voice-staff')
+      topics()[0].status!('SUBSCRIBED')
+      topics()[0].status!('CLOSED')
+      await vi.advanceTimersByTimeAsync(7_500)
+      expect(topics()).toHaveLength(2)
+      read.mockClear()
+      topics()[1].status!('SUBSCRIBED')
+      expect(read).toHaveBeenCalledWith(S)
+      expect(Object.keys(store.restrictedVoiceBroadcasts)).toEqual(['voice-staff'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('opens nothing after the server is switched away from', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = useServerUsersStore()
+      await store.setupVoiceChannelBroadcast(S)
+      realtime.opened[0].status!('CLOSED')
+      store.cleanup()
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(realtime.opened.filter((o) => o.topic === `voice-channels:${S}`)).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

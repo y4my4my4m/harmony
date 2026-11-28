@@ -1175,7 +1175,8 @@ class PushNotificationServiceClass {
       badge: '/img/app_icon_square.webp',
       tag,
       requireInteraction: ['mention', 'dm', 'activitypub_mention'].includes(notification.type),
-      data: compactPushData(notification.id, notification.type, data, resolvedAvatar),
+      // recipient_id: the service worker's quick reply is sent only as this profile.
+      data: { ...compactPushData(notification.id, notification.type, data, resolvedAvatar), recipient_id: notification.user_id },
     };
   }
 

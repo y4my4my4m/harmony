@@ -28,8 +28,8 @@
  */
 
 import { watch, onUnmounted, type Ref } from 'vue'
-import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { openRebuildingChannel } from '@/services/rebuildingChannel'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 
 export type FeedKind =
@@ -150,26 +150,16 @@ export function useFeedRealtime(
     const topic = topicFor(kind)
     if (!topic) return
 
-    const channel = supabase
-      .channel(topic, { config: { private: true } })
-      .on('broadcast', { event: 'feed_event' }, (raw: any) => {
+    const feedTopic = openRebuildingChannel({
+      topic,
+      bind: (channel) => channel.on('broadcast', { event: 'feed_event' }, (raw: any) => {
         const data = raw?.payload?.payload ?? raw?.payload ?? raw
         dispatch(data)
-      })
-      .subscribe((status: string) => {
-        if (status === 'SUBSCRIBED') {
-          debug.log(`FeedRealtime subscribed: ${topic}`)
-        } else if (
-          status === 'CHANNEL_ERROR' ||
-          status === 'TIMED_OUT' ||
-          status === 'CLOSED'
-        ) {
-          debug.warn(`FeedRealtime ${status}: ${topic}`)
-        }
-      })
+      }),
+    })
 
     unsubscribe = () => {
-      supabase.removeChannel(channel)
+      void feedTopic.close()
     }
   }
 

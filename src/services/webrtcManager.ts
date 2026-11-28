@@ -23,7 +23,7 @@ export type ActiveWebRTCService = 'livekit' | 'p2p' | null;
 export interface WebRTCManager {
   // Connection
   joinChannel(channelId: string, userId: string, roomType?: 'voice_channel' | 'dm_call' | 'stage'): Promise<boolean>;
-  joinWithToken(wsUrl: string, token: string, channelId: string, userId: string): Promise<boolean>;
+  joinWithToken(wsUrl: string, token: string, channelId: string, userId: string, abortSignal?: AbortSignal): Promise<boolean>;
   leaveChannel(): Promise<void>;
   
   // Media controls
@@ -69,6 +69,8 @@ const CONFIG_PRELOAD_TTL_MS = 30_000;
 
 class WebRTCManagerService implements WebRTCManager {
   private activeService: ActiveWebRTCService = null;
+  // Counts joins: a join that ends after a newer one started leaves the newer one's state alone.
+  private joinAttempt = 0;
   private transmitGateOpen = true;
   // Config request started by preloadTransport, consumed by the next join
   // within CONFIG_PRELOAD_TTL_MS.
@@ -250,11 +252,21 @@ class WebRTCManagerService implements WebRTCManager {
     join: () => Promise<boolean>,
     abortSignal?: AbortSignal,
   ): Promise<boolean> {
+    const attempt = ++this.joinAttempt;
+    // activeService goes first: the failed service's channel-left is not this manager's.
+    const leaveFailed = async () => {
+      if (attempt !== this.joinAttempt) return;
+      this.activeService = null;
+      try {
+        await service.leaveChannel();
+      } catch (error) {
+        debug.warn(`[WebRTCManager] ${label} cleanup after a failed join:`, error);
+      }
+    };
     try {
       const success = await join();
       if (abortSignal?.aborted) {
-        if (success) await service.leaveChannel();
-        this.activeService = null;
+        await leaveFailed();
         debug.log(`[WebRTCManager] Connection cancelled after ${label} join`);
         return false;
       }
@@ -263,15 +275,16 @@ class WebRTCManagerService implements WebRTCManager {
         return true;
       }
     } catch (error) {
-      this.activeService = null;
       if (error instanceof Error && error.name === 'AbortError') {
+        await leaveFailed();
         debug.log(`[WebRTCManager] ${label} connection cancelled`);
         return false;
       }
       debug.error(`[WebRTCManager] ${label} connection failed:`, error);
       this.emit('error', error);
     }
-    this.activeService = null;
+    await leaveFailed();
+    if (attempt !== this.joinAttempt) return false;
     const target = label === 'SFU' ? 'the voice server' : 'the call';
     this.lastJoinError = this.lastTransportError
       ? `Could not connect to ${target}: ${this.lastTransportError}`
@@ -287,33 +300,36 @@ class WebRTCManagerService implements WebRTCManager {
     wsUrl: string,
     token: string,
     channelId: string,
-    userId: string
+    userId: string,
+    abortSignal?: AbortSignal
   ): Promise<boolean> {
     debug.log(`[WebRTCManager] Joining federated channel: ${channelId} with remote token`);
     this.lastJoinError = null;
     this.lastTransportError = null;
 
+    if (abortSignal?.aborted) return false;
     if (this.activeService) {
       await this.leaveChannel();
+      if (abortSignal?.aborted) return false;
     }
 
     // activeService is set before the join so events are forwarded during it.
     this.activeService = 'livekit';
     livekitWebRTC.setTransmitGate(this.transmitGateOpen);
-    return this.runJoin(livekitWebRTC, 'SFU', () => livekitWebRTC.joinWithToken(wsUrl, token, channelId, userId));
+    return this.runJoin(livekitWebRTC, 'SFU', () => livekitWebRTC.joinWithToken(wsUrl, token, channelId, userId, abortSignal), abortSignal);
   }
   
   /**
-   * Leave current voice channel
+   * Leave current voice channel. `silent`: the account sends nothing (P2P signals).
    */
-  async leaveChannel(): Promise<void> {
+  async leaveChannel(opts: { silent?: boolean } = {}): Promise<void> {
     debug.log('[WebRTCManager] Leaving channel');
     
     try {
       if (this.activeService === 'livekit') {
         await livekitWebRTC.leaveChannel();
       } else if (this.activeService === 'p2p') {
-        await unifiedWebRTC.leaveChannel();
+        await unifiedWebRTC.leaveChannel(opts);
       }
     } catch (e) {
       debug.warn('[WebRTCManager] Error during leaveChannel (forcing cleanup):', e);
@@ -619,8 +635,7 @@ class WebRTCManagerService implements WebRTCManager {
   }
   
   // LIVE REACTIONS
-  // LiveKit data only: the P2P transport has no data channel, and its
-  // signalling broadcast carries an unauthenticated sender.
+  // LiveKit data only: the P2P transport has no data channel.
 
   sendLiveReaction(payload: Uint8Array): boolean {
     return this.activeService === 'livekit' && livekitWebRTC.sendLiveReaction(payload);

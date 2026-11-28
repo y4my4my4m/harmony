@@ -110,6 +110,42 @@ export function landThreadReply(list: Message[], reply: Message): boolean {
   return true
 }
 
+/** One page of a thread's replies (ThreadService.getThreadMessages). */
+export type ThreadReplyRead = (options: { after?: string; force?: boolean }) =>
+  Promise<{ messages: Message[]; has_more: boolean }>
+
+/**
+ * Replies a Realtime gap kept from a thread's list. `list` returns the list on screen, or null once
+ * the view shows another thread. Replies newer than the newest stored one land by landThreadReply,
+ * in place. A full page is the thread's newest page and may leave missed replies behind it: it
+ * then replaces the stored rows and `hasMore` is set. Rows that arrive during the read stay.
+ * Null when the view moved on.
+ */
+export async function fillThreadGap(
+  list: () => Message[] | null,
+  read: ThreadReplyRead,
+): Promise<{ messages: Message[]; added: Message[]; hasMore?: boolean } | null> {
+  const held = list()
+  if (!held) return null
+  const heldIds = new Set(held.map(m => m.id))
+  const newest = [...held].reverse().find(m => !isOptimisticId(m.id))
+  const after = newest
+    ? newest.created_at instanceof Date ? newest.created_at.toISOString() : String(newest.created_at)
+    : undefined
+  const page = await read(after ? { after } : { force: true })
+  const now = list()
+  if (!now) return null
+  if (!after || page.has_more) {
+    const arrivedDuringFetch = new Set(now.filter(m => !heldIds.has(m.id)).map(m => m.id))
+    return {
+      messages: mergeFreshThreadMessages(now, page.messages, { freshHasMore: false, arrivedDuringFetch }),
+      added: page.messages.filter(m => !heldIds.has(m.id)),
+      hasMore: page.has_more,
+    }
+  }
+  return { messages: now, added: page.messages.filter(reply => landThreadReply(now, reply)) }
+}
+
 const channelLoads = new Map<string, Promise<void>>()
 
 /** Page size of the channel read; a full page may be truncated. */

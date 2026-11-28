@@ -585,7 +585,10 @@ describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
       .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
 
     expect(res.status).toBe(204)
-    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: null, metadata: { bot: true } }])
+    expect(deleted).toEqual([{
+      id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: null,
+      user_id: null, bot_id: BOT_ID, is_system: undefined, metadata: { bot: true },
+    }])
   })
 
   it('reports the thread of a deleted thread message', async () => {
@@ -596,7 +599,10 @@ describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
       .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
 
     expect(res.status).toBe(204)
-    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: THREAD_ID, metadata: { bot: true } }])
+    expect(deleted).toEqual([{
+      id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: THREAD_ID,
+      user_id: null, bot_id: BOT_ID, is_system: undefined, metadata: { bot: true },
+    }])
   })
 
   it('reports nothing for a refused delete or an already soft-deleted row', async () => {
@@ -634,5 +640,83 @@ describe('audit rows name their server and channel', () => {
       .send({ name: 'Helpers', position: 0, permissions: '0' })
     expect(res.status).toBeLessThan(300)
     expect(audit('role_created')).toMatchObject({ server_id: SERVER_ID, channel_id: null })
+  })
+})
+
+describe('member roles', () => {
+  const members = (): Record<string, Row[]> => ({
+    user_servers: [
+      { user_id: OWNER_ID, server_id: SERVER_ID, status: 'accepted' },
+      { user_id: MOD_USER_ID, server_id: SERVER_ID, status: 'accepted' },
+      { user_id: MEMBER_USER_ID, server_id: SERVER_ID, status: 'accepted' },
+      { user_id: '00000000-0000-0000-0000-0000000000a4', server_id: SERVER_ID, status: 'banned' },
+    ],
+  })
+  const memberRoles = (userId: string) =>
+    db.rows('user_roles').filter((r) => r.user_id === userId).map((r) => r.role_id).sort()
+  const audit = () => db.rows('bot_audit_log').map((r) => [r.action_type, r.metadata])
+  const put = (userId: string, roleId: string) =>
+    supertest(app()).put(`/api/v1/servers/${SERVER_ID}/members/${userId}/roles/${roleId}`)
+  const del = (userId: string, roleId: string) =>
+    supertest(app()).delete(`/api/v1/servers/${SERVER_ID}/members/${userId}/roles/${roleId}`)
+
+  it('requires manage_roles', async () => {
+    seed(install(), members())
+    const res = await put(MOD_USER_ID, MEMBER_ROLE)
+    expect(res.status).toBe(403)
+    expect(res.body.error).toBe('Missing permission: manage_roles')
+    expect(db.writesTo('user_roles')).toEqual([])
+  })
+
+  it('gives and takes a manageable role, logging each change once', async () => {
+    seed(install({ manage_roles: true }), members())
+    expect((await put(MOD_USER_ID, MEMBER_ROLE)).status).toBe(204)
+    expect(memberRoles(MOD_USER_ID)).toEqual([MEMBER_ROLE, MOD_ROLE].sort())
+    expect((await put(MOD_USER_ID, MEMBER_ROLE)).status).toBe(204)
+    expect(memberRoles(MOD_USER_ID)).toEqual([MEMBER_ROLE, MOD_ROLE].sort())
+
+    expect((await del(MOD_USER_ID, MEMBER_ROLE)).status).toBe(204)
+    expect(memberRoles(MOD_USER_ID)).toEqual([MOD_ROLE])
+    expect((await del(MOD_USER_ID, MEMBER_ROLE)).status).toBe(204)
+
+    const meta = { server_id: SERVER_ID, user_id: MOD_USER_ID, role_id: MEMBER_ROLE }
+    expect(audit()).toEqual([['member_role_added', meta], ['member_role_removed', meta]])
+  })
+
+  it('refuses @everyone, administrator roles and roles at or above the installer', async () => {
+    seed(install({ manage_roles: true, installed_by: MOD_USER_ID }), members())
+    expect((await put(MEMBER_USER_ID, EVERYONE_ROLE)).status).toBe(403)
+    expect((await put(MEMBER_USER_ID, ADMIN_ROLE)).status).toBe(403)
+    expect((await put(MEMBER_USER_ID, MOD_ROLE)).status).toBe(403)
+    expect((await del(MOD_USER_ID, MOD_ROLE)).status).toBe(403)
+    expect(db.writesTo('user_roles')).toEqual([])
+  })
+
+  it('refuses to give a role carrying bits the bot may not grant, and still takes it away', async () => {
+    seed(install({ manage_roles: true }), members())
+    const give = await put(MEMBER_USER_ID, MOD_ROLE)
+    expect(give.status).toBe(403)
+    expect(give.body.missing_permissions).toBe((KICK_MEMBERS | MANAGE_MESSAGES).toString())
+    expect(memberRoles(MEMBER_USER_ID)).toEqual([MEMBER_ROLE])
+
+    expect((await del(MOD_USER_ID, MOD_ROLE)).status).toBe(204)
+    expect(memberRoles(MOD_USER_ID)).toEqual([])
+  })
+
+  it('answers 404 for someone who is not a member, banned ones included, and 400 for bad ids', async () => {
+    seed(install({ manage_roles: true }), members())
+    expect((await put('00000000-0000-0000-0000-0000000000a4', MEMBER_ROLE)).status).toBe(404)
+    expect((await put('00000000-0000-0000-0000-0000000000a5', MEMBER_ROLE)).status).toBe(404)
+    expect((await put('not-a-uuid', MEMBER_ROLE)).status).toBe(400)
+    expect((await put(MOD_USER_ID, '00000000-0000-0000-0000-0000000000e7')).status).toBe(404)
+    expect(db.writesTo('user_roles')).toEqual([])
+  })
+
+  it('lists members with their role ids', async () => {
+    seed(install(), members())
+    const res = await supertest(app()).get(`/api/v1/servers/${SERVER_ID}/members`)
+    expect(res.status).toBe(200)
+    // FakeDb does not join profiles; rows come back in user_servers order.
+    expect(res.body.map((m: any) => m.roles)).toEqual([[ADMIN_ROLE], [MOD_ROLE], [MEMBER_ROLE], []])
   })
 })

@@ -322,7 +322,7 @@ export class SignatureService {
         return { verified: false, error: 'Missing signature components' };
       }
 
-      // Replay window (BUGS.md H18): Date must be present and covered by the
+      // Replay window: Date must be present and covered by the
       // signature, and within ±5 minutes. An unsigned Date can be rewritten
       // on a captured request. Mastodon applies the same requirement
       // (verify_signature_strength!); `(created)` is not supported here.
@@ -358,7 +358,7 @@ export class SignatureService {
         return { verified: false, actorUrl, error: 'Could not fetch public key', keyStatus: keyFetch.status };
       }
 
-      // Body integrity (BUGS.md H19). A request with a body requires a Digest
+      // Body integrity. A request with a body requires a Digest
       // header listed in the signed headers, then verified. Otherwise the
       // signature authenticates headers only and the body can be swapped.
       const digestHeader = headers['digest'] || headers['Digest'];
@@ -527,7 +527,7 @@ export class SignatureService {
    *   after normalization. Applies to `Person`-actor activities (user inbox:
    *   Create Note, Like, Follow, Update Person, Delete Note). Same-domain
    *   delegation here would let any user on a remote host forge activities for
-   *   any other user on that host. BUGS.md item C1.
+   *   any other user on that host.
    *
    * - Group delegation (`allowSameDomainDelegation = true`): activities on
    *   behalf of a `Group`/`Service` actor are conventionally signed by an
@@ -698,7 +698,7 @@ export class SignatureService {
     
     // Tier 3: remote fetch, signed: a remote in secure mode serves its
     // actors only to signed GETs. safeFetch performs URL+DNS validation,
-    // manual redirect re-validation, and the timeout. BUGS.md H15.
+    // manual redirect re-validation, and the timeout.
     try {
       const response = await this.signedApFetch(actorUrl, {
         headers: {

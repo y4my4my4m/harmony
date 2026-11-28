@@ -33,7 +33,7 @@ const pendingPermissionLoads = new Map<string, Promise<Record<Permission, boolea
 const pendingRoleLoads = new Map<string, Promise<ServerRole[]>>()
 
 /**
- * BUGS.md H50 / Pattern B: clear ALL module-level permission caches. These
+ * Clear ALL module-level permission caches. These
  * caches are not store state, so `pinia.$reset()` cannot reach them - they
  * would otherwise persist across logout and the next user on the same tab
  * could briefly see the previous user's cached permissions in UI until a

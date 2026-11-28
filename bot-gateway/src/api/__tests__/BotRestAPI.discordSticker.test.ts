@@ -236,6 +236,17 @@ describe('POST /servers/:serverId/stickers/discord', () => {
     expect(res.body.code).toBeUndefined()
   })
 
+  it('answers 403 STICKER_REMOVED for a sticker a person deleted, without downloading it', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { code: '42501', message: 'STICKER_REMOVED: a person deleted this sticker on Harmony; the bridge does not copy it again' },
+    })
+    const res = await post(BODY)
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('STICKER_REMOVED')
+    expect(mocks.store).not.toHaveBeenCalled()
+  })
+
   it('maps 42501 to 403, 22023 to 400 and other errors to 500', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'not the bridge' } })
     expect((await post(BODY)).status).toBe(403)

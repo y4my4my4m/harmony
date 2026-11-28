@@ -558,7 +558,7 @@ test('Discord members of a bridge join the list in their presence groups, whole 
   ].map((u) => ({ ...u, avatarUrl: '/default_avatar.webp', source: 'discord', harmonyRoleIds: [], customStatus: null }))
   await page.route(/\/bot-gateway\/bridged-users\/(?!server\/)[^/?]+/, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ has_bridge: true, users: discord }) }))
-  const bridgedRow = (name: string) => sidebar(page).locator('.user-item.bridged-discord-user').filter({ hasText: name })
+  const bridgedRow = (name: string) => sidebar(page).locator('.user-item.bridged-user').filter({ hasText: name })
 
   await signIn(page, viewer)
   // A server held whole.
@@ -603,7 +603,8 @@ test('a presence broadcast moves a member the client had not loaded', async ({ p
     const { supabase } = await import('/src/supabase.ts' as string)
     const channel = supabase.getChannels().find((c: { topic: string }) => c.topic.endsWith(`server-presence:${serverId}`))
     if (!channel) return false
-    channel._trigger('broadcast', {
+    // realtime-js 2.119: incoming events dispatch through the Phoenix channel it wraps.
+    channel.channelAdapter.channel.trigger('broadcast', {
       type: 'broadcast',
       event: 'presence_event',
       payload: { type: 'presence:update', user_id: userId, online: true, status: 1, is_mobile: false },

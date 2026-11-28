@@ -118,6 +118,7 @@ describe('installation writes', () => {
         read_messages: true,
         send_messages: true,
         add_reactions: true,
+        attach_files: true,
         manage_messages: false,
         manage_channels: true,
         manage_roles: false,

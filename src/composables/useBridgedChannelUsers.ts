@@ -7,16 +7,23 @@ import {
 const PRESENCE_POLL_MS = 60_000
 
 /**
- * Ephemeral bridged (Discord) members for a Harmony channel.
+ * Ephemeral bridged (Discord / Matrix) members for a Harmony channel.
  * Shares cache with mention autocomplete - one fetch per channel per TTL.
- * Polls periodically while mounted so Discord presence stays reasonably fresh.
+ * Polls while mounted and a member reports presence, so presence stays reasonably fresh.
+ * Within a server the previous channel's list stays until the next one arrives; a channel of
+ * another server starts from an empty list.
  */
-export function useBridgedChannelUsers(channelId: MaybeRefOrGetter<string | null | undefined>) {
+export function useBridgedChannelUsers(
+  channelId: MaybeRefOrGetter<string | null | undefined>,
+  serverId: MaybeRefOrGetter<string | null | undefined>,
+) {
   const users = ref<BridgedChannelUser[]>([])
   const hasBridge = ref(false)
   const loaded = ref(false)
   const loading = ref(false)
 
+  let revision = 0
+  let listServer: string | null | undefined
   let pollTimer: ReturnType<typeof setInterval> | null = null
 
   const stopPolling = () => {
@@ -27,16 +34,18 @@ export function useBridgedChannelUsers(channelId: MaybeRefOrGetter<string | null
   }
 
   const load = async (id: string, options: { background?: boolean } = {}) => {
+    const request = revision
     if (!options.background) {
       loading.value = true
       loaded.value = false
     }
     try {
       const result = await fetchBridgedChannelUsers(id, { force: options.background })
+      if (request !== revision) return
       users.value = result.users
       hasBridge.value = result.hasBridge
     } finally {
-      if (!options.background) {
+      if (request === revision && !options.background) {
         loading.value = false
         loaded.value = true
       }
@@ -46,15 +55,22 @@ export function useBridgedChannelUsers(channelId: MaybeRefOrGetter<string | null
   watch(
     () => toValue(channelId),
     async (id) => {
+      const request = ++revision
       stopPolling()
-      if (!id) {
+      const server = toValue(serverId)
+      if (!id || server !== listServer) {
         users.value = []
         hasBridge.value = false
+      }
+      listServer = server
+      if (!id) {
+        loading.value = false
         loaded.value = true
         return
       }
 
       await load(id)
+      if (request !== revision || !users.value.some(user => user.presenceStatus !== undefined)) return
       pollTimer = setInterval(() => {
         void load(id, { background: true })
       }, PRESENCE_POLL_MS)
@@ -62,7 +78,7 @@ export function useBridgedChannelUsers(channelId: MaybeRefOrGetter<string | null
     { immediate: true },
   )
 
-  onScopeDispose(stopPolling)
+  onScopeDispose(() => { revision++; stopPolling() })
 
   return { users, hasBridge, loaded, loading }
 }

@@ -94,6 +94,13 @@ describe('canReceiveCall', () => {
       .resolves.toMatchObject({ allowed: false, reason: 'error' })
   })
 
+  it('reads only its own block of the caller', async () => {
+    const asked: Array<Record<string, unknown>> = []
+    db.tables.user_blocks = (f) => { asked.push({ ...f }); return { data: null, error: null } }
+    await dmCallPermissions.canReceiveCall(CALLER, ME, CONV)
+    expect(asked).toEqual([{ blocker_id: ME, blocked_user_id: CALLER }])
+  })
+
   it('refuses a blocked caller before the mute is read', async () => {
     db.tables.user_blocks = (f) => ({ data: f.blocker_id === ME ? { id: 'b' } : null, error: null })
     db.tables.notification_channels = { data: { muted: true, muted_until: null }, error: null }
@@ -145,10 +152,17 @@ describe('canPlaceCall', () => {
     expect(db.rpc).not.toHaveBeenCalled()
   })
 
-  it('refuses a block either way', async () => {
+  it('refuses a receiver the caller blocked', async () => {
     db.tables.user_blocks = (f) => ({ data: f.blocker_id === CALLER ? { id: 'b' } : null, error: null })
     await expect(dmCallPermissions.canPlaceCall(CALLER, 'them'))
       .resolves.toMatchObject({ allowed: false, reason: 'blocked', message: 'You have blocked this user' })
+  })
+
+  it('never asks whether the receiver blocks the caller: the server refuses that call', async () => {
+    const asked: Array<Record<string, unknown>> = []
+    db.tables.user_blocks = (f) => { asked.push({ ...f }); return { data: null, error: null } }
+    await expect(dmCallPermissions.canPlaceCall(CALLER, 'them')).resolves.toEqual({ allowed: true })
+    expect(asked).toEqual([{ blocker_id: CALLER, blocked_user_id: 'them' }])
   })
 
   it('lets the ring through when a block lookup fails; ring_dm_call enforces blocks', async () => {

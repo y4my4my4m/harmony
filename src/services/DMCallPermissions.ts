@@ -1,11 +1,16 @@
 /**
  * DM Call Permission Service
  *
- * Two gates. canPlaceCall runs on the caller before ringing: blocks either way
- * and the receiver's Do Not Disturb. canReceiveCall runs on the client that was
- * rung, against its own state: blocks, Do Not Disturb, busy (already in another
- * DM call), call notification preference, and mute, which silences the ring
- * instead of refusing it.
+ * Two gates. canPlaceCall runs on the caller before ringing: its own block of
+ * the receiver and the receiver's Do Not Disturb. canReceiveCall runs on the
+ * client that was rung, against its own state: its block of the caller, Do Not
+ * Disturb, busy (already in another DM call), call notification preference, and
+ * mute, which silences the ring instead of refusing it.
+ *
+ * Neither reads a block of this account: user_blocks shows a blocked account
+ * nothing (20261123500001_blocks_hidden_from_blocked.sql). The server refuses
+ * that call: start_dm_call_message raises DM_UNDELIVERABLE, ring_dm_call and
+ * the federated call routes skip the ring.
  */
 
 import { supabase } from '@/supabase'
@@ -18,7 +23,7 @@ export interface CallPermissionCheck {
   allowed: boolean
   /**
    * Why the call was disallowed. `'error'` means a block lookup failed (DB /
-   * RLS / network); inbound calls fail closed. See BUGS.md H4.
+   * RLS / network); inbound calls fail closed.
    */
   reason?: 'blocked' | 'busy' | 'dnd' | 'notifications_disabled' | 'error'
   message?: string
@@ -33,16 +38,11 @@ class DMCallPermissionService {
    */
   async canPlaceCall(callerId: string, receiverId: string): Promise<CallPermissionCheck> {
     // A failed lookup lets the ring through; ring_dm_call skips blocked receivers server-side.
-    const blocked = (blockerId: string, blockedId: string) =>
-      this.isUserBlocked(blockerId, blockedId).catch((error) => {
-        debug.warn('Block lookup failed:', error)
-        return false
-      })
-
-    if (await blocked(receiverId, callerId)) {
-      return { allowed: false, reason: 'blocked', message: 'You cannot call this user' }
-    }
-    if (await blocked(callerId, receiverId)) {
+    const blocked = await this.isUserBlocked(callerId, receiverId).catch((error) => {
+      debug.warn('Block lookup failed:', error)
+      return false
+    })
+    if (blocked) {
       return { allowed: false, reason: 'blocked', message: 'You have blocked this user' }
     }
     if (await this.isUserInDND(receiverId)) {
@@ -64,9 +64,6 @@ class DMCallPermissionService {
       if (await this.isUserBlocked(receiverId, callerId)) {
         return { allowed: false, reason: 'blocked', message: 'You cannot call this user' }
       }
-      if (await this.isUserBlocked(callerId, receiverId)) {
-        return { allowed: false, reason: 'blocked', message: 'You have blocked this user' }
-      }
       if (await this.isUserInDND(receiverId)) {
         return { allowed: false, reason: 'dnd', message: 'This user is in Do Not Disturb mode' }
       }
@@ -82,8 +79,8 @@ class DMCallPermissionService {
       return { allowed: true }
     } catch (error) {
       debug.error('Error checking call permissions:', error)
-      // BUGS.md H4: inbound calls fail closed. Failing open on a DB/RLS error
-      // let blocked users be rung anyway.
+      // Inbound calls fail closed; failing open on a DB/RLS error rings
+      // blocked users.
       return {
         allowed: false,
         reason: 'error',

@@ -15,6 +15,9 @@
 
   The viewer mounts in `to`, else the portal target of its subtree, which can sit in the call
   pop-out window: pointer and resize listeners go on the window that shows the viewer.
+
+  The voice dock ([data-over-viewer]) paints over the viewer and keeps the pointer there; Escape
+  from the dock closes the viewer.
 -->
 <template>
   <Teleport :to="to ?? portalTarget">
@@ -404,6 +407,7 @@ useDialog({
   open: () => props.visible,
   element: dialogEl,
   onClose: () => onHide(),
+  companions: '[data-over-viewer]',
 });
 
 // --- Playback positions and the inline origin ------------------------------------------

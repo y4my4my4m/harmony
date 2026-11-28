@@ -12,11 +12,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const server: {
   createApp: () => { listen: (port: number, host: string, cb: () => void) => Server }
+  attachActivityRelay: (server: Server, app: unknown) => unknown
 } = await import(pathToFileURL(path.join(root, 'federation-backend/src/server.ts')).href)
 
-const http = server.createApp().listen(0, '127.0.0.1', () => {
+const app = server.createApp()
+const http = app.listen(0, '127.0.0.1', () => {
   const { port } = http.address() as AddressInfo
   console.log(`listening http://127.0.0.1:${port}`)
 })
+
+server.attachActivityRelay(http, app)
 
 process.on('SIGTERM', () => http.close(() => process.exit(0)))

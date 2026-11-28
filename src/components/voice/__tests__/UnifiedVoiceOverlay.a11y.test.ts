@@ -11,16 +11,24 @@ import { resetLayersForTests } from '@/utils/a11y/layers'
 const h = vi.hoisted(() => ({ store: null as any }))
 const { stub } = vi.hoisted(() => ({ stub: (name: string) => ({ __esModule: true, default: { name, render: () => null } }) }))
 
+vi.mock('@/stores/playTogether', () => ({
+  usePlayTogetherStore: () => ({
+    appsFor: () => [], loadApps: async () => {}, openLauncher: () => {}, joined: null, launcher: null,
+    sessionIn: () => null, refresh: async () => [], registerSlot: () => {}, unregisterSlot: () => {},
+    view: { members: [], status: 'connecting' }, mode: 'docked', panelHeight: 480,
+  }),
+}))
 vi.mock('@/stores/activities', () => ({
   useActivitiesStore: () => ({ current: null, playingHere: false, launcherOpen: false, launcherAnchor: null }),
 }))
 vi.mock('@/components/activities/useActivityButton', () => ({
   useActivityButton: () => ({
     available: { value: false }, visible: { value: false }, running: { value: false },
+    target: { value: null }, gameOnStage: { value: false },
     anchor: { value: null }, toggle: () => {}, close: () => {},
   }),
 }))
-vi.mock('@/components/activities/ActivityLauncher.vue', () => ({ default: { name: 'ActivityLauncher', render: () => null } }))
+vi.mock('@/components/activities/ActivitiesLauncher.vue', () => ({ default: { name: 'ActivitiesLauncher', render: () => null } }))
 vi.mock('@/components/activities/ActivityDockCard.vue', () => ({ default: { name: 'ActivityDockCard', render: () => null } }))
 vi.mock('@/components/activities/ActivityStage.vue', () => ({ default: { name: 'ActivityStage', render: () => null } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))

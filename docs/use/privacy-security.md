@@ -53,7 +53,7 @@ A few actions ask for a fresh code even in a signed-in session:
 
 Changing your password asks for your current password, not a code. It signs out every other device.
 
-Some accounts have no password and cannot get one: on a self-hosted instance without email, a first sign-in through Google, GitHub, Twitch or the instance's own provider can make an account that signs in only through that provider. **Security** says so after the first attempt to set a password.
+Some accounts have no password and cannot get one: on a self-hosted instance without email, a first sign-in through Google, GitHub, Twitch, Discord or the instance's own provider can make an account that signs in only through that provider. **Security** says so after the first attempt to set a password.
 
 ### Turn off two-factor authentication
 
@@ -168,7 +168,10 @@ Some features do not work in encrypted channels and conversations: polls, webhoo
 - A status line under the message box: "End-to-end encrypted" when you can read and send. "This channel is end-to-end encrypted. Unlock encryption to read and send messages." with **Unlock** when your device has not unlocked your keys yet. "This channel is end-to-end encrypted. Set up encryption to read and send messages." with **Set up now** when you have no keys.
 - Messages your device cannot read yet show as scrambled characters; click one to retry ("Click to decrypt").
 - A message encrypted with a key your account no longer has stays scrambled, with a lock, and cannot be recovered.
+- "Message hidden: its signature does not match its sender" in place of a message whose signature fails against its sender's key: it was altered, or it is not from the person it names. It is not decrypted.
+- **Repeated** next to a message whose encryption repeats an earlier message from the same sender: the server stored one message twice. The earlier one carries no mark.
 - **Unverified author** next to a message that decrypted but whose sender's device signature could not be checked.
+- After you send, "Some members may not be able to read your message" when the message's key could not be delivered to every member. The message is sent; a member without the key asks for it when they open the message, and you or another member holding it can answer.
 
 ### Unlock encryption on a new device
 
@@ -222,10 +225,12 @@ Right-click a member and choose **Block** or **Mute user**. Profiles and the men
 | Notifications from them | Stopped | Stopped |
 | Their calls to you | Refused | Arrive without a ringtone or pop-up |
 | Their messages in server channels | Collapsed into "1 blocked message" with **Show message** | Shown |
-| Direct messages | Neither of you can write to the other one to one, start a conversation or add the other to a group. In a group you share, their messages collapse into "1 blocked message" | Shown |
+| Direct messages | Neither of you can write to the other one to one, edit an earlier message there, start a conversation or add the other to a group. In a group you share, their messages collapse into "1 blocked message" | Shown |
 | Reactions to your messages | They cannot add them | Allowed |
 | Server member lists | You both stay listed, with your status, as on Discord | Shown |
 | Posts | Hidden from each other; you stop following them | Shown |
+
+The person you block is not told and cannot look up who blocks them. A message or edit they send you is "not delivered", a call "not placed", and a new conversation is refused as by someone who accepts them only from people they know.
 
 A block is also sent to other instances as an ActivityPub block. A block does not stop the other person reading what you post in servers you share.
 

@@ -1,6 +1,7 @@
 /**
  * Website widgets of a server invite: an SVG badge for an <img> and a card page for an <iframe>.
  * Both show what /invite/:code shows to anyone holding the code, and neither runs script.
+ * `instanceName` is the instance's name as utils/instanceName.ts resolves it.
  */
 
 import config from '../config/index.js';
@@ -145,6 +146,7 @@ function textRun(x: number, content: string, width: number, fill: string, size: 
 /** Badge of a valid invite, or of a dead one when `preview` is null. */
 export function renderInviteBadge(
   preview: InvitePreview | null,
+  instanceName: string,
   options: { theme?: WidgetTheme; style?: BadgeStyle; lang?: unknown } = {},
 ): string {
   const text = widgetText(options.lang);
@@ -162,14 +164,14 @@ export function renderInviteBadge(
   }
 
   const server = name(preview);
-  const label = `${text.join} ${server} · ${config.INSTANCE_NAME}`;
+  const label = `${text.join} ${server} · ${instanceName}`;
 
   if (style === 'icon') {
     return svg(HEIGHT, label, `${clip(HEIGHT)}<g clip-path="url(#r)">${markSegment(HEIGHT)}</g>`);
   }
 
   if (style === 'join') {
-    const line = text.joinOn(plainDisplayName(config.INSTANCE_NAME, config.INSTANCE_NAME));
+    const line = text.joinOn(plainDisplayName(instanceName, instanceName));
     const width = textWidth(line, 12);
     const total = width + PAD * 2 + MARK_BOX;
     return svg(total, label, `${clip(total)}<g clip-path="url(#r)"><rect width="${total}" height="${HEIGHT}" fill="${THEME_COLOR}"/>${markSegment(MARK_BOX)}${textRun(MARK_BOX, line, width, '#ffffff', 12, 600)}</g>`);
@@ -257,12 +259,13 @@ ${body}
 /** Card of a valid invite, or of a dead one when `preview` is null. */
 export function renderInviteCard(
   preview: InvitePreview | null,
+  instanceName: string,
   options: { theme?: WidgetTheme; lang?: unknown } = {},
 ): string {
   const text = widgetText(options.lang);
   const theme = options.theme ?? 'dark';
   if (!preview) {
-    return cardPage(config.INSTANCE_NAME, theme, `  <main class="card"><p class="dead">${escapeHtml(text.invalid)}</p></main>`);
+    return cardPage(instanceName, theme, `  <main class="card"><p class="dead">${escapeHtml(text.invalid)}</p></main>`);
   }
   const server = plainDisplayName(preview.name, preview.name);
   return cardPage(server, theme, [

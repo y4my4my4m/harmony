@@ -16,7 +16,6 @@ import {
   applyBridgeAttachmentPolicy,
   getBridgeAttachmentMode,
   isAllowedSourceUrl,
-  mirrorAllows,
   readBridgeAttachmentMode,
 } from '../mirrorExternalMedia.js'
 
@@ -33,7 +32,7 @@ const mirrorMode = () => configRead({ data: { config_value: '"mirror"' }, error:
 beforeEach(() => {
   mocks.from.mockReset()
   mocks.rpc.mockReset()
-  mocks.rpc.mockResolvedValue({ data: true, error: null })
+  mocks.rpc.mockResolvedValue({ data: 'reserved', error: null })
 })
 
 afterEach(() => {
@@ -87,46 +86,30 @@ describe('bridge attachment mode', () => {
   })
 })
 
-describe('mirrorAllows', () => {
-  it('asks bridge_mirror_allows and answers true only for true', async () => {
-    expect(await mirrorAllows(CHANNEL, 42)).toBe(true)
-    expect(mocks.rpc).toHaveBeenCalledWith('bridge_mirror_allows', { p_channel_id: CHANNEL, p_bytes: 42 })
-    mocks.rpc.mockResolvedValue({ data: false, error: null })
-    expect(await mirrorAllows(CHANNEL, 42)).toBe(false)
-    mocks.rpc.mockResolvedValue({ data: null, error: null })
-    expect(await mirrorAllows(CHANNEL, 42)).toBe(false)
-  })
-
-  it('throws when the answer cannot be read', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'function not found' } })
-    await expect(mirrorAllows(CHANNEL, 42)).rejects.toThrow(/bridge_mirror_allows failed: function not found/)
-  })
-})
-
 describe('applyBridgeAttachmentPolicy and the server cap', () => {
   const part = { type: 'file', fileType: 'image', url: 'https://cdn.discordapp.com/attachments/1/2/cat.png?ex=1', fileSize: 2048 }
 
   it('keeps the Discord link and defers, without a download, when the cap refuses a file of known size', async () => {
     mirrorMode()
-    mocks.rpc.mockResolvedValue({ data: false, error: null })
+    mocks.rpc.mockResolvedValue({ data: 'full', error: null })
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)
 
     await expect(applyBridgeAttachmentPolicy([part], BOT, CHANNEL)).resolves.toEqual({ parts: [part], deferred: true })
-    expect(mocks.rpc).toHaveBeenCalledWith('bridge_mirror_allows', { p_channel_id: CHANNEL, p_bytes: 2048 })
+    expect(mocks.rpc).toHaveBeenCalledWith('bridge_upload_reserve', expect.objectContaining({ p_channel_id: CHANNEL, p_bytes: 2048 }))
     expect(fetch).not.toHaveBeenCalled()
   })
 
   it('keeps the Discord link and defers, the body unread, when the cap refuses the Content-Length', async () => {
     mirrorMode()
-    mocks.rpc.mockResolvedValue({ data: false, error: null })
+    mocks.rpc.mockResolvedValue({ data: 'full', error: null })
     const cancel = vi.fn(async () => {})
     const body = new ReadableStream<Uint8Array>({ pull(c) { c.enqueue(new Uint8Array(4)) }, cancel })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: 200, headers: { 'content-type': 'image/png', 'content-length': '4096' } })))
     const sizeless = { type: 'url', url: part.url }
 
     await expect(applyBridgeAttachmentPolicy([sizeless], BOT, CHANNEL)).resolves.toEqual({ parts: [sizeless], deferred: true })
-    expect(mocks.rpc).toHaveBeenCalledWith('bridge_mirror_allows', { p_channel_id: CHANNEL, p_bytes: 4096 })
+    expect(mocks.rpc).toHaveBeenCalledWith('bridge_upload_reserve', expect.objectContaining({ p_channel_id: CHANNEL, p_bytes: 4096 }))
     expect(cancel).toHaveBeenCalled()
   })
 

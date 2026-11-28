@@ -37,7 +37,6 @@
     ref="fileInput"
     type="file"
     multiple
-    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip,.rar"
     class="hidden-file-input"
     tabindex="-1"
     aria-hidden="true"

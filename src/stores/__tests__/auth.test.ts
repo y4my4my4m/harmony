@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { supabase } from '@/supabase'
 
@@ -26,6 +26,7 @@ vi.mock('@/utils/userScopedStorage', () => ({
     remove: vi.fn(),
     clearAll: vi.fn(),
     setCurrentUser: vi.fn(),
+    getCurrentUser: vi.fn(() => null),
     clearCurrentUser: vi.fn(),
   },
 }))
@@ -36,6 +37,11 @@ vi.mock('@/stores/useDM', () => ({
 const outboxReset = vi.hoisted(() => vi.fn())
 vi.mock('@/stores/useOutbox', () => ({
   useOutboxStore: vi.fn(() => ({ reset: outboxReset })),
+}))
+// Post-sign-in setup (initializeUserSettings) is not under test. Several sign-ins finishing in
+// one tick import the real useVisualTheme concurrently and read it mid-evaluation (TDZ).
+vi.mock('@/composables/useVisualTheme', () => ({
+  useVisualTheme: () => ({ initialize: vi.fn().mockResolvedValue(undefined), reset: vi.fn() }),
 }))
 vi.mock('@/services/RealtimeApiService', () => ({
   realtimeApiService: {
@@ -68,6 +74,17 @@ function jwtWithAALAndAMR(aal: 'aal1' | 'aal2', methods: string[]): string {
   }
   const encoded = btoa(JSON.stringify(payload))
   return `header.${encoded}.signature`
+}
+
+/** Fires an auth event and waits for the store to handle it; the listener itself returns at once. */
+async function fire(store: ReturnType<typeof useAuthStore>, listener: (event: any, session: any) => unknown, event: string, session: any) {
+  let handled: Promise<void> | null = null
+  const stop = store.$onAction(({ name, after, onError }) => {
+    if (name === 'handleAuthEvent') handled = new Promise((resolve) => { after(() => resolve()); onError(() => resolve()) })
+  })
+  listener(event, session)
+  stop()
+  await handled
 }
 
 describe('useAuthStore', () => {
@@ -282,10 +299,10 @@ describe('useAuthStore', () => {
 
       // Supabase fires SIGNED_IN with a brand-new AAL1 session for an
       // MFA-enrolled user. The store must not adopt it.
-      await handler!('SIGNED_IN', {
+      await fire(store, handler!, 'SIGNED_IN', {
         access_token: jwtWithAAL('aal1'),
         user: { id: 'new-user' },
-      } as any)
+      })
 
       // Local scope: a global logout from an aal1 token deletes the account's aal2 sessions too.
       const { signOutAndForget } = await import('@/supabase')
@@ -310,10 +327,10 @@ describe('useAuthStore', () => {
       const store = useAuthStore()
       await store.initializeAuth()
 
-      await handler!('SIGNED_IN', {
+      await fire(store, handler!, 'SIGNED_IN', {
         access_token: jwtWithAAL('aal1'),
         user: { id: 'valid-user' },
-      } as any)
+      })
 
       expect(store.session?.user?.id).toBe('valid-user')
     })
@@ -411,7 +428,7 @@ describe('useAuthStore', () => {
 
       // Simulate gotrue-js firing INITIAL_SESSION post-URL-exchange while
       // `_pendingMFAVerification` is still set by the callback path-check.
-      await stateChangeHandler!('INITIAL_SESSION', oauthSession)
+      await fire(store, stateChangeHandler!, 'INITIAL_SESSION', oauthSession)
 
       // The handler early-returns before `validateSessionForMFA`: no signOut,
       // no listFactors call.
@@ -450,7 +467,7 @@ describe('useAuthStore', () => {
       const store = useAuthStore()
       await store.initializeAuth()
 
-      await stateChangeHandler!('TOKEN_REFRESHED', refreshedSession)
+      await fire(store, stateChangeHandler!, 'TOKEN_REFRESHED', refreshedSession)
 
       expect(signOutSpy).not.toHaveBeenCalled()
       expect(listFactorsSpy).not.toHaveBeenCalled()
@@ -622,6 +639,115 @@ describe('useAuthStore', () => {
       expect(store.session).toBeNull()
       expect(store._pendingMFAVerification).toBe(false)
     })
+
+    describe('verification timeout', () => {
+      const VERIFY_TIMEOUT_MS = 30_000
+
+      function deferredVerify() {
+        let answer!: (value: unknown) => void
+        const verify = vi.fn(() => new Promise((resolve) => { answer = resolve }))
+        ;(supabase.auth as any).mfa = { verify }
+        return { verify, answer: (value: unknown) => answer(value) }
+      }
+
+      beforeEach(() => {
+        vi.useFakeTimers()
+        profileQuery({ is_suspended: false })
+        ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session: aal2Session } })
+      })
+
+      afterEach(() => {
+        vi.useRealTimers()
+      })
+
+      it('leaves no timer once the code is verified', async () => {
+        ;(supabase.auth as any).mfa = { verify: vi.fn().mockResolvedValue({ data: {}, error: null }) }
+        const store = useAuthStore()
+        store._pendingMFAVerification = true
+        await store.verify2FA('factor-1', 'challenge-1', '123456')
+
+        expect(vi.getTimerCount()).toBe(0)
+      })
+
+      it('finishes the sign-in when the session arrived before the timeout', async () => {
+        const store = useAuthStore()
+        store._pendingMFAVerification = true
+        ;(supabase.auth as any).mfa = {
+          // GoTrue stores the session and emits MFA_CHALLENGE_VERIFIED before mfa.verify resolves.
+          verify: vi.fn(() => { store.session = aal2Session as any; return new Promise(() => {}) }),
+        }
+
+        const signIn = store.verify2FA('factor-1', 'challenge-1', '123456')
+        await vi.advanceTimersByTimeAsync(VERIFY_TIMEOUT_MS)
+
+        await expect(signIn).resolves.toEqual({ session: aal2Session })
+        expect(userStorage.setCurrentUser).toHaveBeenCalledWith('mfa-user')
+      })
+
+      it('a code verified after the timeout finishes the sign-in it belongs to', async () => {
+        const { answer } = deferredVerify()
+        const store = useAuthStore()
+        store._pendingMFAVerification = true
+
+        const signIn = store.verify2FA('factor-1', 'challenge-1', '123456')
+        const failed = expect(signIn).rejects.toThrow('timed out')
+        await vi.advanceTimersByTimeAsync(VERIFY_TIMEOUT_MS)
+        await failed
+        expect(store.session).toBeNull()
+
+        answer({ data: {}, error: null })
+        await vi.advanceTimersByTimeAsync(0)
+
+        expect(store.session).toEqual(aal2Session)
+        expect(store.isLoggedIn).toBe(true)
+        expect(userStorage.setCurrentUser).toHaveBeenCalledWith('mfa-user')
+      })
+
+      it('a code verified after the sign-in was cancelled is not adopted', async () => {
+        const { answer } = deferredVerify()
+        const store = useAuthStore()
+        store._pendingMFAVerification = true
+
+        const signIn = store.verify2FA('factor-1', 'challenge-1', '123456')
+        const failed = expect(signIn).rejects.toThrow('timed out')
+        await vi.advanceTimersByTimeAsync(VERIFY_TIMEOUT_MS)
+        await failed
+        await store.cancelPendingSignIn()
+
+        answer({ data: {}, error: null })
+        await vi.advanceTimersByTimeAsync(0)
+
+        expect(store.session).toBeNull()
+        expect(userStorage.setCurrentUser).not.toHaveBeenCalled()
+      })
+
+      it('MFA_CHALLENGE_VERIFIED of a timed-out code leaves the session to the sign-in', async () => {
+        let handler: ((event: string, session: any) => Promise<void>) | null = null
+        ;(supabase.auth as any).onAuthStateChange = vi.fn((fn: any) => {
+          handler = fn
+          return { data: { subscription: { unsubscribe: vi.fn() } } }
+        })
+        ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session: null } })
+        const { answer } = deferredVerify()
+        const store = useAuthStore()
+        await store.initializeAuth()
+        store._pendingMFAVerification = true
+
+        const signIn = store.verify2FA('factor-1', 'challenge-1', '123456')
+        const failed = expect(signIn).rejects.toThrow('timed out')
+        await vi.advanceTimersByTimeAsync(VERIFY_TIMEOUT_MS)
+        await failed
+
+        await fire(store, handler!, 'MFA_CHALLENGE_VERIFIED', aal2Session)
+        expect(store.session).toBeNull()
+
+        ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session: aal2Session } })
+        answer({ data: {}, error: null })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(store.session).toEqual(aal2Session)
+        expect(userStorage.setCurrentUser).toHaveBeenCalledWith('mfa-user')
+      })
+    })
   })
 
   describe('abandoned MFA challenge', () => {
@@ -695,6 +821,29 @@ describe('useAuthStore', () => {
     })
   })
 
+  describe('user-scoped storage account', () => {
+    it('follows a session adopted outside the sign-in actions (OAuth callback)', async () => {
+      const store = useAuthStore()
+      await store.initializeAuth()
+      ;(userStorage.setCurrentUser as any).mockClear()
+
+      store.session = { access_token: jwtWithAAL('aal1'), user: { id: 'oauth-user' } } as any
+
+      expect(userStorage.setCurrentUser).toHaveBeenCalledWith('oauth-user')
+    })
+
+    it('a recovery session names no account', async () => {
+      const store = useAuthStore()
+      await store.initializeAuth()
+      ;(userStorage.setCurrentUser as any).mockClear()
+
+      store.isPasswordResetMode = true
+      store.session = { access_token: jwtWithAAL('aal1'), user: { id: 'recovering' } } as any
+
+      expect(userStorage.setCurrentUser).not.toHaveBeenCalled()
+    })
+  })
+
   describe('logout', () => {
     it('signs out this device only', async () => {
       const { signOutAndForget, signOutEverywhere } = await import('@/supabase')
@@ -744,6 +893,60 @@ describe('useAuthStore', () => {
       vi.doUnmock('@/composables/useViewContext')
     })
 
+    describe('in a call', () => {
+      const leaveVoiceChannel = vi.fn()
+      const voice = { isConnectedOrJoining: true, isConnected: false, leaveVoiceChannel, clearVoiceChannelState: vi.fn(), stopVoiceSessionHeartbeat: vi.fn() }
+
+      beforeEach(() => {
+        leaveVoiceChannel.mockReset()
+        vi.doMock('@/router', () => ({ default: { push: vi.fn().mockResolvedValue(undefined) } }))
+        vi.doMock('@/composables/usePushNotifications', () => ({
+          usePushNotifications: () => ({ detachForLogout: vi.fn().mockResolvedValue(undefined), resetState: vi.fn() }),
+        }))
+        vi.doMock('@/composables/useViewContext', () => ({ markDeviceAway: vi.fn().mockResolvedValue(undefined) }))
+        vi.doMock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => voice }))
+      })
+      afterEach(() => {
+        vi.useRealTimers()
+        for (const path of ['@/router', '@/composables/usePushNotifications', '@/composables/useViewContext',
+          '@/stores/unifiedVoiceChannel']) vi.doUnmock(path)
+      })
+
+      it('leaves it while the session still exists: its signals refuse an anonymous caller', async () => {
+        const { signOutAndForget } = await import('@/supabase')
+        const store = useAuthStore()
+        const session = { access_token: jwtWithAAL('aal2'), user: {} } as any
+        store.session = session
+        let sessionAtLeave: unknown = 'not left'
+        let signedOutAtLeave = -1
+        leaveVoiceChannel.mockImplementation(async () => {
+          sessionAtLeave = store.session
+          signedOutAtLeave = vi.mocked(signOutAndForget).mock.calls.length
+          return true
+        })
+        await store.logout()
+        expect(leaveVoiceChannel).toHaveBeenCalledTimes(1)
+        expect(sessionAtLeave).toStrictEqual(session)
+        expect(signedOutAtLeave).toBe(0)
+      })
+
+      it('a leave that hangs holds sign-out at most 3 s', async () => {
+        vi.useFakeTimers()
+        const { signOutAndForget } = await import('@/supabase')
+        leaveVoiceChannel.mockReturnValue(new Promise(() => {}))
+        const store = useAuthStore()
+        store.session = { access_token: jwtWithAAL('aal2'), user: {} } as any
+        const done = store.logout()
+        await vi.waitFor(() => expect(leaveVoiceChannel).toHaveBeenCalled())
+        await vi.advanceTimersByTimeAsync(2_900)
+        expect(signOutAndForget).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(200)
+        await vi.waitFor(() => expect(signOutAndForget).toHaveBeenCalledTimes(1))
+        vi.useRealTimers()
+        await done
+      })
+    })
+
     // clear() also voids a funding read still running; $reset() would not.
     it('clears the funding store', async () => {
       const clear = vi.fn()
@@ -774,6 +977,29 @@ describe('useAuthStore', () => {
       useAuthStore().cleanupNotificationSystem()
       await vi.waitFor(() => expect(resetRemoteServerSync).toHaveBeenCalledTimes(1))
       vi.doUnmock('@/utils/remoteServerSync')
+    })
+
+    it('drops the games and the watch-together state of the account', async () => {
+      const playTogether = vi.fn()
+      const activities = vi.fn()
+      vi.doMock('@/stores/playTogether', () => ({ usePlayTogetherStore: () => ({ reset: playTogether }) }))
+      vi.doMock('@/stores/activities', () => ({ useActivitiesStore: () => ({ reset: activities }) }))
+      useAuthStore().cleanupNotificationSystem()
+      await vi.waitFor(() => {
+        expect(playTogether).toHaveBeenCalledTimes(1)
+        expect(activities).toHaveBeenCalledTimes(1)
+      })
+      vi.doUnmock('@/stores/playTogether')
+      vi.doUnmock('@/stores/activities')
+    })
+
+    // A reply typed into a notification is the signed-out account's, never the next one's.
+    it('empties the quick reply queue', async () => {
+      const forgetQuickReplies = vi.fn(async () => {})
+      vi.doMock('@/services/ServiceWorkerManager', () => ({ forgetQuickReplies }))
+      useAuthStore().cleanupNotificationSystem()
+      await vi.waitFor(() => expect(forgetQuickReplies).toHaveBeenCalledTimes(1))
+      vi.doUnmock('@/services/ServiceWorkerManager')
     })
   })
 

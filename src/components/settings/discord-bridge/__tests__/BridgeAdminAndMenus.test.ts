@@ -133,15 +133,15 @@ describe('BridgeBotGuide', () => {
     expect(JSON.parse(w.find('.router-link').attributes('data-to')!)).toEqual({
       name: 'ServerSettings',
       params: { serverId: 's1' },
-      query: { section: 'discord-bridge' },
+      query: { section: 'bridges', tab: 'discord' },
     })
   })
 
-  it('sends a hand-made bridge bot to Server Settings → Discord Bridge, with correct v1 intents', async () => {
+  it('sends a hand-made bridge bot to Server Settings → Bridges → Discord, with correct v1 intents', async () => {
     installBackend({ discord_bridges: [] })
     const w = mountGuide('bot-2')
     await flushPromises()
-    expect(w.find('[data-testid="bridge-unmanaged"]').text()).toContain('Server Settings → Discord Bridge')
+    expect(w.find('[data-testid="bridge-unmanaged"]').text()).toContain('Server Settings → Bridges → Discord')
     const legacy = w.find('details')
     expect(legacy.text()).toContain('Message Content Intent is required')
     expect(legacy.text()).toContain('Server Members Intent only if the bridge syncs the member list')

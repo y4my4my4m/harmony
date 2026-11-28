@@ -6,6 +6,10 @@
 // removed, and no longer after the owner removed it; once the owner restores an emoji the bot
 // removed, it is theirs and the bot may not remove it again.
 //
+// Harmony 1.9.8: a sound or sticker the owner deletes in Server settings, and an emoji an instance
+// admin purges in Admin › Emojis, are refused when the bot imports them again: the next sync does
+// not download them from Discord.
+//
 // The bot gateway runs as a child process (e2e/specs/botGateway.ts); rows the bridge would have
 // imported are written with the service role, with their images where bot-gateway stores them.
 
@@ -21,6 +25,7 @@ const PNG = Buffer.from(
 const STORAGE = (process.env.E2E_SUPABASE_URL ?? process.env.TEST_SUPABASE_URL ?? '').replace(/\/$/, '')
 
 let owner: SpecUser
+let staff: SpecUser
 let server: SeededServer
 let gateway: BotGateway
 let botId = ''
@@ -78,6 +83,9 @@ async function seedSound(name: string, file: string, discordSoundId: string | nu
 test.beforeAll(async () => {
   test.setTimeout(120_000)
   owner = await createUser(admin, 'bsg')
+  staff = await createUser(admin, 'bsga')
+  const { error: staffError } = await admin.from('profiles').update({ is_admin: true }).eq('id', staff.id)
+  if (staffError) throw new Error(`staff: ${staffError.message}`)
   server = await seedServer(admin, owner, `Bridge sync ${owner.username}`)
 
   const client = await userClient(owner)
@@ -116,11 +124,14 @@ test.afterAll(async () => {
     await admin.from('server_sounds').delete().eq('server_id', server.id)
     await admin.from('stickers').delete().eq('server_id', server.id)
     await admin.from('emojis').delete().eq('server_id', server.id)
-    await admin.storage.from('emojis').remove([`${server.id}/${owner.id}/members_own.png`, `${server.id}/discord/9100.png`])
+    await admin.storage.from('emojis').remove([
+      `${server.id}/${owner.id}/members_own.png`, `${server.id}/discord/9100.png`, `${server.id}/discord/9101.png`,
+    ])
     await admin.from('discord_bridges').delete().eq('server_id', server.id)
   }
   if (botId) await admin.from('bots').delete().eq('id', botId)
   await deleteUser(admin, owner)
+  await deleteUser(admin, staff)
 })
 
 test('the bridge bot removes what it imported and nothing a member added', async ({ page }) => {
@@ -210,5 +221,71 @@ test('the bridge bot removes what it imported and nothing a member added', async
     expect((await api('DELETE', `/servers/${server.id}/sounds/${ids.importedSound}`)).status).toBe(204)
     const { data } = await admin.from('server_sounds').select('name').eq('server_id', server.id)
     expect(data?.map((s) => s.name)).toEqual(['members sound'])
+  })
+})
+
+test('what a person deletes, the bridge bot does not copy again', async ({ page, browser }) => {
+  test.setTimeout(180_000)
+  await seedSound('doorbell', '279a0000-0000-4000-8000-000000000011', '9301')
+  await seedSticker('discord_wave', '279a0000-0000-4000-8000-000000000012', { discord_sticker_id: '9201' })
+  const rudeId = await seedEmoji('rude_one', `${server.id}/discord/9101.png`, { discord_emoji_id: '9101' })
+
+  await signIn(page, owner)
+
+  await test.step('the owner deletes the copied sound in Server settings', async () => {
+    await page.goto(`/server/${server.id}?section=soundboard`)
+    await page.getByRole('button', { name: 'Delete doorbell' }).click({ timeout: 30000 })
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Delete doorbell' })).toHaveCount(0, { timeout: 20000 })
+
+    const again = await api('POST', `/servers/${server.id}/sounds/discord`, {
+      discord_sound_id: '9301', name: 'doorbell', emoji: null, emoji_id: null, volume: 1,
+    })
+    expect(again.status).toBe(403)
+    expect((await again.json()).code).toBe('SOUND_REMOVED')
+    const { data } = await admin.from('server_sounds').select('id').eq('server_id', server.id).eq('discord_sound_id', '9301')
+    expect(data).toEqual([])
+  })
+
+  await test.step('the owner deletes the copied sticker in Server settings', async () => {
+    await page.goto(`/server/${server.id}?section=stickers`)
+    await page.getByRole('button', { name: 'Delete sticker discord_wave' }).click({ timeout: 30000 })
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Delete sticker discord_wave' })).toHaveCount(0, { timeout: 20000 })
+
+    const again = await api('POST', `/servers/${server.id}/stickers/discord`, {
+      discord_sticker_id: '9201', name: 'discord_wave', description: 'A sticker', format_type: 1,
+    })
+    expect(again.status).toBe(403)
+    expect((await again.json()).code).toBe('STICKER_REMOVED')
+  })
+
+  await test.step('an instance admin purges the copied emoji in Admin › Emojis', async () => {
+    const client = await userClient(owner)
+    expect((await client.rpc('remove_emoji', { p_emoji_id: rudeId })).error).toBeNull()
+    const staffPage = await browser.newPage()
+    await signIn(staffPage, staff)
+    await staffPage.goto('/admin?tab=emojis')
+    const library = staffPage.getByTestId('admin-emoji-library')
+    await expect(library).toBeVisible({ timeout: 30000 })
+    await library.getByTestId('admin-emoji-kind-server').click()
+    await library.getByTestId('admin-emoji-status').selectOption('removed')
+    await library.getByTestId('admin-emoji-search').fill('rude_one')
+    const row = library.locator(`[data-testid="admin-emoji-row"][data-emoji-id="${rudeId}"]`)
+    await expect(row).toBeVisible({ timeout: 30000 })
+    await row.getByRole('button', { name: 'Purge :rude_one:' }).click()
+    await staffPage.getByRole('alertdialog').getByRole('button', { name: 'Purge', exact: true }).click()
+    await expect(row).toHaveCount(0, { timeout: 30000 })
+    await staffPage.close()
+
+    const again = await api('POST', `/servers/${server.id}/emojis/discord`, { discord_emoji_id: '9101', name: 'rude_one', animated: false })
+    expect(again.status).toBe(403)
+    expect((await again.json()).code).toBe('EMOJI_REMOVED')
+    // The sync list names it removed by a person, so a sync leaves it out.
+    const listed = ((await (await api('GET', `/servers/${server.id}/emojis/discord`)).json()).emojis as Array<Record<string, unknown>>)
+      .find((e) => e.discord_emoji_id === '9101')
+    expect(listed).toMatchObject({ name: 'rude_one', url: null, removed: true, imported: false, restorable: false })
+    const { data } = await admin.from('emojis').select('id').eq('server_id', server.id).eq('discord_emoji_id', '9101')
+    expect(data).toEqual([])
   })
 })

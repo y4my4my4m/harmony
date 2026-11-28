@@ -254,6 +254,9 @@ An account already over a number keeps what it has and cannot add more.
 | **Servers created per hour** | `10` | Deleting a server does not give the count back |
 | **New conversations with strangers per hour** | `30` | See below |
 | **Same, for new accounts** | `5` | Accounts younger than **An account counts as new for** |
+| **Call signals per minute** | `300` | Peer-to-peer call setup, DM call answers and hang-ups, call effects. Joining a peer-to-peer call of ten people takes about 45 |
+| **Calls placed per minute** | `10` | Each call placed, to someone on this instance or another. Hanging up is never refused |
+| **Role picks per minute** | `60` | Each self-assignable role taken or dropped. Every change reaches all members and other instances in the server |
 
 A stranger does not follow the account, shares no server with it and has no conversation with it. Starting a conversation with anyone else is not counted, except that for an account younger than **An account counts as new for**, someone sharing only a server counts too: joining a public server would otherwise reach every member. Adding a stranger to a group counts once.
 

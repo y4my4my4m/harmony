@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Call signalling over private Realtime channels: the conversation topic is
 // private, rings go through ring_dm_call, and federated calls take their token
-// from the accept response.
+// from the accept response. Answers and hang-ups go through send_signal, which names the
+// sender; an instance without it takes the client's broadcast.
+
+const capabilities = vi.hoisted(() => ({ relay: true }))
+vi.mock('@/services/instanceCapabilities', () => ({ hasCapability: (name: string) => name === 'signal-relay' && capabilities.relay }))
 
 const realtime = vi.hoisted(() => {
   const opened: Array<{ topic: string; opts: any; channel: any }> = []
@@ -37,7 +41,7 @@ vi.mock('@/services/AuthContextService', () => ({
 }))
 vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
-import { dmCallSignaling } from '@/services/DMCallSignaling'
+import { CallRingLimitedError, CallUndeliverableError, dmCallSignaling } from '@/services/DMCallSignaling'
 
 const CONV = '11111111-1111-1111-1111-111111111111'
 const CALLER_CONV = '22222222-2222-2222-2222-222222222222'
@@ -48,6 +52,7 @@ beforeEach(() => {
   dmCallSignaling.cleanup()
   realtime.opened.length = 0
   realtime.rpc.mockClear()
+  capabilities.relay = true
   vi.unstubAllGlobals()
 })
 
@@ -69,18 +74,90 @@ describe('local calls', () => {
     expect(realtime.opened.map((o) => o.topic)).toEqual([])
 
     await dmCallSignaling.leaveCall(CONV, 'me')
-    expect(realtime.rpc).toHaveBeenLastCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'end', p_receiver_ids: ['them'] }))
+    expect(realtime.rpc).toHaveBeenCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'end', p_receiver_ids: ['them'] }))
     expect(realtime.opened.every((o) => o.topic === `dm-call:${CONV}` && o.opts.config.private === true)).toBe(true)
   })
 
-  it('a signal without a subscription opens the private topic and releases it', async () => {
+  it('a call the server refuses for a block rings no one and holds no call', async () => {
+    realtime.rpc.mockImplementationOnce(async () => ({ data: null,
+      error: { message: 'DM_UNDELIVERABLE', code: 'P0001', hint: 'This message could not be delivered.' } }) as any)
+    await expect(dmCallSignaling.initiateCall(CONV, 'me', 'voice', ['them'])).rejects.toBeInstanceOf(CallUndeliverableError)
+    expect(realtime.rpc).toHaveBeenCalledTimes(1)
+    expect(realtime.rpc).not.toHaveBeenCalledWith('ring_dm_call', expect.anything())
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+  })
+
+  it('a ring past account_rings_per_minute ends the call and hands the refusal to the caller', async () => {
+    const limited = { message: 'ANTISPAM_RATE_LIMITED:42', code: 'P0001', hint: 'Limit reached: account_rings_per_minute.',
+      details: '{"kind": "ring", "limit": 10, "window_seconds": 60}' }
+    realtime.rpc.mockImplementation((async (name: string) => (name === 'ring_dm_call'
+      ? { data: null, error: limited } : { data: name === 'start_dm_call_message' ? 'msg-1' : 1, error: null })) as any)
+    const expired: string[] = []
+    const off = dmCallSignaling.onRingTimeout((id) => expired.push(id))
+    try {
+      await expect(dmCallSignaling.initiateCall(CONV, 'me', 'voice', ['them'])).rejects.toMatchObject({
+        name: 'CallRingLimitedError', message: limited.message, details: limited.details, hint: limited.hint,
+      })
+      expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+      expect(realtime.rpc).toHaveBeenCalledWith('finalize_dm_call_message', expect.objectContaining({ p_message_id: 'msg-1' }))
+      expect(expired).toEqual([])
+    } finally {
+      off()
+      realtime.rpc.mockImplementation((async () => ({ data: 1, error: null })) as any)
+    }
+  })
+
+  it('the pre-check refuses as placing the call would, and lets any other failure through', async () => {
+    realtime.rpc.mockImplementationOnce(async () => ({ data: null,
+      error: { message: 'DM_UNDELIVERABLE', code: 'P0001', hint: 'This message could not be delivered.' } }) as any)
+    await expect(dmCallSignaling.checkCallDeliverable(CONV)).rejects.toBeInstanceOf(CallUndeliverableError)
+    expect(realtime.rpc).toHaveBeenCalledWith('check_dm_call', { p_conversation_id: CONV })
+    realtime.rpc.mockImplementationOnce(async () => ({ data: null, error: { message: 'network', code: '' } }) as any)
+    await expect(dmCallSignaling.checkCallDeliverable(CONV)).resolves.toBeUndefined()
+    await expect(dmCallSignaling.checkCallDeliverable(CONV)).resolves.toBeUndefined()
+  })
+
+  it('another failure of the call notice still rings', async () => {
+    realtime.rpc.mockImplementationOnce(async () => ({ data: null, error: { message: 'network', code: '' } }) as any)
+    await dmCallSignaling.initiateCall(CONV, 'me', 'voice', ['them'])
+    expect(realtime.rpc).toHaveBeenLastCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'initiate' }))
+    await dmCallSignaling.leaveCall(CONV, 'me')
+  })
+
+  it('a signal goes through send_signal, which names the sender, with no channel opened', async () => {
+    await dmCallSignaling.sendSignal(CONV, { type: 'decline', callerId: 'someone', callType: 'voice', timestamp: 1, conversationId: CONV, reason: 'dnd' })
+    expect(realtime.rpc).toHaveBeenCalledWith('send_signal', {
+      p_topic: `dm-call:${CONV}`, p_event: 'call-signal', p_payload: { type: 'decline', callType: 'voice', reason: 'dnd' },
+    })
+    expect(realtime.opened).toHaveLength(0)
+  })
+
+  it('on an instance without send_signal, a signal opens the private topic, broadcasts and releases it', async () => {
+    capabilities.relay = false
+    realtime.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST202', message: 'absent' } } as any)
     await dmCallSignaling.sendSignal(CONV, { type: 'decline', callerId: 'me', callType: 'voice', timestamp: 1, conversationId: CONV })
     expect(realtime.opened).toHaveLength(1)
     const { topic, opts, channel } = realtime.opened[0]
     expect(topic).toBe(`dm-call:${CONV}`)
     expect(opts.config.private).toBe(true)
+    // Realtime does not answer a broadcast its send policy refuses: the send asks for an answer.
+    expect(opts.config.broadcast).toEqual({ ack: true })
     expect(channel.sent[0]).toMatchObject({ type: 'broadcast', event: 'call-signal', payload: { type: 'decline' } })
     expect(channel.unsubscribe).toHaveBeenCalled()
+  })
+
+  it.each(['notifications_disabled', 'error'] as const)('a decline for %s, which send_signal does not take, is a plain decline', async (reason) => {
+    await dmCallSignaling.declineCall(CONV, 'me', reason)
+    expect(realtime.rpc).toHaveBeenCalledWith('send_signal', {
+      p_topic: `dm-call:${CONV}`, p_event: 'call-signal', p_payload: { type: 'decline', callType: 'voice', reason: undefined },
+    })
+  })
+
+  it('a decline that could not be sent still drops the ring here', async () => {
+    dmCallSignaling.registerRemoteCall(CONV, 'them', 'voice')
+    realtime.rpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'send_signal: invalid call signal' } } as any)
+    await expect(dmCallSignaling.declineCall(CONV, 'me')).rejects.toMatchObject({ code: '22023' })
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
   })
 })
 
@@ -233,6 +310,20 @@ describe('federated calls', () => {
     expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
     expect(seen).toEqual(['accept:peer', 'end:peer'])
     off()
+  })
+
+  it('an invite past account_rings_per_minute hands the backend\'s refusal to the caller and holds no call', async () => {
+    const refusal = { message: 'ANTISPAM_RATE_LIMITED:30', code: 'P0001', hint: 'Limit reached: account_rings_per_minute.',
+      details: '{"kind": "ring", "limit": 10, "window_seconds": 60}' }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/livekit/config') return new Response(JSON.stringify({ enabled: true, wsUrl: 'wss://lk.harmony.test' }), { status: 200 })
+      if (url === '/api/livekit/token') return new Response(JSON.stringify({ token: 'T' }), { status: 200 })
+      return new Response(JSON.stringify({ error: refusal.message, ...refusal }), { status: 429 })
+    }))
+    const call = dmCallSignaling.initiateFederatedCall(CONV, 'me', 'https://harmony.test/users/me', 'https://remote.test/users/a', 'voice')
+    await expect(call).rejects.toBeInstanceOf(CallRingLimitedError)
+    await expect(call).rejects.toMatchObject({ message: refusal.message, details: refusal.details, hint: refusal.hint })
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
   })
 
   it('end goes to the backend even after local state is gone', async () => {

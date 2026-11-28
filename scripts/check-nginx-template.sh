@@ -48,6 +48,22 @@ server {
         return 200 "backend $request_uri\n";
     }
 }
+# bot-gateway: the body is read to its end before the answer.
+server {
+    listen 127.0.0.1:18302;
+    client_max_body_size 0;
+    location / {
+        proxy_pass http://127.0.0.1:18303;
+    }
+}
+server {
+    listen 127.0.0.1:18303;
+    client_max_body_size 0;
+    location / {
+        default_type text/plain;
+        return 200 "bot-gateway $request_method $request_uri $http_content_length\n";
+    }
+}
 EOF
 
 log "nginx -t on dev/nginx-harmony.template.conf ($IMAGE)"
@@ -115,6 +131,36 @@ log "/api/federation/embed-media routing"
 expect "$FIREFOX" '/api/federation/embed-media?u=https%3A%2F%2Fvideo.twimg.com%2Fv.mp4' 'backend /embed-media?u=https%3A%2F%2Fvideo.twimg.com%2Fv.mp4'
 expect "$FIREFOX" /api/federation/embed-media/instagram/DcCH2ZygIiP/0/poster 'backend /embed-media/instagram/DcCH2ZygIiP/0/poster'
 expect "$FIREFOX" /api/federation/media/c/x 'backend /media/c/x'
+
+log "request bodies"
+# A bot's file passes the server's 50 MB limit, which every other route keeps.
+docker exec "$CONTAINER" sh -c 'head -c 53000000 /dev/zero > /tmp/body'
+# expect_body <path> <status and first line of the body>
+expect_body() {
+  local got
+  got="$(docker exec "$CONTAINER" curl -s -m 60 -w '\n%{http_code}' -H 'Content-Type: image/png' -H 'Expect:' \
+    --data-binary @/tmp/body "http://127.0.0.1:8443$1" 2>/dev/null)" || true
+  got="$(tail -1 <<<"$got") $(head -1 <<<"$got" | tr -d '\r')"
+  if [ "$got" = "$2" ]; then
+    printf 'ok   %-40.40s %s -> %s\n' '53 MB body' "$1" "$got"
+  else
+    err "53 MB body $1: expected '$2', got '$got'"
+    FAILED=$((FAILED + 1))
+  fi
+}
+BOT_CHANNEL=/channels/00000000-0000-0000-0000-000000000008
+for r in 'attachments?filename=a.png' bridge-files; do
+  expect_body "/bot-gateway/api/v1$BOT_CHANNEL/$r" "200 bot-gateway POST /api/v1$BOT_CHANNEL/$r 53000000"
+done
+expect_body "/bot-gateway/api/v1$BOT_CHANNEL/messages" '413 <html>'
+for d in proxy_send_timeout proxy_read_timeout; do
+  if docker exec "$CONTAINER" nginx -T 2>/dev/null | sed -n '/(attachments|bridge-files)/,/^    }/p' | grep -q "$d 600s;"; then
+    printf 'ok   %-40.40s %s\n' 'bot uploads' "$d 600s"
+  else
+    err "bot uploads: no $d 600s"
+    FAILED=$((FAILED + 1))
+  fi
+done
 
 log "ActivityPub-only paths"
 STAMP=/users/fx_alice/quote_authorizations/00000000-0000-0000-0000-000000000002

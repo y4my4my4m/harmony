@@ -35,7 +35,7 @@ Bots added to a server can offer their own slash commands. They are listed under
 
 ## Attach files, GIFs and stickers
 
-- Select **Add an attachment or poll** (the plus button) and choose **Upload file**, drag files onto the composer, or paste them. The file picker offers images, video, audio, PDF, `.doc`, `.docx`, `.txt`, `.zip` and `.rar` files. Each file may be up to your upload limit, which the instance's admins set (50 MB unless they change it); a larger file is refused before it is sent, with the limit named.
+- Select **Add an attachment or poll** (the plus button) and choose **Upload file**, drag files onto the composer, or paste them. Any type of file can be sent. HTML, SVG, XML and script files, and types the instance does not serve as themselves, show as a file card to download. Each file may be up to your upload limit, which the instance's admins set (50 MB unless they change it); a larger file is refused before it is sent, with the limit named.
 - **From Drive**, in the same menu, attaches files already in your [Drive](/use/drive) without uploading them again.
 - Attached files appear above the composer. Each one has buttons to describe it ([Describe an image](#describe-an-image)), mark it as a spoiler ([Spoilers](#spoilers)) and remove it. The placeholder changes to **Add a comment...** for text sent with the files.
 - Location, camera and other details are removed from photos and videos before they are uploaded. **Keep photo details (location, camera)** on an attachment sends it as it is. See [Photo and video details](/use/privacy-security#photo-and-video-details).

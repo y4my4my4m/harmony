@@ -141,6 +141,9 @@ export interface InstanceAntiSpamSettings {
   account_joins_per_hour: number
   account_servers_per_hour: number
   account_stranger_dms_per_hour: number
+  account_signals_per_minute: number
+  account_rings_per_minute: number
+  account_role_picks_per_minute: number
   bot_requests_per_minute: number
   bridge_requests_per_minute: number
   federation_spam_mode: 'off' | 'flag' | 'hold' | 'reject'
@@ -344,6 +347,7 @@ export type ModerationRejectionCode =
   | 'ANTISPAM_STRANGER_MENTIONS'
   | 'SERVER_LIMIT_REACHED'
   | 'BOT_LIMIT_REACHED'
+  | 'GROUP_CONVERSATION_FULL'
   | 'DM_NOT_ALLOWED'
   | 'DM_UNDELIVERABLE'
   | 'RULES_NOT_ACCEPTED'
@@ -355,7 +359,7 @@ export interface ModerationRejection {
 }
 
 const REJECTION_PATTERN =
-  /(AUTOMOD_BLOCKED|MEMBER_TIMED_OUT|ANTISPAM_RATE_LIMITED|ANTISPAM_LINKS_BLOCKED|ANTISPAM_STRANGER_MENTIONS|SERVER_LIMIT_REACHED|BOT_LIMIT_REACHED|DM_NOT_ALLOWED|DM_UNDELIVERABLE|RULES_NOT_ACCEPTED)(?::([^\s"]+))?/
+  /(AUTOMOD_BLOCKED|MEMBER_TIMED_OUT|ANTISPAM_RATE_LIMITED|ANTISPAM_LINKS_BLOCKED|ANTISPAM_STRANGER_MENTIONS|SERVER_LIMIT_REACHED|BOT_LIMIT_REACHED|GROUP_CONVERSATION_FULL|DM_NOT_ALLOWED|DM_UNDELIVERABLE|RULES_NOT_ACCEPTED)(?::([^\s"]+))?/
 
 export function isModerationRejectionCode(code: string | null | undefined): boolean {
   return !!code && REJECTION_PATTERN.test(code)
@@ -384,6 +388,39 @@ function formatUntil(epochOrIso: string | number | null | undefined): string {
   return sameDay
     ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+/**
+ * A wait in seconds as one unit of the UI locale, rounded up: "45 seconds", "3 minutes", "1 hour".
+ * 3599 s reads as 1 hour, never as 60 minutes.
+ */
+export function formatRetryWait(seconds: number, locale: string = String(i18n.global.locale.value)): string {
+  const s = Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 60
+  const minutes = Math.ceil(s / 60)
+  const [value, unit]: [number, string] = s < 60 ? [s, 'second']
+    : minutes < 60 ? [minutes, 'minute']
+    : [Math.ceil(s / 3600), 'hour']
+  return new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'long' }).format(value)
+}
+
+/** The limit an ANTISPAM_RATE_LIMITED names in its details (20261118300001), or null. */
+export interface RateLimitDetail {
+  kind: string
+  limit: number
+  window_seconds: number
+}
+
+function rateLimitDetail(details: unknown): RateLimitDetail | null {
+  let value: any = details
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      return null
+    }
+  }
+  if (!value || typeof value.kind !== 'string' || !Number.isFinite(value.limit)) return null
+  return { kind: value.kind, limit: value.limit, window_seconds: Number(value.window_seconds) }
 }
 
 /** The author-facing sentence for a block notice. */
@@ -428,8 +465,15 @@ export function moderationRejectionFromError(error: any): ModerationRejection | 
     }
     case 'MEMBER_TIMED_OUT':
       return { code, message: t('automod.timedOut', { time: formatUntil(arg) }), details: { until: arg } }
-    case 'ANTISPAM_RATE_LIMITED':
-      return { code, message: t('automod.antispam.rateLimited', { seconds: arg ?? '60' }) }
+    // arg is the seconds until the oldest counted write leaves the window.
+    case 'ANTISPAM_RATE_LIMITED': {
+      const limit = rateLimitDetail(error.details)
+      const wait = formatRetryWait(Number(arg))
+      if (limit?.kind === 'stranger_dm') {
+        return { code, message: t('automod.antispam.strangerConversations', { count: limit.limit, wait }), details: limit }
+      }
+      return { code, message: t('automod.antispam.rateLimited', { wait }), ...(limit ? { details: limit } : {}) }
+    }
     case 'ANTISPAM_LINKS_BLOCKED':
       return { code, message: t('automod.antispam.linksBlocked') }
     case 'ANTISPAM_STRANGER_MENTIONS':
@@ -438,6 +482,9 @@ export function moderationRejectionFromError(error: any): ModerationRejection | 
       return { code, message: t('automod.antispam.serverLimit', { count: arg ?? '0' }) }
     case 'BOT_LIMIT_REACHED':
       return { code, message: t('automod.antispam.botLimit', { count: arg ?? '0' }) }
+    // 20261116100001_group_conversation_limit.sql; arg is the limit.
+    case 'GROUP_CONVERSATION_FULL':
+      return { code, message: t('dm.groupFull', { count: arg ?? '10' }) }
     case 'DM_NOT_ALLOWED':
       return { code, message: t('automod.antispam.dmNotAllowed') }
     // 20261111500001_dm_blocks.sql: a block between the two accounts of a direct conversation.

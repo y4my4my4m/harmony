@@ -27,6 +27,9 @@ import {
 } from '../services/invitePageRenderer.js';
 import type { InvitePreview } from '../services/invitePreview.js';
 
+// The name utils/instanceName.ts resolves; INSTANCE_NAME above is another, so neither stands in for it.
+const NAME = 'Example Chat';
+
 function preview(extra: Partial<InvitePreview> = {}): InvitePreview {
   return {
     code: 'ABCD1234',
@@ -58,7 +61,7 @@ describe('invite page escaping', () => {
     name: '"><script>alert(1)</script><meta http-equiv="refresh" content="0;url=https://evil.test">',
     description: "</title><img src=x onerror=alert(1)> it's <b>bold</b> & \"quoted\"",
   });
-  const html = renderInvitePage(hostile, { oembed: true });
+  const html = renderInvitePage(hostile, NAME, { oembed: true });
 
   it('carries no script, inline handler or refresh', () => {
     expect(html).not.toMatch(/<script\b/i);
@@ -91,7 +94,7 @@ describe('invite page image', () => {
   const card = (html: string) => meta(html, 'twitter:card');
 
   it('uses the banner object as a large image', () => {
-    const html = renderInvitePage(preview({ banner: 's1/banner.png', icon: 's1/icon.png' }));
+    const html = renderInvitePage(preview({ banner: 's1/banner.png', icon: 's1/icon.png' }), NAME);
     expect(meta(html, 'og:image')).toBe('https://db.harmony.test/storage/v1/object/public/server_banners/s1/banner.png');
     expect(meta(html, 'twitter:image')).toBe(meta(html, 'og:image'));
     expect(card(html)).toBe('summary_large_image');
@@ -101,12 +104,12 @@ describe('invite page image', () => {
   it('turns a stored render URL into its object URL', () => {
     const html = renderInvitePage(preview({
       banner: 'https://db.harmony.test/storage/v1/render/image/public/server_banners/s1/b.png?width=640&height=200',
-    }));
+    }), NAME);
     expect(meta(html, 'og:image')).toBe('https://db.harmony.test/storage/v1/object/public/server_banners/s1/b.png');
   });
 
   it('uses a custom icon as a thumbnail without a banner', () => {
-    const html = renderInvitePage(preview({ icon: 's1/icon.png' }));
+    const html = renderInvitePage(preview({ icon: 's1/icon.png' }), NAME);
     expect(meta(html, 'og:image')).toBe('https://db.harmony.test/storage/v1/object/public/server_icons/s1/icon.png');
     expect(card(html)).toBe('summary');
     expect(meta(html, 'og:image:alt')).toBe('Lounge icon');
@@ -114,7 +117,7 @@ describe('invite page image', () => {
 
   it('falls back to the instance PNG for the default server icon', () => {
     for (const icon of [null, '/default_server.webp']) {
-      const html = renderInvitePage(preview({ icon }));
+      const html = renderInvitePage(preview({ icon }), NAME);
       expect(meta(html, 'og:image')).toBe('https://harmony.test/img/app_icon_square.png');
       expect(meta(html, 'og:image:width')).toBe('526');
       expect(meta(html, 'og:image:height')).toBe('526');
@@ -123,9 +126,9 @@ describe('invite page image', () => {
   });
 
   it('makes a root-relative image absolute and drops a scheme it cannot serve', () => {
-    expect(meta(renderInvitePage(preview({ icon: '/uploads/icon.png' })), 'og:image'))
+    expect(meta(renderInvitePage(preview({ icon: '/uploads/icon.png' }), NAME), 'og:image'))
       .toBe('https://harmony.test/uploads/icon.png');
-    expect(meta(renderInvitePage(preview({ banner: '//evil.test/x.png' })), 'og:image'))
+    expect(meta(renderInvitePage(preview({ banner: '//evil.test/x.png' }), NAME), 'og:image'))
       .toBe('https://harmony.test/img/app_icon_square.png');
   });
 });
@@ -156,17 +159,26 @@ describe('invite page text', () => {
   });
 
   it('names the server, the instance and the invite URL', () => {
-    const html = renderInvitePage(preview());
+    const html = renderInvitePage(preview(), NAME);
+    expect(html).toContain('<title>Lounge - Example Chat</title>');
     expect(meta(html, 'og:title')).toBe('Lounge');
-    expect(meta(html, 'og:site_name')).toBe('Harmony');
+    expect(meta(html, 'og:site_name')).toBe('Example Chat');
     expect(meta(html, 'og:url')).toBe('https://harmony.test/invite/ABCD1234');
     expect(meta(html, 'og:type')).toBe('website');
     expect(html).toContain('<link rel="canonical" href="https://harmony.test/invite/ABCD1234">');
-    expect(html).toContain('<a class="cta" href="https://harmony.test/invite/ABCD1234">Open in Harmony</a>');
+    expect(html).toContain('<a class="cta" href="https://harmony.test/invite/ABCD1234">Open in Example Chat</a>');
+    expect(html).not.toContain('Harmony');
+  });
+
+  it('escapes the instance name', () => {
+    const html = renderInvitePage(preview(), '<b>"Chat"</b>');
+    expect(html).toContain('<title>Lounge - &lt;b&gt;&quot;Chat&quot;&lt;/b&gt;</title>');
+    expect(meta(html, 'og:site_name')).toBe('&lt;b&gt;&quot;Chat&quot;&lt;/b&gt;');
+    expect(html).not.toContain('<b>');
   });
 
   it('colours the embed with the primary colour and asks not to be indexed', () => {
-    const html = renderInvitePage(preview());
+    const html = renderInvitePage(preview(), NAME);
     expect(meta(html, 'theme-color')).toBe('#0EA5E9');
     expect(meta(html, 'robots')).toBe('noindex, nofollow');
   });
@@ -174,16 +186,18 @@ describe('invite page text', () => {
   it('advertises oEmbed only when asked', () => {
     const link = '<link rel="alternate" type="application/json+oembed" '
       + 'href="https://harmony.test/oembed?url=https%3A%2F%2Fharmony.test%2Finvite%2FABCD1234&amp;format=json" title="Lounge">';
-    expect(renderInvitePage(preview(), { oembed: true })).toContain(link);
-    expect(renderInvitePage(preview())).not.toContain('json+oembed');
+    expect(renderInvitePage(preview(), NAME, { oembed: true })).toContain(link);
+    expect(renderInvitePage(preview(), NAME)).not.toContain('json+oembed');
   });
 });
 
 describe('invalid and unavailable invite pages', () => {
   it('say the invite is dead without naming a server', () => {
-    const html = renderInvalidInvitePage();
+    const html = renderInvalidInvitePage(NAME);
     expect(meta(html, 'og:title')).toBe('Invite invalid or expired');
-    expect(meta(html, 'og:site_name')).toBe('Harmony');
+    expect(meta(html, 'og:site_name')).toBe('Example Chat');
+    expect(meta(html, 'og:image:alt')).toBe('Example Chat');
+    expect(html).toContain('>Go to Example Chat</a>');
     expect(meta(html, 'og:image')).toBe('https://harmony.test/img/app_icon_square.png');
     expect(meta(html, 'og:url')).toBeUndefined();
     expect(meta(html, 'robots')).toBe('noindex, nofollow');
@@ -192,8 +206,10 @@ describe('invalid and unavailable invite pages', () => {
   });
 
   it('offer the invite again when the lookup failed', () => {
-    const html = renderUnavailableInvitePage('ABCD1234');
+    const html = renderUnavailableInvitePage('ABCD1234', NAME);
     expect(meta(html, 'og:title')).toBe('Server invite');
+    expect(meta(html, 'og:description')).toBe('This invite cannot be previewed right now. Open it in Example Chat to see the server.');
+    expect(html).toContain('>Open in Example Chat</a>');
     expect(html).toContain('href="https://harmony.test/invite/ABCD1234"');
     expect(meta(html, 'robots')).toBe('noindex, nofollow');
   });
@@ -201,13 +217,13 @@ describe('invalid and unavailable invite pages', () => {
 
 describe('invite oEmbed', () => {
   it('names the invite, the server and the instance', () => {
-    expect(renderInviteOEmbed(preview())).toEqual({
+    expect(renderInviteOEmbed(preview(), NAME)).toEqual({
       version: '1.0',
       type: 'link',
       title: 'Lounge',
       author_name: "You've been invited to join a server",
       author_url: 'https://harmony.test/invite/ABCD1234',
-      provider_name: 'Harmony',
+      provider_name: 'Example Chat',
       provider_url: 'https://harmony.test',
       cache_age: 300,
     });

@@ -60,6 +60,19 @@
         <Icon name="thread" :size="16" aria-hidden="true" />
       </button>
       
+      <button
+        v-if="playAvailable"
+        type="button"
+        class="action-btn play-btn"
+        :title="t('activities.launcherTitle')"
+        :aria-label="t('activities.launcherTitle')"
+        aria-haspopup="dialog"
+        data-testid="activities-button"
+        @click="openPlayTogether"
+      >
+        <Icon name="popcorn" :size="17" aria-hidden="true" />
+      </button>
+
       <button 
         type="button"
         class="action-btn search-btn"
@@ -201,6 +214,7 @@ import type { NotificationLevel } from '@/services/notificationSettings'
 import { useChannelNotificationMenu } from '@/composables/useChannelNotificationMenu'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useChannelEncryptionStore } from '@/stores/useChannelEncryption'
+import { usePlayTogetherStore } from '@/stores/playTogether'
 
 // Props
 interface Props {
@@ -211,6 +225,19 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+const playTogether = usePlayTogetherStore()
+// Text channels of servers this instance hosts; a voice channel's game starts from the call.
+const playAvailable = computed(() =>
+  Number(props.channel.type ?? 0) === 0
+  && props.server?.is_local_server !== false
+  && !!props.server?.id
+  && playTogether.appsFor('channel').length > 0)
+function openPlayTogether(): void {
+  if (!props.server?.id) return
+  playTogether.openLauncher({ kind: 'channel', id: props.channel.id, serverId: props.server.id, voice: false })
+}
+onMounted(() => { void playTogether.loadApps() })
 
 // Emits
 const emit = defineEmits<{

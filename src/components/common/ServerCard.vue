@@ -38,7 +38,7 @@
     </div>
 
     <div class="server-card__content">
-      <h3 class="server-card__name">{{ server.name }}</h3>
+      <h3 :id="`${cardId}-name`" class="server-card__name">{{ server.name }}</h3>
       <p class="server-card__description">
         {{ server.description || $t('server.noDescriptionAvailable') }}
       </p>
@@ -74,11 +74,15 @@
       </div>
     </div>
 
+    <!-- After the name in reading order, beside the icon on screen. Named by its own text, then
+         the server's name: "Join <name>". -->
     <div class="server-card__actions">
       <button
         v-if="isJoined"
+        :id="`${cardId}-action`"
         type="button"
         class="btn btn-secondary server-card__action"
+        :aria-labelledby="`${cardId}-action ${cardId}-name`"
         :disabled="isLoading"
         @click="emit('open', server.id)"
       >
@@ -87,8 +91,10 @@
 
       <button
         v-else
+        :id="`${cardId}-action`"
         type="button"
         class="btn btn-primary server-card__action"
+        :aria-labelledby="`${cardId}-action ${cardId}-name`"
         :disabled="isLoading"
         @click="emit('join', server.id)"
       >
@@ -99,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUserData } from '@/composables/useUserData'
 import Avatar from '@/components/common/Avatar.vue'
@@ -133,6 +139,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>()
 
 const { getUserAvatarUrl, getUserDisplayName } = useUserData()
+const cardId = `server-card-${useId()}`
 
 // Banner box in CSS px: one grid column is 260–420 wide, the banner 100 tall.
 const BANNER_BOX = { width: 420, height: 100 } as const
@@ -186,13 +193,20 @@ const handleImageError = (event: Event) => {
   padding: var(--space-4);
   transition: border-color var(--transition-fast);
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr;
+  column-gap: var(--space-3);
   overflow: hidden;
 }
 
 .server-card:hover {
   border-color: var(--border-hover);
+}
+
+.server-card:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .server-card--featured {
@@ -242,6 +256,8 @@ const handleImageError = (event: Event) => {
 }
 
 .server-card__header {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: flex-start;
   margin-bottom: var(--space-3);
@@ -267,8 +283,8 @@ const handleImageError = (event: Event) => {
 }
 
 .server-card__content {
-  flex: 1;
-  margin-bottom: var(--space-3);
+  grid-column: 1 / -1;
+  grid-row: 2;
 }
 
 .server-card__name {
@@ -354,11 +370,14 @@ const handleImageError = (event: Event) => {
 }
 
 .server-card__actions {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
   display: flex;
+  margin-bottom: var(--space-3);
 }
 
 .server-card__action {
-  flex: 1;
   min-height: 36px;
 }
 

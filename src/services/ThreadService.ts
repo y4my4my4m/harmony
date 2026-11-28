@@ -15,6 +15,7 @@ import { messageTextLength } from '@/utils/messageContentUtils'
 import { messageLimits } from '@/services/core/messageLimits'
 import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
 import { hasCapability } from '@/services/instanceCapabilities'
+import { processMessageDecryption } from '@/utils/messageDecryption'
 
 // Thread Types
 
@@ -175,7 +176,7 @@ class ThreadService {
         ? supabase.from('profiles').select('username, display_name, avatar_url').eq('id', data.created_by).single()
         : null
       const parentRead = data.parent_message_id
-        ? supabase.from('messages').select('id, content, user_id, bot_id, created_at, is_system, metadata, bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)').eq('id', data.parent_message_id).single()
+        ? supabase.from('messages').select('id, channel_id, content, encrypted, encryption_metadata, is_pinned, user_id, bot_id, created_at, is_system, metadata, bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)').eq('id', data.parent_message_id).single()
         : null
       const membershipRead = (async () => {
         try {
@@ -198,7 +199,9 @@ class ThreadService {
       ])
       const channelData = channelRes?.data ?? null
       const creatorData = creatorRes?.data ?? null
-      const parentMessage = parentRes?.data ?? null
+      const parentMessage = parentRes?.data
+        ? (await this.readableMessages([parentRes.data as unknown as Message]))[0]
+        : null
 
       const thread: ThreadWithDetails = {
         ...data,
@@ -810,7 +813,7 @@ class ThreadService {
 
       const messages = data || []
       const hasMore = messages.length > limit
-      const resultMessages = messages.slice(0, limit).reverse() as Message[]
+      const resultMessages = await this.readableMessages(messages.slice(0, limit).reverse() as Message[])
       
       try {
         ensureMessageEmbeds(resultMessages)
@@ -966,7 +969,10 @@ class ThreadService {
       cachedThread.last_message_at = (data as any).created_at
     }
 
-    const message = data as Message
+    // The sender's own ciphertext shows the parts it was made from, as a sent channel message does.
+    const message: Message = data.encrypted
+      ? { ...(data as Message), content, decrypted: true }
+      : data as Message
 
     try {
       ensureMessageEmbeds(message)
@@ -976,6 +982,19 @@ class ThreadService {
 
     this.markMembership(threadId, true)
     return message
+  }
+
+  /**
+   * Thread rows with readable content. Replies and starters decrypt under the parent channel's
+   * Megolm room; a row whose key is absent keeps its ciphertext, `encrypted` and not `decrypted`.
+   */
+  async readableMessages(rows: Message[]): Promise<Message[]> {
+    try {
+      return await processMessageDecryption(rows)
+    } catch (error) {
+      debug.warn('Failed to decrypt thread messages:', error)
+      return rows
+    }
   }
 
   // Utility Methods

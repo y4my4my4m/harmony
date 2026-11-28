@@ -70,7 +70,8 @@
       >
         <div class="card-header">
           <span class="announcement-icon" :title="announcement.icon">
-            {{ getIconEmoji(announcement.icon) }}
+            <template v-if="announcementIcon(announcement.icon).emoji">{{ announcementIcon(announcement.icon).emoji }}</template>
+            <Icon v-else :name="announcementIcon(announcement.icon).name!" :size="18" aria-hidden="true" />
           </span>
           <h3 class="announcement-title">{{ announcement.title }}</h3>
           <div class="badges">
@@ -147,6 +148,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { renderAnnouncementHtml } from '@/utils/announcementContent'
+import { announcementIcon } from '@/utils/announcementIcon'
+import Icon from '@/components/common/Icon.vue'
 import { useInstanceEmojiUrls } from '@/composables/useInstanceEmojiUrls'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadCount'
@@ -175,17 +178,6 @@ const markingIds = ref<Set<string>>(new Set())
 
 const instanceEmoji = useInstanceEmojiUrls()
 const sanitizeContent = (content: string) => renderAnnouncementHtml(content, instanceEmoji.value)
-
-const ICON_MAP: Record<string, string> = {
-  info: 'ℹ️',
-  warning: '⚠️',
-  celebration: '🎉',
-  maintenance: '🔧',
-  update: '🆕',
-  security: '🔒',
-}
-
-const getIconEmoji = (icon: string): string => ICON_MAP[icon] || 'ℹ️'
 
 const formatDate = (dateStr: string): string =>
   new Date(dateStr).toLocaleDateString(undefined, {

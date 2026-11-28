@@ -178,7 +178,8 @@ test('a Drive photo whose upload fails after Enter goes up from the Drive file o
   await signIn(page, owner)
   await openChannel(page, server.id, server.generalChannelId)
 
-  // The first upload into the channel is held until the message is queued, then dropped.
+  // The first upload into the channel is held until the message is queued, then dropped, and so
+  // is its automatic second attempt (storageUpload sendWhole); Retry is the third POST.
   const uploads = `**/storage/v1/object/message_media/c/${server.generalChannelId}/**`
   let posts = 0
   let release!: () => void
@@ -186,8 +187,8 @@ test('a Drive photo whose upload fails after Enter goes up from the Drive file o
   await page.route(uploads, async (route) => {
     if (route.request().method() !== 'POST') return route.fallback()
     posts++
-    if (posts > 1) return route.fallback()
-    await released
+    if (posts > 2) return route.fallback()
+    if (posts === 1) await released
     await route.abort('failed')
   })
 
@@ -209,7 +210,7 @@ test('a Drive photo whose upload fails after Enter goes up from the Drive file o
   await test.step('Retry uploads a stripped copy read from the Drive file', async () => {
     await row.locator('.failed-message-bar .retry-btn').click()
     await expect(row).not.toHaveAttribute('data-message-id', /^temp-/, { timeout: 30000 })
-    expect(posts).toBe(2)
+    expect(posts).toBe(3)
     expectStripped((await storedObject({ channel_id: server.generalChannelId })).bytes)
   })
   await page.unroute(uploads)

@@ -30,7 +30,7 @@ harmony admin reset-password (--email E | --username U) [--password P]
 harmony admin invite <email> [--send]
 harmony registration [open | invite | closed]
 harmony auth providers
-harmony auth add-provider ID [--name N] (--issuer URL | --authorize-url URL --token-url URL --userinfo-url URL)
+harmony auth add-provider ID [--name N] (--issuer URL [--userinfo | --id-token] | --authorize-url URL --token-url URL --userinfo-url URL)
                              [--client-id C] [--client-secret-file FILE|-] [options]
                              [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 harmony auth remove-provider ID
@@ -238,6 +238,7 @@ server's own port only.
 | `auth linking` | always | `PROVIDER_LINKING_DOMAINS` in `supabase/.env` is comma-separated `provider=domain` pairs, the auth service runs with it, and while `ENABLE_EMAIL_AUTOCONFIRM=true` no provider joins accounts by address: neither one of your own on the sign-in page nor a built-in one the auth service has on (`GOTRUE_EXTERNAL_<ID>_ENABLED`, with a button or without) | FAIL when it does not parse (the auth service does not start): correct it, then `docker compose up -d auth`. WARN when the service runs an older value: `docker compose up -d auth`. WARN for a provider joining by address: `harmony auth linking ID --separate-accounts` for a built-in one, `harmony auth add-provider ID --separate-accounts` for your own |
 | `signup limits` | always | The auth service runs the sign-up hook with `Sb-Forwarded-For` on, and `public.before_user_created_hook` exists | WARN when the service lacks them: `docker compose up -d auth`. FAIL without the function, as every sign-up then fails, and WARN while the migration has not run and sign-ups work without limits: `bash bootstrap.sh --migrations-only`. OK says whether the network and domain caps observe or refuse, or that an admin turned the limits off |
 | `signup check` | always | With a captcha provider set: both keys, the `http` extension, and a dummy token sent to the provider from the database | OK when off, or when the provider accepts the secret key. WARN for a provider without both keys, a test key that passes any token, or sign-ups allowed unverified in the last 7 days. FAIL without the `http` extension, when the database cannot reach the provider on port 443, or when the provider refuses the secret key: asked sign-ups are then allowed unverified |
+| `storage-backend` | always | What the storage container runs with: with `STORAGE_BACKEND=s3`, a bucket other than `stub`, the stack's own value, and both AWS keys | WARN when one is missing: set the [`STORAGE_S3_*` keys](/self-host/configuration#supabase-env) in `supabase/.env`, then `docker compose up -d storage`. Credentials of the host (an instance role) need no keys |
 | `realtime` | always | A WebSocket upgrade at `wss://db.DOMAIN/realtime/v1/websocket` answers 101, on the server and, without internal TLS, through the public name | FAIL with the status on the server: 503, Realtime is down (`harmony logs realtime`); 401, `SUPABASE_ANON_KEY` differs from Kong's. FAIL through the public name only: with no answer, DNS, the firewall (80/443) or NAT, as for the federation checks; with another status, a proxy in front must pass WebSocket upgrades |
 | `bot-gateway` | bots on | `/bot-gateway/health` reports `"status": "ok"` through the public URL | FAIL: `harmony logs bot-gateway` |
 | `discord` | Discord bridge hosting on | `BRIDGE_HOST_SECRET` is at least 32 characters and equal in `bot-gateway.env` and `discord-bridge.env`; `discord-bridge-host` runs | FAIL: `bash configure.sh --non-interactive`, then `docker compose up -d`; `harmony logs discord-bridge-host` |
@@ -455,7 +456,7 @@ admin.
 
 ```text
 harmony auth providers
-harmony auth add-provider ID [--name N] (--issuer URL [--discovery-url URL] |
+harmony auth add-provider ID [--name N] (--issuer URL [--discovery-url URL] [--userinfo | --id-token] |
                              --authorize-url URL --token-url URL --userinfo-url URL)
                              [--client-id C] [--client-secret-file FILE|-] [--scopes "S ..."]
                              [--icon URL] [--email-optional | --require-email] [--no-pkce | --pkce]
@@ -468,30 +469,37 @@ Sign-in through an OpenID Connect or OAuth 2.0 provider you run, such as
 Authentik or Keycloak. [OAuth sign-in](/self-host/oauth#your-own-identity-provider)
 walks through it.
 
-`providers` lists the built-in providers (`github`, `google`, `twitch`, and
+`providers` lists the built-in providers (`discord`, `github`, `google`, `twitch`, and
 any other the auth service has on), whether the auth service has each on, and
 what a first sign-in does with an existing account that has the same address
 (**EXISTING ACCOUNTS**: `separate`, `by address`, or `shared: NAME`). Then it
-lists your own providers the same way, with whether the sign-in page shows
-them, and the redirect (callback) URL to register with them,
+lists your own providers the same way, with where the sign-in service reads
+each person's address and name (**ADDRESS FROM**: `userinfo` or `ID token`),
+whether the sign-in page shows them, and the redirect (callback) URL to
+register with them,
 `API_EXTERNAL_URL/auth/v1/callback`. It warns about buttons whose provider the
 auth service no longer has, and about providers on that join accounts by
 address while `ENABLE_EMAIL_AUTOCONFIRM=true`.
 
 `add-provider` creates the provider `custom:ID`, or updates it when it exists,
 and puts its button on the sign-in page. `ID` is 1 to 43 characters of `a-z`,
-`0-9` and `-`. The auth service fetches the issuer's discovery document first
-and refuses the provider when it cannot.
+`0-9` and `-`. With `--issuer`, it fetches the issuer's discovery document
+first, refuses the provider when it cannot or when the document's `issuer`
+differs, and stores the document's authorization, token and userinfo
+endpoints: the auth service reads each person from userinfo
+([ID token or userinfo](/self-host/oauth#id-token-or-userinfo)).
 
 | Option | Effect |
 |---|---|
 | `--name N` | Button text: **Continue with N**. Required for a new provider |
 | `--issuer URL` | OIDC: the issuer, exactly as the provider's discovery document states it. Endpoints come from `URL/.well-known/openid-configuration` |
 | `--discovery-url URL` | OIDC: the discovery document lives elsewhere |
+| `--id-token` | With `--issuer`: the auth service reads the person from the ID token instead of userinfo |
+| `--userinfo` | Switches a provider that reads the ID token to userinfo; needs the client secret |
 | `--authorize-url`, `--token-url`, `--userinfo-url` | OAuth 2.0 without discovery: all three for a new provider |
 | `--client-id C` | Client ID the provider issued. Required for a new provider |
 | `--client-secret-file FILE` | Reads the client secret from `FILE`; `-` reads standard input |
-| `--scopes "S ..."` | Space-separated. OIDC default: `openid email profile` (`openid` is always added) |
+| `--scopes "S ..."` | Space-separated. With `--issuer` the default is `openid email profile`, and `openid` is always added |
 | `--icon URL` | `https://` image shown on the button; without it, a key |
 | `--email-optional` | Accepts accounts the provider gives no address; `--require-email` undoes it |
 | `--no-pkce` | For a provider without PKCE; `--pkce` undoes it |
@@ -502,8 +510,10 @@ and refuses the provider when it cannot.
 Without `--client-secret-file`, the secret comes from
 `HARMONY_OAUTH_CLIENT_SECRET`, or else from a hidden prompt; empty keeps the
 stored secret of an existing provider. A URL option must start with
-`https://`. A provider's type (OIDC or OAuth 2.0) cannot change: remove it and
-add it again.
+`https://`. An update keeps what the provider reads unless `--userinfo` or
+`--id-token` says otherwise. A change makes the provider again under the same
+id, with its button, settings and accounts, so it needs the client secret;
+when the auth service refuses the new form, the old one is put back.
 
 The two account options write `PROVIDER_LINKING_DOMAINS` in
 `supabase/.env` (`custom:ID=custom:ID` keeps the provider apart) and recreate

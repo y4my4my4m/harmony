@@ -89,7 +89,7 @@ services:
       SUPABASE_URL: https://${DB_DOMAIN:-db.${DOMAIN}}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?Set SUPABASE_ANON_KEY in .env (configure.sh writes it)}
       DOMAIN: ${DOMAIN}
-      INSTANCE_NAME: ${INSTANCE_NAME:-Harmony}
+      INSTANCE_NAME: ${INSTANCE_NAME:-${DOMAIN}}
       APP_URL: https://${DOMAIN}
       # Comma-separated GoTrue provider ids (google, github, twitch) the
       # sign-in page offers; each also needs its GOTRUE_EXTERNAL_* settings.
@@ -129,6 +129,11 @@ services:
       NODE_ENV: production
       PORT: "3001"
       FEDERATION_MODE: server
+      # Admin, Authentication writes sign-in provider credentials here; the auth service
+      # reloads them (supabase-overrides.yml).
+      HARMONY_AUTH_CONFIG_DIR: /var/lib/harmony-auth
+    volumes:
+      - auth-config:/var/lib/harmony-auth
     depends_on:
       redis:
         condition: service_healthy
@@ -253,6 +258,8 @@ services:
     profiles: [voice]
 
 volumes:
+  # GoTrue's --config-dir; also declared in supabase-overrides.yml, which mounts it read-only.
+  auth-config:
   caddy-data:
   caddy-config:
   redis-data:

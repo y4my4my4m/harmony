@@ -22,7 +22,7 @@ const envSchema = z.object({
 
   // Software version, surfaced via NodeInfo, /health, and the federation User-Agent.
   // Bump this on each release (single source of truth for the federation backend).
-  VERSION: z.string().default('1.9.7'),
+  VERSION: z.string().default('1.9.8'),
   
   // Supabase
   SUPABASE_URL: z.string().url(),
@@ -31,7 +31,14 @@ const envSchema = z.object({
   // Public Supabase URL (for federation - can be different from internal URL)
   // If not set, defaults to SUPABASE_URL
   PUBLIC_SUPABASE_URL: z.string().url().optional(),
-  
+  // GoTrue's --config-dir, writable here: sign-in provider credentials of Admin, Authentication
+  // are rendered into it (services/AuthProviderConfigWriter.ts). Unset: credentials come from
+  // the auth service's own environment alone.
+  HARMONY_AUTH_CONFIG_DIR: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+    z.string().optional(),
+  ),
+
   // Instance
   INSTANCE_DOMAIN: z.string(),
   // Origin of the web app; default https://<INSTANCE_DOMAIN>. Invitation links land on its

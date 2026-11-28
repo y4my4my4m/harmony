@@ -38,6 +38,10 @@
           </button>
         </div>
 
+        <p class="group-limit-hint" data-testid="group-invite-spots" aria-live="polite">
+          {{ spotsLeft > 0 ? $t('dm.groupSpotsLeft', spotsLeft) : $t('dm.groupFull', { count: GROUP_CONVERSATION_LIMIT }) }}
+        </p>
+
         <!-- Search Results -->
         <div v-if="searchQuery" class="search-results">
           <div v-if="isSearching && searchResults.length === 0" class="search-loading" role="status">
@@ -57,7 +61,8 @@
             class="search-result-item"
             data-testid="group-invite-result"
             @click="toggleUserSelection(user)"
-            :class="{ selected: isUserSelected(user.id) }"
+            :class="{ selected: isUserSelected(user.id), disabled: !isUserSelected(user.id) && spotsLeft === 0 }"
+            :aria-disabled="!isUserSelected(user.id) && spotsLeft === 0"
           >
             <Avatar
               :src="user.avatar_url"
@@ -145,14 +150,14 @@
       </div>
 
       <!-- Existing Participants (for adding to existing conversation) -->
-      <div v-if="!isNewGroup && (existingParticipants?.length ?? 0) > 0" class="existing-participants-section">
+      <div v-if="!isNewGroup && others.length > 0" class="existing-participants-section">
         <div class="section-header">
-          <h3 class="section-title">Current participants ({{ existingParticipants?.length ?? 0 }})</h3>
+          <h3 class="section-title">Current participants ({{ members.length }})</h3>
         </div>
 
         <div class="participants-list">
           <div 
-            v-for="participant in (existingParticipants ?? [])"
+            v-for="participant in members"
             :key="participant.id"
             class="participant-item"
           >
@@ -208,13 +213,14 @@ import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { notifyModerationRejection } from '@/services/AutoModService'
 import { useDMStore } from '@/stores/useDM'
-import { useAuthStore } from '@/stores/auth'
+import { useUserData } from '@/composables/useUserData'
 import { useUserSearch, type UserSearchResult } from '@/composables/useUserSearch'
 import BaseModal from '@/components/common/BaseModal.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import { GROUP_CONVERSATION_LIMIT } from '@/utils/groupConversation'
 import type { DMUser } from '@/stores/useDM'
 
 interface Props {
@@ -232,7 +238,7 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const dmStore = useDMStore()
-const authStore = useAuthStore()
+const { getCurrentUser } = useUserData()
 
 // State
 const selectedUsers = ref<DMUser[]>([])
@@ -245,7 +251,21 @@ const isPrivateGroup = ref(false)
 
 // Computed
 const isNewGroup = computed(() => !props.conversationId)
-const currentUserId = computed(() => authStore.session?.user?.id)
+// The profile id, as participants carry. It differs from the auth user id for some accounts.
+const currentUserId = computed(() => getCurrentUser.value?.id)
+
+// Callers pass the participants with or without the viewer.
+const others = computed(() => (props.existingParticipants ?? []).filter((p) => p.id !== currentUserId.value))
+const members = computed<DMUser[]>(() => {
+  const viewer = getCurrentUser.value
+  if (!viewer) return others.value
+  return [
+    { id: viewer.id, username: viewer.username, display_name: viewer.displayName, avatar_url: viewer.avatarUrl, is_local: true },
+    ...others.value,
+  ]
+})
+const spotsLeft = computed(() =>
+  Math.max(0, GROUP_CONVERSATION_LIMIT - 1 - others.value.length - selectedUsers.value.length))
 
 const {
   query: searchQuery,
@@ -317,7 +337,7 @@ const toggleUserSelection = (user: UserSearchResult) => {
   const index = selectedUsers.value.findIndex(u => u.id === user.id)
   if (index > -1) {
     selectedUsers.value.splice(index, 1)
-  } else {
+  } else if (spotsLeft.value > 0) {
     selectedUsers.value.push(toDMUser(user))
   }
 }
@@ -501,6 +521,12 @@ watch(() => props.show, (show) => {
   margin: 0;
 }
 
+.group-limit-hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: var(--space-2) 0 0;
+}
+
 /* Search Section */
 .search-input-container {
   position: relative;
@@ -584,6 +610,11 @@ watch(() => props.show, (show) => {
 .search-result-item.selected {
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   border-color: var(--harmony-primary);
+}
+
+.search-result-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .search-result-item .user-info {

@@ -232,6 +232,12 @@ export interface ServerRole {
   unicode_emoji?: string
   is_default?: boolean
   is_admin?: boolean
+  /** Members may give themselves this role (set_my_self_assignable_role). */
+  self_assignable?: boolean
+  /** Heading the role is listed under in the role picker and role menus. */
+  self_assign_group?: string | null
+  /** One line shown under the role in the role picker and role menus. */
+  self_assign_note?: string | null
   member_count?: number
   created_at: string
   updated_at: string
@@ -286,6 +292,31 @@ export interface UpdateRoleParams {
   permissions?: Record<Permission, boolean> | string[]
   icon_url?: string
   unicode_emoji?: string
+  self_assignable?: boolean
+  self_assign_group?: string | null
+  self_assign_note?: string | null
+}
+
+/** Refusal codes of self_assign_refusal and set_my_self_assignable_role (20261116400001). */
+export type SelfAssignError =
+  | 'ROLE_NOT_FOUND'
+  | 'NOT_SELF_ASSIGNABLE'
+  | 'SERVER_NOT_LOCAL'
+  | 'ROLE_IS_ADMIN'
+  | 'ROLE_GRANTS_PERMISSIONS'
+  | 'ROLE_RANKS_TOO_HIGH'
+  | 'ROLE_OVERRIDE_GRANTS'
+  | 'NOT_A_MEMBER'
+  | 'UNKNOWN'
+
+const SELF_ASSIGN_ERRORS: readonly SelfAssignError[] = [
+  'ROLE_NOT_FOUND', 'NOT_SELF_ASSIGNABLE', 'SERVER_NOT_LOCAL', 'ROLE_IS_ADMIN',
+  'ROLE_GRANTS_PERMISSIONS', 'ROLE_RANKS_TOO_HIGH', 'ROLE_OVERRIDE_GRANTS', 'NOT_A_MEMBER',
+]
+
+function selfAssignErrorOf(error: { message?: string } | null | undefined): SelfAssignError {
+  const message = error?.message ?? ''
+  return SELF_ASSIGN_ERRORS.find((code) => message.includes(code)) ?? 'UNKNOWN'
 }
 
 interface RoleAssignment {
@@ -726,6 +757,38 @@ class RoleService {
       debug.error('Failed to assign role:', error)
       return false
     }
+  }
+
+  /**
+   * The signed-in member gives themselves a self-assignable role (`on`) or drops it, through
+   * set_my_self_assignable_role, which applies every rule server-side.
+   */
+  async setMySelfAssignableRole(
+    userId: string,
+    serverId: string,
+    roleId: string,
+    on: boolean,
+  ): Promise<{ ok: true } | { ok: false; error: SelfAssignError; cause?: unknown }> {
+    const { error } = await supabase.rpc('set_my_self_assignable_role', { p_role_id: roleId, p_on: on })
+    if (error) {
+      debug.error('Failed to change a self-assignable role:', error)
+      return { ok: false, error: selfAssignErrorOf(error), cause: error }
+    }
+    this.userRolesCache.delete(`${userId}-${serverId}`)
+    this.assignmentsCache.delete(serverId)
+    this.permissionCache.clear()
+    this.notifyRolesChanged(serverId)
+    return { ok: true }
+  }
+
+  /** server_settings.default_role_id through set_server_join_role; null clears it. */
+  async setServerJoinRole(serverId: string, roleId: string | null): Promise<{ ok: true } | { ok: false; error: string }> {
+    const { error } = await supabase.rpc('set_server_join_role', { p_server_id: serverId, p_role_id: roleId })
+    if (error) {
+      debug.error('Failed to set the join role:', error)
+      return { ok: false, error: error.message }
+    }
+    return { ok: true }
   }
 
   /**

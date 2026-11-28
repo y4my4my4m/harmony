@@ -1,6 +1,5 @@
 // Service worker: push notifications and PWA caching.
-// Version 3.9 - API and auth requests pass through to the browser; the API response cache
-// is dropped on activation.
+// Version 3.10 - a queued quick reply names the account its notification was for.
 
 const CACHE_NAME = 'harmony-v5-mobile'
 const STATIC_CACHE = 'harmony-static-v3'
@@ -8,7 +7,7 @@ const EMOJI_CACHE = 'harmony-emoji-v2'
 const TRANSFORM_CACHE = 'harmony-transform-v2'
 // Notification bookkeeping, not HTTP responses. Keys encode their timestamp.
 const NOTIF_STATE_CACHE = 'harmony-notif-state-v1'
-const SW_VERSION = '3.9'
+const SW_VERSION = '3.10'
 
 const STATIC_RESOURCES = [
   '/',
@@ -445,6 +444,8 @@ function getNavigationUrl(data) {
 // ServiceWorkerManager.drainQuickReplyQueue flushes it through messageService,
 // which owns encryption, optimistic UI and federation. Focusing or opening a
 // window only gives the frontend a chance to run; nothing is sent from here.
+// An entry's account is the profile the push was for (data.recipient_id); the
+// app sends an entry only as that account.
 
 const QUICK_REPLY_DB_NAME = 'harmony-sw'
 const QUICK_REPLY_DB_VERSION = 1
@@ -492,6 +493,7 @@ async function handleQuickReply(data, replyText) {
     await enqueueQuickReply({
       replyText,
       data,
+      account: typeof data.recipient_id === 'string' && data.recipient_id ? data.recipient_id : null,
       navigationUrl: getNavigationUrl(data),
       queuedAt: Date.now(),
     })

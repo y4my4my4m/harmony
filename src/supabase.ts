@@ -187,7 +187,10 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
   },
   global: { fetch: assuranceAwareFetch },
   // Realtime reconnection is handled by the client; no custom health check.
-  realtime: { accessToken: realtimeAccessToken(() => supabase, supabaseAnonKey) },
+  // realtime-js defaults to 2.0.0 since 2.91. Its binary broadcast push needs
+  // RealtimeWeb.Socket.V2Serializer, absent in Realtime v2.34.47, and native clients reach
+  // instances on older images. 1.0.0 is served by every version.
+  realtime: { vsn: '1.0.0', accessToken: realtimeAccessToken(() => supabase, supabaseAnonKey) },
 });
 
 /**

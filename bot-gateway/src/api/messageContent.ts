@@ -5,7 +5,7 @@ import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
 
 // The displayed author of a relayed message (src/utils/messageAuthor.ts in the client). Kept
 // only from a bridge bot whose bridge relays the channel (bridgePairsChannel).
-export const BRIDGE_AUTHOR_KEYS = new Set(['discord_user', 'bridge_source'])
+export const BRIDGE_AUTHOR_KEYS = new Set(['discord_user', 'bridge_source', 'bridge_author'])
 
 /** EmbedProvider in the client's src/types/chat.ts. */
 const EMBED_PROVIDERS = new Set(['harmony-post', 'harmony-invite', 'fediverse-post', 'youtube', 'spotify', 'generic'])
@@ -226,11 +226,12 @@ export async function resolveMentionParts(parts: any[], channelId: string | null
   })
 }
 
-export function formatContent(content: string | any[], embeds?: any[]): any[] {
+/** `own`: the channel and bot whose stored files (stripBotSuppliedPaths) a file part may name. */
+export function formatContent(content: string | any[], embeds?: any[], own?: { channelId: string; botId: string }): any[] {
   const parts: any[] = []
   
   if (Array.isArray(content)) {
-    parts.push(...botContentParts(stripBotSuppliedPaths(content)))
+    parts.push(...botContentParts(stripBotSuppliedPaths(content, own)))
   } else if (content) {
     parts.push({ type: 'text', text: content })
   }
@@ -255,7 +256,7 @@ export async function prepareBotMessageContent(input: {
   botId: string
 }): Promise<{ parts: unknown[]; mirrorDeferred: boolean }> {
   const { content, embeds, metadata, channelId, botId } = input
-  const formatted = formatContent(content as string | any[], embeds as any[] | undefined)
+  const formatted = formatContent(content as string | any[], embeds as any[] | undefined, { channelId, botId })
   const typed = claimsBridgeAuthor(metadata) ? formatted
     : await typedMassMentions(formatted, content, channelId, botId)
   const { parts, deferred } = await applyBridgeAttachmentPolicy(await resolveMentionParts(typed, channelId, botId), botId, channelId)

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import express from 'express'
 import supertest from 'supertest'
-import { FakeDb, type Row } from '../../__tests__/fakeSupabase.js'
+import { FakeDb, FakeQuery, type FakeResult, type Row } from '../../__tests__/fakeSupabase.js'
 
 const BOT_ID = '00000000-0000-0000-0000-0000000000b0'
 const SERVER_ID = '00000000-0000-0000-0000-00000000005a'
@@ -44,8 +44,12 @@ vi.mock('../../auth/BotAuthMiddleware.js', () => ({
 }))
 
 import { BotRestAPI } from '../BotRestAPI.js'
+import { forgetBridgeConsent } from '../../bridge/memberConsent.js'
 
 let db: FakeDb
+// bridge_channel_platform and bridge_member_optout_ids answers.
+let platform: string | null
+let optedOut: Record<string, string[]>
 
 function seed({ botType = 'bridge', v2 = true, v1 = false, installedBy = OWNER_ID }: { botType?: string; v2?: boolean; v1?: boolean; installedBy?: string } = {}) {
   const tables: Record<string, Row[]> = {
@@ -90,6 +94,29 @@ function app() {
 
 const metadataOf = (id: string) => db.rows('messages').find((m) => m.id === id)?.metadata
 
+/** PostgREST answers only the selected columns of a single row; FakeDb answers whole rows. */
+class ProjectedQuery extends FakeQuery {
+  private columns: string[] | null = null
+
+  select(list?: string, options?: unknown): this {
+    this.columns = list && !list.includes('*') && !list.includes('(') ? list.split(',').map((c) => c.trim()) : null
+    return super.select(list, options)
+  }
+
+  async single(): Promise<FakeResult> {
+    return this.project(await super.single())
+  }
+
+  async maybeSingle(): Promise<FakeResult> {
+    return this.project(await super.maybeSingle())
+  }
+
+  private project(result: FakeResult): FakeResult {
+    if (!this.columns || !result.data) return result
+    return { ...result, data: Object.fromEntries(this.columns.map((c) => [c, result.data[c]])) }
+  }
+}
+
 // bridge_message_by_discord_id over the fake table.
 const messageByDiscordId = (args: { p_channel_id: string; p_discord_message_id: string }) =>
   db.rows('messages').find((m) => m.channel_id === args.p_channel_id
@@ -98,10 +125,15 @@ const messageByDiscordId = (args: { p_channel_id: string; p_discord_message_id: 
 beforeEach(() => {
   mocks.rpc.mockReset()
   mocks.from.mockReset()
+  forgetBridgeConsent()
+  platform = 'discord'
+  optedOut = {}
   mocks.policy.mockReset()
   mocks.policy.mockImplementation(async (parts: unknown[]) => ({ parts, deferred: false }))
   mocks.enqueue.mockReset()
   mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+    if (fn === 'bridge_channel_platform') return { data: platform, error: null }
+    if (fn === 'bridge_member_optout_ids') return { data: { user_ids: optedOut[args.p_platform] ?? [] }, error: null }
     if (fn === 'update_message_content_silent') return { data: true, error: null }
     if (fn === 'bridge_message_by_discord_id') return { data: messageByDiscordId(args), error: null }
     throw new Error(`test called unmocked rpc: ${fn}`)
@@ -177,6 +209,36 @@ describe('PATCH /messages/:id/metadata on a Harmony-origin message', () => {
     expect(metadataOf(HARMONY_MESSAGE)).toEqual({ source: 'harmony' })
   })
 
+  it('answers 404 and writes nothing for a message whose author opted out of Discord', async () => {
+    seed()
+    db.rows('messages')[0].metadata.private_note = 'private member data'
+    optedOut = { discord: [OWNER_ID] }
+    mocks.from.mockImplementation((table: string) => (table === 'messages' ? new ProjectedQuery(db, table) : db.from(table)))
+    const res = await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`).send({ metadata: MAPPING })
+    expect(res.status).toBe(404)
+    expect(JSON.stringify(res.body)).not.toContain('private member data')
+    expect(db.writesTo('messages', 'update')).toHaveLength(0)
+
+    optedOut = { matrix: [OWNER_ID] }
+    forgetBridgeConsent()
+    expect((await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`).send({ metadata: MAPPING })).status).toBe(200)
+  })
+
+  it('keeps a thread\'s withheld name out of the answer, and in the stored notice', async () => {
+    seed()
+    const author = '00000000-0000-0000-0000-0000000000a9'
+    const thread = '00000000-0000-0000-0000-0000000000d7'
+    const notice = { type: 'thread_created', actor_id: OWNER_ID, thread_id: thread, thread_name: 'what the author wrote' }
+    Object.assign(db.rows('messages')[0], { user_id: null, is_system: true, metadata: notice })
+    db.rows('messages').push({ ...db.rows('messages')[0], id: 'starter', user_id: author, is_system: false, metadata: {} })
+    db.rows('threads').push({ id: thread, parent_message_id: 'starter', created_by: OWNER_ID })
+    optedOut = { discord: [author] }
+    const res = await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`).send({ metadata: MAPPING })
+    expect(res.status).toBe(200)
+    expect(res.body.metadata).toEqual({ ...notice, thread_name: 'Thread', ...MAPPING })
+    expect(metadataOf(HARMONY_MESSAGE)).toEqual({ ...notice, ...MAPPING })
+  })
+
   it('refuses a channel the bridge does not pair', async () => {
     seed()
     const res = await supertest(app()).patch(`/api/v1/messages/${UNPAIRED_MESSAGE}/metadata`).send({ metadata: MAPPING })
@@ -199,6 +261,15 @@ describe('PATCH /messages/:id/metadata on a Harmony-origin message', () => {
     seed({ v2: true, v1: true })
     const v2 = await supertest(app()).patch(`/api/v1/messages/${UNPAIRED_MESSAGE}/metadata`).send({ metadata: MAPPING })
     expect(v2.status).toBe(403)
+  })
+
+  it.each(['server-owner', 'pairing-creator'])('accepts a legacy bridge owned by the %s even with another installer', async kind => {
+    seed({ v2: false, v1: true, installedBy: '00000000-0000-0000-0000-0000000000ee' })
+    const creator = '00000000-0000-0000-0000-0000000000af'
+    db.rows('discord_bridge_pairings')[0].created_by = creator
+    db.rows('bots')[0].owner_id = kind === 'server-owner' ? OWNER_ID : creator
+    const res = await supertest(app()).patch(`/api/v1/messages/${UNPAIRED_MESSAGE}/metadata`).send({ metadata: MAPPING })
+    expect(res.status).toBe(200)
   })
 
   it('takes no v1 pairing for a bridge bot neither the server owner nor the pairing creator brought', async () => {
@@ -385,6 +456,29 @@ describe('relayed authors and server-only content', () => {
     expect(inserted().metadata).toEqual({ ...AUTHOR, discord_message_id: '7', bot: true, created_via: 'bot_api' })
   })
 
+  it('retains the upstream Discord pairing TTL but expires it after sixty seconds', async () => {
+    seed()
+    const api = app()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
+    const send = () => supertest(api).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: 'hi', metadata: AUTHOR })
+    expect((await send()).body.metadata.discord_user).toEqual(AUTHOR.discord_user)
+    db.rows('discord_bridge_channels').splice(0)
+    expect((await send()).body.metadata.discord_user).toEqual(AUTHOR.discord_user)
+    now.mockReturnValue(1_060_000)
+    expect((await send()).body.metadata).not.toHaveProperty('discord_user')
+  })
+
+  it('never takes a bot with a bridge_platform for a Discord bridge, whatever its pairings', async () => {
+    seed({ v1: true })
+    db.rows('bots')[0].bridge_platform = 'matrix'
+    const sent = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: 'hi', metadata: AUTHOR })
+    expect(sent.status).toBe(201)
+    expect(inserted().metadata).toEqual({ bot: true, created_via: 'bot_api' })
+    const mapped = await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`)
+      .send({ metadata: { discord_message_id: '1300000000000000001' } })
+    expect(mapped.status).toBe(403)
+  })
+
   it('drops it in a channel the bridge does not pair, and from a bot that is no bridge bot', async () => {
     seed()
     const unpaired = await supertest(app()).post(`/api/v1/channels/${UNPAIRED}/messages`)
@@ -493,6 +587,75 @@ describe('sendMessage and a Discord message id already bridged', () => {
     expect(res.status).toBe(500)
   })
 
+  describe('a row its history import stored first', () => {
+    const LIVE = '00000000-0000-0000-0000-0000000000f9'
+    const imported = () => db.rows('messages').push({
+      id: EXISTING, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, is_deleted: false,
+      content: [{ type: 'text', text: 'first' }],
+      metadata: { discord_message_id: '77', bot: true, history_import: true, created_via: 'history_import' },
+    })
+    // bridge_relay_supersede_import over the fake table: the live row replaces the imported one.
+    const supersede = (answer: 'take' | 'refuse') => {
+      const base = mocks.rpc.getMockImplementation()!
+      mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+        if (fn !== 'bridge_relay_supersede_import') return base(fn, args)
+        if (answer === 'refuse') return { data: null, error: null }
+        const rows = db.rows('messages')
+        rows.splice(rows.findIndex((m) => m.id === args.p_message_id), 1)
+        rows.push({ id: LIVE, channel_id: PAIRED, user_id: null, bot_id: args.p_bot_id, is_deleted: false,
+          thread_id: args.p_thread_id, reply_to: args.p_reply_to, content: args.p_content, metadata: args.p_metadata })
+        return { data: LIVE, error: null }
+      })
+    }
+    const send = () => supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'text', text: 'live' }], metadata: { discord_message_id: '77' } })
+
+    it('is taken over by the live relay, which is stored as a new message', async () => {
+      seed()
+      imported()
+      refuseInsert(DUPLICATE_ERROR)
+      supersede('take')
+      mocks.discard.mockClear()
+      const res = await send()
+      expect(res.status).toBe(201)
+      expect(res.body.id).toBe(LIVE)
+      const calls = mocks.rpc.mock.calls.filter(([fn]) => fn === 'bridge_relay_supersede_import').map(([, args]) => args)
+      expect(calls).toEqual([{
+        p_bot_id: BOT_ID, p_message_id: EXISTING, p_thread_id: null, p_reply_to: null,
+        p_content: [{ type: 'text', text: 'live' }],
+        p_metadata: expect.objectContaining({ discord_message_id: '77', bot: true, created_via: 'bot_api' }),
+      }])
+      expect(mocks.discard).not.toHaveBeenCalled()
+      expect(db.rows('bot_audit_log')).toHaveLength(1)
+    })
+
+    it('answers with the imported row when it cannot be taken over', async () => {
+      seed()
+      imported()
+      refuseInsert(DUPLICATE_ERROR)
+      supersede('refuse')
+      mocks.discard.mockClear()
+      const res = await send()
+      expect(res.status).toBe(200)
+      expect(res.body.id).toBe(EXISTING)
+      expect(mocks.discard).toHaveBeenCalledWith([{ type: 'text', text: 'live' }], DUPLICATE_ERROR)
+    })
+
+    it('leaves a relayed row alone', async () => {
+      seed()
+      db.rows('messages').push({
+        id: EXISTING, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, is_deleted: false,
+        content: [{ type: 'text', text: 'first' }], metadata: { discord_message_id: '77', bot: true, created_via: 'bot_api' },
+      })
+      refuseInsert(DUPLICATE_ERROR)
+      supersede('take')
+      const res = await send()
+      expect(res.status).toBe(200)
+      expect(res.body.id).toBe(EXISTING)
+      expect(mocks.rpc.mock.calls.some(([fn]) => fn === 'bridge_relay_supersede_import')).toBe(false)
+    })
+  })
+
   it('hands the parts of a message that was not stored to the mirror cleanup, with the refusal', async () => {
     seed()
     mocks.discard.mockClear()
@@ -564,6 +727,19 @@ describe('PATCH /messages/:id/metadata and a Discord message id already bridged'
     const res = await supertest(app()).patch(`/api/v1/messages/${MINE}/metadata`)
       .send({ metadata: { discord_message_id: '77' } })
     expect(res.status).toBe(500)
+  })
+
+  it('answers 403 BRIDGE_AUTHOR_OPTED_OUT when the database refuses a new author', async () => {
+    seed()
+    db.rows('messages').push({
+      id: MINE, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content: [],
+      metadata: { bot: true, discord_user: { id: '41', username: 'dana' } },
+    })
+    refuseUpdate({ code: '23514', message: 'BRIDGE_AUTHOR_OPTED_OUT' })
+    const res = await supertest(app()).patch(`/api/v1/messages/${MINE}/metadata`)
+      .send({ metadata: { discord_user: { id: '42', username: 'alice' } } })
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('BRIDGE_AUTHOR_OPTED_OUT')
   })
 })
 
@@ -684,5 +860,27 @@ describe('PATCH /messages/:id/content-silent never replaces a mirrored part', ()
     own([part])
     const res = await supertest(app()).patch(`/api/v1/messages/${OWN}/content-silent`).send({ content: [part] })
     expect(res.status).toBe(200)
+  })
+})
+
+describe('send logging', () => {
+  it('logs nothing of a bridged message\'s metadata', async () => {
+    seed()
+    const metadata = {
+      bridge_source: 'discord',
+      discord_message_id: '500000000000000001',
+      discord_author: { id: '400000000000000009', username: 'private-handle', avatar_url: 'https://cdn.discordapp.com/avatars/4/a.png' },
+      reply_excerpt: 'a quoted private line',
+    }
+    await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: [{ type: 'text', text: 'hi' }], metadata })
+
+    const logged = [console.log, console.info, console.debug]
+      .flatMap((fn) => vi.isMockFunction(fn) ? fn.mock.calls : [])
+      .flat()
+      .map((arg) => typeof arg === 'string' ? arg : JSON.stringify(arg))
+      .join('\n')
+    for (const secret of ['private-handle', 'cdn.discordapp.com', 'a quoted private line', '400000000000000009']) {
+      expect(logged).not.toContain(secret)
+    }
   })
 })

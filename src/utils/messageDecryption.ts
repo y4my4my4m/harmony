@@ -6,7 +6,7 @@
  * Keys are backed up to server (encrypted with user's recovery key).
  */
 
-import type { Message, MessagePart } from '@/types'
+import type { DecryptionErrorKind, Message, MessagePart } from '@/types'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
@@ -24,6 +24,21 @@ export const INIT_SETTLE_TIMEOUT_MS = 4000
  */
 export function getLastDecryptionError(): string | null {
   return lastDecryptionError
+}
+
+/**
+ * The kind of a decryption failure: the `kind` of a MessageDecryptionError, else read from the
+ * message of an error thrown below the service (MegolmService "No inbound session").
+ */
+export function decryptionErrorKind(error: unknown): DecryptionErrorKind {
+  const kind = (error as { kind?: unknown } | null)?.kind
+  if (kind === 'forged' || kind === 'missing_key' || kind === 'other') return kind
+  const text = (error as { message?: string } | null)?.message || String(error)
+  if (text.includes('Sender signature invalid')) return 'forged'
+  if (text.includes('No inbound session') || text.includes('No outbound session') || text.includes('Session key not available')) {
+    return 'missing_key'
+  }
+  return 'other'
 }
 
 /**
@@ -156,21 +171,24 @@ export async function processMessageDecryption(
           ? undefined
           : Boolean(decrypted.senderVerified)
 
+        const { decryption_error: _failed, ...rest } = message
         return {
-          ...message,
+          ...rest,
           content,
           encrypted: false,
           decrypted: true,
           sender_verified: senderVerified,
+          decryption_replayed: Array.isArray(decrypted) ? undefined : decrypted.replayed === true,
         }
       } catch (error: any) {
         const errorMessage = error?.message || String(error)
+        const kind = decryptionErrorKind(error)
 
-        if (errorMessage.includes('Sender signature invalid')) {
+        if (kind === 'forged') {
           // Forgery detected - make this visible. Don't fall back to a soft
           // "session key" message which would hide the attack signal.
           lastDecryptionError = 'Sender signature mismatch (possible tampering)'
-        } else if (errorMessage.includes('No inbound session') || errorMessage.includes('No outbound session')) {
+        } else if (kind === 'missing_key') {
           lastDecryptionError = 'Session key not available'
         } else if (errorMessage.includes('recovery key')) {
           lastDecryptionError = 'Enter recovery key to decrypt'
@@ -197,8 +215,8 @@ export async function processMessageDecryption(
           ...message,
           encrypted: true,
           decrypted: false,
-          sender_verified: false,
           decryption_unrecoverable: unrecoverable,
+          decryption_error: kind,
         }
       }
     })

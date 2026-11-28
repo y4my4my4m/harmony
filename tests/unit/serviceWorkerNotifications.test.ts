@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
+import { IDBFactory } from 'fake-indexeddb'
 
 const SOURCE = readFileSync(fileURLToPath(new URL('../../public/service-worker.js', import.meta.url)), 'utf8')
 const ORIGIN = 'https://harmony.test'
@@ -30,7 +31,7 @@ function fakeCaches() {
   return { open, keys: async () => [...stores.keys()], delete: async (n: string) => stores.delete(n), match: async () => undefined }
 }
 
-function loadWorker(windows: Array<{ focused: boolean; url?: string }> = []) {
+function loadWorker(windows: Array<{ focused: boolean; url?: string }> = [], indexedDB?: IDBFactory) {
   const listeners = new Map<string, (event: any) => void>()
   const shown: Array<{ title: string; options: any }> = []
   const clientList = windows.map(w => ({
@@ -64,7 +65,7 @@ function loadWorker(windows: Array<{ focused: boolean; url?: string }> = []) {
     URL,
     Request,
     Response,
-    indexedDB: undefined,
+    indexedDB,
     setTimeout,
     clearTimeout,
   }
@@ -88,8 +89,39 @@ const payload = (id: string) => ({
   data: { notification_id: id, url: '/dm/c1?messageId=m1', conversation_id: 'c1' },
 })
 
+// The quick-reply queue as ServiceWorkerManager reads it.
+function queuedReplies(idb: IDBFactory): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    const open = idb.open('harmony-sw', 1)
+    open.onerror = () => reject(open.error)
+    open.onsuccess = () => {
+      const request = open.result.transaction('pending-quick-replies', 'readonly').objectStore('pending-quick-replies').getAll()
+      request.onsuccess = () => { open.result.close(); resolve(request.result) }
+      request.onerror = () => reject(request.error)
+    }
+  })
+}
+
 describe('service worker notifications', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('queues a quick reply under the account the push was for', async () => {
+    const idb = new IDBFactory()
+    const sw = loadWorker([{ focused: true }], idb)
+    const notification = { data: { conversation_id: 'c1', recipient_id: 'p-a', url: '/dm/c1' }, close: vi.fn() }
+    await sw.dispatch('notificationclick', { notification, action: 'reply', reply: 'on my way' })
+
+    expect(await queuedReplies(idb)).toEqual([expect.objectContaining({ replyText: 'on my way', account: 'p-a' })])
+    expect(sw.clientList[0].postMessage).toHaveBeenCalledWith({ type: 'QUICK_REPLY_QUEUED' })
+  })
+
+  it('a push that names no recipient queues its reply under no account', async () => {
+    const idb = new IDBFactory()
+    const sw = loadWorker([], idb)
+    const notification = { data: { conversation_id: 'c1', url: '/dm/c1' }, close: vi.fn() }
+    await sw.dispatch('notificationclick', { notification, action: 'reply', reply: 'hi' })
+    expect(await queuedReplies(idb)).toEqual([expect.objectContaining({ replyText: 'hi', account: null })])
+  })
 
   it('shows a push once when the app already showed the same notification', async () => {
     const sw = loadWorker([{ focused: false }])

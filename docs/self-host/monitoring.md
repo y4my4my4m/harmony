@@ -104,12 +104,21 @@ them.
 
 **User settings** → **Instance admin** shows instance admins:
 
-- **Overview** → **System health**: database response time and connection
-  count, pending deliveries in the federation queue (shown as a warning above
-  100), and database size.
-- **Federation**: endpoint health (dead endpoints and endpoints with
-  failures, which you can purge), the key consistency report, and the
-  **Key generation sweep** and **Orphan cleanup** maintenance tasks.
+- **Overview**: accounts, chat servers (and those with a message in the last
+  30 days), federated instances and posts. **System health**: the response
+  time of the statistics request, database connections, pending deliveries in
+  the federation queue (shown as a warning above 100), and database size.
+- **Federation**: instance counts, endpoint health (dead endpoints and
+  endpoints with failures, which you can purge), the key consistency report,
+  and the **Key generation sweep** and **Orphan cleanup** maintenance tasks.
+
+The Overview and Federation figures and the Users tab's filter counts come
+from one stored snapshot, not a count on every visit; a suspension or other
+change made in the panel moves them at once. The pg_cron job `admin-instance-stats` recomputes it
+every 5 minutes; without pg_cron, opening the panel recomputes a snapshot
+older than 15 minutes. **Refresh** recomputes one older than a minute. The
+Overview shows when it was computed. A total over a table above 2,000,000 rows
+is the planner's estimate and is marked ≈. Connections are counted live.
 - **Tools** → **Performance monitoring**: request, latency, slow query and
   federation charts. They read hourly aggregates written by the database
   function `public.aggregate_hourly_metrics()`; no migration or service

@@ -24,6 +24,36 @@ describe('NotificationFormatter', () => {
     await waitForInitialLocale()
   })
 
+  it.each([
+    ['discord', { discord_user: { id: '42', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/sam.png' } }, '@sam'],
+    ['matrix', { matrix_user: { id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/sam.png' } }, '@sam:example.org'],
+  ])('uses a %s author the message carries, not the backing bot profile', (_platform, metadata, handle) => {
+    const notification = makeNotification('mention', { data: {
+      sender: { id: 'relay-bot', username: 'relay' },
+      location: { channel_name: 'general' },
+      message: { content_preview: 'hello', metadata },
+    } })
+    expect(NotificationFormatter.formatNotification(notification).title).toContain('Sam')
+    expect(NotificationFormatter.getUsername(notification)).toBe('Sam')
+    expect(NotificationFormatter.getAvatarUrl(notification)).toBe('https://cdn.test/sam.png')
+    expect(NotificationFormatter.getActorInfo(notification)).toBeNull()
+    expect(NotificationFormatter.getActorHandle(notification)).toBe(handle)
+  })
+
+  it('names a relayed sender by display name, as message_notification_sender_json writes it', () => {
+    const notification = makeNotification('mention', { data: {
+      sender: { username: 'sam', display_name: 'Sam', is_local: false, handle: '@sam:example.org' },
+      location: { channel_name: 'general' },
+      message: { content_preview: [
+        { type: 'mention', userId: '@lee:example.org', username: 'lee', domain: 'example.org', isLocal: false, isBridged: true, bridgeSource: 'matrix' },
+        { type: 'text', text: 'hi' },
+      ] },
+    } })
+    expect(NotificationFormatter.getActorDisplayNameFallback(notification)).toBe('Sam')
+    expect(NotificationFormatter.formatNotification(notification).message).toContain('@lee hi')
+    expect(NotificationFormatter.formatNotification(notification).message).not.toContain('example.org')
+  })
+
   describe('formatNotification', () => {
     it('formats a mention notification', () => {
       const notif = makeNotification('mention', {

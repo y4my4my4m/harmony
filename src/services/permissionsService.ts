@@ -83,7 +83,7 @@ async function getUserPermissions(userId: string, serverId: string): Promise<Use
     }
   } catch (error) {
     debug.error('Error getting user permissions:', error)
-    // BUGS.md H1: fail closed. Returning SEND_MESSAGES + VIEW_CHANNEL here
+    // Fail closed. Returning SEND_MESSAGES + VIEW_CHANNEL here
     // would let a transient permission-RPC failure grant send/view to every
     // caller. Server-side RLS is the real enforcement boundary; client-side
     // fail-open is still a confused-deputy risk.

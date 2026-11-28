@@ -91,11 +91,12 @@ VALUES ('f2920000-0000-0000-0000-0000000000f0', 'Copy 292', 'f2920000-0000-0000-
         'remote.test', 'https://remote.test/servers/f2920000-0000-0000-0000-0000000000f0');
 CREATE FUNCTION pg_temp.dropped(p_n int, p_created interval, p_deleted interval, p_by uuid DEFAULT NULL) RETURNS void
 LANGUAGE sql AS $fn$
-    INSERT INTO public.emojis (id, name, url, server_id, scope, domain, ap_id, created_at, deleted_at, deleted_by)
+    -- The sync's drops carry ap_removed_at = deleted_at (20261123400002).
+    INSERT INTO public.emojis (id, name, url, server_id, scope, domain, ap_id, created_at, deleted_at, deleted_by, ap_removed_at)
     VALUES (('f2920000-0000-0000-0000-0000000001' || lpad(p_n::text, 2, '0'))::uuid, 'd292_' || p_n,
             'https://remote.test/e/' || p_n || '.webp', 'f2920000-0000-0000-0000-0000000000f0', 'server', 'remote.test',
             'https://remote.test/servers/f2920000-0000-0000-0000-0000000000f0/emojis/' || p_n,
-            now() - p_created, now() - p_deleted, p_by)
+            now() - p_created, now() - p_deleted, p_by, CASE WHEN p_by IS NULL THEN now() - p_deleted END)
 $fn$;
 SELECT pg_temp.dropped(1, '3 hours', '1 minute');    -- the most recent drop: kept
 SELECT pg_temp.dropped(2, '3 hours', '2 hours');     -- past the one kept, old: evicted

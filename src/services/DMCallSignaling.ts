@@ -20,10 +20,40 @@
 import { ref } from 'vue'
 import { apiUrl } from '@/services/instanceConfig';
 import { supabase } from '@/supabase'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { PostgrestError, RealtimeChannel } from '@supabase/supabase-js'
 import { authContextService } from './AuthContextService'
 import { debug } from '@/utils/debug'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
+import { ChannelCloseBackoff } from '@/utils/realtimeRefusal'
+import type { CallPermissionCheck } from './DMCallPermissions'
+import { SIGNAL_ACK_TIMEOUT_MS, sendSignal as sendRoomSignal } from './signalRelay'
+
+
+/** start_dm_call_message refused the call: the two accounts are blocked between them. */
+export class CallUndeliverableError extends Error {
+  readonly code = 'DM_UNDELIVERABLE'
+  constructor() {
+    super('DM_UNDELIVERABLE')
+    this.name = 'CallUndeliverableError'
+  }
+}
+
+/**
+ * Past account_rings_per_minute (20261124100001), local or federated: the refusal, with the
+ * message, details and hint moderationRejectionFromError reads.
+ */
+export class CallRingLimitedError extends Error {
+  readonly details?: string
+  readonly hint?: string
+  readonly code?: string
+  constructor(refusal: { message?: string; details?: string; hint?: string; code?: string }) {
+    super(refusal.message ?? 'ANTISPAM_RATE_LIMITED')
+    this.name = 'CallRingLimitedError'
+    this.details = refusal.details
+    this.hint = refusal.hint
+    this.code = refusal.code
+  }
+}
 
 export interface CallSignal {
   type: 'initiate' | 'accept' | 'decline' | 'end' | 'join' | 'leave' | 'busy' | 'timeout'
@@ -110,6 +140,13 @@ class DMCallSignalingService {
   // In-flight isCallLive checks per conversation; each holds the channel.
   private presenceProbes: Map<string, number> = new Map()
   private ringTimeoutHandlers: Set<(conversationId: string) => void> = new Set()
+  // Channels this client removed: their CLOSED is no server close.
+  private releasedChannels = new WeakSet<RealtimeChannel>()
+  // Channels still joining, and the count of cleanups: one that joined across a cleanup is released.
+  private openingChannels: Set<RealtimeChannel> = new Set()
+  private generation = 0
+  private closeBackoffs: Map<string, ChannelCloseBackoff> = new Map()
+  private rebuildTimers: Map<string, number> = new Map()
 
   // Reactive counter. Vue computeds must read callStateVersion.value to
   // re-evaluate on call state changes; the Maps themselves are not reactive.
@@ -143,23 +180,26 @@ class DMCallSignalingService {
   private ensureChannel(conversationId: string): Promise<RealtimeChannel> {
     let setup = this.channelSetup.get(conversationId)
     if (!setup) {
-      setup = this.createChannel(conversationId).catch(error => {
-        this.channelSetup.delete(conversationId)
+      const created: Promise<RealtimeChannel> = this.createChannel(conversationId).catch(error => {
+        if (this.channelSetup.get(conversationId) === created) this.channelSetup.delete(conversationId)
         throw error
       })
+      setup = created
       this.channelSetup.set(conversationId, setup)
     }
     return setup
   }
 
   private async createChannel(conversationId: string): Promise<RealtimeChannel> {
+    const { generation } = this
     // Presence key is the profile id; participant identity is profile ids throughout.
     const profileId = await authContextService.getCurrentProfileId().catch(() => null)
+    if (generation !== this.generation) throw new Error('Call channels closed')
 
     // realtime-js keeps one channel per topic and the first config wins, so
     // this is the only place the topic is opened.
     const channel = supabase.channel(`dm-call:${conversationId}`, {
-      config: { private: true, presence: { key: profileId ?? `anon-${Date.now()}` } }
+      config: { private: true, broadcast: { ack: true }, presence: { key: profileId ?? `anon-${Date.now()}` } }
     })
 
     channel
@@ -182,13 +222,26 @@ class DMCallSignalingService {
         this.presenceWaiters.get(conversationId)?.forEach(resolve => resolve())
       })
 
-    await new Promise<void>((resolve, reject) => {
-      channel.subscribe((status) => {
-        debug.log(`Call channel dm-call:${conversationId} status:`, status)
-        if (status === 'SUBSCRIBED') resolve()
-        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`Channel ${status}`))
+    this.openingChannels.add(channel)
+    try {
+      await new Promise<void>((resolve, reject) => {
+        channel.subscribe((status) => {
+          debug.log(`Call channel dm-call:${conversationId} status:`, status)
+          if (status === 'SUBSCRIBED') {
+            this.closeBackoff(conversationId).joined()
+            resolve()
+          } else if (status === 'CLOSED') {
+            reject(new Error('Channel CLOSED'))
+            this.handleChannelClosed(conversationId, channel)
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            reject(new Error(`Channel ${status}`))
+          }
+        })
       })
-    })
+    } finally {
+      this.openingChannels.delete(channel)
+    }
+    if (generation !== this.generation) throw new Error('Call channels closed')
 
     this.channels.set(conversationId, channel)
 
@@ -201,13 +254,56 @@ class DMCallSignalingService {
     return channel
   }
 
-  private releaseChannelIfUnused(conversationId: string): void {
-    const hasListeners = (this.listeners.get(conversationId)?.size ?? 0) > 0
-    if (hasListeners || this.trackedPresence.has(conversationId) || this.followedCalls.has(conversationId)
-        || this.presenceProbes.has(conversationId)) return
+  private channelNeeded(conversationId: string): boolean {
+    return (this.listeners.get(conversationId)?.size ?? 0) > 0 || this.trackedPresence.has(conversationId)
+      || this.followedCalls.has(conversationId) || this.presenceProbes.has(conversationId)
+  }
 
+  private closeBackoff(conversationId: string): ChannelCloseBackoff {
+    let backoff = this.closeBackoffs.get(conversationId)
+    if (!backoff) {
+      backoff = new ChannelCloseBackoff()
+      this.closeBackoffs.set(conversationId, backoff)
+    }
+    return backoff
+  }
+
+  /**
+   * A server close (events limit, expired token, channel process stop) ends a channel for good in
+   * realtime-js. A topic still needed is opened again after a backoff, as openRebuildingChannel
+   * does; createChannel tracks this client's presence on it again.
+   */
+  private handleChannelClosed(conversationId: string, channel: RealtimeChannel): void {
+    if (this.releasedChannels.has(channel)) return
+    const current = this.channels.get(conversationId)
+    if (current && current !== channel) return
+    this.channels.delete(conversationId)
+    this.channelSetup.delete(conversationId)
+    this.presenceSynced.delete(conversationId)
+    if (!this.channelNeeded(conversationId) || this.rebuildTimers.has(conversationId)) return
+    const delay = this.closeBackoff(conversationId).next()
+    debug.warn(`Call channel dm-call:${conversationId} closed by the server; reopening in ${Math.round(delay)} ms`)
+    const timer = window.setTimeout(() => {
+      this.rebuildTimers.delete(conversationId)
+      if (!this.channelNeeded(conversationId) || this.channels.has(conversationId) || this.channelSetup.has(conversationId)) return
+      this.ensureChannel(conversationId).catch(error => {
+        debug.warn('Call channel reopen failed:', conversationId, error)
+      })
+    }, delay)
+    this.rebuildTimers.set(conversationId, timer)
+  }
+
+  private releaseChannelIfUnused(conversationId: string): void {
+    if (this.channelNeeded(conversationId)) return
+
+    const rebuild = this.rebuildTimers.get(conversationId)
+    if (rebuild) {
+      clearTimeout(rebuild)
+      this.rebuildTimers.delete(conversationId)
+    }
     const channel = this.channels.get(conversationId)
     if (channel) {
+      this.releasedChannels.add(channel)
       channel.unsubscribe()
     }
     this.channels.delete(conversationId)
@@ -383,15 +479,22 @@ class DMCallSignalingService {
       callType: signal.callType
     })
 
+    // The database names the sender and the conversation; the rest of the signal is the client's.
+    await sendRoomSignal(`dm-call:${conversationId}`, 'call-signal',
+      { type: signal.type, callType: signal.callType, reason: signal.reason },
+      () => this.broadcastSignal(conversationId, signal))
+  }
+
+  /** The signal as a client broadcast, as an instance without send_signal takes it; the send's outcome. */
+  private async broadcastSignal(conversationId: string, signal: CallSignal): Promise<string> {
     const held = this.channels.has(conversationId) || this.channelSetup.has(conversationId)
     try {
       const channel = await this.ensureChannel(conversationId)
-      await channel.send({
+      return await channel.send({
         type: 'broadcast',
         event: 'call-signal',
         payload: signal
-      })
-      debug.log('Call signal sent successfully')
+      }, { timeout: SIGNAL_ACK_TIMEOUT_MS })
     } finally {
       if (!held) this.releaseChannelIfUnused(conversationId)
     }
@@ -408,8 +511,8 @@ class DMCallSignalingService {
     signal: 'initiate' | 'end' | 'timeout',
     callType: 'voice' | 'video',
     systemMessageId?: string | null
-  ): Promise<void> {
-    if (receiverIds.length === 0) return
+  ): Promise<PostgrestError | null> {
+    if (receiverIds.length === 0) return null
     const { error } = await supabase.rpc('ring_dm_call', {
       p_conversation_id: conversationId,
       p_receiver_ids: receiverIds,
@@ -418,12 +521,29 @@ class DMCallSignalingService {
       p_system_message_id: systemMessageId ?? null,
     })
     if (error) debug.error(`ring_dm_call(${signal}) failed:`, error.message)
+    return error
+  }
+
+  /**
+   * Throws CallUndeliverableError when placing a call in the conversation
+   * would be refused for a block (check_dm_call: the refusals of
+   * start_dm_call_message, with nothing posted). Any other failure passes;
+   * the call attempt answers it.
+   */
+  async checkCallDeliverable(conversationId: string): Promise<void> {
+    const { error } = await supabase.rpc('check_dm_call', { p_conversation_id: conversationId })
+    if (error && /DM_UNDELIVERABLE/.test(`${error.message} ${error.hint ?? ''}`)) {
+      throw new CallUndeliverableError()
+    }
   }
 
   /**
    * Ring each receiver on their own ring topic (dm-calls:{receiverId}) and
    * arm the CALL_TIMEOUT_MS no-answer timer. Posts the call notice through
    * start_dm_call_message first so its id can ride along in the signal.
+   * Throws CallUndeliverableError when the notice is refused for a block
+   * between the two accounts (DM_UNDELIVERABLE): ring_dm_call would ring
+   * no one, and nothing is rung.
    */
   async initiateCall(
     conversationId: string,
@@ -432,14 +552,16 @@ class DMCallSignalingService {
     receiverIds: string[] // Who to call
   ): Promise<void> {
     const startedAt = new Date()
-    
+
     let systemMessageId: string | null = null
+    let refused = false
     try {
       const { data: msgId, error } = await supabase.rpc('start_dm_call_message', {
         p_conversation_id: conversationId,
         p_call_type: callType,
       })
       if (error) {
+        refused = /DM_UNDELIVERABLE/.test(`${error.message} ${error.hint ?? ''}`)
         debug.error('Failed to post call system message:', error.message)
       } else {
         systemMessageId = (msgId as string | null) ?? null
@@ -447,6 +569,7 @@ class DMCallSignalingService {
     } catch (error) {
       debug.error('Failed to post call system message:', error)
     }
+    if (refused) throw new CallUndeliverableError()
     
     const timeoutTimer = window.setTimeout(() => {
       void this.handleCallTimeout(conversationId)
@@ -466,7 +589,16 @@ class DMCallSignalingService {
       systemMessageId,
     })
 
-    await this.ringReceivers(conversationId, receiverIds, 'initiate', callType, systemMessageId)
+    const ringRefusal = await this.ringReceivers(conversationId, receiverIds, 'initiate', callType, systemMessageId)
+    // Past account_rings_per_minute (20261124100001) nothing rang: the call ends here and the
+    // refusal, which names the limit, goes to the caller.
+    if (ringRefusal && /ANTISPAM_RATE_LIMITED/.test(ringRefusal.message)) {
+      clearTimeout(timeoutTimer)
+      const call = this.activeCalls.get(conversationId)
+      this.deleteActiveCall(conversationId)
+      if (call) await this.finalizeCallMessage(call)
+      throw new CallRingLimitedError(ringRefusal)
+    }
   }
   
   /**
@@ -539,10 +671,14 @@ class DMCallSignalingService {
     return true
   }
 
+  /**
+   * `reason` is sent when send_signal takes it (busy, blocked, dnd); a receiver's gate has others
+   * (CallPermissionCheck), which decline without one.
+   */
   async declineCall(
     conversationId: string,
     userId: string,
-    reason?: 'busy' | 'blocked' | 'dnd'
+    reason?: CallPermissionCheck['reason']
   ): Promise<void> {
     const call = this.activeCalls.get(conversationId)
     
@@ -556,12 +692,14 @@ class DMCallSignalingService {
       callType: 'voice', // doesn't matter for decline
       timestamp: Date.now(),
       conversationId,
-      reason
+      reason: reason === 'busy' || reason === 'blocked' || reason === 'dnd' ? reason : undefined
     }
     
-    await this.sendSignal(conversationId, signal)
-    
-    this.deleteActiveCall(conversationId)
+    try {
+      await this.sendSignal(conversationId, signal)
+    } finally {
+      this.deleteActiveCall(conversationId)
+    }
   }
 
   async endCall(
@@ -662,10 +800,10 @@ class DMCallSignalingService {
         conversationId
       }
 
-      await this.sendSignal(conversationId, endSignal)
-
-      // Ring topics reach GlobalDMCallListener, which dismisses the modal.
+      // Ring topics reach GlobalDMCallListener, which dismisses the modal. ring_dm_call needs no
+      // channel of this client, so a call whose join failed for Realtime still cancels its ring.
       await this.ringReceivers(conversationId, call.receiverIds, 'end', call.callType)
+      await this.sendSignal(conversationId, endSignal)
       return
     }
 
@@ -1000,6 +1138,9 @@ class DMCallSignalingService {
         }),
       })
       
+      if (inviteResponse.status === 429) {
+        throw new CallRingLimitedError(await inviteResponse.json().catch(() => ({})))
+      }
       if (!inviteResponse.ok) {
         debug.error('Failed to send federated call invite')
         return null
@@ -1039,6 +1180,7 @@ class DMCallSignalingService {
       debug.log('[Federated] Call initiated, waiting for response')
       return callInfo
     } catch (error) {
+      if (error instanceof CallRingLimitedError) throw error
       debug.error('[Federated] Failed to initiate call:', error)
       return null
     }
@@ -1252,8 +1394,9 @@ class DMCallSignalingService {
     return this.activeCalls.get(conversationId)?.isFederated ?? false
   }
 
-  /** Clear every timer before dropping channels; no signals are sent. */
+  /** Clear every timer before dropping channels, those still joining included; no signals are sent. */
   cleanup(): void {
+    this.generation++
     this.activeCalls.forEach(call => {
       if (call.timeoutTimer) {
         clearTimeout(call.timeoutTimer)
@@ -1262,8 +1405,14 @@ class DMCallSignalingService {
     this.emptyGraceTimers.forEach(timer => clearTimeout(timer))
     this.ringWatchdogs.forEach(timer => clearTimeout(timer))
 
-    this.channels.forEach(channel => channel.unsubscribe())
+    this.rebuildTimers.forEach(timer => clearTimeout(timer))
+    this.rebuildTimers.clear()
+    for (const channel of [...this.channels.values(), ...this.openingChannels]) {
+      this.releasedChannels.add(channel)
+      channel.unsubscribe()
+    }
     this.channels.clear()
+    this.openingChannels.clear()
     this.channelSetup.clear()
     this.listeners.clear()
     this.activeCalls.clear()
@@ -1274,6 +1423,7 @@ class DMCallSignalingService {
     this.presenceProbes.clear()
     this.emptyGraceTimers.clear()
     this.ringWatchdogs.clear()
+    this.bumpVersion()
   }
 }
 

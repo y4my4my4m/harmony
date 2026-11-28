@@ -20,18 +20,19 @@ Server members with Manage Server change the flags under **Server settings** →
 | `add_reactions` | **Add reactions** | Adding and removing its own reactions | `ADD_REACTIONS` |
 | `manage_messages` | **Manage messages** | Deleting messages written by others | `MANAGE_MESSAGES` |
 | `manage_channels` | **Manage channels** | Creating channels and categories, moving channels, editing categories, writing channel permission overrides | `MANAGE_CHANNELS` |
-| `manage_roles` | **Manage roles** | Creating, editing and deleting roles within its reach; see [Role writes](#role-writes) | `MANAGE_ROLES` |
+| `manage_roles` | **Manage roles** | Creating, editing and deleting roles within its reach, and giving them to and taking them from members; see [Role writes](#role-writes) | `MANAGE_ROLES` |
+| `attach_files` | **Attach files** | Uploading files to post; see [Upload a file](/build/rest#upload-a-file) | `ATTACH_FILES` |
 | `mention_everyone` | Not shown | Keeping @everyone and @here as mentions, and notifying through any role | `MENTION_EVERYONE` |
 
 The app always keeps **Read messages** and **Send messages** on. It does not offer `mention_everyone`, which is off for every installation made from the app.
 
-Installations also carry `embed_links` and `attach_files` (on by default) and `kick_members` and `ban_members` (off). No route checks them, but they count as the role bits `EMBED_LINKS`, `ATTACH_FILES`, `KICK_MEMBERS` and `BAN_MEMBERS` when the gateway works out which bits a bot may grant.
+Installations also carry `embed_links` (on by default) and `kick_members` and `ban_members` (off). No route checks them, but they count as the role bits `EMBED_LINKS`, `KICK_MEMBERS` and `BAN_MEMBERS` when the gateway works out which bits a bot may grant. `attach_files` is on unless the installer turns it off.
 
 | Added through | Flags on |
 |---|---|
-| **User settings** → **My bots** → **Add to server** | Read messages, Send messages, Add reactions; Manage channels too for a bot of type Bridge |
+| **User settings** → **My bots** → **Add to server** | Read messages, Send messages, Add reactions, Attach files; Manage channels too for a bot of type Bridge |
 | **Server bots** → **Add a bot** | The flags checked in the dialog |
-| A Discord bridge set up under **Server settings** → **Discord Bridge** | Read messages, Send messages, Manage channels, Manage roles |
+| A Discord bridge set up under **Server settings** → **Bridges** → **Discord** | Read messages, Send messages, Manage channels, Manage roles |
 
 ## How permissions are computed
 
@@ -59,6 +60,7 @@ Every request addressed by a channel, message or thread needs a channel the bot 
 | Delete another author's message | `manage_messages` | `MANAGE_MESSAGES` |
 | Delete the bot's own message | none | `VIEW_CHANNEL` (seeing the channel) |
 | Add or remove a reaction | `add_reactions` | `ADD_REACTIONS` |
+| Upload a file | `send_messages` and `attach_files` | `SEND_MESSAGES` and `ATTACH_FILES` |
 
 Without a channel list, the bot sees a channel when @everyone keeps `VIEW_CHANNEL` there (or holds administrator), and writes when the write's bit survives @everyone's override too. A channel where @everyone cannot send, such as an announcements channel, is read-only for bots as well unless the channel list names it.
 
@@ -91,11 +93,13 @@ Editing, silently patching and merging metadata are limited to the bot's own mes
 
 ## Role writes
 
-A bot with `manage_roles` may create, edit and delete roles within two bounds.
+A bot with `manage_roles` may create, edit and delete roles, and give them to and take them from members ([Member roles](/build/rest#member-roles)), within two bounds.
 
 **Bits.** A role may carry only bits the bot could grant: @everyone's server permissions plus the role bits of the installation's flags, never administrator. Editing a role keeps the bits it already has; only added bits are checked. A refused mask answers `403` with `missing_permissions`.
 
 **Positions.** Bots hold no roles, so the member who installed the bot stands in. The bot's limit is the position of that member's highest role, unlimited when that member owns the server and 0 when they hold no role. The position of the lowest administrator role lowers the limit further. A bot may create, move, edit and delete roles only at positions strictly below the limit. It cannot edit or delete @everyone or any administrator role. A refused position answers `403`, with `max_position` when there is a limit.
+
+**Members.** A bot gives a member only a role it may edit and whose bits it could grant; it takes away any role it may edit, whatever bits it carries. The member's own roles do not matter, as for a member with Manage roles.
 
 ## Override writes
 
@@ -161,7 +165,7 @@ Retry-After: 17
 
 `retry_after` and `Retry-After` are the seconds until the window that refused the request ends. No other rate-limit headers are sent. Requests refused with `401` or `503` during authentication are not counted. When the gateway's rate-limit check fails, it counts each bucket in its own process and keeps refusing at the same number. In place of the overall ceiling it counts all of a bot's requests together, up to 3000 a minute (the default overall limit of a bridge), until the check works again.
 
-The [Bridge v2](/build/bridges#bridge-v2-endpoints) routes a bridge bot calls with its token (`/config`, `/status`, `/pairs`) count in the same way, one bucket per route.
+The [Bridge v2](/build/bridges#bridge-v2-endpoints) routes a bridge bot calls with its token (`/config`, `/status`, `/pairs`) count in the same way, one bucket per route. The history import routes (`/bridge/v2/imports`) count per method and per import job: `GET` and `PATCH /bridge/v2/imports/{import.id}` of one job use two buckets.
 
 The three [interaction routes](/build/commands#respond) share one bucket per bot, 50 requests per 5 seconds, and do not count toward the overall ceiling: their volume follows how often members run the bot's commands, and each interaction already allows at most one answer, its edits and 10 follow-ups. Members running commands are limited to 5 per 10 seconds per account.
 

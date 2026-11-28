@@ -210,7 +210,7 @@ SELECT is(public.bridge_import_status(), '{"running": 0, "queued": 1, "imported"
 SELECT tests.clear_authentication();
 SELECT ok(NOT has_function_privilege('authenticated', 'public.bridge_import_admit(uuid, uuid, integer)', 'EXECUTE')
           AND NOT has_function_privilege('authenticated', 'public.discord_bridge_import_block(uuid)', 'EXECUTE')
-          AND NOT has_function_privilege('authenticated', 'public.discord_bridge_import_start_internal(uuid, text[], text, uuid, jsonb)', 'EXECUTE')
+          AND NOT has_function_privilege('authenticated', 'public.discord_bridge_import_start_internal(uuid, text[], text, uuid, jsonb, boolean)', 'EXECUTE')
           AND NOT has_function_privilege('anon', 'public.bridge_import_status()', 'EXECUTE')
           AND has_function_privilege('service_role', 'public.bridge_import_admit(uuid, uuid, integer)', 'EXECUTE')
           AND has_function_privilege('service_role', 'public.discord_bridge_import_block(uuid)', 'EXECUTE'),

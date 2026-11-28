@@ -21,15 +21,21 @@ vi.mock('@/services/ModerationService', () => ({
   ],
   moderationService: { banMember: h.banMember, kickMember: h.kickMember },
 }))
+// The sidebar's members per server; alice and bob unless a test sets the server's list.
+const context = vi.hoisted(() => ({ byServer: {} as Record<string, Array<{ id: string; username: string; displayName: string | null; avatarUrl: null }>> }))
 vi.mock('@/services/userDataService', () => ({
   userDataService: {
-    getUsersInContext: () => [
+    getUsersInContext: (serverId: string) => context.byServer[serverId] ?? [
       { id: 'u2', username: 'alice', displayName: 'Alice', avatarUrl: null },
       { id: 'u3', username: 'bob', displayName: null, avatarUrl: null },
     ],
   },
 }))
-vi.mock('@/services/usersService', () => ({ getUserIdsForServer: vi.fn(async () => []), getProfiles: vi.fn(async () => []) }))
+const users = vi.hoisted(() => ({
+  getUserIdsForServer: vi.fn(async (_serverId: string): Promise<string[]> => []),
+  getProfiles: vi.fn(async (_ids: string[]): Promise<any[]> => []),
+}))
+vi.mock('@/services/usersService', () => users)
 // The open server's member list: whole (idle here) unless a test makes it a window.
 const directory = vi.hoisted(() => ({
   serverId: null as string | null,
@@ -68,7 +74,10 @@ beforeEach(() => {
   resetLayersForTests()
   directory.serverId = null
   directory.mode = 'idle'
-  directory.searchMembers.mockClear()
+  directory.searchMembers.mockReset().mockResolvedValue([])
+  context.byServer = {}
+  users.getUserIdsForServer.mockReset().mockResolvedValue([])
+  users.getProfiles.mockReset().mockResolvedValue([])
 })
 
 describe('KickBanModal', () => {
@@ -173,6 +182,75 @@ describe('KickBanModal', () => {
     const listbox = document.getElementById(input.getAttribute('aria-controls')!)!
     expect([...listbox.querySelectorAll('[role="option"]')].map(o => o.textContent?.includes('Alice'))).toEqual([true])
     expect(directory.searchMembers).not.toHaveBeenCalled()
+  })
+
+  it('drops a search answer for the server it left', async () => {
+    vi.useFakeTimers()
+    try {
+      directory.serverId = 's1'
+      directory.mode = 'windowed'
+      let answer: (rows: any[]) => void = () => {}
+      directory.searchMembers.mockImplementation((serverId: string) => (serverId === 's1'
+        ? new Promise<any[]>((resolve) => { answer = resolve })
+        : Promise.resolve([])))
+      context.byServer.s2 = [{ id: 'u20', username: 'zora', displayName: 'Zora', avatarUrl: null }]
+      const wrapper = mountModal({ id: '', username: '' })
+      await flushPromises()
+
+      const typeQuery = async (text: string) => {
+        const input = document.querySelector<HTMLInputElement>('[data-testid="kickban-member-search"]')!
+        input.value = text
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        await vi.advanceTimersByTimeAsync(200)
+        await flushPromises()
+      }
+      await typeQuery('zed')
+      expect(directory.searchMembers).toHaveBeenCalledWith('s1', 'zed', 10)
+
+      await wrapper.setProps({ serverId: 's2' })
+      await flushPromises()
+      answer([{ id: 'u900', username: 'zed', display_name: 'Zed Far', avatar_url: null }])
+      await flushPromises()
+      await typeQuery('zed')
+
+      expect(document.body.textContent).not.toContain('Zed Far')
+      await typeQuery('zo')
+      expect([...document.querySelectorAll('[role="option"]')].map(o => o.textContent?.includes('Zora'))).toEqual([true])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a member list still loading when the dialog closes does not fill its next opening', async () => {
+    context.byServer.s1 = []
+    let finish: (ids: string[]) => void = () => {}
+    users.getUserIdsForServer.mockImplementationOnce(() => new Promise<string[]>((resolve) => { finish = resolve }))
+    users.getProfiles.mockResolvedValue([{ id: 'u10', username: 'old', display_name: 'Old Member', avatar_url: null }])
+    context.byServer.s2 = [{ id: 'u20', username: 'zora', displayName: 'Zora', avatarUrl: null }]
+
+    const wrapper = mountModal({ id: '', username: '' })
+    await flushPromises()
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true, serverId: 's2' })
+    await flushPromises()
+    finish(['u10'])
+    await flushPromises()
+
+    const options = [...document.querySelectorAll('[role="option"]')].map(o => o.textContent ?? '')
+    expect(options).toHaveLength(1)
+    expect(options[0]).toContain('Zora')
+    expect(users.getUserIdsForServer).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads the members of the server it reopens for', async () => {
+    context.byServer.s2 = [{ id: 'u20', username: 'zora', displayName: 'Zora', avatarUrl: null }]
+    const wrapper = mountModal({ id: '', username: '' })
+    await flushPromises()
+    expect(document.querySelectorAll('[role="option"]')).toHaveLength(2)
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true, serverId: 's2' })
+    await flushPromises()
+    expect([...document.querySelectorAll('[role="option"]')].map(o => o.textContent?.includes('Zora'))).toEqual([true])
   })
 
   it('closes the open list on Escape without closing the dialog', async () => {

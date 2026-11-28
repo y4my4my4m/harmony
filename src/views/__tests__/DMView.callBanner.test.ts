@@ -35,6 +35,13 @@ const rt = vi.hoisted(() => {
   return { channels, make, rpc: vi.fn(async () => ({ data: null, error: null })) }
 })
 
+vi.mock('@/stores/playTogether', () => ({
+  usePlayTogetherStore: () => ({
+    appsFor: () => [], loadApps: async () => {}, openLauncher: () => {}, joined: null, launcher: null,
+    sessionIn: () => null, refresh: async () => [], registerSlot: () => {}, unregisterSlot: () => {},
+    view: { members: [], status: 'connecting' }, mode: 'docked', panelHeight: 480,
+  }),
+}))
 vi.mock('@/supabase', () => ({
   supabase: { channel: (topic: string) => rt.make(topic), rpc: rt.rpc },
 }))
@@ -190,14 +197,14 @@ describe('DMView call banner', () => {
     await settle()
 
     expect(voice.joinVoiceChannel).not.toHaveBeenCalled()
-    expect(channel.sent.filter((m: any) => m.payload?.type === 'join')).toEqual([])
+    expect(rt.rpc).not.toHaveBeenCalledWith('send_signal', expect.anything())
     expect(callSwitch.leaveCurrentCallFor).not.toHaveBeenCalled()
     expect(toast.info).toHaveBeenCalledWith('Call ended')
     expect(w.find('.dm-call-banner').exists()).toBe(false)
   })
 
   it('Join on a live call joins through the shared join', async () => {
-    const channel = await openCall()
+    await openCall()
     const w = await mountView()
 
     await w.find('.call-banner-join').trigger('click')
@@ -205,7 +212,9 @@ describe('DMView call banner', () => {
 
     expect(listener.dismissIncomingCall).toHaveBeenCalledWith(CONV)
     expect(callSwitch.leaveCurrentCallFor).toHaveBeenCalledWith(`dm-${CONV}`)
-    expect(channel.sent.filter((m: any) => m.payload?.type === 'join')).toHaveLength(1)
+    expect(rt.rpc).toHaveBeenCalledWith('send_signal', expect.objectContaining({
+      p_topic: `dm-call:${CONV}`, p_payload: expect.objectContaining({ type: 'join' }),
+    }))
     expect(voice.joinVoiceChannel).toHaveBeenCalledWith(`dm-${CONV}`, 'dm')
     expect(voice.isOverlayVisible).toBe(true)
     expect(toast.info).not.toHaveBeenCalled()

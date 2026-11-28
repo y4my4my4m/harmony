@@ -290,7 +290,7 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
 
     // A verified signature only proves "some remote actor signed this request".
     // The claimed `actorId` must also be bound to the signer, else a valid
-    // signer can mint a LiveKit token for a different actor (BUGS.md C3).
+    // signer can mint a LiveKit token for a different actor.
     // Strict match - no same-domain delegation for Person-style identities.
     if (!verification.actorUrl) {
       logger.warn('Rejecting federated token request: signature verification did not return an actor URL');
@@ -609,6 +609,18 @@ router.post('/federated-call/invite', requireAuth, requireLiveKit, async (req: R
       return res.status(403).json({ error: 'Cannot call this user' });
     }
 
+    // account_rings_per_minute, one count with ring_dm_call (20261124100001). The refusal goes back
+    // as PostgREST gives it: its message, details and hint name the limit.
+    const { error: ringRefusal } = await supabase.rpc('antispam_take_ring', { p_caller: caller.id });
+    if (ringRefusal) {
+      if (/ANTISPAM_RATE_LIMITED/.test(ringRefusal.message ?? '')) {
+        const { message, code, details, hint } = ringRefusal;
+        return res.status(429).json({ error: message, message, code, details, hint });
+      }
+      logger.error('Failed to count a federated ring:', ringRefusal);
+      return res.status(500).json({ error: 'Failed to send federated call invite' });
+    }
+
     const livekitUrl = livekitService.getClientConfig().wsUrl;
     if (!livekitUrl) {
       return res.status(503).json({ error: 'LiveKit is not configured' });
@@ -715,6 +727,9 @@ router.post('/federated-call/accept', requireAuth, requireLiveKit, async (req: R
     if (!updated?.length) {
       return res.status(409).json({ error: 'Call is no longer ringing' });
     }
+    await VoiceActivityHandler.notifyCallParty(acceptor.id, 'answered', {
+      conversationId, callId: call.id, outcome: 'accepted',
+    });
     
     const activity = VoiceActivityHandler.createVoiceCallAccept(
       acceptor.federated_id,
@@ -764,13 +779,19 @@ router.post('/federated-call/reject', requireAuth, requireLiveKit, async (req: R
     }
     
     const supabase = getSupabaseClient();
-    await supabase
+    const { data: rejected } = await supabase
       .from('federated_voice_calls')
       .update({ status: 'rejected', ended_at: new Date().toISOString() })
       .eq('id', call.id)
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .select('id');
     
     const { VoiceActivityHandler } = await import('../activitypub/VoiceActivityHandler.js');
+    if (rejected?.length) {
+      await VoiceActivityHandler.notifyCallParty(rejector.id, 'answered', {
+        conversationId, callId: call.id, outcome: 'rejected',
+      });
+    }
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     
     const activity = VoiceActivityHandler.createVoiceCallReject(

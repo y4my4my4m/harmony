@@ -13,20 +13,21 @@ import { debug } from '@/utils/debug';
  * Non-author viewers get updated counts on next load/refetch.
  */
 class PostReactionsRealtimeService {
-  private subscribedPostIds = new Set<string>();
-  private refCount = 0;
+  /** Post id to the number of mounted views showing it. */
+  private viewsByPost = new Map<string, number>();
   private unsubscribeFn: (() => void) | null = null;
 
   subscribe(postId: string): void {
-    this.subscribedPostIds.add(postId);
-    this.refCount++;
+    this.viewsByPost.set(postId, (this.viewsByPost.get(postId) ?? 0) + 1);
     this.ensureHandler();
   }
 
   unsubscribe(postId: string): void {
-    this.subscribedPostIds.delete(postId);
-    this.refCount--;
-    if (this.refCount <= 0) {
+    const views = this.viewsByPost.get(postId);
+    if (views === undefined) return;
+    if (views > 1) this.viewsByPost.set(postId, views - 1);
+    else this.viewsByPost.delete(postId);
+    if (this.viewsByPost.size === 0) {
       this.teardown();
     }
   }
@@ -36,7 +37,7 @@ class PostReactionsRealtimeService {
 
     this.unsubscribeFn = userEventChannel.on('post:interaction', (data) => {
       const postId = data.post_id;
-      if (!postId || !this.subscribedPostIds.has(postId)) return;
+      if (!postId || !this.viewsByPost.has(postId)) return;
 
       if (data.interaction_type !== 'emoji_reaction') return;
 
@@ -64,8 +65,7 @@ class PostReactionsRealtimeService {
       this.unsubscribeFn();
       this.unsubscribeFn = null;
     }
-    this.subscribedPostIds.clear();
-    this.refCount = 0;
+    this.viewsByPost.clear();
   }
 }
 

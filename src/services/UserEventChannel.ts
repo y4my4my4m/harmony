@@ -25,6 +25,8 @@ type UserEventType =
   | 'conversation:new' | 'conversation:updated'
   // conversation_encryption_settings changed (20261018100001_conversation_encryption_enforcement.sql).
   | 'conversation:encryption'
+  // A conversation message turned deleted (20261118100001_dm_preview_skips_deleted.sql).
+  | 'conversation:message_deleted'
   | 'server:joined' | 'server:left' | 'server:updated'
   | 'preferences:updated'
   | 'post:new' | 'post:updated' | 'post:deleted' | 'post:interaction'
@@ -45,8 +47,11 @@ type UserEventType =
   | 'federated_voice:token' | 'federated_voice:rejected'
   // Federated DM call signalling (VoiceActivityHandler).
   | 'federated_call:incoming' | 'federated_call:accepted' | 'federated_call:rejected' | 'federated_call:ended'
+  | 'federated_call:answered'
   // A DM partner's presence change (presence_publish).
   | 'presence:update'
+  // A conversation partner's profile change (broadcast_profile_change, 20261118200001).
+  | 'profile:updated'
   // Server mute or deafen of this user, and a moderator's move or disconnect
   // (20261017100002_voice_moderation.sql).
   | 'voice:moderation' | 'voice:moved'

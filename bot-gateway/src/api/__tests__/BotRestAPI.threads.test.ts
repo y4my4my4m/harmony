@@ -37,8 +37,22 @@ vi.mock('../../auth/BotAuthMiddleware.js', () => ({
 }))
 
 import { BotRestAPI } from '../BotRestAPI.js'
+import { forgetBridgeConsent } from '../../bridge/memberConsent.js'
 
 let db: FakeDb
+// Discord opt-outs of the server's members (bridge_member_optout_ids).
+let optedOut: string[]
+
+type Rpc = (fn: string, args: Record<string, unknown>) => Promise<unknown>
+
+/** The consent lookups answered from `optedOut`, every other rpc by `other`. */
+function rpcs(other: Rpc) {
+  mocks.rpc.mockImplementation(async (fn: string, args: Record<string, unknown>) => {
+    if (fn === 'bridge_channel_platform') return { data: 'discord', error: null }
+    if (fn === 'bridge_member_optout_ids') return { data: { user_ids: optedOut }, error: null }
+    return other(fn, args)
+  })
+}
 
 function seed({ sendMessages = true } = {}) {
   const tables: Record<string, Row[]> = {
@@ -82,7 +96,9 @@ function app() {
 beforeEach(() => {
   mocks.rpc.mockReset()
   mocks.from.mockReset()
-  mocks.rpc.mockImplementation(async (fn: string) => {
+  forgetBridgeConsent()
+  optedOut = []
+  rpcs(async (fn) => {
     throw new Error(`test called unmocked rpc: ${fn}`)
   })
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -118,11 +134,12 @@ describe('POST /channels/:id/messages with thread_id', () => {
 describe('POST /channels/:id/threads', () => {
   it('creates a thread on a message, paired with a Discord thread, through bot_create_thread', async () => {
     seed()
-    mocks.rpc.mockImplementation(async (fn: string, args: Record<string, unknown>) => {
+    rpcs(async (fn, args) => {
       expect(fn).toBe('bot_create_thread')
       expect(args).toEqual({
         p_bot_id: BOT_ID, p_channel_id: PAIRED, p_name: 'From Discord',
         p_parent_message_id: STARTER, p_discord_thread_id: '1234567890123', p_discord_user: null,
+        p_created_at: null, p_starter_discord_user_id: null,
       })
       db.rows('discord_bridge_threads').push({ thread_id: THREAD, bridge_id: BRIDGE_ID, discord_thread_id: '1234567890123' })
       return { data: THREAD, error: null }
@@ -137,7 +154,7 @@ describe('POST /channels/:id/threads', () => {
   it('names the notice after the Discord member who started the thread, only for a paired thread', async () => {
     seed()
     const calls: Record<string, unknown>[] = []
-    mocks.rpc.mockImplementation(async (_fn: string, args: Record<string, unknown>) => {
+    rpcs(async (_fn, args) => {
       calls.push(args)
       return { data: THREAD, error: null }
     })
@@ -163,12 +180,33 @@ describe('POST /channels/:id/threads', () => {
     expect(mocks.rpc).not.toHaveBeenCalled()
   })
 
+  it('passes the Discord thread\'s creation time and its starter message\'s author, only for a paired thread', async () => {
+    seed()
+    const calls: Record<string, unknown>[] = []
+    rpcs(async (_fn, args) => {
+      calls.push(args)
+      return { data: THREAD, error: null }
+    })
+    const post = (body: object) => supertest(app()).post(`/api/v1/channels/${PAIRED}/threads`).send(body)
+    await post({ name: 'x', discord_thread_id: '1234567890123', created_at: '2026-11-20T10:00:00.000Z', starter_discord_user_id: '1400000000000000003' })
+    await post({ name: 'x', created_at: '2026-11-20T10:00:00.000Z', starter_discord_user_id: '1400000000000000003' })
+    await post({ name: 'x', discord_thread_id: '1234567890124' })
+    expect(calls.map(c => [c.p_created_at, c.p_starter_discord_user_id])).toEqual([
+      ['2026-11-20T10:00:00.000Z', '1400000000000000003'],
+      [null, null],
+      [null, null],
+    ])
+  })
+
   it('validates its body', async () => {
     seed()
     const post = (body: unknown) => supertest(app()).post(`/api/v1/channels/${PAIRED}/threads`).send(body as object)
     expect((await post({ name: '  ' })).status).toBe(400)
     expect((await post({ name: 'x', message_id: 'nope' })).status).toBe(400)
     expect((await post({ name: 'x', discord_thread_id: 'abc' })).status).toBe(400)
+    expect((await post({ name: 'x', discord_thread_id: '1234567890123', created_at: 'yesterday' })).status).toBe(400)
+    expect((await post({ name: 'x', discord_thread_id: '1234567890123', starter_discord_user_id: 'dana' })).status).toBe(400)
+    expect(mocks.rpc).not.toHaveBeenCalled()
   })
 
   it('maps rpc refusals to statuses', async () => {
@@ -210,5 +248,66 @@ describe('thread pairs', () => {
     seed()
     expect((await supertest(app()).put(`/api/v1/threads/${OTHER_THREAD}/discord`).send({ discord_thread_id: '1' })).status).toBe(403)
     expect((await supertest(app()).put(`/api/v1/threads/${THREAD}/discord`).send({ discord_thread_id: 'x' })).status).toBe(400)
+  })
+})
+
+describe('a thread title and its members\' opt-outs', () => {
+  const read = (id = THREAD) => supertest(app()).get(`/api/v1/threads/${id}`)
+
+  it('is Thread for a bridge whose platform the thread\'s creator opted out of, and stays readable', async () => {
+    seed()
+    db.rows('threads')[0].created_by = OWNER_ID
+    db.rows('messages')[0].user_id = null
+    expect((await read()).body.name).toBe('Starter')
+
+    optedOut = [OWNER_ID]
+    forgetBridgeConsent()
+    const res = await read()
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ id: THREAD, parent_message_id: STARTER, name: 'Thread' })
+  })
+
+  it('is Thread when the author of the starter message, or the member its notice names, opted out', async () => {
+    optedOut = [OWNER_ID]
+    seed()
+    expect((await read()).body.name).toBe('Thread')
+
+    db.rows('messages')[0].user_id = null
+    expect((await read()).body.name).toBe('Starter')
+    Object.assign(db.rows('messages')[0], { is_system: true, metadata: { type: 'thread_created', actor_id: OWNER_ID, thread_id: THREAD } })
+    expect((await read()).body.name).toBe('Thread')
+  })
+
+  it('hides it on every route that answers a thread', async () => {
+    optedOut = [OWNER_ID]
+    seed()
+    db.rows('threads')[0].created_by = OWNER_ID
+    db.rows('discord_bridge_threads').push({ thread_id: THREAD, bridge_id: BRIDGE_ID, discord_thread_id: '555' })
+    expect((await supertest(app()).get(`/api/v1/channels/${PAIRED}/threads/lookup?discord_thread_id=555`)).body.name).toBe('Thread')
+    expect((await supertest(app()).put(`/api/v1/threads/${THREAD}/discord`).send({ discord_thread_id: '555' })).body.name).toBe('Thread')
+    // A message holds one thread: bot_create_thread answers the one already there.
+    rpcs(async () => ({ data: THREAD, error: null }))
+    const existing = await supertest(app()).post(`/api/v1/channels/${PAIRED}/threads`).send({ name: 'x', message_id: STARTER })
+    expect(existing.body.name).toBe('Thread')
+  })
+
+  it('answers 500 without a title while the starter message cannot be read, and Thread once it is gone', async () => {
+    seed()
+    expect((await read()).body.name).toBe('Starter')
+    db.failures.messages = { message: 'offline' }
+    const failed = await read()
+    expect(failed.status).toBe(500)
+    expect(failed.body).not.toHaveProperty('name')
+    delete db.failures.messages
+    db.rows('messages').splice(0)
+    expect((await read()).body.name).toBe('Thread')
+  })
+
+  it('reaches an ordinary bot, without reading the starter message', async () => {
+    optedOut = [OWNER_ID]
+    seed()
+    db.rows('bots')[0].bot_type = null
+    db.failures.messages = { message: 'offline' }
+    expect((await read()).body.name).toBe('Starter')
   })
 })

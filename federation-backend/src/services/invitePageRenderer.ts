@@ -1,6 +1,7 @@
 /**
  * Link-preview page and oEmbed of a server invite, /invite/:code. Link-preview crawlers
  * reach it through the reverse proxy's User-Agent map; people get the SPA at the same URL.
+ * `instanceName` is the instance's name as utils/instanceName.ts resolves it.
  */
 
 import config from '../config/index.js';
@@ -42,10 +43,10 @@ function absoluteHttpUrl(url: string): string {
   return /^https?:\/\//i.test(url) ? url : '';
 }
 
-function defaultImage(): InviteImage {
+function defaultImage(instanceName: string): InviteImage {
   return {
     url: `https://${config.INSTANCE_DOMAIN}${DEFAULT_IMAGE.path}`,
-    alt: config.INSTANCE_NAME,
+    alt: instanceName,
     large: false,
     width: DEFAULT_IMAGE.width,
     height: DEFAULT_IMAGE.height,
@@ -53,14 +54,14 @@ function defaultImage(): InviteImage {
 }
 
 /** Banner as a large image, else a custom icon as a thumbnail, else the instance icon. */
-export function inviteImage(preview: InvitePreview): InviteImage {
+export function inviteImage(preview: InvitePreview, instanceName: string): InviteImage {
   const banner = preview.banner ? absoluteHttpUrl(originalStorageUrl(preview.banner.trim(), 'server_banners')) : '';
   if (banner) return { url: banner, alt: `${cardName(preview)} banner`, large: true };
   const icon = preview.icon && !isDefaultServerIcon(preview.icon)
     ? absoluteHttpUrl(originalStorageUrl(preview.icon.trim(), 'server_icons'))
     : '';
   if (icon) return { url: icon, alt: `${cardName(preview)} icon`, large: false };
-  return defaultImage();
+  return defaultImage(instanceName);
 }
 
 /** Whitespace collapsed; cut to `limit` code points including the ellipsis. */
@@ -138,6 +139,7 @@ function imageMeta(image: InviteImage): string {
 }
 
 interface PageParts {
+  instanceName: string;
   title: string;
   description: string;
   themeColor: string;
@@ -149,7 +151,7 @@ interface PageParts {
 }
 
 function page(parts: PageParts): string {
-  const instanceName = config.INSTANCE_NAME;
+  const { instanceName } = parts;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -185,11 +187,14 @@ ${parts.body}
  * provider_name into the OpenGraph embed, while Mastodon and Slack take a discovered oEmbed
  * in place of OpenGraph and a link-type oEmbed carries no description or image.
  */
-export function renderInvitePage(preview: InvitePreview, options: { oembed?: boolean } = {}): string {
+export function renderInvitePage(
+  preview: InvitePreview,
+  instanceName: string,
+  options: { oembed?: boolean } = {},
+): string {
   const url = inviteUrl(preview.code);
-  const instanceName = config.INSTANCE_NAME;
   const description = inviteDescription(preview);
-  const image = inviteImage(preview);
+  const image = inviteImage(preview, instanceName);
   const oembedUrl = `https://${config.INSTANCE_DOMAIN}/oembed?url=${encodeURIComponent(url)}&format=json`;
 
   const head = [
@@ -217,11 +222,17 @@ export function renderInvitePage(preview: InvitePreview, options: { oembed?: boo
     '    </div>',
   ].filter(Boolean).join('\n');
 
-  return page({ title: cardName(preview), description, themeColor: THEME_COLOR, image, head, body });
+  return page({ instanceName, title: cardName(preview), description, themeColor: THEME_COLOR, image, head, body });
 }
 
-function noticePage(title: string, description: string, themeColor: string, cta: { href: string; label: string }): string {
-  const image = defaultImage();
+function noticePage(
+  instanceName: string,
+  title: string,
+  description: string,
+  themeColor: string,
+  cta: { href: string; label: string },
+): string {
+  const image = defaultImage(instanceName);
   const body = [
     '    <div class="body">',
     '      <div class="head">',
@@ -234,37 +245,39 @@ function noticePage(title: string, description: string, themeColor: string, cta:
     `      <a class="cta" href="${escapeHtml(cta.href)}">${escapeHtml(cta.label)}</a>`,
     '    </div>',
   ].join('\n');
-  return page({ title, description, themeColor, image, head: '', body });
+  return page({ instanceName, title, description, themeColor, image, head: '', body });
 }
 
 /** Not found, revoked, expired, used up or malformed: nothing of the server. */
-export function renderInvalidInvitePage(): string {
+export function renderInvalidInvitePage(instanceName: string): string {
   return noticePage(
+    instanceName,
     'Invite invalid or expired',
     'This invite link is invalid, expired, revoked or used up.',
     INVALID_THEME_COLOR,
-    { href: `https://${config.INSTANCE_DOMAIN}/`, label: `Go to ${config.INSTANCE_NAME}` },
+    { href: `https://${config.INSTANCE_DOMAIN}/`, label: `Go to ${instanceName}` },
   );
 }
 
 /** The lookup failed: nothing about the invite either way. `code` matches INVITE_CODE. */
-export function renderUnavailableInvitePage(code: string): string {
+export function renderUnavailableInvitePage(code: string, instanceName: string): string {
   return noticePage(
+    instanceName,
     'Server invite',
-    `This invite cannot be previewed right now. Open it in ${config.INSTANCE_NAME} to see the server.`,
+    `This invite cannot be previewed right now. Open it in ${instanceName} to see the server.`,
     THEME_COLOR,
-    { href: inviteUrl(code), label: `Open in ${config.INSTANCE_NAME}` },
+    { href: inviteUrl(code), label: `Open in ${instanceName}` },
   );
 }
 
-export function renderInviteOEmbed(preview: InvitePreview): object {
+export function renderInviteOEmbed(preview: InvitePreview, instanceName: string): object {
   return {
     version: '1.0',
     type: 'link',
     title: cardName(preview),
     author_name: INVITE_AUTHOR_LINE,
     author_url: inviteUrl(preview.code),
-    provider_name: config.INSTANCE_NAME,
+    provider_name: instanceName,
     provider_url: `https://${config.INSTANCE_DOMAIN}`,
     cache_age: 300,
   };

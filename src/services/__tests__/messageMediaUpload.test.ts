@@ -3,8 +3,10 @@ import { flushPromises } from '@vue/test-utils'
 import { supabase } from '@/supabase'
 
 vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
+const bucket = vi.hoisted(() => ({ allowedMime: null as string[] | null }))
 vi.mock('@/utils/uploadValidation', () => ({
-  validateImageUpload: vi.fn(async (file: File) => (file.size > 10 ? 'too large' : null)),
+  validateUploadSize: vi.fn(async (file: Blob) => (file.size > 10 ? 'too large' : null)),
+  getBucketLimits: vi.fn(async () => ({ maxBytes: 0, allowedMime: bucket.allowedMime, label: 'file' })),
   humanizeUploadError: (error: { message?: string; statusCode?: number | string }) =>
     error?.message || `status ${error?.statusCode}`,
 }))
@@ -15,7 +17,9 @@ import {
   forgetMessageMediaUpload,
   messageMediaUploadState,
   startMessageMediaUpload,
+  storedContentType,
 } from '@/services/messageMediaUpload'
+import { WHOLE_RETRY_DELAY_MS } from '@/services/uploads/storageUpload'
 
 const PATH = 'c/66666666-0000-4000-8000-000000000006/aaaaaaaa-0000-4000-8000-000000000001/x.png'
 
@@ -77,7 +81,7 @@ describe('startMessageMediaUpload', () => {
 
     xhr.status = 200
     xhr.onload?.()
-    await expect(upload.result).resolves.toEqual({ path: PATH, url: `https://signed/${PATH}` })
+    await expect(upload.result).resolves.toEqual({ path: PATH, url: `https://signed/${PATH}`, contentType: 'image/png' })
     expect(upload.state).toMatchObject({ status: 'completed', progress: 1 })
   })
 
@@ -93,14 +97,23 @@ describe('startMessageMediaUpload', () => {
     expect(upload.state).toMatchObject({ status: 'error', error: 'new row violates row-level security policy' })
   })
 
-  it('fails validation before any request', async () => {
+  it('fails the size check before any request', async () => {
     const upload = startMessageMediaUpload(PATH, new File(['far too many bytes'], 'x.png', { type: 'image/png' }), { validate: true })
     await expect(upload.result).rejects.toThrow('too large')
     expect(FakeXHR.last).toBeNull()
-
-    const svg = startMessageMediaUpload(PATH, new File(['<svg/>'], 'x.svg', { type: 'image/svg+xml' }), { validate: true })
-    await expect(svg.result).rejects.toThrow(/SVG/)
   })
+
+  it('takes a type the bucket does not serve, stored as application/octet-stream under its own name', async () => {
+    const upload = startMessageMediaUpload(PATH, new File(['PK'], 'app.apk', { type: 'application/vnd.android.package-archive' }), { validate: true })
+    await flushPromises()
+    const sent = FakeXHR.last!.body?.get('') as File
+    expect(sent.type).toBe('application/octet-stream')
+    expect(sent.name).toBe('app.apk')
+    FakeXHR.last!.status = 200
+    FakeXHR.last!.onload?.()
+    await expect(upload.result).resolves.toMatchObject({ contentType: 'application/octet-stream' })
+  })
+
 
   it('aborts the request', async () => {
     const upload = startMessageMediaUpload(PATH, new File(['png'], 'x.png', { type: 'image/png' }))
@@ -119,7 +132,7 @@ describe('startMessageMediaUpload', () => {
     expect(FakeXHR.last).toBeNull()
   })
 
-  it('fails an upload with no progress for the stall window, however long it runs', async () => {
+  it('fails an upload whose request and its one retry each go the stall window without progress', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const upload = startMessageMediaUpload(PATH, new File(['png'], 'x.png', { type: 'image/png' }))
     await flushPromises()
@@ -130,6 +143,12 @@ describe('startMessageMediaUpload', () => {
       xhr.upload.onprogress?.({ lengthComputable: true, loaded: sent, total: 100 })
     }
     expect(upload.state.status).toBe('uploading')
+
+    await vi.advanceTimersByTimeAsync(UPLOAD_STALL_MS)
+    expect(upload.state).toMatchObject({ status: 'uploading', reconnecting: true })
+    await vi.advanceTimersByTimeAsync(WHOLE_RETRY_DELAY_MS)
+    expect(FakeXHR.last).not.toBe(xhr)
+    expect(upload.state.reconnecting).toBe(false)
 
     await vi.advanceTimersByTimeAsync(UPLOAD_STALL_MS)
     await expect(upload.result).rejects.toThrow('message.upload.stalled')
@@ -148,6 +167,39 @@ describe('startMessageMediaUpload', () => {
     xhr.status = 200
     xhr.onload?.()
 
-    await expect(upload.result).resolves.toEqual({ path: PATH, url: `https://signed/${PATH}` })
+    await expect(upload.result).resolves.toEqual({ path: PATH, url: `https://signed/${PATH}`, contentType: 'image/png' })
+  })
+})
+
+describe('storedContentType', () => {
+  afterEach(() => { bucket.allowedMime = null })
+
+  const f = (name: string, type: string) => new File(['x'], name, { type })
+
+  it('keeps a type the bucket serves, and stores any other as octet-stream', async () => {
+    expect(await storedContentType(f('a.png', 'image/png'))).toBe('image/png')
+    expect(await storedContentType(f('a.mp4', 'video/mp4'))).toBe('video/mp4')
+    expect(await storedContentType(f('a.ogg', 'audio/ogg; codecs=opus'))).toBe('audio/ogg; codecs=opus')
+    expect(await storedContentType(f('a.pdf', 'application/pdf'))).toBe('application/pdf')
+    expect(await storedContentType(f('a.apk', 'application/vnd.android.package-archive'))).toBe('application/octet-stream')
+    expect(await storedContentType(f('a.exe', 'application/x-msdownload'))).toBe('application/octet-stream')
+    expect(await storedContentType(f('a.json', 'application/json'))).toBe('application/octet-stream')
+    expect(await storedContentType(f('a.bin', ''))).toBe('application/octet-stream')
+  })
+
+  it('stores what a browser would run as octet-stream, whatever the bucket allows', async () => {
+    bucket.allowedMime = ['*/*']
+    expect(await storedContentType(f('a.html', 'text/html'))).toBe('application/octet-stream')
+    expect(await storedContentType(f('a.svg', 'image/svg+xml'))).toBe('application/octet-stream')
+    expect(await storedContentType(f('a.xml', 'application/xml'))).toBe('application/octet-stream')
+    expect(await storedContentType(f('a.js', 'text/javascript'))).toBe('application/octet-stream')
+    expect(await storedContentType(f('page.html', 'text/plain'))).toBe('application/octet-stream')
+    expect(await storedContentType(f('a.png', 'image/png'))).toBe('image/png')
+  })
+
+  it('follows the instance\'s live bucket list', async () => {
+    bucket.allowedMime = ['image/png', 'application/octet-stream']
+    expect(await storedContentType(f('a.png', 'image/png'))).toBe('image/png')
+    expect(await storedContentType(f('a.mp4', 'video/mp4'))).toBe('application/octet-stream')
   })
 })

@@ -629,6 +629,12 @@ export function parseMovedTo(value: unknown): string | null {
   return referenceUri(Array.isArray(value) ? value[0] : value);
 }
 
+/** A collection property's IRI: the string, or the `id` of an embedded Collection. */
+function collectionIri(value: unknown): string | undefined {
+  const iri = typeof value === 'string' ? value : (value as { id?: unknown } | null)?.id;
+  return typeof iri === 'string' && iri !== '' ? iri : undefined;
+}
+
 /**
  * Extract user profile data from ActivityPub Actor
  */
@@ -665,9 +671,9 @@ export function actorToProfile(actor: any): {
     domain,
     federated_id: actor.id,
     inbox_url: actor.inbox,
-    outbox_url: actor.outbox,
-    followers_url: actor.followers,
-    following_url: actor.following,
+    outbox_url: collectionIri(actor.outbox),
+    followers_url: collectionIri(actor.followers),
+    following_url: collectionIri(actor.following),
     is_local: false,
     also_known_as: parseAlsoKnownAs(actor.alsoKnownAs).filter((uri) => uri !== actor.id),
     moved_to_uri: parseMovedTo(actor.movedTo),

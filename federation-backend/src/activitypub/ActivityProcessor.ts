@@ -23,7 +23,7 @@ import { membershipOutlivesRemove, removalReason, removedByStaff } from './membe
 import { isServerBlockedHere } from './instanceServerBlocks.js';
 import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
 import { actorHostReadsPost, storedPostVisibility } from './postAccess.js';
-import { inboundEmojiOrigin, inboundEmojiRowId, ownEmojiId } from '../utils/emojiOrigin.js';
+import { inboundEmojiOrigin, inboundEmojiRowId, inboundEmojiRowIds, ownEmojiId } from '../utils/emojiOrigin.js';
 import { cacheInboundEmojiTags } from '../utils/remoteEmojiCache.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
@@ -46,6 +46,7 @@ import {
   pinsTargetChannel,
 } from './copyMirror.js';
 import { hostFlagsOf } from './channelFlags.js';
+import { audienceOf, authorActorUrl, recipientsOf, visibilityOf } from './audience.js';
 import { CopyMirrorService } from '../services/CopyMirrorService.js';
 import {
   authorizeChannelWrite,
@@ -77,28 +78,17 @@ export function extractMessageId(url: string): string | null {
 }
 
 /**
- * Determine post visibility from ActivityPub 'to' and 'cc' fields.
- * Exported for direct testing.
+ * Visibility of an incoming post object (audience.ts). `activity` supplies the `to` and `cc` the
+ * object does not state; `followersUrl` is the author's stored followers collection.
  */
-export function determineVisibility(object: any): string {
-  const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
-  const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean);
-
-  // JSON-LD compaction yields `as:Public` or `Public` for the same IRI.
-  const isPublic = (v: unknown) =>
-    v === 'https://www.w3.org/ns/activitystreams#Public' || v === 'as:Public' || v === 'Public';
-
-  if (to.some(isPublic)) return 'public';
-  if (cc.some(isPublic)) return 'unlisted';
-
-  const allRecipients = [...to, ...cc];
-  const hasFollowersCollection = allRecipients.some(
-    (url: any) => typeof url === 'string' && url.includes('/followers')
-  );
-
-  if (!hasFollowersCollection && allRecipients.length > 0) return 'direct';
-  if (hasFollowersCollection) return 'followers';
-  return 'unlisted';
+export function determineVisibility(
+  object: any,
+  context: { activity?: any; followersUrl?: string | null } = {},
+): string {
+  return visibilityOf(audienceOf(object, context.activity), {
+    actorUrl: authorActorUrl(object, context.activity),
+    followersUrl: context.followersUrl,
+  });
 }
 
 /**
@@ -107,18 +97,24 @@ export function determineVisibility(object: any): string {
  * instance domain's URL pattern (covers local users whose federated_id was
  * never set).
  */
-async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string } | null> {
+async function resolveProfileByActorUrl(
+  actorUrl: string,
+): Promise<{ id: string; followers_url?: string | null } | null> {
   const supabase = getSupabaseClient();
 
   // 1) Direct federated_id lookup
   const { data: byFedId } = await supabase
     .from('profiles')
-    .select('id')
+    .select('id, followers_url')
     .eq('federated_id', actorUrl)
     .maybeSingle();
   if (byFedId) return byFedId;
+  return resolveLocalProfileByActorUrl(actorUrl);
+}
 
-  // 2) Fallback: if the URL matches the instance domain, extract username
+/** A local user named by `https://<INSTANCE_DOMAIN>/users/<username>`, matched by username. */
+async function resolveLocalProfileByActorUrl(actorUrl: string): Promise<{ id: string } | null> {
+  const supabase = getSupabaseClient();
   const localPattern = new RegExp(
     `^https?://${config.INSTANCE_DOMAIN.replace(/\./g, '\\.')}/users/([^/]+)$`,
     'i'
@@ -159,6 +155,52 @@ async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string 
   return null;
 }
 
+/**
+ * Addresses a direct message or group invite may name; one naming more is refused whole, never
+ * cut short. The 10 people of a group made here do not bind a group made elsewhere
+ * (20261116100001_group_conversation_limit.sql).
+ */
+const MAX_DIRECT_RECIPIENTS = 250;
+
+/** federated_id values per `in` filter: PostgREST reads the list from the request URL. */
+const PROFILE_LOOKUP_CHUNK = 25;
+
+interface Recipient {
+  id: string;
+  local: boolean;
+}
+
+/**
+ * Stored profiles of `actorUrls`, in their order; an address of no stored profile is left out,
+ * as is one that is no http(s) IRI or holds a `"` (postgrest-js quotes `,()` in an `in` list but
+ * does not escape `"`). One query per PROFILE_LOOKUP_CHUNK addresses; only an own-host miss
+ * takes the per-address username fallback.
+ */
+async function resolveRecipients(actorUrls: string[]): Promise<Recipient[]> {
+  const supabase = getSupabaseClient();
+  const urls = actorUrls.filter((url) => urlHost(url) !== null && !url.includes('"'));
+  const byUrl = new Map<string, Recipient>();
+  for (let i = 0; i < urls.length; i += PROFILE_LOOKUP_CHUNK) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, federated_id, is_local')
+      .in('federated_id', urls.slice(i, i + PROFILE_LOOKUP_CHUNK));
+    if (error) logger.warn(`Recipient lookup failed: ${error.message}`);
+    for (const row of data ?? []) byUrl.set(row.federated_id, { id: row.id, local: row.is_local === true });
+  }
+  const ownHost = config.INSTANCE_DOMAIN.toLowerCase();
+  const out: Recipient[] = [];
+  for (const url of urls) {
+    let found = byUrl.get(url);
+    if (!found && urlHost(url) === ownHost) {
+      const local = await resolveLocalProfileByActorUrl(url).catch(() => null);
+      if (local) found = { id: local.id, local: true };
+    }
+    if (found && !out.some((r) => r.id === found!.id)) out.push(found);
+  }
+  return out;
+}
+
 const AP_FETCH_RETRY_DELAY_MS = 750;
 
 // Connection-level failures worth one retry: a dropped SYN or reset to a distant host (the
@@ -187,6 +229,19 @@ function isBoostableVisibility(visibility: unknown): boolean {
   return visibility === 'public' || visibility === 'unlisted';
 }
 
+/** Profile federation_metadata as an object; older rows hold it as a JSON-encoded string. */
+function profileMetadata(value: unknown): Record<string, any> {
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? { ...(parsed as Record<string, any>) } : {};
+}
+
 /** A quoted post as read for the quote's reblog snapshot. */
 const QUOTED_POST_COLUMNS =
   'id, content, created_at, visibility, is_deleted, author_id, media_attachments, is_sensitive, content_warning';
@@ -204,14 +259,22 @@ export class ActivityProcessor {
 
   /** True for a suspended account, and for a remote account its own Delete removed. */
   private static async isActorSuspended(actorUrl: string): Promise<boolean> {
+    return (await this.actorStanding(actorUrl)).suspended;
+  }
+
+  /** Whether the stored actor is suspended or deleted, and its declared followers IRI. */
+  private static async actorStanding(actorUrl: string): Promise<{ suspended: boolean; followersUrl: string | null }> {
     const supabase = getSupabaseClient();
     const { data } = await supabase
       .from('profiles')
-      .select('is_suspended, is_local, deleted_at')
+      .select('is_suspended, is_local, deleted_at, followers_url')
       .eq('federated_id', actorUrl)
       .maybeSingle();
 
-    return data?.is_suspended === true || (data?.is_local === false && !!data?.deleted_at);
+    return {
+      suspended: data?.is_suspended === true || (data?.is_local === false && !!data?.deleted_at),
+      followersUrl: data?.followers_url ?? null,
+    };
   }
 
   /**
@@ -727,15 +790,17 @@ export class ActivityProcessor {
         logger.warn(`Create rejected: poll ${object.id} is not on the host of actor ${normalizeActor(activity.actor)}`);
         return;
       }
-      if (this.determineVisibility(object) === 'direct' && object['harmony:serverId'] === undefined) {
+      if (object['harmony:serverId'] === undefined) {
         await this.ensureRemoteUser(normalizeActor(activity.actor));
         const author = await resolveProfileByActorUrl(normalizeActor(activity.actor));
-        if (!author) {
-          logger.error('Failed to find author for direct poll');
+        if (this.determineVisibility(object, { activity, followersUrl: author?.followers_url }) === 'direct') {
+          if (!author) {
+            logger.error('Failed to find author for direct poll');
+            return;
+          }
+          await this.handleDirectMessage(object, author.id, noteToContent(object), activity, options);
           return;
         }
-        await this.handleDirectMessage(object, author.id, noteToContent(object), activity, options);
-        return;
       }
       logger.info(`Processing poll: ${object.id}`);
       await this.processCreatePoll(activity, object, options.audience);
@@ -804,7 +869,7 @@ export class ActivityProcessor {
       
       const content = rawContent;
 
-      const visibility = this.determineVisibility(object);
+      const visibility = this.determineVisibility(object, { activity, followersUrl: author.followers_url });
 
       // Group invite notification, sent when a remote user is added to a group.
       if (object.metadata?.type === 'group_invite') {
@@ -840,8 +905,11 @@ export class ActivityProcessor {
 
         let replyRefused = false;
         if (object.inReplyTo) {
-          const replyResult = await this.resolveReplyChain(object.inReplyTo);
-          if (await this.actorReachesPost(replyResult.parentPostId, normalizeActor(activity.actor))) {
+          const visited = new Set([object.id, ownNoteUrl(object)].filter((u): u is string => typeof u === 'string'));
+          const replyResult = await this.resolveReplyChain(object.inReplyTo, 0, visited);
+          if (replyResult.cycle) {
+            replyRefused = true;
+          } else if (await this.actorReachesPost(replyResult.parentPostId, normalizeActor(activity.actor))) {
             parentPostId = replyResult.parentPostId;
             conversationRootId = replyResult.conversationRootId;
           } else {
@@ -1092,9 +1160,14 @@ export class ActivityProcessor {
     return reaches;
   }
 
-  private static async resolveReplyChain(inReplyToRef: string, depth = 0): Promise<{
+  /**
+   * `visited` holds the AP ids, urls and post ids of the chain walked so far. A post has one
+   * parent, so a ref already in it closes a cycle: the walk stops and reports `cycle`.
+   */
+  private static async resolveReplyChain(inReplyToRef: string, depth = 0, visited = new Set<string>()): Promise<{
     parentPostId: string | null;
     conversationRootId: string | null;
+    cycle?: boolean;
   }> {
     const supabase = getSupabaseClient();
 
@@ -1104,6 +1177,10 @@ export class ActivityProcessor {
     if (depth >= this.MAX_REPLY_CHAIN_DEPTH) {
       logger.warn(`Reply chain too deep (>=${this.MAX_REPLY_CHAIN_DEPTH}), stopping resolution`);
       return { parentPostId: null, conversationRootId: null };
+    }
+    if (visited.has(inReplyToRef)) {
+      logger.warn(`Reply chain cycle at ${inReplyToRef}, stopping resolution`);
+      return { parentPostId: null, conversationRootId: null, cycle: true };
     }
 
     let parentPost = null;
@@ -1143,7 +1220,7 @@ export class ActivityProcessor {
       // budget (otherwise mutual recursion could exceed MAX_DEPTH).
       if (!parentPost) {
         logger.info(`Parent post not found locally, fetching: ${inReplyToRef}`);
-        parentPost = await this.fetchAndCreateRemotePost(inReplyToRef, depth + 1);
+        parentPost = await this.fetchAndCreateRemotePost(inReplyToRef, depth + 1, visited);
       }
     }
 
@@ -1151,6 +1228,8 @@ export class ActivityProcessor {
       logger.warn(`Could not resolve parent post: ${inReplyToRef}`);
       return { parentPostId: null, conversationRootId: null };
     }
+    visited.add(inReplyToRef);
+    visited.add(parentPost.id);
 
     if (parentPost.conversation_root_id) {
       return {
@@ -1167,7 +1246,7 @@ export class ActivityProcessor {
     }
 
     // Parent is also a reply - in_reply_to is always a UUID (DB column), recurse
-    const parentResult = await this.resolveReplyChain(parentPost.in_reply_to, depth + 1);
+    const parentResult = await this.resolveReplyChain(parentPost.in_reply_to, depth + 1, visited);
     
     if (parentResult.conversationRootId && !parentPost.conversation_root_id) {
       await supabase
@@ -1265,7 +1344,7 @@ export class ActivityProcessor {
    * Whether freshly imported or already cached, orphaned local replies whose
    * `metadata.in_reply_to_ap_url` points at this post's ap_id are re-linked.
    */
-  public static async fetchAndCreateRemotePost(postUrl: string, depth = 0): Promise<{
+  public static async fetchAndCreateRemotePost(postUrl: string, depth = 0, visited = new Set<string>()): Promise<{
     id: string;
     in_reply_to: string | null;
     conversation_root_id: string | null;
@@ -1311,7 +1390,13 @@ export class ActivityProcessor {
         };
       }
 
-      // BUGS.md H15: postUrl comes from inbox-supplied AP objects (attacker-
+      if (visited.has(postUrl)) {
+        logger.warn(`Reply chain cycle at ${postUrl}, not fetching`);
+        return null;
+      }
+      visited.add(postUrl);
+
+      // postUrl comes from inbox-supplied AP objects (attacker-
       // influenced); fetchApDocument goes through safeFetch.
       const remoteObject = await fetchAuthoritativeDocument(postUrl, (u) => this.fetchApDocument(u));
       if (!remoteObject) {
@@ -1319,7 +1404,7 @@ export class ActivityProcessor {
         return null;
       }
 
-      return await this.storeRemotePost(remoteObject, depth, postUrl);
+      return await this.storeRemotePost(remoteObject, depth, postUrl, visited);
     } catch (error) {
       logger.warn(`Error fetching remote post ${postUrl}:`, error);
       return null;
@@ -1332,7 +1417,12 @@ export class ActivityProcessor {
    * URL already looked up as absent. Refused when its host is blocked, or its author is on
    * another host or suspended.
    */
-  public static async storeRemotePost(fetchedObject: any, depth = 0, checkedUrl?: string): Promise<{
+  public static async storeRemotePost(
+    fetchedObject: any,
+    depth = 0,
+    checkedUrl?: string,
+    visited = new Set<string>(),
+  ): Promise<{
     id: string;
     in_reply_to: string | null;
     conversation_root_id: string | null;
@@ -1388,7 +1478,7 @@ export class ActivityProcessor {
 
       const { data: author } = await supabase
         .from('profiles')
-        .select('id, is_suspended')
+        .select('id, is_suspended, followers_url')
         .eq('federated_id', authorUrl)
         .single();
 
@@ -1402,7 +1492,7 @@ export class ActivityProcessor {
       }
 
       const content = noteToContent(remoteObject);
-      const visibility = this.determineVisibility(remoteObject);
+      const visibility = this.determineVisibility(remoteObject, { followersUrl: author.followers_url });
 
       // Walk the reply chain so the imported post lands with `in_reply_to`
       // and `conversation_root_id` set, and missing ancestors are imported
@@ -1412,8 +1502,12 @@ export class ActivityProcessor {
       let conversationRootId: string | null = null;
       let replyRefused = false;
       if (remoteObject.inReplyTo) {
-        const replyResult = await this.resolveReplyChain(remoteObject.inReplyTo, depth);
-        if (await this.actorReachesPost(replyResult.parentPostId, authorUrl)) {
+        visited.add(apId);
+        visited.add(apUrl);
+        const replyResult = await this.resolveReplyChain(remoteObject.inReplyTo, depth, visited);
+        if (replyResult.cycle) {
+          replyRefused = true;
+        } else if (await this.actorReachesPost(replyResult.parentPostId, authorUrl)) {
           resolvedInReplyTo = replyResult.parentPostId;
           conversationRootId = replyResult.conversationRootId;
         } else {
@@ -1421,9 +1515,10 @@ export class ActivityProcessor {
         }
       }
 
-      // The parent AP url is always stamped in metadata, even when resolution
-      // failed (parent server unreachable). The client-side ancestor walker
-      // retries from this hint.
+      // The parent AP url is stamped in metadata even when resolution failed (parent server
+      // unreachable); the client-side ancestor walker retries from this hint. A refused parent
+      // is not stamped. Nor is a parent that closes a cycle: relinkPendingChildren would link
+      // this post under its own descendant.
       const metadata: Record<string, any> = isQuestion ? { ...questionPollMetadata(remoteObject) } : {};
       if (remoteObject.inReplyTo && !replyRefused) {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
@@ -1514,7 +1609,7 @@ export class ActivityProcessor {
    *
    * Every branch verifies `activity.actor` owns the object being modified
    * before writing. Without the guard a remote signer can Update another
-   * actor's profile or edit any post by URL (BUGS.md C2).
+   * actor's profile or edit any post by URL.
    */
   private static async processUpdate(activity: any): Promise<void> {
     const object = activity.object;
@@ -1560,19 +1655,14 @@ export class ActivityProcessor {
         .maybeSingle();
       Object.assign(updateData, await movedColumns(supabase, profileData, existing));
 
-      const federationMetadata: any = {};
-      if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
-        federationMetadata.bio_emojis = profileData.bio_emojis;
-      }
-      if (profileData.display_name_emojis && profileData.display_name_emojis.length > 0) {
-        federationMetadata.display_name_emojis = profileData.display_name_emojis;
-      }
-      if (Object.keys(federationMetadata).length > 0) {
-        // Merge with existing federation_metadata
-        const existingMeta = existing?.federation_metadata ? (typeof existing.federation_metadata === 'string' ? JSON.parse(existing.federation_metadata) : existing.federation_metadata) : {};
-        // An object: SQL readers (public pages) take keys with ->, which a JSON-encoded string has none of.
-        updateData.federation_metadata = { ...existingMeta, ...federationMetadata };
-      }
+      // The actor's emoji lists replace the stored ones, empty included: an actor naming no emoji
+      // has none. An object: SQL readers (public pages) take keys with ->, which a JSON-encoded
+      // string has none of. Keys of other writers stay.
+      updateData.federation_metadata = {
+        ...profileMetadata(existing?.federation_metadata),
+        bio_emojis: profileData.bio_emojis ?? [],
+        display_name_emojis: profileData.display_name_emojis ?? [],
+      };
 
       await supabase
         .from('profiles')
@@ -1777,8 +1867,7 @@ export class ActivityProcessor {
    * Delete activity.
    *
    * Verifies `activity.actor` owns the object before soft-deleting. Without
-   * the guard any signed remote actor can delete any post or message by URL
-   * (BUGS.md C2).
+   * the guard any signed remote actor can delete any post or message by URL.
    */
   private static async processDelete(activity: any): Promise<void> {
     const object = activity.object;
@@ -2286,7 +2375,7 @@ export class ActivityProcessor {
     if (!originalPost) {
       logger.info(`Original post not found locally, attempting to fetch: ${objectUrl}`);
       try {
-        // BUGS.md H15: objectUrl is from inbox payload (attacker-influenced).
+        // objectUrl is from inbox payload (attacker-influenced).
         const remotePost = await fetchAuthoritativeDocument(objectUrl, (u) => this.fetchApDocument(u));
 
         if (remotePost && isBoostableVisibility(this.determineVisibility(remotePost))) {
@@ -2635,8 +2724,8 @@ export class ActivityProcessor {
     const undoesFavourite = isFavouriteLike({ emoji, emojiUrl, emojiName });
 
     // Lookup only: an Undo naming an unknown emoji matches nothing rather than
-    // creating a row.
-    let emojiId: string | null = null;
+    // creating a row. Every row the image may have resolved to when the reaction arrived.
+    const emojiIds = new Set<string>();
     if (isCustomEmoji) {
       const origin = inboundEmojiOrigin(emojiName!, actorUrl, config.INSTANCE_DOMAIN);
       let urlHost: string | null = null;
@@ -2645,7 +2734,11 @@ export class ActivityProcessor {
       } catch {
         urlHost = null;
       }
-      emojiId = await inboundEmojiRowId(supabase, emojiUrl!, origin.domain ?? urlHost);
+      for (const id of await inboundEmojiRowIds(supabase, emojiUrl!, origin.domain ?? urlHost)) emojiIds.add(id);
+      if (origin.own) {
+        const own = await ownEmojiId(supabase, emojiUrl!);
+        if (own) emojiIds.add(own);
+      }
     }
 
     // Content strings processLike writes for this emoji.
@@ -2662,7 +2755,7 @@ export class ActivityProcessor {
     return (row: any) => {
       if (row.interaction_type === 'favorite') return undoesFavourite;
       if (undoesFavourite) return isHeartReaction(row.custom_emoji_content);
-      if (emojiId !== null && row.emoji_id === emojiId) return true;
+      if (typeof row.emoji_id === 'string' && emojiIds.has(row.emoji_id)) return true;
       return typeof row.custom_emoji_content === 'string' && contents.has(row.custom_emoji_content);
     };
   }
@@ -2818,7 +2911,7 @@ export class ActivityProcessor {
 
     const { data: author } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, followers_url')
       .eq('federated_id', normalizeActor(activity.actor))
       .single();
 
@@ -2828,7 +2921,7 @@ export class ActivityProcessor {
     }
 
     const content = noteToContent(object);
-    const visibility = this.determineVisibility(object);
+    const visibility = this.determineVisibility(object, { activity, followersUrl: author.followers_url });
     const context = noteContext(object);
     const audience = relayAudience ?? noteAudience(object) ?? noteAudience(activity);
 
@@ -3771,7 +3864,7 @@ export class ActivityProcessor {
       logger.info(`Force refreshing profile for ${actorUrl}`);
     }
 
-    // BUGS.md H15: actorUrl is attacker-influenced (from inbox or Follow
+    // actorUrl is attacker-influenced (from inbox or Follow
     // activity); safeFetch handles SSRF, redirect re-validation, and timeout.
     try {
       // The stored profile is keyed by the document's own id. The document
@@ -3887,25 +3980,19 @@ export class ActivityProcessor {
       profileRecord.shared_inbox_url = actor.endpoints.sharedInbox;
     }
 
-    // Persist custom emoji metadata so the frontend can render shortcodes, and
-    // the actor's creation date, which the spam heuristics read as account age.
+    // Custom emoji lists, so the frontend can render shortcodes, and the actor's creation date,
+    // which the spam heuristics read as account age. The lists replace the stored ones, empty
+    // included, as ActorService's lookup writes them.
     const apPublished = typeof actor.published === 'string' && Number.isFinite(Date.parse(actor.published))
       ? new Date(actor.published).toISOString()
       : null;
-    if (profileData.display_name_emojis?.length || profileData.bio_emojis?.length || apPublished) {
-      const existingMeta = (existing as any)?.federation_metadata || {};
-      const meta = typeof existingMeta === 'string' ? JSON.parse(existingMeta) : { ...existingMeta };
-      if (profileData.display_name_emojis?.length) {
-        meta.display_name_emojis = profileData.display_name_emojis;
-      }
-      if (profileData.bio_emojis?.length) {
-        meta.bio_emojis = profileData.bio_emojis;
-      }
-      if (apPublished) {
-        meta.ap_published = apPublished;
-      }
-      profileRecord.federation_metadata = meta;
+    const meta = profileMetadata((existing as any)?.federation_metadata);
+    meta.display_name_emojis = profileData.display_name_emojis ?? [];
+    meta.bio_emojis = profileData.bio_emojis ?? [];
+    if (apPublished) {
+      meta.ap_published = apPublished;
     }
+    profileRecord.federation_metadata = meta;
 
     const { error: upsertError } = await supabase
       .from('profiles')
@@ -4365,14 +4452,18 @@ export class ActivityProcessor {
 
     const activity = outcome.activity;
     const actorUrl = normalizeActor(activity.actor);
-    if (await this.isActorSuspended(actorUrl)) {
+    const standing = await this.actorStanding(actorUrl);
+    if (standing.suspended) {
       logDenied('Group Announce', groupUrl, `${actorUrl} is suspended`);
       return;
     }
     // Channel messages travel in Harmony relays, direct posts to their recipients only.
     const object = activity.type === 'Delete' ? null : asNoteObject(activity.object);
+    const visibility = object
+      ? this.determineVisibility(object, { activity, followersUrl: standing.followersUrl })
+      : null;
     if (object && isPostObjectType(object.type)
-        && (object['harmony:serverId'] || ['direct', 'private'].includes(this.determineVisibility(object)))) {
+        && (object['harmony:serverId'] || visibility === 'direct' || visibility === 'private')) {
       logDenied('Group Announce', groupUrl, `${object.id} is a channel message or a direct post`);
       return;
     }
@@ -4656,23 +4747,18 @@ export class ActivityProcessor {
   ): Promise<void> {
     const supabase = getSupabaseClient();
     
-    const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
-    const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean);
-    const allRecipients = [...to, ...cc];
-    
-    const resolveResults = await Promise.allSettled(
-      allRecipients
-        .filter((url): url is string => typeof url === 'string')
-        .map(url => resolveProfileByActorUrl(url))
-    );
-    const recipientIds = resolveResults
-      .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value != null)
-      .map(r => r.value.id);
-    
-    if (recipientIds.length === 0) {
+    const addressed = recipientsOf(audienceOf(object, activity));
+    if (addressed.length > MAX_DIRECT_RECIPIENTS) {
+      logDenied('DM', normalizeActor(activity?.actor ?? object.attributedTo), `${object.id} names ${addressed.length} recipients`);
+      return;
+    }
+    const recipients = await resolveRecipients(addressed);
+    // A conversation here needs a participant here.
+    if (!recipients.some((r) => r.local)) {
       logger.warn(`Direct message ${object.id} has no local recipients`);
       return;
     }
+    const recipientIds = recipients.map((r) => r.id);
 
     if (await this.dmStoppedAsSpam(object, authorId, recipientIds, activity, options)) return;
 
@@ -4778,7 +4864,8 @@ export class ActivityProcessor {
   }
 
   /**
-   * Group invite: creates the conversation and notifies local recipients.
+   * Group invite: finds or creates the conversation, adds the local recipients missing from it and
+   * notifies those added.
    */
   private static async handleGroupInvite(
     object: any,
@@ -4788,14 +4875,13 @@ export class ActivityProcessor {
   ): Promise<void> {
     const supabase = getSupabaseClient();
 
-    const to: unknown[] = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
-    const resolveResults = await Promise.allSettled(
-      to.filter((url): url is string => typeof url === 'string')
-        .map(url => resolveProfileByActorUrl(url))
-    );
-    const recipientIds = resolveResults
-      .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value != null)
-      .map(r => r.value.id);
+    const { to } = audienceOf(object, activity);
+    if (to.length > MAX_DIRECT_RECIPIENTS) {
+      logDenied('group invite', normalizeActor(object.attributedTo), `${object.id} names ${to.length} recipients`);
+      return;
+    }
+    const recipients = await resolveRecipients(to);
+    const recipientIds = recipients.filter((r) => r.local).map((r) => r.id);
 
     if (recipientIds.length === 0) {
       logger.warn(`Group invite ${object.id} has no local recipients`);
@@ -4812,22 +4898,24 @@ export class ActivityProcessor {
 
     const remoteConversationId = object.metadata?.conversation_id || null;
 
-    const { data: conversationId, error: convError } = await supabase.rpc(
-      'get_or_create_federated_group_conversation',
-      {
-        p_actor_id: authorId,
-        p_local_recipient_ids: allowedIds,
-        p_remote_conversation_id: remoteConversationId,
-      }
-    );
+    const { data: invite, error: inviteError } = await supabase.rpc('apply_federated_group_invite', {
+      p_actor_id: authorId,
+      p_recipient_ids: allowedIds,
+      p_remote_conversation_id: remoteConversationId,
+    });
 
-    if (convError || !conversationId) {
-      logger.error('Failed to get/create group for invite:', convError);
+    if (inviteError) {
+      logger.error('Failed to apply group invite:', inviteError);
       return;
     }
     // A conversation found by remote id takes no invite from outside it.
-    if (!(await actorInConversation(supabase, conversationId, authorId))) {
-      logDenied('group invite', normalizeActor(object.attributedTo), `not a participant of ${conversationId}`);
+    if (!invite) {
+      logDenied('group invite', normalizeActor(object.attributedTo), `not a participant of ${remoteConversationId}`);
+      return;
+    }
+    const { conversation_id: conversationId, added } = invite as { conversation_id: string; added: string[] };
+    if (added.length === 0) {
+      logger.info(`Group invite ${object.id}: every recipient is in conversation ${conversationId}`);
       return;
     }
 
@@ -4839,7 +4927,7 @@ export class ActivityProcessor {
 
     const conversationName = object.metadata?.conversation_name || 'a group conversation';
 
-    for (const userId of allowedIds) {
+    for (const userId of added) {
       const { error: notifError } = await supabase.rpc('send_notification_to_user', {
         p_notification_type: 'dm',
         p_to_user_id: userId,
@@ -4863,7 +4951,7 @@ export class ActivityProcessor {
       });
       if (notifError) logger.warn('Failed to create invite notification:', notifError);
     }
-    logger.info(`Group invite processed: conversation ${conversationId}, ${allowedIds.length} recipient(s)`);
+    logger.info(`Group invite processed: conversation ${conversationId}, ${added.length} recipient(s)`);
   }
 
   /**
@@ -5031,8 +5119,11 @@ export class ActivityProcessor {
   /**
    * Delegates to the module-level `determineVisibility`.
    */
-  private static determineVisibility(object: any): string {
-    return determineVisibility(object);
+  private static determineVisibility(
+    object: any,
+    context: { activity?: any; followersUrl?: string | null } = {},
+  ): string {
+    return determineVisibility(object, context);
   }
 }
 

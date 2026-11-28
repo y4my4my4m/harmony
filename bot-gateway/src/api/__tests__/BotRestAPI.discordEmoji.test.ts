@@ -308,6 +308,22 @@ describe('GET /servers/:serverId/emojis/discord', () => {
     ])
   })
 
+  it('lists an emoji an instance admin purged as removed by a person, unless a row holds its Discord id', async () => {
+    const rows = [{ id: 'e1', name: 'a', url: stored('1'), discord_emoji_id: '1', deleted_at: null, bridge_removed_at: null }]
+    routeTables({
+      discord_bridges: { data: { id: 'b1' }, error: null },
+      emojis: { data: rows, error: null },
+      bridge_removed_assets: { data: [{ id: 'p1', name: 'rude', remote_id: '9' }, { id: 'p2', name: 'a', remote_id: '1' }], error: null },
+    })
+    mocks.rpc.mockResolvedValue({ data: 50, error: null })
+    const res = await get()
+    expect(res.status).toBe(200)
+    expect(res.body.emojis).toEqual([
+      { id: 'e1', name: 'a', url: stored('1'), discord_emoji_id: '1', removed: false, imported: true, restorable: false },
+      { id: 'p1', name: 'rude', url: null, discord_emoji_id: '9', removed: true, imported: false, restorable: false },
+    ])
+  })
+
   it('answers 500 when the emoji limit is missing', async () => {
     routeTables({ discord_bridges: { data: { id: 'b1' }, error: null }, emojis: { data: [], error: null } })
     mocks.rpc.mockResolvedValue({ data: null, error: null })

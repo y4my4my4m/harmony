@@ -620,6 +620,7 @@ const formatMessageTime = (timestamp: string): string => {
 }
 
 const getLastMessagePreview = (conversation: DMConversation): string => {
+  if (!conversation.last_message && conversation.preview_pending) return ''
   if (!conversation.last_message?.content) return 'No messages yet'
   
   try {
